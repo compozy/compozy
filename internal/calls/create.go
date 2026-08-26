@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -362,7 +363,7 @@ func (s *Service) activateFastPath(
 		Scope: task.Scope(record.Scope), WorkspaceID: record.WorkspaceID,
 	}, actor)
 	if err != nil {
-		if err == task.ErrNoClaimableRun {
+		if errors.Is(err, task.ErrNoClaimableRun) {
 			return record, nil
 		}
 		return CallRecord{}, fmt.Errorf("calls: claim activation %q: %w", record.ActivationRunID, err)

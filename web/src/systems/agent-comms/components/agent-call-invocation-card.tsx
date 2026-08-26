@@ -30,7 +30,7 @@ export function AgentCallInvocationCard({
   onOpenCallsPanel,
   "data-testid": testId,
 }: AgentCallInvocationCardProps) {
-  const { calls } = useCallsById(invocation.callIds, live);
+  const { calls, loading } = useCallsById(invocation.callIds, live);
 
   // The tool has not returned yet, so there is no record to read. Saying the ask
   // is in flight is honest; rendering an empty card would not be.
@@ -46,7 +46,17 @@ export function AgentCallInvocationCard({
     );
   }
 
-  if (calls.length === 0) return null;
+  if (calls.length === 0) {
+    return (
+      <p
+        className="text-form text-muted"
+        data-testid={testId}
+        data-tool-call-id={invocation.toolCallId}
+      >
+        {loading ? "Loading call records…" : "The call records are unavailable."}
+      </p>
+    );
+  }
 
   if (calls.length === 1) {
     return <AgentCallTurnCard call={calls[0]!} data-testid={testId} onOpenCall={onOpenCall} />;

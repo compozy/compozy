@@ -80,6 +80,10 @@ export function useAgentCall(callId: string, windowId: string) {
     contractRequired: Boolean(view?.expectDigest),
   });
 
+  const cancel = () => {
+    mutations.cancel.mutate({ callId, reason: "canceled from the call record" });
+  };
+
   return {
     ...detail,
     view,
@@ -89,10 +93,18 @@ export function useAgentCall(callId: string, windowId: string) {
       amount: childUsage.data?.total_cost ?? null,
       currency: childUsage.data?.cost_currency ?? null,
     },
-    cancel: () => {
-      mutations.cancel.mutate({ callId, reason: "canceled from the call record" });
-    },
+    cancel,
     cancelPending: mutations.cancel.isPending,
+    cancelFailure: mutations.cancel.isError
+      ? {
+          code: isAgentCommsApiError(mutations.cancel.error) ? mutations.cancel.error.code : null,
+          message:
+            mutations.cancel.error instanceof Error
+              ? mutations.cancel.error.message
+              : "The cancel request failed.",
+        }
+      : null,
+    retryCancel: cancel,
     // Every cancel answers, and every answer is said out loud. The daemon's
     // reply is idempotent and always carries the real terminal state, so a
     // cancel that lost a race is not an error — it is a different outcome than
@@ -123,7 +135,6 @@ export function useAgentCall(callId: string, windowId: string) {
     sendMessage: () => {
       if (childSessionId === "" || messageText.trim() === "") return;
       mutations.message.mutate({
-        invalidateCallId: callId,
         body: {
           call_id: callId,
           to: { session_id: childSessionId },

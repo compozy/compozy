@@ -250,7 +250,7 @@ INSERT INTO sessions (
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
-  runtime_selection_revision, workspace_id, worktree_id, session_type,
+  runtime_selection_revision, scope, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
@@ -266,35 +266,36 @@ INSERT INTO sessions (
   ?11, ?12, ?13,
   ?14, ?15,
   ?16, ?17, ?18,
-  ?19, ?20, ?21, ?22,
-  ?23,
-  ?24, ?25, ?26,
-  ?27, ?28, ?29, ?30,
-  ?31, ?32, ?33, ?34,
-  ?35, ?36, ?37, ?38,
-  ?39, ?40, ?41, ?42,
-  ?43, ?44, ?45,
-  ?46, ?47, ?48,
-  ?49, ?50, ?51,
-  ?52, ?53, ?54,
-  ?55, ?56, ?57,
-  ?58, ?59, ?60,
-  ?61, ?62,
-  ?63, ?64
-WHERE ?23 IS NULL
+  ?19, ?20, ?21,
+  ?22, ?23,
+  ?24,
+  ?25, ?26, ?27,
+  ?28, ?29, ?30, ?31,
+  ?32, ?33, ?34, ?35,
+  ?36, ?37, ?38, ?39,
+  ?40, ?41, ?42, ?43,
+  ?44, ?45, ?46,
+  ?47, ?48, ?49,
+  ?50, ?51, ?52,
+  ?53, ?54, ?55,
+  ?56, ?57, ?58,
+  ?59, ?60, ?61,
+  ?62, ?63,
+  ?64, ?65
+WHERE ?24 IS NULL
    OR EXISTS (
       SELECT 1
       FROM worktrees
-      WHERE worktrees.workspace_id = ?22
-        AND worktrees.id = ?23
+      WHERE worktrees.workspace_id = ?23
+        AND worktrees.id = ?24
         AND worktrees.state = 'ready'
    )
    OR EXISTS (
       SELECT 1
       FROM sessions AS existing_session
       WHERE existing_session.id = ?2
-        AND existing_session.workspace_id = ?22
-        AND existing_session.worktree_id IS ?23
+        AND existing_session.workspace_id = ?23
+        AND existing_session.worktree_id IS ?24
    )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -316,6 +317,7 @@ ON CONFLICT(id) DO UPDATE SET
 	selected_speed = excluded.selected_speed,
 	selected_acp_options_json = excluded.selected_acp_options_json,
 	runtime_selection_revision = excluded.runtime_selection_revision,
+	scope = excluded.scope,
   workspace_id = excluded.workspace_id,
 	worktree_id = excluded.worktree_id,
   session_type = excluded.session_type,
@@ -354,7 +356,8 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_last_sync_at = excluded.sandbox_last_sync_at,
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
-WHERE sessions.workspace_id = excluded.workspace_id
+WHERE sessions.scope = excluded.scope
+  AND sessions.workspace_id = excluded.workspace_id
   AND sessions.worktree_id IS excluded.worktree_id
   AND sessions.network_spec_json IS excluded.network_spec_json
   AND sessions.network_mode IS excluded.network_mode
@@ -384,6 +387,7 @@ type UpsertSessionParams struct {
 	SelectedSpeed            string         `json:"selected_speed"`
 	SelectedAcpOptionsJson   string         `json:"selected_acp_options_json"`
 	RuntimeSelectionRevision int64          `json:"runtime_selection_revision"`
+	Scope                    string         `json:"scope"`
 	WorkspaceID              string         `json:"workspace_id"`
 	WorktreeID               sql.NullString `json:"worktree_id"`
 	SessionType              string         `json:"session_type"`
@@ -452,6 +456,7 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.SelectedSpeed,
 		arg.SelectedAcpOptionsJson,
 		arg.RuntimeSelectionRevision,
+		arg.Scope,
 		arg.WorkspaceID,
 		arg.WorktreeID,
 		arg.SessionType,

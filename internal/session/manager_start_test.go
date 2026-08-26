@@ -13,7 +13,17 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/transcript"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+type globalSessionAgentResolver struct{}
+
+func (globalSessionAgentResolver) ResolveAgent(
+	name string,
+	_ *workspacepkg.ResolvedWorkspace,
+) (compozyconfig.AgentDef, error) {
+	return compozyconfig.AgentDef{Name: name, Provider: "claude", Prompt: "You are a coding assistant."}, nil
+}
 
 func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 	t.Parallel()
@@ -124,6 +134,46 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should create and resume a profile-owned global session without a workspace", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t, WithAgentResolver(globalSessionAgentResolver{}))
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{
+				DesiredSessionID: "sess-global-operator",
+				Global:           true,
+				AgentName:        "coder",
+				DisableSandbox:   true,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(global) error = %v", err)
+		}
+		if created.Scope != store.SessionScopeGlobal || created.WorkspaceID != "" || created.WorktreeID != "" {
+			t.Fatalf("CreateAccepted(global) = %#v, want profile-owned global scope", created)
+		}
+		live, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find global session", created.ID)
+		}
+		meta := readMeta(t, live.MetaPath())
+		if meta.Scope != store.SessionScopeGlobal || meta.WorkspaceID != "" {
+			t.Fatalf("global session metadata = %#v, want global scope without workspace", meta)
+		}
+
+		h.manager = newManagerWithHarness(t, h, WithAgentResolver(globalSessionAgentResolver{}))
+		resumed, err := h.manager.Resume(testutil.Context(t), created.ID)
+		if err != nil {
+			t.Fatalf("Resume(global) error = %v", err)
+		}
+		if info := resumed.Info(); info.Scope != store.SessionScopeGlobal || info.WorkspaceID != "" {
+			t.Fatalf("Resume(global) = %#v, want preserved global scope", info)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop(global) cleanup error = %v", err)
 		}
 	})
 

@@ -39,6 +39,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 			storeSessionRuntimeSelection(s.SelectedRuntime),
 			s.RuntimeSelectionRevision,
 		),
+		Scope:                s.Scope,
 		WorkspaceID:          s.WorkspaceID,
 		NetworkParticipation: participation.CloneSpec(s.NetworkParticipation),
 		SessionType:          string(normalizeSessionType(s.Type)),

@@ -113,7 +113,11 @@ export function UserMessage() {
   if (synthetic !== null) {
     return (
       <MessagePrimitive.Root className="flex w-full min-w-0 flex-col pt-1 pb-transcript-turn-gap">
-        <SessionSyntheticTurn synthetic={synthetic} content={message.content} />
+        <SessionSyntheticTurn
+          synthetic={synthetic}
+          content={message.content}
+          timestamp={message.createdAt.toISOString()}
+        />
       </MessagePrimitive.Root>
     );
   }

@@ -190,10 +190,10 @@ func stopSessionOperationSpec() OperationSpec {
 		Summary:     "Stop a session without deleting persisted history",
 		Tags:        []string{specSessionsKey},
 		Transports:  []Transport{TransportHTTP, TransportUDS},
-		Parameters: []ParameterSpec{
+		Parameters: withProfileSelector(
 			pathParam("workspace_id", "Workspace id"),
 			pathParam("session_id", "Session id"),
-		},
+		),
 		RequestBody:         contract.StopSessionRequest{},
 		RequestBodyOptional: true,
 		Responses: []ResponseSpec{

@@ -74,6 +74,7 @@ type Info struct {
 	SelectedRuntime          *RuntimeSelection
 	RuntimeSelectionRevision int64
 	EffectivePermissions     string
+	Scope                    store.SessionScope
 	WorkspaceID              string
 	Workspace                string
 	WorktreeID               string
@@ -141,6 +142,7 @@ type Session struct {
 	EffectivePermissions      string
 	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
 	providerHomePolicy        compozyconfig.ProviderHomePolicy
+	Scope                     store.SessionScope
 	WorkspaceID               string
 	Workspace                 string
 	WorktreeID                string

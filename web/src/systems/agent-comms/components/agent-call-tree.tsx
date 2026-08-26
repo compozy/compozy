@@ -22,25 +22,17 @@
  * The synthetic root is never rendered: it exists only to give the data-loader a
  * single entry point above the per-tree groups.
  */
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
 
-import { hotkeysCoreFeature, selectionFeature, syncDataLoaderFeature } from "@headless-tree/core";
-import { useTree } from "@headless-tree/react";
-import { useVirtualizer, type Virtualizer } from "@tanstack/react-virtual";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { Tree, TreeItem, TreeItemLabel } from "@compozy/ui";
 
 import { AgentCallTreeRootRow } from "./agent-call-tree-root-row";
 import { AgentCallTreeRow } from "./agent-call-tree-row";
+import { useAgentCallTree } from "./use-agent-call-tree";
 import type { CallCommsTree } from "../lib/agent-comms-tree";
 import type { ChildState } from "../types";
-import {
-  buildCallTreeDataSource,
-  callTreeNodeName,
-  isCallTreeFolder,
-  CALL_TREE_ROOT_ID,
-  type CallTreeNode,
-} from "../lib/agent-comms-tree-nodes";
 
 /**
  * Rows below this stay fully mounted.
@@ -78,7 +70,7 @@ export interface AgentCallTreeProps {
   selectedCallId?: string | null;
   onSelectCall: (callId: string) => void;
   /** Absent when the operator cannot drain trees. */
-  onStopSubtree?: (rootSessionId: string) => void;
+  onStopSubtree?: (rootSessionId: string, profileName: string) => void;
   pendingStopRootSessionId?: string | null;
   "data-testid"?: string;
 }
@@ -94,38 +86,10 @@ export function AgentCallTree({
   pendingStopRootSessionId = null,
   "data-testid": testId,
 }: AgentCallTreeProps) {
-  "use no memo";
-
-  const source = buildCallTreeDataSource(tree);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
   // The tree's `scrollToItem` seam needs the virtualizer, which needs the row
-  // list, which needs the tree. The holder breaks that cycle; it is filled after
-  // the first paint, well before any keystroke can arrive.
-  const scroller = useRef<{
-    virtualizer: Virtualizer<HTMLDivElement, Element> | null;
-    indexById: Map<string, number>;
-  }>({ virtualizer: null, indexById: new Map() });
-
-  const instance = useTree<CallTreeNode>({
-    rootItemId: CALL_TREE_ROOT_ID,
-    getItemName: item => callTreeNodeName(item.getItemData()),
-    isItemFolder: item => isCallTreeFolder(item.getItemData()),
-    // Everything opens expanded: the operator came here to see who is helping
-    // whom, and a wall of closed carets hides exactly that. Folding is theirs to
-    // do, and a folded header keeps escalating once they have.
-    initialState: { expandedItems: source.folderIds },
-    dataLoader: { getItem: source.getItem, getChildren: source.getChildren },
-    features: [syncDataLoaderFeature, selectionFeature, hotkeysCoreFeature],
-    onPrimaryAction: item => {
-      const node = item.getItemData();
-      if (node.kind === "call") onSelectCall(node.row.call.call_id);
-    },
-    scrollToItem: item => {
-      const index = scroller.current.indexById.get(item.getId());
-      if (index === undefined) return;
-      scroller.current.virtualizer?.scrollToIndex(index, { align: "auto" });
-    },
-  });
+  // list, which needs the tree. The holder returned by the hook breaks that
+  // cycle and is filled after the first paint, before a keystroke can arrive.
+  const { instance, viewportRef, scroller } = useAgentCallTree(tree, selectedCallId, onSelectCall);
 
   // The synthetic root is dropped here so every downstream index — virtualizer
   // and `scrollToItem` alike — refers to a row that actually renders.
@@ -157,8 +121,13 @@ export function AgentCallTree({
     if (node.kind === "group") {
       const counts = countsByRoot?.get(node.group.rootSessionId);
       return (
-        <TreeItem key={item.getId()} item={item} data-testid="agent-call-tree-group">
-          <TreeItemLabel item={item}>
+        <TreeItem
+          key={item.getId()}
+          item={item}
+          render={<div />}
+          data-testid="agent-call-tree-group"
+        >
+          <TreeItemLabel item={item} className="p-0">
             <AgentCallTreeRootRow
               rootSessionId={node.group.rootSessionId}
               rootLabel={rootLabels?.get(node.group.rootSessionId) ?? null}
@@ -168,7 +137,13 @@ export function AgentCallTree({
               escalation={node.group.escalation}
               stopPending={pendingStopRootSessionId === node.group.rootSessionId}
               {...(onStopSubtree
-                ? { onStopSubtree: () => onStopSubtree(node.group.rootSessionId) }
+                ? {
+                    onStopSubtree: () =>
+                      onStopSubtree(
+                        node.group.rootSessionId,
+                        node.group.rows[0]?.call.profile_name ?? ""
+                      ),
+                  }
                 : {})}
             />
           </TreeItemLabel>
@@ -182,7 +157,7 @@ export function AgentCallTree({
     // Adding a second would open the record twice per click.
     return (
       <TreeItem key={item.getId()} item={item} data-testid="agent-call-tree-row">
-        <TreeItemLabel item={item}>
+        <TreeItemLabel item={item} className="p-0 not-in-data-[folder=true]:ps-0">
           <AgentCallTreeRow
             row={node.row}
             depth={node.row.depth}
@@ -198,6 +173,7 @@ export function AgentCallTree({
     return (
       <Tree
         tree={instance}
+        indent={0}
         aria-label="Delegation activity"
         data-testid={testId}
         className="gap-0.5"
@@ -221,6 +197,7 @@ export function AgentCallTree({
     >
       <Tree
         tree={instance}
+        indent={0}
         aria-label="Delegation activity"
         data-testid={testId}
         data-virtualized="true"

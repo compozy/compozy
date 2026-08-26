@@ -270,4 +270,9 @@ describe("buildCallResultShape", () => {
     });
     expect(buildCallResultShape(undefined)).toEqual({ kind: "absent" });
   });
+
+  it("Should render valid empty containers instead of a blank result", () => {
+    expect(buildCallResultShape({})).toEqual({ kind: "scalar", value: "{}" });
+    expect(buildCallResultShape([])).toEqual({ kind: "scalar", value: "[]" });
+  });
 });

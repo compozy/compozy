@@ -69,9 +69,10 @@ function AgentInstructionsSection({
 interface AgentDetailContentProps {
   name: string;
   rawSearch: AgentDetailSearch;
+  windowId: string;
 }
 
-export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps) {
+export function AgentDetailLocation({ name, rawSearch, windowId }: AgentDetailContentProps) {
   const page = useAgentDetail(name, rawSearch);
   const search = page.search;
   const { runtimeWorkspaceId } = useActiveWorkspace();
@@ -216,7 +217,7 @@ export function AgentDetailLocation({ name, rawSearch }: AgentDetailContentProps
                 been asked lately. Both live on Overview rather than behind a tab:
                 asking an agent for something is the point of looking it up.
               */}
-              <AgentCallComposeSection agentName={page.agent.name} />
+              <AgentCallComposeSection agentName={page.agent.name} windowId={windowId} />
             </TabsContent>
 
             <TabsContent value="instructions" className="flex flex-col gap-6">

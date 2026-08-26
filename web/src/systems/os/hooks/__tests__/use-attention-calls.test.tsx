@@ -96,4 +96,24 @@ describe("useAttentionCalls", () => {
     expect(after.current.count).toBe(0);
     expect(after.current.rows).toEqual([]);
   });
+
+  it("Should load every attention page before building bell rows", async () => {
+    setAgentCommsMockCalls(
+      Array.from({ length: 130 }, (_, index) =>
+        buildCallFixture({
+          call_id: `call_attention_${index}`,
+          child_session_id: `ses_child_${index}`,
+          root_session_id: `ses_root_${index}`,
+          state: "invalid-result",
+          settled_at: "2026-08-20T18:30:00Z",
+          updated_at: "2026-08-20T18:30:00Z",
+        })
+      )
+    );
+    const { result } = setup();
+
+    await waitFor(() => expect(result.current.rows).toHaveLength(130));
+    expect(result.current.count).toBe(130);
+    expect(requests.filter(url => url.searchParams.get("attention") === "true").length).toBe(2);
+  });
 });

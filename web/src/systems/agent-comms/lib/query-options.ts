@@ -29,6 +29,7 @@ import {
   type CallsListFilter,
 } from "../adapters/agent-comms-api";
 import { AgentCommsApiError } from "../adapters/agent-comms-api-error";
+import { isTerminalCallState, toCallState } from "./call-state";
 import type { AgentCommsScope } from "./agent-comms-scope";
 import { agentCommsKeys } from "./query-keys";
 
@@ -119,13 +120,21 @@ export function callDetailOptions(
   scope: AgentCommsScope,
   callId: string,
   live: boolean,
-  enabled = true
+  enabled = true,
+  pollUntilTerminal = false
 ) {
   return queryOptions({
     queryKey: agentCommsKeys.callDetail(scope.workspaceId, scope.profileKey, callId),
     queryFn: ({ signal }) => fetchCall(scope.workspaceId, callId, scope.params, signal),
     staleTime: LIST_STALE_TIME,
-    refetchInterval: pollWhen(live, LIST_POLL_INTERVAL),
+    refetchInterval: query => {
+      if (live) return LIST_POLL_INTERVAL;
+      if (!pollUntilTerminal || query.state.status === "error" || query.state.error !== null) {
+        return false;
+      }
+      const state = toCallState(query.state.data?.state);
+      return state === null || !isTerminalCallState(state) ? LIST_POLL_INTERVAL : false;
+    },
     retry: shouldRetryDetailQuery,
     enabled: Boolean(scope.workspaceId) && Boolean(callId) && enabled,
   });

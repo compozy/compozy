@@ -246,6 +246,9 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 		}
 		return "", nil, nativeSessionOrchestrationError(id, err)
 	}
+	if strings.TrimSpace(info.ProfileID) != strings.TrimSpace(scope.ProfileID) {
+		return "", nil, nativeWorkspaceAccessDeniedError(id)
+	}
 	return target, info, nil
 }
 

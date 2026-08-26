@@ -24,20 +24,22 @@ import (
 // CreateOpts defines the inputs required to create a new session.
 type CreateOpts struct {
 	DesiredSessionID string
-	ProfileID        string
-	AgentName        string
-	Provider         string
-	Model            string
-	ReasoningEffort  string
-	Speed            speedpkg.Speed
-	ACPOptions       []acp.SessionConfigOptionSelection
-	CWD              string
-	SandboxRef       string
-	DisableSandbox   bool
-	Permissions      compozyconfig.PermissionMode
-	Name             string
-	Workspace        string
-	WorkspacePath    string
+	// Global creates an internal profile-owned logical session without a workspace.
+	Global          bool
+	ProfileID       string
+	AgentName       string
+	Provider        string
+	Model           string
+	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []acp.SessionConfigOptionSelection
+	CWD             string
+	SandboxRef      string
+	DisableSandbox  bool
+	Permissions     compozyconfig.PermissionMode
+	Name            string
+	Workspace       string
+	WorkspacePath   string
 	// Worktree names an existing ready worktree within the resolved parent workspace.
 	Worktree             string
 	NetworkParticipation *participation.Request

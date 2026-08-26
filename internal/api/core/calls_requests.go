@@ -57,7 +57,7 @@ func (h *BaseHandlers) createCallInputs(
 		return nil, false, err
 	}
 	items, batch := []contract.CreateCallItemRequest{req.CreateCallItemRequest}, false
-	if len(req.Tasks) > 0 {
+	if req.TasksPresent || len(req.Tasks) > 0 {
 		items, batch = req.Tasks, true
 		if hasInlineCallItem(req.CreateCallItemRequest) {
 			return nil, false, callRequestError(callspkg.CodeValidation, "tasks cannot be combined with inline call fields")
@@ -141,7 +141,10 @@ func (h *BaseHandlers) createCallInput(
 func hasInlineCallItem(item contract.CreateCallItemRequest) bool {
 	return item.Target.Agent != "" || item.Target.SessionID != "" || item.Prompt != "" || len(item.Expect) > 0 ||
 		item.IdleTTLSeconds != nil || item.DeadlineSeconds != nil || item.Strict || item.ResultBudget != "" ||
-		item.ResultOverflow != "" || item.IdempotencyKey != "" || item.Runtime != nil
+		item.ResultOverflow != "" || item.IdempotencyKey != "" || item.Runtime != nil ||
+		len(item.Narrow.Tools) > 0 || len(item.Narrow.Skills) > 0 || len(item.Narrow.MCPServers) > 0 ||
+		len(item.Narrow.WorkspacePaths) > 0 || len(item.Narrow.NetworkChannels) > 0 ||
+		len(item.Narrow.SandboxProfiles) > 0
 }
 
 func callRequestError(code callspkg.ErrorCode, message string) error {

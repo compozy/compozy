@@ -1597,6 +1597,62 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 	}
 }
 
+// Invariant: the pending delivery ceiling protects one recipient's backlog,
+// regardless of how many different senders contributed to it. Owning layer:
+// CallRepo message admission. Canonical suite: the GlobalDB calls integration
+// suite, which owns durable mailbox admission and delivery state.
+func TestGlobalDBCallMailboxPendingCapIsPerRecipient(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t)
+	database := openFreshTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t, database, "calls-mailbox-recipient-cap", filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	parentID := "ses_mailbox_cap_parent"
+	registerCallSession(t, database, store.SessionInfo{
+		ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
+		WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+		Lineage: &store.SessionLineage{
+			RootSessionID: parentID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+		}, CreatedAt: now, UpdatedAt: now,
+	})
+	for _, childID := range []string{"ses_mailbox_cap_child_a", "ses_mailbox_cap_child_b"} {
+		registerCallSession(t, database, store.SessionInfo{
+			ID: childID, ProfileID: store.DefaultProfileID, AgentName: "worker",
+			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parentID, RootSessionID: parentID, SpawnDepth: 1,
+				SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			}, CreatedAt: now, UpdatedAt: now,
+		})
+	}
+
+	admit := func(messageID, senderID string, offset time.Duration) error {
+		_, err := database.AcceptMessage(ctx, callspkg.MessageAdmission{
+			Record: callspkg.MessageRecord{
+				MessageID: messageID, ProfileID: store.DefaultProfileID,
+				Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+				From:        callspkg.MessageSender{Kind: "session", ID: senderID},
+				ToSessionID: parentID, Body: messageID, DedupHash: "hash_" + messageID,
+				CreatedAt: now.Add(offset),
+			},
+			Target: parentID, DedupWindow: time.Second, RateLimit: 10, PendingCap: 2,
+		})
+		return err
+	}
+	if err := admit("msg_cap_a", "ses_mailbox_cap_child_a", 0); err != nil {
+		t.Fatalf("AcceptMessage(first sender) error = %v", err)
+	}
+	if err := admit("msg_cap_b", "ses_mailbox_cap_child_b", time.Second); err != nil {
+		t.Fatalf("AcceptMessage(second sender) error = %v", err)
+	}
+	err := admit("msg_cap_c", "ses_mailbox_cap_child_a", 2*time.Second)
+	if !callspkg.IsCode(err, callspkg.CodeMessagePendingCap) {
+		t.Fatalf("AcceptMessage(third recipient delivery) error = %v, want %s", err, callspkg.CodeMessagePendingCap)
+	}
+}
+
 func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)

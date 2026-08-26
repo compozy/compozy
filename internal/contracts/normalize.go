@@ -11,18 +11,33 @@ import (
 )
 
 var schemaKeywords = map[string]struct{}{
-	"$defs": {}, "$id": {}, "$ref": {}, "$schema": {},
+	"$anchor": {}, "$comment": {}, "$defs": {}, "$dynamicAnchor": {}, "$dynamicRef": {},
+	"$id": {}, "$ref": {}, "$schema": {}, "$vocabulary": {},
 	schemaAdditionalProperties: {}, schemaAllOf: {}, schemaAnyOf: {}, "const": {},
 	schemaContains: {}, "contentEncoding": {}, "contentMediaType": {}, "default": {},
 	"dependentRequired": {}, schemaDependentSchemas: {}, "description": {}, schemaElse: {},
 	"enum": {}, "examples": {}, "exclusiveMaximum": {}, "exclusiveMinimum": {},
 	"format": {}, schemaIf: {}, schemaItems: {}, "maxItems": {}, "maxLength": {},
-	"maxProperties": {}, "maximum": {}, "minItems": {}, "minLength": {},
+	"maxContains": {}, "maxProperties": {}, "maximum": {}, "minContains": {},
+	"minItems": {}, "minLength": {},
 	"minProperties": {}, "minimum": {}, "multipleOf": {}, "not": {}, schemaOneOf: {},
 	"pattern": {}, schemaPatternProperties: {}, schemaPrefixItems: {}, schemaProperties: {},
 	schemaPropertyNames: {}, schemaRequired: {}, schemaThen: {}, "title": {}, schemaType: {},
-	schemaUnevaluatedProperties: {}, "x-compozy-kind": {},
+	"unevaluatedItems": {}, schemaUnevaluatedProperties: {}, "uniqueItems": {}, "x-compozy-kind": {},
 }
+
+// schemaFormMarkers are keywords that cannot be mistaken for the supported
+// shorthand scalar vocabulary. A lone "type" key is intentionally excluded:
+// {"type":"string"} is a shorthand object with a property named type.
+var schemaFormMarkers = func() map[string]struct{} {
+	markers := make(map[string]struct{}, len(schemaKeywords)-1)
+	for keyword := range schemaKeywords {
+		if keyword != schemaType {
+			markers[keyword] = struct{}{}
+		}
+	}
+	return markers
+}()
 
 func normalizeSchema(raw json.RawMessage) (json.RawMessage, error) {
 	trimmed := bytes.TrimSpace(raw)
@@ -90,15 +105,12 @@ func sortSchemaSets(value any) {
 }
 
 func isFullSchema(object map[string]any) bool {
-	if len(object) == 0 {
-		return false
-	}
 	for key := range object {
-		if _, ok := schemaKeywords[key]; !ok {
-			return false
+		if _, ok := schemaFormMarkers[key]; ok {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func shorthandObjectSchema(object map[string]any) map[string]any {

@@ -118,7 +118,7 @@ describe("DesktopMenubar attention navigation", () => {
     );
   }
 
-  it("Should open Activity from a delegation row, not the tasks app", async () => {
+  it("Should open the exact call from a singleton delegation row", async () => {
     // Without a `call` branch this row fell through to the tasks open and
     // navigated to `/tasks/call_bad`, a route that cannot resolve.
     const user = userEvent.setup();
@@ -129,7 +129,7 @@ describe("DesktopMenubar attention navigation", () => {
     expect(userOpen).toHaveBeenCalledTimes(1);
     expect(userOpen.mock.calls[0]![0]).toMatchObject({
       app: "agents",
-      route: { pathname: "/agents/activity" },
+      route: { pathname: "/agents/calls/call_bad" },
     });
   });
 
@@ -142,7 +142,10 @@ describe("DesktopMenubar attention navigation", () => {
 
     expect(userOpen.mock.calls[0]![0]).toMatchObject({
       app: "agents",
-      route: { pathname: "/agents/activity" },
+      route: {
+        pathname: "/agents/activity",
+        search: { root: "ses_root", call: "call_bad" },
+      },
     });
   });
 });

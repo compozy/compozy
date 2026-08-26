@@ -19,12 +19,16 @@ export async function drainCallSubtree(
   workspaceId: string,
   sessionId: string,
   reason: string,
+  profile?: string,
   signal?: AbortSignal
 ): Promise<StopSessionDrainResponse> {
   const { data, error, response } = await apiClient.POST(
     "/api/workspaces/{workspace_id}/sessions/{session_id}/stop",
     {
-      params: { path: { workspace_id: workspaceId, session_id: sessionId } },
+      params: {
+        path: { workspace_id: workspaceId, session_id: sessionId },
+        query: profile ? { profile } : {},
+      },
       body: { subtree: true, ...(reason ? { reason } : {}) },
       signal,
     }

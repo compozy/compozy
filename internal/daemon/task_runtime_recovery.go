@@ -194,6 +194,9 @@ func planTaskRunRecovery(
 	if run.IsNetworkWake() {
 		return planNetworkWakeRunRecovery(run), nil
 	}
+	if run.IsCallActivation() {
+		return nil, nil
+	}
 
 	evidence, err := inspectTaskSessionRecovery(ctx, sessions, strings.TrimSpace(run.SessionID))
 	if err != nil {

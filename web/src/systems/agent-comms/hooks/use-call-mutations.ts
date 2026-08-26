@@ -32,21 +32,19 @@ export function useCallMutations(scope: AgentCommsScope) {
   const queryClient = useQueryClient();
 
   /** Rows, counts, and one call's record all move together after a mutation. */
-  const invalidateScope = (callId?: string) => {
+  const invalidateScope = () => {
     void queryClient.invalidateQueries({
       queryKey: agentCommsKeys.callsRoot(scope.workspaceId, scope.profileKey),
     });
-    if (callId !== undefined) {
-      void queryClient.invalidateQueries({
-        queryKey: agentCommsKeys.callDetail(scope.workspaceId, scope.profileKey, callId),
-      });
-    }
+    void queryClient.invalidateQueries({
+      queryKey: agentCommsKeys.callDetails(scope.workspaceId, scope.profileKey),
+    });
   };
 
   const cancel = useMutation({
     mutationFn: ({ callId, reason }: { callId: string; reason?: string }) =>
       cancelCall(scope.workspaceId, callId, reason ? { reason } : {}, scope.actingProfile),
-    onSettled: (_data, _error, variables) => invalidateScope(variables.callId),
+    onSettled: () => invalidateScope(),
   });
 
   const create = useMutation({
@@ -56,21 +54,28 @@ export function useCallMutations(scope: AgentCommsScope) {
   });
 
   const message = useMutation({
-    mutationFn: ({ body }: { body: SendCallMessageRequest; invalidateCallId?: string }) =>
+    mutationFn: ({ body }: { body: SendCallMessageRequest }) =>
       sendCallMessage(scope.workspaceId, body, scope.actingProfile),
     // A message to a child can resolve that child's attention cause, so the
     // calls populations move too — not only the mailbox.
-    onSettled: (_data, _error, variables) => {
+    onSettled: () => {
       void queryClient.invalidateQueries({
         queryKey: agentCommsKeys.messagesRoot(scope.workspaceId, scope.profileKey),
       });
-      invalidateScope(variables.invalidateCallId);
+      invalidateScope();
     },
   });
 
   const drainSubtree = useMutation({
-    mutationFn: ({ sessionId, reason }: { sessionId: string; reason: string }) =>
-      drainCallSubtree(scope.workspaceId, sessionId, reason),
+    mutationFn: ({
+      sessionId,
+      reason,
+      profile,
+    }: {
+      sessionId: string;
+      reason: string;
+      profile: string;
+    }) => drainCallSubtree(scope.workspaceId, sessionId, reason, profile),
     onSettled: () => invalidateScope(),
   });
 

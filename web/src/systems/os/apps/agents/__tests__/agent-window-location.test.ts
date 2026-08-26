@@ -22,7 +22,11 @@ describe("parseAgentWindowLocation", () => {
     // The whole reason ordering matters: `/agents/$name` matches "activity" too,
     // and losing this race would render a detail page for an agent that does not
     // exist every time the operator opens Activity.
-    expect(at("/agents/activity")).toEqual({ kind: "activity" });
+    expect(at("/agents/activity")).toEqual({ kind: "activity", search: {} });
+    expect(at("/agents/activity", { root: "ses_root", call: "call_1", ignored: true })).toEqual({
+      kind: "activity",
+      search: { root: "ses_root", call: "call_1" },
+    });
   });
 
   it("Should resolve a call record before the agent-name segment", () => {

@@ -13,7 +13,7 @@ import (
 const defaultCallPublicationThread = "thread_calls"
 
 type daemonCallPublishBridge struct {
-	network coreNetworkSender
+	network func() coreNetworkSender
 }
 
 type coreNetworkSender interface {
@@ -26,7 +26,7 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 	ctx context.Context,
 	evidence callspkg.ResultEvidence,
 ) (string, error) {
-	if b == nil || b.network == nil {
+	if b == nil || b.network == nil || b.network() == nil {
 		return "", fmt.Errorf("daemon: Network is unavailable")
 	}
 	threadID := strings.TrimSpace(evidence.ThreadID)
@@ -48,7 +48,7 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 		return "", fmt.Errorf("daemon: encode call publication: %w", err)
 	}
 	messageID := strings.TrimSpace(evidence.MessageID)
-	return b.network.Send(ctx, network.SendRequest{
+	return b.network().Send(ctx, network.SendRequest{
 		SessionID:   strings.TrimSpace(evidence.SourceSessionID),
 		WorkspaceID: strings.TrimSpace(evidence.WorkspaceID),
 		Channel:     strings.TrimSpace(evidence.Channel),

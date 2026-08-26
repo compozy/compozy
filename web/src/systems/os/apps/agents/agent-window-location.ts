@@ -4,11 +4,12 @@ import {
   validateAgentSettingsSearch,
   validateAgentsFleetSearch,
 } from "@/systems/agent";
+import { validateAgentActivitySearch } from "./agent-activity-search";
 
 export type AgentWindowLocation =
   | { kind: "catalog"; search: ReturnType<typeof validateAgentsFleetSearch> }
   /** Delegation trees across the workspace, live. */
-  | { kind: "activity" }
+  | { kind: "activity"; search: ReturnType<typeof validateAgentActivitySearch> }
   /** One call's record. */
   | { kind: "call"; callId: string }
   | {
@@ -36,7 +37,7 @@ export function parseAgentWindowLocation(location: OsWindowRoute): AgentWindowLo
   // opening Activity would render a detail page for an agent named "activity".
   // Both must match before the dynamic segment gets a look.
   if (location.pathname === "/agents/activity") {
-    return { kind: "activity" };
+    return { kind: "activity", search: validateAgentActivitySearch(location.search) };
   }
 
   const callMatch = /^\/agents\/calls\/([^/]+)$/.exec(location.pathname);

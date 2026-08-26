@@ -300,12 +300,16 @@ func (d staticCallDirectory) ResolveCallTarget(context.Context, CreateInput) (Ta
 type fakeActivationClaimer struct {
 	mu       sync.Mutex
 	criteria []task.ClaimCriteria
+	claimErr error
 }
 
 func (c *fakeActivationClaimer) ClaimNextRun(_ context.Context, criteria task.ClaimCriteria, _ task.ActorContext) (*task.ClaimResult, error) {
 	c.mu.Lock()
 	c.criteria = append(c.criteria, criteria)
 	c.mu.Unlock()
+	if c.claimErr != nil {
+		return nil, c.claimErr
+	}
 	return &task.ClaimResult{
 		Run:        task.Run{ID: criteria.RunID, RunKind: task.RunKindCallActivation, WorkspaceID: criteria.WorkspaceID},
 		ClaimToken: "claim-token",
@@ -331,13 +335,14 @@ func (c *fakeActivationCanceler) CancelActivationRun(_ context.Context, runID st
 }
 
 type fakeSessionInvoker struct {
-	mu         sync.Mutex
-	spawns     []ChildSpec
-	revives    []string
-	deliveries []Delivery
-	stops      []string
-	spawnErr   error
-	deliverErr error
+	mu          sync.Mutex
+	spawns      []ChildSpec
+	revives     []string
+	deliveries  []Delivery
+	stops       []string
+	stopReasons []string
+	spawnErr    error
+	deliverErr  error
 }
 
 func (i *fakeSessionInvoker) SpawnChild(_ context.Context, spec ChildSpec) (SessionRef, error) {
@@ -367,9 +372,10 @@ func (i *fakeSessionInvoker) DeliverAtBoundary(_ context.Context, delivery Deliv
 	return DeliveryOutcome{State: "queued"}, nil
 }
 
-func (i *fakeSessionInvoker) StopManaged(_ context.Context, sessionID string, _ string) error {
+func (i *fakeSessionInvoker) StopManaged(_ context.Context, sessionID string, reason string) error {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	i.stops = append(i.stops, sessionID)
+	i.stopReasons = append(i.stopReasons, reason)
 	return nil
 }

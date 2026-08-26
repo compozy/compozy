@@ -200,6 +200,7 @@ describe("buildCallTree — nesting for the tree primitive", () => {
     expect(tree.rowsByCallId.get("call_again")!.childCallIds).toEqual([]);
     // Still exactly three rows — the shared subtree is not duplicated.
     expect(tree.groups[0]!.rows).toHaveLength(3);
+    expect(tree.cyclicSessionIds.size).toBe(0);
   });
 
   it("Should index every row by call id, orphans included", () => {

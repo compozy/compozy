@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 
 import { createOsRouteSync } from "@/systems/os";
+import { validateAgentActivitySearch } from "@/systems/os/apps/agents/agent-activity-search";
 
 /**
  * The Activity location of the Agents app.
@@ -14,5 +15,6 @@ import { createOsRouteSync } from "@/systems/os";
  * lenses, and adding a second way to scope it would be a second source of truth.
  */
 export const Route = createFileRoute("/_app/agents/activity")({
+  validateSearch: validateAgentActivitySearch,
   component: createOsRouteSync("agents"),
 });

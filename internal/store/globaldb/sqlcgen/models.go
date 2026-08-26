@@ -1941,6 +1941,7 @@ type SessionInputQueue struct {
 	Mode                     string         `json:"mode"`
 	Delivery                 string         `json:"delivery"`
 	Text                     string         `json:"text"`
+	PromptMetaJson           string         `json:"prompt_meta_json"`
 	SkillInvocationsJson     string         `json:"skill_invocations_json"`
 	AttachmentsJson          string         `json:"attachments_json"`
 	RuntimeProvider          string         `json:"runtime_provider"`
@@ -2012,6 +2013,7 @@ type SessionPromptAdmission struct {
 	State                  string         `json:"state"`
 	Mode                   string         `json:"mode"`
 	AuthoredText           string         `json:"authored_text"`
+	PromptMetaJson         string         `json:"prompt_meta_json"`
 	SkillInvocationsJson   string         `json:"skill_invocations_json"`
 	AttachmentsJson        string         `json:"attachments_json"`
 	RuntimeProvider        string         `json:"runtime_provider"`

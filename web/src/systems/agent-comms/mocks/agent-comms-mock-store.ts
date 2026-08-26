@@ -91,11 +91,11 @@ function slice<T>(matched: readonly T[], params: URLSearchParams) {
 }
 
 export interface AgentCommsMockStore {
-  pageCalls(url: URL): CallsPage;
-  pageMessages(url: URL): MessagesPage;
-  findCall(callId: string): CallPayload | undefined;
+  pageCalls(workspaceId: string, url: URL): CallsPage;
+  pageMessages(workspaceId: string, url: URL): MessagesPage;
+  findCall(workspaceId: string, url: URL, callId: string): CallPayload | undefined;
   /** Cancel is idempotent: a settled call answers with its terminal state. */
-  cancelCall(callId: string): string | undefined;
+  cancelCall(workspaceId: string, url: URL, callId: string): string | undefined;
   addCall(call: CallPayload): void;
   addMessage(message: CallMessagePayload): void;
   setCalls(next: readonly CallPayload[]): void;
@@ -108,27 +108,35 @@ export function createAgentCommsMockStore(dataset: AgentCommsDataset = {}): Agen
   let messages: CallMessagePayload[] = [...(dataset.messages ?? [])];
 
   return {
-    pageCalls(url) {
+    pageCalls(workspaceId, url) {
       const params = url.searchParams;
-      const matched = calls.filter(call => matchesCallFilters(call, params, calls, messages));
+      const scoped = calls.filter(call => matchesOwner(call, workspaceId, params));
+      const scopedMessages = messages.filter(message => matchesOwner(message, workspaceId, params));
+      const matched = scoped.filter(call =>
+        matchesCallFilters(call, params, scoped, scopedMessages)
+      );
       // Count the whole filtered set, then page it — the same order the daemon
       // uses (`SELECT COUNT(*)` over the filter, cursor applied afterwards).
       return { total: matched.length, ...slice(matched, params) };
     },
-    pageMessages(url) {
+    pageMessages(workspaceId, url) {
       const params = url.searchParams;
       const session = params.get("session");
-      const matched = messages.filter(
-        message => session === null || message.to_session_id === session
-      );
+      const matched = messages
+        .filter(message => matchesOwner(message, workspaceId, params))
+        .filter(message => session === null || message.to_session_id === session);
       // No `total`: the mailbox page is uncounted by contract.
       return slice(matched, params);
     },
-    findCall(callId) {
-      return calls.find(call => call.call_id === callId);
+    findCall(workspaceId, url, callId) {
+      return calls.find(
+        call => call.call_id === callId && matchesOwner(call, workspaceId, url.searchParams)
+      );
     },
-    cancelCall(callId) {
-      const call = calls.find(item => item.call_id === callId);
+    cancelCall(workspaceId, url, callId) {
+      const call = calls.find(
+        item => item.call_id === callId && matchesOwner(item, workspaceId, url.searchParams)
+      );
       if (!call) return undefined;
       const state = call.state === "queued" || call.state === "running" ? "canceled" : call.state;
       calls = calls.map(item => (item.call_id === callId ? { ...item, state } : item));
@@ -150,4 +158,17 @@ export function createAgentCommsMockStore(dataset: AgentCommsDataset = {}): Agen
       return calls;
     },
   };
+}
+
+function matchesOwner(
+  record:
+    | Pick<CallPayload, "workspace_id" | "profile_name">
+    | Pick<CallMessagePayload, "workspace_id" | "profile_name">,
+  workspaceId: string,
+  params: URLSearchParams
+): boolean {
+  if ((record.workspace_id ?? "") !== workspaceId) return false;
+  if (params.get("all_profiles") === "true") return true;
+  const profile = params.get("profile") ?? "default";
+  return record.profile_name === profile;
 }

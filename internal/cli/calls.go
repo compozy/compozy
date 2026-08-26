@@ -93,7 +93,7 @@ func (flags *callCreateFlags) request(target, prompt string) (contract.CreateCal
 		},
 	}
 	target = strings.TrimSpace(target)
-	if strings.HasPrefix(target, "ses_") {
+	if strings.HasPrefix(target, "ses_") || strings.HasPrefix(target, "sess-") {
 		item.Target.SessionID = target
 	} else {
 		item.Target.Agent = target

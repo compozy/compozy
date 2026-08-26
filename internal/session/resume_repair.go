@@ -97,54 +97,41 @@ func (m *Manager) validateInfrastructure(ctx context.Context, meta store.Session
 		})
 	}
 
-	resolver, resolverErr := m.requireWorkspaceResolver()
-	if resolverErr != nil {
+	resolvedWorkspace, workspaceErr := m.resolveResumeWorkspace(ctx, meta)
+	if workspaceErr != nil {
 		errs = append(errs, resumeValidationError{
 			check: resumeValidationCheckWorkspace,
-			err:   resolverErr,
+			err:   workspaceErr,
 		})
 	} else {
-		resolvedWorkspace, err := resolver.Resolve(ctx, strings.TrimSpace(meta.WorkspaceID))
-		if err != nil {
+		if statErr := validateWorkspaceRoot(resolvedWorkspace.RootDir); statErr != nil {
 			errs = append(errs, resumeValidationError{
 				check: resumeValidationCheckWorkspace,
 				err: fmt.Errorf(
-					"session: resolve workspace %q for session %q: %w",
-					strings.TrimSpace(meta.WorkspaceID),
+					"session: validate workspace root %q for session %q: %w",
+					strings.TrimSpace(resolvedWorkspace.RootDir),
 					strings.TrimSpace(meta.ID),
-					err,
+					statErr,
 				),
 			})
-		} else {
-			if statErr := validateWorkspaceRoot(resolvedWorkspace.RootDir); statErr != nil {
-				errs = append(errs, resumeValidationError{
-					check: resumeValidationCheckWorkspace,
-					err: fmt.Errorf(
-						"session: validate workspace root %q for session %q: %w",
-						strings.TrimSpace(resolvedWorkspace.RootDir),
-						strings.TrimSpace(meta.ID),
-						statErr,
-					),
-				})
-			}
+		}
 
-			if agentErr := m.validateResumeAgent(
-				meta.AgentName,
-				meta.Provider,
-				normalizeSessionType(Type(meta.SessionType)),
-				&resolvedWorkspace,
-			); agentErr != nil {
-				errs = append(errs, resumeValidationError{
-					check: resumeValidationCheckAgent,
-					err: fmt.Errorf(
-						"session: validate agent %q with provider %q for session %q: %w",
-						strings.TrimSpace(meta.AgentName),
-						strings.TrimSpace(meta.Provider),
-						strings.TrimSpace(meta.ID),
-						agentErr,
-					),
-				})
-			}
+		if agentErr := m.validateResumeAgent(
+			meta.AgentName,
+			meta.Provider,
+			normalizeSessionType(Type(meta.SessionType)),
+			&resolvedWorkspace,
+		); agentErr != nil {
+			errs = append(errs, resumeValidationError{
+				check: resumeValidationCheckAgent,
+				err: fmt.Errorf(
+					"session: validate agent %q with provider %q for session %q: %w",
+					strings.TrimSpace(meta.AgentName),
+					strings.TrimSpace(meta.Provider),
+					strings.TrimSpace(meta.ID),
+					agentErr,
+				),
+			})
 		}
 	}
 

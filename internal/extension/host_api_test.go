@@ -93,6 +93,24 @@ func (s *hostAPICallsReaderStub) Result(
 	return callspkg.ResultPayload{}, nil
 }
 
+func (s *hostAPICallsReaderStub) Prompt(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.PromptPayload, error) {
+	s.reads.Add(1)
+	return callspkg.PromptPayload{}, nil
+}
+
+func (s *hostAPICallsReaderStub) Superseded(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+) (callspkg.ResultPayload, error) {
+	s.reads.Add(1)
+	return callspkg.ResultPayload{}, nil
+}
+
 func (s *hostAPICallsReaderStub) ListMessages(
 	context.Context,
 	callspkg.MessageListQuery,
@@ -392,8 +410,10 @@ func TestHostAPIHandlerCallsReadConsent(t *testing.T) {
 		env.handler.calls = reader
 		env.grant("ext-denied-calls", nil, nil)
 		for _, method := range []string{"calls/list", "calls/get", "calls/result", "messages/list"} {
-			_, err := env.call(t, "ext-denied-calls", method, map[string]any{"call_id": "missing"})
-			assertCapabilityDenied(t, err, method)
+			t.Run("Should deny "+method, func(t *testing.T) {
+				_, err := env.call(t, "ext-denied-calls", method, map[string]any{"call_id": "missing"})
+				assertCapabilityDenied(t, err, method)
+			})
 		}
 		if got := reader.reads.Load(); got != 0 {
 			t.Fatalf("calls reader invocations = %d, want zero before consent", got)

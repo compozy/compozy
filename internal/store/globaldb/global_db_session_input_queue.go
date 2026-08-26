@@ -366,6 +366,7 @@ func insertSessionInputQueueEntry(
 		Mode:                   normalized.Mode,
 		Delivery:               normalized.Delivery,
 		Text:                   normalized.Text,
+		PromptMetaJson:         string(normalized.PromptMeta),
 		SkillInvocationsJson:   string(skillInvocationsJSON),
 		AttachmentsJson:        attachmentsJSON,
 		RuntimeProvider:        normalized.Runtime.Provider,

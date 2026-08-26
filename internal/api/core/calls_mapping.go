@@ -37,6 +37,7 @@ type callPayloadContent struct {
 	ResultPreview     json.RawMessage
 	SupersededPreview json.RawMessage
 	SupersededBytes   int
+	IdleExpiresAt     *time.Time
 }
 
 func (h *BaseHandlers) callPayloadContent(
@@ -49,6 +50,13 @@ func (h *BaseHandlers) callPayloadContent(
 		WorkspaceID: record.WorkspaceID,
 	}
 	content := callPayloadContent{}
+	if childID := strings.TrimSpace(record.ChildSessionID); childID != "" && h.Sessions != nil {
+		info, err := h.Sessions.Status(ctx, childID)
+		if err != nil {
+			return callPayloadContent{}, err
+		}
+		content.IdleExpiresAt = info.IdleExpiresAt
+	}
 	if strings.TrimSpace(record.PromptRef) != "" {
 		prompt, err := h.Calls.Prompt(ctx, query, record.CallID)
 		if err != nil {
@@ -92,7 +100,8 @@ func callPayload(
 		ResultPreview: cloneCallJSON(content.ResultPreview),
 		ResultBytes:   record.ResultBytes, ResultBudget: record.ResultBudget.MaxBytes,
 		ResultOverflow: string(record.ResultBudget.Overflow), Strict: record.Strict,
-		IdleTTLSeconds: durationSeconds(record.IdleTTL), FailureCode: record.FailureCode,
+		IdleTTLSeconds: durationSeconds(record.IdleTTL), IdleExpiresAt: content.IdleExpiresAt,
+		FailureCode:   record.FailureCode,
 		FailureDetail: record.FailureDetail, FirstIssueText: record.FirstIssueText,
 		SecondIssueText: record.SecondIssueText, FinalProsePreview: record.FinalProsePreview,
 		SupersededPreview: cloneCallJSON(content.SupersededPreview), SupersededBytes: content.SupersededBytes,
@@ -121,11 +130,19 @@ func boundedCallTextPreview(value string, maxBytes int) string {
 	return preview
 }
 
-func callCreatePayload(record callspkg.CallRecord) contract.CallCreatePayload {
-	return contract.CallCreatePayload{
+func (h *BaseHandlers) callCreatePayload(ctx context.Context, record callspkg.CallRecord) (contract.CallCreatePayload, error) {
+	payload := contract.CallCreatePayload{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		State: string(record.State), Replayed: record.Replayed,
 	}
+	if childID := strings.TrimSpace(record.ChildSessionID); childID != "" && h.Sessions != nil {
+		info, err := h.Sessions.Status(ctx, childID)
+		if err != nil {
+			return contract.CallCreatePayload{}, err
+		}
+		payload.IdleExpiresAt = info.IdleExpiresAt
+	}
+	return payload, nil
 }
 
 func (h *BaseHandlers) callMessagePayloads(

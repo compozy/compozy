@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -269,6 +270,28 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		repeated, err := service.Cancel(context.Background(), record.CallID, "again", record.Actor)
 		if err != nil || repeated.State != StateCanceled || len(invoker.stops) != 1 {
 			t.Fatalf("Cancel(repeated) = %#v error=%v stops=%d", repeated, err, len(invoker.stops))
+		}
+	})
+
+	t.Run("Should redact cancellation diagnostics before persistence and child stop", func(t *testing.T) {
+		t.Parallel()
+		service, _, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		record, err := service.Create(context.Background(), validCreateInput("work", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		canceled, err := service.Cancel(
+			context.Background(),
+			record.CallID,
+			"operator supplied COMPOZY_CLAIM_secret-value",
+			record.Actor,
+		)
+		if err != nil {
+			t.Fatalf("Cancel() error = %v", err)
+		}
+		if strings.Contains(canceled.FailureDetail, "secret-value") || len(invoker.stopReasons) != 1 ||
+			strings.Contains(invoker.stopReasons[0], "secret-value") {
+			t.Fatalf("Cancel() detail=%q stop reasons=%q, want sanitized diagnostics", canceled.FailureDetail, invoker.stopReasons)
 		}
 	})
 

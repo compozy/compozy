@@ -58,7 +58,7 @@ func (s *Service) invokeClaimedActivation(
 		}
 		failed, settleErr := s.store.FailActivation(ctx, ActivationFailure{
 			CallID: record.CallID, RunID: activation.RunID, ClaimToken: claim.ClaimToken,
-			Code: failureCode, Detail: invokeErr.Error(), FailedAt: s.now().UTC(),
+			Code: failureCode, Detail: sanitizeDiagnostic(invokeErr.Error(), "activation failed"), FailedAt: s.now().UTC(),
 		})
 		if settleErr != nil {
 			releaseErr := s.releaseActivationClaim(ctx, claim, "activation settlement failed")

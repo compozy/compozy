@@ -3,6 +3,7 @@ package core
 import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/contracts"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -65,9 +66,13 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		})
 	}
 	disabledSkills := append([]string(nil), agent.Skills.Disabled...)
+	description, _, rejectDescription := contracts.SanitizeText(agent.Description)
+	if rejectDescription {
+		description = "[REDACTED]"
+	}
 	return contract.AgentPayload{
 		Name:             agent.Name,
-		Description:      agent.Description,
+		Description:      description,
 		Scope:            string(entry.Origin),
 		Shadowed:         false,
 		Provider:         agent.Provider,

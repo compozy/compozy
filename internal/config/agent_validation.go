@@ -6,6 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/compozy/compozy/internal/contracts"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/reasoning"
 )
@@ -26,6 +27,9 @@ func (a AgentDef) Validate() error {
 			AgentDescriptionMaxCharacters,
 			count,
 		)
+	}
+	if _, redactions, _ := contracts.SanitizeText(a.Description); len(redactions) > 0 {
+		return errors.New("agent.description contains secret material")
 	}
 	if err := ValidateAgentName(a.Name); err != nil {
 		return err

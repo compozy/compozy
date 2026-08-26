@@ -127,6 +127,14 @@ describe("Tree", () => {
     expect(screen.getByTestId("tree-item-folder")).toHaveAttribute("type", "button");
   });
 
+  it("Should not leak button-only attributes onto a custom item element", () => {
+    render(<TreeHarness itemProps={{ render: <div /> }} />);
+
+    const folder = screen.getByTestId("tree-item-folder");
+    expect(folder.tagName).toBe("DIV");
+    expect(folder).not.toHaveAttribute("type");
+  });
+
   it("Should offset each level by the indent so depth is visible, not implied", () => {
     render(<TreeHarness />);
 

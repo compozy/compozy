@@ -57,22 +57,28 @@ func TestDeriveConsentAreas(t *testing.T) {
 
 		methods := []string{"calls/list", "calls/get", "calls/result", "messages/list"}
 		for _, method := range methods {
-			contract, ok := extensioncontract.PermissionContractForMethod(method)
-			if !ok {
-				t.Fatalf("PermissionContractForMethod(%q) missing", method)
-			}
-			if contract.Area != "calls" || contract.Access != "read" || contract.Capability != "calls:read" {
-				t.Fatalf("PermissionContractForMethod(%q) = %#v", method, contract)
-			}
+			t.Run("Should map and enforce "+method, func(t *testing.T) {
+				t.Parallel()
+				contract, ok := extensioncontract.PermissionContractForMethod(method)
+				if !ok {
+					t.Fatalf("PermissionContractForMethod(%q) missing", method)
+				}
+				if contract.Area != "calls" || contract.Access != "read" || contract.Capability != "calls:read" {
+					t.Fatalf("PermissionContractForMethod(%q) = %#v", method, contract)
+				}
 
-			allowed := newTestCapabilityChecker("ext", SourceUser, []string{method})
-			if err := allowed.Check("ext", "calls:read"); err != nil {
-				t.Fatalf("Check(%q calls:read) error = %v", method, err)
-			}
-			denied := newTestCapabilityChecker("ext", SourceUser, nil)
-			if err := denied.Check("ext", "calls:read"); err == nil {
-				t.Fatalf("Check(%q calls:read) error = nil without permission", method)
-			}
+				allowed := newTestCapabilityChecker("ext", SourceUser, []string{method})
+				if err := allowed.Check("ext", "calls:read"); err != nil {
+					t.Fatalf("Check(%q calls:read) error = %v", method, err)
+				}
+				deniedChecker := newTestCapabilityChecker("ext", SourceUser, nil)
+				err := deniedChecker.Check("ext", "calls:read")
+				denied, ok := errors.AsType[*ErrCapabilityDenied](err)
+				if !ok || denied.Data.Method != "calls:read" ||
+					!slices.Equal(denied.Data.Required, []string{"calls:read"}) {
+					t.Fatalf("Check(%q calls:read) error = %#v, want typed calls:read denial", method, err)
+				}
+			})
 		}
 	})
 }

@@ -25,9 +25,11 @@ function turnText(content: unknown): string {
 export function SessionSyntheticTurn({
   synthetic,
   content,
+  timestamp,
 }: {
   synthetic: SyntheticTurn;
   content: unknown;
+  timestamp: string;
 }) {
   const navigate = useNavigate();
   return (
@@ -37,6 +39,7 @@ export function SessionSyntheticTurn({
         void navigate({ to: "/agents/calls/$callId", params: { callId } });
       }}
       text={turnText(content)}
+      timestamp={timestamp}
       turn={synthetic}
     />
   );

@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/contracts"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	looppkg "github.com/compozy/compozy/internal/loop"
@@ -1442,6 +1443,14 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		taskRecord := taskRecordForTest("task-definition-create-rollback")
 		profile := taskpkg.DefaultExecutionProfile(taskRecord.ID)
+		contractSchema, err := contracts.NormalizeSchema(json.RawMessage(`{"answer":"string"}`))
+		if err != nil {
+			t.Fatalf("NormalizeSchema() error = %v", err)
+		}
+		contract := contracts.Contract{
+			Digest: contracts.OutputRefForPayload(contractSchema),
+			Schema: contractSchema,
+		}
 		event := taskpkg.Event{
 			ID:        "event-definition-create-rollback",
 			TaskID:    taskRecord.ID,
@@ -1455,8 +1464,8 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		globalDB.SetTaskEventCommitObserver(observer)
 		installTaskEventInsertFailureTriggerForType(t, globalDB, event.EventType)
 
-		err := globalDB.CreateTaskDefinition(ctx, taskpkg.CreateTaskDefinitionMutation{
-			Task: taskRecord, Profile: &profile, Events: []taskpkg.Event{event},
+		err = globalDB.CreateTaskDefinition(ctx, taskpkg.CreateTaskDefinitionMutation{
+			Task: taskRecord, Contract: &contract, Profile: &profile, Events: []taskpkg.Event{event},
 		})
 		assertForcedTaskEventInsertError(t, err, "CreateTaskDefinition()")
 		if _, err = globalDB.GetTask(ctx, taskRecord.ID); !errors.Is(err, taskpkg.ErrTaskNotFound) {
@@ -1470,6 +1479,9 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		}
 		if got := len(observer.records); got != 0 {
 			t.Fatalf("len(observer.records) after rollback = %d, want 0", got)
+		}
+		if _, err = globalDB.GetContract(ctx, contract.Digest); !errors.Is(err, contracts.ErrContractNotFound) {
+			t.Fatalf("GetContract(after rollback) error = %v, want %v", err, contracts.ErrContractNotFound)
 		}
 	})
 

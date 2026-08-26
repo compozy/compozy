@@ -127,6 +127,15 @@ describe("callIdsFromToolResult", () => {
     ).toEqual(["call_1"]);
   });
 
+  it("Should unwrap native tool envelopes and their batch items", () => {
+    expect(callIdsFromToolResult({ type: "json", raw: { call_id: "call_1" } })).toEqual(["call_1"]);
+    expect(
+      callIdsFromToolResult({
+        raw: { raw_output: { items: [{ call: { call_id: "call_2" } }, { call_id: "call_3" }] } },
+      })
+    ).toEqual(["call_2", "call_3"]);
+  });
+
   it("Should skip batch items that failed, because they have no record to open", () => {
     expect(
       callIdsFromToolResult({

@@ -18,6 +18,7 @@
  * Rows survive a stale stream (the operator can still jump from a frozen row);
  * staleness travels with them so they contribute nothing to any count.
  */
+import { useEffect } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import {
@@ -59,6 +60,28 @@ export function useAttentionCalls(
   const open = useInfiniteQuery(
     callsListOptions(scope, { state: OPEN_STATES, limit: ROW_LIMIT }, active, active)
   );
+  const {
+    fetchNextPage: fetchNextNeedsYouPage,
+    hasNextPage: hasNextNeedsYouPage,
+    isFetchingNextPage: isFetchingNextNeedsYouPage,
+  } = needsYou;
+  const {
+    fetchNextPage: fetchNextOpenPage,
+    hasNextPage: hasNextOpenPage,
+    isFetchingNextPage: isFetchingNextOpenPage,
+  } = open;
+
+  useEffect(() => {
+    if (hasNextNeedsYouPage && !isFetchingNextNeedsYouPage) {
+      void fetchNextNeedsYouPage();
+    }
+  }, [fetchNextNeedsYouPage, hasNextNeedsYouPage, isFetchingNextNeedsYouPage]);
+
+  useEffect(() => {
+    if (hasNextOpenPage && !isFetchingNextOpenPage) {
+      void fetchNextOpenPage();
+    }
+  }, [fetchNextOpenPage, hasNextOpenPage, isFetchingNextOpenPage]);
 
   const blockedSessionIds = new Set<string>();
   for (const session of sessions) {

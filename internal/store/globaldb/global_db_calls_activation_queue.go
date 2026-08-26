@@ -149,7 +149,12 @@ func (g *CallRepo) ReconcileActivations(ctx context.Context, at time.Time) (root
 	err = g.tasks.withTaskImmediateTransaction(ctx, "reconcile call activations", func(exec taskSQLExecutor) error {
 		formatted := store.FormatTimestamp(at)
 		if _, err := exec.ExecContext(ctx, `UPDATE calls SET state = 'queued', started_at = NULL, updated_at = ?
-			WHERE state = 'running' AND child_session_id IS NULL AND activation_run_id IN (
+			WHERE state = 'running' AND (
+				child_session_id IS NULL OR EXISTS (
+					SELECT 1 FROM call_activation_runs revive
+					WHERE revive.run_id = calls.activation_run_id AND revive.activation_kind = 'revive'
+				)
+			) AND activation_run_id IN (
 				SELECT id FROM task_runs WHERE run_kind = 'call_activation' AND status IN ('claimed','starting','running')
 			)`, formatted); err != nil {
 			return fmt.Errorf("store: reset interrupted calls: %w", err)
@@ -159,8 +164,31 @@ func (g *CallRepo) ReconcileActivations(ctx context.Context, at time.Time) (root
 			heartbeat_at = NULL, claimed_at = NULL, started_at = NULL, session_id = NULL
 			WHERE run_kind = 'call_activation' AND status IN ('claimed','starting','running')
 			AND EXISTS (SELECT 1 FROM calls c WHERE c.activation_run_id = task_runs.id
-				AND c.state = 'queued' AND c.child_session_id IS NULL)`); err != nil {
+				AND c.state = 'queued' AND (
+					c.child_session_id IS NULL OR EXISTS (
+						SELECT 1 FROM call_activation_runs revive
+						WHERE revive.run_id = task_runs.id AND revive.activation_kind = 'revive'
+					)
+				))`); err != nil {
 			return fmt.Errorf("store: requeue interrupted call activations: %w", err)
+		}
+		if _, err := exec.ExecContext(ctx, `UPDATE calls SET
+			state = CASE WHEN (
+				SELECT error FROM task_runs WHERE id = calls.activation_run_id
+			) = 'call deadline elapsed' THEN 'timeout' ELSE 'canceled' END,
+			failure_code = CASE WHEN (
+				SELECT error FROM task_runs WHERE id = calls.activation_run_id
+			) = 'call deadline elapsed' THEN 'call_timeout' ELSE 'call_canceled' END,
+			failure_detail = CASE WHEN (
+				SELECT error FROM task_runs WHERE id = calls.activation_run_id
+			) = 'subtree drain' THEN 'subtree drained' ELSE COALESCE((
+				SELECT error FROM task_runs WHERE id = calls.activation_run_id
+			), 'activation canceled') END,
+			settled_at = ?, updated_at = ?
+			WHERE state IN ('queued','running') AND activation_run_id IN (
+				SELECT id FROM task_runs WHERE run_kind = 'call_activation' AND status = 'canceled'
+			)`, formatted, formatted); err != nil {
+			return fmt.Errorf("store: settle interrupted canceled call activations: %w", err)
 		}
 		return nil
 	})

@@ -99,6 +99,9 @@ export function buildCallResultShape(preview: unknown): CallResultShape {
   if (!isPlainObject(preview) && !Array.isArray(preview)) {
     return { kind: "scalar", value: encodeScalar(preview) };
   }
+  if (Object.keys(preview).length === 0) {
+    return { kind: "scalar", value: encodeScalar(preview) };
+  }
   const state: FlattenState = { rows: [], truncated: false };
   flatten(preview, "", state);
   return { kind: "rows", rows: state.rows, truncated: state.truncated };

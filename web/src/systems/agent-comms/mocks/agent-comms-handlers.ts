@@ -36,13 +36,15 @@ function notFound(callId: string) {
 function acceptedCall(
   store: AgentCommsMockStore,
   callId: string,
-  body: CreateCallRequest
+  body: CreateCallRequest,
+  workspaceId: string,
+  profileName: string
 ): CallPayload {
   const template = store.snapshotCalls()[0];
   const prompt = body.prompt;
   const caller = template?.caller.id ?? "ses_operator";
   const childSessionId = body.target.session_id ?? `ses_${callId}`;
-  return {
+  const accepted = {
     ...(template as CallPayload),
     call_id: callId,
     state: "queued",
@@ -55,16 +57,21 @@ function acceptedCall(
     child_session_id: childSessionId,
     prompt_preview: prompt,
     prompt_bytes: new TextEncoder().encode(prompt).length,
-    result_preview: undefined,
-    result_bytes: 0,
     repair_attempts: 0,
+    workspace_id: workspaceId,
+    profile_name: profileName,
   };
+  delete accepted.result_preview;
+  delete accepted.result_bytes;
+  return accepted;
 }
 
 function deliveredMessage(
   store: AgentCommsMockStore,
   messageId: string,
-  body: SendCallMessageRequest
+  body: SendCallMessageRequest,
+  workspaceId: string,
+  profileName: string
 ): CallMessagePayload {
   const template = store.snapshotCalls()[0];
   return {
@@ -77,41 +84,45 @@ function deliveredMessage(
     created_at: new Date().toISOString(),
     delivered_at: null,
     profile_id: template?.profile_id ?? "prof_default",
-    profile_name: template?.profile_name ?? "default",
+    workspace_id: workspaceId,
     scope: template?.scope ?? "workspace",
     ...(body.call_id ? { call_id: body.call_id } : {}),
+    profile_name: profileName,
   } as CallMessagePayload;
 }
 
 export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler[] {
   let created = 0;
   return [
-    compozyApiMock.get("/api/workspaces/{workspace_id}/calls", ({ request }) =>
-      HttpResponse.json(store.pageCalls(new URL(request.url)))
+    compozyApiMock.get("/api/workspaces/{workspace_id}/calls", ({ params, request }) =>
+      HttpResponse.json(store.pageCalls(String(params.workspace_id), new URL(request.url)))
     ),
     // The typed `response(status)` helper is what keeps a mocked error honest:
     // the body has to match the shape that status actually declares, so a handler
     // cannot invent an error envelope the daemon would never send.
-    compozyApiMock.get("/api/workspaces/{workspace_id}/calls/{call_id}", ({ params, response }) => {
-      const callId = String(params.call_id);
-      const call = store.findCall(callId);
-      if (!call) return response(404).json(notFound(callId));
-      return response(200).json(call);
-    }),
+    compozyApiMock.get(
+      "/api/workspaces/{workspace_id}/calls/{call_id}",
+      ({ params, request, response }) => {
+        const callId = String(params.call_id);
+        const call = store.findCall(String(params.workspace_id), new URL(request.url), callId);
+        if (!call) return response(404).json(notFound(callId));
+        return response(200).json(call);
+      }
+    ),
     compozyApiMock.get(
       "/api/workspaces/{workspace_id}/calls/{call_id}/prompt",
-      ({ params, response }) => {
+      ({ params, request, response }) => {
         const callId = String(params.call_id);
-        const call = store.findCall(callId);
+        const call = store.findCall(String(params.workspace_id), new URL(request.url), callId);
         if (!call) return response(404).json(notFound(callId));
         return response(200).json({ call_id: callId, prompt: call.prompt_preview ?? "" });
       }
     ),
     compozyApiMock.get(
       "/api/workspaces/{workspace_id}/calls/{call_id}/result",
-      ({ params, response }) => {
+      ({ params, request, response }) => {
         const callId = String(params.call_id);
-        const call = store.findCall(callId);
+        const call = store.findCall(String(params.workspace_id), new URL(request.url), callId);
         if (!call) return response(404).json(notFound(callId));
         if (call.result_preview === undefined) {
           return response(409).json({
@@ -124,9 +135,9 @@ export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler
     ),
     compozyApiMock.get(
       "/api/workspaces/{workspace_id}/calls/{call_id}/superseded",
-      ({ params, response }) => {
+      ({ params, request, response }) => {
         const callId = String(params.call_id);
-        const call = store.findCall(callId);
+        const call = store.findCall(String(params.workspace_id), new URL(request.url), callId);
         if (!call || call.superseded_preview === undefined) {
           return response(404).json({
             error: `no superseded evidence for ${callId}`,
@@ -136,39 +147,58 @@ export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler
         return response(200).json({ call_id: callId, result: call.superseded_preview });
       }
     ),
-    compozyApiMock.post("/api/workspaces/{workspace_id}/calls", async ({ request, response }) => {
-      created += 1;
-      const callId = `call_mock_${created}`;
-      const body = (await request.json()) as CreateCallRequest;
-      const call = acceptedCall(store, callId, body);
-      store.addCall(call);
-      return response(201).json({
-        call_id: callId,
-        state: "queued",
-        idle_expires_at: call.idle_expires_at,
-        replayed: false,
-        ...(call.child_session_id ? { child_session_id: call.child_session_id } : {}),
-      });
-    }),
+    compozyApiMock.post(
+      "/api/workspaces/{workspace_id}/calls",
+      async ({ params, request, response }) => {
+        created += 1;
+        const callId = `call_mock_${created}`;
+        const body = (await request.json()) as CreateCallRequest;
+        const url = new URL(request.url);
+        const call = acceptedCall(
+          store,
+          callId,
+          body,
+          String(params.workspace_id),
+          url.searchParams.get("profile") ?? "default"
+        );
+        store.addCall(call);
+        return response(201).json({
+          call_id: callId,
+          state: "queued",
+          idle_expires_at: call.idle_expires_at,
+          replayed: false,
+          ...(call.child_session_id ? { child_session_id: call.child_session_id } : {}),
+        });
+      }
+    ),
     compozyApiMock.post(
       "/api/workspaces/{workspace_id}/calls/{call_id}/cancel",
-      ({ params, response }) => {
+      ({ params, request, response }) => {
         const callId = String(params.call_id);
-        const state = store.cancelCall(callId);
+        const state = store.cancelCall(String(params.workspace_id), new URL(request.url), callId);
         if (state === undefined) return response(404).json(notFound(callId));
         return response(200).json({ state });
       }
     ),
-    compozyApiMock.get("/api/workspaces/{workspace_id}/messages", ({ request }) =>
-      HttpResponse.json(store.pageMessages(new URL(request.url)))
+    compozyApiMock.get("/api/workspaces/{workspace_id}/messages", ({ params, request }) =>
+      HttpResponse.json(store.pageMessages(String(params.workspace_id), new URL(request.url)))
     ),
     compozyApiMock.post(
       "/api/workspaces/{workspace_id}/messages",
-      async ({ request, response }) => {
+      async ({ params, request, response }) => {
         created += 1;
         const messageId = `msg_mock_${created}`;
         const body = (await request.json()) as SendCallMessageRequest;
-        store.addMessage(deliveredMessage(store, messageId, body));
+        const url = new URL(request.url);
+        store.addMessage(
+          deliveredMessage(
+            store,
+            messageId,
+            body,
+            String(params.workspace_id),
+            url.searchParams.get("profile") ?? "default"
+          )
+        );
         return response(202).json({ message_id: messageId, delivery: "queued" });
       }
     ),

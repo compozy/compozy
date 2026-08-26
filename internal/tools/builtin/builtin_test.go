@@ -88,19 +88,22 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		t.Parallel()
 
 		for _, descriptor := range NativeDescriptors() {
-			var schema map[string]json.RawMessage
-			if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
-				t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
-			}
-			for _, forbidden := range []string{"oneOf", "anyOf", "allOf"} {
-				if _, ok := schema[forbidden]; ok {
-					t.Fatalf(
-						"%s input schema has top-level %s, want provider-compatible object schema",
-						descriptor.ID,
-						forbidden,
-					)
+			t.Run("Should keep "+string(descriptor.ID)+" provider-compatible", func(t *testing.T) {
+				t.Parallel()
+				var schema map[string]json.RawMessage
+				if err := json.Unmarshal(descriptor.InputSchema, &schema); err != nil {
+					t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
 				}
-			}
+				for _, forbidden := range []string{"oneOf", "anyOf", "allOf"} {
+					if _, ok := schema[forbidden]; ok {
+						t.Fatalf(
+							"%s input schema has top-level %s, want provider-compatible object schema",
+							descriptor.ID,
+							forbidden,
+						)
+					}
+				}
+			})
 		}
 	})
 
@@ -161,17 +164,20 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			toolspkg.ToolIDAgentMessage,
 		}
 		for _, id := range callIDs {
-			descriptor, ok := descriptors[id]
-			if !ok || !slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDCalls) {
-				t.Fatalf("calls descriptor %q = %#v", id, descriptor)
-			}
-			withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
-			if err != nil {
-				t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
-			}
-			if withDigests.InputSchemaDigest == "" {
-				t.Fatalf("calls descriptor %q input schema digest is empty", id)
-			}
+			t.Run("Should register "+string(id), func(t *testing.T) {
+				t.Parallel()
+				descriptor, ok := descriptors[id]
+				if !ok || !slices.Contains(descriptor.Toolsets, toolspkg.ToolsetIDCalls) {
+					t.Fatalf("calls descriptor %q = %#v", id, descriptor)
+				}
+				withDigests, err := toolspkg.DescriptorWithSchemaDigests(descriptor)
+				if err != nil {
+					t.Fatalf("DescriptorWithSchemaDigests(%s) error = %v", id, err)
+				}
+				if withDigests.InputSchemaDigest == "" {
+					t.Fatalf("calls descriptor %q input schema digest is empty", id)
+				}
+			})
 		}
 		if _, exists := descriptors[toolspkg.ToolID("compozy__session_spawn")]; exists {
 			t.Fatal("compozy__session_spawn remains in NativeDescriptors")

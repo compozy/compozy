@@ -38,7 +38,8 @@ func (m *Service) CreateTask(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.applyNewTaskExpectation(ctx, &record, normalizedSpec); err != nil {
+	contract, err := m.applyNewTaskExpectation(&record, normalizedSpec)
+	if err != nil {
 		return nil, err
 	}
 	if err := record.Validate(); err != nil {
@@ -59,7 +60,7 @@ func (m *Service) CreateTask(
 		return nil, err
 	}
 	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
-		Task: record, Profile: profile, Events: []Event{event},
+		Task: record, Contract: contract, Profile: profile, Events: []Event{event},
 	}); err != nil {
 		return nil, err
 	}
@@ -152,7 +153,8 @@ func (m *Service) CreateChildTask(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.applyNewTaskExpectation(ctx, &child, normalizedSpec); err != nil {
+	contract, err := m.applyNewTaskExpectation(&child, normalizedSpec)
+	if err != nil {
 		return nil, err
 	}
 	if err := child.Validate(); err != nil {
@@ -177,7 +179,7 @@ func (m *Service) CreateChildTask(
 	}
 	events := []Event{createdEvent, parentEvent}
 	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
-		Task: child, Profile: profile, Events: events,
+		Task: child, Contract: contract, Profile: profile, Events: events,
 	}); err != nil {
 		return nil, err
 	}
@@ -271,7 +273,7 @@ func (m *Service) UpdateTask(
 	}
 
 	updated, changedFields := applyTaskPatch(current, normalizedPatch)
-	changedFields, err = m.applyTaskExpectationPatch(ctx, &updated, normalizedPatch, changedFields)
+	changedFields, contract, err := m.applyTaskExpectationPatch(&updated, normalizedPatch, changedFields)
 	if err != nil {
 		return nil, err
 	}
@@ -310,6 +312,7 @@ func (m *Service) UpdateTask(
 	}
 	if _, err := m.store.UpdateTaskDefinition(ctx, &UpdateTaskDefinitionMutation{
 		Task:                      updated,
+		Contract:                  contract,
 		UpdateTaskRow:             updateTaskRow,
 		PatchNetworkParticipation: normalizedPatch.NetworkParticipation != nil,
 		NetworkParticipation:      participation.CloneRequest(normalizedPatch.NetworkParticipation),

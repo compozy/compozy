@@ -91,6 +91,30 @@ describe("AgentCallTree", () => {
     // Absent, not disabled: the affordance goes away with the operation.
     expect(screen.queryByRole("button", { name: /stop subtree/i })).not.toBeInTheDocument();
   });
+
+  it("Should keep the drain action out of a nested button", () => {
+    renderTree(activityTreeCallsFixture, { onStopSubtree: vi.fn() });
+
+    const stop = screen.getAllByRole("button", { name: /stop subtree/i })[0]!;
+    expect(stop.closest("button")).toBe(stop);
+    expect(stop.closest("[data-testid='agent-call-tree-group']")?.tagName).toBe("DIV");
+  });
+
+  it("Should rebuild when live data adds a call", () => {
+    const first = activityTreeCallsFixture.slice(0, 1);
+    const { rerender } = renderTree(first);
+    expect(screen.getAllByTestId("agent-call-tree-row")).toHaveLength(1);
+
+    rerender(
+      <AgentCallTree
+        data-testid="tree"
+        tree={buildCallTree(activityTreeCallsFixture.slice(0, 2))}
+        onSelectCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByTestId("agent-call-tree-row")).toHaveLength(2);
+  });
 });
 
 /**

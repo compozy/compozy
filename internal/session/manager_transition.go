@@ -166,6 +166,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		RuntimeGeneration:        info.RuntimeGeneration,
 		SelectedRuntime:          storeSessionRuntimeSelection(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
+		Scope:                    normalizeSessionScope(info.Scope),
 		WorkspaceID:              info.WorkspaceID,
 		WorktreeID:               info.WorktreeID,
 		SessionType:              string(info.Type),

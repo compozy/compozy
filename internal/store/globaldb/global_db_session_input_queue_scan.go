@@ -34,6 +34,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 		Mode:              row.Mode,
 		Delivery:          row.Delivery,
 		Text:              row.Text,
+		PromptMeta:        json.RawMessage(row.PromptMetaJson),
 		Runtime: store.SessionInputRuntime{
 			Provider:        row.RuntimeProvider,
 			Model:           row.RuntimeModel,

@@ -237,6 +237,8 @@ func TestDocumentDescribesCallsAndMessages(t *testing.T) {
 		request := jsonRequestSchema(t, stop)
 		propertySchema(t, request, "subtree")
 		propertySchema(t, request, "reason")
+		assertParameter(t, stop, "profile", openapi3.ParameterInQuery, false)
+		assertParameterAbsent(t, stop, "all_profiles", openapi3.ParameterInQuery)
 		response := jsonResponseSchema(t, stop, http.StatusOK)
 		propertySchema(t, response, "stopped_children")
 		propertySchema(t, response, "closed_calls")

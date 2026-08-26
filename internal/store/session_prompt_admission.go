@@ -68,6 +68,7 @@ type SessionPromptAdmission struct {
 	Runtime             SessionInputRuntime
 	SkillInvocations    []commandpkg.Invocation
 	Attachments         []SessionInputAttachment
+	PromptMeta          json.RawMessage
 	TurnID              string
 	EventID             string
 	Result              *SessionPromptAdmissionResult
@@ -93,6 +94,7 @@ type SessionPromptAdmissionRequest struct {
 	Runtime            SessionInputRuntime
 	SkillInvocations   []commandpkg.Invocation
 	Attachments        []SessionInputAttachment
+	PromptMeta         json.RawMessage
 	TurnID             string
 	EventID            string
 	Now                time.Time
@@ -114,6 +116,7 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
+	normalized.PromptMeta = normalizePromptMetaJSON(normalized.PromptMeta)
 	normalized.TurnID = strings.TrimSpace(normalized.TurnID)
 	normalized.EventID = strings.TrimSpace(normalized.EventID)
 	if normalized.Now.IsZero() {
@@ -133,8 +136,6 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 	switch {
 	case normalized.ID == "":
 		return errors.New("store: session prompt admission id is required")
-	case normalized.WorkspaceID == "":
-		return errors.New("store: session prompt admission workspace id is required")
 	case normalized.SessionID == "":
 		return errors.New("store: session prompt admission session id is required")
 	case normalized.MessageID == "":
@@ -154,6 +155,8 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 		return errors.New("store: session prompt admission turn id is required")
 	case normalized.EventID == "":
 		return errors.New("store: session prompt admission event id is required")
+	case !json.Valid(normalized.PromptMeta):
+		return errors.New("store: session prompt admission metadata must be valid JSON")
 	}
 	switch normalized.Operation {
 	case SessionPromptOperationPrompt, SessionPromptOperationSteer:
@@ -161,6 +164,14 @@ func (r SessionPromptAdmissionRequest) Validate() error {
 	default:
 		return fmt.Errorf("store: invalid session prompt operation %q", normalized.Operation)
 	}
+}
+
+func normalizePromptMetaJSON(raw json.RawMessage) json.RawMessage {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" {
+		return json.RawMessage(`{}`)
+	}
+	return append(json.RawMessage(nil), []byte(trimmed)...)
 }
 
 // SessionPromptAdmissionStore persists command receipts and their queue-linked admission decisions.

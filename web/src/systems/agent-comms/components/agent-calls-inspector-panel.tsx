@@ -14,7 +14,7 @@
  */
 import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
 
-import { Button, Empty, Eyebrow, OwnerAvatar, Time } from "@compozy/ui";
+import { ActionResultBanner, Button, Empty, Eyebrow, OwnerAvatar, Time } from "@compozy/ui";
 
 import { AgentCallStatePill, AgentCallVerdictChip } from "./agent-call-state-pill";
 import { toCallState, toCallVerdict } from "../lib/call-state";
@@ -28,6 +28,8 @@ export interface CallDirectionSection {
   hasMore: boolean;
   onLoadMore: () => void;
   loadingMore?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
 export interface AgentCallsInspectorPanelProps {
@@ -119,11 +121,27 @@ function Section({
         ) : null}
       </header>
 
-      {loaded === 0 ? (
+      {section.error ? (
+        <ActionResultBanner
+          data-testid={`agent-calls-panel-${direction}-error`}
+          title={`Couldn't load ${label.toLowerCase()} calls.`}
+          description={section.error}
+          tone="danger"
+          actions={
+            section.onRetry ? (
+              <Button size="xs" type="button" variant="outline" onClick={section.onRetry}>
+                Retry
+              </Button>
+            ) : null
+          }
+        />
+      ) : null}
+
+      {loaded === 0 && !section.error ? (
         <p className="py-1 text-form text-muted">
           {section.total === 0 ? "None yet." : "Loading…"}
         </p>
-      ) : (
+      ) : loaded > 0 ? (
         <ul className="flex flex-col divide-y divide-line-soft">
           {section.calls.map(call => {
             const counterpartId =
@@ -139,7 +157,7 @@ function Section({
             );
           })}
         </ul>
-      )}
+      ) : null}
 
       {section.hasMore ? (
         <div className="flex items-center gap-2 pt-1">

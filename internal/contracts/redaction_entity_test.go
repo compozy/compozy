@@ -46,20 +46,16 @@ func TestContractPreservingRedaction(t *testing.T) {
 		}
 	})
 
-	t.Run("Should redact denylisted keys and preserve hash fields", func(t *testing.T) {
+	t.Run("Should reject denylisted keys and preserve hash fields", func(t *testing.T) {
 		t.Parallel()
 
 		contract := mustContract(t, json.RawMessage(`{"type":"object"}`))
-		redacted, records, err := RedactPreservingContract(
+		_, _, err := RedactPreservingContract(
 			contract,
 			json.RawMessage(`{"apikey":"plain-value","access_token":"another-value","token_hash":"safe-hash"}`),
 		)
-		if err != nil {
-			t.Fatalf("RedactPreservingContract() error = %v", err)
-		}
-		if len(records) != 2 || strings.Contains(string(redacted), "plain-value") ||
-			!strings.Contains(string(redacted), "\"token_hash\":\"safe-hash\"") {
-			t.Fatalf("redacted = %s, records = %#v", redacted, records)
+		if !IsCode(err, CodeRedactionConflict) || !strings.Contains(err.Error(), "$.apikey") {
+			t.Fatalf("RedactPreservingContract() error = %v, want secret-field rejection", err)
 		}
 	})
 
@@ -90,6 +86,26 @@ func TestContractPreservingRedaction(t *testing.T) {
 		}`))
 		if !IsCode(err, CodeExpectInvalid) || !strings.Contains(err.Error(), "*_hash") {
 			t.Fatalf("Pin(secret field) error = %v, want authoring guidance", err)
+		}
+	})
+
+	t.Run("Should reject secret-shaped fields reached through reusable schemas", func(t *testing.T) {
+		t.Parallel()
+
+		registry := NewRegistry(newMemoryRegistryStore())
+		for _, schema := range []json.RawMessage{
+			json.RawMessage(`{
+				"type":"object","properties":{"nested":{"$ref":"#/$defs/secret"}},
+				"$defs":{"secret":{"type":"object","properties":{"claim_token":{"type":"string"}},"required":["claim_token"]}}
+			}`),
+			json.RawMessage(`{
+				"type":"object","dependentSchemas":{"mode":{"type":"object","properties":{"password":{"type":"string"}},"required":["password"]}}
+			}`),
+		} {
+			_, err := registry.Pin(context.Background(), schema)
+			if !IsCode(err, CodeExpectInvalid) || !strings.Contains(err.Error(), "*_hash") {
+				t.Fatalf("Pin(reusable secret field) error = %v, want authoring guidance", err)
+			}
 		}
 	})
 }

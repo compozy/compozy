@@ -12,7 +12,7 @@ import (
 func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist typed runtime defaults in the canonical version five profile", func(t *testing.T) {
+	t.Run("Should persist typed runtime defaults and scope in the canonical version five profile", func(t *testing.T) {
 		t.Parallel()
 
 		profile := validSessionCreationProfile()
@@ -25,17 +25,33 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 		if !strings.Contains(encoded, `"version":5`) ||
 			!strings.Contains(encoded, `"speed":"normal"`) ||
 			!strings.Contains(encoded, `"acp_options":[{"id":"thinking","bool_value":true}]`) ||
-			!strings.Contains(encoded, `"profile_id":"00000000000000000000000000"`) {
-			t.Fatalf("CanonicalJSON() = %s, want version 5 with typed runtime defaults", encoded)
+			!strings.Contains(encoded, `"profile_id":"00000000000000000000000000"`) ||
+			!strings.Contains(encoded, `"scope":"workspace"`) {
+			t.Fatalf("CanonicalJSON() = %s, want version 5 with typed runtime defaults and scope", encoded)
 		}
 		var decoded SessionCreationProfile
 		if err := json.Unmarshal(payload, &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(CanonicalJSON()) error = %v", err)
 		}
-		if decoded.Version != 5 || decoded.Speed != speedpkg.SpeedNormal ||
+		if decoded.Version != 5 || decoded.Speed != speedpkg.SpeedNormal || decoded.Scope != SessionScopeWorkspace ||
 			len(decoded.ACPOptions) != 1 || decoded.ACPOptions[0].ID != "thinking" ||
 			decoded.ACPOptions[0].BoolValue == nil || !*decoded.ACPOptions[0].BoolValue {
 			t.Fatalf("decoded creation profile = %#v, want structural typed runtime fields", decoded)
+		}
+	})
+
+	t.Run("Should accept a global profile without workspace identity", func(t *testing.T) {
+		t.Parallel()
+
+		profile := validSessionCreationProfile()
+		profile.Scope = SessionScopeGlobal
+		profile.WorkspaceID = ""
+		if err := profile.Validate(); err != nil {
+			t.Fatalf("Validate(global) error = %v", err)
+		}
+		profile.WorkspaceID = "workspace:test"
+		if err := profile.Validate(); err == nil || !strings.Contains(err.Error(), "cannot bind a workspace") {
+			t.Fatalf("Validate(global workspace) error = %v, want location rejection", err)
 		}
 	})
 
@@ -144,6 +160,7 @@ func validSessionCreationProfile() SessionCreationProfile {
 		AgentName:   "worker",
 		Provider:    "codex",
 		ProfileID:   DefaultProfileID,
+		Scope:       SessionScopeWorkspace,
 		WorkspaceID: "workspace:test",
 		CWD:         "/workspace",
 		SandboxMode: SessionCreationSandboxNone,

@@ -7,9 +7,10 @@ import { buildLargeTreeFixture, completedCallFixture, runningCallFixture } from 
 function section(
   calls: Parameters<typeof AgentCallsInspectorPanel>[0]["made"]["calls"],
   total: number | undefined,
-  hasMore = false
+  hasMore = false,
+  overrides: Partial<Parameters<typeof AgentCallsInspectorPanel>[0]["made"]> = {}
 ) {
-  return { calls, total, hasMore, onLoadMore: vi.fn() };
+  return { calls, total, hasMore, onLoadMore: vi.fn(), ...overrides };
 }
 
 describe("AgentCallsInspectorPanel — truthful counts", () => {
@@ -69,6 +70,43 @@ describe("AgentCallsInspectorPanel — directions", () => {
     const received = screen.getByTestId("agent-calls-panel-received");
     expect(within(made).getAllByTestId("agent-calls-panel-row")).toHaveLength(1);
     expect(within(received).getAllByTestId("agent-calls-panel-row")).toHaveLength(1);
+  });
+
+  it("Should show a failed first read instead of calling it loading", () => {
+    render(
+      <AgentCallsInspectorPanel
+        made={section([], undefined, false, {
+          error: "Connection refused",
+          onRetry: vi.fn(),
+        })}
+        received={section([], 0)}
+        onOpenCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("agent-calls-panel-made-error")).toHaveTextContent(
+      "Connection refused"
+    );
+    expect(screen.queryByText("Loading…")).not.toBeInTheDocument();
+  });
+
+  it("Should keep loaded rows usable when loading older calls fails", () => {
+    render(
+      <AgentCallsInspectorPanel
+        made={section([completedCallFixture], 2, true, {
+          error: "The next page failed",
+          onRetry: vi.fn(),
+        })}
+        received={section([], 0)}
+        onOpenCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("agent-calls-panel-made-error")).toBeInTheDocument();
+    expect(screen.getByTestId("agent-calls-panel-row")).toHaveAttribute(
+      "data-call-id",
+      completedCallFixture.call_id
+    );
   });
 
   it("Should teach the feature when the session has never delegated", () => {

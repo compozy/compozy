@@ -70205,34 +70205,11 @@
                 "schema": {
                   "items": {
                     "properties": {
-                      "call": {
-                        "nullable": true,
-                        "properties": {
-                          "call_id": {
-                            "type": "string"
-                          },
-                          "child_session_id": {
-                            "type": "string"
-                          },
-                          "idle_expires_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "replayed": {
-                            "type": "boolean"
-                          },
-                          "state": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "call_id",
-                          "idle_expires_at",
-                          "replayed",
-                          "state"
-                        ],
-                        "type": "object"
+                      "call_id": {
+                        "type": "string"
+                      },
+                      "child_session_id": {
+                        "type": "string"
                       },
                       "error": {
                         "nullable": true,
@@ -70281,6 +70258,17 @@
                           "error"
                         ],
                         "type": "object"
+                      },
+                      "idle_expires_at": {
+                        "format": "date-time",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "replayed": {
+                        "type": "boolean"
+                      },
+                      "state": {
+                        "type": "string"
                       }
                     },
                     "type": "object"
@@ -256623,34 +256611,11 @@
                 "schema": {
                   "items": {
                     "properties": {
-                      "call": {
-                        "nullable": true,
-                        "properties": {
-                          "call_id": {
-                            "type": "string"
-                          },
-                          "child_session_id": {
-                            "type": "string"
-                          },
-                          "idle_expires_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
-                          "replayed": {
-                            "type": "boolean"
-                          },
-                          "state": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "call_id",
-                          "idle_expires_at",
-                          "replayed",
-                          "state"
-                        ],
-                        "type": "object"
+                      "call_id": {
+                        "type": "string"
+                      },
+                      "child_session_id": {
+                        "type": "string"
                       },
                       "error": {
                         "nullable": true,
@@ -256699,6 +256664,17 @@
                           "error"
                         ],
                         "type": "object"
+                      },
+                      "idle_expires_at": {
+                        "format": "date-time",
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "replayed": {
+                        "type": "boolean"
+                      },
+                      "state": {
+                        "type": "string"
                       }
                     },
                     "type": "object"
@@ -352797,6 +352773,14 @@
             "in": "path",
             "name": "session_id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Act as this profile by name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }

@@ -174,6 +174,13 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherWorkspaceRootKey: {},
 		matcherWorktreeIDKey:    {},
 	},
+	HookEventFamilyCall: {
+		matcherAgentNameKey:   {},
+		matcherWorkspaceIDKey: {},
+		"parent_session_id":   {},
+		"root_session_id":     {},
+		"child_session_id":    {},
+	},
 }
 
 var allowedMatcherFieldsByEvent = map[HookEvent]map[string]struct{}{

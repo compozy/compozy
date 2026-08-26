@@ -37,7 +37,7 @@ func (g *CallRepo) AcceptMessage(
 				Message: "target is awaiting a human decision; use the pending decision surface",
 			}
 		}
-		if err := enforceMessageLoopBreakers(ctx, exec, admission); err != nil {
+		if err := enforceMessageLoopBreakers(ctx, exec, target.id, admission); err != nil {
 			return err
 		}
 		nowText := store.FormatTimestamp(admission.Record.CreatedAt)
@@ -182,6 +182,7 @@ func messageTargetError(err error, subject string) error {
 func enforceMessageLoopBreakers(
 	ctx context.Context,
 	exec taskSQLExecutor,
+	recipientSessionID string,
 	admission callspkg.MessageAdmission,
 ) error {
 	record := admission.Record
@@ -216,15 +217,15 @@ func enforceMessageLoopBreakers(
 	}
 	var pending int
 	if err := exec.QueryRowContext(ctx, `SELECT COUNT(1)
-		FROM call_deliveries delivery JOIN call_messages message ON message.message_id = delivery.subject_id
+		FROM call_deliveries delivery
 		WHERE delivery.kind = 'message' AND delivery.state = 'pending'
-		AND message.from_kind = ? AND message.from_id = ?`, record.From.Kind, record.From.ID).Scan(&pending); err != nil {
+		AND delivery.recipient_session_id = ?`, recipientSessionID).Scan(&pending); err != nil {
 		return fmt.Errorf("store: count pending call messages: %w", err)
 	}
 	if pending >= admission.PendingCap {
 		return &callspkg.Error{
 			Code:    callspkg.CodeMessagePendingCap,
-			Message: fmt.Sprintf("sender has %d queued messages; maximum is %d", pending, admission.PendingCap),
+			Message: fmt.Sprintf("recipient has %d queued messages; maximum is %d", pending, admission.PendingCap),
 		}
 	}
 	return nil

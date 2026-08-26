@@ -65,7 +65,9 @@ export function AgentCallTurnFanout({
   const escalation = escalateCallPayloads(calls);
   const chips = calls.slice(0, MAX_IDENTITY_CHIPS);
   const overflow = calls.length - chips.length;
-  const shown = calls.slice(0, MAX_EXPANDED_ROWS);
+  // Without a Calls-panel destination, every accepted record stays reachable
+  // here. Capping the rows while rendering no working handoff would hide data.
+  const shown = onOpenCallsPanel ? calls.slice(0, MAX_EXPANDED_ROWS) : calls;
   const hidden = calls.length - shown.length;
 
   return (
@@ -116,7 +118,7 @@ export function AgentCallTurnFanout({
         })}
       </ul>
 
-      {hidden > 0 ? (
+      {hidden > 0 && onOpenCallsPanel ? (
         <div className="border-t border-line-soft px-2.5 py-1.5">
           <button
             type="button"

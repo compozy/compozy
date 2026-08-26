@@ -1995,6 +1995,11 @@ func (s *inMemoryManagerStore) CreateTaskDefinition(
 	ctx context.Context,
 	mutation CreateTaskDefinitionMutation,
 ) error {
+	if mutation.Contract != nil {
+		if err := s.PutContract(ctx, *mutation.Contract); err != nil {
+			return err
+		}
+	}
 	if err := s.CreateTask(ctx, mutation.Task); err != nil {
 		return err
 	}
@@ -2015,6 +2020,11 @@ func (s *inMemoryManagerStore) UpdateTaskDefinition(
 	ctx context.Context,
 	mutation *UpdateTaskDefinitionMutation,
 ) (ExecutionProfile, error) {
+	if mutation.Contract != nil {
+		if err := s.PutContract(ctx, *mutation.Contract); err != nil {
+			return ExecutionProfile{}, err
+		}
+	}
 	if mutation.UpdateTaskRow {
 		if err := s.UpdateTask(ctx, mutation.Task, mutation.Actor); err != nil {
 			return ExecutionProfile{}, err

@@ -30,6 +30,7 @@ func (s *sessionStartSpec) newStartingSession(
 		RuntimeSelectionRevision:  s.runtimeSelectionRevision,
 		effectiveProviderAuthMode: resolved.AuthMode,
 		providerHomePolicy:        resolved.HomePolicy,
+		Scope:                     s.scope,
 		Workspace:                 s.workspace.RootDir, WorktreeID: s.worktreeID, CWD: s.cwd,
 		NetworkParticipation: s.networkParticipation,
 		NetworkOwnerKey:      s.networkOwnerKey,

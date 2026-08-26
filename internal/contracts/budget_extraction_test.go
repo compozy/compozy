@@ -3,6 +3,7 @@ package contracts
 import (
 	"bytes"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -44,8 +45,8 @@ func TestResultBudgets(t *testing.T) {
 
 		override := ByteBudget{MaxBytes: config.MaxBudget + 1, Overflow: OverflowStore}
 		_, err := ResolveBudget(&override, config)
-		if err == nil {
-			t.Fatal("ResolveBudget() error = nil, want cap rejection")
+		if err == nil || !strings.Contains(err.Error(), "4194305") || !strings.Contains(err.Error(), "4194304") {
+			t.Fatalf("ResolveBudget() error = %v, want rejected and maximum byte counts", err)
 		}
 	})
 

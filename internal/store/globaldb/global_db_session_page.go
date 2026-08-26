@@ -21,7 +21,7 @@ const sessionInfoSelectQuery = `SELECT id, profile_id, name, agent_name, provide
 	acp_options_json, speed_resolution_json, runtime_status, runtime_transition, runtime_failure,
 	runtime_generation, runtime_recovery_json,
 	selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
-	runtime_selection_revision, workspace_id, worktree_id,
+	runtime_selection_revision, scope, workspace_id, worktree_id,
 	network_spec_json, network_mode, network_channel, network_source, session_type,
 	parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
 	auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,

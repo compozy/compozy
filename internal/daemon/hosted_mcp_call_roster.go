@@ -12,6 +12,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -26,7 +27,7 @@ func hostedCallRosterDecorator(state *bootState) mcppkg.HostedProjectionDecorato
 		if err != nil {
 			return nil, err
 		}
-		entries, err := callRosterEntries(ctx, state, scope.WorkspaceID)
+		entries, err := callRosterEntries(ctx, state, scope.ProfileID, scope.WorkspaceID)
 		if err != nil {
 			return nil, err
 		}
@@ -79,7 +80,12 @@ func callDepthRemaining(ctx context.Context, state *bootState, sessionID string)
 	return max(maximum-depth, 0), nil
 }
 
-func callRosterEntries(ctx context.Context, state *bootState, workspaceID string) ([]core.AgentCatalogEntry, error) {
+func callRosterEntries(
+	ctx context.Context,
+	state *bootState,
+	profileID string,
+	workspaceID string,
+) ([]core.AgentCatalogEntry, error) {
 	if state == nil {
 		return nil, nil
 	}
@@ -88,17 +94,36 @@ func callRosterEntries(ctx context.Context, state *bootState, workspaceID string
 		return nil, nil
 	}
 	workspaceID = strings.TrimSpace(workspaceID)
+	profileName, err := callRosterProfileName(ctx, state, profileID)
+	if err != nil {
+		return nil, err
+	}
 	if workspaceID == "" {
-		return catalog.ListAgents(ctx)
+		return catalog.ListAgentsForProfile(ctx, profileID, profileName)
 	}
 	if state.workspaceResolver == nil {
 		return nil, fmt.Errorf("daemon: workspace resolver is unavailable for call roster")
 	}
-	resolved, err := state.workspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := state.workspaceResolver.ResolveForProfile(ctx, workspaceID, profileName)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve call roster workspace: %w", err)
 	}
 	return catalog.ListAgentsForWorkspace(ctx, &resolved)
+}
+
+func callRosterProfileName(ctx context.Context, state *bootState, profileID string) (string, error) {
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" || profileID == store.DefaultProfileID {
+		return daemonDefaultProfileName, nil
+	}
+	if state == nil || state.profiles == nil {
+		return "", errors.New("daemon: profile manager is unavailable for call roster")
+	}
+	name, err := state.profiles.ProfileName(ctx, profileID)
+	if err != nil {
+		return "", fmt.Errorf("daemon: resolve call roster profile: %w", err)
+	}
+	return name, nil
 }
 
 func renderCallRoster(entries []core.AgentCatalogEntry) string {

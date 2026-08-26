@@ -47,7 +47,9 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 		callspkg.WithActivationClaimer(state.tasks.manager),
 		callspkg.WithActivationRunCanceler(state.tasks.manager),
 		callspkg.WithSessionInvoker(invoker),
-		callspkg.WithPublishBridge(&daemonCallPublishBridge{network: state.network}),
+		callspkg.WithPublishBridge(&daemonCallPublishBridge{network: func() coreNetworkSender {
+			return state.network
+		}}),
 		callspkg.WithHookDispatcher(daemonCallHookDispatcher{
 			state: state, logger: state.logger, now: d.now,
 		}),
@@ -153,14 +155,18 @@ func (d *daemonCallDirectory) ResolveCallTarget(
 		return target, nil, nil
 	}
 	var entries []core.AgentCatalogEntry
+	profileName, profileErr := callRosterProfileName(ctx, d.state, input.ProfileID)
+	if profileErr != nil {
+		return callspkg.TargetContext{}, nil, profileErr
+	}
 	if input.Scope == callspkg.ScopeWorkspace && d.state.workspaceResolver != nil {
-		resolved, resolveErr := d.state.workspaceResolver.Resolve(ctx, input.WorkspaceID)
+		resolved, resolveErr := d.state.workspaceResolver.ResolveForProfile(ctx, input.WorkspaceID, profileName)
 		if resolveErr != nil {
 			return callspkg.TargetContext{}, nil, fmt.Errorf("daemon: resolve call workspace: %w", resolveErr)
 		}
 		entries, err = catalog.ListAgentsForWorkspace(ctx, &resolved)
 	} else {
-		entries, err = catalog.ListAgents(ctx)
+		entries, err = catalog.ListAgentsForProfile(ctx, input.ProfileID, profileName)
 	}
 	if err != nil {
 		return callspkg.TargetContext{}, nil, fmt.Errorf("daemon: list call agent roster: %w", err)

@@ -277,16 +277,17 @@ func PromptOverlay(input PromptInput) string {
 			toolspkg.ToolIDNetworkInbox.String() + "`, and `" +
 			toolspkg.ToolIDNetworkSend.String() + "` for operational worker communication.\n")
 	}
-	b.WriteString("- `compozy spawn` for bounded worker delegation.\n")
+	b.WriteString("- `compozy call <worker-agent> <briefing> --workspace <workspace_id> --idle-ttl 1h` " +
+		"for bounded worker delegation, followed by `compozy call await <call_id>`.\n")
 	b.WriteString("\nCreating a task only records follow-up intent. The current coordinator run is the active ")
-	b.WriteString("execution boundary, and child work must stay within the allowed task-run and spawn surfaces.\n")
+	b.WriteString("execution boundary, and child work must stay within the allowed task-run and call surfaces.\n")
 	if input.NetworkParticipation.Mode == participation.ModeLive {
 		b.WriteString("\nChannel communication is operational only. Use the run coordination channel for ")
 		b.WriteString(strings.Join(operationalMessageKinds[:], ", "))
 		b.WriteString(" messages when conversation is useful. Do not use channel messages as task ownership state.\n")
 	}
-	b.WriteString("Never spawn another coordinator. ")
-	b.WriteString("Worker delegation must stay inside safe-spawn permissions and task approvals.\n")
+	b.WriteString("Never delegate to another coordinator. ")
+	b.WriteString("Worker delegation must stay inside call permission narrowing and task approvals.\n")
 	return strings.TrimSpace(b.String())
 }
 

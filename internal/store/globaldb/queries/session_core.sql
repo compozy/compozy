@@ -58,7 +58,7 @@ INSERT INTO sessions (
   profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
   selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
-  runtime_selection_revision, workspace_id, worktree_id, session_type,
+  runtime_selection_revision, scope, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
   auto_stop_on_parent, notify_creator, spawn_budget_json, permission_policy_json,
@@ -74,7 +74,8 @@ INSERT INTO sessions (
   sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure),
   sqlc.arg(runtime_generation), sqlc.arg(runtime_recovery_json),
   sqlc.arg(selected_provider), sqlc.arg(selected_model), sqlc.arg(selected_reasoning_effort),
-  sqlc.arg(selected_speed), sqlc.arg(selected_acp_options_json), sqlc.arg(runtime_selection_revision), sqlc.arg(workspace_id),
+  sqlc.arg(selected_speed), sqlc.arg(selected_acp_options_json), sqlc.arg(runtime_selection_revision),
+  sqlc.arg(scope), sqlc.arg(workspace_id),
   sqlc.narg(worktree_id),
   sqlc.arg(session_type), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
   sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(state), sqlc.narg(parent_session_id),
@@ -124,6 +125,7 @@ ON CONFLICT(id) DO UPDATE SET
 	selected_speed = excluded.selected_speed,
 	selected_acp_options_json = excluded.selected_acp_options_json,
 	runtime_selection_revision = excluded.runtime_selection_revision,
+	scope = excluded.scope,
   workspace_id = excluded.workspace_id,
 	worktree_id = excluded.worktree_id,
   session_type = excluded.session_type,
@@ -162,7 +164,8 @@ ON CONFLICT(id) DO UPDATE SET
   sandbox_last_sync_at = excluded.sandbox_last_sync_at,
   sandbox_last_sync_error = excluded.sandbox_last_sync_error,
   updated_at = excluded.updated_at
-WHERE sessions.workspace_id = excluded.workspace_id
+WHERE sessions.scope = excluded.scope
+  AND sessions.workspace_id = excluded.workspace_id
   AND sessions.worktree_id IS excluded.worktree_id
   AND sessions.network_spec_json IS excluded.network_spec_json
   AND sessions.network_mode IS excluded.network_mode

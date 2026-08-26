@@ -30,6 +30,25 @@ func (c *resourceAgentCatalog) ListAgents(ctx context.Context) ([]core.AgentCata
 	return c.agentEntriesForWorkspace(nil), nil
 }
 
+func (c *resourceAgentCatalog) ListAgentsForProfile(
+	ctx context.Context,
+	profileID string,
+	profileName string,
+) ([]core.AgentCatalogEntry, error) {
+	if ctx == nil {
+		return nil, errors.New("daemon: list profile agent catalog context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if c == nil || c.catalog == nil {
+		return nil, nil
+	}
+	return c.agentEntriesForWorkspace(&workspacepkg.ResolvedWorkspace{
+		ProfileID: strings.TrimSpace(profileID), ProfileName: strings.TrimSpace(profileName),
+	}), nil
+}
+
 func (c *resourceAgentCatalog) ListAgentsForWorkspace(
 	ctx context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,

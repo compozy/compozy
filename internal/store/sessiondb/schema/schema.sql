@@ -98,7 +98,7 @@ CREATE TABLE conversation_rewind_receipts (
 CREATE TABLE session_db_owner (
 		singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
 		session_id TEXT NOT NULL CHECK(length(trim(session_id)) > 0),
-		workspace_id TEXT NOT NULL CHECK(length(trim(workspace_id)) > 0)
+		workspace_id TEXT NOT NULL
 	);
 
 CREATE TABLE session_db_identity (

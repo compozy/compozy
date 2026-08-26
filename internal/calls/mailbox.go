@@ -132,6 +132,7 @@ func RenderPeerMessage(message MessageRecord, maxBytes int) string {
 	if reject {
 		body = "[message removed: unsafe secret material]"
 	}
+	body = escapeUntrustedFrameText(body)
 	prefix := origin + "\n<untrusted-agent-message>\n"
 	suffix := "\n</untrusted-agent-message>"
 	if maxBytes <= 0 {
@@ -142,6 +143,10 @@ func RenderPeerMessage(message MessageRecord, maxBytes int) string {
 		return truncateUTF8(origin, maxBytes)
 	}
 	return prefix + truncateUTF8(body, bodyBudget) + suffix
+}
+
+func escapeUntrustedFrameText(value string) string {
+	return strings.ReplaceAll(value, "<", `\u003c`)
 }
 
 func truncateUTF8(value string, maxBytes int) string {

@@ -73,7 +73,7 @@ const callCreateInputSchema = `{
 }`
 
 const callReturnInputSchema = `{
-	"type":"object","required":["result"],
+	"type":"object",
 	"properties":{"call_id":{"type":"string"},"result":{},"final_text":{"type":"string"}},
 	"additionalProperties":false
 }`

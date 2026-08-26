@@ -31984,14 +31984,8 @@ export interface operations {
         };
         content: {
           "application/json": {
-            call?: {
-              call_id: string;
-              child_session_id?: string;
-              /** Format: date-time */
-              idle_expires_at: string | null;
-              replayed: boolean;
-              state: string;
-            } | null;
+            call_id?: string;
+            child_session_id?: string;
             error?: {
               available?: {
                 description?: string;
@@ -32005,6 +31999,10 @@ export interface operations {
               original_id?: string;
               widening?: string[];
             } | null;
+            /** Format: date-time */
+            idle_expires_at?: string | null;
+            replayed?: boolean;
+            state?: string;
           }[];
         };
       };
@@ -104202,14 +104200,8 @@ export interface operations {
         };
         content: {
           "application/json": {
-            call?: {
-              call_id: string;
-              child_session_id?: string;
-              /** Format: date-time */
-              idle_expires_at: string | null;
-              replayed: boolean;
-              state: string;
-            } | null;
+            call_id?: string;
+            child_session_id?: string;
             error?: {
               available?: {
                 description?: string;
@@ -104223,6 +104215,10 @@ export interface operations {
               original_id?: string;
               widening?: string[];
             } | null;
+            /** Format: date-time */
+            idle_expires_at?: string | null;
+            replayed?: boolean;
+            state?: string;
           }[];
         };
       };
@@ -139613,7 +139609,10 @@ export interface operations {
   };
   stopSession: {
     parameters: {
-      query?: never;
+      query?: {
+        /** @description Act as this profile by name */
+        profile?: string;
+      };
       header?: never;
       path: {
         /** @description Workspace id */

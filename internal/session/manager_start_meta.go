@@ -26,6 +26,7 @@ func sessionStartSpecFromMeta(
 		sandboxID:                sessionSandboxID(meta.Sandbox),
 		sandbox:                  cloneSessionSandboxMeta(meta.Sandbox),
 		sandboxDisabled:          meta.Sandbox == nil,
+		scope:                    normalizeSessionScope(meta.Scope),
 		sessionName:              meta.Name,
 		agentName:                meta.AgentName,
 		provider:                 strings.TrimSpace(meta.Provider),

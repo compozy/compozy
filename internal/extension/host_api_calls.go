@@ -40,9 +40,13 @@ func (h *HostAPIHandler) handleCallsList(ctx context.Context, raw json.RawMessag
 	}
 	items := make([]apicontract.CallPayload, 0, len(page.Items))
 	for _, record := range page.Items {
-		items = append(items, hostAPICallPayload(record, profileName))
+		item, mapErr := hostAPICallPayload(ctx, reader, query, record, profileName)
+		if mapErr != nil {
+			return nil, mapErr
+		}
+		items = append(items, item)
 	}
-	return apicontract.CallsResponse{Items: items, NextCursor: page.NextCursor}, nil
+	return apicontract.CallsResponse{Items: items, NextCursor: page.NextCursor, Total: page.Total}, nil
 }
 
 func (h *HostAPIHandler) handleCallsGet(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -66,7 +70,7 @@ func (h *HostAPIHandler) handleCallsGet(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return nil, err
 	}
-	return hostAPICallPayload(record, profileName), nil
+	return hostAPICallPayload(ctx, reader, query, record, profileName)
 }
 
 func (h *HostAPIHandler) handleCallsResult(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -175,8 +179,14 @@ func (h *HostAPIHandler) hostAPICallProfileName(ctx context.Context, profileID s
 	return "", notFoundRPCError("profile", profileID, nil)
 }
 
-func hostAPICallPayload(record callspkg.CallRecord, profileName string) apicontract.CallPayload {
-	return apicontract.CallPayload{
+func hostAPICallPayload(
+	ctx context.Context,
+	reader hostAPICallsReader,
+	query callspkg.CallReadQuery,
+	record callspkg.CallRecord,
+	profileName string,
+) (apicontract.CallPayload, error) {
+	payload := apicontract.CallPayload{
 		CallID: record.CallID, ProfileID: record.ProfileID, ProfileName: profileName,
 		Scope: string(record.Scope), WorkspaceID: record.WorkspaceID,
 		Caller: apicontract.CallOwnerPayload{Kind: string(record.Caller.Kind), ID: record.Caller.ID},
@@ -188,11 +198,59 @@ func hostAPICallPayload(record callspkg.CallRecord, profileName string) apicontr
 		ResultBudget: record.ResultBudget.MaxBytes, ResultOverflow: string(record.ResultBudget.Overflow),
 		Strict: record.Strict, IdleTTLSeconds: hostAPIDurationSeconds(record.IdleTTL),
 		FailureCode: record.FailureCode, FailureDetail: record.FailureDetail,
-		RepairAttempts: record.RepairAttempts, Replayed: record.Replayed,
+		FirstIssueText: record.FirstIssueText, SecondIssueText: record.SecondIssueText,
+		FinalProsePreview: record.FinalProsePreview,
+		RepairAttempts:    record.RepairAttempts, Replayed: record.Replayed,
 		DeadlineAt: hostAPITimePointer(record.DeadlineAt), CreatedAt: record.CreatedAt,
 		StartedAt: hostAPITimePointer(record.StartedAt), SettledAt: hostAPITimePointer(record.SettledAt),
 		UpdatedAt: record.UpdatedAt,
 	}
+	if strings.TrimSpace(record.PromptRef) != "" {
+		prompt, err := reader.Prompt(ctx, query, record.CallID)
+		if err != nil {
+			return apicontract.CallPayload{}, mapHostAPICallRPCError("call_prompt", record.CallID, err)
+		}
+		payload.PromptPreview = hostAPIBoundedTextPreview(prompt.Text, 4<<10)
+		payload.PromptBytes = len([]byte(prompt.Text))
+	}
+	if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
+		result, err := reader.Result(ctx, query, record.CallID)
+		if err != nil {
+			return apicontract.CallPayload{}, mapHostAPICallRPCError("call_result", record.CallID, err)
+		}
+		payload.ResultPreview = hostAPIBoundedJSONPreview(result.Bytes, record.ResultBudget.MaxBytes)
+	}
+	if strings.TrimSpace(record.SupersededRef) != "" {
+		superseded, err := reader.Superseded(ctx, query, record.CallID)
+		if err != nil {
+			return apicontract.CallPayload{}, mapHostAPICallRPCError("call_superseded", record.CallID, err)
+		}
+		payload.SupersededPreview = hostAPIBoundedJSONPreview(superseded.Bytes, record.ResultBudget.MaxBytes)
+		payload.SupersededBytes = len(superseded.Bytes)
+	}
+	if record.Verdict != "" || record.ChildSessionID != "" {
+		payload.Provenance = &apicontract.CallProvenancePayload{
+			ProducedBy: record.AgentName, SessionID: record.ChildSessionID, Admitted: string(record.Verdict),
+		}
+	}
+	return payload, nil
+}
+
+func hostAPIBoundedJSONPreview(payload []byte, limit int) json.RawMessage {
+	if limit <= 0 || limit > 64<<10 {
+		limit = 64 << 10
+	}
+	if len(payload) > limit {
+		return nil
+	}
+	return append(json.RawMessage(nil), payload...)
+}
+
+func hostAPIBoundedTextPreview(value string, limit int) string {
+	if limit <= 0 || len(value) <= limit {
+		return value
+	}
+	return strings.ToValidUTF8(value[:limit], "")
 }
 
 func hostAPICallMessagePayload(record callspkg.MessageRecord, profileName string) apicontract.CallMessagePayload {

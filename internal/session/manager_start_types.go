@@ -32,6 +32,7 @@ type sessionStartSpec struct {
 	runtimeSelectionRevision int64
 	permissions              compozyconfig.PermissionMode
 	sandboxDisabled          bool
+	scope                    store.SessionScope
 	workspace                workspacepkg.ResolvedWorkspace
 	worktreeID               string
 	worktreeRoot             string

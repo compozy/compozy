@@ -41,17 +41,15 @@ func (s *Service) Cancel(
 		if s.invoker == nil {
 			return CallRecord{}, errors.New("calls: session invoker is required for cancellation")
 		}
-		if err := s.invoker.StopManaged(ctx, record.ChildSessionID, strings.TrimSpace(reason)); err != nil {
+		if err := s.invoker.StopManaged(ctx, record.ChildSessionID, sanitizeDiagnostic(reason, "canceled")); err != nil {
 			return CallRecord{}, fmt.Errorf("calls: stop child %q: %w", record.ChildSessionID, err)
 		}
 	}
-	detail := strings.TrimSpace(reason)
-	if detail == "" {
-		detail = "canceled"
-	}
+	detail := sanitizeDiagnostic(reason, "canceled")
+	failureDetail := sanitizeDiagnostic(actor.Kind+":"+actor.ID+": "+detail, detail)
 	settled, err := s.store.SettleCall(ctx, SettlementMutation{
 		CallID: record.CallID, ExpectedState: record.State, State: StateCanceled,
-		FailureCode: "call_canceled", FailureDetail: actor.Kind + ":" + actor.ID + ": " + detail,
+		FailureCode: "call_canceled", FailureDetail: failureDetail,
 		SettledAt: s.now().UTC(),
 	})
 	if IsCode(err, CodeAlreadySettled) {
@@ -152,6 +150,7 @@ func (s *Service) DrainSubtree(
 		return DrainReport{}, err
 	}
 	report := DrainReport{RootSessionID: rootID, PreservedResults: preservedResults}
+	detail := sanitizeDiagnostic(reason, "subtree drained")
 	drainPayload := HookPayload{CallID: rootID, RootSessionID: rootID, Actor: actor}
 	if len(openCalls) > 0 {
 		drainPayload = hookPayloadForCall(openCalls[0])
@@ -174,7 +173,7 @@ func (s *Service) DrainSubtree(
 		childID := strings.TrimSpace(record.ChildSessionID)
 		if childID != "" {
 			if _, seen := stopped[childID]; !seen && s.invoker != nil {
-				if err := s.invoker.StopManaged(ctx, childID, reason); err != nil {
+				if err := s.invoker.StopManaged(ctx, childID, detail); err != nil {
 					return report, fmt.Errorf("calls: drain child %q: %w", childID, err)
 				}
 				stopped[childID] = struct{}{}
@@ -183,7 +182,7 @@ func (s *Service) DrainSubtree(
 		}
 		settled, settleErr := s.store.SettleCall(ctx, SettlementMutation{
 			CallID: record.CallID, ExpectedState: record.State, State: StateCanceled,
-			FailureCode: "call_subtree_drained", FailureDetail: strings.TrimSpace(reason),
+			FailureCode: "call_subtree_drained", FailureDetail: detail,
 			SettledAt: s.now().UTC(),
 		})
 		if IsCode(settleErr, CodeAlreadySettled) {

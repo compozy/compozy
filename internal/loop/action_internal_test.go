@@ -622,47 +622,50 @@ func TestActionContractAdaptersShouldPreserveParity(t *testing.T) {
 
 func TestDeclaredOutputResolverShouldServeLintReviewAndAmendment(t *testing.T) {
 	t.Parallel()
+	t.Run("Should serve the same declared output to lint review and amendment", func(t *testing.T) {
+		t.Parallel()
 
-	// Invariant: lint, review, and amendment observe exactly one declared
-	// output schema for the same node.
-	// Owning layer: Loop declared-output resolution.
-	// Canonical suite: action_internal_test.go.
-	node := dsl.Node{
-		ID:    "worker",
-		Class: dsl.NodeClassAction,
-		Kind:  string(dsl.ActionRunAgent),
-		Params: dsl.NodeParams{
-			"agent":         "codex",
-			"prompt":        "Return a result",
-			"output_schema": map[string]any{"summary": "string"},
-		},
-	}
-	definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}}
-	resolved := &ResolvedDefinition{Definition: definition, ToolSchemas: map[string]ToolSchemaSnapshot{}}
+		// Invariant: lint, review, and amendment observe exactly one declared
+		// output schema for the same node.
+		// Owning layer: Loop declared-output resolution.
+		// Canonical suite: action_internal_test.go.
+		node := dsl.Node{
+			ID:    "worker",
+			Class: dsl.NodeClassAction,
+			Kind:  string(dsl.ActionRunAgent),
+			Params: dsl.NodeParams{
+				"agent":         "codex",
+				"prompt":        "Return a result",
+				"output_schema": map[string]any{"summary": "string"},
+			},
+		}
+		definition := dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{node}}}
+		resolved := &ResolvedDefinition{Definition: definition, ToolSchemas: map[string]ToolSchemaSnapshot{}}
 
-	lintSchema, ok := newLintContext(definition, &DefinitionLinter{}).declaredSchema(node)
-	if !ok {
-		t.Fatal("lint declared schema = missing")
-	}
-	amendmentSchema, err := resolvedDefinitionOutputSchema(resolved, node)
-	if err != nil {
-		t.Fatalf("resolvedDefinitionOutputSchema() error = %v", err)
-	}
-	_, reviewSchema, err := reviewSchemas(resolved, node, nil, []dsl.ReviewDecision{dsl.ReviewDecisionRespond})
-	if err != nil {
-		t.Fatalf("reviewSchemas() error = %v", err)
-	}
-	lintRaw, err := json.Marshal(lintSchema)
-	if err != nil {
-		t.Fatalf("json.Marshal(lint schema) error = %v", err)
-	}
-	amendmentRaw, err := json.Marshal(amendmentSchema)
-	if err != nil {
-		t.Fatalf("json.Marshal(amendment schema) error = %v", err)
-	}
-	if string(lintRaw) != string(amendmentRaw) || string(lintRaw) != string(reviewSchema) {
-		t.Fatalf("schema mismatch: lint=%s amendment=%s review=%s", lintRaw, amendmentRaw, reviewSchema)
-	}
+		lintSchema, ok := newLintContext(definition, &DefinitionLinter{}).declaredSchema(node)
+		if !ok {
+			t.Fatal("lint declared schema = missing")
+		}
+		amendmentSchema, err := resolvedDefinitionOutputSchema(resolved, node)
+		if err != nil {
+			t.Fatalf("resolvedDefinitionOutputSchema() error = %v", err)
+		}
+		_, reviewSchema, err := reviewSchemas(resolved, node, nil, []dsl.ReviewDecision{dsl.ReviewDecisionRespond})
+		if err != nil {
+			t.Fatalf("reviewSchemas() error = %v", err)
+		}
+		lintRaw, err := json.Marshal(lintSchema)
+		if err != nil {
+			t.Fatalf("json.Marshal(lint schema) error = %v", err)
+		}
+		amendmentRaw, err := json.Marshal(amendmentSchema)
+		if err != nil {
+			t.Fatalf("json.Marshal(amendment schema) error = %v", err)
+		}
+		if string(lintRaw) != string(amendmentRaw) || string(lintRaw) != string(reviewSchema) {
+			t.Fatalf("schema mismatch: lint=%s amendment=%s review=%s", lintRaw, amendmentRaw, reviewSchema)
+		}
+	})
 }
 
 func TestReservedActionInternalsShouldCoverErrorBranches(t *testing.T) {

@@ -68,6 +68,7 @@ func newSessionUpsertParams(
 		SelectedSpeed:            selectedRuntimeSpeed(session.SelectedRuntime),
 		SelectedAcpOptionsJson:   selectedACPOptionsJSON,
 		RuntimeSelectionRevision: session.RuntimeSelectionRevision,
+		Scope:                    string(normalizeStoreSessionScope(session.Scope)),
 		WorkspaceID:              session.WorkspaceID,
 		WorktreeID:               nullableSessionString(session.WorktreeID),
 		SessionType:              store.NormalizeSessionType(session.SessionType),
@@ -117,6 +118,13 @@ func newSessionUpsertParams(
 		),
 		UpdatedAt: store.FormatTimestamp(session.UpdatedAt),
 	}
+}
+
+func normalizeStoreSessionScope(scope store.SessionScope) store.SessionScope {
+	if scope == "" {
+		return store.SessionScopeWorkspace
+	}
+	return scope
 }
 
 func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *sessionCatalogRecord) {

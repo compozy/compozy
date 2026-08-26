@@ -292,6 +292,31 @@ func TestContractNormalization(t *testing.T) {
 			t.Fatalf("Pin(non-form) error = %v, want %s", err, CodeExpectInvalid)
 		}
 	})
+
+	t.Run("Should distinguish shorthand fields from complete schema markers", func(t *testing.T) {
+		t.Parallel()
+
+		shorthand, err := NormalizeSchema(json.RawMessage(`{"type":"string"}`))
+		if err != nil {
+			t.Fatalf("NormalizeSchema(shorthand type field) error = %v", err)
+		}
+		if !strings.Contains(string(shorthand), `"properties":{"type":{"type":"string"}}`) {
+			t.Fatalf("NormalizeSchema(shorthand type field) = %s", shorthand)
+		}
+
+		for _, schema := range []json.RawMessage{
+			json.RawMessage(`{"$comment":"authored schema"}`),
+			json.RawMessage(`{"uniqueItems":true}`),
+		} {
+			canonical, normalizeErr := NormalizeSchema(schema)
+			if normalizeErr != nil {
+				t.Fatalf("NormalizeSchema(%s) error = %v", schema, normalizeErr)
+			}
+			if strings.Contains(string(canonical), `"properties"`) {
+				t.Fatalf("NormalizeSchema(%s) = %s, want complete schema", schema, canonical)
+			}
+		}
+	})
 }
 
 func TestRepairPromptAndContractFaults(t *testing.T) {

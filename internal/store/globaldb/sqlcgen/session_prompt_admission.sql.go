@@ -173,7 +173,7 @@ func (q *Queries) GetQueuedSessionPromptAdmissionState(ctx context.Context, arg 
 }
 
 const getSessionPromptAdmissionByIdempotencyKey = `-- name: GetSessionPromptAdmissionByIdempotencyKey :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, prompt_meta_json, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
 WHERE workspace_id = ?1
   AND session_id = ?2
   AND idempotency_key = ?3
@@ -200,6 +200,7 @@ func (q *Queries) GetSessionPromptAdmissionByIdempotencyKey(ctx context.Context,
 		&i.State,
 		&i.Mode,
 		&i.AuthoredText,
+		&i.PromptMetaJson,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
 		&i.RuntimeProvider,
@@ -220,7 +221,7 @@ func (q *Queries) GetSessionPromptAdmissionByIdempotencyKey(ctx context.Context,
 }
 
 const getSessionPromptAdmissionByMessageID = `-- name: GetSessionPromptAdmissionByMessageID :one
-SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
+SELECT id, workspace_id, session_id, message_id, idempotency_key, operation, fingerprint_version, request_fingerprint, state, mode, authored_text, prompt_meta_json, skill_invocations_json, attachments_json, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json, turn_id, event_id, result_json, indeterminate_reason, created_at, dispatch_committed_at, completed_at, updated_at FROM session_prompt_admissions
 WHERE workspace_id = ?1
   AND session_id = ?2
   AND message_id = ?3
@@ -247,6 +248,7 @@ func (q *Queries) GetSessionPromptAdmissionByMessageID(ctx context.Context, arg 
 		&i.State,
 		&i.Mode,
 		&i.AuthoredText,
+		&i.PromptMetaJson,
 		&i.SkillInvocationsJson,
 		&i.AttachmentsJson,
 		&i.RuntimeProvider,
@@ -269,18 +271,18 @@ func (q *Queries) GetSessionPromptAdmissionByMessageID(ctx context.Context, arg 
 const insertSessionPromptAdmission = `-- name: InsertSessionPromptAdmission :exec
 INSERT INTO session_prompt_admissions (
   id, workspace_id, session_id, message_id, idempotency_key, operation,
-  fingerprint_version, request_fingerprint, state, mode, authored_text,
+	  fingerprint_version, request_fingerprint, state, mode, authored_text, prompt_meta_json,
 	 skill_invocations_json, attachments_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   turn_id, event_id, created_at, updated_at
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10, ?11,
-	 ?12, ?13,
-  ?14, ?15, ?16,
-  ?17, ?18, ?19, ?20,
-  ?21, ?22
+	  ?8, ?9, ?10, ?11, ?12,
+	 ?13, ?14,
+  ?15, ?16, ?17,
+  ?18, ?19, ?20, ?21,
+  ?22, ?23
 )
 `
 
@@ -296,6 +298,7 @@ type InsertSessionPromptAdmissionParams struct {
 	State                  string `json:"state"`
 	Mode                   string `json:"mode"`
 	AuthoredText           string `json:"authored_text"`
+	PromptMetaJson         string `json:"prompt_meta_json"`
 	SkillInvocationsJson   string `json:"skill_invocations_json"`
 	AttachmentsJson        string `json:"attachments_json"`
 	RuntimeProvider        string `json:"runtime_provider"`
@@ -322,6 +325,7 @@ func (q *Queries) InsertSessionPromptAdmission(ctx context.Context, arg InsertSe
 		arg.State,
 		arg.Mode,
 		arg.AuthoredText,
+		arg.PromptMetaJson,
 		arg.SkillInvocationsJson,
 		arg.AttachmentsJson,
 		arg.RuntimeProvider,

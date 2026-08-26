@@ -244,6 +244,7 @@ func claimSessionPromptAdmission(
 		MessageID: req.MessageID, IdempotencyKey: req.IdempotencyKey, Operation: req.Operation,
 		FingerprintVersion: req.FingerprintVersion, RequestFingerprint: req.RequestFingerprint,
 		State: store.SessionPromptAdmissionReserved, Mode: req.Mode, AuthoredText: req.AuthoredText,
+		PromptMetaJson:       string(req.PromptMeta),
 		SkillInvocationsJson: string(skillInvocationsJSON),
 		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,

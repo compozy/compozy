@@ -1,4 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { AgentCallDetail } from "../agent-call-detail";
@@ -239,5 +240,18 @@ describe("AgentCallDetail — cancel outcome", () => {
   it("Should stay silent when no cancel has been answered", () => {
     renderDetail(completedCallFixture);
     expect(screen.queryByTestId("agent-call-cancel-outcome")).not.toBeInTheDocument();
+  });
+
+  it("Should keep the record visible and offer retry after a cancel failure", async () => {
+    const onRetryCancel = vi.fn();
+    renderDetail(runningCallFixture, {
+      cancelFailure: { code: "call_target_denied", message: "The caller cannot cancel this call." },
+      onRetryCancel,
+    });
+
+    expect(screen.getByTestId("agent-call-detail-header")).toBeVisible();
+    expect(screen.getByTestId("agent-call-cancel-failure")).toHaveTextContent("call_target_denied");
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(onRetryCancel).toHaveBeenCalledTimes(1);
   });
 });

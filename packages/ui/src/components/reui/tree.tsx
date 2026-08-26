@@ -74,7 +74,7 @@ function TreeItem<T>({ item, className, render, children, ...props }: TreeItemPr
   const searchMatch = item.isMatchingSearch?.();
   const defaultProps = {
     "data-slot": "tree-item",
-    type: "button" as const,
+    ...(render ? {} : { type: "button" as const }),
     style: mergedStyle,
     className: cn(
       "z-10 ps-(--tree-padding) outline-hidden select-none focus:z-20 data-disabled:pointer-events-none data-disabled:opacity-50",

@@ -353,9 +353,9 @@ func TestPromptOverlayUsesParticipationSpecificPublicAPIs(t *testing.T) {
 			toolspkg.ToolIDTaskRunComplete.String(),
 			toolspkg.ToolIDTaskRunFail.String(),
 			toolspkg.ToolIDTaskRunRelease.String(),
-			"compozy spawn",
+			"compozy call <worker-agent>",
 			"The current coordinator run is the active execution boundary",
-			"Never spawn another coordinator",
+			"Never delegate to another coordinator",
 		} {
 			if !strings.Contains(overlay, required) {
 				t.Fatalf("PromptOverlay missing %q:\n%s", required, overlay)

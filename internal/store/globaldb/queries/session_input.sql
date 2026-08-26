@@ -66,14 +66,14 @@ GROUP BY mode, status;
 -- name: InsertSessionInputQueueEntry :exec
 INSERT INTO session_input_queue (
   id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, target_turn_id, event_id,
-  status, mode, delivery, text, skill_invocations_json, attachments_json,
+  status, mode, delivery, text, prompt_meta_json, skill_invocations_json, attachments_json,
   runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   session_generation, task_run_id, run_generation,
   attempt_count, enqueued_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(session_id), sqlc.narg(prompt_admission_id),
   sqlc.arg(message_id), sqlc.arg(idempotency_key), sqlc.arg(turn_id), sqlc.arg(target_turn_id), sqlc.arg(event_id),
-  sqlc.arg(status), sqlc.arg(mode), sqlc.arg(delivery), sqlc.arg(text), sqlc.arg(skill_invocations_json),
+	  sqlc.arg(status), sqlc.arg(mode), sqlc.arg(delivery), sqlc.arg(text), sqlc.arg(prompt_meta_json), sqlc.arg(skill_invocations_json),
   sqlc.arg(attachments_json),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model),
   sqlc.arg(runtime_reasoning_effort), sqlc.arg(runtime_speed), sqlc.arg(runtime_acp_options_json),

@@ -41,6 +41,15 @@ func resolveStoredSessionWorkspace(
 }
 
 func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (workspacepkg.ResolvedWorkspace, error) {
+	if opts.Global {
+		if strings.TrimSpace(opts.Workspace) != "" || strings.TrimSpace(opts.WorkspacePath) != "" ||
+			strings.TrimSpace(opts.Worktree) != "" {
+			return workspacepkg.ResolvedWorkspace{}, errors.New(
+				"session: global sessions cannot bind a workspace or worktree",
+			)
+		}
+		return globalSessionWorkspace(ctx, opts.ProfileID, m.profileNames, m.homePaths)
+	}
 	resolver, err := m.requireWorkspaceResolver()
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err
@@ -97,6 +106,37 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 	}
 }
 
+func globalSessionWorkspace(
+	ctx context.Context,
+	profileID string,
+	profileNames ProfileNameResolver,
+	homePaths compozyconfig.HomePaths,
+) (workspacepkg.ResolvedWorkspace, error) {
+	profileID = normalizeCreateProfileID(profileID)
+	profileName := sessionDefaultProfileName
+	if profileID != store.DefaultProfileID {
+		if profileNames == nil {
+			return workspacepkg.ResolvedWorkspace{}, errors.New(
+				"session: profile name resolver is required for a global profile session",
+			)
+		}
+		resolved, err := profileNames.ProfileName(ctx, profileID)
+		if err != nil {
+			return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
+				"session: resolve global profile name %q: %w",
+				profileID,
+				err,
+			)
+		}
+		profileName = strings.TrimSpace(resolved)
+	}
+	return workspacepkg.ResolvedWorkspace{
+		Workspace: workspacepkg.Workspace{RootDir: homePaths.HomeDir},
+		ProfileID: profileID, ProfileName: profileName,
+		Config: compozyconfig.DefaultWithHome(homePaths),
+	}, nil
+}
+
 func applyCreateSandboxOverride(
 	resolved *workspacepkg.ResolvedWorkspace,
 	opts CreateOpts,
@@ -134,6 +174,9 @@ func (m *Manager) resolveResumeWorkspace(
 	ctx context.Context,
 	meta store.SessionMeta,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	if strings.TrimSpace(meta.WorkspaceID) == "" {
+		return globalSessionWorkspace(ctx, meta.ProfileID, m.profileNames, m.homePaths)
+	}
 	resolver, err := m.requireWorkspaceResolver()
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err

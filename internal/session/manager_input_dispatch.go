@@ -1,7 +1,9 @@
 package session
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
@@ -23,6 +25,7 @@ type humanQueuedInput struct {
 	runtime           store.SessionInputRuntime
 	skillInvocations  []commandpkg.Invocation
 	attachments       []AttachmentMeta
+	promptMeta        json.RawMessage
 	sessionGeneration int64
 }
 
@@ -67,6 +70,7 @@ func (m *Manager) startNextQueuedInputPrompt(sessionID string) {
 		runtime:           entry.Runtime,
 		skillInvocations:  append([]commandpkg.Invocation(nil), entry.SkillInvocations...),
 		attachments:       attachmentMetaFromStore(entry.Attachments),
+		promptMeta:        append(json.RawMessage(nil), entry.PromptMeta...),
 		sessionGeneration: entry.SessionGeneration,
 	})
 }
@@ -118,6 +122,13 @@ func (m *Manager) newQueuedInputPromptRequest(
 	target string,
 	entry humanQueuedInput,
 ) (promptRequest, error) {
+	meta := acp.PromptMeta{TurnSource: string(TurnSourceUser)}
+	if len(entry.promptMeta) > 0 {
+		if err := json.Unmarshal(entry.promptMeta, &meta); err != nil {
+			return promptRequest{}, fmt.Errorf("session: decode queued prompt metadata: %w", err)
+		}
+		meta = meta.Normalize()
+	}
 	req := promptRequest{
 		target:           target,
 		message:          entry.text,
@@ -126,7 +137,7 @@ func (m *Manager) newQueuedInputPromptRequest(
 		idempotencyKey:   entry.idempotencyKey,
 		eventID:          entry.eventID,
 		turnSource:       TurnSourceUser,
-		meta:             acp.PromptMeta{TurnSource: string(TurnSourceUser)},
+		meta:             meta,
 		runtime:          runtimeSelectionFromStore(entry.runtime),
 		skillInvocations: append([]commandpkg.Invocation(nil), entry.skillInvocations...),
 		attachments:      cloneAttachmentMeta(entry.attachments),

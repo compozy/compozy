@@ -20,8 +20,5 @@ func (o SessionDBOwner) Normalize() (SessionDBOwner, error) {
 	if owner.SessionID == "" {
 		return SessionDBOwner{}, errors.New("store: session database owner session id is required")
 	}
-	if owner.WorkspaceID == "" {
-		return SessionDBOwner{}, errors.New("store: session database owner workspace id is required")
-	}
 	return owner, nil
 }

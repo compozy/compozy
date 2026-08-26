@@ -129,7 +129,7 @@ func (c CallsResultsConfig) ContractPolicy() (contracts.CallsResultsConfig, erro
 	return contracts.CallsResultsConfig{
 		DefaultBudget: contracts.ByteBudget{
 			MaxBytes: defaultBytes,
-			Overflow: contracts.OverflowMode(c.Overflow),
+			Overflow: contracts.OverflowMode(strings.TrimSpace(c.Overflow)),
 		},
 		MaxBudget: maxBytes,
 	}, nil
@@ -191,7 +191,7 @@ func ParseByteSize(raw string) (int, error) {
 		}
 		number := strings.TrimSpace(strings.TrimSuffix(value, unit.suffix))
 		parsed, err := strconv.Atoi(number)
-		if err != nil || parsed == 0 {
+		if err != nil || parsed <= 0 {
 			return 0, fmt.Errorf(`must be a positive byte size such as "256KiB": %q`, raw)
 		}
 		if parsed > int(^uint(0)>>1)/unit.multiplier {

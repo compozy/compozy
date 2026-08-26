@@ -47,9 +47,26 @@ type CreateCallItemRequest struct {
 // CreateCallRequest accepts either one item inline or a bounded batch.
 type CreateCallRequest struct {
 	CreateCallItemRequest
-	Tasks       []CreateCallItemRequest `json:"tasks,omitempty"`
-	Scope       string                  `json:"scope,omitempty"`
-	WorkspaceID string                  `json:"workspace_id,omitempty"`
+	Tasks        []CreateCallItemRequest `json:"tasks,omitempty"`
+	TasksPresent bool                    `json:"-"`
+	Scope        string                  `json:"scope,omitempty"`
+	WorkspaceID  string                  `json:"workspace_id,omitempty"`
+}
+
+// UnmarshalJSON retains whether tasks was explicitly supplied so an empty batch stays distinct from an inline call.
+func (r *CreateCallRequest) UnmarshalJSON(data []byte) error {
+	type requestAlias CreateCallRequest
+	var decoded requestAlias
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	*r = CreateCallRequest(decoded)
+	_, r.TasksPresent = fields["tasks"]
+	return nil
 }
 
 // CallOwnerPayload identifies one durable owner or actor.
@@ -119,8 +136,12 @@ type CallCreatePayload struct {
 
 // CallBatchItemPayload carries one independently accepted or rejected item.
 type CallBatchItemPayload struct {
-	Call  *CallCreatePayload `json:"call,omitempty"`
-	Error *CallErrorResponse `json:"error,omitempty"`
+	CallID         string             `json:"call_id,omitempty"`
+	ChildSessionID string             `json:"child_session_id,omitempty"`
+	State          string             `json:"state,omitempty"`
+	Replayed       bool               `json:"replayed,omitempty"`
+	IdleExpiresAt  *time.Time         `json:"idle_expires_at,omitempty"`
+	Error          *CallErrorResponse `json:"error,omitempty"`
 }
 
 // CallsResponse is a counted cursor page.

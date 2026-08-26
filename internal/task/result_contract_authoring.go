@@ -2,7 +2,6 @@ package task
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -10,28 +9,33 @@ import (
 	"github.com/compozy/compozy/internal/contracts"
 )
 
-func (m *Service) applyNewTaskExpectation(ctx context.Context, task *Task, spec CreateTask) error {
-	digest, budget, err := m.prepareTaskExpectation(ctx, spec.Expect, spec.ResultBudget)
+func (m *Service) applyNewTaskExpectation(task *Task, spec CreateTask) (*contracts.Contract, error) {
+	contract, budget, err := m.prepareTaskExpectation(spec.Expect, spec.ResultBudget)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	task.ExpectDigest = digest
+	if contract != nil {
+		task.ExpectDigest = contract.Digest
+	}
 	task.ResultBudget = budget
-	return nil
+	return contract, nil
 }
 
 func (m *Service) applyTaskExpectationPatch(
-	ctx context.Context,
 	task *Task,
 	patch Patch,
 	changedFields []string,
-) ([]string, error) {
+) ([]string, *contracts.Contract, error) {
 	if patch.Expect == nil {
-		return changedFields, nil
+		return changedFields, nil, nil
 	}
-	digest, budget, err := m.prepareTaskExpectation(ctx, *patch.Expect, patch.ResultBudget)
+	contract, budget, err := m.prepareTaskExpectation(*patch.Expect, patch.ResultBudget)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	digest := ""
+	if contract != nil {
+		digest = contract.Digest
 	}
 	if task.ExpectDigest != digest {
 		task.ExpectDigest = digest
@@ -41,22 +45,18 @@ func (m *Service) applyTaskExpectationPatch(
 		task.ResultBudget = cloneResultBudget(budget)
 		changedFields = append(changedFields, TaskFieldResultBudget)
 	}
-	return changedFields, nil
+	return changedFields, contract, nil
 }
 
 func (m *Service) prepareTaskExpectation(
-	ctx context.Context,
 	expect json.RawMessage,
 	override *contracts.ByteBudget,
-) (string, *contracts.ByteBudget, error) {
+) (*contracts.Contract, *contracts.ByteBudget, error) {
 	if len(bytes.TrimSpace(expect)) == 0 {
 		if override != nil {
-			return "", nil, fmt.Errorf("%w: result_budget requires expect", ErrValidation)
+			return nil, nil, fmt.Errorf("%w: result_budget requires expect", ErrValidation)
 		}
-		return "", nil, nil
-	}
-	if m.resultContracts == nil {
-		return "", nil, fmt.Errorf("task: result contract registry is required")
+		return nil, nil, nil
 	}
 	budget := m.resultBudgetConfig.DefaultBudget
 	if override != nil {
@@ -69,13 +69,13 @@ func (m *Service) prepareTaskExpectation(
 	}
 	resolved, err := contracts.ResolveBudget(&budget, m.resultBudgetConfig)
 	if err != nil {
-		return "", nil, fmt.Errorf("%w: result_budget: %w", ErrValidation, err)
+		return nil, nil, fmt.Errorf("%w: result_budget: %w", ErrValidation, err)
 	}
-	contract, err := m.resultContracts.Pin(ctx, expect)
+	contract, err := contracts.Prepare(expect)
 	if err != nil {
-		return "", nil, fmt.Errorf("task: pin result contract: %w", err)
+		return nil, nil, fmt.Errorf("task: prepare result contract: %w", err)
 	}
-	return contract.Digest, &resolved, nil
+	return &contract, &resolved, nil
 }
 
 func cloneResultBudget(budget *contracts.ByteBudget) *contracts.ByteBudget {

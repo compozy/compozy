@@ -3,21 +3,24 @@ package task
 import (
 	"context"
 
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 )
 
 // CreateTaskDefinitionMutation commits a task definition, optional execution
 // profile intent, and every causal event as one persistence command.
 type CreateTaskDefinitionMutation struct {
-	Task    Task
-	Profile *ExecutionProfile
-	Events  []Event
+	Task     Task
+	Contract *contracts.Contract
+	Profile  *ExecutionProfile
+	Events   []Event
 }
 
 // UpdateTaskDefinitionMutation commits a task-row update, optional execution
 // profile intent, and every causal event as one persistence command.
 type UpdateTaskDefinitionMutation struct {
 	Task                      Task
+	Contract                  *contracts.Contract
 	UpdateTaskRow             bool
 	PatchNetworkParticipation bool
 	NetworkParticipation      *participation.Request

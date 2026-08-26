@@ -31,7 +31,7 @@ func sessionOrchestrationDescriptors() []toolspkg.Descriptor {
 		orchestrationDescriptor(
 			toolspkg.ToolIDSessionPromptCancel, "session_prompt_cancel", "Session Prompt Cancel",
 			"Cancel one in-flight prompt on another same-workspace session without stopping it.",
-			sessionTargetInputSchema, sessionPromptCancelOutputSchema, toolspkg.RiskMutating, false, false,
+			sessionPromptCancelInputSchema, sessionPromptCancelOutputSchema, toolspkg.RiskMutating, false, false,
 		),
 	}
 }
@@ -61,6 +61,13 @@ const sessionTargetInputSchema = `{
 	"type":"object",
 	"required":["session_id"],
 	"properties":{"session_id":{"type":"string","minLength":1},"subtree":{"type":"boolean"},"reason":{"type":"string"}},
+	"additionalProperties":false
+}`
+
+const sessionPromptCancelInputSchema = `{
+	"type":"object",
+	"required":["session_id"],
+	"properties":{"session_id":{"type":"string","minLength":1}},
 	"additionalProperties":false
 }`
 

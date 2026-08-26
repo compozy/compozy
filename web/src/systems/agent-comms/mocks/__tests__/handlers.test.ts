@@ -226,6 +226,27 @@ describe("agent-comms handlers — one call", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ state: "completed" });
   });
+
+  it("Should refuse records outside the routed workspace and profile", async () => {
+    const wrongWorkspace = callUrl(completedCallFixture.call_id).replace(
+      callFixtureWorkspaceId,
+      "ws_other"
+    );
+    const wrongProfile = callUrl(completedCallFixture.call_id).replace(
+      "profile=default",
+      "profile=other"
+    );
+
+    expect((await fetchMsw(wrongWorkspace)).status).toBe(404);
+    expect((await fetchMsw(wrongProfile)).status).toBe(404);
+    const wrongProfileCancel = callUrl(completedCallFixture.call_id, "/cancel").replace(
+      "profile=default",
+      "profile=other"
+    );
+    expect((await fetchMsw(wrongProfileCancel, { method: "POST", body: "{}" })).status).toBe(404);
+    const wrongProfileList = callsUrl({}).replace("profile=default", "profile=other");
+    expect(((await (await fetchMsw(wrongProfileList)).json()) as { total: number }).total).toBe(0);
+  });
 });
 
 describe("agent-comms handlers — messages", () => {
@@ -254,6 +275,8 @@ describe("agent-comms handlers — messages", () => {
     expect(created.child_session_id).toBe(`ses_${created.call_id}`);
     const reviewerCalls = await readCalls({ agent: "reviewer" });
     expect(reviewerCalls.items.some(call => call.call_id === created.call_id)).toBe(true);
+    const detail = await fetchMsw(callUrl(created.call_id));
+    expect(await detail.json()).not.toHaveProperty("result_bytes");
   });
 
   it("Should read the nested wire recipient when sending a message", async () => {

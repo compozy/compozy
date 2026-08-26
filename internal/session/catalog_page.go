@@ -438,6 +438,7 @@ func sessionInfoFromCatalog(info store.SessionInfo) *Info {
 		RuntimeRecovery:          info.RuntimeRecoveryValue(),
 		SelectedRuntime:          runtimeSelectionFromSessionStore(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
+		Scope:                    normalizeSessionScope(info.Scope),
 		WorkspaceID:              strings.TrimSpace(info.WorkspaceID),
 		WorktreeID:               strings.TrimSpace(info.WorktreeID),
 		NetworkParticipation:     info.NetworkSpecSnapshot(),

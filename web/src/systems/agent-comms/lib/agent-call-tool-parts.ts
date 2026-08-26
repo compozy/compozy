@@ -35,6 +35,24 @@ function callIdOf(value: unknown): string | null {
 }
 
 /**
+ * Reach the provider's structured result through live and replay envelopes.
+ * Each layer is named by a shipped transcript contract; arbitrary object walks
+ * would risk treating a prompt or diagnostic field as a call record.
+ */
+function unwrapToolResult(value: unknown): unknown {
+  let current = value;
+  const seen = new Set<object>();
+  for (let depth = 0; depth < 4 && isRecord(current); depth += 1) {
+    if (seen.has(current)) break;
+    seen.add(current);
+    const nested = current.raw ?? current.raw_output ?? current.rawOutput;
+    if (nested === undefined) break;
+    current = nested;
+  }
+  return current;
+}
+
+/**
  * Every call id a tool result names.
  *
  * Two shapes, matching the tool's two modes: a single call answers with one
@@ -43,15 +61,18 @@ function callIdOf(value: unknown): string | null {
  * are skipped here because there is no record to open.
  */
 export function callIdsFromToolResult(result: unknown): string[] {
-  const single = callIdOf(result);
+  const unwrapped = unwrapToolResult(result);
+  const single = callIdOf(unwrapped);
   if (single !== null) return [single];
-  if (!isRecord(result)) return [];
+  if (!isRecord(unwrapped)) return [];
 
-  const batch = Array.isArray(result.tasks)
-    ? result.tasks
-    : Array.isArray(result.results)
-      ? result.results
-      : null;
+  const batch = Array.isArray(unwrapped.items)
+    ? unwrapped.items
+    : Array.isArray(unwrapped.tasks)
+      ? unwrapped.tasks
+      : Array.isArray(unwrapped.results)
+        ? unwrapped.results
+        : null;
   if (batch === null) return [];
 
   const ids: string[] = [];

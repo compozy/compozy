@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"strings"
@@ -37,7 +38,8 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		return
 	}
 	actor := h.callsOperatorActor()
-	caller, err := h.Calls.ResolveOperatorCaller(c.Request.Context(), callspkg.CallScope{
+	operationCtx := context.WithoutCancel(c.Request.Context())
+	caller, err := h.Calls.ResolveOperatorCaller(operationCtx, callspkg.CallScope{
 		ProfileID: selection.Scope.ProfileID, Scope: scope, WorkspaceID: workspaceID,
 	}, actor)
 	if err != nil {
@@ -53,16 +55,22 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		h.createCallBatch(c, inputs)
 		return
 	}
-	record, err := h.Calls.Create(c.Request.Context(), inputs[0])
+	record, err := h.Calls.Create(operationCtx, inputs[0])
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, callCreatePayload(record))
+	payload, err := h.callCreatePayload(operationCtx, record)
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	c.JSON(http.StatusCreated, payload)
 }
 
 func (h *BaseHandlers) createCallBatch(c *gin.Context, inputs []callspkg.CreateInput) {
-	outcomes, err := h.Calls.CreateBatch(c.Request.Context(), inputs)
+	operationCtx := context.WithoutCancel(c.Request.Context())
+	outcomes, err := h.Calls.CreateBatch(operationCtx, inputs)
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -71,8 +79,16 @@ func (h *BaseHandlers) createCallBatch(c *gin.Context, inputs []callspkg.CreateI
 	for _, outcome := range outcomes {
 		item := contract.CallBatchItemPayload{}
 		if outcome.Call != nil {
-			payload := callCreatePayload(*outcome.Call)
-			item.Call = &payload
+			payload, mapErr := h.callCreatePayload(operationCtx, *outcome.Call)
+			if mapErr != nil {
+				h.respondCallsError(c, mapErr)
+				return
+			}
+			item.CallID = payload.CallID
+			item.ChildSessionID = payload.ChildSessionID
+			item.State = payload.State
+			item.Replayed = payload.Replayed
+			item.IdleExpiresAt = payload.IdleExpiresAt
 		} else if outcome.Error != nil {
 			payload := callErrorResponse(outcome.Error)
 			item.Error = &payload
@@ -270,7 +286,7 @@ func (h *BaseHandlers) CallsCancel(c *gin.Context) {
 			return
 		}
 	}
-	record, err := h.Calls.Cancel(c.Request.Context(), callID, req.Reason, h.callsOperatorActor())
+	record, err := h.Calls.Cancel(context.WithoutCancel(c.Request.Context()), callID, req.Reason, h.callsOperatorActor())
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -292,7 +308,7 @@ func (h *BaseHandlers) CallsPublish(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
-	receipt, err := h.Calls.Publish(c.Request.Context(), callspkg.PublishInput{
+	receipt, err := h.Calls.Publish(context.WithoutCancel(c.Request.Context()), callspkg.PublishInput{
 		ProfileID: query.ReadScope.ProfileID, Scope: query.Scope, WorkspaceID: query.WorkspaceID,
 		CallID: strings.TrimSpace(c.Param("call_id")), Actor: h.callsOperatorActor(),
 		Channel: req.Channel, ThreadID: req.ThreadID,
@@ -334,6 +350,10 @@ func (h *BaseHandlers) callsReadScope(c *gin.Context) (store.ReadScope, bool) {
 func (h *BaseHandlers) resolvedCallReadQuery(c *gin.Context) (callspkg.CallReadQuery, bool) {
 	readScope, ok := h.callsReadScope(c)
 	if !ok {
+		return callspkg.CallReadQuery{}, false
+	}
+	if readScope.AllProfiles {
+		h.respondCallsError(c, callRequestError(callspkg.CodeValidation, "call detail requires one profile"))
 		return callspkg.CallReadQuery{}, false
 	}
 	query, err := callReadQuery(c, readScope)

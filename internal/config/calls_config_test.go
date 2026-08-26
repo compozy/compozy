@@ -1,7 +1,6 @@
 package config
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/contracts"
@@ -35,30 +34,30 @@ func TestCallsConfig(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name   string
-			mutate func(*CallsConfig)
-			path   string
+			name      string
+			mutate    func(*CallsConfig)
+			wantError string
 		}{
 			{
 				name: "Should reject a non-positive cap",
 				mutate: func(config *CallsConfig) {
 					config.MaxBatch = 0
 				},
-				path: "calls.max_batch",
+				wantError: "calls.max_batch must be positive: 0",
 			},
 			{
 				name: "Should reject a default budget above max",
 				mutate: func(config *CallsConfig) {
 					config.Results.DefaultBudget = "5MiB"
 				},
-				path: "calls.results",
+				wantError: `calls.results: default_budget "5MiB" exceeds max_budget "4MiB"`,
 			},
 			{
 				name: "Should reject an unknown overflow mode",
 				mutate: func(config *CallsConfig) {
 					config.Results.Overflow = "truncate"
 				},
-				path: "calls.results.overflow",
+				wantError: `calls.results.overflow must be "store" or "reject": "truncate"`,
 			},
 		}
 		for _, test := range tests {
@@ -68,8 +67,8 @@ func TestCallsConfig(t *testing.T) {
 				config := DefaultCallsConfig()
 				test.mutate(&config)
 				err := config.Validate()
-				if err == nil || !strings.Contains(err.Error(), test.path) {
-					t.Fatalf("CallsConfig.Validate() error = %v, want path %q", err, test.path)
+				if err == nil || err.Error() != test.wantError {
+					t.Fatalf("CallsConfig.Validate() error = %v, want %q", err, test.wantError)
 				}
 			})
 		}
@@ -105,17 +104,20 @@ func TestCallsToolSurface(t *testing.T) {
 		t.Fatalf("calls tool paths = %d, want 12", len(expected))
 	}
 	for path, wantKind := range expected {
-		segments, err := ParseDottedConfigPath(path)
-		if err != nil {
-			t.Fatalf("ParseDottedConfigPath(%q) error = %v", path, err)
-		}
-		policy, err := ClassifyToolConfigPath(segments)
-		if err != nil {
-			t.Fatalf("ClassifyToolConfigPath(%q) error = %v", path, err)
-		}
-		if policy.Denial != "" || policy.Kind != wantKind {
-			t.Fatalf("ClassifyToolConfigPath(%q) = %#v, want kind %v", path, policy, wantKind)
-		}
+		t.Run("Should classify "+path, func(t *testing.T) {
+			t.Parallel()
+			segments, err := ParseDottedConfigPath(path)
+			if err != nil {
+				t.Fatalf("ParseDottedConfigPath(%q) error = %v", path, err)
+			}
+			policy, err := ClassifyToolConfigPath(segments)
+			if err != nil {
+				t.Fatalf("ClassifyToolConfigPath(%q) error = %v", path, err)
+			}
+			if policy.Denial != "" || policy.Kind != wantKind {
+				t.Fatalf("ClassifyToolConfigPath(%q) = %#v, want kind %v", path, policy, wantKind)
+			}
+		})
 	}
 
 	t.Run("Should accept an integer call setting and deny an unknown path", func(t *testing.T) {
@@ -146,10 +148,13 @@ func TestParseByteSize(t *testing.T) {
 		t.Parallel()
 
 		for raw, want := range map[string]int{"256KiB": 256 << 10, "4MiB": 4 << 20} {
-			got, err := ParseByteSize(raw)
-			if err != nil || got != want {
-				t.Fatalf("ParseByteSize(%q) = %d, %v; want %d", raw, got, err, want)
-			}
+			t.Run("Should parse "+raw, func(t *testing.T) {
+				t.Parallel()
+				got, err := ParseByteSize(raw)
+				if err != nil || got != want {
+					t.Fatalf("ParseByteSize(%q) = %d, %v; want %d", raw, got, err, want)
+				}
+			})
 		}
 	})
 
@@ -157,8 +162,9 @@ func TestParseByteSize(t *testing.T) {
 		t.Parallel()
 
 		_, err := ParseByteSize("256KB")
-		if err == nil || !strings.Contains(err.Error(), "256KiB") {
-			t.Fatalf("ParseByteSize(malformed) error = %v, want example", err)
+		want := `must be a positive byte size such as "256KiB": "256KB"`
+		if err == nil || err.Error() != want {
+			t.Fatalf("ParseByteSize(malformed) error = %v, want %q", err, want)
 		}
 	})
 }

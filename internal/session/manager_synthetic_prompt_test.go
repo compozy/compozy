@@ -115,41 +115,82 @@ func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 func TestSendPromptDurablyAdmitsSyntheticDeliveryMetadata(t *testing.T) {
 	t.Parallel()
 
-	queueStore := openManagerInputQueueStore(t)
-	h := newHarness(t, WithSessionInputQueueStore(queueStore))
-	registerManagerInputQueueWorkspace(t, queueStore, h)
-	sess := createSession(t, h)
-	registerManagerInputQueueSession(t, queueStore, h, sess)
-	t.Cleanup(func() { reportSessionStop(t, h, sess.ID) })
-	opts := SendPromptOpts{
-		Message:   "Call completed: reviewer (call_1) → completed.",
-		MessageID: "msg_wake_1", IdempotencyKey: "call:wake_1", Mode: BusyInputModeQueue,
-		Synthetic: &acp.PromptSyntheticMeta{
-			CallID: "call_1", CallState: "completed", ResultRef: "sha256:result",
-			DeliveryKind: "completion", Reason: "call_completion", WakeEventID: "wake_1",
-		},
-	}
+	t.Run("Should preserve synthetic metadata through durable busy-input dispatch", func(t *testing.T) {
+		t.Parallel()
 
-	first, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
-	if err != nil {
-		t.Fatalf("SendPrompt(synthetic) error = %v", err)
-	}
-	_ = collectEvents(t, first.Events)
-	if got := len(h.driver.promptCalls); got != 1 {
-		t.Fatalf("len(promptCalls) = %d, want 1", got)
-	}
-	meta := h.driver.promptCalls[0].Meta.Normalize()
-	if meta.TurnSource != acp.PromptTurnSourceSynthetic || meta.Synthetic == nil ||
-		meta.Synthetic.CallID != "call_1" || meta.Synthetic.WakeEventID != "wake_1" {
-		t.Fatalf("durable synthetic prompt metadata = %#v", meta)
-	}
-	replayed, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
-	if err != nil {
-		t.Fatalf("SendPrompt(synthetic replay) error = %v", err)
-	}
-	if !replayed.Replayed || len(h.driver.promptCalls) != 1 {
-		t.Fatalf("SendPrompt(synthetic replay) = %#v calls=%d, want stable replay", replayed, len(h.driver.promptCalls))
-	}
+		queueStore := openManagerInputQueueStore(t)
+		h := newHarness(t, WithSessionInputQueueStore(queueStore))
+		registerManagerInputQueueWorkspace(t, queueStore, h)
+		sess := createSession(t, h)
+		registerManagerInputQueueSession(t, queueStore, h, sess)
+		activeEntered := make(chan struct{})
+		releaseActive := make(chan struct{})
+		syntheticDispatched := make(chan struct{})
+		var releaseOnce sync.Once
+		t.Cleanup(func() {
+			releaseOnce.Do(func() { close(releaseActive) })
+			reportSessionStop(t, h, sess.ID)
+		})
+		h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+			events := make(chan acp.AgentEvent)
+			go func() {
+				defer close(events)
+				if req.Message == "active prompt" {
+					close(activeEntered)
+					<-releaseActive
+				} else {
+					close(syntheticDispatched)
+				}
+				emitDonePromptEvents(events, sess.ID, req.TurnID)
+			}()
+			return events, nil
+		}
+		active, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, SendPromptOpts{Message: "active prompt"})
+		if err != nil {
+			t.Fatalf("SendPrompt(active) error = %v", err)
+		}
+		<-activeEntered
+		opts := SendPromptOpts{
+			Message:   "Call completed: reviewer (call_1) → completed.",
+			MessageID: "msg_wake_1", IdempotencyKey: "call:wake_1", Mode: BusyInputModeQueue,
+			Synthetic: &acp.PromptSyntheticMeta{
+				CallID: "call_1", CallState: "completed", ResultRef: "sha256:result",
+				DeliveryKind: "completion", Reason: "call_completion", WakeEventID: "wake_1",
+			},
+		}
+
+		queued, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if err != nil {
+			t.Fatalf("SendPrompt(synthetic) error = %v", err)
+		}
+		if queued.Status != "queued" || queued.Events != nil {
+			t.Fatalf("SendPrompt(synthetic) = %#v, want durable queue admission", queued)
+		}
+		replayed, err := h.manager.SendPrompt(testutil.Context(t), sess.ID, opts)
+		if err != nil {
+			t.Fatalf("SendPrompt(synthetic replay) error = %v", err)
+		}
+		if !replayed.Replayed || len(h.driver.promptCalls) != 1 {
+			t.Fatalf("SendPrompt(synthetic replay) = %#v calls=%d, want stable replay", replayed, len(h.driver.promptCalls))
+		}
+
+		releaseOnce.Do(func() { close(releaseActive) })
+		collectEvents(t, active.Events)
+		select {
+		case <-syntheticDispatched:
+		case <-time.After(5 * time.Second):
+			t.Fatal("queued synthetic prompt was not dispatched")
+		}
+		if got := len(h.driver.promptCalls); got != 2 {
+			t.Fatalf("len(promptCalls) = %d, want active plus synthetic dispatch", got)
+		}
+		meta := h.driver.promptCalls[1].Meta.Normalize()
+		if meta.TurnSource != acp.PromptTurnSourceSynthetic || meta.Synthetic == nil ||
+			meta.Synthetic.CallID != "call_1" || meta.Synthetic.WakeEventID != "wake_1" ||
+			meta.Synthetic.ResultRef != "sha256:result" {
+			t.Fatalf("durable queued synthetic prompt metadata = %#v", meta)
+		}
+	})
 }
 
 func TestPromptSyntheticRejectsMissingWakeupMetadata(t *testing.T) {

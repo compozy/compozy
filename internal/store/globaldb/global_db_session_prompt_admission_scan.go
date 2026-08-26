@@ -30,6 +30,7 @@ func sessionPromptAdmissionFromGenerated(
 		State:               strings.TrimSpace(row.State),
 		Mode:                strings.TrimSpace(row.Mode),
 		AuthoredText:        row.AuthoredText,
+		PromptMeta:          json.RawMessage(row.PromptMetaJson),
 		Runtime:             runtime,
 		TurnID:              strings.TrimSpace(row.TurnID),
 		EventID:             strings.TrimSpace(row.EventID),

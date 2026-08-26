@@ -14,44 +14,47 @@ import (
 // resumes a stopped child before replaying its idempotent initial prompt.
 func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 	t.Parallel()
+	t.Run("Should resume the deterministic child before replaying the initial prompt", func(t *testing.T) {
+		t.Parallel()
 
-	const (
-		callID   = "call_recovery"
-		parentID = "ses_parent"
-		childID  = "ses_call_recovery"
-	)
-	manager := &callSessionManagerStub{
-		info: &session.Info{
-			ID: childID, AgentName: "reviewer", State: session.StateStopped,
-			Lineage: &store.SessionLineage{ParentSessionID: parentID},
-		},
-	}
-	invoker := &daemonCallSessionInvoker{sessions: manager}
+		const (
+			callID   = "call_recovery"
+			parentID = "ses_parent"
+			childID  = "ses_call_recovery"
+		)
+		manager := &callSessionManagerStub{
+			info: &session.Info{
+				ID: childID, AgentName: "reviewer", State: session.StateStopped,
+				Lineage: &store.SessionLineage{ParentSessionID: parentID},
+			},
+		}
+		invoker := &daemonCallSessionInvoker{sessions: manager}
 
-	ref, err := invoker.SpawnChild(context.Background(), callspkg.ChildSpec{
-		CallID: callID, ParentSessionID: parentID, AgentName: "reviewer", Prompt: "Review the patch.",
+		ref, err := invoker.SpawnChild(context.Background(), callspkg.ChildSpec{
+			CallID: callID, ParentSessionID: parentID, AgentName: "reviewer", Prompt: "Review the patch.",
+		})
+		if err != nil {
+			t.Fatalf("SpawnChild() error = %v", err)
+		}
+		if ref.ID != childID {
+			t.Fatalf("SpawnChild() id = %q, want %q", ref.ID, childID)
+		}
+		if manager.resumeCalls != 1 {
+			t.Fatalf("Resume() calls = %d, want 1", manager.resumeCalls)
+		}
+		wantPrompt := callspkg.CallPromptWithRemainingDepth("Review the patch.", 0)
+		if manager.sentSessionID != childID || manager.sent.Message != wantPrompt ||
+			manager.sent.MessageID != "msg_"+callID || manager.sent.IdempotencyKey != "call:"+callID {
+			t.Fatalf("SendPrompt() = %q %#v, want deterministic recovery delivery", manager.sentSessionID, manager.sent)
+		}
+		if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != callID ||
+			manager.sent.Synthetic.CallState != string(callspkg.StateRunning) ||
+			manager.sent.Synthetic.ChildSessionID != childID ||
+			manager.sent.Synthetic.ChildAgentName != "reviewer" ||
+			manager.sent.Synthetic.Reason != "call_request" {
+			t.Fatalf("SendPrompt() synthetic metadata = %#v, want call request identity", manager.sent.Synthetic)
+		}
 	})
-	if err != nil {
-		t.Fatalf("SpawnChild() error = %v", err)
-	}
-	if ref.ID != childID {
-		t.Fatalf("SpawnChild() id = %q, want %q", ref.ID, childID)
-	}
-	if manager.resumeCalls != 1 {
-		t.Fatalf("Resume() calls = %d, want 1", manager.resumeCalls)
-	}
-	wantPrompt := callspkg.CallPromptWithRemainingDepth("Review the patch.", 0)
-	if manager.sentSessionID != childID || manager.sent.Message != wantPrompt ||
-		manager.sent.MessageID != "msg_"+callID || manager.sent.IdempotencyKey != "call:"+callID {
-		t.Fatalf("SendPrompt() = %q %#v, want deterministic recovery delivery", manager.sentSessionID, manager.sent)
-	}
-	if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != callID ||
-		manager.sent.Synthetic.CallState != string(callspkg.StateRunning) ||
-		manager.sent.Synthetic.ChildSessionID != childID ||
-		manager.sent.Synthetic.ChildAgentName != "reviewer" ||
-		manager.sent.Synthetic.Reason != "call_request" {
-		t.Fatalf("SendPrompt() synthetic metadata = %#v, want call request identity", manager.sent.Synthetic)
-	}
 }
 
 func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {
@@ -75,58 +78,61 @@ func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {
 // Invariant: an accepted queue entry is not projected as delivered until its durable state is sent.
 func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 	t.Parallel()
+	t.Run("Should project delivery from the durable queue state", func(t *testing.T) {
+		t.Parallel()
 
-	manager := &callSessionManagerStub{
-		info: &session.Info{ID: "ses_parent", State: session.StateActive},
-		sendResult: session.SendPromptResult{
-			Status: "queued", Delivery: store.SessionInputDeliveryAfterTurn, QueueEntryID: "queue_wake",
-		},
-		queuedStatus: session.InputDeliveryStatus{Status: store.SessionInputQueueStatusQueued},
-	}
-	invoker := &daemonCallSessionInvoker{sessions: manager}
-	delivery := callspkg.Delivery{
-		CallID: "call_1", RecipientSessionID: "ses_parent", Body: "wake", Kind: "completion",
-		WakeEventID: "wake_1", Metadata: acp.PromptSyntheticMeta{
-			CallID: "call_1", CallState: "completed", ResultRef: "sha256:result",
-			DeliveryKind: "completion", Reason: "call_completion", WakeEventID: "wake_1",
-		},
-	}
+		manager := &callSessionManagerStub{
+			info: &session.Info{ID: "ses_parent", State: session.StateActive},
+			sendResult: session.SendPromptResult{
+				Status: "queued", Delivery: store.SessionInputDeliveryAfterTurn, QueueEntryID: "queue_wake",
+			},
+			queuedStatus: session.InputDeliveryStatus{Status: store.SessionInputQueueStatusQueued},
+		}
+		invoker := &daemonCallSessionInvoker{sessions: manager}
+		delivery := callspkg.Delivery{
+			CallID: "call_1", RecipientSessionID: "ses_parent", Body: "wake", Kind: "completion",
+			WakeEventID: "wake_1", Metadata: acp.PromptSyntheticMeta{
+				CallID: "call_1", CallState: "completed", ResultRef: "sha256:result",
+				DeliveryKind: "completion", Reason: "call_completion", WakeEventID: "wake_1",
+			},
+		}
 
-	queued, err := invoker.DeliverAtBoundary(context.Background(), delivery)
-	if err != nil || queued.State != "pending" {
-		t.Fatalf("DeliverAtBoundary(queued) = %#v, %v, want pending", queued, err)
-	}
-	if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != "call_1" ||
-		manager.sent.Synthetic.WakeEventID != "wake_1" {
-		t.Fatalf("SendPrompt() synthetic metadata = %#v, want durable call identity", manager.sent.Synthetic)
-	}
-	manager.queuedStatus = session.InputDeliveryStatus{Status: store.SessionInputQueueStatusSent}
-	delivered, err := invoker.DeliverAtBoundary(context.Background(), delivery)
-	if err != nil || delivered.State != "injected" {
-		t.Fatalf("DeliverAtBoundary(sent) = %#v, %v, want injected", delivered, err)
-	}
+		queued, err := invoker.DeliverAtBoundary(context.Background(), delivery)
+		if err != nil || queued.State != "pending" {
+			t.Fatalf("DeliverAtBoundary(queued) = %#v, %v, want pending", queued, err)
+		}
+		if manager.sent.Synthetic == nil || manager.sent.Synthetic.CallID != "call_1" ||
+			manager.sent.Synthetic.WakeEventID != "wake_1" {
+			t.Fatalf("SendPrompt() synthetic metadata = %#v, want durable call identity", manager.sent.Synthetic)
+		}
+		manager.queuedStatus = session.InputDeliveryStatus{Status: store.SessionInputQueueStatusSent}
+		delivered, err := invoker.DeliverAtBoundary(context.Background(), delivery)
+		if err != nil || delivered.State != "injected" {
+			t.Fatalf("DeliverAtBoundary(sent) = %#v, %v, want injected", delivered, err)
+		}
 
-	sentBeforeBusy := manager.sendCalls
-	manager.prompting = true
-	busy, err := invoker.DeliverAtBoundary(context.Background(), delivery)
-	if err != nil || busy.State != "pending" || busy.Reason != "recipient_busy" {
-		t.Fatalf("DeliverAtBoundary(busy) = %#v, %v, want pending recipient_busy", busy, err)
-	}
-	if manager.sendCalls != sentBeforeBusy {
-		t.Fatalf("SendPrompt() calls while busy = %d, want %d", manager.sendCalls, sentBeforeBusy)
-	}
+		sentBeforeBusy := manager.sendCalls
+		manager.prompting = true
+		busy, err := invoker.DeliverAtBoundary(context.Background(), delivery)
+		if err != nil || busy.State != "pending" || busy.Reason != "recipient_busy" {
+			t.Fatalf("DeliverAtBoundary(busy) = %#v, %v, want pending recipient_busy", busy, err)
+		}
+		if manager.sendCalls != sentBeforeBusy {
+			t.Fatalf("SendPrompt() calls while busy = %d, want %d", manager.sendCalls, sentBeforeBusy)
+		}
 
-	wakeManager := &callSessionManagerStub{
-		info: &session.Info{ID: "ses_parked", State: session.StateStopped},
-	}
-	wakeInvoker := &daemonCallSessionInvoker{sessions: wakeManager}
-	woken, err := wakeInvoker.DeliverAtBoundary(context.Background(), callspkg.Delivery{
-		CallID: "call_2", RecipientSessionID: "ses_parked", Body: "wake", Kind: "message",
-		WakeEventID: "wake_2",
+		wakeManager := &callSessionManagerStub{
+			info: &session.Info{ID: "ses_parked", State: session.StateStopped},
+		}
+		wakeInvoker := &daemonCallSessionInvoker{sessions: wakeManager}
+		woken, err := wakeInvoker.DeliverAtBoundary(context.Background(), callspkg.Delivery{
+			CallID: "call_2", RecipientSessionID: "ses_parked", Body: "wake", Kind: "message",
+			WakeEventID: "wake_2",
+		})
+		if err != nil || woken.State != "woken" || wakeManager.resumeCalls != 1 {
+			t.Fatalf("DeliverAtBoundary(parked) = %#v, %v resumes=%d, want one wake", woken, err, wakeManager.resumeCalls)
+		}
 	})
-	if err != nil || woken.State != "woken" || wakeManager.resumeCalls != 1 {
-		t.Fatalf("DeliverAtBoundary(parked) = %#v, %v resumes=%d, want one wake", woken, err, wakeManager.resumeCalls)
-	}
 }
 
 type callSessionManagerStub struct {

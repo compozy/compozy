@@ -302,6 +302,7 @@ func creationProfileFromStart(
 		Speed:           spec.speed,
 		ACPOptions:      spec.acpOptions,
 		ProfileID:       spec.profileID,
+		Scope:           spec.scope,
 		WorkspaceID:     spec.workspace.ID,
 		CWD:             spec.cwd,
 		WorktreeRef:     spec.worktreeID,

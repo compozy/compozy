@@ -20,6 +20,14 @@ var (
 	ErrSessionParticipationMismatch = errors.New("store: session participation mismatch")
 )
 
+// SessionScope classifies whether a session belongs to a workspace or directly to a profile.
+type SessionScope string
+
+const (
+	SessionScopeWorkspace SessionScope = "workspace"
+	SessionScopeGlobal    SessionScope = "global"
+)
+
 type StopReason string
 
 const (
@@ -72,6 +80,7 @@ type SessionInfo struct {
 	RuntimeGeneration        int64
 	SelectedRuntime          *SessionRuntimeSelection
 	RuntimeSelectionRevision int64
+	Scope                    SessionScope
 	WorkspaceID              string
 	WorktreeID               string
 	*SessionNetworkState
@@ -130,7 +139,7 @@ func (s SessionInfo) Validate() error {
 	if err := requireField(s.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := requireField(s.WorkspaceID, "session workspace id"); err != nil {
+	if err := validateSessionLocation(s.Scope, s.WorkspaceID, s.WorktreeID); err != nil {
 		return err
 	}
 	if err := requireField(s.State, "session state"); err != nil {
@@ -173,6 +182,23 @@ func (s SessionInfo) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validateSessionLocation(scope SessionScope, workspaceID string, worktreeID string) error {
+	if scope == "" {
+		scope = SessionScopeWorkspace
+	}
+	switch scope {
+	case SessionScopeWorkspace:
+		return requireField(workspaceID, "session workspace id")
+	case SessionScopeGlobal:
+		if strings.TrimSpace(workspaceID) != "" || strings.TrimSpace(worktreeID) != "" {
+			return errors.New("store: global session cannot bind a workspace or worktree")
+		}
+		return nil
+	default:
+		return fmt.Errorf("store: unsupported session scope %q", scope)
+	}
 }
 
 // SessionListQuery filters session index queries through one explicit profile or

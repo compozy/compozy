@@ -72,6 +72,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		acpOptions:               acpOptions,
 		permissions:              opts.Permissions,
 		sandboxDisabled:          location.sandboxDisabled,
+		scope:                    createSessionScope(opts.Global),
 		workspace:                location.workspace,
 		worktreeID:               location.worktreeID,
 		worktreeRoot:             location.worktreeRoot,
@@ -96,6 +97,13 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		startAction:              sessionStartActionCreate,
 		cleanupSessionDir:        true,
 	}, nil
+}
+
+func createSessionScope(global bool) store.SessionScope {
+	if global {
+		return store.SessionScopeGlobal
+	}
+	return store.SessionScopeWorkspace
 }
 
 func normalizeCreateProfileID(profileID string) string {

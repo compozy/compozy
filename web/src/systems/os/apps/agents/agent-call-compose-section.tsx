@@ -18,10 +18,18 @@ import {
   toCallState,
   useAgentCallCompose,
 } from "@/systems/agent-comms";
+import { useWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 
-export function AgentCallComposeSection({ agentName }: { agentName: string }) {
+export function AgentCallComposeSection({
+  agentName,
+  windowId,
+}: {
+  agentName: string;
+  windowId: string;
+}) {
   const navigate = useNavigate({ from: "/agents" });
-  const compose = useAgentCallCompose(agentName);
+  const live = useWindowLiveDataEnabled(windowId);
+  const compose = useAgentCallCompose(agentName, { live });
 
   const openCall = (callId: string) => {
     void navigate({ to: "/agents/calls/$callId", params: { callId } });

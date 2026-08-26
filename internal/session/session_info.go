@@ -49,6 +49,7 @@ func (s *Session) infoLocked() *Info {
 		SelectedRuntime:          cloneRuntimeSelection(s.SelectedRuntime),
 		RuntimeSelectionRevision: s.RuntimeSelectionRevision,
 		EffectivePermissions:     s.EffectivePermissions,
+		Scope:                    normalizeSessionScope(s.Scope),
 		WorkspaceID:              s.WorkspaceID,
 		Workspace:                s.Workspace,
 		WorktreeID:               s.WorktreeID,

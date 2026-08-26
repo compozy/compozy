@@ -89,6 +89,7 @@ func (n *daemonNativeTools) agentCall(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	operationCtx := context.WithoutCancel(ctx)
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -111,7 +112,7 @@ func (n *daemonNativeTools) agentCall(
 			}
 			creates = append(creates, create)
 		}
-		outcomes, batchErr := service.CreateBatch(ctx, creates)
+		outcomes, batchErr := service.CreateBatch(operationCtx, creates)
 		if batchErr != nil {
 			return toolspkg.ToolResult{}, batchErr
 		}
@@ -131,7 +132,7 @@ func (n *daemonNativeTools) agentCall(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	record, err := service.Create(ctx, create)
+	record, err := service.Create(operationCtx, create)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -209,7 +210,9 @@ func hasNativeInlineCall(input nativeCallTask) bool {
 		strings.TrimSpace(input.Prompt) != "" || len(input.Expect) > 0 || input.IdleTTLSeconds != 0 ||
 		len(input.DeadlineSeconds) > 0 || input.Strict || strings.TrimSpace(input.ResultBudget) != "" ||
 		strings.TrimSpace(input.ResultOverflow) != "" || strings.TrimSpace(input.IdempotencyKey) != "" ||
-		input.Runtime != nil
+		input.Runtime != nil || len(input.Narrow.Tools) > 0 || len(input.Narrow.Skills) > 0 ||
+		len(input.Narrow.MCPServers) > 0 || len(input.Narrow.WorkspacePaths) > 0 ||
+		len(input.Narrow.NetworkChannels) > 0 || len(input.Narrow.SandboxProfiles) > 0
 }
 
 func (n *daemonNativeTools) callReturn(
@@ -217,6 +220,7 @@ func (n *daemonNativeTools) callReturn(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	operationCtx := context.WithoutCancel(ctx)
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -225,7 +229,7 @@ func (n *daemonNativeTools) callReturn(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	settlement, err := service.Return(ctx, callspkg.ReturnInput{
+	settlement, err := service.Return(operationCtx, callspkg.ReturnInput{
 		CallID: input.CallID, ChildSessionID: scope.SessionID, Result: input.Result,
 		FinalText: input.FinalText, ChildLive: true,
 		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: scope.SessionID},
@@ -267,7 +271,18 @@ func (n *daemonNativeTools) callAwait(
 	}
 	settled := make([]map[string]any, 0, len(outcome.Settled))
 	for _, record := range outcome.Settled {
-		settled = append(settled, nativeCallRecord(record))
+		item := nativeCallRecord(record)
+		if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
+			result, resultErr := service.Result(ctx, callspkg.CallReadQuery{
+				ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
+				WorkspaceID: callScope.WorkspaceID,
+			}, record.CallID)
+			if resultErr != nil {
+				return toolspkg.ToolResult{}, resultErr
+			}
+			item["result_preview"] = nativeBoundedResultPreview(result.Bytes, record.ResultBudget.MaxBytes)
+		}
+		settled = append(settled, item)
 	}
 	return structuredNetworkResult(map[string]any{
 		"settled": settled, "pending": outcome.Pending, "outcome": outcome.Outcome,
@@ -280,6 +295,7 @@ func (n *daemonNativeTools) callCancel(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	operationCtx := context.WithoutCancel(ctx)
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -289,13 +305,13 @@ func (n *daemonNativeTools) callCancel(
 		return toolspkg.ToolResult{}, err
 	}
 	callScope := nativeCallsScope(scope)
-	if _, err := service.GetRead(ctx, callspkg.CallReadQuery{
+	if _, err := service.GetRead(operationCtx, callspkg.CallReadQuery{
 		ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
 		WorkspaceID: callScope.WorkspaceID,
 	}, input.CallID); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	record, err := service.Cancel(ctx, input.CallID, input.Reason, callspkg.Actor{
+	record, err := service.Cancel(operationCtx, input.CallID, input.Reason, callspkg.Actor{
 		Kind: "agent_session", ID: scope.SessionID,
 	})
 	if err != nil {
@@ -325,7 +341,17 @@ func (n *daemonNativeTools) callResult(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredNetworkResult(map[string]any{"call_id": result.CallID, "result": json.RawMessage(result.Bytes)}, result.CallID)
+	return structuredNetworkResult(json.RawMessage(result.Bytes), result.CallID)
+}
+
+func nativeBoundedResultPreview(payload []byte, limit int) json.RawMessage {
+	if limit <= 0 || limit > 64<<10 {
+		limit = 64 << 10
+	}
+	if len(payload) > limit {
+		return nil
+	}
+	return append(json.RawMessage(nil), payload...)
 }
 
 func (n *daemonNativeTools) agentMessage(
@@ -333,6 +359,7 @@ func (n *daemonNativeTools) agentMessage(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	operationCtx := context.WithoutCancel(ctx)
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -342,7 +369,7 @@ func (n *daemonNativeTools) agentMessage(
 		return toolspkg.ToolResult{}, err
 	}
 	callScope := nativeCallsScope(scope)
-	record, err := service.SendMessage(ctx, callspkg.SendMessageInput{
+	record, err := service.SendMessage(operationCtx, callspkg.SendMessageInput{
 		ProfileID: callScope.ProfileID, Scope: callScope.Scope, WorkspaceID: callScope.WorkspaceID,
 		From: callspkg.MessageSender{Kind: "session", ID: scope.SessionID}, To: input.To,
 		CallID: input.CallID, Body: input.Text,
@@ -360,6 +387,7 @@ func (n *daemonNativeTools) callPublish(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
+	operationCtx := context.WithoutCancel(ctx)
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -369,7 +397,7 @@ func (n *daemonNativeTools) callPublish(
 		return toolspkg.ToolResult{}, err
 	}
 	callScope := nativeCallsScope(scope)
-	receipt, err := service.Publish(ctx, callspkg.PublishInput{
+	receipt, err := service.Publish(operationCtx, callspkg.PublishInput{
 		ProfileID: callScope.ProfileID, Scope: callScope.Scope, WorkspaceID: callScope.WorkspaceID,
 		CallID: input.CallID, Actor: callspkg.Actor{Kind: "agent_session", ID: scope.SessionID},
 		Channel: input.Channel, ThreadID: input.ThreadID,

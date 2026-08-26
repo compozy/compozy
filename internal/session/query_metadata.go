@@ -156,6 +156,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		SelectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
 		RuntimeSelectionRevision: selectionRevision,
 		EffectivePermissions:     strings.TrimSpace(meta.EffectivePermissionsValue()),
+		Scope:                    normalizeSessionScope(meta.Scope),
 		WorkspaceID:              meta.WorkspaceID,
 		WorktreeID:               meta.WorktreeIDValue(),
 		NetworkParticipation:     meta.NetworkSpecSnapshot(),
@@ -176,6 +177,13 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		CreatedAt:                meta.CreatedAt,
 		UpdatedAt:                meta.UpdatedAt,
 	}
+}
+
+func normalizeSessionScope(scope store.SessionScope) store.SessionScope {
+	if scope == "" {
+		return store.SessionScopeWorkspace
+	}
+	return scope
 }
 
 func sortSessionInfos(infos []*Info) []*Info {

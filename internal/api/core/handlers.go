@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -247,12 +248,13 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 			h.respondError(c, http.StatusServiceUnavailable, errors.New("api: calls service is not configured"))
 			return
 		}
-		report, drainErr := h.Calls.DrainSubtree(c.Request.Context(), sessionID, callsHumanActor(h), request.Reason)
+		operationCtx := context.WithoutCancel(c.Request.Context())
+		report, drainErr := h.Calls.DrainSubtree(operationCtx, sessionID, callsHumanActor(h), request.Reason)
 		if drainErr != nil {
 			h.respondCallsError(c, drainErr)
 			return
 		}
-		if err := h.Sessions.StopWithCause(c.Request.Context(), sessionID, session.CauseUserRequested, request.Reason); err != nil &&
+		if err := h.Sessions.StopWithCause(operationCtx, sessionID, session.CauseUserRequested, request.Reason); err != nil &&
 			!errors.Is(err, session.ErrSessionNotFound) {
 			h.respondError(c, StatusForSessionError(err), err)
 			return

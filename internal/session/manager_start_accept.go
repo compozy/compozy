@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/compozy/compozy/internal/store"
 )
 
 type acceptedSessionStart struct {
@@ -48,7 +50,12 @@ func (m *Manager) acceptSessionStart(
 			return nil, fmt.Errorf("session: prepare creation identity for %q: %w", spec.sessionID, err)
 		}
 	}
-	releaseLifecycle, err := m.reserveStartLifecycle(acceptCtx, spec.sessionID, spec.workspace.ID)
+	releaseLifecycle, err := m.reserveStartLifecycle(
+		acceptCtx,
+		spec.sessionID,
+		spec.workspace.ID,
+		spec.scope == store.SessionScopeGlobal,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("session: reserve %s session %q: %w", spec.startAction, spec.sessionID, err)
 	}

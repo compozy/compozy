@@ -31,6 +31,7 @@ type SessionCreationProfile struct {
 	Speed           speedpkg.Speed              `json:"speed"`
 	ACPOptions      []SessionACPOptionSelection `json:"acp_options,omitempty"`
 	ProfileID       string                      `json:"profile_id"`
+	Scope           SessionScope                `json:"scope"`
 	WorkspaceID     string                      `json:"workspace_id"`
 	CWD             string                      `json:"cwd"`
 	WorktreeRef     string                      `json:"worktree_ref,omitempty"`
@@ -68,6 +69,9 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 	}
 	profile.ACPOptions = NormalizeSessionACPOptionSelections(profile.ACPOptions)
 	profile.ProfileID = strings.TrimSpace(profile.ProfileID)
+	if profile.Scope == "" {
+		profile.Scope = SessionScopeWorkspace
+	}
 	profile.WorkspaceID = strings.TrimSpace(profile.WorkspaceID)
 	profile.CWD = strings.TrimSpace(profile.CWD)
 	profile.WorktreeRef = strings.TrimSpace(profile.WorktreeRef)
@@ -103,8 +107,10 @@ func (p SessionCreationProfile) Validate() error {
 		{name: "agent_name", value: p.AgentName},
 		{name: "provider", value: p.Provider},
 		{name: "profile_id", value: p.ProfileID},
-		{name: "workspace_id", value: p.WorkspaceID},
 		{name: "cwd", value: p.CWD},
+	}
+	if err := validateSessionLocation(p.Scope, p.WorkspaceID, p.WorktreeRef); err != nil {
+		return fmt.Errorf("store: session creation profile: %w", err)
 	}
 	for _, field := range required {
 		if field.value == "" {

@@ -3,6 +3,8 @@ package calls
 import (
 	"fmt"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 )
 
 const completionPreviewBytes = 512
@@ -13,7 +15,7 @@ func RenderCompletionWake(call CallRecord, payload []byte) string {
 		agent = "agent"
 	}
 	if call.State == StateCompleted && call.ResultRef != "" {
-		preview := truncateUTF8(string(payload), completionPreviewBytes)
+		preview := escapeUntrustedFrameText(truncateUTF8(string(payload), completionPreviewBytes))
 		resultSummary := fmt.Sprintf("%d B", call.ResultBytes)
 		digest := strings.TrimPrefix(call.ExpectDigest, "sha256:")
 		if digest != "" {
@@ -23,11 +25,16 @@ func RenderCompletionWake(call CallRecord, payload []byte) string {
 			resultSummary += ", contract sha256:" + digest
 		}
 		return fmt.Sprintf(
-			"Call completed: %s (%s) → %s.\nResult preview: %s (%s)\nFetch the full result with compozy__call_result.",
-			agent, call.CallID, call.State, preview, resultSummary,
+			"Call completed: %s (%s) → %s.\nResult preview (%s):\n<untrusted-call-result>\n%s\n</untrusted-call-result>\nFetch the full result with compozy__call_result.",
+			agent, call.CallID, call.State, resultSummary, preview,
 		)
 	}
 	reason := strings.TrimSpace(call.FailureDetail)
+	if clean, _, reject := contracts.SanitizeText(reason); reject {
+		reason = ""
+	} else {
+		reason = strings.TrimSpace(clean)
+	}
 	if reason == "" {
 		reason = strings.TrimSpace(call.FailureCode)
 	}

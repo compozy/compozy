@@ -141,7 +141,7 @@ func TestCoordinatorRuntimeBootstrapsManagedCoordinatorSession(t *testing.T) {
 	for _, required := range []string{
 		toolspkg.ToolIDSessionDescribe.String(),
 		toolspkg.ToolIDTaskRunClaimNext.String(),
-		"compozy spawn",
+		"compozy call <worker-agent>",
 		"Active worker worktrees:\n- run_id: run-worker-a; worktree_id: wt-a\n" +
 			"- run_id: run-worker-z; worktree_id: wt-z",
 	} {

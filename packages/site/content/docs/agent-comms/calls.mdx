@@ -349,6 +349,9 @@ Two conditions apply: you need active Live participation in that channel, and th
 `completed` with a valid result. Running calls and every resultless terminal reject with
 `call_publish_not_settled`, because there is no evidence to publish.
 
+Publication is available only for workspace-scoped calls. A Global call has no workspace-bound
+Live participation and cannot be posted to a Network channel.
+
 **Nothing flows back.** Network content never creates, answers, or changes a call. This is the one
 place a call touches Network, and it is one-directional — which is also why publish is allowed
 across profiles when the rest of the call surface is not.

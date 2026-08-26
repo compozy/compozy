@@ -62,8 +62,9 @@ type SessionMeta struct {
 	RuntimeGeneration int64                         `json:"runtime_generation,omitempty"`
 	RuntimeSelection  *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	*SessionProviderExecutionState
-	ProfileID   string `json:"profile_id"`
-	WorkspaceID string `json:"workspace_id,omitempty"`
+	ProfileID   string       `json:"profile_id"`
+	Scope       SessionScope `json:"scope"`
+	WorkspaceID string       `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
 	NetworkParticipation *participation.Spec     `json:"network_participation"`
 	SessionType          string                  `json:"session_type,omitempty"`
@@ -207,7 +208,7 @@ func (m SessionMeta) Validate() error {
 	if err := requireField(m.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := requireField(m.WorkspaceID, "session workspace id"); err != nil {
+	if err := validateSessionLocation(m.Scope, m.WorkspaceID, m.WorktreeIDValue()); err != nil {
 		return err
 	}
 	if err := requireField(m.State, "session state"); err != nil {

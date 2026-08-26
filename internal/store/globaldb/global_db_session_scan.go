@@ -305,6 +305,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.selectedSpeed,
 		&row.selectedACPOptionsJSON,
 		&row.session.RuntimeSelectionRevision,
+		&row.session.Scope,
 		&row.session.WorkspaceID,
 		&row.worktreeID,
 		&row.networkSpecJSON,

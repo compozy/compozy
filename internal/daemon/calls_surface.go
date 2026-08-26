@@ -82,6 +82,7 @@ func (s *callSurfaceService) ensureOperatorCallerSession(
 	}
 	_, createErr := acceptance.CreateAccepted(ctx, session.CreateAcceptedOpts{Session: session.CreateOpts{
 		DesiredSessionID: sessionID,
+		Global:           scope.Scope == callspkg.ScopeGlobal,
 		ProfileID:        scope.ProfileID,
 		Workspace:        scope.WorkspaceID,
 		Name:             "Operator calls",

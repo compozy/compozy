@@ -2,12 +2,14 @@ package globaldb
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	callspkg "github.com/compozy/compozy/internal/calls"
+	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -178,10 +180,15 @@ func (g *CallRepo) GetCallPayload(ctx context.Context, workspaceID, ref string) 
 		return nil, err
 	}
 	var payload []byte
-	err := g.db.QueryRowContext(ctx, `SELECT bytes FROM payload_blobs WHERE workspace_id = ? AND ref = ?`,
-		strings.TrimSpace(workspaceID), strings.TrimSpace(ref)).Scan(&payload)
+	var byteSize int64
+	ref = strings.TrimSpace(ref)
+	err := g.db.QueryRowContext(ctx, `SELECT bytes, byte_size FROM payload_blobs WHERE workspace_id = ? AND ref = ?`,
+		strings.TrimSpace(workspaceID), ref).Scan(&payload, &byteSize)
 	if err != nil {
 		return nil, fmt.Errorf("store: get call payload %q: %w", ref, err)
+	}
+	if int64(len(payload)) != byteSize || contracts.OutputRefForPayload(json.RawMessage(payload)) != ref {
+		return nil, fmt.Errorf("store: call payload %q failed digest verification", ref)
 	}
 	return append([]byte(nil), payload...), nil
 }
@@ -233,7 +240,8 @@ func (g *CallRepo) FenceSessionReap(ctx context.Context, sessionID string, at ti
 	result, err := g.db.ExecContext(ctx, `UPDATE sessions SET draining_at = ?, updated_at = ?
 		WHERE id = ?
 		AND NOT EXISTS (SELECT 1 FROM operator_caller_sessions operator WHERE operator.session_id = sessions.id)
-		AND NOT EXISTS (SELECT 1 FROM calls WHERE child_session_id = sessions.id AND state IN ('queued', 'running'))`,
+		AND NOT EXISTS (SELECT 1 FROM calls WHERE (child_session_id = sessions.id OR parent_session_id = sessions.id)
+			AND state IN ('queued', 'running'))`,
 		store.FormatTimestamp(at), store.FormatTimestamp(at), strings.TrimSpace(sessionID))
 	if err != nil {
 		return false, fmt.Errorf("store: fence call session reap %q: %w", sessionID, err)

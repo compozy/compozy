@@ -4,6 +4,7 @@ import type { AgentCommsScope } from "../agent-comms-scope";
 import { agentCommsKeys } from "../query-keys";
 import {
   CALLS_TREE_PAGE_SIZE,
+  callDetailOptions,
   callCountOptions,
   callPromptOptions,
   callResultOptions,
@@ -138,6 +139,18 @@ describe("call query options", () => {
     expect(callsListOptions(SCOPE, {}, false).refetchInterval).toBe(false);
     expect(callCountOptions(SCOPE, {}, true).refetchInterval).toBe(10_000);
     expect(callCountOptions(SCOPE, {}, false).refetchInterval).toBe(false);
+  });
+
+  it("Should keep a referenced invocation fresh until its call settles", () => {
+    const interval = callDetailOptions(SCOPE, "call_1", false, true, true).refetchInterval;
+    expect(interval).toBeTypeOf("function");
+    if (typeof interval !== "function") return;
+
+    expect(interval({ state: { data: { state: "running" }, error: null } } as never)).toBe(5_000);
+    expect(interval({ state: { data: { state: "completed" }, error: null } } as never)).toBe(false);
+    expect(interval({ state: { data: undefined, error: new Error("offline") } } as never)).toBe(
+      false
+    );
   });
 
   it("Should refuse to fetch before the workspace resolves", () => {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -62,6 +63,7 @@ type insertSpec struct {
 	runtime          store.SessionInputRuntime
 	skillInvocations []commandpkg.Invocation
 	attachments      []store.SessionInputAttachment
+	promptMeta       json.RawMessage
 }
 
 // Option customizes a Service.
@@ -273,6 +275,7 @@ func (s *Service) prepareAdmittedEntry(
 	spec.runtime = admission.Runtime
 	spec.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	spec.attachments = append([]store.SessionInputAttachment(nil), admission.Attachments...)
+	spec.promptMeta = append(json.RawMessage(nil), admission.PromptMeta...)
 	insert, err := s.newInsert(spec)
 	if err != nil {
 		return nil, store.SessionInputQueueInsert{}, err
@@ -403,6 +406,7 @@ func (s *Service) newInsert(spec insertSpec) (store.SessionInputQueueInsert, err
 		Runtime:           spec.runtime,
 		SkillInvocations:  append([]commandpkg.Invocation(nil), spec.skillInvocations...),
 		Attachments:       append([]store.SessionInputAttachment(nil), spec.attachments...),
+		PromptMeta:        append(json.RawMessage(nil), spec.promptMeta...),
 		SessionGeneration: spec.generation,
 		QueueCap:          s.cfg.QueueCap,
 		Now:               s.now(),

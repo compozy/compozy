@@ -14,7 +14,7 @@ export function AgentsWindow({ windowId }: { windowId: string }) {
   const parsed = parseAgentWindowLocation(location);
 
   if (parsed.kind === "activity") {
-    return <AgentsActivityLocation windowId={windowId} />;
+    return <AgentsActivityLocation windowId={windowId} search={parsed.search} />;
   }
   if (parsed.kind === "call") {
     return <AgentCallLocation key={parsed.callId} callId={parsed.callId} windowId={windowId} />;
@@ -22,13 +22,13 @@ export function AgentsWindow({ windowId }: { windowId: string }) {
   if (parsed.kind === "settings") {
     return (
       <>
-        <AgentDetailLocation name={parsed.name} rawSearch={{}} />
+        <AgentDetailLocation name={parsed.name} rawSearch={{}} windowId={windowId} />
         <AgentSettingsLocation name={parsed.name} rawSearch={parsed.search} />
       </>
     );
   }
   if (parsed.kind === "detail") {
-    return <AgentDetailLocation name={parsed.name} rawSearch={parsed.search} />;
+    return <AgentDetailLocation name={parsed.name} rawSearch={parsed.search} windowId={windowId} />;
   }
   return <AgentsCatalogLocation search={parsed.search} />;
 }

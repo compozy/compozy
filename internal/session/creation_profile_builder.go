@@ -15,6 +15,7 @@ type CreationProfileInput struct {
 	Speed           speedpkg.Speed
 	ACPOptions      []acp.SessionConfigOptionSelection
 	ProfileID       string
+	Scope           store.SessionScope
 	WorkspaceID     string
 	CWD             string
 	WorktreeRef     string
@@ -41,6 +42,7 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		Speed:           input.Speed,
 		ACPOptions:      storeOptionSelectionsFromACP(input.ACPOptions),
 		ProfileID:       input.ProfileID,
+		Scope:           input.Scope,
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,
 		WorktreeRef:     input.WorktreeRef,

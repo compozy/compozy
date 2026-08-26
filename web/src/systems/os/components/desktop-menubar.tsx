@@ -176,10 +176,23 @@ export function DesktopMenubar({
       // tree and its id is `tree:<root>`, which is not a call id at all. This
       // branch also has to exist — without it a call row fell through to the
       // tasks open below and navigated to `/tasks/<callId>`.
-      void coordinator.userOpen({
-        app: "agents",
-        route: { pathname: "/agents/activity", search: {} },
-      });
+      void coordinator.userOpen(
+        row.count === 1
+          ? {
+              app: "agents",
+              route: {
+                pathname: `/agents/calls/${encodeURIComponent(row.callId)}`,
+                search: {},
+              },
+            }
+          : {
+              app: "agents",
+              route: {
+                pathname: "/agents/activity",
+                search: { root: row.rootSessionId, call: row.callId },
+              },
+            }
+      );
       return;
     }
     void coordinator.userOpen({

@@ -9,14 +9,21 @@
  */
 import { AlertCircle, GitBranch, RefreshCw, WifiOff } from "lucide-react";
 
-import { Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
+import { ActionResultBanner, Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
 
 import { AgentCallTree } from "@/systems/agent-comms";
 
 import { useAgentsActivity } from "./use-agents-activity";
+import type { AgentActivitySearch } from "./agent-activity-search";
 
-export function AgentsActivityLocation({ windowId }: { windowId: string }) {
-  const page = useAgentsActivity(windowId);
+export function AgentsActivityLocation({
+  windowId,
+  search = {},
+}: {
+  windowId: string;
+  search?: AgentActivitySearch;
+}) {
+  const page = useAgentsActivity(windowId, search);
 
   useTopbarSlot({
     glyph: <GitBranch />,
@@ -95,6 +102,36 @@ export function AgentsActivityLocation({ windowId }: { windowId: string }) {
         </p>
       ) : null}
 
+      {page.drainFailure ? (
+        <ActionResultBanner
+          data-testid="agents-activity-drain-failure"
+          title="Couldn't stop this subtree."
+          description={
+            <span>
+              {page.drainFailure.message}
+              {page.drainFailure.code ? (
+                <span className="ml-1 font-mono text-form">{page.drainFailure.code}</span>
+              ) : null}
+            </span>
+          }
+          tone="danger"
+          actions={
+            <Button size="xs" type="button" variant="outline" onClick={page.retryStopSubtree}>
+              Retry
+            </Button>
+          }
+        />
+      ) : null}
+
+      {page.drainOutcome ? (
+        <ActionResultBanner
+          data-testid="agents-activity-drain-outcome"
+          title="Subtree stopped."
+          description={`${page.drainOutcome.stopped_children} children stopped · ${page.drainOutcome.closed_calls} calls closed · ${page.drainOutcome.preserved_results} results preserved`}
+          tone="success"
+        />
+      ) : null}
+
       <AgentCallTree
         data-testid="agents-activity-tree"
         tree={page.tree}
@@ -103,6 +140,7 @@ export function AgentsActivityLocation({ windowId }: { windowId: string }) {
         onSelectCall={page.openCall}
         onStopSubtree={page.stopSubtree}
         pendingStopRootSessionId={page.pendingStopRootSessionId}
+        selectedCallId={search.call ?? null}
       />
 
       {page.hasMore ? (

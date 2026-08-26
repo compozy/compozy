@@ -66,8 +66,9 @@ func sessionPromptWorkspaceID(session *Session) (string, error) {
 	if session == nil || session.Info() == nil {
 		return "", errors.New("session: prompt workspace is unavailable")
 	}
-	workspaceID := strings.TrimSpace(session.Info().WorkspaceID)
-	if workspaceID == "" {
+	info := session.Info()
+	workspaceID := strings.TrimSpace(info.WorkspaceID)
+	if workspaceID == "" && normalizeSessionScope(info.Scope) != store.SessionScopeGlobal {
 		return "", errors.New("session: prompt workspace is unavailable")
 	}
 	return workspaceID, nil
@@ -91,6 +92,10 @@ func (m *Manager) newPromptAdmissionRequest(
 	if err != nil {
 		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: generate prompt admission event id: %w", err)
 	}
+	promptMeta, err := json.Marshal(req.meta.Normalize())
+	if err != nil {
+		return store.SessionPromptAdmissionRequest{}, fmt.Errorf("session: encode prompt metadata: %w", err)
+	}
 	return store.SessionPromptAdmissionRequest{
 		ID:                 admissionID,
 		WorkspaceID:        workspaceID,
@@ -105,6 +110,7 @@ func (m *Manager) newPromptAdmissionRequest(
 		Runtime:            storeRuntimeSelection(req.runtime),
 		SkillInvocations:   append([]commandpkg.Invocation(nil), req.skillInvocations...),
 		Attachments:        storeAttachments(req.attachments),
+		PromptMeta:         promptMeta,
 		TurnID:             req.turnID,
 		EventID:            eventID,
 		Now:                m.now(),
@@ -185,6 +191,12 @@ func bindPromptAdmissionRequest(req promptRequest, admission store.SessionPrompt
 	req.runtime = runtimeSelectionFromStore(admission.Runtime)
 	req.skillInvocations = append([]commandpkg.Invocation(nil), admission.SkillInvocations...)
 	req.attachments = attachmentMetaFromStore(admission.Attachments)
+	if len(admission.PromptMeta) > 0 {
+		var meta acp.PromptMeta
+		if err := json.Unmarshal(admission.PromptMeta, &meta); err == nil {
+			req.meta = meta.Normalize()
+		}
+	}
 	return req
 }
 

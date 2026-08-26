@@ -505,124 +505,126 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 }
 
 func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
-	acpmock.RequireDriver(t)
-	t.Parallel()
+	t.Run("Should publish settled call evidence across CLI HTTP and Network", func(t *testing.T) {
+		acpmock.RequireDriver(t)
+		t.Parallel()
 
-	fixture := mockFixturePath(t, "agent_calls_fixture.json")
-	tools := []string{
-		toolspkg.ToolIDAgentCall.String(),
-		toolspkg.ToolIDCallReturn.String(),
-	}
-	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-		EnableNetwork: true,
-		MockAgents: []e2etest.MockAgentSpec{
-			{FixturePath: fixture, FixtureAgent: "blocker", AgentName: "publisher", Tools: tools},
-			{FixturePath: fixture, FixtureAgent: "reviewer", AgentName: "reviewer", Tools: tools},
-		},
+		fixture := mockFixturePath(t, "agent_calls_fixture.json")
+		tools := []string{
+			toolspkg.ToolIDAgentCall.String(),
+			toolspkg.ToolIDCallReturn.String(),
+		}
+		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+			EnableNetwork: true,
+			MockAgents: []e2etest.MockAgentSpec{
+				{FixturePath: fixture, FixtureAgent: "blocker", AgentName: "publisher", Tools: tools},
+				{FixturePath: fixture, FixtureAgent: "reviewer", AgentName: "reviewer", Tools: tools},
+			},
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+		defer cancel()
+		channel := "call-publications"
+		detail := mustCreateNetworkChannel(t, ctx, harness, channel, "publisher")
+		publisher := requireChannelSession(t, detail, "publisher")
+
+		completed := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
+		waitForAgentCallState(t, ctx, harness, completed.CallID, callspkg.StateCompleted)
+		var cliPublished compozycontract.PublishCallResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&cliPublished,
+			"call", "publish", completed.CallID,
+			"--workspace", harness.WorkspaceRoot,
+			"--channel", channel,
+			"--thread", "thread_cli_publish",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI call publish error = %v", err)
+		}
+		if !cliPublished.Published || cliPublished.NetworkMessageID == "" {
+			t.Fatalf("CLI call publish = %#v, want published message", cliPublished)
+		}
+		waitForRuntimeCondition(t, "published call evidence", 10*time.Second, func() bool {
+			return channelHasMessageID(ctx, harness, channel, cliPublished.NetworkMessageID)
+		})
+		messages := mustHTTPNetworkThreadMessages(t, ctx, harness, channel, "thread_cli_publish")
+		if !networkTimelineHasCallEvidence(messages, cliPublished.NetworkMessageID, completed.CallID) {
+			t.Fatalf("Network messages = %#v, want call evidence %s", messages, completed.CallID)
+		}
+
+		httpCompleted := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
+		waitForAgentCallState(t, ctx, harness, httpCompleted.CallID, callspkg.StateCompleted)
+		httpStatus, httpPublished := postAgentCallPublishHTTP(
+			t,
+			ctx,
+			harness,
+			httpCompleted.CallID,
+			compozycontract.PublishCallRequest{Channel: channel, ThreadID: "thread_http_publish"},
+		)
+		if httpStatus != http.StatusOK || !httpPublished.Published || httpPublished.NetworkMessageID == "" {
+			t.Fatalf("HTTP call publish = status %d payload %#v", httpStatus, httpPublished)
+		}
+
+		running := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "publisher", "keep working")
+		waitForAgentCallState(t, ctx, harness, running.CallID, callspkg.StateRunning)
+		status, nonTerminal := postAgentCallPublishHTTPError(
+			t,
+			ctx,
+			harness,
+			running.CallID,
+			compozycontract.PublishCallRequest{Channel: channel},
+		)
+		if status != http.StatusConflict || nonTerminal.Code != string(callspkg.CodePublishNotSettled) {
+			t.Fatalf("HTTP running publish = status %d payload %#v", status, nonTerminal)
+		}
+		assertAgentCallPublishCLIError(t, ctx, harness, running.CallID, channel, callspkg.CodePublishNotSettled)
+		var canceled compozycontract.CancelCallResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&canceled,
+			"call", "cancel", running.CallID,
+			"--workspace", harness.WorkspaceRoot,
+			"--reason", "publish cancellation check",
+			"-o", "json",
+		); err != nil {
+			t.Fatalf("CLI cancel publication call error = %v", err)
+		}
+		waitForAgentCallState(t, ctx, harness, running.CallID, callspkg.StateCanceled)
+		assertAgentCallPublishCLIError(t, ctx, harness, running.CallID, channel, callspkg.CodePublishNotSettled)
+
+		operatorCall := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path")
+		waitForAgentCallState(t, ctx, harness, operatorCall.CallID, callspkg.StateCompleted)
+		status, noParticipation := postAgentCallPublishHTTPError(
+			t,
+			ctx,
+			harness,
+			operatorCall.CallID,
+			compozycontract.PublishCallRequest{Channel: channel},
+		)
+		if status != http.StatusUnprocessableEntity ||
+			noParticipation.Code != string(callspkg.CodePublishNoParticipation) {
+			t.Fatalf("HTTP no-participation publish = status %d payload %#v", status, noParticipation)
+		}
+
+		reversePath := fmt.Sprintf("/api/workspaces/%s/network/calls", url.PathEscape(harness.WorkspaceID))
+		reverseRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(reversePath), nil)
+		if err != nil {
+			t.Fatalf("http.NewRequestWithContext(reverse path) error = %v", err)
+		}
+		reverseResponse, err := harness.HTTPClient.Do(reverseRequest)
+		if err != nil {
+			t.Fatalf("HTTP reverse Network path error = %v", err)
+		}
+		if closeErr := reverseResponse.Body.Close(); closeErr != nil {
+			t.Fatalf("close reverse Network response error = %v", closeErr)
+		}
+		if reverseResponse.StatusCode != http.StatusNotFound {
+			t.Fatalf("reverse Network path status = %d, want 404", reverseResponse.StatusCode)
+		}
 	})
-
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
-	defer cancel()
-	channel := "call-publications"
-	detail := mustCreateNetworkChannel(t, ctx, harness, channel, "publisher")
-	publisher := requireChannelSession(t, detail, "publisher")
-
-	completed := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
-	waitForAgentCallState(t, ctx, harness, completed.CallID, callspkg.StateCompleted)
-	var cliPublished compozycontract.PublishCallResponse
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		harness.WorkspaceRoot,
-		&cliPublished,
-		"call", "publish", completed.CallID,
-		"--workspace", harness.WorkspaceRoot,
-		"--channel", channel,
-		"--thread", "thread_cli_publish",
-		"-o", "json",
-	); err != nil {
-		t.Fatalf("CLI call publish error = %v", err)
-	}
-	if !cliPublished.Published || cliPublished.NetworkMessageID == "" {
-		t.Fatalf("CLI call publish = %#v, want published message", cliPublished)
-	}
-	waitForRuntimeCondition(t, "published call evidence", 10*time.Second, func() bool {
-		return channelHasMessageID(ctx, harness, channel, cliPublished.NetworkMessageID)
-	})
-	messages := mustHTTPNetworkThreadMessages(t, ctx, harness, channel, "thread_cli_publish")
-	if !networkTimelineHasCallEvidence(messages, cliPublished.NetworkMessageID, completed.CallID) {
-		t.Fatalf("Network messages = %#v, want call evidence %s", messages, completed.CallID)
-	}
-
-	httpCompleted := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
-	waitForAgentCallState(t, ctx, harness, httpCompleted.CallID, callspkg.StateCompleted)
-	httpStatus, httpPublished := postAgentCallPublishHTTP(
-		t,
-		ctx,
-		harness,
-		httpCompleted.CallID,
-		compozycontract.PublishCallRequest{Channel: channel, ThreadID: "thread_http_publish"},
-	)
-	if httpStatus != http.StatusOK || !httpPublished.Published || httpPublished.NetworkMessageID == "" {
-		t.Fatalf("HTTP call publish = status %d payload %#v", httpStatus, httpPublished)
-	}
-
-	running := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "publisher", "keep working")
-	waitForAgentCallState(t, ctx, harness, running.CallID, callspkg.StateRunning)
-	status, nonTerminal := postAgentCallPublishHTTPError(
-		t,
-		ctx,
-		harness,
-		running.CallID,
-		compozycontract.PublishCallRequest{Channel: channel},
-	)
-	if status != http.StatusConflict || nonTerminal.Code != string(callspkg.CodePublishNotSettled) {
-		t.Fatalf("HTTP running publish = status %d payload %#v", status, nonTerminal)
-	}
-	assertAgentCallPublishCLIError(t, ctx, harness, running.CallID, channel, callspkg.CodePublishNotSettled)
-	var canceled compozycontract.CancelCallResponse
-	if err := harness.CLI.RunJSONInDir(
-		ctx,
-		harness.WorkspaceRoot,
-		&canceled,
-		"call", "cancel", running.CallID,
-		"--workspace", harness.WorkspaceRoot,
-		"--reason", "publish cancellation check",
-		"-o", "json",
-	); err != nil {
-		t.Fatalf("CLI cancel publication call error = %v", err)
-	}
-	waitForAgentCallState(t, ctx, harness, running.CallID, callspkg.StateCanceled)
-	assertAgentCallPublishCLIError(t, ctx, harness, running.CallID, channel, callspkg.CodePublishNotSettled)
-
-	operatorCall := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path")
-	waitForAgentCallState(t, ctx, harness, operatorCall.CallID, callspkg.StateCompleted)
-	status, noParticipation := postAgentCallPublishHTTPError(
-		t,
-		ctx,
-		harness,
-		operatorCall.CallID,
-		compozycontract.PublishCallRequest{Channel: channel},
-	)
-	if status != http.StatusUnprocessableEntity ||
-		noParticipation.Code != string(callspkg.CodePublishNoParticipation) {
-		t.Fatalf("HTTP no-participation publish = status %d payload %#v", status, noParticipation)
-	}
-
-	reversePath := fmt.Sprintf("/api/workspaces/%s/network/calls", url.PathEscape(harness.WorkspaceID))
-	reverseRequest, err := http.NewRequestWithContext(ctx, http.MethodGet, harness.HTTPURL(reversePath), nil)
-	if err != nil {
-		t.Fatalf("http.NewRequestWithContext(reverse path) error = %v", err)
-	}
-	reverseResponse, err := harness.HTTPClient.Do(reverseRequest)
-	if err != nil {
-		t.Fatalf("HTTP reverse Network path error = %v", err)
-	}
-	if closeErr := reverseResponse.Body.Close(); closeErr != nil {
-		t.Fatalf("close reverse Network response error = %v", closeErr)
-	}
-	if reverseResponse.StatusCode != http.StatusNotFound {
-		t.Fatalf("reverse Network path status = %d, want 404", reverseResponse.StatusCode)
-	}
 }
 
 func createAgentCallCLI(

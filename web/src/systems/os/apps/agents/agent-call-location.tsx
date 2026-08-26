@@ -73,6 +73,8 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
         onCancel={page.cancel}
         cancelPending={page.cancelPending}
         cancelOutcome={page.cancelOutcome}
+        cancelFailure={page.cancelFailure}
+        onRetryCancel={page.retryCancel}
         {...(page.view.controls.callAgain ? { onCallAgain: page.callAgain } : {})}
         {...(page.view.controls.messageChild ? { onMessageChild: page.messageChild } : {})}
         onOpenCaller={page.openCaller}

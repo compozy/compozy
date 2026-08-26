@@ -97,6 +97,7 @@ func agentDefFromParsedFile(
 ) (AgentDef, error) {
 	agent := AgentDef{
 		Name:            NormalizeAgentName(parsed.Name),
+		Description:     strings.TrimSpace(parsed.Description),
 		Provider:        strings.TrimSpace(parsed.Provider),
 		Command:         strings.TrimSpace(parsed.Command),
 		Model:           strings.TrimSpace(parsed.Model),

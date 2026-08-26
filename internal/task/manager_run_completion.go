@@ -189,6 +189,13 @@ func (m *Service) RecoverRunOnBoot(
 	if run.IsNetworkWake() {
 		return m.recoverNetworkWakeOnBoot(ctx, run, normalizedRecovery, actor)
 	}
+	if run.IsCallActivation() {
+		return nil, fmt.Errorf(
+			"%w: call activation run %q is recovered by the calls runtime",
+			ErrValidation,
+			run.ID,
+		)
+	}
 	taskRecord, err := m.store.GetTask(ctx, run.TaskID)
 	if err != nil {
 		return nil, err

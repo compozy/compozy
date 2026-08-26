@@ -22,6 +22,14 @@ func RedactPreservingContract(contract Contract, payload json.RawMessage) (json.
 	if err := decoder.Decode(&decoded); err != nil {
 		return nil, nil, fmt.Errorf("decode result for redaction: %w", err)
 	}
+	if path, found := findSecretField(decoded, "$"); found {
+		return nil, nil, newError(
+			CodeRedactionConflict,
+			FaultChild,
+			fmt.Sprintf("result contains secret-shaped field %s; return a *_hash field or a non-secret reference instead", path),
+			nil,
+		)
+	}
 	redactions := make([]Redaction, 0, 2)
 	redacted := redactValue(decoded, "$", &redactions)
 	encoded, err := json.Marshal(redacted)
@@ -44,6 +52,28 @@ func RedactPreservingContract(contract Contract, payload json.RawMessage) (json.
 	}
 	sort.Slice(redactions, func(i, j int) bool { return redactions[i].Path < redactions[j].Path })
 	return encoded, redactions, nil
+}
+
+func findSecretField(value any, path string) (string, bool) {
+	switch typed := value.(type) {
+	case map[string]any:
+		for key, child := range typed {
+			childPath := appendPath(path, key)
+			if deniedSecretKey(key) {
+				return childPath, true
+			}
+			if foundPath, found := findSecretField(child, childPath); found {
+				return foundPath, true
+			}
+		}
+	case []any:
+		for index, child := range typed {
+			if foundPath, found := findSecretField(child, fmt.Sprintf("%s[%d]", path, index)); found {
+				return foundPath, true
+			}
+		}
+	}
+	return "", false
 }
 
 func redactValue(value any, path string, redactions *[]Redaction) any {
@@ -109,10 +139,22 @@ func validateSecretFieldAuthorship(canonical json.RawMessage) error {
 	if err := json.Unmarshal(canonical, &schema); err != nil {
 		return fmt.Errorf("inspect schema secret fields: %w", err)
 	}
-	return walkSecretFieldAuthorship(schema, "$")
+	return walkSecretFieldAuthorship(schema, schema, "$", make(map[string]struct{}))
 }
 
-func walkSecretFieldAuthorship(schema map[string]any, path string) error {
+func walkSecretFieldAuthorship(root, schema map[string]any, path string, visiting map[string]struct{}) error {
+	if reference, ok := schema["$ref"].(string); ok && strings.HasPrefix(reference, "#/") {
+		if _, cycle := visiting[reference]; !cycle {
+			resolved, found := resolveLocalSchemaRef(root, reference)
+			if found {
+				visiting[reference] = struct{}{}
+				if err := walkSecretFieldAuthorship(root, resolved, path, visiting); err != nil {
+					return err
+				}
+				delete(visiting, reference)
+			}
+		}
+	}
 	required := make(map[string]struct{})
 	if values, ok := schema[schemaRequired].([]any); ok {
 		for _, value := range values {
@@ -131,7 +173,7 @@ func walkSecretFieldAuthorship(schema map[string]any, path string) error {
 				)
 			}
 			if childSchema, ok := child.(map[string]any); ok {
-				if err := walkSecretFieldAuthorship(childSchema, appendPath(path, name)); err != nil {
+				if err := walkSecretFieldAuthorship(root, childSchema, appendPath(path, name), visiting); err != nil {
 					return err
 				}
 			}
@@ -147,7 +189,7 @@ func walkSecretFieldAuthorship(schema map[string]any, path string) error {
 		schemaUnevaluatedProperties,
 	} {
 		if child, ok := schema[keyword].(map[string]any); ok {
-			if err := walkSecretFieldAuthorship(child, path); err != nil {
+			if err := walkSecretFieldAuthorship(root, child, path, visiting); err != nil {
 				return err
 			}
 		}
@@ -156,7 +198,18 @@ func walkSecretFieldAuthorship(schema map[string]any, path string) error {
 		if children, ok := schema[keyword].([]any); ok {
 			for _, child := range children {
 				if childSchema, ok := child.(map[string]any); ok {
-					if err := walkSecretFieldAuthorship(childSchema, path); err != nil {
+					if err := walkSecretFieldAuthorship(root, childSchema, path, visiting); err != nil {
+						return err
+					}
+				}
+			}
+		}
+	}
+	for _, keyword := range []string{"$defs", schemaDependentSchemas} {
+		if definitions, ok := schema[keyword].(map[string]any); ok {
+			for name, child := range definitions {
+				if childSchema, ok := child.(map[string]any); ok {
+					if err := walkSecretFieldAuthorship(root, childSchema, appendPath(path, name), visiting); err != nil {
 						return err
 					}
 				}
@@ -164,4 +217,21 @@ func walkSecretFieldAuthorship(schema map[string]any, path string) error {
 		}
 	}
 	return nil
+}
+
+func resolveLocalSchemaRef(root map[string]any, reference string) (map[string]any, bool) {
+	var current any = root
+	for _, token := range strings.Split(strings.TrimPrefix(reference, "#/"), "/") {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		token = strings.ReplaceAll(strings.ReplaceAll(token, "~1", "/"), "~0", "~")
+		current, ok = object[token]
+		if !ok {
+			return nil, false
+		}
+	}
+	resolved, ok := current.(map[string]any)
+	return resolved, ok
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -89,6 +90,7 @@ type SessionInputQueueEntry struct {
 	Runtime                  SessionInputRuntime
 	SkillInvocations         []commandpkg.Invocation
 	Attachments              []SessionInputAttachment
+	PromptMeta               json.RawMessage
 	SessionGeneration        int64
 	TaskRunID                string
 	RunGeneration            *int64
@@ -152,6 +154,7 @@ type SessionInputQueueInsert struct {
 	Runtime           SessionInputRuntime
 	SkillInvocations  []commandpkg.Invocation
 	Attachments       []SessionInputAttachment
+	PromptMeta        json.RawMessage
 	SessionGeneration int64
 	TaskRunID         string
 	RunGeneration     *int64
@@ -179,6 +182,7 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 	normalized.Runtime = normalized.Runtime.Normalize()
 	normalized.SkillInvocations = append([]commandpkg.Invocation(nil), normalized.SkillInvocations...)
 	normalized.Attachments = cloneSessionInputAttachments(normalized.Attachments)
+	normalized.PromptMeta = normalizePromptMetaJSON(normalized.PromptMeta)
 	normalized.TaskRunID = strings.TrimSpace(normalized.TaskRunID)
 	if normalized.Now.IsZero() {
 		normalized.Now = time.Now().UTC()
@@ -206,6 +210,8 @@ func (r SessionInputQueueInsert) Validate() error {
 		return errors.New("store: session input queue text is required")
 	case normalized.QueueCap <= 0:
 		return fmt.Errorf("store: session input queue cap must be positive: %d", normalized.QueueCap)
+	case !json.Valid(normalized.PromptMeta):
+		return errors.New("store: session input queue metadata must be valid JSON")
 	}
 	switch normalized.Mode {
 	case SessionInputQueueModeQueue:

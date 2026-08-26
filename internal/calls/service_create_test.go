@@ -122,6 +122,19 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep an admitted call queued when the exact activation claim races", func(t *testing.T) {
+		t.Parallel()
+		service, database, claimer, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		claimer.claimErr = errors.Join(task.ErrNoClaimableRun, errors.New("claim raced"))
+		record, err := service.Create(context.Background(), validCreateInput("work", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if record.State != StateQueued || database.calls[record.CallID].State != StateQueued || len(invoker.spawns) != 0 {
+			t.Fatalf("Create() = %#v stored=%#v spawns=%d, want one durable queued call", record, database.calls[record.CallID], len(invoker.spawns))
+		}
+	})
+
 	t.Run("Should apply raised depth only to later admissions", func(t *testing.T) {
 		t.Parallel()
 		firstTarget := validAgentTarget()

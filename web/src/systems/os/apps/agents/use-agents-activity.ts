@@ -15,6 +15,7 @@
 import { useNavigate } from "@tanstack/react-router";
 
 import {
+  isAgentCommsApiError,
   useAgentCommsActivity,
   useCallCounts,
   useCallMutations,
@@ -24,15 +25,19 @@ import { useSessionCatalogStreamStatus } from "@/systems/session";
 
 import { useWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
 import { useActivityChildStates } from "./use-activity-child-states";
+import type { AgentActivitySearch } from "./agent-activity-search";
 
 /** Facets each rendered tree asks the daemon for, in probe order. */
 const TREE_FACETS = ["total", "running", "needsYou"] as const;
 
-export function useAgentsActivity(windowId: string) {
+export function useAgentsActivity(windowId: string, search: AgentActivitySearch = {}) {
   const live = useWindowLiveDataEnabled(windowId);
   const streamStatus = useSessionCatalogStreamStatus();
   const navigate = useNavigate({ from: "/agents" });
-  const activity = useAgentCommsActivity({ live });
+  const activity = useAgentCommsActivity({
+    live,
+    ...(search.root ? { rootSessionId: search.root } : {}),
+  });
   const mutations = useCallMutations(activity.scope);
 
   const rootSessionIds = activity.tree.groups.map(group => group.rootSessionId);
@@ -81,11 +86,29 @@ export function useAgentsActivity(windowId: string) {
     openCatalog: () => {
       void navigate({ to: "/agents" });
     },
-    stopSubtree: (rootSessionId: string) => {
+    stopSubtree: (rootSessionId: string, profile: string) => {
       mutations.drainSubtree.mutate({
         sessionId: rootSessionId,
         reason: "stopped from Activity",
+        profile,
       });
+    },
+    drainFailure: mutations.drainSubtree.isError
+      ? {
+          code: isAgentCommsApiError(mutations.drainSubtree.error)
+            ? mutations.drainSubtree.error.code
+            : null,
+          message:
+            mutations.drainSubtree.error instanceof Error
+              ? mutations.drainSubtree.error.message
+              : "The subtree stop failed.",
+        }
+      : null,
+    drainOutcome: mutations.drainSubtree.data ?? null,
+    retryStopSubtree: () => {
+      if (mutations.drainSubtree.variables) {
+        mutations.drainSubtree.mutate(mutations.drainSubtree.variables);
+      }
     },
     pendingStopRootSessionId: mutations.drainSubtree.isPending
       ? (mutations.drainSubtree.variables?.sessionId ?? null)

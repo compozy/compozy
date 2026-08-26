@@ -55,6 +55,8 @@ export interface AgentCallDetailProps {
    * click landed.
    */
   cancelOutcome?: { state: string; stale: boolean } | null;
+  cancelFailure?: { code: string | null; message: string } | null;
+  onRetryCancel?: () => void;
   onCancel?: () => void;
   onCallAgain?: () => void;
   onMessageChild?: () => void;
@@ -78,6 +80,8 @@ export function AgentCallDetail({
   onFetchSuperseded,
   supersededPending = false,
   cancelOutcome = null,
+  cancelFailure = null,
+  onRetryCancel,
   onCancel,
   onCallAgain,
   onMessageChild,
@@ -115,6 +119,29 @@ export function AgentCallDetail({
               : "Canceled."
           }
           tone={cancelOutcome.stale ? "warning" : "success"}
+        />
+      ) : null}
+
+      {cancelFailure ? (
+        <ActionResultBanner
+          data-testid="agent-call-cancel-failure"
+          title="Couldn't cancel this call."
+          description={
+            <span>
+              {cancelFailure.message}
+              {cancelFailure.code ? (
+                <span className="ml-1 font-mono text-form">{cancelFailure.code}</span>
+              ) : null}
+            </span>
+          }
+          tone="danger"
+          actions={
+            onRetryCancel ? (
+              <Button size="xs" type="button" variant="outline" onClick={onRetryCancel}>
+                Retry
+              </Button>
+            ) : null
+          }
         />
       ) : null}
 

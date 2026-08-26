@@ -111,6 +111,15 @@ export function useSessionCallsPanel(sessionId: string): SessionCallsPanelModel 
       total: madeTotal,
       hasMore: made.hasNextPage,
       loadingMore: made.isFetchingNextPage,
+      error:
+        made.isError || made.isFetchNextPageError
+          ? made.error instanceof Error
+            ? made.error.message
+            : "The calls request failed."
+          : null,
+      onRetry: () => {
+        void made.refetch();
+      },
       onLoadMore: () => {
         void made.fetchNextPage();
       },
@@ -120,6 +129,15 @@ export function useSessionCallsPanel(sessionId: string): SessionCallsPanelModel 
       total: receivedTotal,
       hasMore: received.hasNextPage,
       loadingMore: received.isFetchingNextPage,
+      error:
+        received.isError || received.isFetchNextPageError
+          ? received.error instanceof Error
+            ? received.error.message
+            : "The calls request failed."
+          : null,
+      onRetry: () => {
+        void received.refetch();
+      },
       onLoadMore: () => {
         void received.fetchNextPage();
       },

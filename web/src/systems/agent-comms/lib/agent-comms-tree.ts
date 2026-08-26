@@ -174,7 +174,10 @@ interface WalkResult {
  * not after all of its siblings. Expanding sessions alone would read the tree
  * breadth-first and scatter one delegation across the group.
  */
-type WalkFrame = { kind: "session"; sessionId: string } | { kind: "call"; call: CallPayload };
+type WalkFrame =
+  | { kind: "session-enter"; sessionId: string }
+  | { kind: "session-exit"; sessionId: string }
+  | { kind: "call"; call: CallPayload };
 
 /**
  * Depth-first over the session lineage, emitting each session's outgoing calls
@@ -194,6 +197,7 @@ function walkLineage(
   const emitted = new Set<string>();
   const cyclic = new Set<string>();
   const expanded = new Set<string>();
+  const activePath = new Set<string>();
   const topLevelCallIds: string[] = [];
   const rowByCallId = new Map<string, CallTreeRow>();
   /**
@@ -202,7 +206,7 @@ function walkLineage(
    * work that child already did.
    */
   const ownerCallIdBySession = new Map<string, string>();
-  const stack: WalkFrame[] = [{ kind: "session", sessionId: rootSessionId }];
+  const stack: WalkFrame[] = [{ kind: "session-enter", sessionId: rootSessionId }];
 
   while (stack.length > 0) {
     const frame = stack.pop();
@@ -227,19 +231,25 @@ function walkLineage(
       const child = call.child_session_id ?? "";
       if (child === "") continue;
       if (!ownerCallIdBySession.has(child)) ownerCallIdBySession.set(child, call.call_id);
-      if (expanded.has(child)) {
-        cyclic.add(child);
-        continue;
-      }
-      stack.push({ kind: "session", sessionId: child });
+      stack.push({ kind: "session-enter", sessionId: child });
       continue;
     }
 
-    if (expanded.has(frame.sessionId)) {
+    if (frame.kind === "session-exit") {
+      activePath.delete(frame.sessionId);
+      continue;
+    }
+
+    if (activePath.has(frame.sessionId)) {
       cyclic.add(frame.sessionId);
       continue;
     }
+    // A follow-up can legitimately reach a child already claimed by a sibling.
+    // Its subtree belongs to the first caller and is not a cycle.
+    if (expanded.has(frame.sessionId)) continue;
     expanded.add(frame.sessionId);
+    activePath.add(frame.sessionId);
+    stack.push({ kind: "session-exit", sessionId: frame.sessionId });
     const outgoing = byCaller.get(frame.sessionId) ?? [];
     for (let index = outgoing.length - 1; index >= 0; index -= 1) {
       stack.push({ kind: "call", call: outgoing[index]! });

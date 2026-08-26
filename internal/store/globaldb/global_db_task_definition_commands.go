@@ -29,6 +29,11 @@ func (g *TaskRepo) CreateTaskDefinition(
 	}
 
 	return g.withTaskImmediateTransaction(ctx, "create task definition", func(exec taskSQLExecutor) error {
+		if mutation.Contract != nil {
+			if err := putCallContract(ctx, exec, *mutation.Contract, g.now()); err != nil {
+				return err
+			}
+		}
 		if err := g.ensureTaskCreateReferencesWithExecutor(ctx, exec, normalized); err != nil {
 			return err
 		}
@@ -73,6 +78,11 @@ func (g *TaskRepo) UpdateTaskDefinition(
 	}
 
 	err = g.withTaskImmediateTransaction(ctx, "update task definition", func(exec taskSQLExecutor) error {
+		if mutation.Contract != nil {
+			if err := putCallContract(ctx, exec, *mutation.Contract, g.now()); err != nil {
+				return err
+			}
+		}
 		if mutation.UpdateTaskRow {
 			if err := g.updateTaskWithExecutor(ctx, exec, mutation.Task, mutation.Actor); err != nil {
 				return err
