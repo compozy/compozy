@@ -1123,8 +1123,19 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			name      string
 			overrides map[string]any
 			namespace map[string]any
+			wantError string
 		}{
 			{name: "Should reject unknown fields", overrides: map[string]any{"iteration_caps": 4}},
+			{
+				name: "Should reject unknown nested runtime fields",
+				overrides: map[string]any{
+					"runtime_rules": []any{map[string]any{
+						"match":   map[string]any{"id": "frontend-shell"},
+						"runtime": map[string]any{"provider": "cursor", "models": "grok-4.6"},
+					}},
+				},
+				wantError: `unknown field "models"`,
+			},
 			{
 				name: "Should reject wrong materialized field types",
 				overrides: map[string]any{
@@ -1167,6 +1178,9 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 				}
 				if !strings.Contains(err.Error(), "run-loop config_overrides") {
 					t.Fatalf("Execute() error = %v, want run-loop config_overrides", err)
+				}
+				if test.wantError != "" && !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("Execute() error = %v, want %q", err, test.wantError)
 				}
 				if got := starter.startCount(); got != 0 {
 					t.Fatalf("Start() calls = %d, want 0", got)
