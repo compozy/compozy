@@ -11,7 +11,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
-import { WorkBanner, WORK_BANNER_HARD_STOP_THRESHOLD } from "../work-banner";
+import { WORK_BANNER_HARD_STOP_THRESHOLD } from "../work-banner-constants";
+import { WorkBanner } from "../work-banner";
 
 describe("WorkBanner auto-hide, tone, and hard-stop", () => {
   beforeEach(() => {

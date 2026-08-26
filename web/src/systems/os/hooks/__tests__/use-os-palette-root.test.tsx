@@ -1235,10 +1235,10 @@ describe("palette nested views", () => {
     renderPalette();
     await pushSessionsView(user);
 
-    expect(screen.getByTestId("os-palette-session-view-s-marketing")).toHaveTextContent(
-      "marketing"
-    );
-    expect(screen.getByTestId("profile-owner-tag")).not.toHaveAttribute("data-archived");
+    const ownerTag = screen.getByTestId("profile-owner-tag");
+    expect(ownerTag).toHaveAttribute("aria-label", "marketing");
+    expect(ownerTag).toHaveAttribute("title", "marketing");
+    expect(ownerTag).not.toHaveAttribute("data-archived");
   });
 
   it("Should narrow by chip, name a zero match, and clear it in one keystroke [UT-061]", async () => {

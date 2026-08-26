@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { WorktreeExitLadderRow } from "../../lib/worktree-exit-ladder";
 import type { WorktreeExitCommitScope } from "../../types";
-import { AGENT_MESSAGE_PROMPT, WorktreeCommitDialog } from "../worktree-commit-dialog";
+import { AGENT_MESSAGE_PROMPT } from "../worktree-commit-dialog-copy";
+import { WorktreeCommitDialog } from "../worktree-commit-dialog";
 
 /**
  * Invariant: the agent affordance stages a reviewable prompt and never runs

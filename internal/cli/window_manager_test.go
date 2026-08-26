@@ -1567,8 +1567,7 @@ func TestWindowManagerCommandsRejectInvalidInputBeforeTransport(t *testing.T) {
 				t.Fatalf("command error = %q, want fragment %q", err, tt.wantError)
 			}
 			if tt.wantJSONCause {
-				var jsonTypeErr *json.UnmarshalTypeError
-				if !errors.As(err, &jsonTypeErr) {
+				if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
 					t.Fatalf("command error = %v, want *json.UnmarshalTypeError", err)
 				}
 			}

@@ -269,8 +269,7 @@ func (e *sshCommandError) Unwrap() error {
 }
 
 func (e *sshCommandError) exitCode() int {
-	var exitErr *exec.ExitError
-	if errors.As(e.cause, &exitErr) {
+	if exitErr, ok := errors.AsType[*exec.ExitError](e.cause); ok {
 		return exitErr.ExitCode()
 	}
 	return -1

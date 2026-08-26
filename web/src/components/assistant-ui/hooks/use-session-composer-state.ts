@@ -39,9 +39,10 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
     if (retainAttachments) {
       retainSubmittedComposerAttachments(aui.composer.getState().attachments);
     }
-    aui.composer.setText("");
-    void aui.composer.clearAttachments();
     sessionStore.trigger.composerDraftDiscarded({ sessionId });
+    aui.composer.setText("");
+    composerInputHandleRef.current?.clear();
+    void aui.composer.clearAttachments();
   };
 
   const persistComposerText = (text: string) => {
@@ -49,7 +50,6 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
   };
 
   const setComposerText = (text: string) => {
-    aui.composer.setText(text);
     persistComposerText(text);
   };
 

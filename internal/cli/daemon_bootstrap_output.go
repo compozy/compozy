@@ -29,8 +29,7 @@ func writeBootstrapFailure(
 		Type: bootstrapEventType, Phase: phase, Status: bootstrapStatusFailed, Classification: classification,
 		Message: cause.Error(),
 	}
-	var compatibilityFailure *bootstrapCompatibilityFailure
-	if errors.As(cause, &compatibilityFailure) {
+	if compatibilityFailure, ok := errors.AsType[*bootstrapCompatibilityFailure](cause); ok {
 		compatibility := compatibilityFailure.bootstrapCompatibility
 		event.Compatibility = &compatibility
 	}

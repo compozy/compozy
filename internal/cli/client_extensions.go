@@ -27,8 +27,7 @@ func (c *daemonClient) SearchExtensions(
 	query := url.Values{
 		"q":            {strings.TrimSpace(request.Query)},
 		listLimitField: {strconv.Itoa(request.Limit)},
-		//nolint:goconst // cursor is the external extension-search query field, not a presentation label.
-		"cursor": {strings.TrimSpace(request.Cursor)},
+		"cursor":       {strings.TrimSpace(request.Cursor)},
 	}
 	if len(request.Sources) > 0 {
 		query.Set("sources", strings.Join(request.Sources, ","))

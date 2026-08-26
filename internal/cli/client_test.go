@@ -648,8 +648,7 @@ func TestUnixSocketClientSessionPromptTerminalContract(t *testing.T) {
 			func(SSEEvent) error { return nil },
 		)
 		assertErrorContains(t, err, "decode prompt stream event")
-		var syntaxErr *json.SyntaxError
-		if !errors.As(err, &syntaxErr) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); !ok {
 			t.Fatalf("StreamPromptSession() error = %T %[1]v, want *json.SyntaxError", err)
 		}
 	})

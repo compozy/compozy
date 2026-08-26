@@ -81,8 +81,7 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 		if !errors.Is(err, store.ErrSchemaAhead) {
 			t.Fatalf("openLocalGlobalDatabase(ahead) error = %v, want ErrSchemaAhead", err)
 		}
-		var openErr *localDatabaseOpenError
-		if !errors.As(err, &openErr) {
+		if _, ok := errors.AsType[*localDatabaseOpenError](err); !ok {
 			t.Fatalf("openLocalGlobalDatabase(ahead) error type = %T, want *localDatabaseOpenError", err)
 		}
 		if !strings.Contains(err.Error(), "install a newer CompozyOS binary") ||

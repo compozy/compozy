@@ -96,13 +96,11 @@ func (c *daemonClient) WatchWindowManager(
 		returnErr = errors.Join(returnErr, closeErr)
 	}()
 
-	if err := readWindowManagerFrames(ctx, conn, handlers); err != nil {
-		if c.target.isRemoteGateway() && ctx.Err() == nil {
-			return newGatewayStreamInterruptedError(c.target, err)
-		}
-		return err
+	streamErr := readWindowManagerFrames(ctx, conn, handlers)
+	if c.target.isRemoteGateway() && ctx.Err() == nil {
+		return newGatewayStreamInterruptedError(c.target, streamErr)
 	}
-	return nil
+	return streamErr
 }
 
 func validateWindowManagerWatch(

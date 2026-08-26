@@ -45,7 +45,7 @@
         "@tanstack/react-query": "^5.102.4",
         "@tanstack/react-router": "^1.170.32",
         "@tanstack/react-virtual": "^3.14.10",
-        "@xstate/store": "^4.2.3",
+        "@xstate/store": "4.2.3",
         "@xstate/store-react": "^2.0.0",
         "@xyflow/react": "^12.11.5",
         "ai": "^7.0.79",

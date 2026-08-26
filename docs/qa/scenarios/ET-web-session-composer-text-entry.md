@@ -11,8 +11,8 @@ bug_ids: BUG-20260815-session-composer-draft-reload;BUG-20260825-session-compose
 fix_status: fixed
 retest_status: pass
 fix_commits: f54e62b;acbbb25;current-pr-head;current-working-tree
-evidence: docs/qa/evidence/2026-08-25-lexical-composer-context/CH-session-composer-text-entry-goal.png;docs/qa/evidence/2026-08-25-lexical-composer-context/CH-session-composer-text-entry-deep-link.png
-last_report: docs/qa/reports/2026-08-25-lexical-composer-context.md
+evidence: docs/qa/evidence/2026-08-26-release-ci-composer/CH-session-composer-text-entry-goal.png;docs/qa/evidence/2026-08-26-release-ci-composer/CH-session-composer-text-entry-deep-link.png
+last_report: docs/qa/reports/2026-08-26-release-ci-composer.md
 overlaps: ET-web-session-prompt-runtime-and-create-navigation;ET-web-runtime-selector-minimal-slider
 ---
 
@@ -37,3 +37,11 @@ QA verdict 2026-08-15 (attachments): passed after remediation. Sequential Unicod
 QA impact 2026-08-25 (Lexical context): reset because the Lexical dependency graph and imperative composer synchronization changed. Re-walk editor mount, exact text entry, refresh persistence, and deep-link return on the corrected dependency graph.
 
 QA verdict 2026-08-25 (Lexical context): passed in the real local daemon/Web environment. A new session mounted the Lexical editor without a session-window error, preserved leading/repeated/trailing spaces and Unicode through the runtime-selector interaction, restored the exact draft from a fresh deep link, and accepted a second exact draft after remount.
+
+QA impact 2026-08-26 (release CI remediation): reset because programmatic draft hydration and
+imperative Lexical clearing changed again while repairing the unified assistant-ui dependency graph.
+
+QA verdict 2026-08-26 (release CI remediation): passed in a fresh isolated daemon and Web lab. The
+composer preserved leading, repeated, and trailing spaces plus emoji and Japanese text through the
+runtime selector and a full reload; a clean-browser deep link rendered the editor and accepted a
+second exact draft without console errors.

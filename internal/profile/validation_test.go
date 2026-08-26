@@ -37,7 +37,7 @@ func TestNormalizeIdentitySymbols(t *testing.T) {
 	t.Run("Should reject emoji containing spaces or control characters", func(t *testing.T) {
 		t.Parallel()
 
-		for _, emoji := range []string{"a b", "x\ny", "🦊🦊"} {
+		for _, emoji := range []string{"a b", "x\ny", "🦊\a🦊"} {
 			if _, _, _, err := NormalizeIdentity("", "", emoji); !errors.Is(err, ErrInvalidInput) {
 				t.Fatalf("NormalizeIdentity(%q) error = %v, want ErrInvalidInput", emoji, err)
 			}

@@ -21,6 +21,7 @@ vi.mock("next/link", () => ({
 
 class MockIntersectionObserver {
   readonly observe = vi.fn();
+  readonly unobserve = vi.fn();
   readonly disconnect = vi.fn();
 }
 
