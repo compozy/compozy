@@ -229,31 +229,7 @@ export function projectNodeLifecycles(input: LoopNodeLifecycleInput): LoopNodeLi
  * ACP session per node from the latest generation's cells — the run page's
  * one-click path into the live agent conversation.
  */
-export function sessionsByNode(
-  generations: readonly LoopRunGeneration[] | undefined
-): Map<string, string> {
-  const sessions = new Map<string, string>();
-  for (const [nodeId, output] of latestOutputs(generations)) {
-    if (output.session_id) sessions.set(nodeId, output.session_id);
-  }
-  return sessions;
-}
-
-/** Nodes the daemon flagged for attention — an overlay, not an exclusive state. */
-export function attentionNodes(rows: readonly LoopNodeLifecycle[]): LoopNodeLifecycle[] {
-  return rows.filter(row => row.attentionFlag !== "");
-}
-
 /** Nodes holding at least one open wait cell. */
 export function waitingNodes(rows: readonly LoopNodeLifecycle[]): LoopNodeLifecycle[] {
   return rows.filter(row => row.waits.some(isOpenWait));
-}
-
-/** The set of node ids whose branches are parked; progress excludes them. */
-export function parkedNodeIds(rows: readonly LoopNodeLifecycle[]): Set<string> {
-  const parked = new Set<string>();
-  for (const row of rows) {
-    if (row.parked) parked.add(row.nodeId);
-  }
-  return parked;
 }

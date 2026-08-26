@@ -56,6 +56,9 @@
   --color-danger-tint: rgba(224, 99, 90, 0.09);
   --color-info: #8e8eb5;
   --color-info-tint: rgba(142, 142, 181, 0.12);
+  /* Spectrum-only hues — identity/color data, never status signals. */
+  --color-spectrum-blue: #4ea7fc;
+  --color-spectrum-violet: #c26ad6;
   --color-neutral: #7a7a80;
   --color-neutral-ink: #8a8a90;
   --color-neutral-tint: rgba(150, 150, 155, 0.06);
@@ -374,6 +377,8 @@
      control scale while retaining their own named dimensions. */
   --width-symbol-picker-color-input: 7.5rem;
   --size-symbol-picker-cell: 1.75rem;
+  --height-color-picker-area: 9rem;
+  --height-symbol-picker-grid: 14rem;
   --height-textarea-min: 84px;
 
   /* Switch geometry — default vs sm. */
@@ -444,7 +449,7 @@
   --size-icon-well-row: 34px; /* listing-row identity well */
   --size-topbar-glyph: 22px; /* OS window-head glyph */
   --size-profile-glyph-sm: 18px;
-  --ring-width-profile-current: 1.5px;
+  --ring-width-profile-current: 1px;
   --height-profile-row: 54px;
   --size-status-dot: 7px;
   --size-status-dot-sm: 6px;

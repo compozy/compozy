@@ -6,13 +6,13 @@ persona: Lea
 journey: J-19
 expected: Workspaces is step 2 of 2. Continue is enabled with zero folders. The step heading stands alone; a HelpTip on it (`About workspace`) states that Skip starts in Global (~) and that setup does not enable Network. A Skip control (`onboarding-skip-global`) reads "Skip" with no adjacent paragraph. Empty selection and the footer both report "None yet" without tutorial clauses. Finishing without adding a folder lands on the live desktop: chip Global (`~`), Switch on and locked, no full-page workspace gate. The skip path does not `POST /api/workspaces/resolve` for `$HOME`. Adding a folder remains valid and turns Global off after selection.
 entry_points: web `/_app/` first-run; onboarding Workspaces step
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/onboarding-workspace-skip.png; /Users/pedronauck/dev/qa-labs/compozy-pr-368-coderabbit-20260813-051821-831054-lab/qa-artifacts/qa/screenshots/onboarding-global-desktop.png
-last_report: docs/qa/reports/2026-08-13-pr-368-coderabbit.md
+evidence: docs/qa/evidence/2026-08-26-pr-484-global-desktop/CH-onboarding-global-skip-workspaces.png; docs/qa/evidence/2026-08-26-pr-484-global-desktop/CH-onboarding-global-skip-desktop.png; docs/qa/evidence/2026-08-26-pr-484-global-desktop/CH-onboarding-global-skip-palette.png
+last_report: docs/qa/reports/2026-08-26-pr-484-global-desktop.md
 overlaps: RT-004; RT-onboarding-setup-panel-over-shell
 ---
 
@@ -34,3 +34,8 @@ daemon rather than merely not resolved. Already `untested`, so no reset was need
 first-run desktop is quiet about profiles when only `default` exists, and that finishing without a
 folder produces a usable Global view. What Global means for the data is owned by
 `MS-global-scope-no-workspace-work`.
+
+2026-08-26 re-walk: Lea selected Codex through the public first-run flow, added and removed one
+project, then chose Skip with no project folders. Global opened with a usable Dock and command
+palette; a refresh preserved Global and the palette catalog. Independent CLI and HTTP reads showed
+an empty workspace catalog and a healthy `workspace=global` command catalog.

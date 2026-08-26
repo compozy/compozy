@@ -1,6 +1,7 @@
 import { KindIcon, Pill } from "@compozy/ui";
 
 import { statusTone } from "@/lib/status-tone";
+import { ProfileOwnerTag } from "@/systems/profiles";
 
 import type { OsPaletteDomainRow } from "../hooks/use-os-palette-domain-search";
 import { getOsAppDescriptor } from "../lib/app-catalog";
@@ -23,6 +24,7 @@ export function OsPaletteDomainRow({ row }: { row: OsPaletteDomainRow }) {
           {formatStatus(row.status)}
         </Pill>
       ) : null}
+      {row.owner ? <ProfileOwnerTag owner={row.owner} /> : null}
     </div>
   );
 }

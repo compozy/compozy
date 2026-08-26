@@ -322,8 +322,7 @@ func followLoopEvents(
 		if errors.Is(streamErr, errStopSSE) {
 			return nil
 		}
-		var payloadErr *loopFollowPayloadError
-		if errors.As(streamErr, &payloadErr) {
+		if payloadErr, ok := errors.AsType[*loopFollowPayloadError](streamErr); ok {
 			return payloadErr
 		}
 		if cmd.Context().Err() != nil {

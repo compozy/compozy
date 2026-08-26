@@ -253,8 +253,7 @@ func sessionAttachmentTooLargeError(maxFileBytes int64) error {
 }
 
 func sessionAttachmentUploadError(err error, maxFileBytes int64) error {
-	var maxBytesErr *http.MaxBytesError
-	if errors.As(err, &maxBytesErr) {
+	if maxBytesErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxBytesErr != nil {
 		return sessionAttachmentTooLargeError(maxFileBytes)
 	}
 	if errors.Is(err, attachmentspkg.ErrTooLarge) {

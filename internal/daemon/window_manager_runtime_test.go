@@ -386,6 +386,27 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 	})
 }
 
+func TestWindowManagerGlobalDesktopWorkspace(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should persist profile desktop state without a project workspace", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := windowmanager.GlobalDesktopWorkspaceID
+
+		executeDaemonDesktopCreate(t, fixture.manager, workspaceID, "desktop-global", "Global")
+		snapshot, err := fixture.manager.Snapshot(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("Snapshot(global desktop) error = %v", err)
+		}
+		if snapshot.WorkspaceID != workspaceID || snapshot.Revision != 1 ||
+			len(snapshot.Desktops) != 2 || snapshot.Desktops[1].Name != "Global" {
+			t.Fatalf("Snapshot(global desktop) = %#v, want isolated persisted layout", snapshot)
+		}
+	})
+}
+
 func TestWindowManagerWorkspaceResolverErrorClassification(t *testing.T) {
 	t.Parallel()
 	transientErr := errors.New("workspace store temporarily unavailable")

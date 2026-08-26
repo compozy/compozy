@@ -633,8 +633,7 @@ func TestWhatsAppProgressRendering(t *testing.T) {
 			&bridgesdk.Session{},
 			final,
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want CommittedMutationError", err, err)
 		}
 		if _, exists := provider.deliveries.Load(
@@ -1146,8 +1145,7 @@ func TestExecuteWhatsAppDeliveryRejectsInvalidOrUnacknowledgedSends(t *testing.T
 			request,
 			deliveryState{},
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("executeWhatsAppDelivery() error = %T, want *bridgesdk.CommittedMutationError", err)
 		}
 		if ack != (bridgepkg.DeliveryAck{}) ||
@@ -1242,8 +1240,7 @@ func TestExecuteWhatsAppDeliveryRejectsInvalidOrUnacknowledgedSends(t *testing.T
 			request,
 			deliveryState{},
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("executeWhatsAppDelivery() error = %T, want *bridgesdk.CommittedMutationError", err)
 		}
 		if got, want := len(api.requests), 1; got != want {
@@ -1369,8 +1366,7 @@ func TestClassifyWhatsAppHTTPError(t *testing.T) {
 		"",
 		[]byte(`{"error":{"message":"invalid token","code":190}}`),
 	)
-	var authErr *bridgesdk.AuthError
-	if !errors.As(auth, &authErr) {
+	if _, ok := errors.AsType[*bridgesdk.AuthError](auth); !ok {
 		t.Fatalf("classifyWhatsAppHTTPError(auth) = %T, want *AuthError", auth)
 	}
 
@@ -2400,8 +2396,7 @@ func TestWhatsAppGraphClientMethods(t *testing.T) {
 			"123456789",
 			whatsappSendMessageRequest{MessagingProduct: "whatsapp", To: "15551234567", Type: "text"},
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("sendWhatsAppDeliveryMessage() error = %T %v, want CommittedMutationError", err, err)
 		}
 		if got, want := attempts.Load(), int32(1); got != want {

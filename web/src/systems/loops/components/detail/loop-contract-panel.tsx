@@ -53,7 +53,7 @@ export function LoopContractPanel({ contract, concurrency }: LoopContractPanelPr
  * The contract rows without a shell, so a caller that already owns the card — the
  * run form's folded rail — composes them instead of nesting a second panel.
  */
-export function LoopContractRows({ contract, concurrency }: LoopContractPanelProps) {
+function LoopContractRows({ contract, concurrency }: LoopContractPanelProps) {
   const verification = contract.verification ?? [];
   const terminalStates = contract.terminal_states ?? [];
   return (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveActiveWorkspace } from "../active-workspace";
+import { GLOBAL_DESKTOP_WORKSPACE_ID, resolveActiveWorkspace } from "../active-workspace";
 import type { WorkspacePayload } from "../../types";
 
 function workspace(
@@ -37,17 +37,18 @@ describe("resolveActiveWorkspace", () => {
 
   it("Should keep Global on with a ~ chip when no project workspaces exist", () => {
     const resolved = resolveActiveWorkspace({
-      workspaces: [home],
+      workspaces: [],
       userHomeDir: HOME,
       scope: "workspace",
-      selectedWorkspaceId: "ws_home",
+      selectedWorkspaceId: null,
     });
     expect(resolved.scope).toBe("global");
     expect(resolved.toggleLocked).toBe(true);
     expect(resolved.activeWorkspace).toBeUndefined();
     expect(resolved.chip).toEqual({ name: "Global", monogram: "~" });
     expect(resolved.runtimeWorkspaceId).toBeNull();
-    expect(resolved.desktopWorkspaceId).toBeNull();
+    expect(resolved.desktopWorkspace).toBeUndefined();
+    expect(resolved.desktopWorkspaceId).toBe(GLOBAL_DESKTOP_WORKSPACE_ID);
   });
 
   it("Should stay Global when the remembered project is missing instead of falling back", () => {

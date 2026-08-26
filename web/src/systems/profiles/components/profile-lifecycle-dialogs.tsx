@@ -1,5 +1,6 @@
 import { isStalePlan, lifecycleErrorMessage } from "../hooks/use-profile-lifecycle";
 import { useProfileLifecycleDialogs } from "../hooks/use-profile-lifecycle-dialogs";
+import { useProfileIconCatalog } from "../hooks/use-profile-icon-catalog";
 import { symbolPatch } from "../lib/profile-identity";
 import { openProfileDialog } from "../stores/profile-dialog-store";
 import type { ProfileLens, ProfilePayload } from "../types";
@@ -37,6 +38,7 @@ export function ProfileLifecycleDialogs({
   const model = useProfileLifecycleDialogs(profiles);
   const { lifecycle, target } = model;
   const intent = lifecycle.intent;
+  const catalog = useProfileIconCatalog(intent?.flow === "create" || intent?.flow === "update");
 
   if (intent === null) return null;
   const dismiss = (open: boolean) => {
@@ -46,6 +48,7 @@ export function ProfileLifecycleDialogs({
   if (intent.flow === "create") {
     return (
       <ProfileCreateDialog
+        catalog={catalog}
         key={intent.profile ?? "new-profile"}
         open
         onOpenChange={dismiss}
@@ -73,6 +76,7 @@ export function ProfileLifecycleDialogs({
     if (model.profile === undefined) return null;
     return (
       <ProfileIdentityDialog
+        catalog={catalog}
         key={model.profile.id}
         open
         onOpenChange={dismiss}

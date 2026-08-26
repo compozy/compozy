@@ -12,7 +12,7 @@ import type { SessionPayload } from "@/systems/session";
 import type { TaskDashboardView, TaskListItem } from "@/systems/tasks";
 import { pendingAskRequest } from "@/systems/loops/mocks/fixture-graph-eng-requests";
 
-import { dockBadgeFor } from "../../components/dock-badges";
+import { dockBadgeFor } from "../os-dock-model";
 import { OS_APPS } from "../app-registry";
 import {
   attentionCount,

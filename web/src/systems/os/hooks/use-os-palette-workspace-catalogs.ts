@@ -5,6 +5,7 @@ import { extensionsListOptions, type ExtensionEntry } from "@/systems/extensions
 import { listMemories, memoriesListOptions, type MemoryHeader } from "@/systems/knowledge";
 import { listLoops, loopsCatalogOptions, type LoopCatalogEntry } from "@/systems/loops";
 import { networkChannelsOptions, type NetworkChannelSummary } from "@/systems/network";
+import type { ProfileOwnerLabel } from "@/systems/profiles";
 import { worktreesListOptions } from "@/systems/workspace";
 
 import type { QueryState } from "../lib/os-palette-domain-search";
@@ -28,7 +29,7 @@ export interface PaletteWorkspaceChannel extends NetworkChannelSummary {
   readonly workspace_id: string;
 }
 
-export interface PaletteWorkspaceWorktree {
+export interface PaletteWorkspaceWorktree extends ProfileOwnerLabel {
   readonly id: string;
   readonly name: string;
   readonly branch: string;
@@ -230,6 +231,12 @@ export function useOsPaletteWorkspaceCatalogs({
         branch: worktree.branch,
         state: worktree.state,
         workspace_id: worktree.workspace_id ?? workspaceId,
+        profile_id: worktree.profile_id,
+        profile_name: worktree.profile_name,
+        profile_color: worktree.profile_color,
+        profile_icon: worktree.profile_icon,
+        profile_emoji: worktree.profile_emoji,
+        profile_archived: worktree.profile_archived,
       });
     }
   });

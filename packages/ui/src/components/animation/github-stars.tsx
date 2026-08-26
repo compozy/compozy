@@ -9,14 +9,11 @@ import {
   useGithubStarsController,
   type GithubStarsContextType,
 } from "../../hooks/use-github-stars-controller";
-import { getStrictContext } from "../../lib/context";
 import { cn } from "../../lib/utils";
 import { Slot, type WithAsChild } from "../../primitives/slot";
 import { Particles, ParticlesEffect, type ParticlesEffectProps } from "./particles";
 import { SlidingNumber, type SlidingNumberProps } from "./sliding-number";
-
-const [GithubStarsProvider, useGithubStars] =
-  getStrictContext<GithubStarsContextType>("GithubStarsContext");
+import { GithubStarsProvider, useGithubStars } from "./github-stars-context";
 
 export type GithubStarsProps = WithAsChild<
   {
@@ -172,4 +169,4 @@ export function GithubStarsLogo(props: GithubStarsLogoProps) {
   );
 }
 
-export { useGithubStars, type GithubStarsContextType };
+export type { GithubStarsContextType };

@@ -1,8 +1,7 @@
 import { PillGroup, type PillGroupItem } from "@compozy/ui";
 
 import { shortcutSourceLabel } from "@/systems/os";
-
-export const SHORTCUT_SOURCE_ALL = "__all__";
+import { SHORTCUT_SOURCE_ALL } from "./shortcut-source-filter-constants";
 
 export interface ShortcutSourceFilterProps {
   /** Sources present in the registry, in reading order. */

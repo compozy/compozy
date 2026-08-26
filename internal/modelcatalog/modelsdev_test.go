@@ -337,8 +337,7 @@ func TestModelsDevSource(t *testing.T) {
 		if err == nil {
 			t.Fatal("ListModels(no cache) error = nil, want upstream error")
 		}
-		var staleErr *StaleFallbackError
-		if errors.As(err, &staleErr) {
+		if _, ok := errors.AsType[*StaleFallbackError](err); ok {
 			t.Fatalf("ListModels(no cache) error = %v, want no stale fallback", err)
 		}
 	})

@@ -1,9 +1,9 @@
 import type { ComponentProps } from "react";
 import { Layers } from "lucide-react";
 
-import { cn, identityColorsFor, KindIcon } from "@compozy/ui";
+import { cn, identityColorsFor, SpriteIcon } from "@compozy/ui";
 
-import { PROFILE_ICON_REGISTRY, symbolOf } from "../lib/profile-identity";
+import { PROFILE_SPRITE_URL, symbolOf } from "../lib/profile-identity";
 
 export type ProfileGlyphSize = "sm" | "default" | "lg";
 
@@ -32,14 +32,14 @@ export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "childre
 }
 
 const SIZE_CLASS: Record<ProfileGlyphSize, string> = {
-  sm: "size-profile-glyph-sm rounded-xs",
-  default: "size-topbar-glyph rounded-sm",
-  lg: "size-7 rounded-md",
+  sm: "size-profile-glyph-sm rounded-xs text-small-body",
+  default: "size-topbar-glyph rounded-sm text-small-body",
+  lg: "size-7 rounded-md text-item-title",
 };
 
 const GLYPH_CLASS: Record<ProfileGlyphSize, string> = {
-  sm: "size-2.5",
-  default: "size-3",
+  sm: "size-3.5",
+  default: "size-3.5",
   lg: "size-4",
 };
 
@@ -72,7 +72,7 @@ export function ProfileGlyph({
       aria-label={decorative ? undefined : label}
       aria-hidden={decorative ? true : undefined}
       className={cn(
-        "relative inline-grid shrink-0 place-items-center text-badge leading-none",
+        "relative inline-grid shrink-0 place-items-center leading-none",
         SIZE_CLASS[size],
         aggregate && "border border-line-strong bg-badge-fill text-muted",
         current && !aggregate && "ring-[length:var(--ring-width-profile-current)]",
@@ -95,9 +95,9 @@ export function ProfileGlyph({
       ) : symbol.kind === "emoji" ? (
         <span aria-hidden="true">{symbol.value}</span>
       ) : (
-        <KindIcon
-          kind={symbol.value}
-          registry={PROFILE_ICON_REGISTRY}
+        <SpriteIcon
+          spriteUrl={PROFILE_SPRITE_URL}
+          name={symbol.value}
           className={cn(GLYPH_CLASS[size], "text-current")}
         />
       )}

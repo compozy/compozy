@@ -1,0 +1,1 @@
+export const PALETTE_VIEW_VIRTUAL_THRESHOLD = 150;

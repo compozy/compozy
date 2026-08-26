@@ -391,8 +391,7 @@ func (s *Service) finishExitFailure(
 	}
 	message := diagnostics.RedactAndBound(cause.Error(), 2048)
 	phase := ExitPhase("")
-	var executionErr *exitExecutionError
-	if errors.As(cause, &executionErr) {
+	if executionErr, ok := errors.AsType[*exitExecutionError](cause); ok {
 		phase = executionErr.phase
 	}
 	_, err := s.finishExitOperation(context.WithoutCancel(ctx), operation, state, event, ExitEventPayload{

@@ -29,6 +29,7 @@ import {
   section,
   taskRoute,
   triggerRoute,
+  worktreeRowSeed,
   workspaceLabel,
   type OsPaletteDomainSection,
 } from "../lib/os-palette-domain-search";
@@ -178,21 +179,7 @@ export function useOsPaletteDomainSearch({
   const domainSections = [
     section(
       "Worktrees",
-      worktreeRows.map(worktree =>
-        rowSeed("Worktrees", {
-          key: `worktree:${worktree.id}`,
-          label: worktree.name,
-          detail: worktree.branch,
-          workspaceLabel: wsLabel(worktree.workspace_id),
-          status: worktree.state,
-          app: "dashboard",
-          route: { pathname: "/", search: {} },
-          worktreeSelection: {
-            workspaceId: worktree.workspace_id,
-            worktreeId: worktree.id,
-          },
-        })
-      ),
+      worktreeRows.map(worktree => worktreeRowSeed(worktree, wsLabel(worktree.workspace_id))),
       scope === "global" ? catalogs.worktreeState : worktrees,
       domainEnabled("Worktrees"),
       query,

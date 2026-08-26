@@ -85,7 +85,7 @@ export function SessionListRow({
           </span>
         </span>
         <span className="mt-0.5 flex items-center gap-1.5">
-          {owner ? <ProfileOwnerTag owner={owner} /> : null}
+          {owner ? <ProfileOwnerTag compact owner={owner} /> : null}
           <Time iso={session.updated_at} className="font-mono text-micro text-subtle" />
         </span>
       </button>

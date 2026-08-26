@@ -10,8 +10,7 @@ import { TaskDependenciesSection } from "./task-dependencies-section";
 import { TaskNowStrip, type TaskNowStripHandlers } from "./task-now-strip";
 import { TaskResultSection } from "./task-result-section";
 import { TaskSubtasksSection } from "./task-subtasks-section";
-
-export const TASK_RESULT_ANCHOR_ID = "tasks-detail-result";
+import { TASK_RESULT_ANCHOR_ID } from "./task-overview-constants";
 
 const RECENT_ACTIVITY_LIMIT = 5;
 

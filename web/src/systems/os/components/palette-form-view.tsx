@@ -57,9 +57,8 @@ export function PaletteFormView({
       await onSubmit(form.submit ?? undefined, values);
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "The form could not be submitted.");
-    } finally {
-      setSubmitting(false);
     }
+    setSubmitting(false);
   };
 
   return (

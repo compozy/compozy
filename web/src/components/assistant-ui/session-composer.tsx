@@ -1,4 +1,4 @@
-import { ComposerPrimitive, useAui, useAuiState } from "@assistant-ui/react";
+import { ComposerPrimitive, useAuiState } from "@assistant-ui/react";
 import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { useState, type ReactNode } from "react";
 
@@ -28,57 +28,15 @@ import {
   useSessionBusyInputActions,
   type SessionBusyInputHandler,
 } from "./hooks/use-session-busy-input-actions";
+import { usePendingCommandAction } from "./hooks/use-pending-command-action";
 import type { SessionComposerState } from "./hooks/use-session-composer-state";
 import { sessionComposerSendBlocker } from "./hooks/use-session-composer-send-gate";
-import {
-  SESSION_THREAD_CONTENT_INSET_DEFAULT,
-  ThreadContentRail,
-  type SessionThreadContentInset,
-} from "./session-thread-content-rail";
+import { ThreadContentRail, type SessionThreadContentInset } from "./session-thread-content-rail";
+import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "./session-thread-content-rail-constants";
 
 export type { SessionBusyInputHandler } from "./hooks/use-session-busy-input-actions";
 
 const EMPTY_QUEUED_PROMPTS: QueuedPrompt[] = [];
-
-function removeSelectedActionToken(beforeSelection: string, text: string, token: string): string {
-  let changedStart = 0;
-  while (
-    changedStart < beforeSelection.length &&
-    changedStart < text.length &&
-    beforeSelection[changedStart] === text[changedStart]
-  ) {
-    changedStart += 1;
-  }
-
-  let unchangedSuffix = 0;
-  while (
-    unchangedSuffix < beforeSelection.length - changedStart &&
-    unchangedSuffix < text.length - changedStart &&
-    beforeSelection[beforeSelection.length - unchangedSuffix - 1] ===
-      text[text.length - unchangedSuffix - 1]
-  ) {
-    unchangedSuffix += 1;
-  }
-
-  const changedEnd = text.length - unchangedSuffix;
-  const candidates: number[] = [];
-  let searchFrom = 0;
-  while (searchFrom <= text.length - token.length) {
-    const candidate = text.indexOf(token, searchFrom);
-    if (candidate < 0) break;
-    if (candidate < changedEnd && candidate + token.length > changedStart) {
-      candidates.push(candidate);
-    }
-    searchFrom = candidate + token.length;
-  }
-  const at = candidates.sort(
-    (left, right) => Math.abs(left - changedStart) - Math.abs(right - changedStart)
-  )[0];
-  if (at === undefined) return text;
-  const before = text.slice(0, at);
-  const after = text.slice(at + token.length);
-  return `${before}${before.endsWith(" ") && after.startsWith(" ") ? after.slice(1) : after}`;
-}
 
 export interface SessionComposerProps {
   /** Daemon-owned commands projected by the session page into the composer. */
@@ -152,9 +110,9 @@ export function SessionComposer({
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
 }: SessionComposerProps & { composerState: SessionComposerState }) {
-  const aui = useAui();
   const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
     composerState;
+  const pendingCommandActionRef = usePendingCommandAction(composerText);
   const [commandScope, setCommandScope] = useState<CommandCatalogScope>("inline");
   const commandFormatter = createSessionCommandFormatter(
     commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
@@ -181,6 +139,7 @@ export function SessionComposer({
   const canQueueFromInput = allowBusyInput && Boolean(onQueuePrompt);
   const hasQueuedPrompts = queuedPrompts.length > 0;
   const showQueuedStrip = hasQueuedPrompts && Boolean(onRemoveQueuedPrompt && onSteerQueuedPrompt);
+
   const {
     handleEditQueuedPrompt,
     handleInterruptAction,
@@ -255,16 +214,7 @@ export function SessionComposer({
                     onDirectiveSelect: item => {
                       const token = commandItemPresentation(item).token;
                       if (!onCommandAction?.(token)) return;
-                      const beforeSelection = composerText;
-                      window.setTimeout(() => {
-                        setComposerText(
-                          removeSelectedActionToken(
-                            beforeSelection,
-                            aui.composer.getState().text,
-                            token
-                          )
-                        );
-                      }, 0);
+                      pendingCommandActionRef.current = { beforeSelection: composerText, token };
                     },
                   }}
                   className={cn(

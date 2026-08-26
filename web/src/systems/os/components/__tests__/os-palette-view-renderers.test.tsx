@@ -13,10 +13,8 @@ import { UIProvider } from "@compozy/ui";
 
 import { TASK_STATUS_TONE } from "@/lib/status-tone";
 
-import {
-  contentForEnvelope,
-  viewActionCommandID,
-} from "../../hooks/use-cmd-palette-declarative-view";
+import { contentForEnvelope } from "../../hooks/use-cmd-palette-declarative-view";
+import { viewActionCommandID } from "../../lib/cmd-palette-view-action-command";
 import type { OsPaletteDomainRow as DomainRow } from "../../hooks/use-os-palette-domain-search";
 import type {
   CmdPaletteViewAction,
@@ -30,7 +28,7 @@ import { OsPaletteDomainChips } from "../os-palette-domain-chips";
 import { OsPaletteDomainRow } from "../os-palette-domain-row";
 import { OsPaletteViewShell } from "../os-palette-view-shell";
 import { OsPaletteViewUnavailable } from "../os-palette-view-stack";
-import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "../os-palette-virtual-rows";
+import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "../os-palette-virtual-rows-constants";
 import { OsPaletteProgramBand, OsPaletteProgramFailure } from "../os-palette-program-status";
 import { PaletteDetailView } from "../palette-detail-view";
 import { PaletteFormView } from "../palette-form-view";

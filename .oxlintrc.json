@@ -200,7 +200,10 @@
             }
         },
         {
-            "files": ["web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts"],
+            "files": [
+                "web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts",
+                "web/src/systems/os/hooks/use-palette-grid-virtualizer.ts"
+            ],
             "rules": {
                 "react/incompatible-library": "off"
             }
@@ -220,7 +223,24 @@
                 "compozy-react-hooks/no-mixed-hooks-and-components": "off",
                 "compozy-react-hooks/hooks-in-hooks-folder": "off",
                 "typescript/unbound-method": "off",
-                "typescript/await-thenable": "off"
+                "typescript/await-thenable": "off",
+                "react-doctor/only-export-components": "off"
+            }
+        },
+        {
+            "files": [
+                "sdk/react/src/**/*.tsx",
+                "packages/site/mdx-components.tsx",
+                "packages/site/app/**/page.tsx",
+                "packages/site/app/**/layout.tsx",
+                "packages/site/app/**/route.tsx",
+                "packages/site/app/**/opengraph-image.tsx",
+                "web/src/routes/**/*.tsx",
+                "web/src/**/stories/**/*.tsx",
+                "web/src/test/**/*.tsx"
+            ],
+            "rules": {
+                "react-doctor/only-export-components": "off"
             }
         }
     ],

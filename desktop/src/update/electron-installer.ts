@@ -17,14 +17,21 @@ export interface AppUpdateInstaller {
     operation: AppOperationState,
     onProgress: (percent: number) => Promise<void>
   ): Promise<DownloadedAppUpdate>;
-  quitAndInstall(): void;
+  quitAndInstall(): Promise<void>;
+}
+
+interface ElectronUpdateInstallerOptions {
+  readonly updater?: AppUpdater;
+  readonly prepareForRestart: () => Promise<void>;
 }
 
 export class ElectronUpdateInstaller implements AppUpdateInstaller {
   readonly #updater: AppUpdater;
+  readonly #prepareForRestart: () => Promise<void>;
 
-  constructor(updater: AppUpdater = autoUpdater) {
-    this.#updater = updater;
+  constructor(options: ElectronUpdateInstallerOptions) {
+    this.#updater = options.updater ?? autoUpdater;
+    this.#prepareForRestart = options.prepareForRestart;
     this.#updater.autoDownload = false;
     this.#updater.autoInstallOnAppQuit = false;
     this.#updater.disableDifferentialDownload = shouldDisableDifferentialDownload(
@@ -67,7 +74,8 @@ export class ElectronUpdateInstaller implements AppUpdateInstaller {
     return { artifactPath, version: checked.updateInfo.version };
   }
 
-  quitAndInstall(): void {
+  async quitAndInstall(): Promise<void> {
+    await this.#prepareForRestart();
     this.#updater.quitAndInstall(false, true);
   }
 }

@@ -289,8 +289,7 @@ func validationIssueForError(dir string, err error) (ValidationIssue, bool, erro
 		issue.Field = validationErr.Field
 		return issue, true, nil
 	}
-	var compatibilityErr *ManifestCompatibilityError
-	if errors.As(err, &compatibilityErr) {
+	if compatibilityErr, ok := errors.AsType[*ManifestCompatibilityError](err); ok && compatibilityErr != nil {
 		issue.Field = manifestMinCompozyVersionKey
 		return issue, true, nil
 	}

@@ -97,13 +97,12 @@ export {
   StepperSeparator,
   StepperTitle,
   StepperTrigger,
-  useStepItem,
-  useStepper,
   type StepperContentProps,
   type StepperItemProps,
   type StepperProps,
   type StepperTriggerProps,
 } from "../components/reui/stepper";
+export { useStepItem, useStepper } from "../components/reui/hooks/use-stepper";
 export { Tree, TreeDragLine, TreeItem, TreeItemLabel } from "../components/reui/tree";
 export type {
   TreeDragLineProps,
@@ -119,12 +118,13 @@ export { Toaster, type ToasterProps } from "../components/sonner";
 export { toast } from "../components/sonner-toast";
 export { DirectionProvider, useDirection } from "../components/direction";
 export { SymbolPicker, type SymbolPickerProps } from "../components/custom/symbol-picker";
+export { SpriteIcon, type SpriteIconProps } from "../components/custom/sprite-icon";
+export { ColorPicker, type ColorPickerProps } from "../components/custom/color-picker";
 export {
   matchesSymbolQuery,
   normalizeHexColor,
   SYMBOL_PICKER_DEFAULT_LABELS,
   type SymbolPickerLabels,
-  type SymbolEmojiOption,
   type SymbolIconOption,
   type SymbolKind,
   type SymbolSwatch,

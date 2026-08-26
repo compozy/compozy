@@ -33,11 +33,6 @@ export const paletteViewLeadClass = "px-4";
 /** Boxed chrome that is not a CommandItem (filter chips). */
 export const paletteViewGutterClass = "px-4";
 
-/** Root and pushed views share Command `p-1`. Do not override it with `p-2`. */
-export const paletteViewFrameClass = "";
-
-export const paletteViewFieldClass = paletteInputRailClass;
-
 export const paletteViewListClass = paletteListClass;
 
 export function paletteItemClass(twoLine = false): string {
@@ -47,5 +42,3 @@ export function paletteItemClass(twoLine = false): string {
 export function paletteRowEstimate(twoLine = false): number {
   return twoLine ? 44 : 32;
 }
-
-export const paletteViewItemClass = paletteRowClass;

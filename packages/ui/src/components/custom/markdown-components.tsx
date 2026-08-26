@@ -3,7 +3,6 @@
 import type { Components } from "streamdown";
 
 import {
-  INLINE_CODE_CLASS,
   MarkdownAnchor,
   MarkdownBlockquote,
   MarkdownH1,
@@ -23,6 +22,7 @@ import {
   MarkdownTh,
   MarkdownUl,
 } from "./markdown-prose-parts";
+import { INLINE_CODE_CLASS } from "./markdown-prose-constants";
 
 const MARKDOWN_PROSE_COMPONENTS: Partial<Components> = {
   a: MarkdownAnchor,

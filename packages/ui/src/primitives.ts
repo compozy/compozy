@@ -110,8 +110,8 @@ export {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
-  useDefaultLayout,
 } from "./components/resizable";
+export { useDefaultLayout } from "react-resizable-panels";
 export {
   Select,
   SelectContent,
@@ -141,8 +141,8 @@ export {
   ComboboxSeparator,
   ComboboxTrigger,
   ComboboxValue,
-  useComboboxAnchor,
 } from "./components/combobox";
+export { useComboboxAnchor } from "./components/hooks/use-combobox-anchor";
 export {
   Command,
   CommandDialog,
@@ -200,18 +200,16 @@ export {
   AccordionTrigger,
 } from "./components/accordion";
 export { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./components/collapsible";
+export { Sidebar, SidebarSectionLabel, type SidebarProps } from "./components/sidebar";
 export {
-  Sidebar,
-  SidebarSectionLabel,
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_PANEL_WIDTH_MD,
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   SIDEBAR_RAIL_WIDTH,
   useSidebarViewport,
-  type SidebarProps,
   type SidebarViewport,
-} from "./components/sidebar";
+} from "./components/hooks/use-sidebar-state";
 export {
   SplitPane,
   SPLIT_LIST_WIDTH_DEFAULT,

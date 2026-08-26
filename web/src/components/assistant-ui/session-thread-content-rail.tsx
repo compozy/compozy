@@ -4,8 +4,6 @@ import { cn } from "@/lib/utils";
 
 export type SessionThreadContentInset = "px-4" | "px-8";
 
-export const SESSION_THREAD_CONTENT_INSET_DEFAULT: SessionThreadContentInset = "px-4";
-
 /**
  * Shared full-bleed inset rail applied to both the transcript viewport and the
  * composer so the two surfaces share the same horizontal padding.

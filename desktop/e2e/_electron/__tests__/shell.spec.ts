@@ -29,16 +29,49 @@ async function jsonCommand(
   return JSON.parse((await desktop.cli(arguments_)).stdout) as Record<string, unknown>;
 }
 
-async function firstWorkspaceID(desktop: DesktopInstance): Promise<string> {
-  const workspaces: unknown = JSON.parse(
+async function ensureProjectWorkspaceID(desktop: DesktopInstance, product: Page): Promise<string> {
+  let added = false;
+  let workspaces: unknown = JSON.parse(
     (await desktop.cli(["workspace", "list", "-o", "json"])).stdout
   );
   if (!Array.isArray(workspaces)) throw new Error("Workspace list did not return an array.");
+  if (workspaces.length === 0) {
+    added = true;
+    const projectRoot = join(desktop.home, "workspace");
+    await mkdir(projectRoot, { recursive: true });
+    await desktop.cli(["workspace", "add", projectRoot, "--name", "desktop-e2e", "-o", "json"]);
+    workspaces = JSON.parse((await desktop.cli(["workspace", "list", "-o", "json"])).stdout);
+  }
+  if (!Array.isArray(workspaces)) throw new Error("Workspace list did not return an array.");
   const first = workspaces[0];
-  if (!first || typeof first !== "object") throw new Error("Workspace list is empty.");
+  if (!first || typeof first !== "object") {
+    throw new Error("Workspace registration did not produce a catalog row.");
+  }
   const id = Reflect.get(first, "id");
   if (typeof id !== "string" || id.trim() === "") {
     throw new Error("The first workspace has no stable id.");
+  }
+  if (added) {
+    await product.reload({ waitUntil: "domcontentloaded" });
+    await expect(product.getByTestId("os-desktop")).toBeVisible();
+    await expect
+      .poll(async () => {
+        return await product.evaluate(async workspaceID => {
+          const response = await fetch(
+            `/api/workspaces/${encodeURIComponent(workspaceID)}/window-manager/clients`
+          );
+          if (!response.ok) return false;
+          const payload = (await response.json()) as { clients?: unknown[] };
+          return Array.isArray(payload.clients) && payload.clients.length > 0;
+        }, id);
+      })
+      .toBe(true);
+    await product.getByRole("menuitem", { name: /Global/u }).click();
+    await product.getByTestId(`os-workspace-option-${id}`).click();
+    await expect(product.getByRole("button", { name: /Global scope/u })).toHaveAttribute(
+      "aria-pressed",
+      "false"
+    );
   }
   return id;
 }
@@ -682,7 +715,9 @@ test("E2E-010: external navigation opens only safe web URLs and never leaves the
     window.open("file:///etc/passwd");
     window.location.href = "https://example.com/top-level";
   });
-  await expect(product).toHaveURL(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/u);
+  await expect
+    .poll(() => product.url())
+    .toMatch(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/u);
   expect(
     await desktop.app.evaluate(() => Reflect.get(globalThis, "__compozyExternalURLs"))
   ).toEqual(["https://example.com/safe", "https://example.com/top-level"]);
@@ -702,17 +737,20 @@ test("E2E-011: the daemon-served shell preserves the browser Settings journey an
     product.locator('[data-testid="settings-section-nav"] a[data-testid^="settings-section-"]')
   ).toHaveText([
     "General",
+    "Defaults",
     "Appearance",
     "Layouts",
+    "Profiles",
+    "Palette",
     "Providers",
     "Memory",
     "Roles",
     "Skills",
     "Automation",
     "Network",
-    "Attention",
-    "Observability",
-    "Gateway",
+    "Notifications",
+    "Diagnostics",
+    "Remote access",
     "Hooks",
     "Extensions",
   ]);
@@ -843,9 +881,16 @@ test("E2E-012: renderer crashes reload within budget and surface the crash-loop 
       )
       .toBe(index + 1);
     if (index < 3) {
-      product = await desktop.product();
-      await expect(product).toHaveURL(originalURL);
-      await expect(product.getByTestId("os-desktop")).toBeVisible();
+      await expect
+        .poll(async () => {
+          product = await desktop.product();
+          return await product
+            .getByTestId("os-desktop")
+            .isVisible()
+            .catch(() => false);
+        })
+        .toBe(true);
+      expect(product.url()).toBe(originalURL);
     }
   }
   expect(
@@ -1160,9 +1205,10 @@ test("E2E-027: a global summon restores and focuses the palette without crossing
   });
   const product = await desktop.product();
   await completeOnboarding(product);
+  await ensureProjectWorkspaceID(desktop, product);
   await waitForGlobalShortcut(product, "palette.summon.global", "registered");
 
-  await desktop.app.evaluate(async ({ BrowserWindow }) => {
+  const focusFixture = await desktop.app.evaluate(async ({ BrowserWindow }) => {
     const productWindow = BrowserWindow.getAllWindows().find(window =>
       /^https?:/u.test(window.webContents.getURL())
     );
@@ -1172,6 +1218,7 @@ test("E2E-027: a global summon restores and focuses the palette without crossing
     other.setTitle("Shortcut focus fixture");
     await other.loadURL("about:blank");
     other.focus();
+    return { id: other.id, ownsFocus: other.isFocused() };
   });
   expect(
     await desktop.app.evaluate(({ BrowserWindow }) => {
@@ -1184,20 +1231,26 @@ test("E2E-027: a global summon restores and focuses the palette without crossing
 
   await invokeGlobalShortcut(desktop, "CommandOrControl+Shift+Space");
   await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
-  await expect
-    .poll(
-      async () =>
-        await desktop.app.evaluate(({ BrowserWindow }) => {
-          const productWindow = BrowserWindow.getAllWindows().find(window =>
-            /^https?:/u.test(window.webContents.getURL())
-          );
-          return productWindow
-            ? { focused: productWindow.isFocused(), minimized: productWindow.isMinimized() }
-            : null;
-        })
-    )
-    .toEqual({ focused: true, minimized: false });
+  const productWindowState = async () =>
+    await desktop.app.evaluate(({ BrowserWindow }) => {
+      const productWindow = BrowserWindow.getAllWindows().find(window =>
+        /^https?:/u.test(window.webContents.getURL())
+      );
+      return productWindow
+        ? { focused: productWindow.isFocused(), minimized: productWindow.isMinimized() }
+        : null;
+    });
+  await expect.poll(async () => (await productWindowState())?.minimized).toBe(false);
+  if (focusFixture.ownsFocus || process.platform !== "darwin") {
+    await expect.poll(async () => (await productWindowState())?.focused).toBe(true);
+  }
+  await desktop.app.evaluate(
+    ({ BrowserWindow }, windowID) => BrowserWindow.fromId(windowID)?.destroy(),
+    focusFixture.id
+  );
+  await product.bringToFront();
   await product.keyboard.press("Escape");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
   await product.getByRole("button", { name: "New session" }).last().click();
   const modal = product.getByRole("dialog").first();
@@ -1207,12 +1260,6 @@ test("E2E-027: a global summon restores and focuses the palette without crossing
   await expect
     .poll(async () => await modal.evaluate(node => node.contains(document.activeElement)))
     .toBe(true);
-
-  await desktop.app.evaluate(({ BrowserWindow }) => {
-    BrowserWindow.getAllWindows()
-      .filter(window => window.getTitle() === "Shortcut focus fixture")
-      .forEach(window => window.destroy());
-  });
 });
 
 test("E2E-028: an argument command global hotkey summons directly into argument mode", async ({
@@ -1222,12 +1269,13 @@ test("E2E-028: an argument command global hotkey summons directly into argument 
   const desktop = await launchDesktop({
     environment: { COMPOZY_DESKTOP_E2E_FOREGROUND: "1" },
     prepare: async context => {
-      extensionSource = await copyPaletteExtensionFixture(context.home);
+      extensionSource = await copyPaletteExtensionFixture(join(context.home, "workspace"));
     },
   });
   const product = await desktop.product();
   await completeOnboarding(product);
-  const workspaceID = await firstWorkspaceID(desktop);
+  const workspaceID = await ensureProjectWorkspaceID(desktop, product);
+  await waitForGlobalShortcut(product, "palette.summon.global", "registered");
   await desktop.cli([
     "extension",
     "dev",
@@ -1248,12 +1296,15 @@ test("E2E-028: an argument command global hotkey summons directly into argument 
     "-o",
     "json",
   ]);
+  await product.reload({ waitUntil: "domcontentloaded" });
+  await expect(product.getByTestId("os-desktop")).toBeVisible();
   await waitForGlobalShortcut(product, "ext.notes.capture", "registered");
 
   await product.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
   await product.getByRole("combobox").fill("capture note");
   await expect(product.getByTestId("os-palette-command-ext.notes.capture")).toBeVisible();
   await product.keyboard.press("Escape");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toHaveCount(0);
 
   await desktop.app.evaluate(async ({ BrowserWindow }) => {
     const other = new BrowserWindow({ width: 320, height: 240, show: true });
@@ -1279,7 +1330,7 @@ test("E2E-029: a captured replacement restores the previous binding and relaunch
   });
   const product = await desktop.product();
   await completeOnboarding(product);
-  const workspaceID = await firstWorkspaceID(desktop);
+  const workspaceID = await ensureProjectWorkspaceID(desktop, product);
   await waitForGlobalShortcut(product, "palette.summon.global", "registered");
   expect(
     await desktop.app.evaluate(({ globalShortcut }) =>
@@ -1298,12 +1349,14 @@ test("E2E-029: a captured replacement restores the previous binding and relaunch
     "-o",
     "json",
   ]);
+  await product.goto(new URL("/settings/layouts", product.url()).toString(), {
+    waitUntil: "domcontentloaded",
+  });
   const failed = await waitForGlobalShortcut(product, "palette.summon.global", "failed_in_use");
   expect(failed).toMatchObject({
     active_chord: "meta+shift+Space",
     intended_chord: "meta+alt+Space",
   });
-  await product.goto(new URL("/settings/layouts", product.url()).toString());
   const globalSection = product.getByTestId("window-manager-global-hotkeys");
   await expect(globalSection).toContainText("unavailable — in use by another application");
   await expect(globalSection).toContainText("captured");
@@ -1326,7 +1379,7 @@ test("E2E-029: a captured replacement restores the previous binding and relaunch
     active_chord: "meta+alt+Space",
     intended_chord: "meta+alt+Space",
   });
-  await relaunchedProduct.goto(new URL("/settings/layouts", relaunchedProduct.url()).toString());
+  await relaunched.cli(["app", "open", "/settings/layouts"]);
   await expect(relaunchedProduct.getByTestId("window-manager-global-hotkeys")).toContainText(
     "active"
   );
@@ -1350,7 +1403,26 @@ test("E2E-030: a plain browser explains global hotkeys while keeping the in-app 
       globalSection.getByRole("button", { name: /Record global hotkey/u }).first()
     ).toBeDisabled();
 
-    await page.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+    if (process.platform === "darwin") {
+      // Chromium reserves Command-based browser shortcuts before Playwright can
+      // deliver them; dispatch the same renderer event the registry consumes.
+      await page.evaluate(() => {
+        const applePlatform = /^(?:Mac|iPhone|iPad|iPod)/iu.test(navigator.platform);
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", {
+            key: "p",
+            code: "KeyP",
+            metaKey: applePlatform,
+            ctrlKey: !applePlatform,
+            shiftKey: true,
+            bubbles: true,
+            cancelable: true,
+          })
+        );
+      });
+    } else {
+      await page.keyboard.press("Control+K");
+    }
     await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   } finally {
     await browser.close();

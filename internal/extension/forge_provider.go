@@ -53,8 +53,7 @@ func (e *ForgeProviderError) Unwrap() error {
 }
 
 func ForgeProviderErrorCause(err error) string {
-	var failure *ForgeProviderError
-	if errors.As(err, &failure) {
+	if failure, ok := errors.AsType[*ForgeProviderError](err); ok {
 		return failure.cause
 	}
 	return ""

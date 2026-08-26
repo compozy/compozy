@@ -812,8 +812,7 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 	if _, err := client.ValidateAuth(context.Background(), 0); err == nil {
 		t.Fatal("ValidateAuth(rate limited) error = nil, want non-nil")
 	} else {
-		var rateErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateErr) {
+		if _, ok := errors.AsType[*bridgesdk.RateLimitError](err); !ok {
 			t.Fatalf("ValidateAuth() error = %#v, want rate limit error", err)
 		}
 	}
@@ -821,8 +820,7 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 	if _, err := client.CreateIssueComment(context.Background(), 42, "oops", 0); err == nil {
 		t.Fatal("CreateIssueComment(422) error = nil, want non-nil")
 	} else {
-		var permanentErr *bridgesdk.PermanentError
-		if !errors.As(err, &permanentErr) {
+		if _, ok := errors.AsType[*bridgesdk.PermanentError](err); !ok {
 			t.Fatalf("CreateIssueComment() error = %#v, want permanent error", err)
 		}
 		if committedErr, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); ok && committedErr != nil {
@@ -875,8 +873,7 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 				httpClient: redirect.Client(),
 			}
 			_, err := client.CreateIssueComment(t.Context(), 42, "hello", 0)
-			var permanentErr *bridgesdk.PermanentError
-			if !errors.As(err, &permanentErr) {
+			if _, ok := errors.AsType[*bridgesdk.PermanentError](err); !ok {
 				t.Fatalf(
 					"CreateIssueComment(%d) error = %T %v, want first-response PermanentError",
 					testCase.statusCode,
@@ -972,8 +969,7 @@ func TestGitHubClientClassifiesHTTPFailures(t *testing.T) {
 			if err == nil {
 				t.Fatal("CreateIssueComment(committed result unavailable) error = nil, want non-nil")
 			}
-			var committedErr *bridgesdk.CommittedMutationError
-			if !errors.As(err, &committedErr) {
+			if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 				t.Fatalf("CreateIssueComment() error = %T, want CommittedMutationError", err)
 			}
 			if got, want := attempts, 1; got != want {
@@ -1544,8 +1540,7 @@ func TestGitHubProviderHandleBridgesDeliverReportsReadyAndErrors(t *testing.T) {
 		})
 
 		_, err := committedProvider.handleBridgesDeliver(context.Background(), nil, committedRequest)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("handleBridgesDeliver() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := len(committedAPI.issueUpdates), 1; got != want {
@@ -2079,8 +2074,7 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	if err := classifyGitHubHTTPError(http.StatusUnauthorized, "", `{"message":"nope"}`); err == nil {
 		t.Fatal("classifyGitHubHTTPError(401) error = nil, want non-nil")
 	} else {
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+		if _, ok := errors.AsType[*bridgesdk.AuthError](err); !ok {
 			t.Fatalf("401 classification = %#v, want auth error", err)
 		}
 	}
@@ -2095,24 +2089,21 @@ func TestGitHubAdditionalHelpersAndErrorClassification(t *testing.T) {
 	if err := classifyGitHubHTTPError(http.StatusForbidden, "", `{"message":"forbidden"}`); err == nil {
 		t.Fatal("classifyGitHubHTTPError(403 auth) error = nil, want non-nil")
 	} else {
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+		if _, ok := errors.AsType[*bridgesdk.AuthError](err); !ok {
 			t.Fatalf("403 auth classification = %#v, want auth error", err)
 		}
 	}
 	if err := classifyGitHubHTTPError(http.StatusBadGateway, "", `{"message":"upstream failed"}`); err == nil {
 		t.Fatal("classifyGitHubHTTPError(502) error = nil, want non-nil")
 	} else {
-		var transientErr *bridgesdk.TransientError
-		if !errors.As(err, &transientErr) {
+		if _, ok := errors.AsType[*bridgesdk.TransientError](err); !ok {
 			t.Fatalf("502 classification = %#v, want transient error", err)
 		}
 	}
 	if err := classifyGitHubHTTPError(http.StatusUnprocessableEntity, "", `{"error":"bad input"}`); err == nil {
 		t.Fatal("classifyGitHubHTTPError(422) error = nil, want non-nil")
 	} else {
-		var permanentErr *bridgesdk.PermanentError
-		if !errors.As(err, &permanentErr) {
+		if _, ok := errors.AsType[*bridgesdk.PermanentError](err); !ok {
 			t.Fatalf("422 classification = %#v, want permanent error", err)
 		}
 	}

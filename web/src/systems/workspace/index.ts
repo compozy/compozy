@@ -41,7 +41,11 @@ export { contractHomePath } from "./lib/display-path";
 export { copyWorktreePath } from "./lib/copy-worktree-path";
 export { isOperatorHomeWorkspace, partitionProjectWorkspaces } from "./lib/project-workspaces";
 export type { ProjectWorkspacePartition, WorkspaceHomeCandidate } from "./lib/project-workspaces";
-export { resolveActiveWorkspace, workspaceMonogram } from "./lib/active-workspace";
+export {
+  GLOBAL_DESKTOP_WORKSPACE_ID,
+  resolveActiveWorkspace,
+  workspaceMonogram,
+} from "./lib/active-workspace";
 export type { ActiveWorkspaceResolution, WorkspaceChipIdentity } from "./lib/active-workspace";
 export { toWorkspaceCommandSelectOptions } from "./lib/workspace-command-select-options";
 export type { WorkspaceScopeMode } from "./lib/workspace-scope-mode";
@@ -275,10 +279,8 @@ export {
 } from "./lib/worktree-naming";
 export { WorktreeAggregate } from "./components/worktree-aggregate";
 export type { WorktreeAggregateProps } from "./components/worktree-aggregate";
-export {
-  WORKTREE_SUBMENU_FRAME_CLASS,
-  WorktreeSubmenuPanel,
-} from "./components/worktree-submenu-panel";
+export { WorktreeSubmenuPanel } from "./components/worktree-submenu-panel";
+export { WORKTREE_SUBMENU_FRAME_CLASS } from "./components/worktree-submenu-constants";
 export type { WorktreeSubmenuPanelProps } from "./components/worktree-submenu-panel";
 export { WorktreeNest } from "./components/worktree-nest";
 export type { WorktreeNestProps } from "./components/worktree-nest";
@@ -304,7 +306,8 @@ export { WorktreeExitProgressSurface } from "./components/worktree-exit-progress
 export { WorktreeDetailHeader } from "./components/worktree-detail-header";
 export { WorktreeStatusStrip } from "./components/worktree-status-strip";
 export { WorktreeExitControl } from "./components/worktree-exit-control";
-export { AGENT_MESSAGE_PROMPT, WorktreeCommitDialog } from "./components/worktree-commit-dialog";
+export { WorktreeCommitDialog } from "./components/worktree-commit-dialog";
+export { AGENT_MESSAGE_PROMPT } from "./components/worktree-commit-dialog-copy";
 export { WorktreeScopeBlock } from "./components/worktree-scope-block";
 export { WorktreePrDialog } from "./components/worktree-pr-dialog";
 export { WorktreePrActionRows } from "./components/worktree-pr-action-rows";

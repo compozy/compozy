@@ -5,7 +5,7 @@ import {
   requireResponseData,
 } from "@/lib/api-client";
 
-import type { ProviderAuthProbeResponse, ProviderListResponse, ProviderSummary } from "../types";
+import type { ProviderListResponse, ProviderSummary } from "../types";
 
 export class ProvidersApiError extends Error {
   constructor(
@@ -47,24 +47,4 @@ export async function getProvider(
     );
   }
   return requireResponseData(data, response, `Failed to load provider "${trimmed}"`);
-}
-
-export async function probeProviderAuth(providerId: string): Promise<ProviderAuthProbeResponse> {
-  const trimmed = providerId.trim();
-  if (trimmed.length === 0) {
-    throw new ProvidersApiError("provider_id is required", 400);
-  }
-  const { data, error, response } = await apiClient.POST(
-    "/api/providers/{provider_id}/auth/probe",
-    {
-      params: { path: { provider_id: trimmed } },
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throw new ProvidersApiError(
-      defaultApiErrorMessage(`Failed to probe provider "${trimmed}"`, response, error),
-      response.status
-    );
-  }
-  return requireResponseData(data, response, `Failed to probe provider "${trimmed}"`);
 }

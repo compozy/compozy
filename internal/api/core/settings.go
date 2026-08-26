@@ -192,22 +192,19 @@ func (h *BaseHandlers) UpdateSettingsCmdPalette(c *gin.Context) {
 }
 
 func (h *BaseHandlers) respondWindowManagerMutationError(c *gin.Context, err error) bool {
-	var shortcutConflict *windowmanager.ShortcutConflictError
-	if errors.As(err, &shortcutConflict) {
+	if shortcutConflict, ok := errors.AsType[*windowmanager.ShortcutConflictError](err); ok {
 		c.JSON(http.StatusConflict, contract.SettingsWindowManagerMutationError{
 			Error: "shortcut_conflict", Owner: shortcutConflict.Owner, Chord: shortcutConflict.Chord,
 		})
 		return true
 	}
-	var aliasConflict *settingspkg.AliasConflictError
-	if errors.As(err, &aliasConflict) {
+	if aliasConflict, ok := errors.AsType[*settingspkg.AliasConflictError](err); ok {
 		c.JSON(http.StatusConflict, contract.SettingsWindowManagerMutationError{
 			Error: "alias_conflict", Owner: aliasConflict.Owner, Alias: aliasConflict.Alias,
 		})
 		return true
 	}
-	var invalidAlias *settingspkg.InvalidAliasError
-	if errors.As(err, &invalidAlias) {
+	if invalidAlias, ok := errors.AsType[*settingspkg.InvalidAliasError](err); ok {
 		c.JSON(http.StatusUnprocessableEntity, contract.SettingsWindowManagerMutationError{
 			Error: "invalid_alias", Message: invalidAlias.Error(),
 		})

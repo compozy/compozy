@@ -1,12 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { DetailInspector, type DetailInspectorTab } from "../detail-inspector";
 import {
   DETAIL_INSPECTOR_INLINE_BREAKPOINT,
   DETAIL_INSPECTOR_INLINE_WIDTH,
-  DetailInspector,
-  type DetailInspectorTab,
-} from "../detail-inspector";
+} from "../detail-inspector-constants";
 
 interface MediaMock {
   matches: boolean;

@@ -512,8 +512,7 @@ func TestLoadManifestEnforcesMinimumCompozyVersionBoundary(t *testing.T) {
 			if err == nil {
 				t.Fatal("LoadManifest() error = nil, want compatibility error")
 			}
-			var compatibilityErr *ManifestCompatibilityError
-			if !errors.As(err, &compatibilityErr) {
+			if _, ok := errors.AsType[*ManifestCompatibilityError](err); !ok {
 				t.Fatalf("LoadManifest() error = %T, want *ManifestCompatibilityError", err)
 			}
 		})
@@ -685,8 +684,7 @@ slot = "api_key"
 		if err == nil || !strings.Contains(err.Error(), "duplicate credential requirement") {
 			t.Fatalf("LoadManifest() error = %v, want normalized duplicate rejection", err)
 		}
-		var validationErr *ManifestValidationError
-		if !errors.As(err, &validationErr) {
+		if _, ok := errors.AsType[*ManifestValidationError](err); !ok {
 			t.Fatalf("LoadManifest() error type = %T, want *ManifestValidationError", err)
 		}
 	})

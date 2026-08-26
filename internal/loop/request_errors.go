@@ -16,8 +16,7 @@ func NewRequestReasonError(code ReasonCode, err error, details map[string]string
 // NewRequestValidationError projects JSON Schema failures as field-addressed public details.
 func NewRequestValidationError(err error) error {
 	details := map[string]string{}
-	var validation *jsonschema.ValidationError
-	if errors.As(err, &validation) {
+	if validation, ok := errors.AsType[*jsonschema.ValidationError](err); ok {
 		collectRequestValidationDetails(validation, details)
 	}
 	if len(details) == 0 {

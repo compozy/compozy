@@ -208,7 +208,6 @@ func TestGlobalDBDeadEntityMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenSQLiteDatabase(v15 prefix) error = %v", err)
 		}
-		ctx := testutil.Context(t)
 		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: deadEntityTestTime}
 		prefixGlobalDB.initializeRepositories(openConfig{})
 		workspaceID := registerWorkspaceForGlobalTests(t, prefixGlobalDB, "dead-entity-upgrade", t.TempDir())
@@ -220,7 +219,7 @@ func TestGlobalDBDeadEntityMigration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("OpenGlobalDB(v16 upgrade) error = %v", err)
 		}
-		ctx = testutil.Context(t)
+		ctx := testutil.Context(t)
 		markDeadEntityForTest(t, globalDB, store.DeadEntity{
 			DeadEntityKey: store.DeadEntityKey{
 				ProfileID:   store.DefaultProfileID,

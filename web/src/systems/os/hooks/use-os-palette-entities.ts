@@ -2,6 +2,7 @@ import { shallowEqual } from "@xstate/store";
 import { useEffect, useSyncExternalStore } from "react";
 
 import { getSessionDisplayTitle, useSessions, useWorkspaceSessionGroups } from "@/systems/session";
+import { type ProfileOwner, useProfileReadScope } from "@/systems/profiles";
 import {
   sortWorktreeNestEntries,
   toWorktreeNestEntries,
@@ -43,6 +44,7 @@ export interface OsPaletteSessionResult {
   agentName: string;
   workspaceId: string;
   workspaceLabel?: string;
+  owner?: ProfileOwner;
   route: OsWindowRoute;
 }
 
@@ -146,6 +148,7 @@ export function useOsPaletteEntities({
   workspaces,
 }: UseOsPaletteEntitiesOptions): OsPaletteEntities {
   const normalizedLength = query.trim().normalize("NFKD").length;
+  const profile = useProfileReadScope();
   const queryEnabled =
     destination ||
     (signals !== null &&
@@ -208,6 +211,7 @@ export function useOsPaletteEntities({
       workspaceId,
       workspaceLabel:
         scope === "global" ? (workspaceNameById.get(workspaceId) ?? workspaceId) : undefined,
+      owner: profile.aggregate ? profile.ownerOf(session) : undefined,
       route: {
         pathname: `/agents/${encodeURIComponent(agentName)}/sessions/${encodeURIComponent(session.id)}`,
         search: {},
@@ -261,7 +265,11 @@ export function useOsPaletteEntities({
   }
   const rankedSessions = rankEntityRows(
     sessionRows,
-    row => ({ id: row.sessionId, label: row.title, keywords: [row.agentName] }),
+    row => ({
+      id: row.sessionId,
+      label: row.title,
+      keywords: [row.agentName, ...(row.owner === undefined ? [] : [row.owner.name])],
+    }),
     "Sessions",
     query,
     signals,

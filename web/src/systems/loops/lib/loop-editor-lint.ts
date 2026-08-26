@@ -12,16 +12,6 @@ export type LoopInvariantKey =
 
 export type LoopInvariantStatus = "pass" | "fail";
 
-export const LOOP_INVARIANTS: { key: LoopInvariantKey; label: string }[] = [
-  { key: "acyclicity", label: "Acyclicity" },
-  { key: "reachability", label: "Reachability" },
-  { key: "termination", label: "Termination" },
-  { key: "references", label: "References" },
-  { key: "fan_out", label: "Fan-out bounds" },
-  { key: "routing", label: "Routing" },
-  { key: "human_request", label: "Human requests" },
-];
-
 const CODE_KEYWORDS: { key: LoopInvariantKey; keywords: string[] }[] = [
   { key: "acyclicity", keywords: ["cycle", "acyclic"] },
   { key: "reachability", keywords: ["unreachable", "reachab"] },

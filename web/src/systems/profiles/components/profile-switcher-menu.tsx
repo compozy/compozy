@@ -1,4 +1,4 @@
-import { Check, Plus } from "lucide-react";
+import { Check, Palette, Plus } from "lucide-react";
 
 import {
   Button,
@@ -22,6 +22,7 @@ export interface ProfileSwitcherMenuProps {
   onSelectProfile: (name: string) => void;
   onSelectAggregate: () => void;
   onCreate: () => void;
+  onEditProfile?: (name: string) => void;
   onOpenSettings: () => void;
   manageable?: boolean;
   isLoading?: boolean;
@@ -36,6 +37,7 @@ export function ProfileSwitcherMenu({
   onSelectProfile,
   onSelectAggregate,
   onCreate,
+  onEditProfile,
   onOpenSettings,
   manageable = true,
   isLoading = false,
@@ -45,15 +47,15 @@ export function ProfileSwitcherMenu({
   const showAggregate = aggregate || rows.length > 1 || archivedCount > 0;
 
   return (
-    <Command>
+    <Command className="bg-transparent p-0 shadow-none">
       <CommandList className="max-h-none">
         {isLoading ? (
-          <div className="flex items-center justify-center px-3 py-4" role="status">
+          <div className="flex items-center justify-center px-2 py-4" role="status">
             <Spinner className="size-4 text-subtle" />
           </div>
         ) : error ? (
           <div
-            className="flex flex-col items-center gap-2 px-3 py-4 text-center text-small-body text-danger"
+            className="flex flex-col items-center gap-2 px-2 py-4 text-center text-small-body text-danger"
             role="alert"
           >
             <span>{error.message}</span>
@@ -64,7 +66,7 @@ export function ProfileSwitcherMenu({
             ) : null}
           </div>
         ) : null}
-        <CommandGroup>
+        <CommandGroup className="p-0">
           {rows.map(row => (
             <CommandItem
               key={row.name}
@@ -75,12 +77,15 @@ export function ProfileSwitcherMenu({
               }}
               data-testid={`profile-switcher-option-${row.name}`}
               aria-current={row.current && !aggregate ? "true" : undefined}
+              className="group/profile-row"
             >
               <ProfileGlyph
                 decorative
                 size="sm"
                 name={row.name}
                 color={row.color}
+                icon={row.icon}
+                emoji={row.emoji}
                 current={row.current && !aggregate}
                 needsSetup={row.needsSetup}
               />
@@ -89,15 +94,45 @@ export function ProfileSwitcherMenu({
                 <span className="ml-auto shrink-0 text-micro font-medium text-warning">
                   {row.disabledReason}
                 </span>
-              ) : null}
-              {row.current && !aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg-strong" />
+              ) : manageable && onEditProfile ? (
+                // -my-1 keeps the 24px edit target from stretching the row past
+                // sibling-menu rhythm; check and edit share one cell so the row
+                // never reserves phantom trailing space.
+                <span className="relative -my-1 ml-auto grid size-button-icon-xs shrink-0 place-items-center">
+                  {row.current && !aggregate ? (
+                    <Check
+                      aria-hidden="true"
+                      className={cn(
+                        "size-3 shrink-0 text-accent transition-opacity",
+                        "group-hover/profile-row:opacity-0 group-data-[selected=true]/profile-row:opacity-0"
+                      )}
+                    />
+                  ) : null}
+                  <Button
+                    size="icon-xs"
+                    variant="ghost"
+                    aria-label={`Edit identity for ${row.name}`}
+                    data-testid={`profile-switcher-edit-${row.name}`}
+                    onClick={event => {
+                      event.stopPropagation();
+                      onEditProfile(row.name);
+                    }}
+                    className={cn(
+                      "absolute inset-0 opacity-0 transition-opacity focus-visible:opacity-100",
+                      "group-hover/profile-row:opacity-100 group-data-[selected=true]/profile-row:opacity-100"
+                    )}
+                  >
+                    <Palette aria-hidden="true" />
+                  </Button>
+                </span>
+              ) : row.current && !aggregate ? (
+                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-accent" />
               ) : null}
             </CommandItem>
           ))}
         </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup>
+        <CommandSeparator className="my-1" />
+        <CommandGroup className="p-0">
           {showAggregate ? (
             <CommandItem
               value="__all-profiles"
@@ -108,29 +143,29 @@ export function ProfileSwitcherMenu({
               <ProfileGlyph decorative size="sm" aggregate name="All profiles" />
               <span>All profiles</span>
               {aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg-strong" />
+                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-accent" />
               ) : null}
             </CommandItem>
           ) : null}
           {manageable ? (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={onCreate}
-              onKeyDown={event => {
-                if (event.key === "Enter" || event.key === " ") event.stopPropagation();
-              }}
+            <CommandItem
+              value="__create-profile"
+              onSelect={onCreate}
               data-testid="profile-switcher-create"
-              className="h-auto w-full justify-start gap-2 px-2 py-1.5 text-small-body font-normal tracking-normal"
             >
-              <Plus aria-hidden="true" className="size-3.5 shrink-0" />
+              <span
+                aria-hidden="true"
+                className="grid size-profile-glyph-sm shrink-0 place-items-center"
+              >
+                <Plus className="size-3.5 text-subtle" />
+              </span>
               <span>Create profile…</span>
-            </Button>
+            </CommandItem>
           ) : null}
         </CommandGroup>
       </CommandList>
       {archivedCount > 0 ? (
-        <div className="flex items-center gap-1.5 px-2.5 pt-1 pb-1 text-micro text-faint">
+        <div className="flex items-center gap-1.5 px-2 pt-1 pb-1 text-micro text-faint">
           <span>{archivedCount} archived</span>
           <span aria-hidden="true">·</span>
           <button
@@ -146,7 +181,7 @@ export function ProfileSwitcherMenu({
           </button>
         </div>
       ) : null}
-      <p className="mt-1 border-t border-line px-2.5 pt-2 pb-1 text-micro leading-normal text-subtle">
+      <p className="-mx-1 mt-1 border-t border-line px-3 pt-2 pb-1.5 text-micro leading-normal text-subtle">
         {PROFILE_BOUNDARY_ANSWER}
       </p>
     </Command>

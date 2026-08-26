@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	eventspkg "github.com/compozy/compozy/internal/events"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -590,7 +591,7 @@ func TestObserveOverviewRunAndTaskBuckets(t *testing.T) {
 func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should count events by hour and weekday with workspace filter", func(t *testing.T) {
+	t.Run("Should count session events by hour and weekday with workspace filter", func(t *testing.T) {
 		t.Parallel()
 		globalDB := openTestGlobalDB(t)
 		ctx := testutil.Context(t)
@@ -609,6 +610,15 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 			t, globalDB,
 			"evt-pulse-3", "message", "sess-overview-pulse-other", otherWorkspaceID, "info", slot,
 		)
+		if err := globalDB.WriteEventSummary(ctx, store.EventSummary{
+			ID:        "evt-pulse-settings",
+			ProfileID: store.DefaultProfileID,
+			Type:      eventspkg.SettingsChanged,
+			Outcome:   string(eventspkg.OutcomeFor(eventspkg.SettingsChanged)),
+			Timestamp: slot,
+		}); err != nil {
+			t.Fatalf("WriteEventSummary(settings) error = %v", err)
+		}
 
 		buckets, err := globalDB.CountEventsByHourWeekday(ctx, store.OverviewSinceQuery{
 			ReadScope:   store.ReadScope{AllProfiles: true},
@@ -626,6 +636,17 @@ func TestObserveOverviewEventAndSessionAggregates(t *testing.T) {
 				"CountEventsByHourWeekday() = %+v, want weekday %d hour %d events 2",
 				buckets[0], int(local.Weekday()), local.Hour(),
 			)
+		}
+
+		allBuckets, err := globalDB.CountEventsByHourWeekday(ctx, store.OverviewSinceQuery{
+			ReadScope: store.ReadScope{AllProfiles: true},
+			Since:     store.LocalDayStart(now, 13),
+		})
+		if err != nil {
+			t.Fatalf("CountEventsByHourWeekday(all) error = %v", err)
+		}
+		if len(allBuckets) != 1 || allBuckets[0].Events != 3 {
+			t.Fatalf("CountEventsByHourWeekday(all) = %+v, want 3 session events", allBuckets)
 		}
 	})
 

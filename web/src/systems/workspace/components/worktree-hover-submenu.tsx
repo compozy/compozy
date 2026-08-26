@@ -1,7 +1,7 @@
 import { cn, Popover, PopoverContent } from "@compozy/ui";
 
 import { useWorktreeHoverSubmenu } from "../hooks/use-worktree-hover-submenu";
-import { WORKTREE_SUBMENU_FRAME_CLASS } from "./worktree-submenu-panel";
+import { WORKTREE_SUBMENU_FRAME_CLASS } from "./worktree-submenu-constants";
 
 export interface WorktreeHoverSubmenuProps {
   open: boolean;

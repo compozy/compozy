@@ -121,8 +121,7 @@ func TestGitPorcelain(t *testing.T) {
 	t.Run("Should return a typed error for garbled input", func(t *testing.T) {
 		t.Parallel()
 		_, err := ParseStatusV2([]byte("garbled\x00"))
-		var parseErr *ParseError
-		if !errors.As(err, &parseErr) {
+		if _, ok := errors.AsType[*ParseError](err); !ok {
 			t.Fatalf("ParseStatusV2() error = %v, want ParseError", err)
 		}
 	})

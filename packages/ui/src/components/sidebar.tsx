@@ -6,14 +6,10 @@ import * as React from "react";
 import { cn } from "../lib/utils";
 import {
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_MD,
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   SIDEBAR_RAIL_WIDTH,
   useSidebarState,
-  useSidebarViewport,
 } from "./hooks/use-sidebar-state";
-import type { SidebarViewport } from "./hooks/use-sidebar-state";
 
 export interface SidebarProps extends Omit<React.ComponentProps<"aside">, "onChange"> {
   rail?: React.ReactNode;
@@ -160,14 +156,4 @@ function SidebarSectionLabel({ className, ...props }: React.ComponentProps<"div"
   );
 }
 
-export {
-  Sidebar,
-  SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_DEFAULT,
-  SIDEBAR_PANEL_WIDTH_MD,
-  SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
-  SIDEBAR_RAIL_WIDTH,
-  SidebarSectionLabel,
-  useSidebarViewport,
-};
-export type { SidebarViewport };
+export { Sidebar, SidebarSectionLabel };

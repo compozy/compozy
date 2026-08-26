@@ -21,6 +21,7 @@ import {
 
 import { isCommitScopeEmpty, type WorktreeExitLadderRow } from "../lib/worktree-exit-ladder";
 import type { WorktreeExitCommitScope } from "../types";
+import { AGENT_MESSAGE_PROMPT } from "./worktree-commit-dialog-copy";
 import { WorktreeScopeBlock } from "./worktree-scope-block";
 
 interface WorktreeCommitDialogProps {
@@ -49,9 +50,6 @@ interface WorktreeCommitDialogProps {
  * The staged prompt. It asks for text and says not to run anything, because
  * staging must never turn into an agent running git on the operator's behalf.
  */
-export const AGENT_MESSAGE_PROMPT =
-  "Write a commit message for the current changes in this worktree. Reply with the message only — do not run git or commit anything.";
-
 const PENDING_LABEL: Record<string, string> = {
   commit: "Committing…",
   commit_push: "Committing & pushing…",

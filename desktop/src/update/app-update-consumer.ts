@@ -142,7 +142,7 @@ export class AppUpdateConsumer {
           })
       );
       await this.#transitions.fence(identity(current, this.#executorGeneration));
-      this.#installer.quitAndInstall();
+      await this.#installer.quitAndInstall();
       this.#scheduleDeadline(current);
     } catch (error) {
       await this.#recordInstallFailure(current, error);

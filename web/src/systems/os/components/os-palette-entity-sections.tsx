@@ -2,6 +2,8 @@ import { ArrowRightLeft, FolderGit2 } from "lucide-react";
 
 import { CommandGroup, CommandItem, MonoId } from "@compozy/ui";
 
+import { ownerFromRow, ProfileOwnerTag } from "@/systems/profiles";
+
 import type { OsPaletteEntities, OsPaletteWorktreeResult } from "../hooks/use-os-palette-entities";
 import { OS_APP_DESCRIPTORS } from "../lib/app-catalog";
 import {
@@ -59,7 +61,11 @@ export function OsPaletteEntitySections({
               value={`session:${session.sessionId}`}
               onSelect={() => onOpenSession(session)}
             >
-              <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
+              {session.owner === undefined ? (
+                <OS_APP_DESCRIPTORS.session.icon className="size-3.5 text-muted" />
+              ) : (
+                <ProfileOwnerTag compact owner={session.owner} />
+              )}
               <span className="min-w-0 truncate leading-none">{session.title}</span>
               <span className="ml-auto shrink-0 text-micro text-subtle">
                 {session.agentName}
@@ -125,6 +131,7 @@ export function OsPaletteEntitySections({
             >
               <FolderGit2 className="size-3.5 text-muted" />
               <span className="min-w-0 truncate leading-none">{entry.name}</span>
+              {entry.worktree ? <ProfileOwnerTag owner={ownerFromRow(entry.worktree)} /> : null}
               <MonoId className="ml-auto" preserveCase size="sm" value={entry.branch} />
               {entry.workspaceLabel ? (
                 <span className="shrink-0 text-micro text-faint">{entry.workspaceLabel}</span>

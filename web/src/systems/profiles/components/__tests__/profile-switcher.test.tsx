@@ -33,6 +33,7 @@ interface HarnessProps {
   onSelectProfile?: (name: string) => void;
   onSelectAggregate?: () => void;
   onCreate?: () => void;
+  onEditProfile?: (name: string) => void;
   onOpenSettings?: () => void;
 }
 
@@ -44,6 +45,7 @@ function renderSwitcher({
   onSelectProfile = () => {},
   onSelectAggregate = () => {},
   onCreate = () => {},
+  onEditProfile,
   onOpenSettings = () => {},
 }: HarnessProps = {}) {
   return render(
@@ -58,6 +60,7 @@ function renderSwitcher({
         onSelectProfile={onSelectProfile}
         onSelectAggregate={onSelectAggregate}
         onCreate={onCreate}
+        {...(onEditProfile ? { onEditProfile } : {})}
         onOpenSettings={onOpenSettings}
       />
     </UIProvider>
@@ -156,6 +159,23 @@ describe("ProfileSwitcher", () => {
 
     await user.click(screen.getByTestId("profile-switcher-all"));
     expect(onSelectAggregate).toHaveBeenCalledOnce();
+  });
+
+  // Invariant: a row's edit affordance raises the canonical identity dialog for
+  // that profile without switching into it, and never appears on rows the
+  // runtime would refuse.
+  // Owning layer: the switcher composition.
+  // Canonical suite: this ProfileSwitcher interaction suite.
+  it("Should edit a profile from its row without switching into it", async () => {
+    const user = userEvent.setup();
+    const onEditProfile = vi.fn();
+    const onSelectProfile = vi.fn();
+    renderSwitcher({ onEditProfile, onSelectProfile });
+    await user.click(screen.getByTestId("os-menubar-profile"));
+    expect(screen.queryByTestId("profile-switcher-edit-growth")).not.toBeInTheDocument();
+    await user.click(await screen.findByTestId("profile-switcher-edit-default"));
+    expect(onEditProfile).toHaveBeenCalledWith("default");
+    expect(onSelectProfile).not.toHaveBeenCalled();
   });
 
   it("Should demote archive management to Settings rather than listing it here", async () => {

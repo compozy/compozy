@@ -967,6 +967,28 @@ func TestManagerProfileLifecycle(t *testing.T) {
 				t.Fatalf("Create(conflicting symbol) error = %v, want ErrInvalidInput", err)
 			}
 		})
+		t.Run("Should reject an icon outside the Lucide catalog", func(t *testing.T) {
+			if _, err := manager.Create(
+				ctx,
+				CreateInput{Name: "ops", Icon: "not-a-lucide-icon"},
+			); !errors.Is(
+				err,
+				ErrInvalidInput,
+			) {
+				t.Fatalf("Create(unknown icon) error = %v, want ErrInvalidInput", err)
+			}
+		})
+		t.Run("Should reject a malformed emoji", func(t *testing.T) {
+			if _, err := manager.Create(
+				ctx,
+				CreateInput{Name: "fun", Emoji: strings.Repeat("🦊", 20)},
+			); !errors.Is(
+				err,
+				ErrInvalidInput,
+			) {
+				t.Fatalf("Create(oversized emoji) error = %v, want ErrInvalidInput", err)
+			}
+		})
 		t.Run("Should reject duplicate profile names", func(t *testing.T) {
 			if _, err := manager.Create(ctx, CreateInput{Name: "dev"}); err != nil {
 				t.Fatalf("Create(dev) error = %v", err)

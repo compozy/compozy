@@ -1585,8 +1585,7 @@ min_compozy_version = "0.5.0"
 		if err == nil {
 			t.Fatal("resolveManifestPath(missing) error = nil, want non-nil")
 		}
-		var notFoundErr *ManifestNotFoundError
-		if !errors.As(err, &notFoundErr) {
+		if _, ok := errors.AsType[*ManifestNotFoundError](err); !ok {
 			t.Fatalf("resolveManifestPath(missing) error = %T, want *ManifestNotFoundError", err)
 		}
 	})
@@ -1602,8 +1601,7 @@ min_compozy_version = "0.5.0"
 		if err == nil {
 			t.Fatal("rowsAffectedNotFound(missing) error = nil, want non-nil")
 		}
-		var notFoundErr *ExtensionNotFoundError
-		if !errors.As(err, &notFoundErr) {
+		if _, ok := errors.AsType[*ExtensionNotFoundError](err); !ok {
 			t.Fatalf("rowsAffectedNotFound(missing) error = %T, want *ExtensionNotFoundError", err)
 		}
 

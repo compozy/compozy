@@ -332,7 +332,12 @@ async function start(): Promise<void> {
     updateConsumer = new AppUpdateConsumer({
       currentVersion: app.getVersion(),
       transitions: new UpdateTransitionClient(resources.bundle),
-      installer: new ElectronUpdateInstaller(),
+      installer: new ElectronUpdateInstaller({
+        prepareForRestart: async () => {
+          await cleanup();
+          app.releaseSingleInstanceLock();
+        },
+      }),
       onError: error => logger.error("consume app update operation", error),
     });
     operationWatcher = new OperationWatcher({

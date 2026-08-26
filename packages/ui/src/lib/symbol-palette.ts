@@ -17,7 +17,11 @@ export interface SymbolPickerLabels {
   searchEmojis: string;
   swatches: string;
   customColor: string;
+  customColorToggle: string;
   invalidColor: string;
+  skinTone: string;
+  loadingEmojis: string;
+  loadingIcons: string;
   noResults: (kind: SymbolKind, query: string, otherTab: string) => string;
 }
 
@@ -30,7 +34,11 @@ export const SYMBOL_PICKER_DEFAULT_LABELS: SymbolPickerLabels = {
   searchEmojis: "Search emojis",
   swatches: "Suggested colors",
   customColor: "Custom color",
+  customColorToggle: "Pick a custom color",
   invalidColor: "Enter a color like #4ea7fc.",
+  skinTone: "Change skin tone",
+  loadingEmojis: "Loading emojis…",
+  loadingIcons: "Loading icons…",
   noResults: (kind, query, otherTab) =>
     `No ${kind === "icon" ? "icons" : "emojis"} match "${query}". Try the ${otherTab} tab.`,
 };
@@ -47,15 +55,9 @@ export interface SymbolSwatch {
 }
 
 export interface SymbolIconOption {
-  /** Registry key, also the accessible name when no label is supplied. */
+  /** Sprite symbol id, also the accessible name when no label is supplied. */
   name: string;
   label?: string;
-  keywords?: string;
-}
-
-export interface SymbolEmojiOption {
-  value: string;
-  label: string;
   keywords?: string;
 }
 
@@ -69,18 +71,10 @@ export function normalizeHexColor(input: string): string | null {
   return parsed === null ? null : formatHexColor(parsed);
 }
 
-function haystack(option: SymbolIconOption | SymbolEmojiOption): string {
-  const label = option.label ?? "";
-  const name = "name" in option ? option.name : option.value;
-  return `${name} ${label} ${option.keywords ?? ""}`.toLowerCase();
-}
-
 /** Case-insensitive substring match over name, label, and keywords. */
-export function matchesSymbolQuery(
-  option: SymbolIconOption | SymbolEmojiOption,
-  query: string
-): boolean {
+export function matchesSymbolQuery(option: SymbolIconOption, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === "") return true;
-  return haystack(option).includes(needle);
+  const haystack = `${option.name} ${option.label ?? ""} ${option.keywords ?? ""}`.toLowerCase();
+  return haystack.includes(needle);
 }

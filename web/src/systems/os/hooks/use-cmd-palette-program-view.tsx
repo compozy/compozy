@@ -37,10 +37,10 @@ import {
   contentForEnvelope,
   emptyFrame,
   hostFiltersLocally,
-  viewActionCommandID,
   viewDefinition,
   type CmdPaletteDeclarativeViewModel,
 } from "./use-cmd-palette-declarative-view";
+import { viewActionCommandID } from "../lib/cmd-palette-view-action-command";
 import type { CmdPaletteDispatch } from "./use-cmd-palette-dispatch";
 import { usePaletteRegistry } from "./use-palette-registry";
 import { useProfileReadScope } from "@/systems/profiles";
@@ -103,6 +103,27 @@ export function useCmdPaletteProgramView({
   const fallbackKey = `${runtimeWorkspaceId ?? ""}\u0000${profileKey}\u0000${viewId}\u0000${attachmentToken}`;
   const declarative = declarativeKey === fallbackKey;
 
+  const synchronizeSearchText = useEffectEvent(() => {
+    const current = store.getSnapshot().context;
+    const chrome = current.payload?.chrome;
+    const searchText = chrome?.search_text;
+    if (
+      searchText === undefined ||
+      !controlledEchoIsCurrent(chrome?.event_count, current.eventCount) ||
+      current.searchQuery === (searchText ?? "")
+    ) {
+      return;
+    }
+    const nextQuery = searchText ?? "";
+    store.trigger.searchEchoed({ query: nextQuery });
+    onQueryChange(nextQuery);
+  });
+
+  const receiveFrame = useEffectEvent((frame: CmdPaletteViewFrame) => {
+    store.trigger.frameReceived({ frame });
+    synchronizeSearchText();
+  });
+
   useEffect(() => {
     const workspace = runtimeWorkspaceId;
     store.trigger.openStarted({ preserve: store.getSnapshot().context.payload !== null });
@@ -132,6 +153,7 @@ export function useCmdPaletteProgramView({
         activeSessionRef.current = opened;
         setSession(opened);
         store.trigger.openSucceeded({ frame: response.first_frame });
+        synchronizeSearchText();
       })
       .catch(error => {
         if (controller.signal.aborted) return;
@@ -178,7 +200,7 @@ export function useCmdPaletteProgramView({
       try {
         const frame = JSON.parse(event.data) as CmdPaletteViewFrame;
         if (frame.view_session !== identity.viewSession) return;
-        store.trigger.frameReceived({ frame });
+        receiveFrame(frame);
       } catch (error) {
         if (identity.epoch !== store.getSnapshot().context.openEpoch) return;
         store.trigger.crashed({ error: viewErrorMessage(error) });
@@ -260,20 +282,6 @@ export function useCmdPaletteProgramView({
     });
     return () => subscription.unsubscribe();
   }, [store]);
-
-  useEffect(() => {
-    const searchText = programChrome?.search_text;
-    if (
-      searchText === undefined ||
-      !controlledEchoIsCurrent(programChrome?.event_count, state.eventCount) ||
-      state.searchQuery === (searchText ?? "")
-    ) {
-      return;
-    }
-    const nextQuery = searchText ?? "";
-    store.trigger.searchEchoed({ query: nextQuery });
-    onQueryChange(nextQuery);
-  }, [onQueryChange, programChrome, state.eventCount, state.searchQuery, store]);
 
   useEffect(() => {
     const executedEffects = new Set(state.executedEffects);

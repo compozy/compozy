@@ -37,8 +37,7 @@ func TestParseRequiredJSONRawMessage(t *testing.T) {
 		if err == nil {
 			t.Fatal("parseRequiredJSONRawMessage() error = nil, want non-nil")
 		}
-		var syntaxErr *json.SyntaxError
-		if !errors.As(err, &syntaxErr) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); !ok {
 			t.Fatalf("parseRequiredJSONRawMessage() error = %v, want *json.SyntaxError", err)
 		}
 	})

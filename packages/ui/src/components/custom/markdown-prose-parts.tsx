@@ -1,13 +1,11 @@
 import * as React from "react";
 
 import { cn } from "../../lib/utils";
+import { INLINE_CODE_CLASS } from "./markdown-prose-constants";
 
 type MdProps<T extends keyof React.JSX.IntrinsicElements> = React.ComponentPropsWithoutRef<T> & {
   node?: unknown;
 };
-
-export const INLINE_CODE_CLASS =
-  "rounded-xs bg-surface-glaze px-1 py-px font-mono text-form-input text-fg-strong";
 
 export function MarkdownAnchor({ className, node: _node, ...props }: MdProps<"a">) {
   return (

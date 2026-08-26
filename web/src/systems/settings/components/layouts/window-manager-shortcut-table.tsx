@@ -11,7 +11,8 @@ import {
   buildShortcutTableRows,
   shortcutSourceCounts,
 } from "../../lib/window-manager-shortcut-rows";
-import { SHORTCUT_SOURCE_ALL, ShortcutSourceFilter } from "./shortcut-source-filter";
+import { ShortcutSourceFilter } from "./shortcut-source-filter";
+import { SHORTCUT_SOURCE_ALL } from "./shortcut-source-filter-constants";
 import { WindowManagerAliasCell } from "./window-manager-alias-cell";
 import { WindowManagerBindingConflict } from "./window-manager-binding-conflict";
 import { WindowManagerShortcutRow } from "./window-manager-shortcut-row";

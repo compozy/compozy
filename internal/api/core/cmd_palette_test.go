@@ -17,12 +17,40 @@ import (
 	"github.com/compozy/compozy/internal/cmdpalette"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
 func TestBaseHandlersCmdPalette(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the reserved Global desktop partition without resolving a project", func(t *testing.T) {
+		t.Parallel()
+		registry := &cmdPaletteRegistryStub{}
+		handlers := newCmdPaletteHandlers(registry, nil)
+		engine := gin.New()
+		engine.GET("/api/cmd-palette/commands", handlers.ListCmdPaletteCommands)
+		recorder := httptest.NewRecorder()
+		request := httptest.NewRequestWithContext(
+			t.Context(),
+			http.MethodGet,
+			"/api/cmd-palette/commands?workspace="+string(windowmanager.GlobalDesktopWorkspaceID),
+			http.NoBody,
+		)
+
+		engine.ServeHTTP(recorder, request)
+
+		if recorder.Code != http.StatusOK ||
+			registry.catalogWorkspace != cmdpalette.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID) {
+			t.Fatalf(
+				"global catalog = status %d workspace %q body=%s",
+				recorder.Code,
+				registry.catalogWorkspace,
+				recorder.Body.String(),
+			)
+		}
+	})
 
 	t.Run("Should carry scoped and aggregate profile lenses through the shared transport [IT-088]", func(t *testing.T) {
 		t.Parallel()

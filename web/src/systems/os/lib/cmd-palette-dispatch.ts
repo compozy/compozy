@@ -2,6 +2,7 @@ import { commandNeedsArguments } from "./cmd-palette-args";
 import { paletteClientOp, type PaletteClientOpContext } from "./cmd-palette-client-ops";
 import { resolvePaletteCopyContent } from "./cmd-palette-copy";
 import type { CmdPaletteInvokeResult, ResolvedPaletteCommand } from "./cmd-palette-types";
+import type { OsAppId, OsWindowRoute } from "./os-types";
 
 /**
  * The single dispatch seam (ADR-006).
@@ -31,6 +32,29 @@ export type PaletteDispatchOutcome =
   | { readonly status: "needs_args" }
   /** The command needs its declared confirmation before it can run. */
   | { readonly status: "needs_confirmation" };
+
+export interface CmdPaletteRunOptions {
+  readonly args?: Readonly<Record<string, unknown>>;
+  readonly query?: string;
+  /** Set once the operator cleared the command's declared confirmation. */
+  readonly confirmed?: boolean;
+  /** Overrides only this command's navigation destination after the seam's gates pass. */
+  readonly navigate?: (app: OsAppId, route: OsWindowRoute | null) => void;
+}
+
+export interface CmdPaletteDispatch {
+  /** Runs a resolved command through the seam. */
+  run(
+    command: ResolvedPaletteCommand,
+    options?: CmdPaletteRunOptions
+  ): Promise<PaletteDispatchOutcome>;
+  /** Runs a command by id — the keyboard and menubar entry point. */
+  runById(commandId: string, options?: CmdPaletteRunOptions): Promise<PaletteDispatchOutcome>;
+  /** Executes a `client_op` pushed over the window-manager channel. */
+  executeClientOp(op: string, payload: unknown): Promise<unknown>;
+  /** The action panel's Pin/Unpin meta-action. */
+  setPinned(command: ResolvedPaletteCommand, pinned: boolean): Promise<void>;
+}
 
 export interface PaletteDispatchPorts {
   readonly clientOps: PaletteClientOpContext;

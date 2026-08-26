@@ -6,7 +6,6 @@ import { CheckIcon, ChevronDownIcon, XIcon } from "lucide-react";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
-import { useComboboxAnchor } from "./hooks/use-combobox-anchor";
 
 function ComboboxInputGroup({ className, ...props }: React.ComponentProps<"div">) {
   return (
@@ -311,5 +310,4 @@ export {
   ComboboxSeparator,
   ComboboxTrigger,
   ComboboxValue,
-  useComboboxAnchor,
 };

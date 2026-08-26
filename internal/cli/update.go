@@ -110,8 +110,7 @@ func runUpdateCommand(cmd *cobra.Command, deps commandDeps, checkOnly bool, canc
 	}
 	operation, err := manager.AcquireOperation(cmd.Context(), request)
 	if err != nil {
-		var blocked *compozyupdate.BlockedError
-		if errors.As(err, &blocked) {
+		if blocked, ok := errors.AsType[*compozyupdate.BlockedError](err); ok {
 			record = blockedUpdateRecord(record, &blocked.Operation, targets...)
 		}
 		return writeUpdateFailure(cmd, record, err)

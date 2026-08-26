@@ -752,6 +752,33 @@ describe("useOsPaletteRoot", () => {
     );
   });
 
+  it("Should identify root session results by owner under the aggregate profile lens", async () => {
+    const user = userEvent.setup();
+    paletteMocks.profileAggregate = true;
+    paletteMocks.rankSignals = TEST_RANK_SIGNALS;
+    paletteMocks.sessions = [
+      paletteSession({
+        id: "s-marketing",
+        name: "Campaign plan",
+        profile_id: "01J9MARKETING00000000000000",
+        profile_name: "marketing",
+        profile_color: "#c26ad6",
+        profile_icon: "megaphone",
+      }),
+    ];
+
+    renderPalette();
+    await user.type(
+      screen.getByPlaceholderText("Search apps, sessions, and actions…"),
+      "Campaign plan"
+    );
+
+    const row = await screen.findByTestId("os-palette-session-s-marketing");
+    const ownerTag = within(row).getByTestId("profile-owner-tag");
+    expect(ownerTag).toHaveAttribute("aria-label", "marketing");
+    expect(ownerTag).toHaveAttribute("title", "marketing");
+  });
+
   it("Should remove the agent fallback row when its effective setting is disabled [UT-151]", async () => {
     const user = userEvent.setup();
     paletteMocks.fallbackAgentEnabled = true;
@@ -1235,10 +1262,10 @@ describe("palette nested views", () => {
     renderPalette();
     await pushSessionsView(user);
 
-    expect(screen.getByTestId("os-palette-session-view-s-marketing")).toHaveTextContent(
-      "marketing"
-    );
-    expect(screen.getByTestId("profile-owner-tag")).not.toHaveAttribute("data-archived");
+    const ownerTag = screen.getByTestId("profile-owner-tag");
+    expect(ownerTag).toHaveAttribute("aria-label", "marketing");
+    expect(ownerTag).toHaveAttribute("title", "marketing");
+    expect(ownerTag).not.toHaveAttribute("data-archived");
   });
 
   it("Should narrow by chip, name a zero match, and clear it in one keystroke [UT-061]", async () => {
@@ -1569,6 +1596,40 @@ describe("palette nested views", () => {
     for (const row of screen.getAllByTestId(/^os-palette-domain-row-task:/)) {
       expect(within(row).getByText("Alpha")).toBeInTheDocument();
     }
+  });
+
+  it("Should keep a worktree owner tag under every profile lens", () => {
+    paletteMocks.domainSections = [
+      {
+        title: "Worktrees",
+        rows: [
+          {
+            key: "worktree:agent-comms",
+            label: "agent-comms",
+            detail: "agent-comms",
+            status: "ready",
+            owner: {
+              id: "00000000000000000000000000",
+              name: "default",
+              color: "#8E8EB5",
+              icon: "circle",
+              emoji: null,
+              archived: false,
+            },
+            app: "dashboard",
+            route: { pathname: "/", search: {} },
+          },
+        ],
+        total: 1,
+        loading: false,
+        error: null,
+      },
+    ];
+
+    renderPalette();
+
+    const row = screen.getByTestId("os-palette-domain-row-worktree:agent-comms");
+    expect(within(row).getByTestId("profile-owner-tag")).toHaveTextContent("default");
   });
 
   it("Should keep matching commands and settings destinations in separate groups [UT-117]", async () => {

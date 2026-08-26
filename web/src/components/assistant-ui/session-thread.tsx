@@ -9,10 +9,8 @@ import { SessionComposer, type SessionComposerProps } from "./session-composer";
 import { SessionComposerPrefillProvider } from "./session-composer-prefill-context";
 import { SessionThreadReadOnlyProvider } from "./session-thread-read-only-provider";
 import { useSessionPromptDispatch } from "./hooks/use-session-prompt-dispatch";
-import {
-  SESSION_THREAD_CONTENT_INSET_DEFAULT,
-  ThreadContentRail,
-} from "./session-thread-content-rail";
+import { ThreadContentRail } from "./session-thread-content-rail";
+import { SESSION_THREAD_CONTENT_INSET_DEFAULT } from "./session-thread-content-rail-constants";
 import { ThreadViewport } from "./session-thread-viewport";
 import { WorkingIndicator } from "./session-working-row";
 import {

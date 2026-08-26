@@ -6,14 +6,16 @@ import { ARCHIVED_OWNER_SUFFIX } from "../lib/profile-copy";
 import type { ProfileOwner } from "../lib/profile-scope";
 import { ProfileGlyph } from "./profile-glyph";
 
-export interface ProfileOwnerTagProps extends Omit<
-  ComponentProps<typeof Pill>,
-  "children" | "size" | "tone"
-> {
+export interface ProfileOwnerTagProps extends Omit<ComponentProps<"span">, "children" | "color"> {
   "data-testid"?: string;
   owner: ProfileOwner;
   /** Surface the tag sits on, so identity ink is measured against the right plate. */
   surface?: string;
+  /**
+   * Glyph-only rendering for tight rows: the symbol carries the identity and
+   * the owner's name moves to the accessible label and the hover title.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -32,8 +34,30 @@ export function ProfileOwnerTag({
   surface,
   className,
   "data-testid": dataTestId,
+  compact = false,
   ...props
 }: ProfileOwnerTagProps) {
+  const ownerLabel = owner.archived ? `${owner.name}${ARCHIVED_OWNER_SUFFIX}` : owner.name;
+  if (compact) {
+    return (
+      <ProfileGlyph
+        {...props}
+        data-slot="profile-owner-tag"
+        data-testid={dataTestId ?? "profile-owner-tag"}
+        data-archived={owner.archived ? "true" : undefined}
+        role="img"
+        aria-label={ownerLabel}
+        name={ownerLabel}
+        color={owner.color}
+        icon={owner.icon}
+        emoji={owner.emoji}
+        size="sm"
+        surface={surface}
+        title={ownerLabel}
+        className={className}
+      />
+    );
+  }
   return (
     <Pill
       {...props}
@@ -54,7 +78,7 @@ export function ProfileOwnerTag({
         surface={surface}
         className="size-3.5 rounded-mono-badge"
       />
-      {owner.archived ? `${owner.name}${ARCHIVED_OWNER_SUFFIX}` : owner.name}
+      {ownerLabel}
     </Pill>
   );
 }

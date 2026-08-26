@@ -468,8 +468,7 @@ func TestTeamsProgressRendering(t *testing.T) {
 			&bridgesdk.Session{},
 			final,
 		)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("handleBridgesDeliver(final) error = %T %v, want CommittedMutationError", err, err)
 		}
 		if _, exists := provider.deliveries.Load(
@@ -1205,8 +1204,7 @@ func TestExecuteTeamsDeliveryChunksTerminalContent(t *testing.T) {
 		if got, want := bridgesdk.ClassifyError(err).Class, bridgesdk.ErrorClassPermanent; got != want {
 			t.Fatalf("executeTeamsDelivery() error class = %q, want %q: %v", got, want, err)
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("executeTeamsDelivery() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := len(api.sendAttempts), 1; got != want {
@@ -1983,8 +1981,7 @@ func TestClassifyTeamsHTTPErrorAndHelpers(t *testing.T) {
 	}
 
 	auth := classifyTeamsHTTPError(http.StatusUnauthorized, "", "bad token")
-	var authErr *bridgesdk.AuthError
-	if !errors.As(auth, &authErr) {
+	if _, ok := errors.AsType[*bridgesdk.AuthError](auth); !ok {
 		t.Fatalf("classifyTeamsHTTPError(auth) = %T, want *AuthError", auth)
 	}
 
@@ -2259,8 +2256,7 @@ func TestBotClientCoverageAndWebhookGuards(t *testing.T) {
 		if err == nil {
 			t.Fatal("sendTeamsDeliveryActivity(truncated response) error = nil, want non-nil")
 		}
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("sendTeamsDeliveryActivity() error = %T, want CommittedMutationError", err)
 		}
 		attemptsMu.Lock()

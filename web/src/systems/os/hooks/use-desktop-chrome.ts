@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 
 import { useProfileReadScope } from "@/systems/profiles";
 import { useSession } from "@/systems/session";
-import { useWorkspaceScopeMode } from "@/systems/workspace";
+import { GLOBAL_DESKTOP_WORKSPACE_ID, useWorkspaceScopeMode } from "@/systems/workspace";
 
 import type { OsShellHandle } from "../contexts/os-shell-context";
 import { ClientCommandChannel } from "../lib/client-command-channel";
@@ -77,7 +77,9 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
   // Scoped to the active workspace: a rebind stored in the workspace overlay has
   // to reach the shell's own keymap, or the chord would not dispatch until a
   // reload (US-022.AC-3).
-  const configQuery = useQuery(windowManagerConfigOptions(activeWorkspaceId, client.clientId));
+  const configWorkspaceId =
+    activeWorkspaceId === GLOBAL_DESKTOP_WORKSPACE_ID ? null : activeWorkspaceId;
+  const configQuery = useQuery(windowManagerConfigOptions(configWorkspaceId, client.clientId));
   const globalShortcuts = useGlobalShortcutReconciliation(configQuery.data?.globalShortcuts);
   const [manager] = useState(() => new WindowManagerRuntime(queryClient));
   // The seam is built deeper in the tree (it needs the shell's own handlers), so
@@ -163,7 +165,7 @@ export function useDesktopChrome(activeWorkspaceId: string | null): DesktopChrom
       shell.coordinator.reportAuthoritativeState();
       if (view.globalShortcuts.length > 0) {
         void queryClient.invalidateQueries({
-          queryKey: windowManagerKeys.config(activeWorkspaceId, client.clientId),
+          queryKey: windowManagerKeys.config(configWorkspaceId, client.clientId),
           exact: true,
         });
       }

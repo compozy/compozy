@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState, type KeyboardEvent, type RefObject } from "react";
 
 import { Pill } from "@compozy/ui";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { ImageIcon } from "lucide-react";
 
 import { statusTone } from "@/lib/status-tone";
@@ -16,9 +15,9 @@ import {
 } from "../lib/cmd-palette-grid";
 import type { CmdPaletteViewAction, CmdPaletteViewGrid } from "../lib/cmd-palette-types";
 import { OsPaletteProgramBand } from "./os-palette-program-status";
-import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows";
+import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows-constants";
+import { usePaletteGridVirtualizer } from "../hooks/use-palette-grid-virtualizer";
 
-const GRID_ROW_ESTIMATE = 156;
 const GRID_VIEWPORT_CLASS =
   "max-h-72 overflow-y-auto p-3 outline-none focus-visible:shadow-focus-ring";
 
@@ -181,19 +180,9 @@ function VirtualGrid({
   onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => void;
   onSelect: (index: number) => void;
 }) {
-  "use no memo";
-
   const tiles = visibleGridTiles(grid, query, filterLocally);
   const rows = virtualGridRows(grid.sections, columns, tiles);
-  // oxlint-disable-next-line react/incompatible-library -- virtualizer state is isolated inside this compiler boundary.
-  const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
-    count: rows.length,
-    getScrollElement: () => viewportRef.current,
-    getItemKey: index => rows[index]?.key ?? index,
-    estimateSize: () => GRID_ROW_ESTIMATE,
-    overscan: 4,
-    useFlushSync: false,
-  });
+  const virtualizer = usePaletteGridVirtualizer(rows, viewportRef);
   const selectedRow = rows.findIndex(row => row.tiles.some(entry => entry.index === selected));
   useLayoutEffect(() => {
     if (selectedRow >= 0) virtualizer.scrollToIndex(selectedRow, { align: "auto" });

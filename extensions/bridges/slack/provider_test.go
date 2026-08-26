@@ -658,8 +658,7 @@ func TestExecuteDeliveryPostEditDeleteAndResume(t *testing.T) {
 				request.Event.Content.Text = testCase.content
 
 				_, gotState, err := executeDelivery(context.Background(), api, request, deliveryState{})
-				var committedErr *bridgesdk.CommittedMutationError
-				if !errors.As(err, &committedErr) {
+				if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 					t.Fatalf("executeDelivery() error = %T %v, want CommittedMutationError", err, err)
 				}
 				if gotState.LastSeq != 0 || gotState.RemoteMessageID != "" || gotState.ReplaceRemoteMessageID != "" {
@@ -2721,14 +2720,12 @@ func TestClassifySlackAPIErrorAndDeleteMessage(t *testing.T) {
 	t.Parallel()
 
 	rateErr := classifySlackAPIError(http.StatusTooManyRequests, "ratelimited", 3*time.Second)
-	var typedRateErr *bridgesdk.RateLimitError
-	if !errors.As(rateErr, &typedRateErr) {
+	if _, ok := errors.AsType[*bridgesdk.RateLimitError](rateErr); !ok {
 		t.Fatalf("rateErr type = %T, want *bridgesdk.RateLimitError", rateErr)
 	}
 
 	authErr := classifySlackAPIError(http.StatusUnauthorized, "invalid_auth", 0)
-	var typedAuthErr *bridgesdk.AuthError
-	if !errors.As(authErr, &typedAuthErr) {
+	if _, ok := errors.AsType[*bridgesdk.AuthError](authErr); !ok {
 		t.Fatalf("authErr type = %T, want *bridgesdk.AuthError", authErr)
 	}
 
@@ -2739,8 +2736,7 @@ func TestClassifySlackAPIErrorAndDeleteMessage(t *testing.T) {
 	}
 
 	permanentErr := classifySlackAPIError(0, "unknown_problem", 0)
-	var typedPermanentErr *bridgesdk.PermanentError
-	if !errors.As(permanentErr, &typedPermanentErr) {
+	if _, ok := errors.AsType[*bridgesdk.PermanentError](permanentErr); !ok {
 		t.Fatalf("permanentErr type = %T, want *bridgesdk.PermanentError", permanentErr)
 	}
 
@@ -2905,8 +2901,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 		if got, want := rateErr.RetryAfter, 7*time.Second; got != want {
 			t.Fatalf("RetryAfter = %v, want %v", got, want)
 		}
-		var syntaxErr *json.SyntaxError
-		if !errors.As(err, &syntaxErr) {
+		if _, ok := errors.AsType[*json.SyntaxError](err); !ok {
 			t.Fatalf("malformed 429 error = %T %v, want preserved JSON syntax cause", err, err)
 		}
 	})
@@ -2994,8 +2989,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 			httpClient: &http.Client{Timeout: time.Second},
 		}
 		_, err := postSlackDeliveryMessage(t.Context(), client, slackPostMessageRequest{Channel: "C1", Text: "hello"})
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("postSlackDeliveryMessage() error = %T %v, want CommittedMutationError", err, err)
 		}
 		if got, want := attempts.Load(), int32(1); got != want {
@@ -3040,8 +3034,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 			}
 			var result slackPostedMessage
 			err := client.callMutation(t.Context(), "chat.postMessage", map[string]any{"channel": "C1"}, &result)
-			var permanentErr *bridgesdk.PermanentError
-			if !errors.As(err, &permanentErr) {
+			if _, ok := errors.AsType[*bridgesdk.PermanentError](err); !ok {
 				t.Fatalf(
 					"callMutation(%d) error = %T %v, want first-response PermanentError",
 					testCase.statusCode,
@@ -3066,8 +3059,7 @@ func TestSlackBotClientCallBranches(t *testing.T) {
 
 		client := &slackBotClient{baseURL: server.URL, botToken: "xoxb", httpClient: &http.Client{Timeout: time.Second}}
 		err := client.call(context.Background(), "chat.postMessage", map[string]any{"channel": "C1"}, nil)
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
+		if _, ok := errors.AsType[*bridgesdk.AuthError](err); !ok {
 			t.Fatalf("api error type = %T, want *bridgesdk.AuthError", err)
 		}
 	})

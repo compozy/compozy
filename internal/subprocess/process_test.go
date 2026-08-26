@@ -107,8 +107,7 @@ func TestProcessExitDiagnostics(t *testing.T) {
 		if waitErr == nil {
 			t.Fatal("Wait() error = nil, want signal termination error")
 		}
-		var exitErr *exec.ExitError
-		if !errors.As(waitErr, &exitErr) {
+		if _, ok := errors.AsType[*exec.ExitError](waitErr); !ok {
 			t.Fatalf("Wait() error = %T %[1]v, want *exec.ExitError", waitErr)
 		}
 
@@ -335,8 +334,7 @@ func TestCallReturnsTypedResponseDecodeError(t *testing.T) {
 		if got, want := decodeErr.Method, "echo"; got != want {
 			t.Fatalf("ResponseDecodeError.Method = %q, want %q", got, want)
 		}
-		var typeErr *json.UnmarshalTypeError
-		if !errors.As(err, &typeErr) {
+		if _, ok := errors.AsType[*json.UnmarshalTypeError](err); !ok {
 			t.Fatalf("Call(echo) error = %v, want wrapped json.UnmarshalTypeError", err)
 		}
 	})

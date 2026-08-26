@@ -3,7 +3,7 @@ import type { Filter, FilterFieldsConfig } from "@compozy/ui";
 import { LOOP_RUN_STATUSES } from "@/generated/loop-enums";
 
 import type { LoopRunStatus } from "../types";
-import { type LoopStatusFilter, loopKind } from "./loop-catalog";
+import type { LoopStatusFilter } from "./loop-catalog";
 import { isLoopRunStatus, loopStatusLabel } from "./loop-formatters";
 import type { LoopOutcomeValue } from "./loop-runs-view";
 
@@ -144,8 +144,6 @@ export function applyLoopRunFilterChips(
   return resolved;
 }
 
-/** Re-export for callers that need kind classification without importing loop-catalog. */
-export { loopKind };
 export {
   parseLoopCategoryFilter,
   parseLoopKindFilter,

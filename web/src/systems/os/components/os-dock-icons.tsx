@@ -5,6 +5,8 @@
  */
 import type { SVGProps } from "react";
 
+import type { DockIconId } from "../lib/os-dock-model";
+
 type GlyphProps = SVGProps<SVGSVGElement>;
 
 function DockGlyph({ children, className, ...props }: GlyphProps & { children: React.ReactNode }) {
@@ -21,7 +23,7 @@ function DockGlyph({ children, className, ...props }: GlyphProps & { children: R
   );
 }
 
-export const DockIcons = {
+const DOCK_ICON_GLYPHS = {
   sessions: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <path
@@ -175,6 +177,9 @@ export const DockIcons = {
       />
     </DockGlyph>
   ),
-} as const;
+} as const satisfies Record<DockIconId, (props: GlyphProps) => React.ReactNode>;
 
-export type DockIconId = keyof typeof DockIcons;
+export function DockIcon({ name, ...props }: GlyphProps & { name: DockIconId }) {
+  const Glyph = DOCK_ICON_GLYPHS[name];
+  return <Glyph {...props} />;
+}

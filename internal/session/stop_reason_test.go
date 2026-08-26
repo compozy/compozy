@@ -392,8 +392,7 @@ func TestPrepareStopWithCauseWrapsStageFailures(t *testing.T) {
 				t.Fatalf("prepareStopWithCause() error = %v, want wrapped %v", err, tc.wantErr)
 			}
 			if tc.wantPathError {
-				var pathErr *os.PathError
-				if !errors.As(err, &pathErr) {
+				if _, ok := errors.AsType[*os.PathError](err); !ok {
 					t.Fatalf("prepareStopWithCause() error = %v, want wrapped *os.PathError", err)
 				}
 			}

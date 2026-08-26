@@ -2,15 +2,15 @@ import { renderHook, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { Sidebar } from "../sidebar";
 import {
   SIDEBAR_COLLAPSE_BREAKPOINT_DEFAULT,
   SIDEBAR_PANEL_WIDTH_DEFAULT,
   SIDEBAR_PANEL_WIDTH_MD,
   SIDEBAR_PANEL_WIDTH_MD_BREAKPOINT,
   SIDEBAR_RAIL_WIDTH,
-  Sidebar,
   useSidebarViewport,
-} from "../sidebar";
+} from "../hooks/use-sidebar-state";
 import { UIProvider } from "../custom/ui-provider";
 
 interface MediaMock {

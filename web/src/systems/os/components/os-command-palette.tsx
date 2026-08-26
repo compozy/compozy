@@ -15,8 +15,6 @@ import { OsPaletteFooter } from "./os-palette-footer";
 import { OsPaletteRootFrame } from "./os-palette-root-frame";
 import { OsPaletteViewStack } from "./os-palette-view-stack";
 
-export { focusActivePaletteFrame } from "./os-command-palette-focus";
-
 export interface OsCommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;

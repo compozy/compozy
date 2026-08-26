@@ -51,14 +51,6 @@ export type LoopNodeKind = keyof typeof LOOP_NODE_KIND_ICONS;
 /** Blank ToolID action in the palette (`Call tool…`). */
 export const LOOP_CALL_TOOL_ICON: LucideIcon = Wrench;
 
-export function loopNodeKindIcon(kind: string): LucideIcon | undefined {
-  if (kind === "") return LOOP_CALL_TOOL_ICON;
-  if (Object.hasOwn(LOOP_NODE_KIND_ICONS, kind)) {
-    return LOOP_NODE_KIND_ICONS[kind as LoopNodeKind];
-  }
-  return undefined;
-}
-
 /**
  * Detail-DAG class glyphs. One icon per concept — never a per-ToolID mark.
  * `control+fan-out` and `control+gate` win over plain control.

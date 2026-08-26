@@ -1,14 +1,15 @@
 import { Field, FieldError, FieldLabel, Input, SymbolPicker, type SymbolValue } from "@compozy/ui";
 
+import type { ProfileIconCatalogViewModel } from "../hooks/use-profile-icon-catalog";
 import {
-  PROFILE_EMOJI_OPTIONS,
-  PROFILE_ICON_OPTIONS,
-  PROFILE_ICON_REGISTRY,
+  PROFILE_EMOJIBASE_URL,
   PROFILE_IDENTITY_SWATCHES,
+  PROFILE_SPRITE_URL,
 } from "../lib/profile-identity";
 import { ProfileGlyph } from "./profile-glyph";
 
 interface ProfileIdentityFieldsBaseProps {
+  catalog: ProfileIconCatalogViewModel;
   name: string;
   color: string;
   onColorChange: (next: string) => void;
@@ -46,6 +47,7 @@ export function ProfileIdentityFields(props: ProfileIdentityFieldsProps) {
     nameError = null,
     nameLabel = "Name",
     testIdPrefix,
+    catalog,
   } = props;
   return (
     <div className="flex flex-col gap-3">
@@ -77,9 +79,10 @@ export function ProfileIdentityFields(props: ProfileIdentityFieldsProps) {
         onColorValidityChange={onColorValidityChange}
         symbol={symbol}
         onSymbolChange={onSymbolChange}
-        icons={PROFILE_ICON_OPTIONS}
-        iconRegistry={PROFILE_ICON_REGISTRY}
-        emojis={PROFILE_EMOJI_OPTIONS}
+        icons={catalog.icons}
+        iconsLoading={catalog.loading}
+        spriteUrl={PROFILE_SPRITE_URL}
+        emojibaseUrl={PROFILE_EMOJIBASE_URL}
         swatches={PROFILE_IDENTITY_SWATCHES}
         data-testid={`${testIdPrefix}-symbol-picker`}
       />

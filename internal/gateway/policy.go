@@ -113,10 +113,9 @@ func (p *policy) Close(ctx context.Context) error {
 }
 
 func (p *policy) setRefusal(err error) {
-	var refusal RefusalError
 	p.refusalMu.Lock()
 	defer p.refusalMu.Unlock()
-	if errors.As(err, &refusal) {
+	if refusal, ok := errors.AsType[RefusalError](err); ok {
 		p.refusal = &Refusal{Cause: refusal.Cause, Fix: refusal.Fix}
 		return
 	}

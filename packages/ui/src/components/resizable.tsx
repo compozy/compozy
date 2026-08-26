@@ -1,5 +1,4 @@
 import * as ResizablePrimitive from "react-resizable-panels";
-import { useDefaultLayout } from "react-resizable-panels";
 import type { Layout, LayoutStorage } from "react-resizable-panels";
 
 import { cn } from "@compozy/ui/lib/utils";
@@ -39,5 +38,5 @@ function ResizableHandle({
   );
 }
 
-export { ResizableHandle, ResizablePanel, ResizablePanelGroup, useDefaultLayout };
+export { ResizableHandle, ResizablePanel, ResizablePanelGroup };
 export type { Layout, LayoutStorage };

@@ -48,6 +48,9 @@ compozy profile create <name> [--color <hex>] [--icon <name> | --emoji <char>]
 compozy profile update <name> [--color <hex>] [--icon <name> | --emoji <char>]
 ```
 
+`--icon` accepts any Lucide icon name (lucide.dev/icons); other values are refused. `--emoji` accepts
+one emoji character.
+
 Rename, archive, and delete are plan-based. The CLI fetches the current plan and submits its
 `plan_revision`; a stale revision must be replanned, never replayed. Rename can include repository
 folders with `--repos all|none|<workspace-ids>`. Archive preserves work and freezes guarded queued work.

@@ -160,8 +160,7 @@ func TestSlackContractDeliveryRecovery(t *testing.T) {
 		}
 
 		_, gotState, err := executeDelivery(context.Background(), api, resumeReq, deliveryState{})
-		var transientErr *bridgesdk.TransientError
-		if !errors.As(err, &transientErr) {
+		if _, ok := errors.AsType[*bridgesdk.TransientError](err); !ok {
 			t.Fatalf("executeDelivery() error = %T %v, want TransientError", err, err)
 		}
 		if gotState != (deliveryState{}) {

@@ -7,6 +7,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/cmdpalette"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -112,6 +113,9 @@ func (h *BaseHandlers) resolveCmdPaletteWorkspace(
 			Error: "invalid_workspace", Message: "workspace is required",
 		})
 		return "", false
+	}
+	if workspaceRef == string(windowmanager.GlobalDesktopWorkspaceID) {
+		return cmdpalette.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID), true
 	}
 	if h.Workspaces == nil {
 		h.respondError(c, http.StatusServiceUnavailable, workspacepkg.ErrWorkspaceResolverUnavailable)

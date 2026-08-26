@@ -92,8 +92,7 @@ func (e *ForgeFailure) Unwrap() []error {
 }
 
 func ForgeFailureCause(err error) string {
-	var failure *ForgeFailure
-	if errors.As(err, &failure) {
+	if failure, ok := errors.AsType[*ForgeFailure](err); ok {
 		return failure.cause
 	}
 	return ""

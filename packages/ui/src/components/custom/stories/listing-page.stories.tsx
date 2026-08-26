@@ -46,7 +46,7 @@ function ListingPageDemo() {
       <div className="overflow-hidden rounded-lg border border-line bg-canvas-soft">
         {ROWS.map(row => (
           <ListingRow key={row.name}>
-            <ListingRow.Link render={<a href="#loop" />}>
+            <ListingRow.Link render={<a href="#loop" aria-label={`Open ${row.name}`} />}>
               <ListingRow.Icon>
                 <Repeat2 aria-hidden="true" className="size-4" />
               </ListingRow.Icon>

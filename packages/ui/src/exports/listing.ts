@@ -104,12 +104,14 @@ export {
 } from "../components/custom/data-surface";
 export { resolveDataSurfaceState } from "../components/custom/data-surface-state";
 export {
-  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
-  DETAIL_INSPECTOR_INLINE_WIDTH,
   DetailInspector,
   type DetailInspectorProps,
   type DetailInspectorTab,
 } from "../components/custom/detail-inspector";
+export {
+  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
+  DETAIL_INSPECTOR_INLINE_WIDTH,
+} from "../components/custom/detail-inspector-constants";
 export { PropertyRow, type PropertyRowProps } from "../components/custom/property-row";
 export {
   StatusCard,

@@ -105,8 +105,7 @@ func newMarketplaceLoadRegistry(t *testing.T) (*Registry, *Skill, string) {
 func assertMarketplaceLoadHashMismatch(t *testing.T, err error) {
 	t.Helper()
 
-	var mismatch *HashMismatchError
-	if !errors.As(err, &mismatch) {
+	if _, ok := errors.AsType[*HashMismatchError](err); !ok {
 		t.Fatalf("load error = %v, want HashMismatchError", err)
 	}
 }

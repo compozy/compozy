@@ -1023,8 +1023,7 @@ func TestUpdateSectionWindowManager(t *testing.T) {
 			SectionRequest:       SectionRequest{Section: SectionWindowManager},
 			WindowManagerAliases: &invalidAliases,
 		})
-		var invalid *InvalidAliasError
-		if !errors.As(err, &invalid) {
+		if _, ok := errors.AsType[*InvalidAliasError](err); !ok {
 			t.Fatalf("UpdateSection(invalid alias) error = %T %v, want InvalidAliasError", err, err)
 		}
 	})

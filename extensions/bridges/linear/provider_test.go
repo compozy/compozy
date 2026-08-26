@@ -598,8 +598,7 @@ func TestLinearProviderHandleBridgesDeliverCommittedOutcome(t *testing.T) {
 		})
 
 		_, err = provider.handleBridgesDeliver(context.Background(), nil, request)
-		var committedErr *bridgesdk.CommittedMutationError
-		if !errors.As(err, &committedErr) {
+		if _, ok := errors.AsType[*bridgesdk.CommittedMutationError](err); !ok {
 			t.Fatalf("handleBridgesDeliver() error = %T, want CommittedMutationError", err)
 		}
 		if got, want := len(committedAPI.updatedComments), 1; got != want {
@@ -845,47 +844,61 @@ func TestLinearClientAPIKeyAndOAuthRequests(t *testing.T) {
 func TestLinearClientClassifiesHTTPFailures(t *testing.T) {
 	t.Parallel()
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/graphql":
-			if strings.Contains(r.Header.Get("Authorization"), "bad-token") {
-				http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+	t.Run("Should classify forbidden responses as authentication failures", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/graphql" {
+				http.NotFound(w, r)
+				return
+			}
+			http.Error(w, `{"message":"forbidden"}`, http.StatusForbidden)
+		}))
+		defer server.Close()
+
+		client := &linearClient{
+			cfg: resolvedInstanceConfig{
+				authMode:   linearAuthModeAPIKey,
+				apiKey:     "bad-token",
+				apiBaseURL: server.URL,
+			},
+			httpClient: server.Client(),
+			now:        func() time.Time { return time.Now().UTC() },
+		}
+		if _, err := client.ValidateAuth(t.Context()); err == nil {
+			t.Fatal("ValidateAuth(403) error = nil, want non-nil")
+		} else if _, ok := errors.AsType[*bridgesdk.AuthError](err); !ok {
+			t.Fatalf("ValidateAuth() error = %#v, want auth error", err)
+		}
+	})
+
+	t.Run("Should classify too-many-requests responses as rate limits", func(t *testing.T) {
+		t.Parallel()
+
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/graphql" {
+				http.NotFound(w, r)
 				return
 			}
 			http.Error(w, `{"message":"rate limited"}`, http.StatusTooManyRequests)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	defer server.Close()
+		}))
+		defer server.Close()
 
-	client := &linearClient{
-		cfg: resolvedInstanceConfig{
-			authMode:   linearAuthModeAPIKey,
-			apiKey:     "bad-token",
-			apiBaseURL: server.URL,
-		},
-		httpClient: server.Client(),
-		now:        func() time.Time { return time.Now().UTC() },
-	}
-	if _, err := client.ValidateAuth(context.Background()); err == nil {
-		t.Fatal("ValidateAuth(403) error = nil, want non-nil")
-	} else {
-		var authErr *bridgesdk.AuthError
-		if !errors.As(err, &authErr) {
-			t.Fatalf("ValidateAuth() error = %#v, want auth error", err)
+		client := &linearClient{
+			cfg: resolvedInstanceConfig{
+				authMode:   linearAuthModeAPIKey,
+				apiKey:     "okay-token",
+				apiBaseURL: server.URL,
+			},
+			httpClient: server.Client(),
+			now:        func() time.Time { return time.Now().UTC() },
 		}
-	}
-
-	client.cfg.apiKey = "okay-token"
-	if _, err := client.CreateComment(context.Background(), "issue-1", "hello", ""); err == nil {
-		t.Fatal("CreateComment(429) error = nil, want non-nil")
-	} else {
-		var rateErr *bridgesdk.RateLimitError
-		if !errors.As(err, &rateErr) {
+		if _, err := client.CreateComment(t.Context(), "issue-1", "hello", ""); err == nil {
+			t.Fatal("CreateComment(429) error = nil, want non-nil")
+		} else if _, ok := errors.AsType[*bridgesdk.RateLimitError](err); !ok {
 			t.Fatalf("CreateComment() error = %#v, want rate limit error", err)
 		}
-	}
+	})
 
 	t.Run("Should preserve auth classification when the GraphQL error body read and close fail", func(t *testing.T) {
 		t.Parallel()

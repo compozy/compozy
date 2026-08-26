@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Alert, AlertActions, AlertDescription, Button } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
+import { WORK_BANNER_HARD_STOP_THRESHOLD } from "./work-banner-constants";
 
 const BANNER_TRANSITION = {
   duration: 0.15,
@@ -16,8 +17,6 @@ const BANNER_TRANSITION = {
  * severity (info/warning/danger). The debounce guarantee: one toast per
  * `needs_input > 3` transition, not one per message.
  */
-export const WORK_BANNER_HARD_STOP_THRESHOLD = 3;
-
 export type WorkBannerTone = "info" | "warning" | "danger";
 
 export interface WorkBannerProps {

@@ -14,8 +14,8 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  useComboboxAnchor,
 } from "../combobox";
+import { useComboboxAnchor } from "../hooks/use-combobox-anchor";
 
 type City = { value: string; label: string };
 

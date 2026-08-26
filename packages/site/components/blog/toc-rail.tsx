@@ -35,11 +35,16 @@ export function TocRail({ items }: TocRailProps) {
       },
       { rootMargin: "-30% 0px -55% 0px", threshold: [0, 1] }
     );
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) observer.observe(el);
+    const observedElements = ids.flatMap(id => {
+      const element = document.getElementById(id);
+      if (!element) return [];
+      observer.observe(element);
+      return [element];
     });
-    return () => observer.disconnect();
+    return () => {
+      observedElements.forEach(element => observer.unobserve(element));
+      observer.disconnect();
+    };
   }, [items]);
 
   if (items.length === 0) return null;

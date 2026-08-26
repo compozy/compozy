@@ -20,7 +20,7 @@ export function SessionComposerDropRoot({
   );
 }
 
-export function SessionAttachmentDropOverlay({ visible }: { visible: boolean }) {
+function SessionAttachmentDropOverlay({ visible }: { visible: boolean }) {
   return (
     <div
       data-testid="composer-drop-overlay"

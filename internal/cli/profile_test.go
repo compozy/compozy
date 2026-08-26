@@ -41,6 +41,59 @@ func TestProfileReadScopeQueryValues(t *testing.T) {
 	})
 }
 
+// Invariant: a remote gateway defers implicit profile selection to the remote
+// daemon, while explicit operator selection is transported without requiring
+// the gateway to expose profile-management routes. The canonical profile scope
+// suite owns this transport boundary.
+func TestRemoteGatewayProfileSelection(t *testing.T) {
+	t.Parallel()
+
+	newCommand := func(t *testing.T) (*cobra.Command, commandDeps, *daemonClient) {
+		t.Helper()
+		command := &cobra.Command{Use: "prompt"}
+		command.Flags().String(profileFlagName, "", "")
+		client := &daemonClient{target: ClientTarget{kind: clientTargetGateway, name: "remote"}}
+		deps := newTestDeps(t, client)
+		deps.getenv = func(string) string { return "" }
+		return command, deps, client
+	}
+
+	t.Run("Should defer implicit profile selection to the remote daemon", func(t *testing.T) {
+		t.Parallel()
+		command, deps, client := newCommand(t)
+
+		handled, err := prepareRemoteGatewayProfileSelection(command, deps, client)
+		if err != nil {
+			t.Fatalf("prepareRemoteGatewayProfileSelection() error = %v", err)
+		}
+		if !handled {
+			t.Fatal("prepareRemoteGatewayProfileSelection() handled = false")
+		}
+		if values := profileQueryValues(command.Context(), nil); values.Has(profileFlagName) {
+			t.Fatalf("profile query = %v, want remote daemon default", values)
+		}
+	})
+
+	t.Run("Should transport an explicit profile without a catalog read", func(t *testing.T) {
+		t.Parallel()
+		command, deps, client := newCommand(t)
+		if err := command.Flags().Set(profileFlagName, "research"); err != nil {
+			t.Fatalf("set --profile error = %v", err)
+		}
+
+		handled, err := prepareRemoteGatewayProfileSelection(command, deps, client)
+		if err != nil {
+			t.Fatalf("prepareRemoteGatewayProfileSelection() error = %v", err)
+		}
+		if !handled {
+			t.Fatal("prepareRemoteGatewayProfileSelection() handled = false")
+		}
+		if got := profileQueryValues(command.Context(), nil).Get(profileFlagName); got != "research" {
+			t.Fatalf("profile query = %q, want research", got)
+		}
+	})
+}
+
 func TestProfileCommandOutputContract(t *testing.T) {
 	t.Parallel()
 

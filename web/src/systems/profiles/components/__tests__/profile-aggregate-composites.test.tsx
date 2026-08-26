@@ -54,6 +54,42 @@ describe("ProfileOwnerTag", () => {
     expect(screen.getByText("old agency · archived")).toBeInTheDocument();
     expect(screen.getByText("old agency · archived").closest("[data-archived]")).not.toBeNull();
   });
+
+  // Invariant: the compact tag still names its owner and forwards native span
+  // behavior while showing only the colored glyph.
+  // Owning layer: ProfileOwnerTag's compact contract.
+  // Canonical suite: this aggregate composites suite.
+  it("Should keep the compact owner accessible and preserve inherited span props", async () => {
+    const onClick = vi.fn();
+    renderWithUI(
+      <ProfileOwnerTag
+        compact
+        owner={MARKETING}
+        id="compact-marketing-owner"
+        tabIndex={0}
+        aria-describedby="owner-description"
+        style={{ cursor: "pointer" }}
+        onClick={onClick}
+      />
+    );
+    expect(screen.queryByText("marketing")).not.toBeInTheDocument();
+    const glyph = screen.getByRole("img", { name: "marketing" });
+    expect(glyph).toHaveAttribute("title", "marketing");
+    expect(glyph).toHaveAttribute("id", "compact-marketing-owner");
+    expect(glyph).toHaveAttribute("tabindex", "0");
+    expect(glyph).toHaveAttribute("aria-describedby", "owner-description");
+    expect(glyph).toHaveStyle({ cursor: "pointer" });
+    await userEvent.click(glyph);
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("Should carry the archived suffix into the compact label", () => {
+    renderWithUI(<ProfileOwnerTag compact owner={ARCHIVED} />);
+    expect(screen.getByRole("img", { name: "old agency · archived" })).toHaveAttribute(
+      "data-archived",
+      "true"
+    );
+  });
 });
 
 describe("ProfileDestinationChip", () => {

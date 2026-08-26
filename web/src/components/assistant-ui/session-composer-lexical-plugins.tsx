@@ -2,6 +2,7 @@ import { INTERNAL, useAui } from "@assistant-ui/react";
 import { DirectiveNode } from "@assistant-ui/react-lexical";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import {
+  $createParagraphNode,
   $createTextNode,
   $getRoot,
   $getSelection,
@@ -17,6 +18,7 @@ import {
 import { useEffect, useEffectEvent } from "react";
 
 export interface SessionComposerInputHandle {
+  clear: () => void;
   focus: () => void;
 }
 
@@ -36,7 +38,23 @@ export function SessionComposerHandleBridge({
   const publishHandle = useEffectEvent(onHandle);
 
   useEffect(() => {
-    publishHandle({ focus: () => editor.focus() });
+    publishHandle({
+      clear: () => {
+        // Let assistant-ui's pending runtime sync finish before the empty editor state wins.
+        queueMicrotask(() => {
+          editor.update(
+            () => {
+              const root = $getRoot();
+              root.clear();
+              root.append($createParagraphNode());
+              root.selectEnd();
+            },
+            { discrete: true }
+          );
+        });
+      },
+      focus: () => editor.focus(),
+    });
     return () => publishHandle(null);
   }, [editor]);
 

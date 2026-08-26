@@ -32,11 +32,20 @@ const meta: Meta<typeof ProfileArchiveDialog> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const catalog = {
+  icons: [
+    { name: "rocket", label: "rocket", keywords: "launch" },
+    { name: "megaphone", label: "megaphone", keywords: "announce" },
+  ],
+  loading: false,
+} as const;
+
 /** Create refusal stays attached to the name field while the real identity picker remains usable. */
 export const CreateInvalidName: Story = {
   args: {} as never,
   render: () => (
     <ProfileCreateDialog
+      catalog={catalog}
       open
       onOpenChange={fn()}
       existingCount={4}
@@ -114,6 +123,7 @@ export const Identity: Story = {
   args: {} as never,
   render: () => (
     <ProfileIdentityDialog
+      catalog={catalog}
       open
       onOpenChange={fn()}
       profile={marketingProfileFixture}
