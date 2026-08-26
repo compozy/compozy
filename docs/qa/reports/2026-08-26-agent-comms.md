@@ -32,7 +32,7 @@
 | 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-operator-caller-model-runtime | pending QA remediation commit |
 | 2 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-cancel | Bruno | Interrupt Tour | Pending | | |
 | 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout | pending QA remediation commits |
-| 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Pending | | |
+| 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-child-tool-policy | pending QA remediation commit |
 | 5 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-call-wake-delivery-exactly-once | Ada | Multi-Tab Tour | Pending | | |
 | 6 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-follow-up | Ada | Multi-Tab Tour | Pending | | |
 | 7 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-batch | Ada | Multi-Tab Tour | Pending | | |
@@ -84,6 +84,11 @@ Pending execution.
   interrupted by the generic CLI HTTP timeout. Bounded waits now use the dedicated transport with
   the requested/clamped server wait plus response grace. Five focused race-enabled client tests pass;
   public UDS retest remains pending.
+- `BUG-20260826-call-child-tool-policy` — unrestricted logical callers persisted an empty concrete
+  tool policy, and omitted call narrowing categories did not inherit from the caller. Call children
+  consequently saw `compozy__call_return` as denied and could not settle their work. Root sessions
+  now materialize the native tool universe and calls inherit omitted categories. Canonical focused
+  and package race suites pass; public child-catalog and settlement retest remain pending.
 
 ## Paper Cuts
 
@@ -100,6 +105,9 @@ None recorded yet.
 - `session wait --timeout 55s` and `call await --timeout 60s` both failed at about 30 seconds with
   `Client.Timeout exceeded while awaiting headers`, before the server-owned wait completed. See
   `BUG-20260826-bounded-wait-client-timeout`.
+- Child session `ses_call_call-1a2697770f3d8ea3` completed its prompt with
+  `compozy__call_return` denied by the session policy, leaving call `call-1a2697770f3d8ea3`
+  running. See `BUG-20260826-call-child-tool-policy`.
 
 ## Human Verifications Needed
 

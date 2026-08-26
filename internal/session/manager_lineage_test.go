@@ -2,6 +2,7 @@ package session
 
 import (
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -180,6 +181,43 @@ func TestCreateAllowedToolsOverrideNarrowsAgentProfile(t *testing.T) {
 					t.Fatalf("persisted lineage tools = %#v, want %#v", got, wantTools)
 				}
 			})
+		}
+	})
+
+	t.Run("Should materialize the native universe for an unrestricted logical root", func(t *testing.T) {
+		t.Parallel()
+
+		universe := []toolspkg.ToolID{
+			toolspkg.ToolIDAgentCall,
+			toolspkg.ToolIDAgentMessage,
+			toolspkg.ToolIDCallReturn,
+		}
+		h := newHostedMCPHarness(t, WithToolUniverse(universe))
+		accepted, err := h.manager.CreateAccepted(t.Context(), CreateAcceptedOpts{Session: CreateOpts{
+			AgentName: "coder",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeUser,
+		}})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), accepted.ID); err != nil {
+				t.Errorf("Stop(session) error = %v", err)
+			}
+		})
+
+		want := []string{
+			toolspkg.ToolIDAgentCall.String(),
+			toolspkg.ToolIDAgentMessage.String(),
+			toolspkg.ToolIDCallReturn.String(),
+		}
+		if accepted.Lineage == nil || !testutil.EqualStringSlices(accepted.Lineage.PermissionPolicy.Tools, want) {
+			t.Fatalf("accepted lineage = %#v, want native tool universe %#v", accepted.Lineage, want)
+		}
+		meta := readMeta(t, filepath.Join(h.homePaths.SessionsDir, accepted.ID, "meta.json"))
+		if meta.Lineage == nil || !testutil.EqualStringSlices(meta.Lineage.PermissionPolicy.Tools, want) {
+			t.Fatalf("persisted lineage = %#v, want native tool universe %#v", meta.Lineage, want)
 		}
 	})
 }

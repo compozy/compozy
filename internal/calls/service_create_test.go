@@ -52,6 +52,37 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		}
 	})
 
+	t.Run("Should inherit omitted permission categories from the caller", func(t *testing.T) {
+		t.Parallel()
+
+		target := validAgentTarget()
+		target.CallerPolicy = store.SessionPermissionPolicy{
+			Tools:           []string{"compozy__agent_message", "compozy__call_return"},
+			Skills:          []string{"code", "review"},
+			WorkspacePaths:  []string{"internal/calls"},
+			NetworkChannels: []string{"runtime"},
+		}
+		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), target)
+		input := validCreateInput("inherit permissions", nil, nil)
+		input.Narrow = PermissionAtoms{}
+
+		record, err := service.Create(t.Context(), input)
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if record.State != StateRunning || len(invoker.spawns) != 1 {
+			t.Fatalf("Create() = %#v spawns=%d, want one running child", record, len(invoker.spawns))
+		}
+		want := store.NormalizeSessionPermissionPolicy(target.CallerPolicy)
+		got := invoker.spawns[0].Permissions.Policy()
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("spawn permission policy = %#v, want inherited %#v", got, want)
+		}
+		if len(database.admissions) != 1 || !reflect.DeepEqual(database.admissions[0].Narrow.Policy(), want) {
+			t.Fatalf("admission narrowing = %#v, want inherited %#v", database.admissions, want)
+		}
+	})
+
 	t.Run("Should keep uncontracted calls and distinguish keyless duplicates", func(t *testing.T) {
 		t.Parallel()
 		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
@@ -150,10 +181,10 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		raised.MaxDepth = 4
 		secondTarget := validAgentTarget()
 		secondTarget.Depth = 4
-		service, _, _, _ = newCallServiceHarness(t, raised, secondTarget)
+		secondService, _, _, _ := newCallServiceHarness(t, raised, secondTarget)
 		secondInput := validCreateInput("depth four", nil, nil)
 		secondInput.IdempotencyKey = "depth-four"
-		second, err := service.Create(context.Background(), secondInput)
+		second, err := secondService.Create(context.Background(), secondInput)
 		if err != nil {
 			t.Fatalf("Create(depth four) error = %v", err)
 		}

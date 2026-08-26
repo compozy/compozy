@@ -7,11 +7,11 @@ journey: J-delegate-work-to-an-agent
 expected: A typed call is accepted asynchronously, await reaches completed, and result returns the complete admitted JSON without losing profile or workspace ownership.
 entry_points: compozy call reviewer "Review HEAD~1..HEAD" --expect @review-contract.json --idempotency-key rev-01; compozy call await call_01JBD8G2K7Q9 --timeout 120s; compozy call result call_01JBD8G2K7Q9; compozy call show call_01JBD8G2K7Q9; compozy call list --state running,completed --limit 3; HTTP and UDS POST /api/workspaces/{workspace_id}/calls with {"target":{"agent":"reviewer"},"prompt":"Review HEAD~1..HEAD","expect":{},"idempotency_key":"rev-01"}; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id} and /result; compozy__agent_call with {"agent":"reviewer","prompt":"Review HEAD~1..HEAD","expect":{},"idempotency_key":"rev-01"}; compozy__call_await with {"call_ids":["call_01JBD8G2K7Q9"],"timeout_ms":120000}; compozy__call_result with {"call_id":"call_01JBD8G2K7Q9"}
 qa_status: fail
-bug_ids: BUG-20260826-operator-caller-model-runtime
+bug_ids: BUG-20260826-operator-caller-model-runtime; BUG-20260826-call-child-tool-policy
 fix_status: fixed
 retest_status: pending
 fix_commits: pending QA remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/operator-caller-runtime-reproduction.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/operator-caller-runtime-reproduction.md; live child tool projection for call-1a2697770f3d8ea3
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-call-return-contract-repair; RT-call-wake-delivery-exactly-once; RT-call-profile-scope-isolation
 ---

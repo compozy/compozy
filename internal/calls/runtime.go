@@ -45,6 +45,29 @@ func (p PermissionAtoms) Policy() store.SessionPermissionPolicy {
 	})
 }
 
+func resolvePermissionNarrowing(
+	parent store.SessionPermissionPolicy,
+	requested PermissionAtoms,
+) PermissionAtoms {
+	parent = store.NormalizeSessionPermissionPolicy(parent)
+	request := requested.Policy()
+	return PermissionAtoms{
+		Tools:           inheritPermissionCategory(parent.Tools, request.Tools),
+		Skills:          inheritPermissionCategory(parent.Skills, request.Skills),
+		MCPServers:      inheritPermissionCategory(parent.MCPServers, request.MCPServers),
+		WorkspacePaths:  inheritPermissionCategory(parent.WorkspacePaths, request.WorkspacePaths),
+		NetworkChannels: inheritPermissionCategory(parent.NetworkChannels, request.NetworkChannels),
+		SandboxProfiles: inheritPermissionCategory(parent.SandboxProfiles, request.SandboxProfiles),
+	}
+}
+
+func inheritPermissionCategory(parent []string, requested []string) []string {
+	if len(requested) > 0 {
+		return append([]string(nil), requested...)
+	}
+	return append([]string(nil), parent...)
+}
+
 func wideningPermissionAtoms(parent store.SessionPermissionPolicy, child store.SessionPermissionPolicy) []string {
 	types := []struct {
 		name   string

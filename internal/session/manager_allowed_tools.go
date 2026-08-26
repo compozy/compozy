@@ -94,6 +94,11 @@ func concreteDelegationTools(
 		return nil, fmt.Errorf("%w: agent deny_tools policy is invalid: %w", ErrValidation, err)
 	}
 	candidates := make(map[toolspkg.ToolID]struct{})
+	if len(resolved.Tools) == 0 && len(resolved.Toolsets) == 0 {
+		for _, id := range universe {
+			candidates[id] = struct{}{}
+		}
+	}
 	for idx, raw := range resolved.Tools {
 		pattern, parseErr := toolspkg.ParseToolPattern(raw)
 		if parseErr != nil {

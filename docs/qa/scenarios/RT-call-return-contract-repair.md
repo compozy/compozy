@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-delegate-work-to-an-agent
 expected: A conforming return settles completed in one transaction, a violating return gets the sanitized validator errors verbatim and exactly one repair attempt before settling invalid-result with both tries kept, and a contracted child that admits nothing settles completed-without-result.
 entry_points: compozy call reviewer "Return a verdict" --expect @review-contract.json --strict; compozy__call_return with {"result":{"verdict":"needs-changes"}}; compozy call show call_01JBD8G2K7Q9; compozy call result call_01JBD8G2K7Q9; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id}/result
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: fail
+bug_ids: BUG-20260826-call-child-tool-policy
+fix_status: fixed
+retest_status: pending
+fix_commits: pending QA remediation commit
+evidence: live child tool projection for call-1a2697770f3d8ea3
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-call-golden-path; TA-task-result-contract; LP-loop-contract-regime-adoption
 ---
 

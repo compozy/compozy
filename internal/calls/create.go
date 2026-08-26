@@ -133,6 +133,7 @@ func (s *Service) normalizeCreate(
 	if err := validateTargetContext(in, target, roster, limits); err != nil {
 		return CreateInput{}, TargetContext{}, err
 	}
+	in.Narrow = resolvePermissionNarrowing(target.CallerPolicy, in.Narrow)
 	if widening := wideningPermissionAtoms(target.CallerPolicy, in.Narrow.Policy()); len(widening) > 0 {
 		return CreateInput{}, TargetContext{}, &Error{
 			Code: CodeWideningRejected, Message: "permission narrowing widens the caller set",
