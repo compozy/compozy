@@ -20,7 +20,7 @@ import { terminalLeaseView } from "../../lib/terminal-lease";
 import { TerminalConnectingLine } from "../terminal-connecting-line";
 import { TerminalExpiredState, TerminalNotFoundState } from "../terminal-empty-states";
 import { TerminalHeader } from "../terminal-header";
-import { TerminalExitBar } from "../terminal-exit-bar";
+import { TerminalExitBar, TerminalSizeVoteBar } from "../terminal-exit-bar";
 import { TerminalStreamNotice } from "../terminal-notices";
 import { TerminalWindowApp, type TerminalWindowAppProps } from "../terminal-window-app";
 import {
@@ -59,6 +59,31 @@ const silentSocketFactory = (): TerminalSocket => ({
 });
 
 const PTY_SCREEN = { cols: 96, rows: 28, mode: "pty" } as const;
+
+// Factories are module-scoped: an inline factory changes identity every render
+// and forces the attachment hook into a full teardown + re-attach per render.
+const CONTROLLED_SOCKET = scriptedSocketFactory({
+  ...PTY_SCREEN,
+  lease: "human_owned",
+  output: DEV_SERVER_SCREEN,
+});
+const WATCHING_SOCKET = scriptedSocketFactory({
+  ...PTY_SCREEN,
+  lease: "agent_owned",
+  output: AGENT_SCREEN,
+});
+const EXITED_SOCKET = scriptedSocketFactory({
+  ...PTY_SCREEN,
+  lease: "available",
+  output: EXITED_SCREEN,
+});
+const TINY_TILE_SOCKET = scriptedSocketFactory({
+  cols: 30,
+  rows: 5,
+  mode: "pty",
+  lease: "human_owned",
+  output: WORKER_SCREEN,
+});
 
 const ACTIONS: TerminalWindowAppProps["actions"] = {
   onOpenTerminal: fn(),
@@ -104,11 +129,7 @@ export const Controlled: Story = {
   name: "VC-01 · You're in control",
   render: () =>
     stagedWindow({
-      socketFactory: scriptedSocketFactory({
-        ...PTY_SCREEN,
-        lease: "human_owned",
-        output: DEV_SERVER_SCREEN,
-      }),
+      socketFactory: CONTROLLED_SOCKET,
     }),
 };
 
@@ -118,11 +139,7 @@ export const Watching: Story = {
   render: () =>
     stagedWindow({
       terminals: [PSQL_TERMINAL, DEV_SERVER_TERMINAL],
-      socketFactory: scriptedSocketFactory({
-        ...PTY_SCREEN,
-        lease: "agent_owned",
-        output: AGENT_SCREEN,
-      }),
+      socketFactory: WATCHING_SOCKET,
     }),
 };
 
@@ -204,11 +221,7 @@ export const ExitedWindow: Story = {
     stagedWindow({
       exitRetentionMs: 15 * 60 * 1000,
       terminals: [SSH_STAGING_TERMINAL],
-      socketFactory: scriptedSocketFactory({
-        ...PTY_SCREEN,
-        lease: "available",
-        output: EXITED_SCREEN,
-      }),
+      socketFactory: EXITED_SOCKET,
     }),
 };
 
@@ -239,13 +252,7 @@ export const TinyTile: Story = {
     stagedWindow(
       {
         terminals: [DEV_SERVER_TERMINAL],
-        socketFactory: scriptedSocketFactory({
-          cols: 30,
-          rows: 5,
-          mode: "pty",
-          lease: "human_owned",
-          output: WORKER_SCREEN,
-        }),
+        socketFactory: TINY_TILE_SOCKET,
       },
       "tile"
     ),
@@ -268,11 +275,7 @@ export const AuditBlocked: Story = {
     stagedWindow({
       terminals: [DEV_SERVER_TERMINAL],
       auditBlockedIds: new Set([DEV_SERVER_TERMINAL.id]),
-      socketFactory: scriptedSocketFactory({
-        ...PTY_SCREEN,
-        lease: "human_owned",
-        output: DEV_SERVER_SCREEN,
-      }),
+      socketFactory: CONTROLLED_SOCKET,
     }),
 };
 
@@ -307,15 +310,15 @@ export const Connecting: Story = {
  * The size is not this window's to choose.
  *
  * Several viewers can watch one terminal and the smallest controlling one
- * decides its grid, so the head states what the daemon settled on — otherwise
- * a window that is plainly wide enough for more columns is a mystery.
+ * decides its grid, so the quiet bar under the surface states what the daemon
+ * settled on — otherwise a window that is plainly wide enough for more columns
+ * is a mystery.
  */
 export const SmallestControllerSize: Story = {
   name: "Size follows the smallest controller",
   render: () => (
     <TerminalVisualStage>
       <TerminalHeader
-        grid={{ cols: 80, rows: 24 }}
         lease={terminalLeaseView({
           lease: DEV_SERVER_TERMINAL.lease,
           controller: DEV_SERVER_TERMINAL.controller,
@@ -327,6 +330,8 @@ export const SmallestControllerSize: Story = {
         onStop={fn()}
         terminal={{ ...DEV_SERVER_TERMINAL, viewers: 3 }}
       />
+      <div className="min-h-24 flex-1 bg-terminal-bg" />
+      <TerminalSizeVoteBar cols={80} rows={24} />
     </TerminalVisualStage>
   ),
 };
@@ -344,12 +349,12 @@ export const StreamRefusals: Story = {
       <div className="flex flex-col gap-2 p-3">
         <TerminalStreamNotice
           code="ticket_expired"
-          message="attach pass expired"
+          message="connection pass expired"
           onReconnect={fn()}
         />
         <TerminalStreamNotice
           code="ticket_invalid"
-          message="attach pass already used"
+          message="connection pass already used"
           onReconnect={fn()}
         />
         <TerminalStreamNotice

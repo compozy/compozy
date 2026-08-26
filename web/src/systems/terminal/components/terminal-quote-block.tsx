@@ -1,6 +1,6 @@
 import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "lucide-react";
 
-import { Button } from "@compozy/ui";
+import { Button, Eyebrow } from "@compozy/ui";
 
 import type { TerminalQuote } from "../lib/terminal-quote";
 
@@ -18,7 +18,7 @@ export interface TerminalQuoteBlockProps {
 export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps) {
   return (
     <div
-      className="overflow-hidden rounded-xs border border-line"
+      className="overflow-hidden rounded-xs border border-line border-l-2 border-l-line-strong"
       data-testid="terminal-quote-block"
     >
       <div className="flex min-h-6 items-center gap-1.75 bg-canvas-tint px-2.25 font-mono text-micro text-subtle">
@@ -26,11 +26,19 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
         <span>
           {quote.terminalId} · lines {quote.fromLine}–{quote.toLine}
         </span>
-        <button aria-label="Remove quote" className="ml-auto" onClick={onRemove} type="button">
+        <Button
+          aria-label="Remove quote"
+          className="ml-auto size-5"
+          onClick={onRemove}
+          size="icon-xs"
+          type="button"
+          variant="ghost"
+        >
           <X aria-hidden="true" className="size-2.5" />
-        </button>
+        </Button>
       </div>
-      <div className="bg-chat-fill-code px-2.25 py-1.5 font-mono text-form-input leading-relaxed text-fg">
+      {/* A quoted excerpt sits below the live grid's 12.5px — never at it. */}
+      <div className="bg-chat-fill-code px-2.25 py-1.5 font-mono text-badge leading-normal text-fg">
         {quote.lines.map((line, index) => (
           <span className="block" key={`${quote.fromLine + index}`}>
             <span aria-hidden="true" className="mr-2.5 text-faint select-none">
@@ -83,7 +91,7 @@ export function TerminalSelectionActions({
   }
   return (
     <div className="flex flex-col" data-testid="terminal-selection-actions-no-session">
-      <span className="px-2.5 py-1.5 text-eyebrow text-subtle">No active session</span>
+      <Eyebrow className="px-2.5 py-1.5 text-subtle">No active session</Eyebrow>
       <SelectionAction icon={MessagesSquare} label="Choose a session…" onSelect={onChooseSession} />
       <SelectionAction
         icon={Plus}

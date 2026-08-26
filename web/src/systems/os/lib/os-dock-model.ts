@@ -5,6 +5,7 @@ import type { OsAppId } from "./os-types";
 const DOCK_ICON_IDS = [
   "sessions",
   "dashboard",
+  "terminal",
   "agents",
   "network",
   "tasks",
@@ -23,6 +24,7 @@ export type DockIconId = (typeof DOCK_ICON_IDS)[number];
 const DOCK_ICON_BY_APP = {
   session: "sessions",
   dashboard: "dashboard",
+  terminal: "terminal",
   agents: "agents",
   network: "network",
   tasks: "tasks",

@@ -2,7 +2,6 @@ import { useState } from "react";
 
 import {
   Button,
-  cn,
   Dialog,
   DialogContent,
   DialogDescription,
@@ -10,6 +9,10 @@ import {
   DialogHeader,
   dialogShellClass,
   DialogTitle,
+  Item,
+  ItemActions,
+  ItemContent,
+  ItemTitle,
   MonoId,
 } from "@compozy/ui";
 
@@ -66,33 +69,36 @@ export function TerminalLimitDialog({
             the limit in Settings.
           </DialogDescription>
         </DialogHeader>
-        <ul className="flex flex-col border-line border-y" data-testid="terminal-limit-list">
+        <div className="flex flex-col border-line border-y" data-testid="terminal-limit-list">
           {terminals.map(terminal => {
             const isSelected = terminal.id === selectedId;
             return (
-              <li key={terminal.id}>
-                <button
-                  aria-pressed={isSelected}
-                  className={cn(
-                    "flex w-full items-center gap-3 px-5 py-2 text-left",
-                    isSelected ? "bg-row-selected" : "hover:bg-row-hover"
-                  )}
-                  data-testid={`terminal-limit-row-${terminal.id}`}
-                  onClick={() => setPicked(terminal.id)}
-                  type="button"
-                >
-                  <span className="min-w-0 flex-1 truncate text-small-body text-muted">
+              <Item
+                aria-pressed={isSelected}
+                as="button"
+                className="rounded-none px-5"
+                data-testid={`terminal-limit-row-${terminal.id}`}
+                key={terminal.id}
+                onClick={() => setPicked(terminal.id)}
+                selectable
+                selected={isSelected}
+                size="sm"
+              >
+                <ItemContent>
+                  <ItemTitle className="min-w-0 truncate font-normal text-muted">
                     {terminal.title}
                     {terminal.state === "exited" ? (
                       <span className="text-subtle"> · finished</span>
                     ) : null}
-                  </span>
+                  </ItemTitle>
+                </ItemContent>
+                <ItemActions>
                   <MonoId size="sm" value={terminal.id} />
-                </button>
-              </li>
+                </ItemActions>
+              </Item>
             );
           })}
-        </ul>
+        </div>
         <DialogFooter className="justify-between gap-3" variant="ruled">
           <span className="font-mono text-micro text-subtle">
             terminal_limit_reached · terminal.max_per_workspace {limit}

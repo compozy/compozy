@@ -167,7 +167,9 @@ describe("TerminalApprovalDetail", () => {
     );
 
     const detail = screen.getByTestId("terminal-typing-grant-detail");
-    expect(detail).toHaveTextContent("Typing in psql");
+    // The dock's title carries the ask ("… wants to type"); the detail names
+    // only the terminal it covers.
+    expect(detail).toHaveTextContent("In psql");
     expect(detail).toHaveTextContent(PSQL_TERMINAL.id);
     expect(
       screen.getByText("Ends when you take over, the run ends, or you revoke it.")

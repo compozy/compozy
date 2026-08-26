@@ -14,7 +14,6 @@ import { useTerminalInstance } from "./use-terminal-instance";
 
 export type { TerminalDimensions, TerminalEngine, TerminalEngineLoader } from "./terminal-engine";
 export type { TerminalRendererKind } from "./terminal-renderer";
-export { destroyTerminalInstance, destroyTerminalInstances } from "./terminal-registry";
 
 import {
   abandonPendingOperations,

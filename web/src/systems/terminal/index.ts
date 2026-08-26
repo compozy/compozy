@@ -118,10 +118,11 @@ export {
 } from "./components/terminal-input-request";
 export { TerminalJournalDetail } from "./components/terminal-journal-detail";
 export {
-  TerminalJournalFilterDialog,
-  type TerminalJournalFilterDialogProps,
-} from "./components/terminal-journal-filter-dialog";
-export { TerminalJournalPanel } from "./components/terminal-journal-panel";
+  terminalJournalChipsFromFilters,
+  terminalJournalFilterFields,
+  terminalJournalFiltersFromChips,
+} from "./lib/terminal-journal-filter-fields";
+export { TerminalJournalHead, TerminalJournalPanel } from "./components/terminal-journal-panel";
 export { TerminalLeaseBadge } from "./components/terminal-lease-badge";
 export {
   TerminalAuditBlockedBar,

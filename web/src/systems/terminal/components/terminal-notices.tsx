@@ -7,7 +7,15 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Alert, AlertDescription, AlertTitle, Button, MonoId } from "@compozy/ui";
+import {
+  Alert,
+  AlertActions,
+  AlertDescription,
+  AlertMeta,
+  AlertTitle,
+  Button,
+  MonoId,
+} from "@compozy/ui";
 
 import { terminalErrorCopy, terminalGapCopy } from "../lib/terminal-copy";
 import type { TerminalGapNotice } from "../stores/terminal-store";
@@ -19,6 +27,9 @@ const NOTICE_ICONS: Record<string, LucideIcon> = {
   slow_consumer: Unplug,
   journal_unavailable: ShieldAlert,
 };
+
+/** The board's notices carry no headline tier — a bold lead-in over body text. */
+const NOTICE_TITLE_CLASS = "text-form-input font-semibold";
 
 export interface TerminalStreamNoticeProps {
   code: string;
@@ -39,7 +50,8 @@ export interface TerminalStreamNoticeProps {
  * A stream refusal, stated as a sentence with its machine code beneath.
  *
  * The code stays visible because it is what a person carries into a CLI or an
- * issue; it never becomes the headline.
+ * issue; it never becomes the headline. Pinned inside the surface, the notice
+ * reads as a bar rather than a floating card.
  */
 export function TerminalStreamNotice({
   code,
@@ -58,13 +70,16 @@ export function TerminalStreamNotice({
   const retryable =
     code === "ticket_expired" || code === "ticket_invalid" || code === "slow_consumer";
   return (
-    <Alert data-testid={`terminal-notice-${code}`} variant="warning">
-      {Icon ? <Icon aria-hidden="true" className="size-4" /> : null}
-      <AlertTitle>{copy.title}</AlertTitle>
+    // A refusal is urgent — the primitive's assertive `role="alert"` stands.
+    <Alert className="rounded-none" data-testid={`terminal-notice-${code}`} variant="warning">
+      {Icon ? <Icon aria-hidden="true" /> : null}
+      <AlertTitle className={NOTICE_TITLE_CLASS}>{copy.title}</AlertTitle>
       {copy.detail ? <AlertDescription>{copy.detail}</AlertDescription> : null}
-      <MonoId size="sm" value={code} />
+      <AlertMeta>
+        <MonoId size="sm" value={code} />
+      </AlertMeta>
       {gone && onViewJournal ? (
-        <div className="mt-2">
+        <AlertActions>
           <Button
             data-testid="terminal-notice-view-journal"
             onClick={onViewJournal}
@@ -74,13 +89,13 @@ export function TerminalStreamNotice({
           >
             View journal
           </Button>
-        </div>
+        </AlertActions>
       ) : retryable && onReconnect ? (
-        <div className="mt-2">
+        <AlertActions>
           <Button onClick={onReconnect} size="xs" type="button" variant="outline">
             Reconnect
           </Button>
-        </div>
+        </AlertActions>
       ) : null}
     </Alert>
   );
@@ -123,10 +138,12 @@ export function TerminalAuditBlockedBar() {
       role="status"
       variant="warning"
     >
-      <ShieldAlert aria-hidden="true" className="size-4" />
-      <AlertTitle>{copy.title}</AlertTitle>
+      <ShieldAlert aria-hidden="true" />
+      <AlertTitle className={NOTICE_TITLE_CLASS}>{copy.title}</AlertTitle>
       <AlertDescription>{copy.detail}</AlertDescription>
-      <MonoId size="sm" value="journal_unavailable" />
+      <AlertMeta>
+        <MonoId size="sm" value="journal_unavailable" />
+      </AlertMeta>
     </Alert>
   );
 }

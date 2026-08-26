@@ -150,7 +150,8 @@ describe("SessionDecisionDock", () => {
     expect(screen.getByTestId("terminal-approval-command")).toHaveTextContent(
       "bun add @xterm/xterm"
     );
-    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Terminal Exec");
+    // Terminal asks read in the plain register: the raw tool title never leads.
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("The agent wants to run");
     expect(screen.getByText("~/dev/atlas-api")).toBeInTheDocument();
     // The terminal detail replaces the generic subject line rather than sitting
     // beside it — one statement of what would run, not two.
@@ -346,7 +347,7 @@ describe("SessionDecisionDock", () => {
 
     expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
     await user.click(screen.getByTestId("permission-reject-menu-trigger"));
-    await user.click(screen.getByTestId("permission-reject-always"));
+    await user.click(await screen.findByTestId("permission-reject-always"));
 
     await waitFor(() => {
       expect(approveSession).toHaveBeenCalledWith(
@@ -357,36 +358,9 @@ describe("SessionDecisionDock", () => {
     });
   });
 
-  it("Should focus the reject menuitem, dismiss on Escape, and restore trigger focus", async () => {
-    const user = userEvent.setup();
-    renderDock({ messages: [permissionMessage("req-1")] });
-
-    const trigger = screen.getByTestId("permission-reject-menu-trigger");
-    await user.click(trigger);
-    const menuitem = screen.getByTestId("permission-reject-always");
-    await waitFor(() => expect(menuitem).toHaveFocus());
-
-    fireEvent.keyDown(menuitem, { key: "Escape" });
-    await waitFor(() => {
-      expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
-      expect(trigger).toHaveFocus();
-    });
-  });
-
-  it("Should dismiss the reject menu on an outside touch", async () => {
-    const user = userEvent.setup();
-    renderDock({ messages: [permissionMessage("req-1")] });
-
-    const trigger = screen.getByTestId("permission-reject-menu-trigger");
-    await user.click(trigger);
-    expect(screen.getByTestId("permission-reject-menu")).toBeInTheDocument();
-
-    fireEvent.touchStart(document.body);
-    await waitFor(() => {
-      expect(screen.queryByTestId("permission-reject-menu")).not.toBeInTheDocument();
-      expect(trigger).toHaveFocus();
-    });
-  });
+  // Escape dismissal, outside-press dismissal, and focus return are the
+  // DropdownMenu primitive's contract, tested with the primitive — the dock
+  // only owes reachability and the decision wiring.
 
   it("Should disable every decision including reject-always while submission is pending", async () => {
     const user = userEvent.setup();
@@ -394,14 +368,20 @@ describe("SessionDecisionDock", () => {
     renderDock({ messages: [permissionMessage("req-1")] });
 
     await user.click(screen.getByTestId("permission-reject-menu-trigger"));
-    const rejectAlways = screen.getByTestId("permission-reject-always");
+    const rejectAlways = await screen.findByTestId("permission-reject-always");
     await user.click(rejectAlways);
 
     await waitFor(() => {
-      expect(rejectAlways).toBeDisabled();
       expect(screen.getByTestId("permission-dock-status")).toHaveAttribute("role", "status");
     });
-    await user.click(rejectAlways);
+    // While the submission is in flight every decision is inert — the visible
+    // buttons and the menu item alike — so a second decision cannot be issued.
+    // A real pointer cannot even reach the item (`pointer-events: none`), so
+    // the guard is proved with a synthetic dispatch.
+    expect(screen.getByTestId("permission-reject-menu-trigger")).toBeDisabled();
+    expect(screen.getByTestId("permission-reject-once")).toBeDisabled();
+    expect(rejectAlways).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(rejectAlways);
     expect(approveSession).toHaveBeenCalledTimes(1);
   });
 

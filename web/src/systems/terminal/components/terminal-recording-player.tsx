@@ -1,10 +1,18 @@
 "use client";
 
-import { destroyTerminalInstance, TerminalView, type TerminalEngineLoader } from "@compozy/ui";
 import { Pause, Play } from "lucide-react";
 import { useEffect } from "react";
 
-import { Button, MonoId } from "@compozy/ui";
+import {
+  Alert,
+  AlertTitle,
+  Button,
+  destroyTerminalInstance,
+  MonoId,
+  Slider,
+  TerminalView,
+  type TerminalEngineLoader,
+} from "@compozy/ui";
 
 import { useTerminalRecordingPlayback } from "../hooks/use-terminal-recording-playback";
 import { formatPlaybackClock } from "../lib/asciicast";
@@ -54,9 +62,14 @@ export function TerminalRecordingPlayer({
 
   if (playback.error) {
     return (
-      <div className="p-3.5 text-form-input text-muted" data-testid="terminal-recording-error">
-        {playback.error}
-      </div>
+      <Alert
+        className="m-3.5 w-auto"
+        data-testid="terminal-recording-error"
+        role="status"
+        variant="warning"
+      >
+        <AlertTitle className="text-form-input font-semibold">{playback.error}</AlertTitle>
+      </Alert>
     );
   }
 
@@ -65,7 +78,7 @@ export function TerminalRecordingPlayer({
       {title ? (
         <div className="flex min-h-9 min-w-0 flex-none items-center gap-2 border-line border-b bg-canvas-soft px-3">
           <Play aria-hidden="true" className="size-3 flex-none text-subtle" />
-          <span className="truncate font-semibold text-form-input text-fg-strong">{title}</span>
+          <span className="truncate font-semibold text-eyebrow text-fg-strong">{title}</span>
           <MonoId size="sm" value={recordingId} />
           <div className="ml-auto flex flex-none items-center gap-2.5">
             {recordedAtLabel || retentionNote ? (
@@ -92,7 +105,7 @@ export function TerminalRecordingPlayer({
       <div className="flex min-h-0 flex-1 flex-col bg-terminal-bg">
         <TerminalView
           aria-label="Recording replay"
-          className="px-3.5 pt-2.5 pb-3 font-mono text-[12.5px] leading-[1.5] tracking-[0.02em]"
+          className="px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={playback.handleRef}
           instanceId={instanceId}
@@ -115,17 +128,15 @@ export function TerminalRecordingPlayer({
             <Play aria-hidden="true" className="size-3.5" />
           )}
         </Button>
-        <input
+        <Slider
           aria-label="Playback position"
-          aria-valuetext={`${formatPlaybackClock(playback.positionMs)} of ${formatPlaybackClock(playback.durationMs)}`}
-          className="h-5.5 min-w-0 flex-1 accent-fg-strong"
+          className="min-w-0 flex-1"
           data-testid="terminal-recording-scrubber"
-          max={playback.durationMs}
+          max={Math.max(playback.durationMs, 1)}
           min={0}
-          onChange={event => playback.seek(Number(event.target.value))}
+          onValueChange={value => playback.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
           step={100}
-          type="range"
-          value={playback.positionMs}
+          value={Math.min(playback.positionMs, playback.durationMs)}
         />
         <span
           className="font-mono text-badge tabular-nums whitespace-nowrap text-subtle"

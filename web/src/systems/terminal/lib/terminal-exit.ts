@@ -32,7 +32,7 @@ const MINUTE_MS = 60_000;
 export function terminalRetentionNote(
   terminal: TerminalInfo,
   retentionMs: number | undefined,
-  now: number = Date.now()
+  now: number
 ): string | undefined {
   if (retentionMs === undefined || retentionMs <= 0) return undefined;
   const endedAt = terminal.exit?.at ? Date.parse(terminal.exit.at) : Number.NaN;

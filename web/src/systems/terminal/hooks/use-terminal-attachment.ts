@@ -109,8 +109,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
             controller: controllerOf(frame),
             reason: frame.reason ?? null,
           }),
-        onPresence: frame =>
-          store.trigger.presenceObserved({ terminalId, viewers: frame.viewers }),
+        onPresence: frame => store.trigger.presenceObserved({ terminalId, viewers: frame.viewers }),
         onResized: frame =>
           store.trigger.resized({ terminalId, cols: frame.cols, rows: frame.rows }),
         onGap: frame =>
@@ -148,7 +147,17 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
     };
     // Effect events are deliberately absent: they are stable by contract, and
     // listing one would tie the connection's lifetime to a render.
-  }, [enabled, mode, options.viewer, profile, restartKey, socketFactory, store, terminalId, workspaceId]);
+  }, [
+    enabled,
+    mode,
+    options.viewer,
+    profile,
+    restartKey,
+    socketFactory,
+    store,
+    terminalId,
+    workspaceId,
+  ]);
 
   return {
     sendInput: data => clientRef.current?.sendInput(data),

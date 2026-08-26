@@ -1,6 +1,7 @@
 "use client";
 
-import type { TerminalEngineLoader } from "@compozy/ui";
+import { AlertCircle } from "lucide-react";
+import { BlockLoading, Button, Empty, type TerminalEngineLoader } from "@compozy/ui";
 import { useQuery } from "@tanstack/react-query";
 
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
@@ -73,8 +74,7 @@ function TerminalInteractiveWindowBody({
     workspaceId,
     profile,
     viewerId,
-    viewer:
-      viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null,
+    viewer: viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null,
     socketFactory,
     readOnly,
     actions,
@@ -85,7 +85,6 @@ function TerminalInteractiveWindowBody({
   return (
     <>
       <TerminalHeader
-        grid={pane?.cols && pane?.rows ? { cols: pane.cols, rows: pane.rows } : null}
         lease={lease}
         onReleaseControl={controller.releaseControl}
         onStop={controller.stop}
@@ -114,15 +113,19 @@ function TerminalInteractiveWindowBody({
         }}
         terminal={terminal}
       />
-      {(readOnly ? [] : inputRequests).map(request => (
-        <TerminalInputRequestCard
-          canAnswerDirectly={lease.canType}
-          key={request.id}
-          onAnswer={input => actions.onAnswerInputRequest(request, input)}
-          onReject={() => actions.onRejectInputRequest(request)}
-          request={request}
-        />
-      ))}
+      {/* A stable live region: the card mounting inside it is what makes the
+          agent's question audible to someone focused in the grid. */}
+      <div aria-live="polite" role="status">
+        {(readOnly ? [] : inputRequests).map(request => (
+          <TerminalInputRequestCard
+            canAnswerDirectly={lease.canType}
+            key={request.id}
+            onAnswer={input => actions.onAnswerInputRequest(request, input)}
+            onReject={() => actions.onRejectInputRequest(request)}
+            request={request}
+          />
+        ))}
+      </div>
       {controller.pendingTakeover ? (
         <TerminalTakeoverDialog
           controllerName={lease.controllerName ?? "the current controller"}
@@ -151,10 +154,6 @@ function TerminalPipeWindowBody({
     ...terminalPipeOutputQuery(scope, terminal.id),
     enabled: pipeOutput === undefined,
   });
-  const captured = pipeOutput ?? {
-    lines: splitTerminalOutput(output.data?.content ?? ""),
-    firstLineNumber: 1,
-  };
   const lease = terminalLeaseView({
     lease: terminal.lease,
     controller: terminal.controller,
@@ -170,12 +169,37 @@ function TerminalPipeWindowBody({
         onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         terminal={terminal}
       />
-      <TerminalPipeLogPane
-        exit={exitNoticeFromTerminal(terminal)}
-        firstLineNumber={captured.firstLineNumber}
-        lines={captured.lines}
-        terminal={terminal}
-      />
+      {/* Waiting and failing must never read as an empty log — an empty log is
+          a real state that means the command printed nothing. */}
+      {pipeOutput === undefined && output.isPending ? (
+        <BlockLoading className="flex-1" label="Loading the captured output" surface="bare" />
+      ) : pipeOutput === undefined && output.error ? (
+        <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+          <Empty
+            action={
+              <Button
+                onClick={() => void output.refetch()}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                Retry
+              </Button>
+            }
+            className="max-w-md"
+            description={output.error instanceof Error ? output.error.message : undefined}
+            icon={AlertCircle}
+            title="Couldn't load the captured output"
+          />
+        </div>
+      ) : (
+        <TerminalPipeLogPane
+          exit={exitNoticeFromTerminal(terminal)}
+          firstLineNumber={pipeOutput?.firstLineNumber ?? 1}
+          lines={pipeOutput?.lines ?? splitTerminalOutput(output.data?.content ?? "")}
+          terminal={terminal}
+        />
+      )}
     </>
   );
 }

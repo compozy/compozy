@@ -6,7 +6,7 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: One stuck viewer never freezes or shrinks the terminal for anyone else; a dropped viewer resumes without duplicated or invented output, states any gap plainly, and a stale replay cursor restarts from a full snapshot instead of a silent partial history.
 entry_points: Web dock Terminal app in several tabs; terminal attach-ticket then stream upgrade; catalog stream with Last-Event-ID; compozy terminal attach; compozy terminal get
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260826-terminal-cli-raw-mode
 fix_status: fixed
 retest_status: pass

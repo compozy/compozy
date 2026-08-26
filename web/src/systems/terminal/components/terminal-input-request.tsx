@@ -2,9 +2,20 @@
 
 import { Check, Clock, KeyRound, Keyboard, MessageCircleQuestionMark, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
-import { Button, cn, Input, MonoId, Time } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  MonoId,
+  Questionnaire,
+  QuestionnaireDescription,
+  QuestionnaireInput,
+  QuestionnaireItem,
+  QuestionnaireSubmit,
+  QuestionnaireTitle,
+  Time,
+} from "@compozy/ui";
 
 import { terminalInputOutcomeCopy } from "../lib/terminal-copy";
 import { terminalInputExpiry } from "../lib/terminal-input-expiry";
@@ -42,10 +53,11 @@ const EXPIRY_REFRESH_MS = 30_000;
  * agent: the field masks it, and the only thing that survives anywhere is the
  * fact that hidden input of some length happened.
  *
- * The field is deliberately uncontrolled. A controlled one would put the secret
- * in React state and in the element's serialized `value` attribute, where a
- * devtools snapshot or an error report could carry it off; here it exists only
- * in the live DOM node until the form is submitted and reset.
+ * The `Questionnaire` root is a real form and its field stays uncontrolled: a
+ * controlled one would put the secret in React state and in the element's
+ * serialized `value` attribute, where a devtools snapshot or an error report
+ * could carry it off; here it exists only in the live DOM node until the form
+ * is submitted and reset.
  */
 export function TerminalInputRequestCard({
   request,
@@ -57,6 +69,7 @@ export function TerminalInputRequestCard({
   onReject,
   now,
 }: TerminalInputRequestCardProps) {
+  const titleId = useId();
   const Glyph = request.redacted ? KeyRound : MessageCircleQuestionMark;
   // The title names who is waiting and what for — never the whole reason, which
   // reads in full one line below and would truncate to nothing up here.
@@ -73,8 +86,8 @@ export function TerminalInputRequestCard({
   }, [now]);
   const expiry = terminalInputExpiry(request.requested_at, now ?? liveNow);
   return (
-    <form
-      className="flex flex-none flex-col gap-2.5 border-line border-t bg-canvas px-3.5 py-3"
+    <Questionnaire
+      className="gap-2.5 border-line border-t bg-canvas px-3.5 py-3"
       data-redacted={request.redacted ? "true" : undefined}
       data-testid={`terminal-input-request-${request.id}`}
       onSubmit={event => {
@@ -85,63 +98,71 @@ export function TerminalInputRequestCard({
         form.reset();
       }}
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="grid size-6.5 flex-none place-items-center rounded-sm bg-warning-tint text-warning">
-          <Glyph aria-hidden="true" className="size-3.5" />
-        </span>
-        <span className="min-w-0 truncate font-semibold text-item-title text-fg-strong">
-          {title}
-        </span>
-        {showOrigin && terminalTitle ? (
-          <span className="flex flex-none items-center gap-1.5 font-mono text-micro text-subtle">
-            {terminalTitle}
-            <MonoId size="sm" value={request.terminal_id} />
+      <QuestionnaireItem className="gap-2.5" name={INPUT_FIELD_NAME}>
+        <QuestionnaireTitle className="flex w-full min-w-0 items-center gap-2">
+          <span className="grid size-6.5 flex-none place-items-center rounded-sm bg-warning-tint text-warning">
+            <Glyph aria-hidden="true" className="size-3.5" />
           </span>
-        ) : null}
-        <span
-          className={cn(
-            "ml-auto flex-none font-mono text-micro",
-            expiry.expired ? "text-muted" : "text-faint"
-          )}
-          data-testid={`terminal-input-request-expiry-${request.id}`}
-        >
-          {expiry.label}
-        </span>
-      </div>
-      <p className="text-form-input leading-normal text-muted">{request.reason}</p>
-      <div className="rounded-xs bg-chat-fill-code px-2.5 py-1.5 font-mono text-form-input break-all whitespace-pre-wrap text-fg">
-        {request.prompt_excerpt}
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
-          aria-label={
-            request.redacted
-              ? "Hidden input — never shown, stored, or sent to the agent"
-              : "Your answer"
-          }
-          autoComplete="off"
-          className={cn(
-            "h-8 flex-1 text-form-input",
-            request.redacted && "font-mono tracking-[0.35em]"
-          )}
-          data-testid={`terminal-input-request-field-${request.id}`}
-          name={INPUT_FIELD_NAME}
-          type={request.redacted ? "password" : "text"}
-        />
-        <Button data-testid={`terminal-input-request-send-${request.id}`} size="sm" type="submit">
-          {canAnswerDirectly ? "Send" : "Take control & send"}
-        </Button>
-        <Button
-          data-testid={`terminal-input-request-decline-${request.id}`}
-          onClick={onReject}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Decline
-        </Button>
-      </div>
-    </form>
+          <span className="min-w-0 truncate" id={titleId}>
+            {title}
+          </span>
+          {showOrigin && terminalTitle ? (
+            <span className="flex flex-none items-center gap-1.5 font-mono font-normal text-micro text-subtle">
+              {terminalTitle}
+              <MonoId size="sm" value={request.terminal_id} />
+            </span>
+          ) : null}
+          <span
+            className={cn(
+              "ml-auto flex-none font-mono font-normal text-micro",
+              expiry.expired ? "text-muted" : "text-faint"
+            )}
+            data-testid={`terminal-input-request-expiry-${request.id}`}
+          >
+            {expiry.label}
+          </span>
+        </QuestionnaireTitle>
+        <QuestionnaireDescription>{request.reason}</QuestionnaireDescription>
+        <div className="rounded-xs bg-chat-fill-code px-2.25 py-1.5 font-mono text-badge leading-normal break-all whitespace-pre-wrap text-fg">
+          {request.prompt_excerpt}
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <QuestionnaireInput
+              // The title carries whose question this is; the label carries
+              // what the field does (and, when redacted, the protection rule).
+              aria-describedby={titleId}
+              aria-label={
+                request.redacted
+                  ? "Hidden input — never shown, stored, or sent to the agent"
+                  : "Your answer"
+              }
+              autoComplete="off"
+              className={cn(request.redacted && "font-mono tracking-redacted")}
+              data-testid={`terminal-input-request-field-${request.id}`}
+              type={request.redacted ? "password" : "text"}
+            />
+          </div>
+          {/* Neutral by the accent budget: while a watcher can see this card
+              the head is already offering the accent Take control. */}
+          <QuestionnaireSubmit
+            data-testid={`terminal-input-request-send-${request.id}`}
+            variant="neutral"
+          >
+            {canAnswerDirectly ? "Send" : "Take control & send"}
+          </QuestionnaireSubmit>
+          <Button
+            data-testid={`terminal-input-request-decline-${request.id}`}
+            onClick={onReject}
+            size="sm"
+            type="button"
+            variant="ghost"
+          >
+            Decline
+          </Button>
+        </div>
+      </QuestionnaireItem>
+    </Questionnaire>
   );
 }
 
@@ -195,7 +216,7 @@ export function TerminalInputResolvedRow({
       >
         <Glyph aria-hidden="true" className="size-3.5" />
       </span>
-      <span className="text-form-input text-muted">
+      <span className="text-muted text-transcript-meta">
         <b className="font-semibold text-fg">{terminalInputOutcomeCopy(outcome)}</b>
         {outcome === "answered" && redactedLength !== undefined
           ? ` · hidden input, ${redactedLength} characters`

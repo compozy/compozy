@@ -1,6 +1,16 @@
 import { Play, TriangleAlert } from "lucide-react";
 
-import { Button, cn, OwnerAvatar, Pill, TableCell, TableRow } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  OwnerAvatar,
+  Pill,
+  TableCell,
+  TableRow,
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@compozy/ui";
 
 import {
   terminalApprovalCopy,
@@ -12,6 +22,8 @@ import type { TerminalJournalEntry } from "../types";
 export interface TerminalJournalRowProps {
   entry: TerminalJournalEntry;
   selected: boolean;
+  /** The table is one composite: exactly one row is the Tab stop. */
+  focusStop: boolean;
   /** Names the owning profile. Only the read-only all-profiles view sets it. */
   showOwner?: boolean;
   /** Attribute columns fold away while the record rail is open. */
@@ -30,6 +42,7 @@ export interface TerminalJournalRowProps {
 export function TerminalJournalRow({
   entry,
   selected,
+  focusStop,
   showOwner = false,
   compact = false,
   onSelect,
@@ -53,15 +66,24 @@ export function TerminalJournalRow({
       // journal from anyone not using a mouse.
       onKeyDown={event => {
         if (event.target !== event.currentTarget) return;
+        if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          event.preventDefault();
+          const sibling =
+            event.key === "ArrowDown"
+              ? event.currentTarget.nextElementSibling
+              : event.currentTarget.previousElementSibling;
+          if (sibling instanceof HTMLElement) sibling.focus();
+          return;
+        }
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
         onSelect();
       }}
       role="row"
-      tabIndex={0}
+      tabIndex={focusStop ? 0 : -1}
     >
       <TableCell>
-        <span className="font-mono text-form-input tabular-nums whitespace-nowrap text-fg">
+        <span className="font-mono tabular-nums whitespace-nowrap text-fg text-transcript-meta">
           {formatClock(entry.started_at)}
         </span>
       </TableCell>
@@ -128,20 +150,26 @@ export function TerminalJournalRow({
           </TableCell>
           <TableCell>
             {entry.recording && onReplay ? (
-              <Button
-                aria-label={`Replay ${entry.command}`}
-                data-testid={`terminal-journal-replay-${entry.command_id}`}
-                onClick={event => {
-                  event.stopPropagation();
-                  onReplay();
-                }}
-                size="icon-sm"
-                title={`Replay ${entry.command}`}
-                type="button"
-                variant="ghost"
-              >
-                <Play aria-hidden="true" className="size-3" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      aria-label={`Replay ${entry.command}`}
+                      data-testid={`terminal-journal-replay-${entry.command_id}`}
+                      onClick={event => {
+                        event.stopPropagation();
+                        onReplay();
+                      }}
+                      size="icon-sm"
+                      type="button"
+                      variant="ghost"
+                    />
+                  }
+                >
+                  <Play aria-hidden="true" className="size-3" />
+                </TooltipTrigger>
+                <TooltipContent side="left">Replay this recording</TooltipContent>
+              </Tooltip>
             ) : null}
           </TableCell>
         </>

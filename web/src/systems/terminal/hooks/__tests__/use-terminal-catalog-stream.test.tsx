@@ -220,9 +220,7 @@ describe("useTerminalCatalogStream", () => {
 
     opened[0].fake.emitRaw("terminal.created", "{not-json");
 
-    expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([
-      DEV_SERVER_TERMINAL.id,
-    ]);
+    expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([DEV_SERVER_TERMINAL.id]);
   });
 
   it("Should close its source when the surface goes away", () => {

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-supervise-agent-terminal
 expected: Every agent command shows its exact command and working directory before running, commands that cannot be classified always ask, the fixed irreversible set can never be made automatic, typing is granted per terminal and never by policy, and every grant is listed and revocable where the other tool grants live.
 entry_points: Pending approvals in the session; terminal exec approval prompt; typing-grant prompt; tool approval grants section; permissions settings allowlist; compozy terminal exec
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass

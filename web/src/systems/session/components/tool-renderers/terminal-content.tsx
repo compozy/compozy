@@ -88,7 +88,10 @@ export function TerminalContent({ message }: { message: UIMessage }) {
     // it as a window that never existed.
     const envelope = asRecord(message.toolResult?.rawOutput);
     const raw = asRecord(
-      envelope.structured ?? envelope.raw_output ?? envelope.rawOutput ?? message.toolResult?.rawOutput
+      envelope.structured ??
+        envelope.raw_output ??
+        envelope.rawOutput ??
+        message.toolResult?.rawOutput
     );
     const output =
       readString(raw.output) ?? message.toolResult?.stdout ?? message.toolResult?.content ?? "";

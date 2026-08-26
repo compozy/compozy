@@ -42,7 +42,7 @@ export function TerminalApprovalDetail({ detail, terminalTitle }: TerminalApprov
     <div className="flex flex-col gap-1.5" data-testid="terminal-approval-detail">
       {danger ? (
         <span
-          className="flex items-center gap-1.5 font-semibold text-form-input text-danger"
+          className="flex items-center gap-1.5 font-semibold text-danger text-transcript-meta"
           data-testid="terminal-approval-irreversible"
         >
           <OctagonAlert aria-hidden="true" className="size-3" />
@@ -51,10 +51,8 @@ export function TerminalApprovalDetail({ detail, terminalTitle }: TerminalApprov
       ) : null}
       <div
         className={cn(
-          "rounded-xs px-2.5 py-2 font-mono text-form-input leading-relaxed break-all whitespace-pre-wrap text-fg",
-          danger
-            ? "bg-danger-tint shadow-danger-inset"
-            : "bg-chat-fill-code"
+          "rounded-xs px-2.5 py-2 font-mono leading-normal break-all whitespace-pre-wrap text-fg text-transcript-meta",
+          danger ? "bg-danger-tint shadow-danger-inset" : "bg-chat-fill-code"
         )}
         data-testid="terminal-approval-command"
       >
@@ -94,7 +92,7 @@ function TerminalTypingGrantDetail({
     <div className="flex flex-col gap-1.5" data-testid="terminal-typing-grant-detail">
       <span className="flex items-center gap-1.5 text-form-input text-muted">
         <Keyboard aria-hidden="true" className="size-3 text-warning" />
-        Typing in {terminalTitle ?? "this terminal"}
+        In {terminalTitle ?? "this terminal"}
         {detail.terminalId ? <MonoId size="sm" value={detail.terminalId} /> : null}
       </span>
       <p className="text-micro text-faint">

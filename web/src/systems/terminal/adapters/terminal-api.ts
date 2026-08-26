@@ -256,11 +256,7 @@ export async function fetchTerminalInputRequests(
 }
 
 function inputRequestRoot(workspaceId: string, terminalId: string, requestId: string): string {
-  return terminalURL(
-    workspaceId,
-    terminalId,
-    `/input-requests/${encodeURIComponent(requestId)}`
-  );
+  return terminalURL(workspaceId, terminalId, `/input-requests/${encodeURIComponent(requestId)}`);
 }
 
 /**

@@ -419,6 +419,18 @@ export class TerminalProtocolClient {
     // has nothing to catch up on.
     this.replayTarget = frame.seq > this.resumedFrom ? frame.seq : null;
     this.discardReplay = false;
+    // A client that asked for the whole history cannot vouch for what is
+    // already on the screen: the emulator's buffer outlives connections by
+    // design, so a fresh pass over a retained buffer would paint the replay on
+    // top of the very bytes it repeats. The daemon prefixes its own reset only
+    // on the truncated branch; the from-zero branch is this client's to clear.
+    // Queued on the emulator so it lands ahead of the replay's writes.
+    if (this.resumedFrom === 0 && this.replayTarget !== null) {
+      const epoch = this.connectionEpoch;
+      void this.emulator.run(async () => {
+        if (epoch === this.connectionEpoch && !this.stopped) this.options.sink.reset();
+      });
+    }
     // The daemon's size is authoritative from the first frame; the client's own
     // proposal is only ever a vote.
     this.options.sink.applyDimensions({ cols: frame.cols, rows: frame.rows });

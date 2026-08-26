@@ -302,6 +302,9 @@ function FilterValueSelector<T = unknown>({
     return (
       <FilterInput
         type="text"
+        // A placeholder is never a label: the chip's field text is visual only,
+        // so the input names itself for assistive tech.
+        aria-label={field.label ? `${field.label} value` : "Filter value"}
         value={(values[0] as string) || ""}
         onChange={event => onChange([event.target.value] as T[])}
         placeholder={field.placeholder}

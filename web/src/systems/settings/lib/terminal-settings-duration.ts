@@ -1,8 +1,8 @@
 const DURATION_UNITS_MS: Readonly<Record<string, number>> = {
   ns: 1 / 1_000_000,
   us: 1 / 1_000,
-  "µs": 1 / 1_000,
-  "μs": 1 / 1_000,
+  µs: 1 / 1_000,
+  μs: 1 / 1_000,
   ms: 1,
   s: 1_000,
   m: 60_000,

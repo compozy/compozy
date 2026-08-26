@@ -30,11 +30,7 @@ import {
   withLoopContractPath,
   type EditableLoopContractField,
 } from "../lib/loop-editor-definition";
-import {
-  isNodeIdPath,
-  renameNodeId,
-  type NodeFieldEdit,
-} from "../lib/loop-editor-draft";
+import { isNodeIdPath, renameNodeId, type NodeFieldEdit } from "../lib/loop-editor-draft";
 import type { LoopLintState } from "../lib/loop-editor-lint";
 import { layoutEditorGraph } from "../lib/loop-editor-layout";
 import {

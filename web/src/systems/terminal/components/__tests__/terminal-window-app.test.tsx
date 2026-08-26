@@ -401,7 +401,7 @@ describe("TerminalWindowApp — contention", () => {
     // Nothing reaches the wire until the confirmation lands.
     expect(socket.sentWithOp(TERMINAL_CLIENT_OP.takeover)).toEqual([]);
     const dialog = await screen.findByTestId("terminal-takeover-dialog");
-    expect(dialog).toHaveTextContent("Take control from operator?");
+    expect(dialog).toHaveTextContent("Take control from marina?");
     expect(dialog).toHaveTextContent(CONTESTED_TERMINAL.title);
 
     await userEvent.click(screen.getByTestId("terminal-takeover-confirm"));
@@ -522,8 +522,11 @@ describe("TerminalWindowApp — contention", () => {
         rows: 24,
       })
     );
+    // The bar states the settled size whenever the daemon has said one; the
+    // presence frame also keeps the viewers chip truthful in the same pass.
+    await socket.deliver(TERMINAL_SERVER_OP.presence, { viewers: 2 });
     await waitFor(() =>
-      expect(screen.getByTestId("terminal-grid-chip")).toHaveTextContent("80×24")
+      expect(screen.getByTestId("terminal-size-vote")).toHaveTextContent("80×24")
     );
   });
 

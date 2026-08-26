@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { toast } from "sonner";
+
+import { toast, type Filter } from "@compozy/ui";
 
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useSettingsGeneral } from "@/systems/settings";
@@ -16,10 +17,10 @@ import {
   terminalJournalQuery,
   terminalKeys,
   terminalRecordingQuery,
+  terminalJournalFiltersFromChips,
   terminalScope,
   useTerminalCatalogStream,
   type TerminalInputRequest,
-  type TerminalJournalFilters,
 } from "@/systems/terminal";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -36,8 +37,10 @@ interface TerminalReplaySelection {
 }
 
 export function useTerminalWindowControllerState(windowId: string) {
-  const [journalFilters, setJournalFilters] = useState<TerminalJournalFilters>({});
-  const [filtersOpen, setFiltersOpen] = useState(false);
+  // Chips are the interaction state; the query reads their projection, so a
+  // chip still being typed filters nothing until it carries a value.
+  const [journalChips, setJournalChips] = useState<Filter<string>[]>([]);
+  const journalFilters = terminalJournalFiltersFromChips(journalChips);
   const [replay, setReplay] = useState<TerminalReplaySelection | null>(null);
   const { coordinator, manager } = useOsShell();
   const queryClient = useQueryClient();
@@ -158,7 +161,7 @@ export function useTerminalWindowControllerState(windowId: string) {
         { profile: request.profile_name }
       ),
     onSuccess: invalidateTerminalReads,
-    onError: error => toast.error(error instanceof Error ? error.message : "Failed to reject"),
+    onError: error => toast.error(error instanceof Error ? error.message : "Failed to decline"),
   });
   const stopRecording = useMutation({
     mutationFn: (terminalId: string) =>
@@ -174,18 +177,16 @@ export function useTerminalWindowControllerState(windowId: string) {
     close,
     coordinator,
     create,
-    filtersOpen,
     inputRequests,
     journal,
-    journalFilters,
+    journalChips,
     manager,
     pathname,
     profile,
     recording,
     reject,
     replay,
-    setFiltersOpen,
-    setJournalFilters,
+    setJournalChips,
     setReplay,
     settings,
     stop,

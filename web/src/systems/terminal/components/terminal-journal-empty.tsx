@@ -1,4 +1,4 @@
-import { ScrollText } from "lucide-react";
+import { ScrollText, SearchX } from "lucide-react";
 
 import { Button, Empty } from "@compozy/ui";
 
@@ -30,6 +30,7 @@ export function TerminalJournalEmpty({
             </Button>
           ) : undefined
         }
+        className="px-6"
         data-testid="terminal-journal-empty"
         description="Commands from every terminal in this project land here — who ran them, where, and how they ended."
         icon={ScrollText}
@@ -51,8 +52,10 @@ export function TerminalJournalEmpty({
           </Button>
         </>
       }
+      className="px-6"
       data-testid="terminal-journal-filtered-empty"
       description="Older rows load on demand, so a match may still be further back."
+      icon={SearchX}
       title="No matches in the rows loaded"
     />
   );

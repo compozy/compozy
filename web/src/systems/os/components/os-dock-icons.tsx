@@ -42,6 +42,18 @@ const DOCK_ICON_GLYPHS = {
       <rect x="11" y="11" width="6" height="6" rx="1.6" stroke="currentColor" strokeWidth="1.5" />
     </DockGlyph>
   ),
+  terminal: (props: GlyphProps) => (
+    <DockGlyph {...props}>
+      <path
+        d="m5 6.6 3.5 3.4L5 13.4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10.8 14.4h4.2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+    </DockGlyph>
+  ),
   agents: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <rect x="4" y="6" width="12" height="9" rx="2.4" stroke="currentColor" strokeWidth="1.5" />

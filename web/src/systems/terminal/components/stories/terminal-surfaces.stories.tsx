@@ -17,7 +17,7 @@ import { SessionTerminalBlock } from "../session-terminal-block";
 import { TerminalApprovalDetail } from "../terminal-approval-detail";
 import { TerminalGrantRow } from "../terminal-grant-row";
 import { TerminalInputRequestCard, TerminalInputResolvedRow } from "../terminal-input-request";
-import { TerminalJournalPanel } from "../terminal-journal-panel";
+import { TerminalJournalHead, TerminalJournalPanel } from "../terminal-journal-panel";
 import { TerminalGapSeam, TerminalStreamNotice } from "../terminal-notices";
 import { TerminalQuoteBlock, TerminalSelectionActions } from "../terminal-quote-block";
 import { TerminalRecordingPlayer } from "../terminal-recording-player";
@@ -222,10 +222,8 @@ export const GrantRows: Story = {
 };
 
 const JOURNAL_ACTIONS = {
-  onClearFilter: NOOP,
-  onClearFilters: NOOP,
+  onFiltersChange: NOOP,
   onLoadMore: NOOP,
-  onOpenFilters: NOOP,
   onOpenNewTerminal: NOOP,
   onOpenTerminal: NOOP,
   onReplay: NOOP,
@@ -241,10 +239,11 @@ export const Journal: Story = {
   name: "VC-13 · Journal",
   render: () => (
     <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
       <TerminalJournalPanel
         {...JOURNAL_ACTIONS}
+        chips={[{ id: "actor", field: "actor", operator: "is", values: ["agent"] }]}
         entries={JOURNAL_FIXTURES}
-        filters={[{ key: "actor", label: "who", value: "Claude Code" }]}
         hasMore
       />
     </TerminalVisualStage>
@@ -256,7 +255,8 @@ export const JournalEmpty: Story = {
   name: "VC-14a · Empty journal",
   render: () => (
     <TerminalVisualStage width="wide">
-      <TerminalJournalPanel {...JOURNAL_ACTIONS} entries={[]} filters={[]} hasMore={false} />
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel {...JOURNAL_ACTIONS} chips={[]} entries={[]} hasMore={false} />
     </TerminalVisualStage>
   ),
 };
@@ -266,13 +266,14 @@ export const JournalFilteredEmpty: Story = {
   name: "VC-14b · Filtered to nothing",
   render: () => (
     <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
       <TerminalJournalPanel
         {...JOURNAL_ACTIONS}
-        entries={[]}
-        filters={[
-          { key: "failed", label: "result", value: "errors" },
-          { key: "actor", label: "who", value: "Marina" },
+        chips={[
+          { id: "result", field: "result", operator: "is", values: ["failed"] },
+          { id: "actor", field: "actor", operator: "is", values: ["human"] },
         ]}
+        entries={[]}
         hasMore
       />
     </TerminalVisualStage>
@@ -294,8 +295,8 @@ export const JournalAllProfiles: Story = {
     <TerminalVisualStage width="wide">
       <TerminalJournalPanel
         {...JOURNAL_ACTIONS}
+        chips={[]}
         entries={ALL_PROFILE_JOURNAL_FIXTURES}
-        filters={[]}
         hasMore
         showOwner
       />
@@ -308,7 +309,7 @@ export const SkippedContent: Story = {
   name: "VC-20 · Skipped content and falling behind",
   render: () => (
     <TerminalVisualStage>
-      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-[12.5px] leading-[1.5] text-terminal-fg">
+      <div className="flex flex-col gap-3 bg-terminal-bg px-3.5 py-3 font-mono text-code-block text-terminal-fg">
         <span className="block">
           <span className="text-terminal-ansi-8">12:44:01</span> GET /api/journal 200 4.1ms
         </span>

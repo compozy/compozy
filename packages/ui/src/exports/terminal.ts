@@ -2,8 +2,6 @@
 // importing this file costs nothing until a terminal is actually shown.
 export {
   TerminalView,
-  destroyTerminalInstance,
-  destroyTerminalInstances,
   type TerminalDimensions,
   type TerminalEngine,
   type TerminalEngineLoader,
@@ -12,4 +10,8 @@ export {
   type TerminalViewHandle,
   type TerminalViewProps,
 } from "../components/terminal/terminal-view";
+export {
+  destroyTerminalInstance,
+  destroyTerminalInstances,
+} from "../components/terminal/terminal-registry";
 export { TerminalWriteAbandonedError } from "../components/terminal/terminal-write-abandoned";

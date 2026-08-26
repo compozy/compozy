@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
-import { ChevronRight, Search, Terminal } from "lucide-react";
+import { ChevronRight, Search } from "lucide-react";
 
 import { Button, useTopbarSlot } from "@compozy/ui";
 
@@ -12,7 +12,6 @@ import {
 } from "@/systems/terminal/parts";
 
 import { OsDock, OsDockZone, type OsDockItemData } from "../os-dock";
-import { DockIcons } from "../os-dock-icons";
 import { OsWindowFrame } from "../os-window-frame";
 import { buildDeskItems, DesktopShell, DESK_APP_ITEMS, DESK_ITEMS } from "./_desktop";
 
@@ -265,15 +264,15 @@ export const TerminalLauncher: Story = {
             magnify={false}
             items={
               [
-                { id: "sessions", name: "Sessions", icon: DockIcons.sessions },
+                { id: "sessions", name: "Sessions", icon: "sessions" },
                 {
                   id: "terminal",
                   name: "Terminal",
-                  icon: Terminal,
+                  icon: "terminal",
                   running: terminalsRunning(TERMINAL_STRIP_TERMINALS[index]),
                   badge: projectTerminalBadge(state.input).count,
                 },
-                { id: "tasks", name: "Tasks", icon: DockIcons.tasks },
+                { id: "tasks", name: "Tasks", icon: "tasks" },
               ] satisfies OsDockItemData[]
             }
           />

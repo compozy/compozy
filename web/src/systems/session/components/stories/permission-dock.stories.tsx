@@ -77,10 +77,11 @@ export const GatedDecisions: Story = {
  * detail replaces it: the exact command as the agent wrote it, the folder it
  * would run in, and the terminal it is bound to.
  *
- * The board titles this row "Claude Code wants to run · dev server". The
- * request carries neither — no requester field, and only a `terminal_id` rather
- * than the terminal's name — so the dock states the tool and lets the detail
- * carry the facts. Authorized runtime-truth delta.
+ * The board titles this row "Claude Code wants to run · dev server". The title
+ * takes the agent's name from the session when the cache has it — here it does
+ * not, so the sentence falls back to "The agent" — and the request carries only
+ * a `terminal_id`, so the terminal's display name stays out of the title.
+ * Authorized runtime-truth delta.
  */
 export const TerminalExec: Story = {
   args: {
@@ -92,6 +93,9 @@ export const TerminalExec: Story = {
         args: ["add", "@xterm/xterm", "@xterm/addon-fit"],
         cwd: "~/dev/atlas-api",
         terminal_id: "term-4f21c9a03b7e",
+        // The runtime's own classification; without it the client fails closed
+        // to `unclassifiable` and withholds the remembered decision.
+        risk: "ordinary",
       },
     },
   },

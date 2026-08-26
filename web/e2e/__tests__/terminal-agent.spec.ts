@@ -151,8 +151,8 @@ async function selectTerminalOutput(
   if (firstRow < 0 || secondRow < 0) throw new Error("Terminal quote rows are absent from screen.");
   const firstColumn = lines[firstRow]!.indexOf("quote-alpha");
   const secondColumn = lines[secondRow]!.indexOf("quote-beta") + "quote-beta".length;
-  const grid = await window.getByTestId("terminal-grid-chip").innerText();
-  const dimensions = /^(\d+)×(\d+)$/u.exec(grid.trim());
+  const grid = await window.getByTestId("terminal-size-vote").innerText();
+  const dimensions = /(\d+)×(\d+)\s*$/u.exec(grid.trim());
   if (!dimensions) throw new Error(`Unexpected terminal grid dimensions: ${grid}`);
   const columns = Number(dimensions[1]);
   const rows = Number(dimensions[2]);

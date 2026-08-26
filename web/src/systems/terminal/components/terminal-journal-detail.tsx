@@ -1,4 +1,4 @@
-import { Info, X } from "lucide-react";
+import { X } from "lucide-react";
 
 import { Button, Eyebrow, MonoId, Pill, PropertyRow, Time } from "@compozy/ui";
 
@@ -13,6 +13,10 @@ export interface TerminalJournalDetailProps {
   entry: TerminalJournalEntry;
   onClose: () => void;
   onOpenTerminal?: () => void;
+}
+
+function focusOnMount(element: HTMLElement | null): void {
+  element?.focus();
 }
 
 /**
@@ -36,8 +40,18 @@ export function TerminalJournalDetail({
   return (
     <aside
       aria-label="Command record"
-      className="flex min-w-0 flex-col overflow-y-auto border-line border-l bg-canvas-soft"
+      className="flex min-w-0 flex-col overflow-y-auto border-line border-l bg-canvas-soft focus-visible:outline-none"
       data-testid="terminal-journal-detail"
+      onKeyDown={event => {
+        if (event.key !== "Escape") return;
+        event.stopPropagation();
+        onClose();
+      }}
+      // Opening the record moves reading focus with it; the rail is a target,
+      // not a stop on the Tab order. Module-scope callback: a stable identity
+      // runs on mount only, never on re-renders.
+      ref={focusOnMount}
+      tabIndex={-1}
     >
       <div className="flex min-h-10 flex-none items-center gap-2 border-line-soft border-b pr-2.5 pl-4.5">
         <Eyebrow className="mr-auto">Command record</Eyebrow>
@@ -60,10 +74,6 @@ export function TerminalJournalDetail({
       </div>
 
       <div className="flex flex-col gap-1 px-4.5 pb-3.5">
-        <Eyebrow className="flex items-center gap-1.5">
-          <Info aria-hidden="true" className="size-3" />
-          Record
-        </Eyebrow>
         <PropertyRow label="Started">
           <Time iso={entry.started_at} />
         </PropertyRow>

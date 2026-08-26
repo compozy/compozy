@@ -6,7 +6,7 @@ import {
   type TerminalSelectionRange,
   type TerminalViewHandle,
 } from "@compozy/ui";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import type { TerminalAttachment } from "../hooks/use-terminal-attachment";
 import { exitNoticeFromTerminal, terminalRetentionNote } from "../lib/terminal-exit";
@@ -15,8 +15,10 @@ import type { TerminalPaneState } from "../stores/terminal-store";
 import type { TerminalInfo } from "../types";
 import { TerminalConnectingLine } from "./terminal-connecting-line";
 import { TerminalSelectionActions } from "./terminal-quote-block";
-import { TerminalExitBar } from "./terminal-exit-bar";
+import { TerminalExitBar, TerminalSizeVoteBar } from "./terminal-exit-bar";
 import { TerminalAuditBlockedBar, TerminalGapSeam, TerminalStreamNotice } from "./terminal-notices";
+
+const RETENTION_REFRESH_MS = 30_000;
 
 export interface TerminalPaneProps {
   terminal: TerminalInfo;
@@ -95,6 +97,15 @@ export function TerminalPane({
   // observe. Its outcome is still the daemon's, recorded on the terminal, so the
   // bar reads from there when the stream has nothing newer to say.
   const exit = pane?.exit ?? exitNoticeFromTerminal(terminal);
+  const hasExit = exit !== null;
+  // The retention countdown is wall-clock truth: render stays pure by reading a
+  // ticking state, and the tick exists only while an exit bar shows it.
+  const [retentionNow, setRetentionNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!hasExit) return undefined;
+    const timer = window.setInterval(() => setRetentionNow(Date.now()), RETENTION_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [hasExit]);
 
   return (
     <div
@@ -141,9 +152,13 @@ export function TerminalPane({
       {exit ? (
         <TerminalExitBar
           exit={exit}
-          retentionNote={terminalRetentionNote(terminal, exitRetentionMs)}
+          retentionNote={terminalRetentionNote(terminal, exitRetentionMs, retentionNow)}
           terminal={terminal}
         />
+      ) : pane?.status === "connected" && pane.cols !== null && pane.rows !== null ? (
+        // The settled size is stated whenever the daemon has said one — alone,
+        // this window is the smallest that can type, so the sentence stays true.
+        <TerminalSizeVoteBar cols={pane.cols} rows={pane.rows} />
       ) : null}
     </div>
   );

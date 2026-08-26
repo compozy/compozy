@@ -72,10 +72,7 @@ export function terminalCatalogQuery(scope: TerminalQueryScope) {
   });
 }
 
-export function terminalDetailQuery(
-  scope: TerminalProfileQueryScope,
-  terminalId: string
-) {
+export function terminalDetailQuery(scope: TerminalProfileQueryScope, terminalId: string) {
   return queryOptions({
     queryKey: terminalKeys.detail(scope.key, terminalId),
     queryFn: ({ signal }) => fetchTerminal(scope.key.workspaceId, terminalId, scope.params, signal),
@@ -83,10 +80,7 @@ export function terminalDetailQuery(
 }
 
 /** Captured output for a pipe terminal, which has no interactive screen. */
-export function terminalPipeOutputQuery(
-  scope: TerminalProfileQueryScope,
-  terminalId: string
-) {
+export function terminalPipeOutputQuery(scope: TerminalProfileQueryScope, terminalId: string) {
   return queryOptions({
     queryKey: terminalKeys.read(scope.key, terminalId, "tail"),
     queryFn: ({ signal }) =>
@@ -108,10 +102,7 @@ export function terminalInputRequestsQuery(scope: TerminalQueryScope) {
   });
 }
 
-export function terminalJournalQuery(
-  scope: TerminalQueryScope,
-  filters: TerminalJournalFilters
-) {
+export function terminalJournalQuery(scope: TerminalQueryScope, filters: TerminalJournalFilters) {
   const withLimit = terminalJournalFiltersWithDefaults(filters);
   return infiniteQueryOptions({
     queryKey: terminalKeys.journal(scope.key, withLimit),
@@ -124,10 +115,7 @@ export function terminalJournalQuery(
   });
 }
 
-export function terminalRecordingQuery(
-  scope: TerminalProfileQueryScope,
-  recordingId: string
-) {
+export function terminalRecordingQuery(scope: TerminalProfileQueryScope, recordingId: string) {
   return queryOptions({
     queryKey: terminalKeys.recording(scope.key, recordingId),
     queryFn: ({ signal }) =>

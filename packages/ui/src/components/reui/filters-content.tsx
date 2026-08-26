@@ -58,7 +58,10 @@ function FiltersContent<T = unknown>({
                 {field.icon}
                 {field.label}
               </ButtonGroupText>
-              <FilterRemoveButton onClick={() => removeFilter(filter.id)} />
+              <FilterRemoveButton
+                aria-label={`Remove ${field.label ?? "this"} filter`}
+                onClick={() => removeFilter(filter.id)}
+              />
             </ButtonGroup>
           );
         }
@@ -82,7 +85,10 @@ function FiltersContent<T = unknown>({
               operator={filter.operator}
               focusOnMount={filter.id === focusFilterId}
             />
-            <FilterRemoveButton onClick={() => removeFilter(filter.id)} />
+            <FilterRemoveButton
+              aria-label={`Remove ${field.label ?? "this"} filter`}
+              onClick={() => removeFilter(filter.id)}
+            />
           </ButtonGroup>
         );
       })}

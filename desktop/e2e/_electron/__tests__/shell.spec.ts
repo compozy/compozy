@@ -1104,11 +1104,11 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   const cellRow = terminalWindow.locator(".xterm-rows > div").first();
   const initialCellHeight = (await cellRow.boundingBox())?.height;
   if (!initialCellHeight) throw new Error("Terminal cell metrics were unavailable before zoom.");
-  const initialGrid = await terminalWindow.getByTestId("terminal-grid-chip").textContent();
+  const initialGrid = await terminalWindow.getByTestId("terminal-size-vote").textContent();
   await product.keyboard.press(`${acceleratorModifier}++`);
   await expect.poll(async () => (await cellRow.boundingBox())?.height).not.toBe(initialCellHeight);
   await expect
-    .poll(async () => await terminalWindow.getByTestId("terminal-grid-chip").textContent())
+    .poll(async () => await terminalWindow.getByTestId("terminal-size-vote").textContent())
     .not.toBe(initialGrid);
   await product.keyboard.press(`${acceleratorModifier}+-`);
 

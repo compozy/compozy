@@ -22,7 +22,7 @@ export function TerminalConnectingLine({ status }: { status: TerminalStreamStatu
   if (!label) return null;
   return (
     <div
-      className="flex items-center gap-2 px-3.5 py-2.5 text-form-input text-subtle"
+      className="flex items-center gap-2 px-3.5 py-2.5 text-eyebrow text-subtle"
       data-status={status}
       data-testid="terminal-connecting"
       role="status"

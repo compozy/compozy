@@ -1,20 +1,17 @@
 import type { TerminalSelectionRange } from "@compozy/ui";
-import { Button, Empty, Spinner } from "@compozy/ui";
+import { BlockLoading, Button, Empty, toast } from "@compozy/ui";
 import { AlertCircle, FolderOpen } from "lucide-react";
-import { toast } from "sonner";
 
 import { stageSessionTerminalQuote, useSessionCreateActions } from "@/systems/session";
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
   buildTerminalQuote,
   terminalSelectionLines,
-  TerminalJournalFilterDialog,
   TerminalJournalPanel,
   TerminalRecordingPlayer,
   TerminalStoreProvider,
   TerminalWindowApp,
   type TerminalInfo,
-  type TerminalJournalFilters,
 } from "@/systems/terminal";
 
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
@@ -38,17 +35,6 @@ function mostRecentSession(state: OsDesktopRuntimeStore, currentWindowId: string
     }
   }
   return null;
-}
-
-function terminalJournalFilterChips(filters: TerminalJournalFilters) {
-  return [
-    ...(filters.actor ? [{ key: "actor" as const, label: "who", value: filters.actor }] : []),
-    ...(filters.since ? [{ key: "since" as const, label: "since", value: filters.since }] : []),
-    ...(filters.failed ? [{ key: "failed" as const, label: "result", value: "failed" }] : []),
-    ...(filters.terminalId
-      ? [{ key: "terminalId" as const, label: "terminal", value: filters.terminalId }]
-      : []),
-  ];
 }
 
 export function TerminalWindow({ windowId }: { windowId: string }) {
@@ -75,18 +61,16 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     close,
     coordinator,
     create,
-    filtersOpen,
     inputRequests,
     journal,
-    journalFilters,
+    journalChips,
     manager,
     pathname,
     profile,
     recording,
     reject,
     replay,
-    setFiltersOpen,
-    setJournalFilters,
+    setJournalChips,
     setReplay,
     settings,
     stop,
@@ -98,10 +82,14 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   } = useTerminalWindowControllerState(windowId);
 
   if (workspaceId === "") {
-    return <Empty icon={FolderOpen} title="Choose a project to use Terminal" />;
+    return (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty className="max-w-md" icon={FolderOpen} title="Choose a project to use Terminal" />
+      </div>
+    );
   }
   if (catalog.isPending || inputRequests.isPending) {
-    return <Spinner className="m-auto size-5 text-subtle" />;
+    return <BlockLoading className="flex-1" label="Loading terminals" surface="bare" />;
   }
   const error = catalog.error ?? inputRequests.error;
   if (error) {
@@ -111,15 +99,19 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         ? inputRequests.refetch
         : journal.refetch;
     return (
-      <Empty
-        action={
-          <Button onClick={() => void retry()} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
-        }
-        icon={AlertCircle}
-        title={error instanceof Error ? error.message : "Failed to load Terminal"}
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button onClick={() => void retry()} size="sm" type="button" variant="outline">
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={error instanceof Error ? error.message : undefined}
+          icon={AlertCircle}
+          title="Couldn't load Terminal"
+        />
+      </div>
     );
   }
 
@@ -127,33 +119,36 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   if (requestedId && !(catalog.data ?? []).some(terminal => terminal.id === requestedId)) {
     const fallbackTerminal = catalog.data?.[0];
     return (
-      <Empty
-        action={
-          <Button
-            onClick={() => {
-              if (!fallbackTerminal) {
-                create.mutate();
-                return;
-              }
-              void coordinator.userRetarget(windowId, {
-                app: "terminal",
-                instanceKey: fallbackTerminal.id,
-                route: {
-                  pathname: `/terminal/${encodeURIComponent(fallbackTerminal.id)}`,
-                  search: {},
-                },
-              });
-            }}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            {fallbackTerminal ? "View terminals" : "Open terminal"}
-          </Button>
-        }
-        icon={AlertCircle}
-        title="Terminal not found"
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button
+              onClick={() => {
+                if (!fallbackTerminal) {
+                  create.mutate();
+                  return;
+                }
+                void coordinator.userRetarget(windowId, {
+                  app: "terminal",
+                  instanceKey: fallbackTerminal.id,
+                  route: {
+                    pathname: `/terminal/${encodeURIComponent(fallbackTerminal.id)}`,
+                    search: {},
+                  },
+                });
+              }}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              {fallbackTerminal ? "View terminals" : "Open terminal"}
+            </Button>
+          }
+          className="max-w-md"
+          icon={AlertCircle}
+          title="This terminal isn't open anymore"
+        />
+      </div>
     );
   }
   const terminals = orderedTerminals(catalog.data ?? [], requestedId);
@@ -162,24 +157,26 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   const journalEntries = journal.data?.pages.flatMap(page => page.entries) ?? [];
   const journalContent = replay ? (
     recording.isPending ? (
-      <Spinner className="m-auto size-5 text-subtle" />
+      <BlockLoading className="flex-1" label="Loading the recording" surface="bare" />
     ) : recording.error ? (
-      <Empty
-        action={
-          <Button
-            onClick={() => void recording.refetch()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
-            Retry
-          </Button>
-        }
-        icon={AlertCircle}
-        title={
-          recording.error instanceof Error ? recording.error.message : "Failed to load recording"
-        }
-      />
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button
+              onClick={() => void recording.refetch()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={recording.error instanceof Error ? recording.error.message : undefined}
+          icon={AlertCircle}
+          title="Couldn't load the recording"
+        />
+      </div>
     ) : (
       <TerminalRecordingPlayer
         onOpenJournal={() => setReplay(null)}
@@ -194,33 +191,29 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       />
     )
   ) : journal.isPending ? (
-    <Spinner className="m-auto size-5 text-subtle" />
+    <BlockLoading className="flex-1" label="Loading the journal" surface="bare" />
   ) : journal.error ? (
-    <Empty
-      action={
-        <Button onClick={() => void journal.refetch()} size="sm" type="button" variant="outline">
-          Retry
-        </Button>
-      }
-      icon={AlertCircle}
-      title={journal.error instanceof Error ? journal.error.message : "Failed to load the journal"}
-    />
+    <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+      <Empty
+        action={
+          <Button onClick={() => void journal.refetch()} size="sm" type="button" variant="outline">
+            Retry
+          </Button>
+        }
+        className="max-w-md"
+        description={journal.error instanceof Error ? journal.error.message : undefined}
+        icon={AlertCircle}
+        title="Couldn't load the journal"
+      />
+    </div>
   ) : (
     <TerminalJournalPanel
+      chips={journalChips}
       entries={journalEntries}
-      filters={terminalJournalFilterChips(journalFilters)}
       hasMore={journal.hasNextPage}
       isLoadingMore={journal.isFetchingNextPage}
-      onClearFilter={key =>
-        setJournalFilters(current => {
-          const next = { ...current };
-          delete next[key];
-          return next;
-        })
-      }
-      onClearFilters={() => setJournalFilters({})}
+      onFiltersChange={setJournalChips}
       onLoadMore={() => void journal.fetchNextPage()}
-      onOpenFilters={() => setFiltersOpen(true)}
       onOpenNewTerminal={() => create.mutate()}
       onOpenTerminal={terminalId => {
         void coordinator.userRetarget(windowId, {
@@ -295,20 +288,13 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         limit={terminalSettings?.max_per_workspace ?? 8}
         onViewJournal={() => void journal.refetch()}
         profile={profile.destination}
+        projectLabel={workspace.runtimeWorkspace?.name}
         readOnly={profile.aggregate}
         terminals={terminals}
         viewerId={viewerId}
         viewerToken={viewerToken}
         workspaceId={workspaceId}
       />
-      {filtersOpen ? (
-        <TerminalJournalFilterDialog
-          onApply={setJournalFilters}
-          onOpenChange={setFiltersOpen}
-          open
-          value={journalFilters}
-        />
-      ) : null}
     </>
   );
 }

@@ -152,9 +152,7 @@ export function TerminalSettingsSections({
               aria-label="Keep recordings for, in days"
               data-testid="settings-terminal-recording-retention"
               min={1}
-              onValidityChange={message =>
-                onValidationError?.("recording_retention_days", message)
-              }
+              onValidityChange={message => onValidationError?.("recording_retention_days", message)}
               onValueChange={value => patch("recording_retention_days", value)}
               value={draft.recording_retention_days}
             />
@@ -222,7 +220,8 @@ function validateTerminalShell(value: string): string | null {
   if (value === "") return null;
   const trimmed = value.trim();
   const containsSeparator = value.includes("/") || value.includes("\\");
-  const absolute = value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
+  const absolute =
+    value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
   if (trimmed !== value || value.includes("\0") || (containsSeparator && !absolute)) {
     return "Enter a command name or an absolute path.";
   }

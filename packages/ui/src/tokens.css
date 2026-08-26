@@ -274,6 +274,8 @@
   --tracking-eyebrow: -0.005em;
   --tracking-eyebrow-caps: 0.06em;
   --tracking-mono-id: 0;
+  /* Masked-entry dots (terminal redacted input): wide so length reads at a glance. */
+  --tracking-redacted: 0.35em;
   /* Key-cap air — a chord renders as one glyph run (⌘⇧P) inside one cap;
      positive tracking keeps adjacent symbols from blobbing into a single
      mark at 12px. One step above --tracking-mono (0.02em): symbol-dense

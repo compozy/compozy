@@ -172,6 +172,36 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
+  it("Should reset a retained screen before drawing a from-zero replay", async () => {
+    // The emulator buffer outlives connections by design, and a brand-new
+    // client always asks for the whole history. Without a reset ahead of that
+    // replay, the same screen paints twice — once from the retained buffer,
+    // once from the replay (the take-control / reconnect double-paint).
+    const { client, sockets, sink } = buildClient({});
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    sockets.last().open();
+    sockets.last().deliver(attachedFrame({ seq: 512 }));
+    sockets.last().deliver(serverOutputFrame(0, "replayed screen"));
+    await vi.waitFor(() => expect(sink.parsed).toEqual(["replayed screen"]));
+
+    expect(sink.resets).toBe(1);
+    client.stop();
+  });
+
+  it("Should leave the screen alone when a from-zero attach has nothing to replay", async () => {
+    const { client, sockets, sink } = buildClient({});
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    sockets.last().open();
+    // Nothing has ever run: the attach lands exactly on the resume point.
+    sockets.last().deliver(attachedFrame({ seq: 0 }));
+    await vi.waitFor(() => expect(sink.dimensions).toHaveLength(1));
+
+    expect(sink.resets).toBe(0);
+    client.stop();
+  });
+
   it("Should hold input closed across a gap until the replayed snapshot is parsed", async () => {
     const { client, sockets, sink, inputEnabled, statuses, gapsCleared } = buildClient({
       autoParse: false,

@@ -118,8 +118,8 @@ function SessionTerminalBlockBody({
       data-testid={`session-terminal-block-${terminalId}`}
     >
       <div className="flex min-h-8 min-w-0 items-center gap-2 border-line border-b bg-canvas-soft px-2.5">
-        <TerminalSquare aria-hidden="true" className="size-3 flex-none text-subtle" />
-        <span className="truncate font-semibold text-form-input text-fg">{title}</span>
+        <TerminalSquare aria-hidden="true" className="size-deck-glyph flex-none text-subtle" />
+        <span className="truncate font-semibold text-eyebrow text-fg">{title}</span>
         <MonoId size="sm" value={terminalId} />
         <div className="ml-auto flex flex-none items-center gap-1.5">
           {lease ? <TerminalLeaseBadge view={lease} /> : null}
@@ -139,7 +139,7 @@ function SessionTerminalBlockBody({
       <div className="flex max-h-55 flex-col bg-terminal-bg">
         <TerminalView
           aria-label={live ? `${title} — watching` : `${title} — final screen`}
-          className="px-3 py-2 font-mono text-code-block"
+          className="px-3 py-2 font-mono text-transcript-meta tracking-mono"
           {...(engineLoader ? { engineLoader } : {})}
           handleRef={replay.handleRef}
           // A distinct identity from the app's pane: the preview is a second
@@ -161,7 +161,7 @@ function SessionTerminalBlockBody({
           </>
         ) : (
           <>
-            <span aria-hidden="true" className="size-1.5 animate-pulse rounded-full bg-success" />
+            <Pill.Dot aria-hidden="true" pulse size="sm" tone="success" />
             <span>
               {stillRunning ? "still running — the agent continued without waiting" : "running"}
             </span>

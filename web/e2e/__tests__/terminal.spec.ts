@@ -568,10 +568,9 @@ test("E2E-007: journal filters update the real browser query", async ({ appPage,
 
   await window.getByTestId("terminal-tab-journal").click();
   await expect(window.getByTestId("terminal-journal")).toBeVisible();
-  await window.getByRole("button", { name: "Filter", exact: true }).click();
-  await appPage.getByTestId("terminal-journal-filter-actor").click();
-  await appPage.getByRole("option", { name: "Human" }).click();
-  await appPage.getByTestId("terminal-journal-filter-apply").click();
+  await window.getByTestId("terminal-journal-filters-add").click();
+  await appPage.getByRole("option", { name: "Who" }).click();
+  await appPage.getByRole("option", { name: "A person" }).click();
   await expect(window.getByTestId(`terminal-journal-row-${failedRow.command_id}`)).toBeVisible();
   await expect(
     window.getByTestId(`terminal-journal-confidence-${failedRow.command_id}`)
@@ -582,16 +581,16 @@ test("E2E-007: journal filters update the real browser query", async ({ appPage,
   await expect(window.getByTestId("terminal-recording-player")).toBeVisible();
   await window.getByTestId("terminal-recording-open-journal").click();
 
-  await window.getByRole("button", { name: "Filter", exact: true }).click();
-  await appPage.getByTestId("terminal-journal-filter-failed").check();
-  await appPage.getByTestId("terminal-journal-filter-apply").click();
+  await window.getByTestId("terminal-journal-filters-add").click();
+  await appPage.getByRole("option", { name: "Result" }).click();
+  await appPage.getByRole("option", { name: "Finished with errors" }).click();
   await expect(
     window.getByTestId(`terminal-journal-row-${exactFailedRow.command_id}`)
   ).toBeVisible();
 
-  await window.getByRole("button", { name: "Filter", exact: true }).click();
-  await appPage.getByTestId("terminal-journal-filter-terminal").fill("term-000000000000");
-  await appPage.getByTestId("terminal-journal-filter-apply").click();
+  await window.getByTestId("terminal-journal-filters-add").click();
+  await appPage.getByRole("option", { name: "Terminal" }).click();
+  await appPage.getByPlaceholder("term-…").fill("term-000000000000");
   await expect(window.getByTestId("terminal-journal-filtered-empty")).toContainText(
     "No matches in the rows loaded"
   );
@@ -818,7 +817,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
     "second row"
   );
   await takeTerminalControl(firstWindow);
-  const originalGrid = await firstWindow.getByTestId("terminal-grid-chip").textContent();
+  const originalGrid = await firstWindow.getByTestId("terminal-size-vote").textContent();
   const resizeHandle = windowFrame(firstWindow)
     .locator("xpath=..")
     .locator('[style*="cursor: se-resize"]');
@@ -832,7 +831,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   await appPage.mouse.move(resizeX - 160, resizeY - 80, { steps: 12 });
   await appPage.mouse.up();
   await expect
-    .poll(async () => await firstWindow.getByTestId("terminal-grid-chip").textContent())
+    .poll(async () => await firstWindow.getByTestId("terminal-size-vote").textContent())
     .not.toBe(originalGrid);
 
   const watcherGrid = await connectTerminalWatcher(
@@ -843,7 +842,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   );
   try {
     await expect(firstWindow.getByTestId("terminal-viewers")).toContainText("2");
-    await expect(firstWindow.getByTestId("terminal-grid-chip")).toHaveText(
+    await expect(firstWindow.getByTestId("terminal-size-vote")).toContainText(
       `${watcherGrid.cols}×${watcherGrid.rows}`
     );
   } finally {

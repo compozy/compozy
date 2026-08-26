@@ -24,10 +24,7 @@ describe("projectTerminalBadge", () => {
         scopeKey: "work-scope",
         profileId: "profile-work",
         inputRequests: [inputRequest(), inputRequest({ id: "req-9c11" })],
-        pendingApprovals: [
-          { profileId: "profile-work" },
-          { profileId: "profile-personal" },
-        ],
+        pendingApprovals: [{ profileId: "profile-work" }, { profileId: "profile-personal" }],
       })
     ).toEqual({ scopeKey: "work-scope", count: 3 });
   });

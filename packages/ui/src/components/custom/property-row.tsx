@@ -45,7 +45,7 @@ function PropertyRow({
       )}
       {...props}
     >
-      <span data-slot="property-row-label" className="shrink-0 text-form-label text-subtle">
+      <span data-slot="property-row-label" className="shrink-0 text-eyebrow text-subtle">
         {label}
       </span>
       {editor ?? (
@@ -56,8 +56,8 @@ function PropertyRow({
           className={cn(
             "inline-flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-right whitespace-nowrap font-medium",
             mono
-              ? "font-mono text-eyebrow font-normal tabular-nums text-muted"
-              : "text-small-body text-fg"
+              ? "font-mono text-mono-id font-normal tabular-nums text-muted"
+              : "text-form-input text-fg"
           )}
         >
           {hasPrimitiveValue ? <span className="min-w-0 truncate">{children}</span> : children}

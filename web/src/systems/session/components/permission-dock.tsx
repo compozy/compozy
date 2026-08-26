@@ -1,15 +1,38 @@
 import { ChevronUp } from "lucide-react";
 
-import { Button, cn, Dock, Kbd } from "@compozy/ui";
+import {
+  Button,
+  cn,
+  Dock,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuShortcut,
+  DropdownMenuTrigger,
+} from "@compozy/ui";
 
 // Narrow entry: the dock must not pull the emulator into every session bundle.
 import { TerminalApprovalDetail, terminalPermissionDetail } from "@/systems/terminal/parts";
+import type { TerminalPermissionDetail } from "@/systems/terminal/parts";
 
 import { usePermissionDock } from "../hooks/use-permission-dock";
-import { useRejectMenuElements } from "../hooks/use-reject-menu-elements";
+import { useSession } from "../hooks/use-sessions";
 import type { PermissionRequest } from "../types";
 
 const DANGER_GHOST_CLASS = "text-muted hover:bg-danger-tint hover:text-danger";
+
+/**
+ * The plain-language ask, per the locked terminal copy contract.
+ *
+ * The board title is "«Agent» wants to run · dev server"; the runtime does not
+ * carry the terminal's display title here, so the sentence stops at the verb
+ * and the detail block beneath states the command, folder, and terminal id.
+ */
+function terminalAskTitle(detail: TerminalPermissionDetail, agentName: string): string {
+  if (detail.kind === "typing") return `${agentName} wants to type`;
+  if (detail.kind === "open") return `${agentName} wants to open a terminal`;
+  return `${agentName} wants to run`;
+}
 
 export interface PermissionDockProps {
   enabled?: boolean;
@@ -34,8 +57,6 @@ export function PermissionDock({
   countLabel,
   onResolved,
 }: PermissionDockProps) {
-  const { menuItemRef, menuOpen, setMenuOpen, splitElement, splitRef, triggerRef } =
-    useRejectMenuElements();
   // The runtime classification governs both the visible actions and keyboard
   // shortcuts. A hidden remembered decision must not remain reachable by key.
   const terminalDetail = terminalPermissionDetail(
@@ -52,11 +73,12 @@ export function PermissionDock({
     sessionId,
     workspaceId,
     onResolved,
-    rejectSplitElement: splitElement,
-    menuOpen,
-    setMenuOpen,
     blockedDecisions,
   });
+  // The session names the asking agent; the plain-language title needs it. The
+  // detail is already in the query cache for any open session surface.
+  const session = useSession(terminalDetail ? sessionId : "");
+  const agentName = session.data?.agent_name?.trim() || "The agent";
 
   if (isResolved) {
     return null;
@@ -67,12 +89,16 @@ export function PermissionDock({
   // command, where it would run, and why the runtime is asking.
   const offersRejectAlways =
     decisionOptions.includes("reject-always") && terminalDetail?.kind !== "typing";
+  // Terminal asks read in the plain register — the raw tool id never leads.
+  const irreversible = terminalDetail?.kind === "exec" && terminalDetail.risk === "irreversible";
 
   return (
     <Dock data-testid="permission-dock" role="region" aria-label="Permission required">
       <Dock.Head>
         <Dock.Eyebrow data-testid="permission-dock-eyebrow">Permission</Dock.Eyebrow>
-        <Dock.Title data-testid="permission-dock-title">{permission.toolName}</Dock.Title>
+        <Dock.Title data-testid="permission-dock-title">
+          {terminalDetail ? terminalAskTitle(terminalDetail, agentName) : permission.toolName}
+        </Dock.Title>
         {countLabel ? (
           <Dock.Count data-testid="permission-dock-count">{countLabel}</Dock.Count>
         ) : null}
@@ -95,7 +121,7 @@ export function PermissionDock({
         {decisionOptions.includes("allow-once") ? (
           <Button
             size="sm"
-            variant="primary"
+            variant={irreversible ? "destructive" : "primary"}
             disabled={isSubmitting}
             onClick={() => decide("allow-once")}
             data-testid="permission-allow-once"
@@ -114,13 +140,17 @@ export function PermissionDock({
             onClick={() => decide("allow-always")}
             data-testid="permission-allow-always"
           >
-            {terminalDetail?.kind === "typing" ? "This terminal" : "Always allow"}
+            {terminalDetail?.kind === "typing"
+              ? "Allow for this terminal"
+              : terminalDetail?.kind === "exec"
+                ? "Always allow commands like this"
+                : "Always allow"}
             <Dock.Key>2</Dock.Key>
           </Button>
         ) : null}
         <span className="flex-1" />
         {offersRejectOnce ? (
-          <div ref={splitRef} className="relative inline-flex gap-px" data-open={menuOpen}>
+          <div className="inline-flex gap-px">
             <Button
               size="sm"
               variant="ghost"
@@ -129,51 +159,40 @@ export function PermissionDock({
               onClick={() => decide("reject-once")}
               data-testid="permission-reject-once"
             >
-              Reject
+              {terminalDetail ? "Don't allow" : "Reject"}
               <Dock.Key>3</Dock.Key>
             </Button>
             {offersRejectAlways ? (
-              <>
-                <Button
-                  ref={triggerRef}
-                  size="sm"
-                  variant="ghost"
-                  className={cn(DANGER_GHOST_CLASS, "px-1")}
-                  disabled={isSubmitting}
-                  aria-expanded={menuOpen}
-                  aria-label="More reject options"
-                  onClick={() => setMenuOpen(open => !open)}
-                  data-testid="permission-reject-menu-trigger"
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className={cn(DANGER_GHOST_CLASS, "group/reject-menu px-1")}
+                      disabled={isSubmitting}
+                      aria-label="More decline options"
+                      data-testid="permission-reject-menu-trigger"
+                    />
+                  }
                 >
                   <ChevronUp
                     aria-hidden="true"
-                    className={cn(
-                      "size-3 transition-transform duration-slow ease-out motion-reduce:transition-none",
-                      menuOpen ? "rotate-180" : null
-                    )}
+                    className="size-3 transition-transform duration-slow ease-out group-aria-expanded/reject-menu:rotate-180 motion-reduce:transition-none"
                   />
-                </Button>
-                {menuOpen ? (
-                  <div
-                    role="menu"
-                    data-testid="permission-reject-menu"
-                    className="absolute right-0 bottom-[calc(100%+5px)] z-10 min-w-[158px] rounded-md border border-line-strong bg-elevated p-[3px] shadow-[var(--shadow-overlay)]"
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" data-testid="permission-reject-menu" side="top">
+                  <DropdownMenuItem
+                    data-testid="permission-reject-always"
+                    disabled={isSubmitting}
+                    onClick={() => decide("reject-always")}
+                    variant="destructive"
                   >
-                    <button
-                      ref={menuItemRef}
-                      type="button"
-                      role="menuitem"
-                      data-testid="permission-reject-always"
-                      disabled={isSubmitting}
-                      className="flex min-h-7 w-full items-center gap-2 rounded-xs px-2 py-transcript-meta-gap text-left text-transcript-body text-danger transition-colors hover:bg-hover"
-                      onClick={() => decide("reject-always")}
-                    >
-                      Reject always
-                      <Kbd className="ml-auto">4</Kbd>
-                    </button>
-                  </div>
-                ) : null}
-              </>
+                    {terminalDetail ? "Never allow" : "Reject always"}
+                    <DropdownMenuShortcut>4</DropdownMenuShortcut>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : null}
           </div>
         ) : offersRejectAlways ? (
@@ -185,7 +204,7 @@ export function PermissionDock({
             onClick={() => decide("reject-always")}
             data-testid="permission-reject-always"
           >
-            Reject always
+            {terminalDetail ? "Never allow" : "Reject always"}
             <Dock.Key>4</Dock.Key>
           </Button>
         ) : null}

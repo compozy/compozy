@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useEffectEvent } from "react";
 
 import type { PermissionDecision } from "../adapters/session-api";
 import { isEditableTarget } from "../lib/editable-target";
@@ -15,24 +15,19 @@ const DECISION_KEYS: Record<string, PermissionDecision> = {
   "4": "reject-always",
 };
 
-const PASSIVE_TOUCH_LISTENER = { capture: false, passive: true } as const;
-
 export interface UsePermissionDockOptions {
   enabled?: boolean;
   permission: PermissionRequest;
   sessionId: string;
   workspaceId: string;
   onResolved?: () => void;
-  rejectSplitElement: HTMLElement | null;
-  menuOpen: boolean;
-  setMenuOpen: Dispatch<SetStateAction<boolean>>;
   blockedDecisions?: readonly PermissionDecision[];
 }
 
 /**
- * Behavior for the composer permission dock: decision submission, the digit-key
- * shortcuts (ignoring focused inputs), and the reject split-menu state with its
- * outside-press dismissal.
+ * Behavior for the composer permission dock: decision submission and the
+ * digit-key shortcuts (ignoring focused inputs). The reject-always menu is a
+ * `DropdownMenu`, so dismissal and focus return belong to the primitive.
  */
 export function usePermissionDock({
   enabled = true,
@@ -40,9 +35,6 @@ export function usePermissionDock({
   sessionId,
   workspaceId,
   onResolved,
-  rejectSplitElement,
-  menuOpen,
-  setMenuOpen,
   blockedDecisions = [],
 }: UsePermissionDockOptions) {
   const { decide, isResolved, isSubmitting } = useSessionPermissionDecision({
@@ -71,29 +63,6 @@ export function usePermissionDock({
     document.addEventListener("keydown", handleDecisionKey);
     return () => document.removeEventListener("keydown", handleDecisionKey);
   }, [enabled]);
-
-  const handleOutsidePress = useEffectEvent((event: Event) => {
-    if (rejectSplitElement?.contains(event.target as Node)) return;
-    setMenuOpen(false);
-  });
-
-  const handleMenuKeyDown = useEffectEvent((event: KeyboardEvent) => {
-    if (event.key !== "Escape") return;
-    event.preventDefault();
-    setMenuOpen(false);
-  });
-
-  useEffect(() => {
-    if (!enabled || !menuOpen) return;
-    document.addEventListener("mousedown", handleOutsidePress);
-    document.addEventListener("touchstart", handleOutsidePress, PASSIVE_TOUCH_LISTENER);
-    document.addEventListener("keydown", handleMenuKeyDown, true);
-    return () => {
-      document.removeEventListener("mousedown", handleOutsidePress);
-      document.removeEventListener("touchstart", handleOutsidePress, PASSIVE_TOUCH_LISTENER);
-      document.removeEventListener("keydown", handleMenuKeyDown, true);
-    };
-  }, [enabled, menuOpen]);
 
   return {
     decide,

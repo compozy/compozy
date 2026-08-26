@@ -1,12 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
 
 import type { TerminalStreamStatus } from "../lib/terminal-protocol-client";
-import type {
-  TerminalActor,
-  TerminalExitNotice,
-  TerminalLeaseState,
-  TerminalMode,
-} from "../types";
+import type { TerminalActor, TerminalExitNotice, TerminalLeaseState, TerminalMode } from "../types";
 
 /**
  * Client-only terminal state.

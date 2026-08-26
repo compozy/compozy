@@ -1,5 +1,6 @@
 "use client";
 
+import { ScrollText } from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -9,29 +10,50 @@ import {
   TableHead,
   TableHeader,
   TableRow,
+  type Filter,
 } from "@compozy/ui";
 
-import type { TerminalJournalEntry, TerminalJournalFilters } from "../types";
+import type { TerminalJournalEntry } from "../types";
+import { TerminalIdentityGlyph } from "./terminal-header";
 import { TerminalJournalDetail } from "./terminal-journal-detail";
 import { TerminalJournalEmpty } from "./terminal-journal-empty";
 import { TerminalJournalRow } from "./terminal-journal-row";
-import {
-  TerminalJournalToolbar,
-  type TerminalJournalFilterChip,
-} from "./terminal-journal-toolbar";
+import { TerminalJournalToolbar } from "./terminal-journal-toolbar";
+
+/**
+ * The journal's identity row — the same anatomy as a terminal's head.
+ *
+ * The pinned tab says where you are; this row says what you are reading and
+ * for which project, once, before the table takes over.
+ */
+export function TerminalJournalHead({ projectLabel }: { projectLabel?: string }) {
+  return (
+    <header
+      className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
+      data-testid="terminal-journal-head"
+    >
+      <TerminalIdentityGlyph icon={ScrollText} />
+      <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
+        Journal
+      </span>
+      {projectLabel ? (
+        <span className="truncate text-badge text-subtle">{projectLabel}</span>
+      ) : null}
+    </header>
+  );
+}
 
 export interface TerminalJournalPanelProps {
   entries: readonly TerminalJournalEntry[];
-  filters: readonly TerminalJournalFilterChip[];
+  /** The filter chips, exactly as the `Filters` primitive edits them. */
+  chips: Filter<string>[];
   /** True while another page is available behind the cursor. */
   hasMore: boolean;
   isLoadingMore?: boolean;
   /** Set only in the read-only all-profiles view. */
   showOwner?: boolean;
   onLoadMore: () => void;
-  onClearFilter: (key: keyof TerminalJournalFilters) => void;
-  onClearFilters: () => void;
-  onOpenFilters?: () => void;
+  onFiltersChange: (chips: Filter<string>[]) => void;
   onOpenTerminal?: (terminalId: string) => void;
   /** Offered from the empty journal, where there is no terminal to open yet. */
   onOpenNewTerminal?: () => void;
@@ -47,14 +69,12 @@ export interface TerminalJournalPanelProps {
  */
 export function TerminalJournalPanel({
   entries,
-  filters,
+  chips,
   hasMore,
   isLoadingMore = false,
   showOwner = false,
   onLoadMore,
-  onClearFilter,
-  onClearFilters,
-  onOpenFilters,
+  onFiltersChange,
   onOpenTerminal,
   onOpenNewTerminal,
   onReplay,
@@ -64,17 +84,13 @@ export function TerminalJournalPanel({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="terminal-journal">
-      <TerminalJournalToolbar
-        filters={filters}
-        onClearFilter={onClearFilter}
-        onOpenFilters={onOpenFilters}
-      />
+      <TerminalJournalToolbar chips={chips} onChange={onFiltersChange} />
 
       {entries.length === 0 ? (
         <TerminalJournalEmpty
-          filtered={filters.length > 0}
+          filtered={chips.length > 0}
           hasMore={hasMore}
-          onClearFilters={onClearFilters}
+          onClearFilters={() => onFiltersChange([])}
           onLoadMore={onLoadMore}
           // The all-profiles view is a read of every profile's history and
           // offers no mutation, by construction rather than by convention: a
@@ -105,10 +121,11 @@ export function TerminalJournalPanel({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {entries.map(entry => (
+                {entries.map((entry, index) => (
                   <TerminalJournalRow
                     compact={Boolean(selected)}
                     entry={entry}
+                    focusStop={selected ? entry.command_id === selected.command_id : index === 0}
                     key={entry.command_id}
                     onReplay={
                       entry.recording && onReplay

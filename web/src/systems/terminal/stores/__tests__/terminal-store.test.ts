@@ -55,6 +55,18 @@ describe("terminal lease state", () => {
     expect(agentView.requiresConfirmation).toBe(false);
     expect(agentView.canType).toBe(false);
 
+    // A pipe terminal has no lease to contest, so the chip attributes the run
+    // instead of claiming control, and offers no way to take it.
+    const pipeView = terminalLeaseView({
+      lease: agentPane.lease,
+      controller: { kind: "agent", id: "Claude Code" },
+      viewerId: "pedro",
+      mode: "pipe",
+      capabilities: INTERACTIVE,
+    });
+    expect(pipeView.label).toBe("Claude Code ran this");
+    expect(pipeView.canTakeControl).toBe(false);
+
     store.trigger.leaseObserved({
       terminalId: DEV_SERVER,
       lease: "human_owned",
@@ -70,7 +82,7 @@ describe("terminal lease state", () => {
       capabilities: INTERACTIVE,
     });
     expect(otherView.read).toBe("someone-else");
-    expect(otherView.label).toBe("operator is in control");
+    expect(otherView.label).toBe("marina is in control");
     expect(otherView.requiresConfirmation).toBe(true);
     expect(otherView.canType).toBe(false);
 

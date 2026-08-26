@@ -3,8 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { JOURNAL_FIXTURES } from "../../mocks/terminal-fixtures";
+import {
+  terminalJournalChipsFromFilters,
+  terminalJournalFiltersFromChips,
+} from "../../lib/terminal-journal-filter-fields";
 import type { TerminalJournalEntry } from "../../types";
-import { TerminalJournalFilterDialog } from "../terminal-journal-filter-dialog";
 import { TerminalJournalPanel } from "../terminal-journal-panel";
 
 /**
@@ -18,10 +21,9 @@ import { TerminalJournalPanel } from "../terminal-journal-panel";
 function renderPanel(overrides: Partial<Parameters<typeof TerminalJournalPanel>[0]> = {}) {
   const props = {
     entries: JOURNAL_FIXTURES,
-    filters: [],
+    chips: [],
     hasMore: true,
-    onClearFilter: vi.fn(),
-    onClearFilters: vi.fn(),
+    onFiltersChange: vi.fn(),
     onLoadMore: vi.fn(),
     ...overrides,
   };
@@ -104,7 +106,7 @@ describe("TerminalJournalPanel", () => {
 
   it("Should say nothing has run yet when the journal is genuinely empty", async () => {
     const onOpenNewTerminal = vi.fn();
-    renderPanel({ entries: [], filters: [], hasMore: false, onOpenNewTerminal });
+    renderPanel({ entries: [], chips: [], hasMore: false, onOpenNewTerminal });
 
     expect(screen.getByTestId("terminal-journal-empty")).toHaveTextContent(
       "Nothing has run here yet"
@@ -118,9 +120,9 @@ describe("TerminalJournalPanel", () => {
   it("Should scope a filtered miss to the rows actually loaded", async () => {
     const { props } = renderPanel({
       entries: [],
-      filters: [
-        { key: "actor", label: "who", value: "Marina" },
-        { key: "failed", label: "result", value: "errors" },
+      chips: [
+        { id: "result", field: "result", operator: "is", values: ["failed"] },
+        { id: "actor", field: "actor", operator: "is", values: ["human"] },
       ],
     });
 
@@ -129,20 +131,19 @@ describe("TerminalJournalPanel", () => {
     expect(empty).toHaveTextContent("a match may still be further back");
 
     await userEvent.click(within(empty).getByText("Clear filters"));
-    expect(props.onClearFilters).toHaveBeenCalledOnce();
+    expect(props.onFiltersChange).toHaveBeenCalledWith([]);
   });
 
-  it("Should let a single filter be cleared on its own", async () => {
-    const { props } = renderPanel({
-      filters: [{ key: "actor", label: "who", value: "Claude Code" }],
+  it("Should render active chips and route their edits through one change handler", () => {
+    renderPanel({
+      chips: [{ id: "actor", field: "actor", operator: "is", values: ["agent"] }],
     });
 
-    const chip = screen.getByTestId("terminal-journal-filter-actor");
-    expect(chip).toHaveTextContent("Claude Code");
-
-    await userEvent.click(within(chip).getByRole("button", { name: "Clear who filter" }));
-
-    expect(props.onClearFilter).toHaveBeenCalledWith("actor");
+    // The chip is the Filters primitive's: field label, operator, and value.
+    // "Who" also heads the table column, so the chip is identified by its value.
+    expect(screen.getByText("An agent")).toBeInTheDocument();
+    expect(screen.getAllByText("Who")).toHaveLength(2);
+    expect(screen.getByTestId("terminal-journal-filters-add")).toBeInTheDocument();
   });
 
   it("Should open the whole record for a row and fold the attribute columns away", async () => {
@@ -167,45 +168,24 @@ describe("TerminalJournalPanel", () => {
     expect(screen.getByTestId("terminal-journal-owner-cmd-5f0a1e")).toHaveTextContent("work");
   });
 
-  it("Should apply editable journal filters as one query input", async () => {
-    const user = userEvent.setup();
-    const onApply = vi.fn();
-    render(
-      <TerminalJournalFilterDialog
-        onApply={onApply}
-        onOpenChange={vi.fn()}
-        open
-        value={{ actor: "agent" }}
-      />
-    );
-
-    expect(screen.getByTestId("terminal-journal-filter-actor")).toHaveTextContent("agent");
-    await user.type(screen.getByTestId("terminal-journal-filter-since"), "24h");
-    await user.type(screen.getByTestId("terminal-journal-filter-terminal"), "term-7");
-    await user.click(screen.getByTestId("terminal-journal-filter-failed"));
-    await user.click(screen.getByTestId("terminal-journal-filter-apply"));
-
-    expect(onApply).toHaveBeenCalledWith({
-      actor: "agent",
-      since: "24h",
-      failed: true,
-      terminalId: "term-7",
-    });
+  it("Should compose chips into one query input and drop values still being typed", () => {
+    expect(
+      terminalJournalFiltersFromChips([
+        { id: "actor", field: "actor", operator: "is", values: ["agent"] },
+        { id: "result", field: "result", operator: "is", values: ["failed"] },
+        { id: "since", field: "since", operator: "is", values: ["24h"] },
+        { id: "terminal", field: "terminal", operator: "is", values: ["term-7"] },
+        // A chip whose value is still empty filters nothing yet.
+        { id: "half", field: "terminal", operator: "is", values: [""] },
+      ])
+    ).toEqual({ actor: "agent", failed: true, since: "24h", terminalId: "term-7" });
   });
 
-  it("Should clear every journal filter from the dialog", async () => {
-    const onApply = vi.fn();
-    render(
-      <TerminalJournalFilterDialog
-        onApply={onApply}
-        onOpenChange={vi.fn()}
-        open
-        value={{ actor: "human", failed: true, since: "1h", terminalId: "term-8" }}
-      />
+  it("Should round-trip filters through chips without inventing or losing a fact", () => {
+    const filters = { actor: "human" as const, failed: true, since: "1h", terminalId: "term-8" };
+    expect(terminalJournalFiltersFromChips(terminalJournalChipsFromFilters(filters))).toEqual(
+      filters
     );
-
-    await userEvent.click(screen.getByRole("button", { name: "Clear filters" }));
-
-    expect(onApply).toHaveBeenCalledWith({});
+    expect(terminalJournalChipsFromFilters({})).toEqual([]);
   });
 });

@@ -179,8 +179,7 @@ export function GeneralSettingsPage() {
               const current = previous ?? draft;
               const currentTerminal = readTerminalSettings(current);
               if (!currentTerminal) return current;
-              const terminal =
-                typeof update === "function" ? update(currentTerminal) : update;
+              const terminal = typeof update === "function" ? update(currentTerminal) : update;
               return terminal === null ? current : { ...current, terminal };
             })
           }

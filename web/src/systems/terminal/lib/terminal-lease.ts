@@ -67,10 +67,13 @@ export function terminalLeaseView(input: TerminalLeaseInput): TerminalLeaseView 
         canRelease: possible,
       };
     }
+    // The chip names who holds control — "operator" only when the daemon has
+    // no better name for the same local person than the anonymous identity.
+    const name = controller.id === ANONYMOUS_OPERATOR_ID ? "The operator" : controller.id;
     return {
       read: "someone-else",
-      label: "operator is in control",
-      controllerName: "operator",
+      label: `${name} is in control`,
+      controllerName: controller.id === ANONYMOUS_OPERATOR_ID ? "the operator" : controller.id,
       canType: false,
       canTakeControl: possible,
       // Taking over another person asks first; taking over an agent never does.
@@ -95,7 +98,9 @@ export function terminalLeaseView(input: TerminalLeaseInput): TerminalLeaseView 
     const name = controller?.id ?? "The agent";
     return {
       read: "agent",
-      label: `${name} is in control`,
+      // A pipe terminal has nothing to control — the honest sentence is
+      // attribution, not a claim about a lease no one can contest.
+      label: input.mode === "pipe" ? `${name} ran this` : `${name} is in control`,
       controllerName: controller?.id ?? null,
       canType: false,
       canTakeControl: possible,

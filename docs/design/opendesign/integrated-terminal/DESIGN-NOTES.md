@@ -144,6 +144,14 @@ human words, never as the primary label.
 | detection `marker / approx` | verified / estimated (`exact` stays) |
 | `attach pass` mixed wording · `socket` | "connection pass", no transport nouns |
 | grants `Allow shape: X` / `Typing in X` | Always allowed: X / Can type in X |
+| `Reject always` (runtime `reject-always`, boards show no row) | Never allow |
+
+Two runtime-truth deltas recorded post-implementation: the runtime offers a
+remembered refusal (`reject-always`) the boards never drew — it surfaces as
+**Never allow** behind the Don't-allow split menu; and grant rows cannot say
+"Can type in psql" / the command text because the daemon stores only a digest
+of the tool input — rows state what the decision covers with the digest as the
+distinguishing mono id, until the daemon publishes a display name.
 
 Component/geometry alignments: `.jr-det` joined the pill ladder (18px, pill
 radius); request-card input 30→32 (`.ctl` ladder); request glyph 24→26 with

@@ -896,8 +896,8 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 | `--tracking-modal-title`  | `-0.012em` | `--tracking-section-head` | `-0.008em` |
 | `--tracking-tight`        | `-0.014em` | `--tracking-eyebrow`      | `-0.005em` |
 | `--tracking-eyebrow-caps` | `0.06em`   | `--tracking-mono-id`      | `0`        |
-| `--tracking-kbd`          | `0.03em`   | `--tracking-body`         | `-0.006em` |
-| `--tracking-row-title`    | `-0.01em`  |                           |            |
+| `--tracking-redacted`     | `0.35em`   | `--tracking-kbd`          | `0.03em`   |
+| `--tracking-body`         | `-0.006em` | `--tracking-row-title`    | `-0.01em`  |
 
 <!-- END:tokens:tracking-ladder -->
 
