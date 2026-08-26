@@ -75,7 +75,7 @@ export function ProfileSwitcher({
               size="sm"
               name={aggregate ? "All profiles" : activeName}
               aggregate={aggregate}
-              {...(active ? { color: active.color } : {})}
+              {...(active ? { color: active.color, icon: active.icon, emoji: active.emoji } : {})}
             />
             <span className="max-w-32 truncate text-badge font-semibold text-fg-strong">
               {aggregate ? "All profiles" : activeName}

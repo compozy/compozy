@@ -61,9 +61,8 @@ export {
   EXTENSION_DEV_LABEL,
   EXTENSION_DIGEST_MATCHED_LABEL,
   EXTENSION_OVERRIDES_PUBLISHED_LABEL,
-  ExtensionFormatBadge,
-  ExtensionTrustBadges,
-} from "./components/extension-trust-badges";
+} from "./components/extension-trust-badge-constants";
+export { ExtensionFormatBadge, ExtensionTrustBadges } from "./components/extension-trust-badges";
 export {
   EXTENSION_NETWORK_CONFIRMATION_CODE,
   extensionNetworkConfirmation,

@@ -69,6 +69,7 @@ export interface LoopStepsProgressModel {
 interface RosterIndex {
   byNode: Map<string, LoopRosterNode[]>;
   rollups: LoopFanoutRollup[];
+  rollupByNode: Map<string, LoopFanoutRollup>;
   /** Roster rows already accounted for by a fan-out band. */
   claimed: Set<string>;
 }
@@ -91,13 +92,14 @@ function indexRoster(
     else byNode.set(node.node_id, [node]);
   }
   const roundRollups = rollups.filter(rollup => rollup.generation === round);
+  const rollupByNode = new Map(roundRollups.map(rollup => [rollup.node_id, rollup]));
   const claimed = new Set<string>();
   for (const rollup of roundRollups) {
     for (const branch of resolveFanOutBranches(rollup, inRound, graph)) {
       claimed.add(rowKey(branch));
     }
   }
-  return { byNode, rollups: roundRollups, claimed };
+  return { byNode, rollups: roundRollups, rollupByNode, claimed };
 }
 
 function isControlNode(graph: LoopGraph | null, nodeId: string): boolean {
@@ -134,7 +136,7 @@ function buildSteps(
 ): LoopStepRow[] {
   const steps: LoopStepRow[] = [];
   for (const nodeId of orderedNodeIds(graph, index)) {
-    const rollup = index.rollups.find(entry => entry.node_id === nodeId);
+    const rollup = index.rollupByNode.get(nodeId);
     if (rollup) {
       const band = buildFanOutBand({
         rollup,

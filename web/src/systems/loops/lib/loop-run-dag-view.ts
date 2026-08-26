@@ -177,6 +177,8 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
   }
   const inRound = nodes.filter(node => node.generation === round);
   const roundRollups = rollups.filter(rollup => rollup.generation === round);
+  const authoredByNode = new Map(graph.nodes.map(node => [node.id, node]));
+  const rollupByNode = new Map(roundRollups.map(rollup => [rollup.node_id, rollup]));
   const byNode = new Map<string, LoopRosterNode[]>();
   for (const node of inRound) {
     const bucket = byNode.get(node.node_id);
@@ -205,8 +207,8 @@ export function buildRunDag({ graph, nodes, rollups, round }: BuildRunDagInput):
 
   const dagNodes: LoopDagNode[] = [];
   for (const nodeId of topoOrder(graph)) {
-    const authored = graph.nodes.find(entry => entry.id === nodeId);
-    const rollup = roundRollups.find(entry => entry.node_id === nodeId);
+    const authored = authoredByNode.get(nodeId);
+    const rollup = rollupByNode.get(nodeId);
     const rows = byNode.get(nodeId) ?? [];
     const kindIcon = authored?.nodeClass
       ? loopNodeClassIcon({

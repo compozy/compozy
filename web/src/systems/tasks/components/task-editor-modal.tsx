@@ -12,11 +12,11 @@ import {
 } from "@compozy/ui";
 
 import {
-  TASK_DESCRIPTION,
   TaskEditorSurface,
   type TaskEditorSurfaceMode,
   type TaskEditorSurfaceProps,
 } from "./task-editor-surface";
+import { TASK_DESCRIPTION } from "./task-editor-copy";
 
 export type TaskEditorModalMode = TaskEditorSurfaceMode;
 

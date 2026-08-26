@@ -12,7 +12,7 @@ export interface WorktreeRiskRowProps {
 }
 
 /** One blocker, quantified. The "why" is the sentence that prevents the mistake. */
-export function WorktreeRiskRow({ icon, what, quantity, why }: WorktreeRiskRowProps) {
+function WorktreeRiskRow({ icon, what, quantity, why }: WorktreeRiskRowProps) {
   return (
     <li
       data-slot="worktree-risk-row"

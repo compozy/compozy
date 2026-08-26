@@ -5,19 +5,11 @@ import * as React from "react";
 import { AnimatePresence, m, type HTMLMotionProps } from "motion/react";
 
 import { useIsInView, type UseIsInViewOptions } from "../../hooks/use-is-in-view";
-import { getStrictContext } from "../../lib/context";
 import { Slot, type WithAsChild } from "../../primitives/slot";
+import { ParticlesProvider, useParticles } from "./particles-context";
 
 type Side = "top" | "bottom" | "left" | "right";
 type Align = "start" | "center" | "end";
-
-interface ParticlesContextType {
-  animate: boolean;
-  isInView: boolean;
-}
-
-const [ParticlesProvider, useParticles] =
-  getStrictContext<ParticlesContextType>("ParticlesContext");
 
 export type ParticlesProps = WithAsChild<
   Omit<HTMLMotionProps<"div">, "children"> & {
@@ -141,5 +133,3 @@ export function ParticlesEffect({
     </AnimatePresence>
   );
 }
-
-export { useParticles };

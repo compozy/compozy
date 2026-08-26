@@ -1,9 +1,9 @@
 import type { ComponentProps } from "react";
 import { Layers } from "lucide-react";
 
-import { cn, identityColorsFor, KindIcon } from "@compozy/ui";
+import { cn, identityColorsFor, SpriteIcon } from "@compozy/ui";
 
-import { PROFILE_ICON_REGISTRY, symbolOf } from "../lib/profile-identity";
+import { PROFILE_SPRITE_URL, symbolOf } from "../lib/profile-identity";
 
 export type ProfileGlyphSize = "sm" | "default" | "lg";
 
@@ -95,9 +95,9 @@ export function ProfileGlyph({
       ) : symbol.kind === "emoji" ? (
         <span aria-hidden="true">{symbol.value}</span>
       ) : (
-        <KindIcon
-          kind={symbol.value}
-          registry={PROFILE_ICON_REGISTRY}
+        <SpriteIcon
+          spriteUrl={PROFILE_SPRITE_URL}
+          name={symbol.value}
           className={cn(GLYPH_CLASS[size], "text-current")}
         />
       )}

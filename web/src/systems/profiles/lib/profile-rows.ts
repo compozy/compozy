@@ -8,6 +8,8 @@ export type ProfileDisabledReason = "" | "archived" | "needs setup";
 export interface ProfileRow {
   name: string;
   color: string;
+  icon: string | null;
+  emoji: string | null;
   state: ProfileRowState;
   archived: boolean;
   current: boolean;
@@ -45,6 +47,8 @@ export function toProfileRow(profile: ProfilePayload, currentName: string): Prof
   return {
     name: profile.name,
     color: profile.color,
+    icon: profile.icon,
+    emoji: profile.emoji,
     state: stateFor(profile, current),
     archived: isArchived(profile),
     current,

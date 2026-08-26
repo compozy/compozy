@@ -1,7 +1,7 @@
 import { notifyUser, type UserFeedbackTone } from "@/lib/user-feedback";
 
 import type { CmdPaletteDispatch } from "../hooks/use-cmd-palette-dispatch";
-import { commandForViewAction, extensionName } from "../hooks/use-cmd-palette-declarative-view";
+import { commandForViewAction } from "../hooks/use-cmd-palette-declarative-view";
 import type {
   CmdPaletteViewAction,
   CmdPaletteViewEffect,
@@ -13,19 +13,6 @@ import type { PaletteRegistry } from "./cmd-palette-types";
 import { finalizeCmdPaletteViewEffects } from "./cmd-palette-view-effects";
 
 export type PendingEffectResult = NonNullable<CmdPaletteViewSessionEvent["effect_result"]>;
-
-export function claimPendingEffectResult(
-  queue: PendingEffectResult[]
-): PendingEffectResult | undefined {
-  return queue.shift();
-}
-
-export function restorePendingEffectResult(
-  queue: PendingEffectResult[],
-  result: PendingEffectResult | undefined
-): void {
-  if (result) queue.unshift(result);
-}
 
 export function programViewEnvelope(
   viewId: string,
@@ -121,11 +108,6 @@ export function acknowledgeViewEffects(
   results: readonly PromiseSettledResult<void>[]
 ): readonly string[] {
   return finalizeCmdPaletteViewEffects(pending, results);
-}
-
-export function viewExtensionSource(viewId: string): string {
-  const extension = extensionName(viewId);
-  return extension ? `ext.${extension}` : viewId;
 }
 
 export function viewErrorMessage(error: unknown): string {

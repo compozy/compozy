@@ -5,8 +5,6 @@ import { CommandItem, CommandList } from "@compozy/ui";
 import type { PaletteViewRow } from "../lib/palette-view-registry";
 import { paletteItemClass, paletteRowEstimate } from "../lib/palette-view-inset";
 
-export const PALETTE_VIEW_VIRTUAL_THRESHOLD = 150;
-
 export function OsPaletteVirtualRows({
   className,
   note,

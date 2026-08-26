@@ -53,8 +53,3 @@ export function paletteClientOp(op: string): PaletteClientOpHandler | null {
     SHELL_OPS.get(id) ?? CMD_PALETTE_WINDOW_OPS.get(id) ?? CMD_PALETTE_DAEMON_OPS.get(id) ?? null
   );
 }
-
-/** Every operation this client can execute — the honest capability list. */
-export function paletteClientOpIds(): readonly string[] {
-  return [...SHELL_OPS.keys(), ...CMD_PALETTE_WINDOW_OPS.keys(), ...CMD_PALETTE_DAEMON_OPS.keys()];
-}

@@ -42,6 +42,12 @@ func Codegen() error {
 	if err := SyncFontSizeClasses(); err != nil {
 		return err
 	}
+	if err := SyncLucideIcons(); err != nil {
+		return err
+	}
+	if err := SyncEmojibase(); err != nil {
+		return err
+	}
 	return SyncDesignMD()
 }
 
@@ -94,6 +100,12 @@ func CodegenCheck() error {
 	if err := SyncFontSizeClassesCheck(); err != nil {
 		return err
 	}
+	if err := SyncLucideIconsCheck(); err != nil {
+		return err
+	}
+	if err := SyncEmojibaseCheck(); err != nil {
+		return err
+	}
 	return SyncDesignMDCheck()
 }
 
@@ -118,6 +130,26 @@ func SyncFontSizeClasses() error {
 // SyncFontSizeClassesCheck verifies the generated tailwind-merge font-size class group.
 func SyncFontSizeClassesCheck() error {
 	return runCommandInDir(context.Background(), ".", "bun", "run", fontSizeSyncScriptPath, "--check")
+}
+
+// SyncLucideIcons refreshes the Lucide icon allowlist embedded by internal/profile.
+func SyncLucideIcons() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", lucideIconsSyncScriptPath, "--write")
+}
+
+// SyncLucideIconsCheck verifies the Lucide icon allowlist embedded by internal/profile.
+func SyncLucideIconsCheck() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", lucideIconsSyncScriptPath, "--check")
+}
+
+// SyncEmojibase mirrors picker Emojibase JSON into web/public for native serving.
+func SyncEmojibase() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", emojibaseSyncScriptPath, "--write")
+}
+
+// SyncEmojibaseCheck verifies the mirrored Emojibase JSON in web/public.
+func SyncEmojibaseCheck() error {
+	return runCommandInDir(context.Background(), ".", "bun", "run", emojibaseSyncScriptPath, "--check")
 }
 
 // SyncDesignMD refreshes generated DESIGN.md token frontmatter and tables.

@@ -21,7 +21,7 @@ function DockGlyph({ children, className, ...props }: GlyphProps & { children: R
   );
 }
 
-export const DockIcons = {
+const DOCK_ICON_GLYPHS = {
   sessions: (props: GlyphProps) => (
     <DockGlyph {...props}>
       <path
@@ -177,4 +177,9 @@ export const DockIcons = {
   ),
 } as const;
 
-export type DockIconId = keyof typeof DockIcons;
+export type DockIconId = keyof typeof DOCK_ICON_GLYPHS;
+
+export function DockIcon({ name, ...props }: GlyphProps & { name: DockIconId }) {
+  const Glyph = DOCK_ICON_GLYPHS[name];
+  return <Glyph {...props} />;
+}

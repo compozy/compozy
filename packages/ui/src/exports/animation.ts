@@ -5,7 +5,6 @@ export {
   GithubStarsLogo,
   GithubStarsNumber,
   GithubStarsParticles,
-  useGithubStars,
   type GithubStarsContextType,
   type GithubStarsIconProps,
   type GithubStarsLogoProps,
@@ -13,11 +12,12 @@ export {
   type GithubStarsParticlesProps,
   type GithubStarsProps,
 } from "../components/animation/github-stars";
+export { useGithubStars } from "../components/animation/github-stars-context";
 export {
   Particles,
   ParticlesEffect,
-  useParticles,
   type ParticlesEffectProps,
   type ParticlesProps,
 } from "../components/animation/particles";
+export { useParticles } from "../components/animation/particles-context";
 export { SlidingNumber, type SlidingNumberProps } from "../components/animation/sliding-number";

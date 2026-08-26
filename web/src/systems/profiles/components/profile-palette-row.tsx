@@ -26,6 +26,8 @@ export function ProfilePaletteRow({ row, meta }: ProfilePaletteRowProps) {
         size="sm"
         name={row.name}
         color={row.color}
+        icon={row.icon}
+        emoji={row.emoji}
         current={row.current}
         needsSetup={row.needsSetup}
       />

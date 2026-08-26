@@ -77,7 +77,7 @@ export function HeroVisual({ className }: HeroVisualProps) {
         className="relative [perspective:1400px]"
       >
         <div
-          className="relative overflow-hidden rounded-window shadow-window ring-1 ring-line-strong will-change-transform [--hero-rx:6deg] [--hero-ry:-8deg] lg:[--hero-rx:9deg] lg:[--hero-ry:-16deg]"
+          className="relative overflow-hidden rounded-window shadow-window ring-1 ring-line-strong [--hero-rx:6deg] [--hero-ry:-8deg] lg:[--hero-rx:9deg] lg:[--hero-ry:-16deg]"
           style={{ transform: PANEL_TRANSFORM, transition: TILT_TRANSITION }}
         >
           <Image

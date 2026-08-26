@@ -3,7 +3,7 @@ import { Kbd } from "@compozy/ui";
 import { fn } from "storybook/test";
 
 import { OsDockZone, type OsDockEntry, type OsDockItemData } from "../os-dock";
-import { DockIcons } from "../os-dock-icons";
+import { DockIcons } from "../os-dock-icon-registry";
 import { OsMenuBar } from "../os-menubar";
 import { OsWallpaper, type OsWallpaperKind } from "../os-wallpaper";
 import { shortcutLabel } from "../../lib/window-manager-shortcuts";

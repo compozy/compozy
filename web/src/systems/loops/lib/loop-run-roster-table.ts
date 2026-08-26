@@ -194,6 +194,7 @@ export function buildRosterTable({
 }: BuildRosterTableInput): LoopRosterTableModel {
   const scoped = round === null ? nodes : nodes.filter(node => node.generation === round);
   const rounds = [...new Set(nodes.map(node => node.generation))].sort((a, b) => b - a);
+  const graphNodeById = new Map(graph?.nodes.map(node => [node.id, node]) ?? []);
 
   // Each container keeps the rollup it was resolved from. The association is
   // known at this point, and reconstructing it later from a composite string key
@@ -257,7 +258,7 @@ export function buildRosterTable({
       key: `${generation}:${nodeId}:container`,
       nodeId,
       isBranch: false,
-      kindLabel: loopDagKindLabel(graph?.nodes.find(entry => entry.id === nodeId)),
+      kindLabel: loopDagKindLabel(graphNodeById.get(nodeId)),
       fanOutLabel: `${rollup.total} ${rollup.total === 1 ? "worker" : "workers"}`,
       // A container is not itself canceled; its workers each carry their own.
       cancellation: null,

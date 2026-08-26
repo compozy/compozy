@@ -6,9 +6,10 @@ import { cn } from "../../lib/utils";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../sheet";
 import { Tabs, TabsList, TabsTrigger } from "../tabs";
 import { useInlineLayout } from "./hooks/use-inline-layout";
-
-export const DETAIL_INSPECTOR_INLINE_BREAKPOINT = 1440;
-export const DETAIL_INSPECTOR_INLINE_WIDTH = 320;
+import {
+  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
+  DETAIL_INSPECTOR_INLINE_WIDTH,
+} from "./detail-inspector-constants";
 
 export interface DetailInspectorTab {
   /** Stable identifier used as the controlled value. */

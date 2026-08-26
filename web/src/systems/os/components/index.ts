@@ -5,7 +5,7 @@ export {
   type OsDockEntry,
   type OsDockSeparator,
 } from "./os-dock-types";
-export { DockIcons, type DockIconId } from "./os-dock-icons";
+export { DockIcons, type DockIconId } from "./os-dock-icon-registry";
 export { OsMenuBar, type OsMenuBarProps } from "./os-menubar";
 export { OsHydrationStatus, type OsHydrationStatusProps } from "./os-hydration-status";
 export {

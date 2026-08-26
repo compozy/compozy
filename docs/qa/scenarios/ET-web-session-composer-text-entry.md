@@ -7,12 +7,12 @@ journey: J-17
 expected: In a newly created session, sequential keyboard entry preserves every character including spaces, opening and closing the Next prompt runtime selector does not alter the draft, and the same behavior remains correct after a refresh and deep-link return.
 entry_points: web agent detail New session; web destination session composer; web session deep link
 qa_status: pass
-bug_ids: BUG-20260815-session-composer-draft-reload
+bug_ids: BUG-20260815-session-composer-draft-reload;BUG-20260825-session-composer-window-fails
 fix_status: fixed
 retest_status: pass
-fix_commits: f54e62b;acbbb25;current-pr-head
-evidence: docs/qa/evidence/2026-08-15-session-attachments-pr-412-final/26-composer-draft-after-reload.png
-last_report: docs/qa/reports/2026-08-15-session-attachments-pr-412-final.md
+fix_commits: f54e62b;acbbb25;current-pr-head;current-working-tree
+evidence: docs/qa/evidence/2026-08-25-lexical-composer-context/CH-session-composer-text-entry-goal.png;docs/qa/evidence/2026-08-25-lexical-composer-context/CH-session-composer-text-entry-deep-link.png
+last_report: docs/qa/reports/2026-08-25-lexical-composer-context.md
 overlaps: ET-web-session-prompt-runtime-and-create-navigation;ET-web-runtime-selector-minimal-slider
 ---
 
@@ -33,3 +33,7 @@ QA impact 2026-08-05 (composer redesign): reset — the composer input moved fro
 QA impact 2026-08-15 (attachments): reset remains `untested` because paste, drop, picker, preview removal, and attachment-aware send now share the composer input path. Re-walk exact text and draft persistence beside attachment interactions.
 
 QA verdict 2026-08-15 (attachments): passed after remediation. Sequential Unicode text and repeated spaces survived the next-prompt runtime selector, full reload, and return to the deep-linked session; only validated non-empty draft text rehydrated.
+
+QA impact 2026-08-25 (Lexical context): reset because the Lexical dependency graph and imperative composer synchronization changed. Re-walk editor mount, exact text entry, refresh persistence, and deep-link return on the corrected dependency graph.
+
+QA verdict 2026-08-25 (Lexical context): passed in the real local daemon/Web environment. A new session mounted the Lexical editor without a session-window error, preserved leading/repeated/trailing spaces and Unicode through the runtime-selector interaction, restored the exact draft from a fresh deep link, and accepted a second exact draft after remount.

@@ -1,7 +1,7 @@
 import { shallowEqual } from "@xstate/store";
 
 import { dockBadgeFor } from "../components/dock-badges";
-import { DockIcons, type DockIconId } from "../components/os-dock-icons";
+import { DockIcons, type DockIconId } from "../components/os-dock-icon-registry";
 import type { OsDockEntry } from "../components/os-dock-types";
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";

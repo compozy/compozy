@@ -9,6 +9,7 @@ import type { PillTone } from "@compozy/ui";
 import type { LoopRunOutcomeModel } from "../../lib/loop-run-artifacts";
 import type { LoopBriefingView } from "../../lib/loop-run-briefing-view";
 import { LoopRunArtifactList } from "./loop-run-artifact-list";
+import { LOOP_NEEDS_YOU_ANCHOR_ID } from "./loop-run-briefing-constants";
 
 /**
  * The anchor the briefing's quiet action points at.
@@ -18,8 +19,6 @@ import { LoopRunArtifactList } from "./loop-run-artifact-list";
  * region carries `tabIndex={-1}` so it can receive focus programmatically
  * without joining the tab order.
  */
-export const LOOP_NEEDS_YOU_ANCHOR_ID = "loop-run-needs-you";
-
 interface LoopRunBriefingProps extends Omit<ComponentProps<"section">, "children"> {
   briefing: LoopBriefingView;
   outcome: LoopRunOutcomeModel | null;

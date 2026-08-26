@@ -88,10 +88,9 @@ export {
   workItemsLabel,
 } from "./lib/profile-copy";
 export {
-  PROFILE_EMOJI_OPTIONS,
-  PROFILE_ICON_OPTIONS,
-  PROFILE_ICON_REGISTRY,
+  PROFILE_EMOJIBASE_URL,
   PROFILE_IDENTITY_SWATCHES,
+  PROFILE_SPRITE_URL,
   starterIdentity,
   symbolOf,
   symbolPatch,

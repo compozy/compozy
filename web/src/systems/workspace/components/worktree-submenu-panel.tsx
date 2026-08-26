@@ -25,9 +25,6 @@ import { WorktreeNestRow } from "./worktree-nest-row";
 const FOOTER_ROW_CLASS = "min-h-control-compact";
 
 /** Locked nest frame. Paths truncate inside; they never size the popup. */
-export const WORKTREE_SUBMENU_FRAME_CLASS =
-  "w-(--width-worktree-submenu) max-w-[calc(100vw-2rem)] overflow-x-hidden";
-
 /** Panel-variant scroll caps: frame minus the pinned create footer. */
 const PANEL_FRAME_MAX_CLASS = "max-h-[min(var(--height-worktree-submenu-max),calc(100dvh-2rem))]";
 const PANEL_VIEWPORT_MAX_CLASS =

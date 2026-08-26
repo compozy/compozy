@@ -6,12 +6,7 @@ export type {
   ProviderSummary,
 } from "./types";
 
-export {
-  ProvidersApiError,
-  getProvider,
-  listProviders,
-  probeProviderAuth,
-} from "./adapters/providers-api";
+export { ProvidersApiError, getProvider, listProviders } from "./adapters/providers-api";
 export { providerKeys } from "./lib/query-keys";
 export {
   providerDetailOptions,
@@ -19,4 +14,3 @@ export {
   type ProviderDetailOptionsArgs,
 } from "./lib/query-options";
 export { useProvider, useProviders } from "./hooks/use-providers";
-export { useProbeProviderAuth } from "./hooks/use-probe-provider-auth";

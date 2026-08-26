@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
+
+	"github.com/rivo/uniseg"
 )
 
 var (
@@ -76,7 +80,36 @@ func normalizeIdentity(color, icon, emoji string) (string, string, string, error
 			ErrInvalidInput,
 		)
 	}
+	if icon != "" && !isCatalogIcon(icon) {
+		return "", "", "", domainError(
+			"profile_identity_invalid",
+			fmt.Sprintf("profile icon %q is not in the Lucide icon catalog", icon),
+			"use a Lucide icon name such as rocket or user-round",
+			ErrInvalidInput,
+		)
+	}
+	if emoji != "" && !isRenderableEmoji(emoji) {
+		return "", "", "", domainError(
+			"profile_identity_invalid",
+			"profile emoji must be a single emoji grapheme of 64 bytes or fewer",
+			"pick one emoji",
+			ErrInvalidInput,
+		)
+	}
 	return color, icon, emoji, nil
+}
+
+// maxEmojiBytes bounds one emoji grapheme; the longest RGI ZWJ sequences stay far under it.
+const maxEmojiBytes = 64
+
+func isRenderableEmoji(emoji string) bool {
+	if len(emoji) > maxEmojiBytes || !utf8.ValidString(emoji) {
+		return false
+	}
+	if strings.ContainsFunc(emoji, unicode.IsControl) {
+		return false
+	}
+	return uniseg.GraphemeClusterCount(emoji) == 1
 }
 
 func (l Lens) Validate() error {

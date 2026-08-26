@@ -27,4 +27,5 @@ export const profileKeys = {
   archivePlan: (name: string) => [...profileKeys.plans(), "archive", name] as const,
   deletePlan: (name: string) => [...profileKeys.plans(), "delete", name] as const,
   operations: () => [...profileKeys.all, "operations"] as const,
+  iconCatalog: () => [...profileKeys.all, "icon-catalog"] as const,
 };

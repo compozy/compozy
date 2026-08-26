@@ -27,9 +27,7 @@ async function restoreRejectedPromptDraft(
   if (aui.composer.getState().text.length === 0) {
     aui.composer.setText(draft.text);
   }
-  for (const file of draft.files) {
-    await aui.composer.addAttachment(file);
-  }
+  await Promise.all(draft.files.map(file => aui.composer.addAttachment(file)));
 }
 
 function SessionPromptRecoveryBridge({ recovery }: { recovery: SessionPromptRecovery }) {

@@ -28,7 +28,8 @@ import type {
 import type { LoopInspectLane } from "./inspect/loop-run-inspect-register";
 import type { LoopFanoutRollup, LoopRosterNode } from "../../types";
 import { LoopRunAboutRail } from "./loop-run-about-rail";
-import { LOOP_NEEDS_YOU_ANCHOR_ID, LoopRunBriefing } from "./loop-run-briefing";
+import { LoopRunBriefing } from "./loop-run-briefing";
+import { LOOP_NEEDS_YOU_ANCHOR_ID } from "./loop-run-briefing-constants";
 import { LoopRunRegisters } from "./loop-run-registers";
 import type { LoopRunEventsRead } from "./inspect/loop-run-events-lane";
 import { LoopRunStepsProgress } from "./loop-run-steps-progress";

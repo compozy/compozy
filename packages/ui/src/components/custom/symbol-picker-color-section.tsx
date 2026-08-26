@@ -4,19 +4,29 @@ import { normalizeHexColor, type SymbolSwatch } from "../../lib/symbol-palette";
 import { cn } from "../../lib/utils";
 import { FieldError } from "../field";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../input-group";
+import { Popover, PopoverContent, PopoverTrigger } from "../popover";
+import { ColorPicker } from "./color-picker";
 import { useSwatchPalette } from "./hooks/use-swatch-palette";
 
-export interface SymbolPickerColorRowProps extends Omit<React.ComponentProps<"div">, "onChange"> {
+export interface SymbolPickerColorSectionProps extends Omit<
+  React.ComponentProps<"div">,
+  "onChange"
+> {
   color: string;
   onChange: (next: string) => void;
   onValidityChange?: (valid: boolean) => void;
   swatches: readonly SymbolSwatch[];
   swatchesLabel: string;
   customLabel: string;
+  customToggleLabel: string;
   invalidMessage: string;
 }
 
-export function SymbolPickerColorRow({
+/** Conic spectrum on the toggle is data — it names the full color range behind it. */
+const SPECTRUM_BACKGROUND =
+  "conic-gradient(from 180deg, #e0635a, #d6a647, #5fbf85, #4ea7fc, #8e8eb5, #c26ad6, #e0635a)";
+
+export function SymbolPickerColorSection({
   className,
   color,
   onChange,
@@ -24,13 +34,15 @@ export function SymbolPickerColorRow({
   swatches,
   swatchesLabel,
   customLabel,
+  customToggleLabel,
   invalidMessage,
   ...props
-}: SymbolPickerColorRowProps) {
+}: SymbolPickerColorSectionProps) {
   const [draft, setDraft] = React.useState<string | null>(null);
   const errorId = React.useId();
   const value = draft ?? color.replace(/^#/, "");
   const invalid = draft !== null && normalizeHexColor(draft) === null;
+  const customColor = !swatches.some(swatch => swatch.value === color);
   const palette = useSwatchPalette(swatches, color, swatchValue => {
     setDraft(null);
     onValidityChange?.(true);
@@ -43,6 +55,12 @@ export function SymbolPickerColorRow({
     const normalized = normalizeHexColor(next);
     onValidityChange?.(normalized !== null);
     if (normalized !== null) onChange(normalized);
+  };
+
+  const handlePicked = (next: string) => {
+    setDraft(null);
+    onValidityChange?.(true);
+    onChange(next);
   };
 
   return (
@@ -95,6 +113,32 @@ export function SymbolPickerColorRow({
             className="font-mono text-badge"
           />
         </InputGroup>
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                aria-label={customToggleLabel}
+                data-slot="symbol-picker-custom-toggle"
+                data-custom-color={customColor ? "true" : undefined}
+                className={cn(
+                  "grid size-5 shrink-0 cursor-pointer place-items-center rounded-full outline-none",
+                  "transition-transform hover:scale-110 motion-reduce:hover:scale-100 focus-visible:shadow-focus-ring",
+                  customColor && "ring-2 ring-fg-strong ring-offset-2 ring-offset-canvas-soft"
+                )}
+                style={{ background: SPECTRUM_BACKGROUND }}
+              />
+            }
+          />
+          <PopoverContent
+            align="end"
+            className="w-64 p-2.5"
+            data-slot="symbol-picker-custom-popover"
+            aria-label={customToggleLabel}
+          >
+            <ColorPicker value={color} onChange={handlePicked} />
+          </PopoverContent>
+        </Popover>
       </div>
       {invalid ? <FieldError id={errorId}>{invalidMessage}</FieldError> : null}
     </div>

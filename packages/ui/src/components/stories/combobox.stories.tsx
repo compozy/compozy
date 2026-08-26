@@ -12,8 +12,8 @@ import {
   ComboboxInput,
   ComboboxItem,
   ComboboxList,
-  useComboboxAnchor,
 } from "../combobox";
+import { useComboboxAnchor } from "../hooks/use-combobox-anchor";
 
 const meta: Meta<typeof Combobox> = {
   title: "components/ui/Combobox",

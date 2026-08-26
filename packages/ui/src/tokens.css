@@ -374,6 +374,8 @@
      control scale while retaining their own named dimensions. */
   --width-symbol-picker-color-input: 7.5rem;
   --size-symbol-picker-cell: 1.75rem;
+  --height-color-picker-area: 9rem;
+  --height-symbol-picker-grid: 14rem;
   --height-textarea-min: 84px;
 
   /* Switch geometry — default vs sm. */

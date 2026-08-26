@@ -2,13 +2,14 @@ import { Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { extensionSourceKindLabel } from "../lib/extension-source-kind";
 import type { ExtensionTrustFacts } from "../lib/extension-trust-facts";
-
-export const EXTENSION_DEV_LABEL = "dev";
-export const EXTENSION_OVERRIDES_PUBLISHED_LABEL = "overrides published";
-export const EXTENSION_DIGEST_MATCHED_LABEL = "Digest matched";
-export const EXTENSION_CHECKSUM_VERIFIED_LABEL = "Checksum verified";
-export const EXTENSION_AGENT_PLUGIN_FORMAT = "agent-plugin";
-export const EXTENSION_AGENT_PLUGIN_LABEL = "agent plugin";
+import {
+  EXTENSION_AGENT_PLUGIN_FORMAT,
+  EXTENSION_AGENT_PLUGIN_LABEL,
+  EXTENSION_CHECKSUM_VERIFIED_LABEL,
+  EXTENSION_DEV_LABEL,
+  EXTENSION_DIGEST_MATCHED_LABEL,
+  EXTENSION_OVERRIDES_PUBLISHED_LABEL,
+} from "./extension-trust-badge-constants";
 
 const DIGEST_MATCHED_HINT =
   "Integrity only: the downloaded archive matches its published digest. It does not verify the publisher.";

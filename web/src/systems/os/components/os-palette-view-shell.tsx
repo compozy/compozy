@@ -20,7 +20,8 @@ import type { PaletteViewContent, PaletteViewDefinition } from "../lib/palette-v
 import type { PaletteBreadcrumb } from "../lib/palette-view-stack";
 import { OsPaletteBreadcrumb } from "./os-palette-breadcrumb";
 import { OsPaletteFooter } from "./os-palette-footer";
-import { OsPaletteVirtualRows, PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows";
+import { OsPaletteVirtualRows } from "./os-palette-virtual-rows";
+import { PALETTE_VIEW_VIRTUAL_THRESHOLD } from "./os-palette-virtual-rows-constants";
 
 export interface OsPaletteViewShellProps {
   definition: PaletteViewDefinition;

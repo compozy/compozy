@@ -11,6 +11,7 @@ import {
   fetchRenamePlan,
 } from "../adapters/profiles-api";
 import type { ProfileLens } from "../types";
+import { loadProfileIconCatalog } from "./profile-identity";
 import { profileKeys } from "./query-keys";
 
 export function profilesListOptions(enabled = true) {
@@ -101,5 +102,15 @@ export function profileOperationsOptions(enabled = true) {
     queryFn: ({ signal }) => fetchProfileOperations(signal),
     enabled,
     staleTime: 10_000,
+  });
+}
+
+// The catalog ships with the build, so it can never go stale within a session.
+export function profileIconCatalogOptions() {
+  return queryOptions({
+    queryKey: profileKeys.iconCatalog(),
+    queryFn: loadProfileIconCatalog,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 }

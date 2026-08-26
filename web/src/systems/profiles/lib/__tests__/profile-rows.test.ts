@@ -47,6 +47,16 @@ describe("toProfileRow", () => {
     expect(toProfileRow(defaultProfileFixture, "marketing").disabledReason).toBe("");
   });
 
+  it("Should carry the persisted identity symbol so every surface renders the chosen glyph", () => {
+    expect(toProfileRow(marketingProfileFixture, "marketing")).toMatchObject({
+      icon: "megaphone",
+      emoji: null,
+    });
+    expect(
+      toProfileRow({ ...defaultProfileFixture, icon: null, emoji: "🦊" }, "default")
+    ).toMatchObject({ icon: null, emoji: "🦊" });
+  });
+
   it("Should flag the permanent profile", () => {
     expect(toProfileRow(defaultProfileFixture, "default").permanent).toBe(true);
     expect(toProfileRow(marketingProfileFixture, "default").permanent).toBe(false);

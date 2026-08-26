@@ -16,10 +16,6 @@ const ORIGIN_LABELS: Record<LoopRunGeneration["origin"], string> = {
   fork_seed: "Fork seed",
 };
 
-export function isLoopGenerationOrigin(value: string): value is LoopRunGeneration["origin"] {
-  return Object.hasOwn(ORIGIN_LABELS, value);
-}
-
 /** Formats persisted metric values consistently across run summaries and detail. */
 export function formatLoopScore(score: number | null | undefined): string | null {
   return typeof score === "number" && Number.isFinite(score) ? score.toFixed(2) : null;
