@@ -15,7 +15,7 @@ const (
 	loopLoopKey       = "loop"
 	loopWorkspaceKey  = "workspace"
 	loopNameKey       = "name"
-	loopFileKey       = "file"
+	loopFileKey       = cliFileKey
 	loopRunIDKey      = "run-id"
 	loopDecisionKey   = "decision"
 	loopDryRunKey     = "dry-run"

@@ -187,8 +187,7 @@ func (d *Daemon) newBootWorkspaceResolver(state *bootState, registry Registry) (
 	if err != nil {
 		return nil, fmt.Errorf("daemon: resolve operator home: %w", err)
 	}
-	resolver, err := workspacepkg.NewResolver(
-		registry,
+	resolverOptions := []workspacepkg.Option{
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithOperatorHomeDir(operatorHome),
 		workspacepkg.WithLogger(state.logger),
@@ -200,11 +199,14 @@ func (d *Daemon) newBootWorkspaceResolver(state *bootState, registry Registry) (
 				d.homePaths, compozyconfig.WithWorkspaceRoot(rootDir), compozyconfig.WithProfile(profileName),
 			)
 		}),
-		workspacepkg.WithProfileAvailabilityChecker(state.profiles),
 		workspacepkg.WithChangeHook(func(changeCtx context.Context) error {
 			return syncWorkspaceDerivedResources(changeCtx, state)
 		}),
-	)
+	}
+	if state.profiles != nil {
+		resolverOptions = append(resolverOptions, workspacepkg.WithProfileAvailabilityChecker(state.profiles))
+	}
+	resolver, err := workspacepkg.NewResolver(registry, resolverOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create workspace resolver: %w", err)
 	}

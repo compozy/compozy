@@ -117,6 +117,7 @@ type SkillSummary struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description,omitempty"`
 	Source      string                 `json:"source"`
+	Origin      string                 `json:"origin"`
 	Enabled     bool                   `json:"enabled"`
 	Activation  SkillActivationPayload `json:"activation"`
 }

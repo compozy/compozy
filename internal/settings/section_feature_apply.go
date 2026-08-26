@@ -18,6 +18,11 @@ func applySkillsSettings(editor *compozyconfig.OverlayEditor, settings compozyco
 		value any
 	}{
 		{path: []string{string(SectionSkills), sectionsEnabledKey}, value: settings.Enabled},
+		{path: []string{string(SectionSkills), "sources"}, value: append([]string(nil), settings.Sources...)},
+		{
+			path:  []string{string(SectionSkills), "custom_sources"},
+			value: append([]string(nil), settings.CustomSources...),
+		},
 		{
 			path:  []string{string(SectionSkills), "disabled_skills"},
 			value: append([]string(nil), settings.DisabledSkills...),

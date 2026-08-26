@@ -22,15 +22,22 @@ func RemoveSkill(skillsDir string, name string) (RemoveResult, error) {
 	if err != nil {
 		return RemoveResult{}, err
 	}
+	return removeInstalledSkill(skillsDir, installed)
+}
 
-	if err := os.RemoveAll(installed.Dir); err != nil {
-		return RemoveResult{}, fmt.Errorf("remove marketplace skill %q: %w", normalizedName, err)
+func removeInstalledSkill(skillsDir string, installed InstalledSkill) (RemoveResult, error) {
+	canonicalDir, err := PathInsideRoot(skillsDir, installed.Dir)
+	if err != nil {
+		return RemoveResult{}, fmt.Errorf("resolve installed skill %q for removal: %w", installed.Name, err)
+	}
+	if err := os.RemoveAll(canonicalDir); err != nil {
+		return RemoveResult{}, fmt.Errorf("remove marketplace skill %q: %w", installed.Name, err)
 	}
 
 	return RemoveResult{
 		Name:   installed.Name,
 		Slug:   installed.Provenance.Slug,
-		Path:   installed.Dir,
+		Path:   canonicalDir,
 		Status: "removed",
 	}, nil
 }

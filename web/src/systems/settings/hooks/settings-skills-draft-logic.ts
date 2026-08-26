@@ -3,7 +3,7 @@ import { createStoreLogic } from "@xstate/store";
 import type { SettingsSkillsSection } from "@/systems/settings";
 
 type SkillsConfig = SettingsSkillsSection["config"];
-type SaveKind = "disabled" | "policy";
+type SaveKind = "disabled" | "policy" | "sources";
 
 export type SkillsDraftUpdate =
   | SkillsConfig
@@ -29,6 +29,10 @@ function sameConfig(left: SkillsConfig | null, right: SkillsConfig | null): bool
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/**
+ * A save only advances the baseline for the fields it wrote. Folding the whole
+ * response in would silently accept another section's unsaved draft as saved.
+ */
 function mergeSavedSkillsBaseline(
   current: SkillsConfig | null,
   saved: SkillsConfig,
@@ -38,7 +42,17 @@ function mergeSavedSkillsBaseline(
   if (kind === "disabled") {
     return { ...current, disabled_skills: saved.disabled_skills };
   }
-  return { ...saved, disabled_skills: current.disabled_skills };
+  if (kind === "sources") {
+    return { ...current, sources: saved.sources, custom_sources: saved.custom_sources };
+  }
+  return {
+    ...current,
+    enabled: saved.enabled,
+    poll_interval: saved.poll_interval,
+    marketplace: saved.marketplace,
+    allowed_marketplace_mcp: saved.allowed_marketplace_mcp,
+    allowed_marketplace_hooks: saved.allowed_marketplace_hooks,
+  };
 }
 
 function createSkillsDraftFlow(input: SkillsDraftInput): SkillsDraftFlow {
@@ -48,9 +62,9 @@ function createSkillsDraftFlow(input: SkillsDraftInput): SkillsDraftFlow {
       baseline: input.baseline,
       draft: input.baseline,
       key: input.key,
-      labels: { disabled: null, policy: null },
+      labels: { disabled: null, policy: null, sources: null },
       nextAttempt: previous?.nextAttempt ?? 0,
-      pending: { disabled: null, policy: null },
+      pending: { disabled: null, policy: null, sources: null },
     };
   }
   const preserveDraft = !sameConfig(previous.draft, previous.baseline);
@@ -67,7 +81,7 @@ export function shouldRebindSkillsDraft(
   key: string
 ): boolean {
   if (context.key !== key) return true;
-  if (context.pending.disabled !== null || context.pending.policy !== null) return false;
+  if (Object.values(context.pending).some(attempt => attempt !== null)) return false;
   return !sameConfig(context.baseline, baseline);
 }
 

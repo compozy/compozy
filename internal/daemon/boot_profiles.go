@@ -21,6 +21,7 @@ type daemonProfileEventRecorder struct {
 	writer store.EventSummaryStore
 	logger *slog.Logger
 	now    func() time.Time
+	state  *bootState
 }
 
 var _ profile.EventRecorder = (*daemonProfileEventRecorder)(nil)
@@ -29,7 +30,7 @@ func (d *Daemon) bootProfiles(
 	state *bootState,
 	database *globaldb.GlobalDB,
 ) (*profile.Manager, error) {
-	recorder := &daemonProfileEventRecorder{writer: database, logger: state.logger, now: d.now}
+	recorder := &daemonProfileEventRecorder{writer: database, logger: state.logger, now: d.now, state: state}
 	manager, err := profile.NewManager(
 		profile.WithStore(database),
 		profile.WithHomePaths(d.homePaths),
@@ -108,6 +109,22 @@ func (r *daemonProfileEventRecorder) RecordProfileEvent(event profile.Event) {
 		Timestamp: r.timestamp(),
 	}, payload)); err != nil {
 		r.warn(event, "write", err)
+		return
+	}
+	r.republishProfileSkills(event)
+}
+
+func (r *daemonProfileEventRecorder) republishProfileSkills(event profile.Event) {
+	if r == nil || r.state == nil || r.state.agentSkillResources == nil {
+		return
+	}
+	if r.state.workspaceResolver != nil {
+		r.state.workspaceResolver.InvalidateAll()
+	}
+	syncCtx, cancel := context.WithTimeout(context.Background(), profileLifecycleEventWriteTimeout)
+	defer cancel()
+	if err := syncSkillResources(syncCtx, r.state.agentSkillResources); err != nil {
+		r.warn(event, "skill_resources", err)
 	}
 }
 

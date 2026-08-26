@@ -97,6 +97,7 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 	if strings.TrimSpace(startupCtx.Provider) == "" {
 		startupCtx.Provider = strings.TrimSpace(runtime.agent.Provider)
 	}
+	startupCtx.ProviderHomePolicy = runtime.agent.HomePolicy
 	startupPrompt, err := m.startupPrompt(
 		ctx,
 		spec.startupSessionContext(updatedAt),

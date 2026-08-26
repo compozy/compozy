@@ -12,6 +12,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
+	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -37,10 +38,19 @@ type promptSkillsWorkspaceResolver interface {
 	Resolve(ctx context.Context, target string) (workspacepkg.ResolvedWorkspace, error)
 }
 
+type promptSkillsProfileWorkspaceResolver interface {
+	ResolveForProfile(
+		ctx context.Context,
+		target string,
+		profileName string,
+	) (workspacepkg.ResolvedWorkspace, error)
+}
+
 type skillsCatalogAugmenter struct {
 	registry          promptSkillsRegistry
 	agentResolver     func() session.AgentResolver
 	workspaceResolver func() promptSkillsWorkspaceResolver
+	profileNames      session.ProfileNameResolver
 	sequence          atomic.Uint64
 
 	mu     sync.Mutex
@@ -57,7 +67,21 @@ func newSkillsCatalogAugmenter(
 	registry promptSkillsRegistry,
 	agentResolver func() session.AgentResolver,
 	workspaceResolver func() promptSkillsWorkspaceResolver,
+	profileNames session.ProfileNameResolver,
 ) session.PromptInputAugmenter {
+	augmenter := newSkillsCatalogAugmenterState(registry, agentResolver, workspaceResolver, profileNames)
+	if augmenter == nil {
+		return nil
+	}
+	return augmenter.Augment
+}
+
+func newSkillsCatalogAugmenterState(
+	registry promptSkillsRegistry,
+	agentResolver func() session.AgentResolver,
+	workspaceResolver func() promptSkillsWorkspaceResolver,
+	profileNames session.ProfileNameResolver,
+) *skillsCatalogAugmenter {
 	if registry == nil {
 		return nil
 	}
@@ -66,12 +90,34 @@ func newSkillsCatalogAugmenter(
 		registry:          registry,
 		agentResolver:     agentResolver,
 		workspaceResolver: workspaceResolver,
+		profileNames:      profileNames,
 		states:            make(map[string]skillsCatalogSessionState),
 	}
-	return augmenter.Augment
+	return augmenter
 }
 
 func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Session, message string) (string, error) {
+	return a.augment(ctx, sess, message, nil)
+}
+
+func (a *skillsCatalogAugmenter) AugmentWithPolicy(
+	ctx context.Context,
+	sess *session.Session,
+	message string,
+	resolved *ResolvedHarnessContext,
+) (string, error) {
+	if resolved == nil {
+		return a.augment(ctx, sess, message, nil)
+	}
+	return a.augment(ctx, sess, message, resolved.Policy.SkillInjectionFilter)
+}
+
+func (a *skillsCatalogAugmenter) augment(
+	ctx context.Context,
+	sess *session.Session,
+	message string,
+	filter SkillInjectionFilter,
+) (string, error) {
 	if a == nil || a.registry == nil || sess == nil {
 		return message, nil
 	}
@@ -81,7 +127,9 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 		return message, nil
 	}
 
-	workspace, err := resolvePromptSkillsWorkspace(ctx, a.workspaceResolver, info.WorkspaceID, info.Workspace)
+	workspace, err := resolvePromptSkillsWorkspace(
+		ctx, a.workspaceResolver, a.profileNames, info.ProfileID, info.WorkspaceID, info.Workspace,
+	)
 	if err != nil {
 		return "", fmt.Errorf("daemon: resolve prompt skills workspace: %w", err)
 	}
@@ -97,7 +145,13 @@ func (a *skillsCatalogAugmenter) Augment(ctx context.Context, sess *session.Sess
 		return "", fmt.Errorf("daemon: load current skills catalog for session %q: %w", info.ID, err)
 	}
 
-	catalog := skillspkg.BuildCurrentCatalog(skills)
+	filtered := make([]*skillspkg.Skill, 0, len(skills))
+	for _, skill := range skills {
+		if skill != nil && (filter == nil || filter(skill)) {
+			filtered = append(filtered, skill)
+		}
+	}
+	catalog := skillspkg.BuildCurrentCatalogWithinBudget(filtered, startupSkillsSectionBudget)
 	if strings.TrimSpace(catalog) == "" {
 		a.forgetSession(info.ID)
 		return message, nil
@@ -191,6 +245,8 @@ func (a *skillsCatalogAugmenter) evictOldestLocked() {
 func resolvePromptSkillsWorkspace(
 	ctx context.Context,
 	resolverGetter func() promptSkillsWorkspaceResolver,
+	profileNames session.ProfileNameResolver,
+	profileID string,
 	workspaceID string,
 	workspaceRoot string,
 ) (*workspacepkg.ResolvedWorkspace, error) {
@@ -200,12 +256,36 @@ func resolvePromptSkillsWorkspace(
 		resolver = resolverGetter()
 	}
 	if resolver != nil && target != "" {
-		resolved, err := resolver.Resolve(ctx, target)
+		trimmedProfileID := strings.TrimSpace(profileID)
+		var resolved workspacepkg.ResolvedWorkspace
+		var err error
+		if trimmedProfileID == "" || trimmedProfileID == store.DefaultProfileID {
+			resolved, err = resolver.Resolve(ctx, target)
+		} else {
+			if profileNames == nil {
+				return nil, errors.New("daemon: profile name resolver is required for session skill resolution")
+			}
+			profileName, profileErr := profileNames.ProfileName(ctx, trimmedProfileID)
+			if profileErr != nil {
+				return nil, fmt.Errorf("daemon: resolve session profile %q: %w", trimmedProfileID, profileErr)
+			}
+			profileResolver, ok := resolver.(promptSkillsProfileWorkspaceResolver)
+			if !ok {
+				return nil, errors.New("daemon: workspace resolver does not support profile layers")
+			}
+			resolved, err = profileResolver.ResolveForProfile(ctx, target, profileName)
+		}
 		if err == nil {
+			if trimmedProfileID != "" {
+				resolved.ProfileID = trimmedProfileID
+			}
 			return &resolved, nil
 		}
 		if isContextError(err) {
 			return nil, err
+		}
+		if trimmedProfileID != "" && trimmedProfileID != store.DefaultProfileID {
+			return nil, fmt.Errorf("daemon: resolve session profile workspace: %w", err)
 		}
 	}
 
@@ -217,6 +297,7 @@ func resolvePromptSkillsWorkspace(
 			ID:      strings.TrimSpace(workspaceID),
 			RootDir: strings.TrimSpace(workspaceRoot),
 		},
+		ProfileID: strings.TrimSpace(profileID),
 	}, nil
 }
 

@@ -7,6 +7,7 @@
 - Host update cadence
 - Gateway
 - Marketplace catalog
+- Skill sources
 - Autonomy scheduler
 - Loop defaults and observability
 - Goals
@@ -118,6 +119,28 @@ not replace the independent `skills.marketplace.*` feed settings or the `extensi
 other `extensions.*` path is restart-required.
 
 Marketplace catalog configuration is global-only because its projection and refresh service are global. `compozy__config_set` and `compozy__config_unset` may change `marketplace.catalog.ttl` and `marketplace.catalog.timeout` at global scope. `marketplace.catalog.base_url` is a trust root and remains operator-only through global `compozy config set`. Workspace overlays and workspace-scoped writes are rejected.
+
+## Skill Sources
+
+`skills.sources` selects folder conventions besides CompozyOS's own; the closed preset table is
+`agents` (default on) and `claude` (off). Any other name fails with `unknown_skill_source`, which
+carries `valid` and `suggestion`. `skills.custom_sources` lists extra directories scanned exactly as
+written; absolute and `~/` paths are valid at every scope, workspace-relative paths only at workspace
+scope (`invalid_source_path`), and a path another source already owns fails with
+`duplicate_skill_source`. Both keys are `live` and pass through the four overlays independently: an
+absent key inherits, a list replaces, an empty list disables that key's configured roots. The skills
+settings section at workspace scope writes only these two keys; another field returns
+`workspace_scope_field_forbidden`.
+
+Read effective sources with `compozy skill sources -o json` or `GET /api/settings/skills`.
+`compozy__config_set` and `compozy__config_unset` write both keys at user and workspace scope and
+refuse agent and profile scope with `config_scope_not_allowed`; operators change them with
+`compozy config set|unset skills.sources|skills.custom_sources` at user, exact profile
+(`--profile <name> --scope profile`), or workspace scope. `PATCH /api/settings/skills` uses the same
+profile lens; its workspace body is `{"override": {...}}`, where an absent field is untouched and
+`null` clears the override. Workspace-profile config remains repository-authored and read-only.
+Before acting on what a source change does to the catalog — precedence, origins, suppression,
+exposure — read the Skill sources and exposure section of `references/tools-and-skills.md`.
 
 ## Autonomy Scheduler
 

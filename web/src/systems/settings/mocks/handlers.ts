@@ -177,7 +177,11 @@ export const handlers: HttpHandler[] = [
 
   compozyApiMock.get("/api/settings/skills", () => HttpResponse.json(settingsSkillsSectionFixture)),
   compozyApiMock.patch("/api/settings/skills", () =>
-    HttpResponse.json(mutationResult("skills", true))
+    HttpResponse.json({
+      ...settingsSkillsSectionFixture,
+      ...settingsRestartRequiredMutationFixture,
+      section: "skills",
+    })
   ),
 
   compozyApiMock.get("/api/settings/automation", () =>

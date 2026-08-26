@@ -56,11 +56,14 @@ export const settingsKeys = {
       revision,
       fingerprint,
     ] as const,
+  // Scope AND profile are part of the key: one entry serving every profile would
+  // show another profile's source list after a lens switch.
   skillsSection: (filter: SettingsSkillsFilter = {}) =>
     [
       ...settingsKeys.section("skills"),
       filter.scope ?? "",
       normalizeText(filter.workspace_id),
+      normalizeText(filter.profile),
       normalizeText(filter.agent_name),
     ] as const,
   // Scope is part of the key: user, profile, and workspace answer differently,

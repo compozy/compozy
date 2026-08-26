@@ -6,6 +6,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 
 	"github.com/compozy/compozy/internal/skills"
@@ -18,11 +19,18 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 		return contract.SkillPayload{}
 	}
 
+	owner := skill.ResourceScope.Normalize()
+	if owner.Kind == "" {
+		owner.Kind = resources.ResourceScopeKindUser
+	}
 	payload := contract.SkillPayload{
 		Name:        skill.Meta.Name,
 		Description: skill.Meta.Description,
 		Version:     skill.Meta.Version,
 		Source:      skills.SkillSourceName(skill.Source),
+		Origin:      strings.TrimSpace(skill.Origin),
+		OwnerScope:  string(owner.Kind),
+		OwnerID:     owner.ID,
 		Enabled:     skill.Enabled,
 		Activation:  skillActivationPayload(skill),
 		Dir:         skill.Dir,
@@ -45,6 +53,22 @@ func SkillPayloadFromSkill(skill *skills.Skill) contract.SkillPayload {
 	}
 
 	return payload
+}
+
+// SkillExposurePayloadsFromDomain converts reconciled exposure state into the public vocabulary.
+func SkillExposurePayloadsFromDomain(states []skills.ExposureState) []contract.SkillExposurePayload {
+	if len(states) == 0 {
+		return []contract.SkillExposurePayload{}
+	}
+	payloads := make([]contract.SkillExposurePayload, 0, len(states))
+	for _, state := range states {
+		payloads = append(payloads, contract.SkillExposurePayload{
+			Target: strings.TrimSpace(state.Record.TargetSlug),
+			Path:   strings.TrimSpace(state.Record.LinkPath),
+			Status: contract.SkillExposureStatus(state.Status),
+		})
+	}
+	return payloads
 }
 
 // SkillShadowsResponseFromDomain converts one resolver shadow snapshot into the shared API payload.
@@ -71,6 +95,7 @@ func SkillShadowEntryPayloadFromDomain(entry skills.ShadowEntry) contract.SkillS
 	return contract.SkillShadowEntryPayload{
 		Path:             strings.TrimSpace(entry.Path),
 		Tier:             skillPrecedenceTierFromSourceLabel(entry.Tier),
+		Origin:           strings.TrimSpace(entry.Origin),
 		ResolvedToWinner: entry.ResolvedToWinner,
 		DetectedAt:       skillShadowDetectedAt(entry.DetectedAt),
 	}
@@ -85,6 +110,7 @@ func SkillShadowEntryPayloadsFromRefs(refs []skills.SkillDefinitionRef) []contra
 		payloads = append(payloads, contract.SkillShadowEntryPayload{
 			Path:             strings.TrimSpace(ref.Path),
 			Tier:             skillPrecedenceTierFromSourceLabel(ref.Source),
+			Origin:           strings.TrimSpace(ref.Origin),
 			ResolvedToWinner: false,
 			DetectedAt:       skillShadowDetectedAt(ref.DetectedAt),
 		})

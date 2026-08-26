@@ -235,6 +235,7 @@ class PublicRuntimeReader:
     def _run_cli(self, arguments: list[str], source: str) -> dict[str, Any]:
         env = os.environ.copy()
         env["COMPOZY_HOME"] = str(self.compozy_home)
+        env["COMPOZY_WORKSPACE"] = self.workspace_id
         try:
             completed = subprocess.run(
                 [self.compozy_bin, *arguments, "-o", "json"],

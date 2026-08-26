@@ -60,6 +60,7 @@ type Info struct {
 	Name                     string
 	AgentName                string
 	Provider                 string
+	ProviderHomePolicy       compozyconfig.ProviderHomePolicy
 	Model                    string
 	ReasoningEffort          string
 	Speed                    speedpkg.Speed
@@ -134,6 +135,7 @@ type Session struct {
 	RuntimeSelectionRevision  int64
 	EffectivePermissions      string
 	effectiveProviderAuthMode compozyconfig.ProviderAuthMode
+	providerHomePolicy        compozyconfig.ProviderHomePolicy
 	WorkspaceID               string
 	Workspace                 string
 	WorktreeID                string

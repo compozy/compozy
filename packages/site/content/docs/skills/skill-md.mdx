@@ -32,14 +32,16 @@ CompozyOS currently maps these top-level fields into the runtime skill model.
 | `version`     | string | no                              | Stored as metadata and used for marketplace provenance/update comparisons when available.                                               |
 | `metadata`    | object | no                              | Free-form metadata. CompozyOS currently acts on `metadata.compozy.when`, `metadata.compozy.mcp_servers`, and `metadata.compozy.hooks`.  |
 
-Unknown top-level fields are logged as warnings but do not fail parsing. Avoid relying on that
-leniency for portable skills.
+Fields from the AgentSkills spec and the Claude Code superset — `license`, `compatibility`,
+`allowed-tools`, `disallowed-tools`, `argument-hint`, `arguments`, `when_to_use`, `user-invocable`,
+`disable-model-invocation`, `model`, `effort`, `context`, `agent`, `background`, `hooks`, `paths`,
+`shell`, and `aliases` — are recognized without a warning, so a skill written for another tool loads
+cleanly here. CompozyOS reads none of them: they do not control tool permissions, invocation, or
+catalog behavior. Use `metadata.compozy.mcp_servers`, `metadata.compozy.hooks`, and normal CompozyOS
+configuration for behavior CompozyOS must enforce.
 
-Common AgentSkills or Claude-style fields such as `allowed-tools`, `user-invocable`, and
-`argument-hint` are examples of that leniency today. CompozyOS may load a file that contains them, but the
-current runtime does not use those fields for tool permissions, invocation, or catalog behavior.
-Use `metadata.compozy.mcp_servers`, `metadata.compozy.hooks`, and normal CompozyOS configuration for behavior CompozyOS
-must enforce.
+A top-level field outside both lists is logged as a warning and does not fail parsing. Avoid relying
+on that leniency for portable skills.
 
 ## CompozyOS Metadata
 

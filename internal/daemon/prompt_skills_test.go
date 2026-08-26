@@ -206,7 +206,10 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 
 		var toolAvailable atomic.Bool
 		registry := skillspkg.NewRegistry(
-			skillspkg.RegistryConfig{UserSkillsDir: userDir},
+			skillspkg.RegistryConfig{GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(
+				&compozyconfig.SkillsConfig{},
+				compozyconfig.HomePaths{SkillsDir: userDir},
+			)},
 			skillspkg.WithActivationContextProvider(func(
 				_ context.Context,
 				target skillspkg.ActivationTarget,
@@ -227,7 +230,9 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-1", RootDir: "/tmp/ws-1"},
 		}}
-		augmenter := newSkillsCatalogAugmenter(registry, nil, func() promptSkillsWorkspaceResolver { return resolver })
+		augmenter := newSkillsCatalogAugmenter(
+			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
+		)
 		sess := newPromptSkillsSession("sess-tool-gate")
 		sess.AgentName = "coordinator"
 
@@ -371,6 +376,55 @@ func TestNewSkillsCatalogAugmenterUsesCurrentRegistryStatePerPrompt(t *testing.T
 	})
 }
 
+func TestSkillsCatalogAugmenterFiltersBeforeCatalogSignature(t *testing.T) {
+	t.Parallel()
+	t.Run("Should compute the signature after provider-native filtering", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubPromptSkillsRegistry{skillsByAgent: map[string][]*skillspkg.Skill{
+			"general": {
+				{Meta: skillspkg.SkillMeta{Name: "native", Description: "Native"}, Enabled: true},
+				{Meta: skillspkg.SkillMeta{Name: "managed", Description: "Managed"}, Enabled: true},
+			},
+		}}
+		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-filter", RootDir: t.TempDir()},
+		}}
+		augmenter := newSkillsCatalogAugmenterState(
+			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
+		)
+		sess := newPromptSkillsSession("sess-filter-signature")
+
+		full, err := augmenter.Augment(t.Context(), sess, "first")
+		if err != nil {
+			t.Fatalf("Augment(full) error = %v", err)
+		}
+		if !strings.Contains(full, `name="native"`) {
+			t.Fatalf("full catalog = %q, want native skill", full)
+		}
+		policy := ResolvedHarnessContext{Policy: ResolvedHarnessPolicy{
+			SkillInjectionFilter: func(skill *skillspkg.Skill) bool { return skill.Meta.Name != "native" },
+		}}
+		filtered, err := augmenter.AugmentWithPolicy(t.Context(), sess, "second", &policy)
+		if err != nil {
+			t.Fatalf("AugmentWithPolicy(filtered) error = %v", err)
+		}
+		if strings.Contains(filtered, `name="native"`) || !strings.Contains(filtered, `name="managed"`) {
+			t.Fatalf("filtered catalog = %q, want only managed skill", filtered)
+		}
+		if strings.Contains(filtered, `unchanged="true"`) {
+			t.Fatalf("filtered catalog = %q, signature was computed before filtering", filtered)
+		}
+		repeat, err := augmenter.AugmentWithPolicy(t.Context(), sess, "third", &policy)
+		if err != nil {
+			t.Fatalf("AugmentWithPolicy(repeat) error = %v", err)
+		}
+		if !strings.Contains(repeat, `unchanged="true"`) {
+			t.Fatalf("repeat catalog = %q, want unchanged marker", repeat)
+		}
+	})
+}
+
 func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing.T) {
 	t.Parallel()
 
@@ -405,7 +459,9 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		resolver := &stubPromptSkillsWorkspaceResolver{resolved: workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-command", RootDir: "/workspace"},
 		}}
-		service := newSessionCommandService(registry, nil, func() promptSkillsWorkspaceResolver { return resolver })
+		service := newSessionCommandService(
+			registry, nil, func() promptSkillsWorkspaceResolver { return resolver }, nil,
+		)
 		info := &session.Info{
 			ID: "sess-command", AgentName: "coder", WorkspaceID: "ws-command", Workspace: "/workspace",
 			AdvertisedCommands: []store.SessionAdvertisedCommand{{Name: "compact", Description: "Compact context"}},
@@ -442,6 +498,117 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 	})
 
+	t.Run("Should keep every physical homonym invocable by its qualified root identity", func(t *testing.T) {
+		t.Parallel()
+
+		agentsSkill := &skillspkg.Skill{
+			Meta:   skillspkg.SkillMeta{Name: "review", Description: "Agents review"},
+			Source: skillspkg.SourceUser, Origin: "agents", RootID: "root_agents",
+			FilePath: "/agents/review/SKILL.md", Enabled: true,
+		}
+		claudeSkill := &skillspkg.Skill{
+			Meta:   skillspkg.SkillMeta{Name: "review", Description: "Claude review"},
+			Source: skillspkg.SourceWorkspace, Origin: "claude", RootID: "root_claude",
+			FilePath: "/claude/review/SKILL.md", Enabled: true,
+		}
+		registry := &stubSessionCommandSkills{
+			candidates: []skillspkg.CommandCandidate{
+				{
+					Skill: claudeSkill, SourceKind: "workspace", SourceID: "claude",
+					SourceKey: "root_claude@generation:9", Scope: "workspace", Origin: "claude", Available: true,
+				},
+				{
+					Skill: agentsSkill, SourceKind: "user", SourceID: "agents",
+					SourceKey: "root_agents@generation:9", Scope: "global", Origin: "agents",
+					Qualified: true, Available: true,
+				},
+				{
+					Skill: claudeSkill, SourceKind: "workspace", SourceID: "claude",
+					SourceKey: "root_claude@generation:9", Scope: "workspace", Origin: "claude",
+					Qualified: true, Available: true,
+				},
+			},
+			content: map[string]string{
+				agentsSkill.FilePath: "Agents body.", claudeSkill.FilePath: "Claude body.",
+			},
+		}
+		service := newSessionCommandService(registry, nil, nil, nil)
+		info := &session.Info{ID: "sess-roots", AgentName: "coder"}
+		agent := compozyconfig.AgentDef{Name: "coder"}
+		catalog, err := service.Catalog(t.Context(), info, agent)
+		if err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		for token, body := range map[string]string{
+			"/review": "Claude body.", "/agents:review": "Agents body.", "/claude:review": "Claude body.",
+		} {
+			invocations, parseErr := commandpkg.ParseSkillInvocations("Use "+token, catalog)
+			if parseErr != nil {
+				t.Fatalf("ParseSkillInvocations(%q) error = %v", token, parseErr)
+			}
+			expanded, expandErr := service.Expand(t.Context(), info, agent, invocations, "Use "+token)
+			if expandErr != nil {
+				t.Fatalf("Expand(%q) error = %v", token, expandErr)
+			}
+			if !strings.Contains(expanded, body) {
+				t.Fatalf("Expand(%q) = %q, want %q", token, expanded, body)
+			}
+		}
+
+		staleCatalog := catalog
+		registry.candidates[0].SourceKey = "root_claude@generation:10"
+		registry.candidates[2].SourceKey = "root_claude@generation:10"
+		stale, err := commandpkg.ParseSkillInvocations("Use /review", staleCatalog)
+		if err != nil {
+			t.Fatalf("ParseSkillInvocations(stale) error = %v", err)
+		}
+		if _, err := service.Expand(
+			t.Context(),
+			info,
+			agent,
+			stale,
+			"Use /review",
+		); !errors.Is(
+			err,
+			commandpkg.ErrUnavailable,
+		) {
+			t.Fatalf("Expand(stale generation) error = %v, want ErrUnavailable", err)
+		}
+	})
+
+	t.Run("Should derive every command projection from the immutable session profile", func(t *testing.T) {
+		t.Parallel()
+
+		const sessionProfileID = "profile-marketing"
+		registry := &stubSessionCommandSkills{}
+		resolver := &stubPromptSkillsWorkspaceResolver{
+			resolved: workspacepkg.ResolvedWorkspace{ProfileID: "profile-sales"},
+			profiles: map[string]workspacepkg.ResolvedWorkspace{
+				"marketing": {ProfileID: sessionProfileID, ProfileName: "marketing"},
+			},
+		}
+		service := newSessionCommandService(
+			registry,
+			nil,
+			func() promptSkillsWorkspaceResolver { return resolver },
+			promptSkillsProfileNameResolver{sessionProfileID: "marketing"},
+		)
+		info := &session.Info{
+			ID: "sess-profile", ProfileID: sessionProfileID, AgentName: "coder",
+			WorkspaceID: "ws-profile", Workspace: "/workspace",
+		}
+
+		if _, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{Name: "coder"}); err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		if got, want := resolver.requestedProfile, "marketing"; got != want {
+			t.Fatalf("ResolveForProfile() profile = %q, want %q", got, want)
+		}
+		if got, want := registry.resolvedProfileID, sessionProfileID; got != want {
+			t.Fatalf("registry resolved profile = %q, want session profile %q", got, want)
+		}
+	})
+
 	t.Run("Should resolve an extension agent only after the authored lookup reports it absent", func(t *testing.T) {
 		t.Parallel()
 
@@ -471,6 +638,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 				})
 			},
 			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+			nil,
 		)
 		info := &session.Info{
 			ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension", Workspace: "/workspace",
@@ -515,6 +683,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 				})
 			},
 			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+			nil,
 		)
 		info := &session.Info{ID: "sess-authored", AgentName: "reviewer", WorkspaceID: "ws-authored"}
 		_, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{
@@ -547,6 +716,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 				})
 			},
 			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+			nil,
 		)
 		info := &session.Info{ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension"}
 		_, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{})
@@ -573,6 +743,7 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 			registry,
 			func() session.AgentResolver { return resolver },
 			func() promptSkillsWorkspaceResolver { return workspaceResolver },
+			nil,
 		)
 		info := &session.Info{ID: "sess-extension", AgentName: "reviewer", WorkspaceID: "ws-extension"}
 		if _, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{}); !errors.Is(
@@ -606,17 +777,21 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 }
 
 type stubSessionCommandSkills struct {
-	candidates []skillspkg.CommandCandidate
-	content    map[string]string
-	nameErr    error
+	candidates        []skillspkg.CommandCandidate
+	content           map[string]string
+	nameErr           error
+	resolvedProfileID string
 }
 
 func (s *stubSessionCommandSkills) CommandCandidatesForAgentSession(
-	context.Context,
-	*workspacepkg.ResolvedWorkspace,
-	string,
-	string,
+	_ context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	_ string,
+	_ string,
 ) ([]skillspkg.CommandCandidate, error) {
+	if resolved != nil {
+		s.resolvedProfileID = resolved.ProfileID
+	}
 	if s.nameErr != nil {
 		return nil, s.nameErr
 	}
@@ -624,11 +799,14 @@ func (s *stubSessionCommandSkills) CommandCandidatesForAgentSession(
 }
 
 func (s *stubSessionCommandSkills) CommandCandidatesForAgentDefSession(
-	context.Context,
-	*workspacepkg.ResolvedWorkspace,
-	compozyconfig.AgentDef,
-	string,
+	_ context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	_ compozyconfig.AgentDef,
+	_ string,
 ) ([]skillspkg.CommandCandidate, error) {
+	if resolved != nil {
+		s.resolvedProfileID = resolved.ProfileID
+	}
 	return append([]skillspkg.CommandCandidate(nil), s.candidates...), nil
 }
 
@@ -712,7 +890,7 @@ func newPromptSkillsAugmenterForTest(
 	}
 	augmenter := newSkillsCatalogAugmenter(registry, nil, func() promptSkillsWorkspaceResolver {
 		return resolver
-	})
+	}, nil)
 	if augmenter == nil {
 		t.Fatal("newSkillsCatalogAugmenter() = nil, want augmenter")
 	}
@@ -772,7 +950,35 @@ func (s *stubPromptSkillsRegistry) ForAgentSession(
 }
 
 type stubPromptSkillsWorkspaceResolver struct {
-	resolved workspacepkg.ResolvedWorkspace
+	resolved         workspacepkg.ResolvedWorkspace
+	profiles         map[string]workspacepkg.ResolvedWorkspace
+	requestedProfile string
+}
+
+func (s *stubPromptSkillsWorkspaceResolver) ResolveForProfile(
+	_ context.Context,
+	_ string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	if s == nil {
+		return workspacepkg.ResolvedWorkspace{}, nil
+	}
+	s.requestedProfile = profileName
+	resolved, ok := s.profiles[profileName]
+	if !ok {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("unknown profile %q", profileName)
+	}
+	return resolved, nil
+}
+
+type promptSkillsProfileNameResolver map[string]string
+
+func (r promptSkillsProfileNameResolver) ProfileName(_ context.Context, profileID string) (string, error) {
+	name, ok := r[profileID]
+	if !ok {
+		return "", fmt.Errorf("unknown profile id %q", profileID)
+	}
+	return name, nil
 }
 
 func (s *stubPromptSkillsWorkspaceResolver) Resolve(

@@ -1,27 +1,29 @@
 ---
 title: "compozy skill info"
-description: "Show one Marketplace skill entry"
+description: "Inspect installed skill metadata and resources"
 ---
 
 ## compozy skill info
 
-Show one Marketplace skill entry
+Inspect installed skill metadata and resources
 
 ```
-compozy skill info <entry_id> [flags]
+compozy skill info <name> [flags]
 ```
 
 ### Examples
 
 ```
-  # Inspect a Marketplace skill before installation
-  compozy skill info skill_code_review
+  # Inspect an installed skill's metadata and resource list
+  compozy skill info code-review
 ```
 
 ### Options
 
 ```
-  -h, --help   help for info
+      --for-agent string   Resolve the effective skill set for one logical agent
+  -h, --help               help for info
+      --workspace string   Override workspace context (ID, name, or path)
 ```
 
 ### Options inherited from parent commands
@@ -46,5 +48,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy skill info <entry_id> -o json
+compozy skill info <name> -o json
 ```

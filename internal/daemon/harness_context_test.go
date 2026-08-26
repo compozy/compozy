@@ -1,16 +1,241 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"maps"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+func TestResolveSessionNativeSkillRoots(t *testing.T) {
+	t.Parallel()
+	t.Run("Should resolve roots from the effective provider home", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		managedHome := t.TempDir()
+		workspace := t.TempDir()
+		homePaths := compozyconfig.HomePaths{HomeDir: managedHome, OperatorHomeDir: operatorHome}
+
+		t.Run("Should resolve canonical providers aliases overrides and isolation", func(t *testing.T) {
+			t.Parallel()
+			env := map[string]string{
+				"CLAUDE_CONFIG_DIR": filepath.Join(operatorHome, "claude-override"),
+				"HERMES_HOME":       filepath.Join(operatorHome, "hermes-override"),
+			}
+			lookup := func(key string) (string, bool) { value, ok := env[key]; return value, ok }
+
+			claude := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
+				Provider: "claude-code", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
+			})
+			assertNativeRootSet(t, claude,
+				filepath.Join(workspace, ".claude", "skills"),
+				filepath.Join(env["CLAUDE_CONFIG_DIR"], "skills"),
+			)
+
+			env["OPENCLAW_STATE_DIR"] = filepath.Join(operatorHome, "openclaw-override")
+			openclaw := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
+				Provider: "openclaw", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
+			})
+			assertNativeRootSet(t, openclaw,
+				filepath.Join(workspace, ".agents", "skills"),
+				filepath.Join(env["OPENCLAW_STATE_DIR"], "skills"),
+			)
+
+			hermes := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
+				Provider: "hermes-agent", Workspace: workspace, HomePaths: homePaths, LookupEnv: lookup,
+			})
+			assertNativeRootSet(t, hermes,
+				filepath.Join(workspace, ".agents", "skills"),
+				filepath.Join(env["HERMES_HOME"], "skills"),
+			)
+
+			isolated := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
+				Provider: "claude", ProviderHomePolicy: compozyconfig.ProviderHomePolicyIsolated,
+				Workspace: workspace, HomePaths: homePaths, LookupEnv: func(string) (string, bool) { return "", false },
+			})
+			assertNativeRootSet(t, isolated,
+				filepath.Join(workspace, ".claude", "skills"),
+				filepath.Join(managedHome, "providers", "claude", "claude", "skills"),
+			)
+			for _, root := range isolated {
+				if strings.HasPrefix(root, canonicalNativeSkillRoot(operatorHome)) {
+					t.Fatalf("isolated native root %q uses operator home %q", root, operatorHome)
+				}
+			}
+		})
+
+		t.Run("Should fail open for unknown provider identities", func(t *testing.T) {
+			t.Parallel()
+			for _, provider := range []string{"", "custom", "claude --dangerously-skip-permissions"} {
+				if roots := resolveSessionNativeSkillRoots(&nativeSkillRootResolution{
+					Provider: provider, Workspace: workspace, HomePaths: homePaths,
+				}); len(roots) != 0 {
+					t.Fatalf("provider %q roots = %#v, want empty", provider, roots)
+				}
+			}
+		})
+	})
+}
+
+func TestHarnessSkillInjectionFilterSuppressesOnlyWinningNativePresetRoots(t *testing.T) {
+	t.Parallel()
+	t.Run("Should suppress only winning native preset roots", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		workspace := t.TempDir()
+		var logs bytes.Buffer
+		resolver := NewHarnessContextResolver(
+			HarnessRuntimeSignals{SkillsPromptSectionEnabled: true, SkillsAugmenter: true},
+			WithHarnessSkillInjectionHome(compozyconfig.HomePaths{OperatorHomeDir: operatorHome}),
+			WithHarnessSkillInjectionLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+			WithHarnessSkillInjectionEnvLookup(func(string) (string, bool) { return "", false }),
+		)
+		resolved, err := resolver.Resolve(HarnessResolutionInput{
+			Surface: ResolutionSurfaceTurn,
+			Session: HarnessSessionInput{
+				SessionID: "sess-native", Type: session.SessionTypeUser, Provider: "hermes",
+				Workspace: workspace,
+			},
+			Turn: HarnessTurnRequest{Source: session.TurnSourceUser},
+		})
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		filter := resolved.Policy.SkillInjectionFilter
+		workspaceAgents := &skillspkg.Skill{
+			Meta: skillspkg.SkillMeta{Name: "workspace-native"}, Origin: compozyconfig.SkillSourceAgents,
+			RootDir: filepath.Join(workspace, ".agents", "skills"), Enabled: true,
+		}
+		globalAgents := &skillspkg.Skill{
+			Meta: skillspkg.SkillMeta{Name: "global-not-native"}, Origin: compozyconfig.SkillSourceAgents,
+			RootDir: filepath.Join(operatorHome, ".agents", "skills"), Enabled: true,
+		}
+		custom := &skillspkg.Skill{
+			Meta: skillspkg.SkillMeta{Name: "custom"}, Origin: "team-skills",
+			RootDir: workspaceAgents.RootDir, Enabled: true,
+		}
+		if filter(workspaceAgents) {
+			t.Fatal("workspace agents winner retained, want suppressed for Hermes")
+		}
+		if !filter(globalAgents) {
+			t.Fatal("global agents winner suppressed, want retained for Hermes")
+		}
+		if !filter(custom) {
+			t.Fatal("custom-origin winner suppressed, want fail-open retention")
+		}
+		for _, fragment := range []string{
+			"skills.injection.suppressed", "session_id=sess-native", "skill=workspace-native",
+			"source=agents", "provider=hermes",
+		} {
+			if !strings.Contains(logs.String(), fragment) {
+				t.Fatalf("suppression log = %q, want %q", logs.String(), fragment)
+			}
+		}
+
+		tests := []struct {
+			name     string
+			provider string
+			origin   string
+			root     string
+			wantKeep bool
+		}{
+			{
+				name: "Should suppress the Claude workspace preset", provider: "claude", origin: "claude",
+				root: filepath.Join(workspace, ".claude", "skills"),
+			},
+			{
+				name: "Should suppress the Claude operator preset", provider: "claude", origin: "claude",
+				root: filepath.Join(operatorHome, ".claude", "skills"),
+			},
+			{
+				name: "Should suppress the OpenClaw workspace preset", provider: "openclaw", origin: "agents",
+				root: filepath.Join(workspace, ".agents", "skills"),
+			},
+			{
+				name: "Should suppress the OpenClaw operator preset", provider: "openclaw", origin: "agents",
+				root: filepath.Join(operatorHome, ".agents", "skills"),
+			},
+			{
+				name: "Should suppress the Hermes workspace preset", provider: "hermes", origin: "agents",
+				root: filepath.Join(workspace, ".agents", "skills"),
+			},
+			{
+				name: "Should retain the Hermes operator agents preset", provider: "hermes", origin: "agents",
+				root: filepath.Join(operatorHome, ".agents", "skills"), wantKeep: true,
+			},
+			{
+				name: "Should retain preset skills for an unknown provider", provider: "custom", origin: "claude",
+				root: filepath.Join(workspace, ".claude", "skills"), wantKeep: true,
+			},
+			{
+				name: "Should retain custom origins even at a native path", provider: "claude", origin: "team-skills",
+				root: filepath.Join(workspace, ".claude", "skills"), wantKeep: true,
+			},
+			{
+				name:     "Should retain a Compozy winner that shadows a native-root homonym",
+				provider: "claude",
+				origin:   "",
+				root:     filepath.Join(workspace, ".compozy", "skills"),
+				wantKeep: true,
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				matrixResolver := NewHarnessContextResolver(
+					HarnessRuntimeSignals{SkillsPromptSectionEnabled: true, SkillsAugmenter: true},
+					WithHarnessSkillInjectionHome(compozyconfig.HomePaths{OperatorHomeDir: operatorHome}),
+					WithHarnessSkillInjectionEnvLookup(func(string) (string, bool) { return "", false }),
+				)
+				matrix, err := matrixResolver.Resolve(HarnessResolutionInput{
+					Surface: ResolutionSurfaceTurn,
+					Session: HarnessSessionInput{
+						SessionID: "sess-matrix", Type: session.SessionTypeUser,
+						Provider: test.provider, Workspace: workspace,
+					},
+					Turn: HarnessTurnRequest{Source: session.TurnSourceUser},
+				})
+				if err != nil {
+					t.Fatalf("Resolve() error = %v", err)
+				}
+				candidate := &skillspkg.Skill{
+					Meta: skillspkg.SkillMeta{Name: "matrix-skill"}, Origin: test.origin,
+					RootDir: test.root, Enabled: true,
+				}
+				got := true
+				if filter := matrix.Policy.SkillInjectionFilter; filter != nil {
+					got = filter(candidate)
+				}
+				if got != test.wantKeep {
+					t.Fatalf("filter(%s, %s) = %t, want keep %t", test.provider, test.root, got, test.wantKeep)
+				}
+			})
+		}
+	})
+}
+
+func assertNativeRootSet(t *testing.T, got []string, want ...string) {
+	t.Helper()
+	canonicalWant := canonicalNativeSkillRoots(want)
+	slices.Sort(got)
+	slices.Sort(canonicalWant)
+	if !slices.Equal(got, canonicalWant) {
+		t.Fatalf("native roots = %#v, want %#v", got, canonicalWant)
+	}
+}
 
 func TestHarnessContextResolverMatrix(t *testing.T) {
 	t.Parallel()
@@ -615,6 +840,8 @@ func testHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 	})
 
 	resolved, err := resolver.ResolvePrompt(&session.Info{
+		ID:                   "sess-provider-plumbing",
+		Provider:             "claude-code",
 		Type:                 session.SessionTypeUser,
 		NetworkParticipation: daemonTestLiveParticipation("ws-1", "builders"),
 	}, session.TurnSourceUser, acp.PromptMeta{})
@@ -624,6 +851,13 @@ func testHarnessContextResolverResolvePromptUsesSessionInfo(t *testing.T) {
 
 	if resolved.Policy.TurnOrigin != TurnOriginUser {
 		t.Fatalf("TurnOrigin = %q, want %q", resolved.Policy.TurnOrigin, TurnOriginUser)
+	}
+	if resolved.Session.Provider != "claude" || resolved.Policy.SkillInjectionFilter == nil {
+		t.Fatalf(
+			"resolved provider/filter = %q/%v, want canonical claude filter",
+			resolved.Session.Provider,
+			resolved.Policy.SkillInjectionFilter,
+		)
 	}
 	if !containsHarnessSection(resolved.Policy.IncludeSections, HarnessPromptSectionNetwork) {
 		t.Fatalf("IncludeSections = %#v, want network section", resolved.Policy.IncludeSections)

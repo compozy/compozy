@@ -54,7 +54,33 @@ func configureProfileMutationCommand(cmd *cobra.Command, deps commandDeps) {
 // configureSingleProfileReadCommand resolves exactly one selected profile for
 // reads that do not define an aggregate form.
 func configureSingleProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
-	configureSingleProfileCommand(cmd, deps)
+	if cmd == nil || cmd.RunE == nil {
+		return
+	}
+	original := cmd.RunE
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		requested, err := commandProfileSelectionRequested(cmd, deps)
+		if err != nil {
+			return err
+		}
+		if !requested {
+			recordProfileResolution(cmd, profileResolution{
+				Profile: contract.Profile{Name: configDefaultKey}, Source: profileResolutionDefault,
+			})
+			recordProfileReadSelection(cmd, profileReadSelection{Profile: configDefaultKey})
+			return original(cmd, args)
+		}
+		client, err := clientFromDeps(deps)
+		if err != nil {
+			return err
+		}
+		if err := prepareProfileReadSelection(
+			cmd, deps, optionalProfileResolutionClient(client), client, false,
+		); err != nil {
+			return err
+		}
+		return original(cmd, args)
+	}
 }
 
 func configureSingleProfileCommand(cmd *cobra.Command, deps commandDeps) {

@@ -266,6 +266,8 @@ type SettingsExtensionDevPayload struct {
 
 type SettingsSkillsConfigPayload struct {
 	Enabled                 bool                       `json:"enabled"`
+	Sources                 []string                   `json:"sources"`
+	CustomSources           []string                   `json:"custom_sources"`
 	DisabledSkills          []string                   `json:"disabled_skills,omitempty"`
 	PollInterval            string                     `json:"poll_interval"`
 	AllowedMarketplaceMCP   []string                   `json:"allowed_marketplace_mcp,omitempty"`

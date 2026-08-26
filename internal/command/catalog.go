@@ -166,7 +166,11 @@ func skillDescriptor(spec SkillSpec) (Descriptor, error) {
 		hash := sha256.Sum256([]byte(sourceKey))
 		identity = sourceID + "-" + hex.EncodeToString(hash[:8])
 	}
-	commandID := strings.Join([]string{"skill", sourceKind, identity, name}, ":")
+	form := "bare"
+	if spec.Qualified {
+		form = "qualified"
+	}
+	commandID := strings.Join([]string{"skill", sourceKind, identity, name, form}, ":")
 	source := spec.Source
 	source.Kind = sourceKind
 	source.ID = sourceID
@@ -227,6 +231,8 @@ func catalogRevision(descriptors []Descriptor) string {
 		material.WriteString(descriptor.Source.Key)
 		material.WriteByte(0)
 		material.WriteString(descriptor.Source.Scope)
+		material.WriteByte(0)
+		material.WriteString(descriptor.Source.Origin)
 		material.WriteByte(0)
 		for _, placement := range descriptor.Placements {
 			material.WriteString(string(placement))

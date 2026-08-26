@@ -55,8 +55,8 @@ func TestRegistrySkillDiagnostics(t *testing.T) {
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{
-			BundledFS:     bundledSkillFS(map[string]string{"shared": "Bundled shared skill"}),
-			UserSkillsDir: userDir,
+			BundledFS:        bundledSkillFS(map[string]string{"shared": "Bundled shared skill"}),
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
@@ -151,7 +151,7 @@ func TestRegistrySkillDiagnostics(t *testing.T) {
 			skillWithDescription("shared", "Workspace shared skill"),
 		)
 
-		registry := newTestRegistry(t, RegistryConfig{UserSkillsDir: userDir})
+		registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
 		}

@@ -20,6 +20,8 @@ import type {
   SettingsProviderEntry,
   SettingsRestartResponse,
   SettingsRestartStatus,
+  SettingsSkillSource,
+  SettingsSkillSourceRoot,
   SettingsSkillsSection,
 } from "@/systems/settings";
 import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/fintech-scenario";
@@ -372,10 +374,157 @@ export const settingsObservabilitySectionFixture: SettingsObservabilitySection =
   },
 };
 
+const emptyRootDiagnostics: Pick<
+  SettingsSkillSourceRoot,
+  "collisions" | "skipped_links" | "verification"
+> = {
+  collisions: [],
+  skipped_links: [],
+  verification: { blocked: 0, warned: 0 },
+};
+
+/**
+ * Default daemon-measured sources. Tests derive unreadable, truncated, and
+ * runtime-unavailable variants from these measured rows.
+ */
+export const settingsSkillSourcesFixture: SettingsSkillSource[] = [
+  {
+    slug: "compozy",
+    label: "CompozyOS",
+    kind: "builtin",
+    enabled: true,
+    always_on: true,
+    workspace_path: ".compozy/skills",
+    global_path: "~/.compozy/skills",
+    roots: [
+      {
+        ...emptyRootDiagnostics,
+        root_id: "r_w_builtin_04c9",
+        path: `${storyWorkspacePaths.hq}/.compozy/skills`,
+        exists: true,
+        readable: true,
+        scanned_count: 8,
+        skill_count: 8,
+        truncated: false,
+        native_readers: [],
+      },
+      {
+        ...emptyRootDiagnostics,
+        root_id: "r_u_builtin_11ab",
+        path: "/Users/ana/.compozy/skills",
+        exists: true,
+        readable: true,
+        scanned_count: 4,
+        skill_count: 4,
+        truncated: false,
+        native_readers: [],
+      },
+    ],
+  },
+  {
+    slug: "agents",
+    label: "Universal (.agents)",
+    kind: "preset",
+    enabled: true,
+    always_on: false,
+    default: true,
+    workspace_path: ".agents/skills",
+    global_path: "~/.agents/skills",
+    roots: [
+      {
+        root_id: "r_w_agents_9f31",
+        path: `${storyWorkspacePaths.hq}/.agents/skills`,
+        exists: true,
+        readable: true,
+        scanned_count: 5,
+        skill_count: 3,
+        truncated: false,
+        native_readers: ["openclaw", "hermes"],
+        skipped_links: [
+          { path: `${storyWorkspacePaths.hq}/.agents/skills/review-old`, reason: "dangling" },
+          { path: `${storyWorkspacePaths.hq}/.agents/skills/vendor-link`, reason: "escape" },
+        ],
+        collisions: [
+          {
+            name: "frontend-qa",
+            winner_root_id: "r_w_builtin_04c9",
+            qualified_form: "agents:frontend-qa",
+          },
+        ],
+        verification: { blocked: 0, warned: 1 },
+      },
+      {
+        ...emptyRootDiagnostics,
+        root_id: "r_u_agents_7c02",
+        path: "/Users/ana/.agents/skills",
+        exists: true,
+        readable: true,
+        scanned_count: 2,
+        skill_count: 2,
+        truncated: false,
+        native_readers: ["openclaw"],
+      },
+    ],
+  },
+  {
+    slug: "claude",
+    label: "Claude (.claude)",
+    kind: "preset",
+    enabled: false,
+    always_on: false,
+    default: false,
+    workspace_path: ".claude/skills",
+    global_path: "~/.claude/skills",
+    roots: [
+      {
+        ...emptyRootDiagnostics,
+        root_id: "r_w_claude_3ad1",
+        path: `${storyWorkspacePaths.hq}/.claude/skills`,
+        exists: false,
+        readable: true,
+        truncated: false,
+        native_readers: ["claude"],
+      },
+      {
+        ...emptyRootDiagnostics,
+        root_id: "r_u_claude_8be4",
+        path: "/Users/ana/.claude/skills",
+        exists: true,
+        readable: true,
+        scanned_count: 1,
+        skill_count: 1,
+        truncated: false,
+        native_readers: ["claude"],
+      },
+    ],
+  },
+  {
+    slug: "team-skills",
+    label: "team-skills",
+    kind: "custom",
+    enabled: true,
+    always_on: false,
+    path: "~/team-skills",
+    roots: [
+      {
+        ...emptyRootDiagnostics,
+        root_id: "r_u_custom_a41c",
+        path: "/Users/ana/team-skills",
+        exists: true,
+        readable: true,
+        scanned_count: 3,
+        skill_count: 3,
+        truncated: false,
+        native_readers: [],
+      },
+    ],
+  },
+];
+
 export const settingsSkillsSectionFixture: SettingsSkillsSection = {
   section: "skills",
   scope: "user",
-  available_scopes: ["user"],
+  available_scopes: ["user", "profile", "workspace", "agent"],
   runtime_available: true,
   discovered_count: 12,
   disabled_count: 2,
@@ -389,7 +538,10 @@ export const settingsSkillsSectionFixture: SettingsSkillsSection = {
     },
     allowed_marketplace_mcp: ["merchant-docs"],
     allowed_marketplace_hooks: [],
+    sources: ["agents"],
+    custom_sources: ["~/team-skills"],
   },
+  sources: settingsSkillSourcesFixture,
   links: [{ label: "skills", path: "/marketplace/skills" }],
 };
 

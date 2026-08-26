@@ -27,6 +27,7 @@ func (s *sessionStartSpec) newStartingSession(
 		SelectedRuntime:           cloneRuntimeSelection(s.selectedRuntime),
 		RuntimeSelectionRevision:  s.runtimeSelectionRevision,
 		effectiveProviderAuthMode: resolved.AuthMode,
+		providerHomePolicy:        resolved.HomePolicy,
 		Workspace:                 s.workspace.RootDir, WorktreeID: s.worktreeID, CWD: s.cwd,
 		NetworkParticipation: s.networkParticipation,
 		NetworkOwnerKey:      s.networkOwnerKey,

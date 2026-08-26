@@ -295,13 +295,26 @@ func reviewerSkillCommands(
 	t.Helper()
 
 	byName := make(map[string]compozycontract.SessionCommandPayload)
+	byID := make(map[string]struct{})
+	byToken := make(map[string]struct{})
 	for _, command := range commands {
 		if command.Lane != "skill" {
 			continue
 		}
+		if _, exists := byID[command.ID]; exists {
+			t.Fatalf("HTTP reviewer session commands duplicate id %q: %+v", command.ID, commands)
+		}
+		byID[command.ID] = struct{}{}
+		if _, exists := byToken[command.CanonicalToken]; exists {
+			t.Fatalf("HTTP reviewer session commands duplicate token %q: %+v", command.CanonicalToken, commands)
+		}
+		byToken[command.CanonicalToken] = struct{}{}
+		if strings.Contains(strings.TrimPrefix(command.CanonicalToken, "/"), ":") {
+			continue
+		}
 		name := strings.TrimPrefix(command.DisplayName, "/")
 		if _, exists := byName[name]; exists {
-			t.Fatalf("HTTP reviewer session commands duplicate skill %q: %+v", name, commands)
+			t.Fatalf("HTTP reviewer session commands duplicate bare skill %q: %+v", name, commands)
 		}
 		byName[name] = command
 	}

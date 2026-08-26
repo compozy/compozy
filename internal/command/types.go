@@ -20,10 +20,11 @@ const (
 
 // Source identifies the owner and scope of a projected command.
 type Source struct {
-	Kind  string `json:"kind"`
-	ID    string `json:"id,omitempty"`
-	Key   string `json:"key,omitempty"`
-	Scope string `json:"scope"`
+	Kind   string `json:"kind"`
+	ID     string `json:"id,omitempty"`
+	Key    string `json:"key,omitempty"`
+	Scope  string `json:"scope"`
+	Origin string `json:"origin,omitempty"`
 }
 
 // SkillRef identifies one exact skill definition without exposing its path.

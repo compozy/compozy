@@ -67,23 +67,43 @@ describe("sessionCommandMenuCatalog", () => {
   });
 
   it("Should humanize builtin/agent titles, keep skill identity, and carry lane + scope", () => {
+    const namespacedSkill = command(
+      "skill:user:agents:frontend-qa",
+      "/agents:frontend-qa",
+      "skill",
+      ["standalone", "inline"]
+    );
     const catalog = sessionCommandMenuCatalog([
       command("builtin:goal", "/goal", "builtin", ["standalone"]),
       command("agent:compact-context", "/compact-context", "agent", ["standalone"]),
       command("skill:workspace::frontend-qa", "/frontend-qa", "skill", ["standalone", "inline"]),
+      { ...namespacedSkill, display_name: "/frontend-qa" },
     ]);
 
     expect(
       catalog.standaloneSections.flatMap(section => section.commands.map(item => item.label))
-    ).toEqual(["Goal", "Compact Context", "frontend-qa"]);
+    ).toEqual(["Goal", "Compact Context", "frontend-qa", "agents:frontend-qa"]);
     expect(
       catalog.standaloneSections.flatMap(section => section.commands.map(item => item.lane))
-    ).toEqual(["builtin", "agent", "skill"]);
+    ).toEqual(["builtin", "agent", "skill", "skill"]);
     expect(catalog.inlineSkills[0]).toMatchObject({
       lane: "skill",
       scope: "session",
       label: "frontend-qa",
     });
+  });
+
+  it("Should carry a foreign origin and leave CompozyOS-native rows unlabeled", () => {
+    const native = command("skill:workspace::review", "/review", "skill", ["standalone"]);
+    const absorbed = command("skill:user::pdf-tools", "/pdf-tools", "skill", ["standalone"]);
+    const catalog = sessionCommandMenuCatalog([
+      { ...native, source: { ...native.source, origin: "" } },
+      { ...absorbed, source: { ...absorbed.source, origin: "claude" } },
+    ]);
+
+    const rows = catalog.standaloneSections.flatMap(section => section.commands);
+    expect(rows.find(row => row.token === "/pdf-tools")?.origin).toBe("claude");
+    expect(rows.find(row => row.token === "/review")).not.toHaveProperty("origin");
   });
 });
 

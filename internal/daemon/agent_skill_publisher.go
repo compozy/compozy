@@ -36,7 +36,9 @@ func (d *Daemon) newAgentSkillPublisher(
 		return nil, err
 	}
 	extensionProfileCatalogs := make([]extensionProfileCatalog, 0, 1)
+	var daemonProfileCatalog extensionProfileCatalog
 	if state.deps.Profiles != nil {
+		daemonProfileCatalog = state.deps.Profiles
 		extensionProfileCatalogs = append(extensionProfileCatalogs, state.deps.Profiles)
 	}
 	extensionProvider := extensionAgentSkillDeclarationProvider(
@@ -75,6 +77,7 @@ func (d *Daemon) newAgentSkillPublisher(
 				state.registry,
 				state.workspaceResolver,
 				state.skillsRegistry,
+				daemonProfileCatalog,
 				state.logger,
 			),
 			extensionProvider,
@@ -150,6 +153,7 @@ func daemonAgentSkillDeclarationProvider(
 	registry workspaceRegistryReader,
 	workspaceResolver workspacepkg.RuntimeResolver,
 	skillsRegistry *skillspkg.Registry,
+	profileCatalog extensionProfileCatalog,
 	logger *slog.Logger,
 ) agentSkillDeclarationProvider {
 	return func(ctx context.Context) (agentSkillDeclarations, error) {
@@ -166,7 +170,13 @@ func daemonAgentSkillDeclarationProvider(
 			if err != nil {
 				return agentSkillDeclarations{}, fmt.Errorf("daemon: discover global skills: %w", err)
 			}
-			appendSkillResources(&desired, globalScope, skillPublicationSource{prefix: "skills/global"}, globalSkills)
+			appendScopedSkillResources(
+				&desired,
+				globalScope,
+				skillPublicationSource{prefix: "skills/global"},
+				globalSkills,
+				resources.ResourceScopeKindUser,
+			)
 		}
 
 		workspaces, err := registeredWorkspaces(ctx, registry, workspaceResolver, logger)
@@ -191,12 +201,26 @@ func daemonAgentSkillDeclarationProvider(
 					err,
 				)
 			}
-			appendSkillResources(
+			appendScopedSkillResources(
 				&desired,
 				scope,
 				skillPublicationSource{prefix: "skills/workspace/" + scope.ID},
 				workspaceSkills,
+				resources.ResourceScopeKindWorkspace,
 			)
+		}
+		if skillsRegistry != nil {
+			if err := appendProfiledSkillResources(
+				ctx,
+				&desired,
+				homePaths,
+				profileCatalog,
+				workspaceResolver,
+				workspaces,
+				skillsRegistry,
+			); err != nil {
+				return agentSkillDeclarations{}, err
+			}
 		}
 
 		return desired, nil

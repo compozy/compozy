@@ -184,6 +184,115 @@ func TestWatcherDetectChangesUsesDynamicRootsProvider(t *testing.T) {
 			t.Fatalf("detectChanges() change = %#v, want added change for %q", changes[0], skillPath)
 		}
 	})
+
+	t.Run("Should rederive the polled roots and refresh after a source replacement", func(t *testing.T) {
+		t.Parallel()
+
+		removedRoot := t.TempDir()
+		replacementRoot := t.TempDir()
+		removedPath := writeSkillFile(
+			t,
+			removedRoot,
+			filepath.Join("removed", skillFileName),
+			skillWithDescription("removed", "Removed"),
+		)
+		replacementPath := writeSkillFile(
+			t,
+			replacementRoot,
+			filepath.Join("replacement", skillFileName),
+			skillWithDescription("replacement", "Replacement"),
+		)
+		activeRoots := []string{removedRoot}
+		spy := newRefreshSpy()
+		watcher := newTestWatcher(spy, time.Millisecond)
+		watcher.SetRootsProvider(func(context.Context) ([]string, error) {
+			return append([]string(nil), activeRoots...), nil
+		})
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatalf("pollOnce(baseline) error = %v", err)
+		}
+
+		activeRoots = []string{replacementRoot}
+		if err := watcher.pollOnce(t.Context()); err != nil {
+			t.Fatalf("pollOnce(replacement) error = %v", err)
+		}
+		if got := spy.calls(); got != 1 {
+			t.Fatalf("RefreshGlobal() calls = %d, want 1", got)
+		}
+		watcher.mu.Lock()
+		_, retainedRemoved := watcher.snapshots[removedPath]
+		_, retainedReplacement := watcher.snapshots[replacementPath]
+		watcher.mu.Unlock()
+		if retainedRemoved || !retainedReplacement {
+			t.Fatalf(
+				"watcher snapshots retain removed=%t replacement=%t, want false/true",
+				retainedRemoved,
+				retainedReplacement,
+			)
+		}
+	})
+}
+
+func TestWatcherUsesExplicitAgentRootIdentity(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should treat a custom skill root named agents as a skill root", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(t.TempDir(), "agents")
+		if err := os.MkdirAll(root, 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", root, err)
+		}
+		watcher := newTestWatcher(nil, time.Millisecond, root)
+		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+			t.Fatalf("detectChanges() initial error = %v", err)
+		} else if changed {
+			t.Fatal("detectChanges() initial changed = true, want false")
+		}
+		agentFile := filepath.Join(root, "unexpected", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(agentFile), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(agentFile), err)
+		}
+		if err := os.WriteFile(agentFile, []byte("agent"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", agentFile, err)
+		}
+
+		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+			t.Fatalf("detectChanges() error = %v", err)
+		} else if changed {
+			t.Fatal("detectChanges() changed = true, want AGENT.md ignored in custom skill root")
+		}
+	})
+
+	t.Run("Should watch AGENT.md only for an explicitly typed agent root", func(t *testing.T) {
+		t.Parallel()
+
+		root := filepath.Join(t.TempDir(), "custom-agent-definitions")
+		watcher := newTestWatcher(nil, time.Millisecond)
+		watcher.SetAgentRootsProvider(func(context.Context) ([]string, error) {
+			return []string{root}, nil
+		})
+		if changed, _, _, err := watcher.detectChanges(context.Background()); err != nil {
+			t.Fatalf("detectChanges() initial error = %v", err)
+		} else if changed {
+			t.Fatal("detectChanges() initial changed = true, want false")
+		}
+		agentFile := filepath.Join(root, "coder", "AGENT.md")
+		if err := os.MkdirAll(filepath.Dir(agentFile), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%q) error = %v", filepath.Dir(agentFile), err)
+		}
+		if err := os.WriteFile(agentFile, []byte("agent"), 0o644); err != nil {
+			t.Fatalf("WriteFile(%q) error = %v", agentFile, err)
+		}
+
+		changed, _, changes, err := watcher.detectChanges(context.Background())
+		if err != nil {
+			t.Fatalf("detectChanges() error = %v", err)
+		}
+		if !changed || len(changes) != 1 || changes[0].path != agentFile {
+			t.Fatalf("detectChanges() = changed %v, changes %#v; want explicit agent file", changed, changes)
+		}
+	})
 }
 
 func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
@@ -195,9 +304,9 @@ func TestNewWatcherOnlyUsesGlobalRoots(t *testing.T) {
 	workspace := filepath.Join(root, "workspace")
 
 	registry := newTestRegistry(t, RegistryConfig{
-		BundledFS:     bundledSkillFS(map[string]string{"bundled": "Bundled skill"}),
-		UserSkillsDir: userDir,
-		UserAgentsDir: agentsDir,
+		BundledFS:        bundledSkillFS(map[string]string{"bundled": "Bundled skill"}),
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
+		GlobalAgentsDir:  agentsDir,
 	})
 	watcher := NewWatcher(registry, 0)
 	watcher.logger = slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -245,7 +354,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		root := t.TempDir()
 		userDir := filepath.Join(root, "user")
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)
@@ -285,7 +394,7 @@ func TestNewWatcherSeedsSnapshotsFromRegistryLoadAll(t *testing.T) {
 		)
 
 		registry := newTestRegistry(t, RegistryConfig{
-			UserSkillsDir: userDir,
+			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 		})
 		if err := registry.LoadAll(context.Background()); err != nil {
 			t.Fatalf("LoadAll() error = %v", err)

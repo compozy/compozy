@@ -73,6 +73,7 @@ const (
 
 // HomePaths captures the filesystem layout for the Compozy home directory.
 type HomePaths struct {
+	OperatorHomeDir       string
 	HomeDir               string
 	ConfigFile            string
 	AgentsDir             string
@@ -216,7 +217,20 @@ func resolveHomePaths(lookup envLookup) (HomePaths, error) {
 		return HomePaths{}, err
 	}
 
-	return ResolveHomePathsFrom(homeDir)
+	paths, err := ResolveHomePathsFrom(homeDir)
+	if err != nil {
+		return HomePaths{}, err
+	}
+	if lookup != nil {
+		if operatorHome, ok := lookup("HOME"); ok && strings.TrimSpace(operatorHome) != "" {
+			resolvedOperatorHome, resolveErr := resolveAbsoluteDir(operatorHome)
+			if resolveErr != nil {
+				return HomePaths{}, fmt.Errorf("resolve operator home directory: %w", resolveErr)
+			}
+			paths.OperatorHomeDir = resolvedOperatorHome
+		}
+	}
+	return paths, nil
 }
 
 // ResolveHomePathsFrom resolves the canonical Compozy home layout from an explicit directory.
@@ -226,7 +240,12 @@ func ResolveHomePathsFrom(homeDir string) (HomePaths, error) {
 		return HomePaths{}, err
 	}
 
+	operatorHome := root
+	if filepath.Base(root) == DirName {
+		operatorHome = filepath.Dir(root)
+	}
 	return HomePaths{
+		OperatorHomeDir:       operatorHome,
 		HomeDir:               root,
 		ConfigFile:            filepath.Join(root, ConfigName),
 		AgentsDir:             filepath.Join(root, AgentsDirName),

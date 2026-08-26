@@ -13,6 +13,8 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
+const taskRequestAgentsField = "agents"
+
 func (g *TaskRepo) applyCoordinatorGenerationSnapshotIntentsWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
@@ -90,7 +92,7 @@ func appendRequestOpenedEventsWithExecutor(
 			"context":                        request.ContextPreview,
 			"expect":                         request.AnswerSchema,
 			"decisions":                      request.Decisions,
-			"agents":                         request.Agents,
+			taskRequestAgentsField:           request.Agents,
 			loopRunEventPayloadKeyExpiresAt:  request.ExpiresAt,
 		}
 		if err := appendLoopRunEventWithExecutor(

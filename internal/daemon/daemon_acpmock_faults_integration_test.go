@@ -34,91 +34,97 @@ const (
 func TestDaemonE2EACPmockCrashMidStreamRecoversInterruptedTurn(t *testing.T) {
 	acpmock.RequireDriver(t)
 
-	t.Run("Should replace the runtime and complete the same turn after the ACP mock crashes mid-stream", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should replace the runtime and complete the same turn after the ACP mock crashes mid-stream",
+		func(t *testing.T) {
+			t.Parallel()
 
-		harness, session := startRecoverableFaultMockSession(t)
-		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-		defer cancel()
+			harness, session := startRecoverableFaultMockSession(t)
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
 
-		promptStarted := time.Now()
-		stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger crash mid-stream")
-		if err != nil {
-			t.Fatalf("PromptSessionHTTP() error = %v", err)
-		}
-		if elapsed := time.Since(promptStarted); elapsed > 15*time.Second {
-			t.Fatalf("PromptSessionHTTP() elapsed = %s, want recovered completion within 15s", elapsed)
-		}
-		assertRecoveredPromptProjection(t, ctx, harness, session.ID, stream)
-
-		cliSession := createFixtureBackedSession(
-			t,
-			ctx,
-			harness,
-			recoverableMockAgentName,
-			"faulty-cli-session",
-		)
-		stdout, stderr, cliErr := harness.CLI.Run(
-			ctx,
-			"session", "prompt", cliSession.ID, "trigger crash mid-stream", "-o", "jsonl",
-		)
-		if cliErr != nil {
-			t.Fatalf("CLI recovered prompt error = %v; stdout=%s stderr=%s", cliErr, stdout, stderr)
-		}
-		if !strings.Contains(stdout, "partial before crash") ||
-			!strings.Contains(stdout, "recovered interrupted turn") ||
-			strings.Contains(stdout, `"type":"error"`) {
-			t.Fatalf("CLI recovered prompt stdout = %q, want partial and recovered output without terminal error", stdout)
-		}
-
-		nativeSession := createFixtureBackedSession(
-			t,
-			ctx,
-			harness,
-			recoverableMockAgentName,
-			"faulty-native-session",
-		)
-		var nativeResponse compozycontract.ToolInvokeResponse
-		if err := harness.HTTPJSON(
-			ctx,
-			http.MethodPost,
-			"/api/tools/"+url.PathEscape(toolspkg.ToolIDSessionPrompt.String())+"/invoke",
-			compozycontract.ToolInvokeRequest{
-				WorkspaceID: harness.WorkspaceID,
-				Input: json.RawMessage(fmt.Sprintf(
-					`{"session_id":%q,"message":"trigger crash mid-stream","message_id":"msg-native-crash","idempotency_key":"idem-native-crash"}`,
-					nativeSession.ID,
-				)),
-			},
-			&nativeResponse,
-		); err != nil {
-			t.Fatalf("native recovered prompt error = %v", err)
-		}
-		if nativeResponse.Status != "completed" || len(nativeResponse.Result.Content) != 1 ||
-			nativeResponse.Result.Content[0].Text != "accepted" {
-			t.Fatalf("native prompt response = %#v, want accepted asynchronous dispatch", nativeResponse)
-		}
-		waitForRuntimeCondition(t, "native prompt recovered", 15*time.Second, func() bool {
-			eventsResponse, eventsErr := harness.SessionEvents(ctx, nativeSession.ID)
-			if eventsErr != nil {
-				return false
+			promptStarted := time.Now()
+			stream, err := harness.PromptSessionHTTP(ctx, session.ID, "trigger crash mid-stream")
+			if err != nil {
+				t.Fatalf("PromptSessionHTTP() error = %v", err)
 			}
-			events := decodeAgentEvents(t, eventsResponse.Events)
-			return containsAgentEvent(events, compozycontract.AgentEventPayload{
-				Type: "agent_message", Text: "recovered interrupted turn",
-			}) && containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "done"})
-		})
-		nativeProjection, err := harness.GetSession(ctx, nativeSession.ID)
-		if err != nil {
-			t.Fatalf("GetSession(native recovered prompt) error = %v", err)
-		}
-		if got, want := nativeProjection.Runtime.Generation, int64(2); got != want {
-			t.Fatalf("native recovered runtime generation = %d, want %d", got, want)
-		}
-		if got, want := string(nativeProjection.Runtime.Transition), "automatic_recovery"; got != want {
-			t.Fatalf("native recovered runtime transition = %q, want %q", got, want)
-		}
-	})
+			if elapsed := time.Since(promptStarted); elapsed > 15*time.Second {
+				t.Fatalf("PromptSessionHTTP() elapsed = %s, want recovered completion within 15s", elapsed)
+			}
+			assertRecoveredPromptProjection(t, ctx, harness, session.ID, stream)
+
+			cliSession := createFixtureBackedSession(
+				t,
+				ctx,
+				harness,
+				recoverableMockAgentName,
+				"faulty-cli-session",
+			)
+			stdout, stderr, cliErr := harness.CLI.Run(
+				ctx,
+				"session", "prompt", cliSession.ID, "trigger crash mid-stream", "-o", "jsonl",
+			)
+			if cliErr != nil {
+				t.Fatalf("CLI recovered prompt error = %v; stdout=%s stderr=%s", cliErr, stdout, stderr)
+			}
+			if !strings.Contains(stdout, "partial before crash") ||
+				!strings.Contains(stdout, "recovered interrupted turn") ||
+				strings.Contains(stdout, `"type":"error"`) {
+				t.Fatalf(
+					"CLI recovered prompt stdout = %q, want partial and recovered output without terminal error",
+					stdout,
+				)
+			}
+
+			nativeSession := createFixtureBackedSession(
+				t,
+				ctx,
+				harness,
+				recoverableMockAgentName,
+				"faulty-native-session",
+			)
+			var nativeResponse compozycontract.ToolInvokeResponse
+			if err := harness.HTTPJSON(
+				ctx,
+				http.MethodPost,
+				"/api/tools/"+url.PathEscape(toolspkg.ToolIDSessionPrompt.String())+"/invoke",
+				compozycontract.ToolInvokeRequest{
+					WorkspaceID: harness.WorkspaceID,
+					Input: json.RawMessage(fmt.Sprintf(
+						`{"session_id":%q,"message":"trigger crash mid-stream","message_id":"msg-native-crash","idempotency_key":"idem-native-crash"}`,
+						nativeSession.ID,
+					)),
+				},
+				&nativeResponse,
+			); err != nil {
+				t.Fatalf("native recovered prompt error = %v", err)
+			}
+			if nativeResponse.Status != "completed" || len(nativeResponse.Result.Content) != 1 ||
+				nativeResponse.Result.Content[0].Text != "accepted" {
+				t.Fatalf("native prompt response = %#v, want accepted asynchronous dispatch", nativeResponse)
+			}
+			waitForRuntimeCondition(t, "native prompt recovered", 15*time.Second, func() bool {
+				eventsResponse, eventsErr := harness.SessionEvents(ctx, nativeSession.ID)
+				if eventsErr != nil {
+					return false
+				}
+				events := decodeAgentEvents(t, eventsResponse.Events)
+				return containsAgentEvent(events, compozycontract.AgentEventPayload{
+					Type: "agent_message", Text: "recovered interrupted turn",
+				}) && containsAgentEvent(events, compozycontract.AgentEventPayload{Type: "done"})
+			})
+			nativeProjection, err := harness.GetSession(ctx, nativeSession.ID)
+			if err != nil {
+				t.Fatalf("GetSession(native recovered prompt) error = %v", err)
+			}
+			if got, want := nativeProjection.Runtime.Generation, int64(2); got != want {
+				t.Fatalf("native recovered runtime generation = %d, want %d", got, want)
+			}
+			if got, want := string(nativeProjection.Runtime.Transition), "automatic_recovery"; got != want {
+				t.Fatalf("native recovered runtime transition = %q, want %q", got, want)
+			}
+		},
+	)
 }
 
 func TestDaemonE2EACPmockCrashEscalatesBoundTaskRun(t *testing.T) {

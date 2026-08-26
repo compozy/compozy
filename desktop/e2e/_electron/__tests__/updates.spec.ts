@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { createServer, type Server } from "node:http";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test, type DesktopInstance, type PackagedCopy } from "../fixtures";
@@ -287,10 +287,15 @@ async function waitForShellExit(desktop: DesktopInstance): Promise<void> {
   );
 }
 
-function updaterEnvironment(fixture: UpdateFixture): NodeJS.ProcessEnv {
+async function updaterEnvironment(
+  fixture: UpdateFixture,
+  packaged: PackagedCopy
+): Promise<NodeJS.ProcessEnv> {
   if (process.platform !== "linux") return {};
   if (!fixture.baseline_app_image) throw new Error("The baseline AppImage is missing.");
-  return { APPIMAGE: fixture.baseline_app_image };
+  const appImage = join(dirname(packaged.executablePath), basename(fixture.baseline_app_image));
+  await copyFile(fixture.baseline_app_image, appImage);
+  return { APPIMAGE: appImage, APPIMAGE_EXTRACT_AND_RUN: "1" };
 }
 
 test("E2E-016: the real Settings API projects a staged app asset through verified restart", async ({
@@ -306,7 +311,7 @@ test("E2E-016: the real Settings API projects a staged app asset through verifie
     const digest = await artifactDigest(fixture);
     const desktop = await launchDesktop({
       executablePath: packaged.executablePath,
-      environment: updaterEnvironment(fixture),
+      environment: await updaterEnvironment(fixture, packaged),
       prepare: async context => {
         restoreEnvironment = await configureRelaunchHome(context.home);
         await seedUpdateCache(context.home, fixture);
@@ -360,7 +365,7 @@ test("E2E-017: expired installer handoff records old-version truth and a fresh r
     const digest = await artifactDigest(fixture);
     const desktop = await launchDesktop({
       executablePath: packaged.executablePath,
-      environment: updaterEnvironment(fixture),
+      environment: await updaterEnvironment(fixture, packaged),
       prepare: async ({ home }) => {
         restoreEnvironment = await configureRelaunchHome(home);
         await seedUpdateCache(home, fixture);

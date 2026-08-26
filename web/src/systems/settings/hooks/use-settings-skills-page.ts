@@ -1,43 +1,33 @@
-import { useState, type SetStateAction } from "react";
 import { useSelector } from "@xstate/store-react";
+import { useEffect } from "react";
 
 import { useStoreBinding } from "@/hooks/use-store-binding";
 
 import { useSettingsPage } from "./use-settings-page";
 
 import { SettingsApiError } from "../adapters/settings-api";
-import type {
-  SettingsSkillsFilter,
-  SettingsSkillsSection,
-  SettingsUpdateSkillsRequest,
-} from "../types";
+import { skillsDisabledConfig, skillsPolicyConfig } from "../lib/settings-skills-save";
+import type { SettingsSkillsSection } from "../types";
 import { useSettingsSkills } from "./use-settings-sections";
 import { useUpdateSettingsSkills } from "./use-settings-mutations";
 
-import { settingsSkillsDraftLogic, shouldRebindSkillsDraft } from "./settings-skills-draft-logic";
-import { type AgentPayload, useAgents } from "@/systems/agent";
-import { useWorkspaces, type WorkspacePayload } from "@/systems/workspace";
+import {
+  settingsSkillsDraftLogic,
+  shouldRebindSkillsDraft,
+  type SkillsDraftUpdate,
+} from "./settings-skills-draft-logic";
+import { useSettingsSkillSources } from "./use-settings-skill-sources";
+import { useSettingsSkillsScope } from "./use-settings-skills-scope";
 
 type SkillsConfig = SettingsSkillsSection["config"];
 
-const DEFAULT_AGENT_NAME = "general";
-
-export type SkillsScopeSelection =
-  | { scope: "user" }
-  | { scope: "agent"; agentName: string; workspaceId?: string };
-
-function cloneDisabled(config: SkillsConfig): string[] {
-  return [...(config.disabled_skills ?? [])];
-}
+export type { SkillsScopeSelection, SkillsScopeValue } from "./use-settings-skills-scope";
 
 function sameDisabled(a: string[] | undefined, b: string[] | undefined): boolean {
   const left = a ?? [];
   const right = b ?? [];
   if (left.length !== right.length) return false;
-  for (let i = 0; i < left.length; i += 1) {
-    if (left[i] !== right[i]) return false;
-  }
-  return true;
+  return left.every((value, index) => value === right[index]);
 }
 
 function samePolicy(a: SkillsConfig, b: SkillsConfig): boolean {
@@ -51,13 +41,10 @@ function samePolicy(a: SkillsConfig, b: SkillsConfig): boolean {
   ) {
     return false;
   }
-  if (
-    JSON.stringify(a.allowed_marketplace_mcp ?? []) !==
+  return (
+    JSON.stringify(a.allowed_marketplace_mcp ?? []) ===
     JSON.stringify(b.allowed_marketplace_mcp ?? [])
-  ) {
-    return false;
-  }
-  return true;
+  );
 }
 
 function errorMessage(error: unknown): string | null {
@@ -66,66 +53,36 @@ function errorMessage(error: unknown): string | null {
   return null;
 }
 
-function selectionToFilter(selection: SkillsScopeSelection): SettingsSkillsFilter {
-  if (selection.scope === "agent") {
-    return {
-      scope: "agent",
-      agent_name: selection.agentName,
-      workspace_id: selection.workspaceId,
-    };
-  }
-
-  return { scope: "user" };
-}
-
 function envelopeScopeKey(envelope: SettingsSkillsSection): string {
-  return [envelope.scope, envelope.agent_name ?? "", envelope.workspace_id ?? ""].join(":");
-}
-
-function sortAgents(agents: AgentPayload[]): AgentPayload[] {
-  return [...agents].sort((left, right) => left.name.localeCompare(right.name));
-}
-
-function pickDefaultAgentName(agents: AgentPayload[]): string {
-  return agents.find(agent => agent.name === DEFAULT_AGENT_NAME)?.name ?? agents[0]?.name ?? "";
+  return [
+    envelope.scope,
+    envelope.profile ?? "",
+    envelope.workspace_id ?? "",
+    envelope.agent_name ?? "",
+  ].join(":");
 }
 
 export function useSettingsSkillsPage() {
   const page = useSettingsPage({ currentSlug: "skills" });
-  const agentsQuery = useAgents();
-  const workspaceQuery = useWorkspaces();
+  const scope = useSettingsSkillsScope();
   const disabledMutation = useUpdateSettingsSkills();
   const policyMutation = useUpdateSettingsSkills();
+  const resetDisabledMutation = disabledMutation.reset;
+  const resetPolicyMutation = policyMutation.reset;
 
-  const agents = sortAgents(agentsQuery.data ?? []);
-  const workspaces: WorkspacePayload[] = workspaceQuery.data ?? [];
+  useEffect(() => {
+    resetDisabledMutation();
+    resetPolicyMutation();
+  }, [scope.scopeKey, resetDisabledMutation, resetPolicyMutation]);
 
-  const [storedSelection, setSelection] = useState<SkillsScopeSelection>({ scope: "user" });
-  const selection: SkillsScopeSelection =
-    storedSelection.scope !== "agent"
-      ? storedSelection
-      : agents.length === 0
-        ? { scope: "user" }
-        : agents.some(agent => agent.name === storedSelection.agentName)
-          ? storedSelection
-          : {
-              scope: "agent",
-              agentName: pickDefaultAgentName(agents),
-              workspaceId: storedSelection.workspaceId,
-            };
-  const filter = selectionToFilter(selection);
-  const query = useSettingsSkills(filter);
+  const query = useSettingsSkills(scope.filter);
   const envelope = query.data ?? null;
 
   const envelopeKey = envelope ? envelopeScopeKey(envelope) : "pending";
   const baseline = envelope?.config ?? null;
   const { store: draftLogic } = useStoreBinding(
     envelopeKey,
-    () =>
-      settingsSkillsDraftLogic.createStore({
-        baseline,
-        key: envelopeKey,
-      }),
+    () => settingsSkillsDraftLogic.createStore({ baseline, key: envelopeKey }),
     previous =>
       settingsSkillsDraftLogic.createStore({
         baseline,
@@ -136,150 +93,81 @@ export function useSettingsSkillsPage() {
   );
   const draftFlow = useSelector(draftLogic, snapshot => snapshot.context);
   const draft = draftFlow.draft;
-  const setDraft = (update: SetStateAction<SkillsConfig | null>) => {
+  const setDraft = (update: SkillsDraftUpdate) => {
     draftLogic.trigger.draftChanged({ update });
   };
-  const lastDisabledLabel = draftFlow.key === envelopeKey ? draftFlow.labels.disabled : null;
-  const lastPolicyLabel = draftFlow.key === envelopeKey ? draftFlow.labels.policy : null;
+  const labelFor = (kind: "disabled" | "policy" | "sources") =>
+    draftFlow.key === envelopeKey ? draftFlow.labels[kind] : null;
 
-  const availableScopes = envelope?.available_scopes ?? ["user"];
-  const selectedAgent =
-    selection.scope === "agent"
-      ? (agents.find(agent => agent.name === selection.agentName) ?? null)
-      : null;
-  const selectedWorkspaceContext =
-    selection.scope === "agent" && selection.workspaceId
-      ? (workspaces.find(workspace => workspace.id === selection.workspaceId) ?? null)
-      : null;
-
+  const isUserLayer = scope.selection.scope === "user";
+  const isRepositoryProfile =
+    scope.filter.scope === "profile" && typeof scope.filter.workspace_id === "string";
   const isDisabledDirty =
-    envelope && draft
+    envelope && draft && !isRepositoryProfile
       ? !sameDisabled(envelope.config.disabled_skills, draft.disabled_skills)
       : false;
-
   const isPolicyDirty =
-    envelope && draft && selection.scope !== "agent" ? !samePolicy(envelope.config, draft) : false;
-
-  const resetScopedState = () => {
-    disabledMutation.reset();
-    policyMutation.reset();
-  };
+    envelope && draft && isUserLayer ? !samePolicy(envelope.config, draft) : false;
 
   const handleResetDisabled = () => {
-    if (!envelope || !draft) return;
-    draftLogic.trigger.draftChanged({
-      update: { ...draft, disabled_skills: cloneDisabled(envelope.config) },
-    });
+    if (!envelope || !draft || isRepositoryProfile) return;
+    setDraft({ ...draft, disabled_skills: [...(envelope.config.disabled_skills ?? [])] });
   };
 
   const handleResetPolicy = () => {
-    if (!envelope || !draft || selection.scope === "agent") return;
-    draftLogic.trigger.draftChanged({
-      update: {
-        ...envelope.config,
-        disabled_skills: draft.disabled_skills,
-      },
-    });
+    if (!envelope || !draft || !isUserLayer) return;
+    setDraft(skillsPolicyConfig(draft, envelope.config));
   };
 
   const handleSaveDisabled = () => {
-    if (!envelope || !draft) return;
-    const body: SettingsUpdateSkillsRequest = {
-      config: {
-        ...envelope.config,
-        disabled_skills: draft.disabled_skills ?? [],
-      },
-    };
+    if (!envelope || !draft || isRepositoryProfile) return;
+    const config = skillsDisabledConfig(envelope.config, draft);
     draftLogic.trigger.saveRequested({
-      baseline: body.config,
-      execute: () => disabledMutation.mutateAsync({ body, filter }),
+      baseline: config,
+      execute: () => disabledMutation.mutateAsync({ body: { config }, filter: scope.filter }),
       kind: "disabled",
       label: "Saved · applied immediately",
     });
   };
 
   const handleSavePolicy = () => {
-    if (!envelope || !draft || selection.scope === "agent") return;
-    const body: SettingsUpdateSkillsRequest = {
-      config: {
-        ...draft,
-        disabled_skills: envelope.config.disabled_skills,
-      },
-    };
+    if (!envelope || !draft || !isUserLayer) return;
+    const config = skillsPolicyConfig(envelope.config, draft);
     draftLogic.trigger.saveRequested({
-      baseline: body.config,
-      execute: () => policyMutation.mutateAsync({ body, filter }),
+      baseline: config,
+      execute: () => policyMutation.mutateAsync({ body: { config }, filter: scope.filter }),
       kind: "policy",
       label: "Saved · restart required to apply",
     });
   };
 
   const toggleDisabled = (name: string) => {
-    if (!draft) return;
+    if (!draft || isRepositoryProfile) return;
     const current = draft.disabled_skills ?? [];
     const next = current.includes(name)
       ? current.filter(entry => entry !== name)
       : [...current, name].sort();
-    draftLogic.trigger.draftChanged({ update: { ...draft, disabled_skills: next } });
+    setDraft({ ...draft, disabled_skills: next });
   };
 
-  const handleRetry = () => {
-    void query.refetch();
-    void agentsQuery.refetch();
-    void workspaceQuery.refetch();
-  };
-
-  const selectUser = () => {
-    resetScopedState();
-    setSelection({ scope: "user" });
-  };
-
-  const selectAgentScope = () => {
-    if (agents.length === 0) {
-      return;
-    }
-    resetScopedState();
-    setSelection(current => ({
-      scope: "agent",
-      agentName:
-        current.scope === "agent" && current.agentName.trim().length > 0
-          ? current.agentName
-          : pickDefaultAgentName(agents),
-      workspaceId: current.scope === "agent" ? current.workspaceId : undefined,
-    }));
-  };
-
-  const selectAgent = (agentName: string) => {
-    if (agentName.trim().length === 0) {
-      return;
-    }
-    resetScopedState();
-    setSelection(current => ({
-      scope: "agent",
-      agentName,
-      workspaceId: current.scope === "agent" ? current.workspaceId : undefined,
-    }));
-  };
-
-  const selectWorkspaceContext = (workspaceId: string) => {
-    resetScopedState();
-    setSelection(current => {
-      if (current.scope !== "agent") {
-        return current;
-      }
-      return {
-        ...current,
-        workspaceId: workspaceId.trim().length > 0 ? workspaceId : undefined,
-      };
-    });
-  };
+  const sources = useSettingsSkillSources({
+    envelope,
+    draft,
+    filter: scope.filter,
+    scopeKey: scope.scopeKey,
+    isSaving: draftFlow.pending.sources !== null,
+    lastLabel: labelFor("sources"),
+    onDraftChange: setDraft,
+    onSaveRequested: request => draftLogic.trigger.saveRequested({ ...request, kind: "sources" }),
+  });
 
   return {
-    isLoading: query.isLoading || agentsQuery.isLoading || workspaceQuery.isLoading,
-    error: query.error ?? agentsQuery.error ?? workspaceQuery.error,
+    isLoading: query.isLoading || scope.isLoading,
+    error: query.error ?? scope.error,
     envelope,
     draft,
     setDraft,
+    sources,
     toggleDisabled,
     isDisabledDirty,
     isPolicyDirty,
@@ -293,19 +181,26 @@ export function useSettingsSkillsPage() {
     savePolicyError: errorMessage(policyMutation.error),
     disabledWarnings: disabledMutation.data?.warnings,
     policyWarnings: policyMutation.data?.warnings,
-    lastDisabledLabel,
-    lastPolicyLabel,
-    handleRetry,
+    lastDisabledLabel: labelFor("disabled"),
+    lastPolicyLabel: labelFor("policy"),
+    handleRetry: () => {
+      void query.refetch();
+      scope.refetch();
+    },
     restart: page.restart,
-    availableScopes,
-    selection,
-    agents,
-    workspaces,
-    selectedAgent,
-    selectedWorkspaceContext,
-    selectUser,
-    selectAgentScope,
-    selectAgent,
-    selectWorkspaceContext,
+    availableScopes: envelope?.available_scopes ?? ["user"],
+    selection: scope.selection,
+    isRepositoryProfile,
+    personalLabel: scope.personalLabel,
+    actingProfile: scope.actingProfile,
+    agents: scope.agents,
+    workspaces: scope.workspaces,
+    selectedAgent: scope.selectedAgent,
+    selectedWorkspace: scope.selectedWorkspace,
+    selectUser: scope.selectUser,
+    selectWorkspaceScope: scope.selectWorkspaceScope,
+    selectAgentScope: scope.selectAgentScope,
+    selectAgent: scope.selectAgent,
+    selectWorkspace: scope.selectWorkspace,
   };
 }

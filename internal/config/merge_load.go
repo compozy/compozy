@@ -32,9 +32,25 @@ func applyConfigOverlay(dst *Config, overlay *configOverlay, roleSource string) 
 	if err := overlay.Apply(dst); err != nil {
 		return err
 	}
+	if overlay.Skills.Sources != nil || overlay.Skills.CustomSources != nil {
+		if err := dst.Skills.ValidateForScope(skillSourceWriteScope(roleSource)); err != nil {
+			return err
+		}
+	}
 	overlay.Roles.recordSources(dst, roleSource)
 	overlay.Loops.recordInputSources(&dst.Loops, roleSource)
 	return nil
+}
+
+func skillSourceWriteScope(roleSource string) WriteScope {
+	switch roleSource {
+	case RoleFieldSourceProfile:
+		return WriteScopeProfile
+	case RoleFieldSourceWorkspace, RoleFieldSourceWorkspaceProfile:
+		return WriteScopeWorkspace
+	default:
+		return WriteScopeUser
+	}
 }
 
 func loadConfigOverlayFile(path string) (configOverlay, error) {

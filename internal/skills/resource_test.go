@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/store"
@@ -178,7 +179,7 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 		t.Fatalf("WriteSidecar() error = %v", err)
 	}
 
-	registry := NewRegistry(RegistryConfig{UserSkillsDir: filepath.Dir(skillDir)})
+	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(filepath.Dir(skillDir))})
 	discovered, _, err := registry.DiscoverGlobal(context.Background())
 	if err != nil {
 		t.Fatalf("DiscoverGlobal() error = %v", err)
@@ -231,6 +232,54 @@ func TestSkillResourceCodecPreservesProvenanceAndSidecarMCP(t *testing.T) {
 	if got, want := projected.ActivationGates.RequiresTools, []string{"compozy__skill_view"}; !slices.Equal(got, want) {
 		t.Fatalf("ActivationGates.RequiresTools = %#v, want %#v", got, want)
 	}
+}
+
+func TestDiscoverGlobalPreservesPhysicalHomonymsForPublication(t *testing.T) {
+	t.Parallel()
+	t.Run("Should publish both physical homonyms with distinct root identities", func(t *testing.T) {
+		t.Parallel()
+
+		agentsRoot := filepath.Join(t.TempDir(), "agents")
+		claudeRoot := filepath.Join(t.TempDir(), "claude")
+		writeSkillFile(
+			t,
+			filepath.Join(agentsRoot, "review"),
+			skillFileName,
+			skillWithBody("review", "Agents review", "Agents body."),
+		)
+		writeSkillFile(
+			t,
+			filepath.Join(claudeRoot, "review"),
+			skillFileName,
+			skillWithBody("review", "Claude review", "Claude body."),
+		)
+		scope := resources.ResourceScope{Kind: resources.ResourceScopeKindUser}
+		registry := NewRegistry(RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{
+			{
+				Dir:           agentsRoot,
+				SourceSlug:    compozyconfig.SkillSourceAgents,
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: scope,
+			},
+			{
+				Dir:           claudeRoot,
+				SourceSlug:    compozyconfig.SkillSourceClaude,
+				Kind:          compozyconfig.RootKindPreset,
+				ResourceScope: scope,
+			},
+		}})
+		discovered, _, err := registry.DiscoverGlobal(t.Context())
+		if err != nil {
+			t.Fatalf("DiscoverGlobal() error = %v", err)
+		}
+		if len(discovered) != 2 {
+			t.Fatalf("DiscoverGlobal() = %#v, want both physical homonyms", discovered)
+		}
+		rootIDs := []string{discovered[0].RootID, discovered[1].RootID}
+		if rootIDs[0] == "" || rootIDs[1] == "" || rootIDs[0] == rootIDs[1] {
+			t.Fatalf("DiscoverGlobal() RootIDs = %#v, want two non-empty identities", rootIDs)
+		}
+	})
 }
 
 func TestParseSkillFileWithSourceMergesMCPSidecar(t *testing.T) {
@@ -331,7 +380,7 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 		"Loaded only before resource authority exists.",
 	}, "\n"))
 
-	registry := NewRegistry(RegistryConfig{UserSkillsDir: userDir})
+	registry := NewRegistry(RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 	records := []resources.Record[SkillResourceSpec]{{
 		Kind: SkillResourceKind,
 		ID:   "global:resource-backed",
@@ -367,6 +416,9 @@ func TestResourceAuthorityKeepsFilesystemDiscoveryNonAuthoritative(t *testing.T)
 	}
 }
 
+// Invariant: resource projections use the registered workspace ID even when the runtime identity differs.
+// Owner: skill registry resource projection.
+// Canonical suite: resource authority projection tests.
 func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	t.Parallel()
 
@@ -429,8 +481,9 @@ func TestResourceAuthorityProjectsWorkspaceSkills(t *testing.T) {
 	}
 
 	skills, err := registry.ForWorkspace(context.Background(), &workspacepkg.ResolvedWorkspace{
-		Workspace: workspacepkg.Workspace{ID: "/workspace/project"},
-		ProfileID: store.DefaultProfileID, ProfileName: "default",
+		Workspace:   workspacepkg.Workspace{ID: "/workspace/project"},
+		WorkspaceID: "runtime-workspace-identity",
+		ProfileID:   store.DefaultProfileID, ProfileName: "default",
 	})
 	if err != nil {
 		t.Fatalf("ForWorkspace() error = %v", err)
@@ -495,7 +548,7 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 	t.Parallel()
 
 	root := t.TempDir()
-	skillDir := filepath.Join(root, "workspace-review")
+	skillDir := filepath.Join(root, ".compozy", "skills", "workspace-review")
 	writeSkillFile(t, skillDir, skillFileName, strings.Join([]string{
 		"---",
 		"name: workspace-review",
@@ -508,11 +561,8 @@ func TestDiscoverWorkspaceLoadsDefinitionsForPublication(t *testing.T) {
 	discovered, snapshots, err := registry.DiscoverWorkspace(
 		context.Background(),
 		&workspacepkg.ResolvedWorkspace{
-			Workspace: workspacepkg.Workspace{ID: "ws-discover"},
-			Skills: []workspacepkg.SkillPath{{
-				Dir:    skillDir,
-				Source: "workspace",
-			}},
+			Workspace:   workspacepkg.Workspace{ID: "ws-discover", RootDir: root},
+			WorkspaceID: "ws-discover",
 		},
 	)
 	if err != nil {

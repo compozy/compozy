@@ -41,6 +41,7 @@ func (s *service) buildSkillsSection(
 	cfg *compozyconfig.Config,
 	resolved *workspacepkg.ResolvedWorkspace,
 	scope ScopeKind,
+	profileName string,
 	agentName string,
 ) (SkillsSection, error) {
 	section := SkillsSection{
@@ -58,18 +59,21 @@ func (s *service) buildSkillsSection(
 
 	if s.skillsRuntime == nil {
 		section.DisabledCount = len(section.Config.DisabledSkills)
+		var sourceErr error
+		section.Sources, section.Inherits, sourceErr = s.buildSkillSourceReadModel(
+			section.Config, resolved, scope, nil, false,
+		)
+		if sourceErr != nil {
+			return SkillsSection{}, sourceErr
+		}
 		return section, nil
 	}
-
-	var (
-		skills []*skillspkg.Skill
-		err    error
-	)
-	if scope == ScopeAgent {
-		skills, err = s.skillsRuntime.ForAgent(ctx, resolved, agentName)
-	} else {
-		skills = s.skillsRuntime.List()
+	projection, err := s.skillProjectionWorkspace(ctx, cfg, resolved, scope, profileName)
+	if err != nil {
+		return SkillsSection{}, err
 	}
+
+	skills, err := s.loadSkillsForSection(ctx, projection, scope, agentName)
 	if err != nil {
 		return SkillsSection{}, mapSkillsSettingsError(err)
 	}
@@ -81,14 +85,44 @@ func (s *service) buildSkillsSection(
 		}
 	}
 	if diagnosticsRuntime, ok := s.skillsRuntime.(SkillsDiagnosticsRuntime); ok {
-		diagnostics, diagnosticsErr := diagnosticsRuntime.SkillDiagnostics(ctx, resolved, agentName)
+		diagnostics, diagnosticsErr := diagnosticsRuntime.SkillDiagnostics(ctx, projection, agentName)
 		if diagnosticsErr != nil {
 			return SkillsSection{}, mapSkillsSettingsError(diagnosticsErr)
 		}
 		section.Diagnostics = diagnostics
 	}
+	var statuses []skillspkg.SkillSourceRootStatus
+	if sourcesRuntime, ok := s.skillsRuntime.(SkillsSourcesRuntime); ok {
+		statuses, err = sourcesRuntime.SkillSourceRoots(ctx, projection)
+		if err != nil {
+			return SkillsSection{}, mapSkillsSettingsError(err)
+		}
+	}
+	section.Sources, section.Inherits, err = s.buildSkillSourceReadModel(
+		section.Config, projection, scope, statuses, true,
+	)
+	if err != nil {
+		return SkillsSection{}, err
+	}
 
 	return section, nil
+}
+
+func (s *service) loadSkillsForSection(
+	ctx context.Context,
+	projection *workspacepkg.ResolvedWorkspace,
+	scope ScopeKind,
+	agentName string,
+) ([]*skillspkg.Skill, error) {
+	if scope == ScopeAgent {
+		return s.skillsRuntime.ForAgent(ctx, projection, agentName)
+	}
+	if projection != nil {
+		if runtime, ok := s.skillsRuntime.(SkillsWorkspaceRuntime); ok {
+			return runtime.ForWorkspace(ctx, projection)
+		}
+	}
+	return s.skillsRuntime.List(), nil
 }
 
 func (s *service) buildAutomationSection(

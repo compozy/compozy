@@ -232,6 +232,12 @@ func writeExecutionError(stderr io.Writer, args []string, err error) int {
 }
 
 func renderHumanExecutionError(err error) (string, bool) {
+	if rendered, ok := renderSkillExposureExecutionError(err); ok {
+		return rendered, true
+	}
+	if rendered, ok := renderSkillSourceExecutionError(err); ok {
+		return rendered, true
+	}
 	if rendered, ok := renderProfileExecutionError(err); ok {
 		return rendered, true
 	}
@@ -255,6 +261,12 @@ func renderHumanExecutionError(err error) (string, bool) {
 }
 
 func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
+	if payload, ok := marshalSkillExposureExecutionError(args, err); ok {
+		return payload, true
+	}
+	if payload, ok := marshalSkillSourceExecutionError(args, err); ok {
+		return payload, true
+	}
 	if profileErr, ok := errors.AsType[interface {
 		error
 		profileErrorPayload() contract.ProfileErrorPayload

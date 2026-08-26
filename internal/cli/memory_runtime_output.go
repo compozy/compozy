@@ -60,7 +60,7 @@ func memoryProviderListBundle(response MemoryProviderListRecord) outputBundle {
 		"Memory Providers",
 		[]string{automationNameValue, memoryStatusValue, memoryActiveValue, "Builtin", "Failure Count"},
 		"providers",
-		[]string{automationNameKey, memoryStatusKey, memoryActiveKey, "builtin", "failure_count"},
+		[]string{automationNameKey, memoryStatusKey, memoryActiveKey, cliBuiltinKey, "failure_count"},
 		func(item contract.MemoryProviderPayload) []string {
 			return []string{
 				stringOrDash(item.Name),

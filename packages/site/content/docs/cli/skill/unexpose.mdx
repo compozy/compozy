@@ -1,28 +1,22 @@
 ---
-title: "compozy skill inspect"
-description: "Inspect installed skill metadata and resources"
+title: "compozy skill unexpose"
+description: "Remove owned provider-root links for one skill"
 ---
 
-## compozy skill inspect
+## compozy skill unexpose
 
-Inspect installed skill metadata and resources
-
-```
-compozy skill inspect <name> [flags]
-```
-
-### Examples
+Remove owned provider-root links for one skill
 
 ```
-  # Inspect an installed skill's metadata and resource list
-  compozy skill inspect code-review
+compozy skill unexpose <name> [flags]
 ```
 
 ### Options
 
 ```
       --for-agent string   Resolve the effective skill set for one logical agent
-  -h, --help               help for inspect
+  -h, --help               help for unexpose
+      --to string          Comma-separated provider targets
       --workspace string   Override workspace context (ID, name, or path)
 ```
 
@@ -48,5 +42,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy skill inspect <name> -o json
+compozy skill unexpose <name> -o json
 ```

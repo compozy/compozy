@@ -211,6 +211,7 @@ type SectionUpdateRequest struct {
 	Memory                         *compozyconfig.MemoryConfig
 	Roles                          *compozyconfig.RolesConfig
 	Skills                         *compozyconfig.SkillsConfig
+	SkillSourcesOverride           *SkillSourcesOverride
 	Automation                     *AutomationSettings
 	Network                        *compozyconfig.NetworkConfig
 	Gateway                        *compozyconfig.GatewayConfig
@@ -225,6 +226,19 @@ type SectionUpdateRequest struct {
 	Shell                          *compozyconfig.ShellConfig
 	Observability                  *compozyconfig.ObservabilityConfig
 	HooksExtensions                *compozyconfig.ExtensionsConfig
+}
+
+// OptionalStringList is the settings-domain tri-state for one overlay list.
+type OptionalStringList struct {
+	Present bool
+	Null    bool
+	Value   []string
+}
+
+// SkillSourcesOverride carries independent source-policy mutations for one overlay.
+type SkillSourcesOverride struct {
+	Sources       OptionalStringList
+	CustomSources OptionalStringList
 }
 
 // CollectionRequest identifies one collection read.

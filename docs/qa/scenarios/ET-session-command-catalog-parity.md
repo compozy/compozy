@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-use-session-slash-commands
 expected: Web, CLI JSON, and HTTP expose the same session revision, path-free command ids, tokens, lanes, sources, scopes, and availability, while a wrong workspace cannot read the catalog.
 entry_points: web session composer; compozy session commands <session-id> -o json; GET /api/workspaces/{workspace_id}/sessions/{session_id}/commands
-qa_status: blocked-verify
-bug_ids:
-fix_status:
+qa_status: pass
+bug_ids: BUG-20260826-namespaced-skill-label-collapses
+fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/catalogs/cli-compact-current.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/catalogs/http-compact-current.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/catalogs/uds-compact-current.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/web/reviewer-session-route-limitation.md;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/commands-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/commands-cli.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/commands-http.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/commands-uds.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-native-workspace-scope-isolation
 ---
 
@@ -33,3 +33,10 @@ QA impact 2026-08-13: reset because prompt, native skill tools, and command cata
 QA evidence correction 2026-08-13: the preceding pass/blocked claims use a build that predates PR #372 and are historical only.
 
 QA verdict 2026-08-13 (fresh native-CLI lab): blocked-verify. CLI, HTTP, and direct UDS returned an identical canonicalized ten-skill catalog (`compozy` plus the nine `spec-cycle` skills); foreign-workspace HTTP and UDS reads both returned 404 with no command payload. The built Web root rendered through `agent-browser`, but the concrete reviewer-session route returned “Route not found”, so menu parity was not observable. This route limitation is outside the exercised daemon command-resolution contract, but it prevents a Web parity pass.
+
+QA impact 2026-08-25 (skill sources): reset because the session command catalog contract changed again. The projection is now built from pre-overlay candidates carrying a stable opaque root identity, physical homonyms across two roots each keep a deterministic qualified token, skill rows carry an origin label in the trailing slot, and the catalog is keyed by the session's immutable profile id rather than the remembered profile. Re-walk Web, CLI, and HTTP/UDS parity on one revision, confirm both homonyms are listed and distinguishable, confirm switching the remembered profile does not change an existing session's catalog, and re-walk the wrong-workspace fence. Charter: `CH-skill-session-suppression-matrix`.
+
+QA execution 2026-08-26: CLI, HTTP, and UDS retained the distinct canonical collision tokens. The
+production Web picker initially collapsed both visible labels to the authored display name; after
+`BUG-20260826-namespaced-skill-label-collapses`, E2E-010 verified one `commit-hygiene` row and one
+`agents:commit-hygiene` row with the correct `agents` origin.

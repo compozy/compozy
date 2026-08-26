@@ -86,16 +86,6 @@ func (h *BaseHandlers) GetSettingsSkills(c *gin.Context) {
 	h.getSettingsSection(c, settingspkg.SectionSkills)
 }
 
-// UpdateSettingsSkills persists the skills settings section.
-func (h *BaseHandlers) UpdateSettingsSkills(c *gin.Context) {
-	req, err := parseUpdateSettingsSkillsRequest(c)
-	if err != nil {
-		h.respondError(c, StatusForSettingsError(err), err)
-		return
-	}
-	h.updateSettingsSection(c, req)
-}
-
 // ReloadSettings reconciles desired config.toml with the daemon active generation.
 func (h *BaseHandlers) ReloadSettings(c *gin.Context) {
 	if h.Settings == nil {

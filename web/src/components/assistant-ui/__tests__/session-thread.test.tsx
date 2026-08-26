@@ -2440,6 +2440,52 @@ describe("SessionThread composer running semantics", () => {
     expect(screen.queryByText("Frontend QA")).not.toBeInTheDocument();
   });
 
+  it("Should label a skill absorbed from another tool and leave native rows unlabeled", async () => {
+    renderComposer({
+      commandCatalog: {
+        standaloneSections: [
+          {
+            id: "skills",
+            label: "Skills",
+            commands: [
+              {
+                id: "review-checklist",
+                token: "/review-checklist",
+                label: "review-checklist",
+                lane: "skill" as const,
+                scope: "workspace",
+              },
+              {
+                id: "pdf-tools",
+                token: "/pdf-tools",
+                label: "pdf-tools",
+                lane: "skill" as const,
+                scope: "workspace_profile",
+                origin: "claude",
+              },
+            ],
+          },
+        ],
+        inlineSkills: [],
+      },
+    });
+
+    await screen.findByTestId("composer-input");
+    await setComposerText("/");
+
+    const menu = await screen.findByTestId("composer-command-menu");
+    const absorbed = within(menu).getByRole("option", { name: /pdf-tools/i });
+    expect(
+      within(absorbed).getByText("claude", { selector: "[data-slot='composer-command-origin']" })
+    ).toBeVisible();
+    // Origin is a fact about the source, never a replacement for the tier word.
+    expect(absorbed).toHaveTextContent("Workspace profile");
+
+    const native = within(menu).getByRole("option", { name: /review-checklist/i });
+    expect(within(native).queryByTestId("composer-command-origin")).not.toBeInTheDocument();
+    expect(native.querySelector("[data-slot='composer-command-origin']")).toBeNull();
+  });
+
   it("Should execute the worktree command without leaving it in the prompt", async () => {
     const user = userEvent.setup();
     const onCommandAction = vi.fn((token: string) => token === "/worktree");

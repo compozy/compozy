@@ -29,10 +29,30 @@ var (
 type DirectoryResult struct {
 	Paths     []string
 	Snapshots map[string]filesnap.Snapshot
+	RealPaths map[string]string
+	Stats     RootScanStats
 }
 
 func emptyDirectoryResult() DirectoryResult {
-	return DirectoryResult{Paths: []string{}, Snapshots: map[string]filesnap.Snapshot{}}
+	return DirectoryResult{
+		Paths: []string{}, Snapshots: map[string]filesnap.Snapshot{}, RealPaths: map[string]string{},
+		Stats: RootScanStats{Readable: true},
+	}
+}
+
+// SkippedLink records one first-level link rejected by the scanner.
+type SkippedLink struct {
+	Path   string
+	Reason string
+}
+
+// RootScanStats reports non-fatal scan state for one physical source root.
+type RootScanStats struct {
+	Exists       bool
+	Readable     bool
+	ScannedCount int
+	Truncated    bool
+	SkippedLinks []SkippedLink
 }
 
 func isTraversalLimit(err error) bool {

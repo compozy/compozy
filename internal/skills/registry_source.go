@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/resources"
 )
 
 func checkRegistryContext(ctx context.Context) error {
@@ -51,6 +53,37 @@ func SkillPrecedenceRank(source SkillSource) int {
 		return 70
 	default:
 		return -1
+	}
+}
+
+func sourceTierFor(spec compozyconfig.SkillRootSpec) SkillSource {
+	if spec.Kind == compozyconfig.RootKindCustom {
+		return SourceAdditional
+	}
+	switch spec.ResourceScope.Kind.Normalize() {
+	case resources.ResourceScopeKindUser:
+		return SourceUser
+	case resources.ResourceScopeKindProfile:
+		return SourceProfile
+	case resources.ResourceScopeKindWorkspace:
+		return SourceWorkspace
+	case resources.ResourceScopeKindWorkspaceProfile:
+		return SourceWorkspaceProfile
+	default:
+		return SourceAdditional
+	}
+}
+
+func assignSkillRoot(skill *Skill, spec compozyconfig.SkillRootSpec) {
+	if skill == nil {
+		return
+	}
+	skill.Source = sourceTierFor(spec)
+	skill.RootID = spec.RootID()
+	skill.RootDir = strings.TrimSpace(spec.Dir)
+	skill.ResourceScope = spec.ResourceScope.Normalize()
+	if strings.TrimSpace(spec.SourceSlug) != compozyconfig.SkillSourceCompozy {
+		skill.Origin = strings.TrimSpace(spec.SourceSlug)
 	}
 }
 

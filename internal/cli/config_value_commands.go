@@ -71,6 +71,13 @@ func runConfigUnsetCommand(
 	if err := prepareConfigMutationTarget(target, path); err != nil {
 		return err
 	}
+	if record, err := maybeUnsetWorkspaceSkillSourceViaDaemon(
+		cmd, deps, target, workspaceRoot, path,
+	); err != nil {
+		return err
+	} else if record != nil {
+		return writeCommandOutput(cmd, configUnsetBundle(*record))
+	}
 	deleted := false
 	if _, err := compozyconfig.EditConfigOverlay(
 		homePaths,
@@ -161,13 +168,16 @@ func newConfigListCommand(deps commandDeps) *cobra.Command {
 }
 
 func newConfigGetCommand(deps commandDeps) *cobra.Command {
-	var workspaceRoot string
+	var (
+		scopeRaw      string
+		workspaceRoot string
+	)
 	cmd := &cobra.Command{
 		Use:   "get <path>",
 		Short: "Get one redacted effective config value",
 		Args:  exactOneNonBlankArg(),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cfg, _, err := loadConfigForDisplay(cmd, deps, workspaceRoot)
+			cfg, err := loadConfigForDisplayScope(cmd, deps, scopeRaw, workspaceRoot)
 			if err != nil {
 				return err
 			}
@@ -195,6 +205,8 @@ func newConfigGetCommand(deps commandDeps) *cobra.Command {
 			return fmt.Errorf("cli: config path %q not found", path)
 		},
 	}
+	cmd.Flags().
+		StringVar(&scopeRaw, configScopeKey, "", "Read scope: user, profile, or workspace (defaults to effective context)")
 	cmd.Flags().
 		StringVar(&workspaceRoot, "workspace", "", "Override workspace overlay (ID, name, or path)")
 	return cmd
@@ -246,10 +258,15 @@ func runConfigSetCommand(
 	if err != nil {
 		return err
 	}
+	if err := validateSkillSourceConfigValue(target.Scope(), path, value); err != nil {
+		return err
+	}
 	if kind == configSetLoopInput {
 		return runLoopInputConfigSet(cmd, deps, target, workspaceRoot, path, value)
 	}
-	liveRecord, err := maybeApplyConfigSetViaDaemon(cmd.Context(), deps, target, path, value, redacted)
+	liveRecord, err := maybeApplyConfigSetViaDaemon(
+		cmd, deps, target, workspaceRoot, path, value, redacted,
+	)
 	if err != nil {
 		return err
 	}
@@ -294,6 +311,24 @@ func runConfigSetCommand(
 		record = *reloadRecord
 	}
 	return writeCommandOutput(cmd, configSetBundle(record))
+}
+
+func validateSkillSourceConfigValue(scope compozyconfig.WriteScope, path []string, value any) error {
+	if len(path) != 2 || path[0] != configSkillsKey ||
+		(path[1] != skillSourcesField && path[1] != skillCustomSourcesField) {
+		return nil
+	}
+	values, ok := value.([]string)
+	if !ok {
+		return fmt.Errorf("cli: config set %q expects a string slice payload, got %T", strings.Join(path, "."), value)
+	}
+	settings := compozyconfig.SkillsConfig{}
+	if path[1] == skillSourcesField {
+		settings.Sources = append([]string(nil), values...)
+	} else {
+		settings.CustomSources = append([]string(nil), values...)
+	}
+	return settings.ValidateForScope(scope)
 }
 
 func runLoopInputConfigSet(

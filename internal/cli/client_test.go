@@ -2955,8 +2955,8 @@ func TestUnixSocketClientMethods(t *testing.T) {
 						`{"skills":[{"name":"review","description":"Review helper","source":"workspace","enabled":true,"dir":"/workspace/project/.compozy/skills/review"}]}`,
 					), nil
 				case req.Method == http.MethodGet && req.URL.Path == "/api/skills/review":
-					if got := req.URL.Query().Get("workspace"); got != "alpha" {
-						t.Fatalf("skill info workspace query = %q, want %q", got, "alpha")
+					if got := req.URL.Query().Get("workspace_id"); got != "alpha" {
+						t.Fatalf("skill info workspace_id query = %q, want %q", got, "alpha")
 					}
 					return newHTTPResponse(
 						http.StatusOK,

@@ -4092,6 +4092,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/skills/{name}/expose": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Expose one user- or workspace-owned skill to provider roots */
+    post: operations["exposeSkill"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/skills/{name}/shadows": {
     parameters: {
       query?: never;
@@ -4103,6 +4120,23 @@ export interface paths {
     get: operations["getSkillShadows"];
     put?: never;
     post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/skills/{name}/unexpose": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Remove owned provider-root links for one skill */
+    post: operations["unexposeSkill"];
     delete?: never;
     options?: never;
     head?: never;
@@ -13639,6 +13673,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -56938,6 +56973,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -57473,6 +57509,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -58174,6 +58211,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -68267,9 +68305,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "user" | "agent";
-        /** @description Optional workspace id for agent resolution context */
+        scope?: "user" | "profile" | "workspace" | "agent";
+        /** @description Workspace id for workspace or agent resolution context */
         workspace_id?: string;
+        /** @description Profile name when scope=profile */
+        profile?: string;
         /** @description Agent name when scope=agent */
         agent_name?: string;
       };
@@ -68287,10 +68327,11 @@ export interface operations {
         content: {
           "application/json": {
             agent_name?: string;
-            available_scopes: ("user" | "agent")[];
+            available_scopes: ("user" | "profile" | "workspace" | "agent")[];
             config: {
               allowed_marketplace_hooks?: string[];
               allowed_marketplace_mcp?: string[];
+              custom_sources: string[];
               disabled_skills?: string[];
               enabled: boolean;
               marketplace: {
@@ -68298,6 +68339,7 @@ export interface operations {
                 registry: string;
               };
               poll_interval: string;
+              sources: string[];
             };
             diagnostics?: {
               activation_reasons?: {
@@ -68337,13 +68379,18 @@ export interface operations {
             }[];
             disabled_count: number;
             discovered_count: number;
+            inherits?: {
+              custom_sources: boolean;
+              sources: boolean;
+            } | null;
             links?: {
               label: string;
               path: string;
             }[];
+            profile?: string;
             runtime_available: boolean;
             /** @enum {string} */
-            scope: "user" | "agent";
+            scope: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
             section:
               | "general"
@@ -68359,6 +68406,40 @@ export interface operations {
               | "shell"
               | "observability"
               | "hooks-extensions";
+            sources: {
+              always_on: boolean;
+              default?: boolean;
+              enabled: boolean;
+              global_path?: string;
+              kind: string;
+              label: string;
+              path?: string;
+              roots: {
+                collisions: {
+                  name: string;
+                  qualified_form: string;
+                  winner_root_id: string;
+                }[];
+                exists: boolean;
+                native_readers: string[];
+                path: string;
+                readable: boolean;
+                root_id: string;
+                scanned_count?: number | null;
+                skill_count?: number | null;
+                skipped_links: {
+                  path: string;
+                  reason: string;
+                }[];
+                truncated: boolean;
+                verification: {
+                  blocked: number;
+                  warned: number;
+                };
+              }[];
+              slug: string;
+              workspace_path?: string;
+            }[];
             workspace_id?: string;
           };
         };
@@ -68485,9 +68566,11 @@ export interface operations {
     parameters: {
       query?: {
         /** @description Select the settings scope */
-        scope?: "user" | "agent";
-        /** @description Optional workspace id for agent resolution context */
+        scope?: "user" | "profile" | "workspace" | "agent";
+        /** @description Workspace id for workspace or agent resolution context */
         workspace_id?: string;
+        /** @description Profile name when scope=profile */
+        profile?: string;
         /** @description Agent name when scope=agent */
         agent_name?: string;
       };
@@ -68499,9 +68582,10 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          config: {
+          config?: {
             allowed_marketplace_hooks?: string[];
             allowed_marketplace_mcp?: string[];
+            custom_sources: string[];
             disabled_skills?: string[];
             enabled: boolean;
             marketplace: {
@@ -68509,7 +68593,12 @@ export interface operations {
               registry: string;
             };
             poll_interval: string;
+            sources: string[];
           };
+          override?: {
+            custom_sources?: string[] | null;
+            sources?: string[] | null;
+          } | null;
         };
       };
     };
@@ -68527,6 +68616,62 @@ export interface operations {
             agent_name?: string;
             applied: boolean;
             apply_record_id: string;
+            available_scopes: ("user" | "profile" | "workspace" | "agent")[];
+            config: {
+              allowed_marketplace_hooks?: string[];
+              allowed_marketplace_mcp?: string[];
+              custom_sources: string[];
+              disabled_skills?: string[];
+              enabled: boolean;
+              marketplace: {
+                base_url?: string;
+                registry: string;
+              };
+              poll_interval: string;
+              sources: string[];
+            };
+            diagnostics?: {
+              activation_reasons?: {
+                /** @enum {string} */
+                code:
+                  | "platform_mismatch"
+                  | "environment_context_unavailable"
+                  | "environment_mismatch"
+                  | "tool_context_unavailable"
+                  | "missing_tool"
+                  | "capability_context_unavailable"
+                  | "missing_capability";
+                gate: string;
+                message: string;
+                missing?: string[];
+              }[];
+              failure?: {
+                actual_hash?: string;
+                code: string;
+                expected_hash?: string;
+                message: string;
+              } | null;
+              name: string;
+              path?: string;
+              source?: string;
+              /** @enum {string} */
+              state: "valid" | "shadowed" | "verification_failed" | "inactive";
+              /** @enum {string} */
+              verification_status: "passed" | "warning" | "failed";
+              warnings?: {
+                message: string;
+                pattern?: string;
+                severity: string;
+              }[];
+              winning_path?: string;
+              winning_source?: string;
+            }[];
+            disabled_count: number;
+            discovered_count: number;
+            inherits?: {
+              custom_sources: boolean;
+              sources: boolean;
+            } | null;
             /** @enum {string} */
             lifecycle:
               | "live"
@@ -68534,6 +68679,10 @@ export interface operations {
               | "live-remove-if-unused"
               | "restart-required"
               | "session-rebind";
+            links?: {
+              label: string;
+              path: string;
+            }[];
             /** @enum {string} */
             next_action: "none" | "restart-daemon" | "new-session" | "retry";
             partial_failures?: {
@@ -68556,10 +68705,11 @@ export interface operations {
             profile?: string;
             restart_required?: boolean;
             restart_scope?: string;
+            runtime_available: boolean;
             /** @enum {string} */
-            scope?: "user" | "profile" | "workspace" | "agent";
+            scope: "user" | "profile" | "workspace" | "agent";
             /** @enum {string} */
-            section?:
+            section:
               | "general"
               | "persona"
               | "memory"
@@ -68572,13 +68722,43 @@ export interface operations {
               | "attention"
               | "shell"
               | "observability"
-              | "hooks-extensions"
-              | "providers"
-              | "mcp-servers"
-              | "sandboxes"
-              | "hooks";
+              | "hooks-extensions";
             skipped?: boolean;
             skipped_reason?: string;
+            sources: {
+              always_on: boolean;
+              default?: boolean;
+              enabled: boolean;
+              global_path?: string;
+              kind: string;
+              label: string;
+              path?: string;
+              roots: {
+                collisions: {
+                  name: string;
+                  qualified_form: string;
+                  winner_root_id: string;
+                }[];
+                exists: boolean;
+                native_readers: string[];
+                path: string;
+                readable: boolean;
+                root_id: string;
+                scanned_count?: number | null;
+                skill_count?: number | null;
+                skipped_links: {
+                  path: string;
+                  reason: string;
+                }[];
+                truncated: boolean;
+                verification: {
+                  blocked: number;
+                  warned: number;
+                };
+              }[];
+              slug: string;
+              workspace_path?: string;
+            }[];
             warnings?: string[];
             workspace_id?: string;
             /** @enum {string} */
@@ -68600,27 +68780,39 @@ export interface operations {
           [name: string]: unknown;
         };
         content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+          "application/json":
+            | {
+                code?: string;
+                details?: {
+                  [key: string]: string;
+                };
+                diagnostic?: {
+                  category: string;
+                  code: string;
+                  data_freshness: string;
+                  doc_url?: string;
+                  evidence?: {
+                    [key: string]: unknown;
+                  };
+                  id: string;
+                  message: string;
+                  severity: string;
+                  suggested_command?: string;
+                  title: string;
+                } | null;
+                error: string;
+              }
+            | {
+                error: {
+                  code: string;
+                  existing_source?: string;
+                  field?: string;
+                  message: string;
+                  path?: string;
+                  suggestion?: string;
+                  valid?: string[];
+                };
               };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
         };
       };
       /** @description Forbidden */
@@ -69801,6 +69993,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -69874,10 +70068,21 @@ export interface operations {
               }[];
               dir: string;
               enabled: boolean;
+              exposures?:
+                | {
+                    path: string;
+                    /** @enum {string} */
+                    status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                    target: string;
+                  }[]
+                | null;
               metadata?: {
                 [key: string]: unknown;
               };
               name: string;
+              origin: string;
+              owner_id?: string;
+              owner_scope: string;
               provenance?: {
                 /** Format: date-time */
                 installed_at?: string | null;
@@ -69887,6 +70092,7 @@ export interface operations {
                 shadowed_by?: {
                   /** Format: date-time */
                   detected_at: string;
+                  origin?: string;
                   path: string;
                   resolved_to_winner: boolean;
                   tier: string;
@@ -70568,8 +70774,10 @@ export interface operations {
   getSkill: {
     parameters: {
       query?: {
-        /** @description Workspace id or path for resolution context */
-        workspace?: string;
+        /** @description Canonical workspace id for resolution context */
+        workspace_id?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -70646,10 +70854,21 @@ export interface operations {
               }[];
               dir: string;
               enabled: boolean;
+              exposures?:
+                | {
+                    path: string;
+                    /** @enum {string} */
+                    status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                    target: string;
+                  }[]
+                | null;
               metadata?: {
                 [key: string]: unknown;
               };
               name: string;
+              origin: string;
+              owner_id?: string;
+              owner_scope: string;
               provenance?: {
                 /** Format: date-time */
                 installed_at?: string | null;
@@ -70659,6 +70878,7 @@ export interface operations {
                 shadowed_by?: {
                   /** Format: date-time */
                   detected_at: string;
+                  origin?: string;
                   path: string;
                   resolved_to_winner: boolean;
                   tier: string;
@@ -70824,6 +71044,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -70999,6 +71221,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -71174,6 +71398,8 @@ export interface operations {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -71344,11 +71570,110 @@ export interface operations {
       };
     };
   };
+  exposeSkill: {
+    parameters: {
+      query?: {
+        /** @description Exact acting profile name */
+        profile?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Skill name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          targets: string[];
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            rolled_back: boolean;
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Exposure failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              message: string;
+            };
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            rolled_back?: boolean | null;
+            workspace_id?: string;
+          };
+        };
+      };
+    };
+  };
   getSkillShadows: {
     parameters: {
       query?: {
         /** @description Workspace id or path for resolution context */
         workspace?: string;
+        /** @description Exact profile name */
+        profile?: string;
         /** @description Logical agent name for agent-local resolution */
         for_agent?: string;
       };
@@ -71372,6 +71697,7 @@ export interface operations {
             shadows: {
               /** Format: date-time */
               detected_at: string;
+              origin?: string;
               path: string;
               resolved_to_winner: boolean;
               tier: string;
@@ -71379,6 +71705,7 @@ export interface operations {
             winner: {
               /** Format: date-time */
               detected_at: string;
+              origin?: string;
               path: string;
               resolved_to_winner: boolean;
               tier: string;
@@ -71528,6 +71855,102 @@ export interface operations {
               title: string;
             } | null;
             error: string;
+          };
+        };
+      };
+    };
+  };
+  unexposeSkill: {
+    parameters: {
+      query?: {
+        /** @description Exact acting profile name */
+        profile?: string;
+        /** @description Logical agent name for agent-local resolution */
+        for_agent?: string;
+      };
+      header?: never;
+      path: {
+        /** @description Skill name */
+        name: string;
+      };
+      cookie?: never;
+    };
+    /** @description JSON request body */
+    requestBody: {
+      content: {
+        "application/json": {
+          targets: string[];
+          workspace_id?: string;
+        };
+      };
+    };
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            workspace_id?: string;
+          };
+        };
+      };
+      /** @description Removal failed */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              message: string;
+            };
+            name: string;
+            results: {
+              cleanup_error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              error?: {
+                code: string;
+                message?: string;
+                occupied_by?: string;
+              } | null;
+              exposure?: {
+                path: string;
+                /** @enum {string} */
+                status: "healthy" | "missing" | "broken" | "foreign_conflict";
+                target: string;
+              } | null;
+              ok: boolean;
+              target: string;
+            }[];
+            rolled_back?: boolean | null;
+            workspace_id?: string;
           };
         };
       };
@@ -98836,6 +99259,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -118147,6 +118571,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -118641,6 +119066,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -119142,6 +119568,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -122695,6 +123122,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -123158,6 +123586,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -123718,6 +124147,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -124167,6 +124597,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -125384,6 +125815,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -125783,6 +126215,7 @@ export interface operations {
                 id?: string;
                 key?: string;
                 kind: string;
+                origin?: string;
                 scope: string;
               };
               unavailable_reason?: string;
@@ -125926,6 +126359,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               goal?: {
@@ -127534,6 +127968,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 goal?: {
@@ -129582,6 +130017,7 @@ export interface operations {
                   id?: string;
                   key?: string;
                   kind: string;
+                  origin?: string;
                   scope: string;
                 };
                 start: number;
@@ -129724,6 +130160,7 @@ export interface operations {
                   id?: string;
                   key?: string;
                   kind: string;
+                  origin?: string;
                   scope: string;
                 };
                 start: number;
@@ -130649,6 +131086,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -131233,6 +131671,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -131711,6 +132150,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -132147,6 +132587,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -133418,6 +133859,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               goal?: {
@@ -133483,6 +133925,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               goal?: {
@@ -134980,6 +135423,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -135746,6 +136190,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {

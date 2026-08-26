@@ -485,6 +485,8 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/support/bundles",
 			"POST /api/skills/:name/disable",
 			"POST /api/skills/:name/enable",
+			"POST /api/skills/:name/expose",
+			"POST /api/skills/:name/unexpose",
 			"POST /api/skills/marketplace/install",
 			"POST /api/skills/marketplace/update",
 			"POST /api/task-runs/:id/attach-session",

@@ -34,22 +34,21 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 		applyDisabledSkillList(
 			skills,
 			r.workspaceDisabledSkillsSnapshot(
-				workspaceCacheKey(resolved, nil),
+				workspaceCacheKey(resolved),
 				workspaceConfiguredDisabledSkills(resolved),
 			),
 		)
 		return skills, nil
 	}
-	if skills, ok, err := r.cachedWorkspaceSkillsFromResolved(ctx, resolved); ok || err != nil {
-		return skills, err
+	cacheKey := workspaceCacheKey(resolved)
+	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(cacheKey, workspaceConfiguredDisabledSkills(resolved))
+	if skills, ok := r.cachedWorkspaceSkillsIfFresh(ctx, resolved, cacheKey, workspaceDisabled); ok {
+		return skills, nil
 	}
-
 	load, err := r.workspaceLoadFromResolved(ctx, resolved)
 	if err != nil {
 		return nil, err
 	}
-	cacheKey := workspaceCacheKey(resolved, load.paths)
-	workspaceDisabled := r.workspaceDisabledSkillsSnapshot(cacheKey, workspaceConfiguredDisabledSkills(resolved))
 	if len(load.paths) == 0 {
 		skills := r.List()
 		applyDisabledSkillList(skills, workspaceDisabled)
@@ -76,7 +75,9 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 	}
 	r.mu.Unlock()
 
-	workspaceSkills, workspaceDiagnostics, err := r.loadWorkspaceSkills(ctx, load.paths, workspaceDisabled)
+	workspaceSkills, workspaceDiagnostics, commandCandidates, err := r.loadWorkspaceSkills(
+		ctx, load.paths, workspaceDisabled,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +89,7 @@ func (r *Registry) workspaceSkills(ctx context.Context, resolved *workspacepkg.R
 		cacheKey,
 		workspaceSkills,
 		workspaceDiagnostics,
+		commandCandidates,
 		workspaceDisabled,
 		now,
 	)

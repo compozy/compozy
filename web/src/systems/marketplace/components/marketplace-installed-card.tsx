@@ -23,7 +23,7 @@ import { formatMarketplaceVersion, marketplaceKindIcon } from "./marketplace-ui"
 import { useMarketplaceInstalledCardConfirmation } from "./use-marketplace-installed-card-confirmation";
 import { ExtensionFormatBadge, ExtensionTrustBadges } from "@/systems/extensions";
 import { deriveMCPManagementFilter } from "@/systems/settings";
-import { SkillActivationPill, SkillActivationReasons } from "@/systems/skill";
+import { SkillActivationPill, SkillActivationReasons, skillOriginLabel } from "@/systems/skill";
 
 interface MarketplaceInstalledCardProps {
   item: MarketplaceInstalledItem;
@@ -265,8 +265,20 @@ function InstalledPills({
 }) {
   const { entry } = item;
   const version = formatMarketplaceVersion(entry.version);
+  const originLabel = item.skill ? skillOriginLabel(item.skill.origin) : null;
   return (
     <>
+      {/* Where a skill came from is a fact: neutral mono, never a signal tone. */}
+      {originLabel !== null ? (
+        <Pill
+          className="max-w-32 truncate"
+          data-testid={`skill-card-origin-${item.skill?.name}`}
+          mono
+          title={originLabel}
+        >
+          {originLabel}
+        </Pill>
+      ) : null}
       {item.skill ? (
         <SkillActivationPill
           active={item.skill.activation.active}

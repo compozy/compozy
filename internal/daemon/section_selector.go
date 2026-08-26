@@ -46,7 +46,7 @@ func (s *SectionSelector) Select(
 	var timestamp time.Time
 	if s != nil && s.recorder != nil && s.resolver != nil {
 		timestamp = s.recorder.timestamp(time.Time{})
-		s.recorder.RecordStartupContextResolved(startup, resolved, timestamp)
+		s.recorder.RecordStartupContextResolved(startup, &resolved, timestamp)
 	}
 
 	selected := make([]PromptSectionDescriptor, 0, len(normalized))
@@ -69,7 +69,7 @@ func (s *SectionSelector) Select(
 		selected = append(selected, descriptor)
 	}
 	if s != nil && s.recorder != nil && s.resolver != nil {
-		s.recorder.RecordStartupSectionSelected(startup, resolved, selected, timestamp)
+		s.recorder.RecordStartupSectionSelected(startup, &resolved, selected, timestamp)
 	}
 
 	return selected, resolved, nil

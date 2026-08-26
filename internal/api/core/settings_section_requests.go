@@ -229,24 +229,30 @@ func (h *BaseHandlers) validateSettingsMemoryProvider(
 }
 
 func parseUpdateSettingsSkillsRequest(c *gin.Context) (settingspkg.SectionUpdateRequest, error) {
-	var body struct {
-		Config *contract.SettingsSkillsConfigPayload `json:"config"`
-	}
-	if err := c.ShouldBindJSON(&body); err != nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(
-			fmt.Errorf("decode skills settings request: %w", err),
-		)
-	}
-	if body.Config == nil {
-		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(errors.New("skills.config is required"))
-	}
 	req, err := parseSettingsSectionRequest(c, settingspkg.SectionSkills)
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
 	}
-	config, err := skillsConfigFromPayload(*body.Config)
+	payload, override, err := decodeSettingsSkillsUpdate(c.Request.Body, req.Scope)
+	if err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(err)
+	}
+	if override != nil {
+		return settingspkg.SectionUpdateRequest{SectionRequest: req, SkillSourcesOverride: override}, nil
+	}
+	if payload == nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(errors.New("skills.config is required"))
+	}
+	config, err := skillsConfigFromPayload(*payload)
 	if err != nil {
 		return settingspkg.SectionUpdateRequest{}, err
+	}
+	writeScope := compozyconfig.WriteScopeUser
+	if req.Scope == settingspkg.ScopeProfile {
+		writeScope = compozyconfig.WriteScopeProfile
+	}
+	if err := config.ValidateForScope(writeScope); err != nil {
+		return settingspkg.SectionUpdateRequest{}, NewSettingsValidationError(err)
 	}
 	return settingspkg.SectionUpdateRequest{SectionRequest: req, Skills: &config}, nil
 }

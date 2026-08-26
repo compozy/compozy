@@ -11,8 +11,8 @@ bug_ids: BUG-20260714-keyboard-focus-invisible
 fix_status: fixed
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/notes/marketplace-under-minute.json;/Users/pedronauck/dev/qa-labs/compozy-marketplace-task11-final-20260715-20260716-011529-818379-lab/qa-artifacts/qa/web/marketplace-skill-manage.png;/Users/pedronauck/Dev/compozy/compozy/.tmp/bug-20260714-focus/focused.png;/Users/pedronauck/dev/qa-labs/compozy-ext-improvs-final-20260729-230047-267985-lab/qa-artifacts/qa/extension-charters.json;/Users/pedronauck/dev/qa-labs/compozy-devtool-oss-launch-20260802-195112-911343-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-08-02-bundles-removal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-009; ET-010; ET-api-marketplace-namespace
 ---
 
@@ -22,3 +22,5 @@ Historical QA note: mutation-result identity routing remains pending.
 
 QA impact 2026-07-16: the success CTA now targets the canonical skill name returned by the install
 mutation instead of catalog display metadata; reset with deliberately different names.
+
+QA impact 2026-08-25 (skill sources): reset because the installed skill card changed. It now renders a neutral mono origin pill for skills absorbed from a non-Compozy source, and the kind page's skill query is scoped to the exact profile instead of the remembered one. Re-walk install and update from the stable detail, confirm the card still reflects the new installed state with the origin pill present only for absorbed skills, and confirm Manage still routes to the installed skill. Rides along in `CH-skill-expose-web-repair`.

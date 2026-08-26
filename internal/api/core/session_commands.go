@@ -50,6 +50,7 @@ func SessionCommandsResponseFromCatalog(catalog commandpkg.Catalog) contract.Ses
 			Source: contract.SessionCommandSource{
 				Kind: descriptor.Source.Kind, ID: descriptor.Source.ID,
 				Key: descriptor.Source.Key, Scope: descriptor.Source.Scope,
+				Origin: descriptor.Source.Origin,
 			},
 		})
 	}

@@ -40,6 +40,30 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 			t.Fatalf("stored profile event subject = %#v, want %#v", payload, event)
 		}
 	})
+
+	t.Run("Should republish profile-owned skills after the lifecycle event is durable", func(t *testing.T) {
+		t.Parallel()
+
+		writer := &profileEventSummaryWriterStub{}
+		syncCalls := 0
+		state := &bootState{agentSkillResources: agentSkillPublisherFunc(func(context.Context) error {
+			syncCalls++
+			if writer.summary.Type == "" {
+				t.Fatal("skill republication ran before the profile event was durable")
+			}
+			return nil
+		})}
+		recorder := &daemonProfileEventRecorder{writer: writer, state: state}
+
+		recorder.RecordProfileEvent(profile.Event{
+			Name: "profile.renamed", ProfileID: "profile-growth", ProfileName: "growth",
+			PreviousProfileName: "marketing", OperationID: "op-rename",
+		})
+
+		if syncCalls != 1 {
+			t.Fatalf("profile skill republication calls = %d, want 1", syncCalls)
+		}
+	})
 }
 
 type profileEventSummaryWriterStub struct {

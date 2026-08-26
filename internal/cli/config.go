@@ -28,7 +28,7 @@ const (
 	configManagerKey           = "manager"
 	configMemoryKey            = "memory"
 	configNetworkKey           = "network"
-	configPathKey              = "path"
+	configPathKey              = cliPathKey
 	configReadKey              = "read"
 	configRedactedKey          = "redacted"
 	configRequiredKey          = "required"
@@ -271,6 +271,8 @@ var configScalarMutationKinds = mergeConfigSetValueKinds(map[string]configSetVal
 	"memory.provider.cooldown":                          configSetDuration,
 	"memory.workspace.auto_create":                      configSetBool,
 	"skills.enabled":                                    configSetBool,
+	"skills.sources":                                    configSetStringSlice,
+	"skills.custom_sources":                             configSetStringSlice,
 	"skills.disabled_skills":                            configSetStringSlice,
 	"skills.poll_interval":                              configSetDuration,
 	"skills.allowed_marketplace_mcp":                    configSetStringSlice,

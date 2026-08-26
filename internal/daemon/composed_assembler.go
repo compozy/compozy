@@ -8,6 +8,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -45,6 +46,16 @@ type agentSessionPromptSectionProvider interface {
 		sessionID string,
 		agent compozyconfig.AgentDef,
 		workspace *workspacepkg.ResolvedWorkspace,
+	) (string, error)
+}
+
+type filteredAgentSessionPromptSectionProvider interface {
+	PromptAgentSessionFilteredSection(
+		ctx context.Context,
+		sessionID string,
+		agent compozyconfig.AgentDef,
+		workspace *workspacepkg.ResolvedWorkspace,
+		filter func(*skillspkg.Skill) bool,
 	) (string, error)
 }
 
@@ -161,12 +172,14 @@ func (a *ComposedAssembler) AssembleStartup(
 		return basePrompt, nil
 	}
 
-	selected, err := a.selectDescriptors(startup)
+	selected, resolved, err := a.selectDescriptors(startup)
 	if err != nil {
 		return "", err
 	}
 
-	prependSections, appendSections, err := gatherPromptSections(ctx, startup, agent, workspace, selected)
+	prependSections, appendSections, err := gatherPromptSections(
+		ctx, startup, agent, workspace, selected, resolved.Policy.SkillInjectionFilter,
+	)
 	if err != nil {
 		return "", err
 	}
@@ -190,7 +203,7 @@ func (a *ComposedAssembler) ResumeContextSection(
 	if a == nil {
 		return "", nil
 	}
-	selected, err := a.selectDescriptors(startup)
+	selected, _, err := a.selectDescriptors(startup)
 	if err != nil {
 		return "", err
 	}
@@ -213,18 +226,19 @@ func (a *ComposedAssembler) ResumeContextSection(
 
 func (a *ComposedAssembler) selectDescriptors(
 	startup session.StartupPromptContext,
-) ([]PromptSectionDescriptor, error) {
+) ([]PromptSectionDescriptor, ResolvedHarnessContext, error) {
 	if len(a.descriptors) == 0 {
-		return nil, nil
+		return nil, ResolvedHarnessContext{}, nil
 	}
 	if err := validatePromptSectionDescriptors(a.descriptors); err != nil {
-		return nil, err
+		return nil, ResolvedHarnessContext{}, err
 	}
 	if a.selector == nil {
-		return filterPromptDescriptorsForStartup(normalizeAndSortPromptSectionDescriptors(a.descriptors), startup), nil
+		return filterPromptDescriptorsForStartup(
+			normalizeAndSortPromptSectionDescriptors(a.descriptors), startup,
+		), ResolvedHarnessContext{}, nil
 	}
-	selected, _, err := a.selector.Select(startup, a.descriptors)
-	return selected, err
+	return a.selector.Select(startup, a.descriptors)
 }
 
 func filterPromptDescriptorsForStartup(
@@ -250,6 +264,7 @@ func gatherPromptSections(
 	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
 	descriptors []PromptSectionDescriptor,
+	filter SkillInjectionFilter,
 ) ([]string, []string, error) {
 	prependSections := make([]string, 0, len(descriptors))
 	appendSections := make([]string, 0, len(descriptors))
@@ -259,7 +274,7 @@ func gatherPromptSections(
 			continue
 		}
 
-		section, err := promptSection(ctx, descriptor.Provider, startup, agent, workspace)
+		section, err := promptSection(ctx, descriptor.Provider, startup, agent, workspace, filter)
 		if err != nil {
 			return nil, nil, fmt.Errorf(
 				"daemon: %s prompt section %q: %w",
@@ -297,7 +312,13 @@ func promptSection(
 	startup session.StartupPromptContext,
 	agent compozyconfig.AgentDef,
 	workspace *workspacepkg.ResolvedWorkspace,
+	filter SkillInjectionFilter,
 ) (string, error) {
+	if filteredProvider, ok := provider.(filteredAgentSessionPromptSectionProvider); ok {
+		return filteredProvider.PromptAgentSessionFilteredSection(
+			ctx, startup.SessionID, agent, workspace, filter,
+		)
+	}
 	if sessionProvider, ok := provider.(agentSessionPromptSectionProvider); ok {
 		return sessionProvider.PromptAgentSessionSection(ctx, startup.SessionID, agent, workspace)
 	}

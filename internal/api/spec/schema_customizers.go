@@ -73,6 +73,12 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.UpdateSettingsShellRequest]():     customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsShellResponse]():          customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsShellPayload]():           customizeClosedObjectSchema,
+	reflect.TypeFor[contract.OptionalStringList](): func(schema *openapi3.Schema) {
+		*schema = *openapi3.NewArraySchema().WithItems(openapi3.NewStringSchema())
+		schema.Nullable = true
+	},
+	reflect.TypeFor[contract.UpdateSettingsSkillsRequest]():    customizeClosedObjectSchema,
+	reflect.TypeFor[contract.SettingsSkillsOverridePayload]():  customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsShellSessionsPayload]():   customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsUpdateApplyRequest]():     customizeSettingsUpdateApplyRequestSchema,
 	reflect.TypeFor[contract.SettingsUpdateApplyResponse]():    customizeSettingsUpdateApplyResponseSchema,

@@ -302,6 +302,8 @@ describe("section reads and updates", () => {
         disabled_skills: ["review"],
         poll_interval: "5m",
         marketplace: { registry: "compozy" },
+        sources: ["agents"],
+        custom_sources: [],
       },
     };
 
@@ -317,6 +319,37 @@ describe("section reads and updates", () => {
       body,
       method: "PATCH",
       path: "/api/settings/skills?scope=agent&workspace_id=ws-polybot&agent_name=coder",
+    });
+  });
+
+  it("preserves the daemon's structured skills validation error", async () => {
+    const detail = {
+      code: "skill_source_overlap",
+      message: "The custom source overlaps an enabled preset.",
+      valid: ["agents", "claude"],
+      suggestion: "Remove the custom source or turn off the preset.",
+      field: "custom_sources",
+      path: "/work/.agents/skills",
+      existing_source: "agents",
+    };
+    mockJsonResponse({ error: detail }, { status: 400 });
+
+    const rejection = updateSettingsSkills({
+      config: {
+        enabled: true,
+        disabled_skills: [],
+        poll_interval: "5m",
+        marketplace: { registry: "compozy" },
+        sources: ["agents"],
+        custom_sources: ["/work/.agents/skills"],
+      },
+    }).catch(error => error as SettingsApiError);
+
+    await expect(rejection).resolves.toMatchObject({
+      name: "SettingsApiError",
+      message: detail.message,
+      status: 400,
+      detail,
     });
   });
 

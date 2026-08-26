@@ -1,5 +1,8 @@
 import type {
   SkillActionResponse,
+  SkillExposeResponse,
+  SkillExposeFailureResponse,
+  SkillExposurePayload,
   SkillMarketplaceInstallPayload,
   SkillMarketplaceRemovePayload,
   SkillMarketplaceUpdatePayload,
@@ -7,6 +10,7 @@ import type {
 } from "../types";
 import {
   storySkillNames,
+  storyWorkspaceIds,
   storyWorkspacePaths,
   storyWorkspaceSkillDir,
 } from "@/storybook/fintech-scenario";
@@ -17,10 +21,20 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Turn cross-functional launch traffic into a concise executive brief with risks, owners, and next steps.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.hq,
+    origin: "",
     enabled: true,
     activation: { active: true },
     dir: storyWorkspaceSkillDir(storySkillNames.executiveBrief),
     version: "1.2.0",
+    exposures: [
+      {
+        target: "agents",
+        path: `${storyWorkspacePaths.hq}/.agents/skills/${storySkillNames.executiveBrief}`,
+        status: "healthy",
+      },
+    ],
     metadata: {
       tags: ["executive", "launch", "briefing"],
       downloads: 318,
@@ -46,6 +60,9 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Polish launch headlines, CRM copy, pricing claims, and ad lines without violating the approved guardrails.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.growth,
+    origin: "agents",
     enabled: true,
     activation: { active: true },
     dir: storyWorkspaceSkillDir(storySkillNames.launchCopy, storyWorkspacePaths.growth),
@@ -63,6 +80,9 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Run launch-surface QA for hero states, pricing banners, mobile breakpoints, and fallback banners.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.product,
+    origin: "",
     enabled: true,
     activation: {
       active: false,
@@ -91,6 +111,9 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Prepare launch GMV, burn, and reserve snapshots for finance reviews and launch-room decisions.",
     source: "workspace",
+    owner_scope: "workspace",
+    owner_id: storyWorkspaceIds.finance,
+    origin: "team-skills",
     enabled: true,
     activation: { active: true },
     dir: storyWorkspaceSkillDir(storySkillNames.financePrep, storyWorkspacePaths.finance),
@@ -109,6 +132,8 @@ export const skillFixtures: SkillPayload[] = [
     description:
       "Guide support and risk through launch-day merchant escalations with clear customer-safe next steps.",
     source: "marketplace",
+    owner_scope: "user",
+    origin: "",
     enabled: false,
     activation: { active: true },
     dir: "/opt/compozy/skills/merchant-escalation-handoff",
@@ -185,6 +210,67 @@ export const skillMarketplaceUpdateFixtures: SkillMarketplaceUpdatePayload[] = [
     latest_version: "0.9.0",
   },
 ];
+
+/** The four reconciled expose states, one row each. */
+export const skillExposuresFixture: SkillExposurePayload[] = [
+  {
+    target: "agents",
+    path: "/Users/ana/.agents/skills/review-checklist",
+    status: "healthy",
+  },
+  {
+    target: "claude",
+    path: "/Users/ana/.claude/skills/review-checklist",
+    status: "missing",
+  },
+  {
+    target: "agents",
+    path: "/Users/ana/.agents/skills/deploy-runbook",
+    status: "broken",
+  },
+  {
+    target: "claude",
+    path: "/Users/ana/.claude/skills/deploy-runbook",
+    status: "foreign_conflict",
+  },
+];
+
+export const skillExposeSuccessFixture: SkillExposeResponse = {
+  name: storySkillNames.executiveBrief,
+  results: [
+    {
+      target: "agents",
+      ok: true,
+      exposure: {
+        target: "agents",
+        path: `/Users/ana/.agents/skills/${storySkillNames.executiveBrief}`,
+        status: "healthy",
+      },
+    },
+  ],
+  rolled_back: false,
+};
+
+/** One target refused, the completed one compensated — the `expose_failed` envelope. */
+export const skillExposePartialFailureFixture: SkillExposeFailureResponse = {
+  error: {
+    code: "expose_failed",
+    message: "1 of 2 targets failed; completed targets rolled back",
+  },
+  name: storySkillNames.executiveBrief,
+  results: [
+    {
+      target: "claude",
+      ok: false,
+      error: {
+        code: "expose_name_conflict",
+        occupied_by: "/Users/ana/.claude/skills/review-checklist",
+      },
+    },
+    { target: "agents", ok: false, error: { code: "rolled_back" } },
+  ],
+  rolled_back: true,
+};
 
 export const skillMarketplaceRemoveFixture: SkillMarketplaceRemovePayload = {
   name: "merchant-escalation-handoff",

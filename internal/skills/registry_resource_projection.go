@@ -62,7 +62,7 @@ func (r *Registry) resourceSkillTargetLocked(
 	if key := resourceWorkspaceKey(resolved); key != "" {
 		if workspaceSkills := r.resourceWorkspaces[key]; workspaceSkills != nil {
 			if skill := workspaceSkills[name]; skill != nil {
-				return skillToggleScopeWorkspace, workspaceCacheKey(resolved, nil), skill
+				return skillToggleScopeWorkspace, workspaceCacheKey(resolved), skill
 			}
 		}
 	}
@@ -121,7 +121,7 @@ func resourceWorkspaceProfileKey(resolved *workspacepkg.ResolvedWorkspace) strin
 	if resolved == nil {
 		return ""
 	}
-	workspaceID := strings.TrimSpace(resolved.ID)
+	workspaceID := resourceWorkspaceKey(resolved)
 	profileName := strings.TrimSpace(resolved.ProfileName)
 	profileID := strings.TrimSpace(resolved.ProfileID)
 	if profileName == "" && (profileID == "" || profileID == store.DefaultProfileID) {
@@ -145,7 +145,10 @@ func resourceWorkspaceKey(resolved *workspacepkg.ResolvedWorkspace) string {
 	if resolved == nil {
 		return ""
 	}
-	return strings.TrimSpace(resolved.ID)
+	if registrationID := strings.TrimSpace(resolved.ID); registrationID != "" {
+		return registrationID
+	}
+	return strings.TrimSpace(resolved.WorkspaceID)
 }
 
 func skillRecordSortKey(record resources.Record[SkillResourceSpec]) string {

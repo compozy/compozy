@@ -1542,7 +1542,7 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertParameter(t, listSkills, "for_agent", openapi3.ParameterInQuery, false)
 				listSkillsSchema := jsonResponseSchema(t, listSkills, 200)
 				skillSchema := propertySchema(t, listSkillsSchema, "skills").Items.Value
-				assertRequired(t, skillSchema, "activation")
+				assertRequired(t, skillSchema, "activation", "origin")
 				activationSchema := propertySchema(t, skillSchema, "activation")
 				assertRequired(t, activationSchema, "active")
 				activationReasonSchema := propertySchema(t, activationSchema, "reasons").Items.Value
@@ -1584,8 +1584,36 @@ func TestDocumentTracksRequiredFieldsAndEnums(t *testing.T) {
 				assertNotRequired(t, failureSchema, "expected_hash", "actual_hash")
 
 				getSkill := operationFor(t, doc, "/api/skills/{name}", "GET")
-				assertParameter(t, getSkill, "workspace", openapi3.ParameterInQuery, false)
+				assertParameter(t, getSkill, "workspace_id", openapi3.ParameterInQuery, false)
 				assertParameter(t, getSkill, "for_agent", openapi3.ParameterInQuery, false)
+				getSkillSchema := propertySchema(t, jsonResponseSchema(t, getSkill, 200), "skill")
+				assertRequired(t, getSkillSchema, "origin")
+				exposureSchema := propertySchema(t, getSkillSchema, "exposures").Items.Value
+				assertRequired(t, exposureSchema, "target", "path", "status")
+				assertEnumValues(t, propertySchema(t, exposureSchema, "status"),
+					"broken", "foreign_conflict", "healthy", "missing")
+
+				exposeSkill := operationFor(t, doc, "/api/skills/{name}/expose", "POST")
+				assertParameter(t, exposeSkill, "profile", openapi3.ParameterInQuery, false)
+				assertParameter(t, exposeSkill, "for_agent", openapi3.ParameterInQuery, false)
+				exposeRequestSchema := jsonRequestSchema(t, exposeSkill)
+				assertRequired(t, exposeRequestSchema, "targets")
+				assertNotRequired(t, exposeRequestSchema, "workspace_id")
+				exposeSuccessSchema := jsonResponseSchema(t, exposeSkill, 200)
+				assertRequired(t, exposeSuccessSchema, "name", "results", "rolled_back")
+				assertNotRequired(t, exposeSuccessSchema, "workspace_id")
+				exposeFailureSchema := jsonResponseSchema(t, exposeSkill, 409)
+				assertRequired(t, exposeFailureSchema, "error", "name", "results")
+				assertNotRequired(t, exposeFailureSchema, "workspace_id", "rolled_back")
+				failureErrorSchema := propertySchema(t, exposeFailureSchema, "error")
+				assertRequired(t, failureErrorSchema, "code", "message")
+
+				unexposeSkill := operationFor(t, doc, "/api/skills/{name}/unexpose", "POST")
+				unexposeSuccessSchema := jsonResponseSchema(t, unexposeSkill, 200)
+				assertRequired(t, unexposeSuccessSchema, "name", "results")
+				if _, hasRollback := unexposeSuccessSchema.Properties["rolled_back"]; hasRollback {
+					t.Fatal("unexpose success schema unexpectedly exposes rolled_back")
+				}
 
 				getSkillContent := operationFor(t, doc, "/api/skills/{name}/content", "GET")
 				assertParameter(t, getSkillContent, "workspace", openapi3.ParameterInQuery, false)

@@ -12,6 +12,7 @@ import (
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -227,7 +228,11 @@ func (s *sessionPromptStreamState) observe(event SSEEvent) error {
 		if message == "" {
 			message = "daemon reported a terminal prompt failure"
 		}
-		s.failure = fmt.Errorf("cli: session prompt stream failed: %s", message)
+		failureErr := fmt.Errorf("cli: session prompt stream failed: %s", message)
+		if payload.Failure != nil && payload.Failure.ReasonCode == store.FailureReasonPromptStreamIncomplete {
+			failureErr = errors.Join(errSessionPromptStreamIncomplete, failureErr)
+		}
+		s.failure = failureErr
 	case promptDoneEventName, promptFinishEventName, promptResultEventName:
 		s.terminal = true
 	}

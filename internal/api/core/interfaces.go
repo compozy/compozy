@@ -259,6 +259,11 @@ type SkillsRegistryRefresher interface {
 	RefreshGlobal(ctx context.Context) error
 }
 
+// SkillExposureRootsProvider returns the exact active roots for one resolved catalog scope.
+type SkillExposureRootsProvider interface {
+	ExposureRoots(resolved *workspacepkg.ResolvedWorkspace) []compozyconfig.SkillRootSpec
+}
+
 // SkillResourceSyncer synchronizes resource-backed skill declarations after on-disk mutations.
 type SkillResourceSyncer interface {
 	SyncSkills(ctx context.Context) error

@@ -1,6 +1,10 @@
 package builtin
 
-import toolspkg "github.com/compozy/compozy/internal/tools"
+import (
+	"encoding/json"
+
+	toolspkg "github.com/compozy/compozy/internal/tools"
+)
 
 const (
 	skillsSkillsKey = "skills"
@@ -11,11 +15,11 @@ const (
 )
 
 var skillTools = []toolspkg.Descriptor{
-	nativeDescriptor(
+	skillDescriptor(nativeDescriptor(
 		toolspkg.ToolIDSkillList,
 		"skill_list",
 		"Skill List",
-		"List skills through the existing skill registry.",
+		"List skills with source origin through the existing skill registry.",
 		skillListInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -24,12 +28,12 @@ var skillTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
 		[]string{skillsSkillsKey, skillsCatalogKey},
 		[]string{"available skills", "skill registry"},
-	),
-	nativeDescriptor(
+	), skillCatalogOutputSchema),
+	skillDescriptor(nativeDescriptor(
 		toolspkg.ToolIDSkillSearch,
 		"skill_search",
 		"Skill Search",
-		"Search skills through the existing skill registry.",
+		"Search skills with source origin through the existing skill registry.",
 		skillSearchInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -38,12 +42,12 @@ var skillTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
 		[]string{skillsSkillsKey, skillsCatalogKey},
 		[]string{"find skills", "skill registry search"},
-	),
-	nativeDescriptor(
+	), skillCatalogOutputSchema),
+	skillDescriptor(nativeDescriptor(
 		toolspkg.ToolIDSkillView,
 		"skill_view",
 		"Skill View",
-		"Read one skill body or one resource file through the existing skill registry.",
+		"Read one skill body or resource with source origin and exposure health.",
 		skillViewInputSchema,
 		toolspkg.RiskRead,
 		true,
@@ -52,11 +56,20 @@ var skillTools = []toolspkg.Descriptor{
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCatalog},
 		[]string{skillsSkillsKey, skillsCatalogKey, "content"},
 		[]string{"skill body", "skill instructions"},
-	),
+	), skillViewOutputSchema),
 }
 
 func skillDescriptors() []toolspkg.Descriptor {
-	return skillTools
+	descriptors := make([]toolspkg.Descriptor, 0, len(skillTools))
+	for _, descriptor := range skillTools {
+		descriptors = append(descriptors, cloneDescriptor(descriptor))
+	}
+	return descriptors
+}
+
+func skillDescriptor(descriptor toolspkg.Descriptor, outputSchema string) toolspkg.Descriptor {
+	descriptor.OutputSchema = json.RawMessage(outputSchema)
+	return descriptor
 }
 
 const skillListInputSchema = `{
@@ -91,5 +104,61 @@ const skillViewInputSchema = `{
 		"file":{"type":"string"}
 	},
 	"not":{"required":["name","command_id"]},
+	"additionalProperties":false
+}`
+
+const skillCatalogOutputSchema = `{
+	"type":"object",
+	"required":["skills"],
+	"properties":{
+		"skills":{
+			"type":"array",
+			"items":{
+				"type":"object",
+				"required":["name","source","origin","owner_scope"],
+				"properties":{
+					"name":{"type":"string"},
+					"source":{"type":"string"},
+					"origin":{"type":"string"},
+					"owner_scope":{"type":"string","enum":["user","workspace","profile","workspace_profile"]},
+					"owner_id":{"type":"string"}
+				}
+			}
+		}
+	},
+	"additionalProperties":false
+}`
+
+const skillViewOutputSchema = `{
+	"type":"object",
+	"required":["skill","content"],
+	"properties":{
+		"skill":{
+			"type":"object",
+			"required":["name","source","origin","owner_scope","exposures"],
+			"properties":{
+				"name":{"type":"string"},
+				"source":{"type":"string"},
+				"origin":{"type":"string"},
+				"owner_scope":{"type":"string","enum":["user","workspace","profile","workspace_profile"]},
+				"owner_id":{"type":"string"},
+				"exposures":{
+					"type":"array",
+					"items":{
+						"type":"object",
+						"required":["target","path","status"],
+						"properties":{
+							"target":{"type":"string"},
+							"path":{"type":"string"},
+							"status":{"type":"string","enum":["healthy","missing","broken","foreign_conflict"]}
+						}
+					}
+				}
+			}
+		},
+		"content":{"type":"string"},
+		"command_id":{"type":"string"},
+		"file":{"type":"string"}
+	},
 	"additionalProperties":false
 }`

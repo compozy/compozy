@@ -77,7 +77,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[memory.file]`                      | Curated memory body and prompt-index limits.                                         | 200 lines, 25 KiB                                                                                     |
 | `[memory.provider]`                  | Active memory provider selection and circuit breaker.                                | bundled local, 2 s timeout, 5 failures, 30 s cooldown                                                 |
 | `[memory.workspace]`                 | Workspace identity file location and auto-creation.                                  | `<workspace>/.compozy/workspace.toml`, auto-create on first touch                                     |
-| `[skills]`                           | Skill discovery, polling, disable list, and marketplace trust gates.                 | enabled, poll every 3 seconds                                                                         |
+| `[skills]`                           | Skill discovery, source roots, polling, disable list, and marketplace trust gates.   | enabled, `agents` on, no custom sources, poll every 3 seconds                                         |
 | `[skills.marketplace]`               | Skill registry override.                                                             | unset                                                                                                 |
 | `[extensions.trust]`                 | Operator policy for non-curated extension installs.                                  | `allow_unverified = true`; per-install consent still required                                         |
 | `[extensions.sources.*]`             | Published extension source availability and endpoints.                               | GitHub and git enabled, `https://api.github.com`                                                      |
@@ -590,6 +590,12 @@ auto_create = true
 
 [skills]
 enabled = true
+# Folder conventions to scan besides CompozyOS's own (always active).
+# Valid presets: "agents" (default on), "claude".
+sources = ["agents"]
+# Extra skills-only directories. Absolute or ~ paths at user and profile scope;
+# workspace configs may also use workspace-relative paths.
+custom_sources = []
 disabled_skills = ["experimental-skill"]
 poll_interval = "3s"
 allowed_marketplace_mcp = ["clawhub:@team/search-skill"]
@@ -1981,13 +1987,31 @@ fallback (see [Extensions](/docs/extensions)).
 
 If `enabled = false`, skill polling and marketplace validation are skipped.
 
-| Field                       | Type         | Default | Valid values                                         | Description                                                     |
-| --------------------------- | ------------ | ------- | ---------------------------------------------------- | --------------------------------------------------------------- |
-| `enabled`                   | boolean      | `true`  | `true` or `false`                                    | Enables skill catalog discovery and polling.                    |
-| `disabled_skills`           | string array | empty   | Skill names.                                         | Replaces the disabled-skill list in overlays.                   |
-| `poll_interval`             | duration     | `3s`    | Positive Go duration.                                | Filesystem poll interval for skill catalog refresh.             |
-| `allowed_marketplace_mcp`   | string array | empty   | Marketplace slug, `registry:slug`, or verified hash. | Trust allowlist for MCP servers declared by marketplace skills. |
-| `allowed_marketplace_hooks` | string array | empty   | Marketplace slug, `registry:slug`, or verified hash. | Trust allowlist for hooks declared by marketplace skills.       |
+| Field                       | Type         | Default      | Valid values                                          | Description                                                                                       |
+| --------------------------- | ------------ | ------------ | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `enabled`                   | boolean      | `true`       | `true` or `false`                                     | Enables skill catalog discovery and polling.                                                      |
+| `sources`                   | string array | `["agents"]` | `agents`, `claude`.                                   | Folder conventions scanned besides CompozyOS's own. Applies live. An unknown name is rejected.    |
+| `custom_sources`            | string array | empty        | Absolute or `~/` paths; workspace-relative paths too. | Extra directories scanned as skill roots. Applies live. Workspace-relative needs workspace scope. |
+| `disabled_skills`           | string array | empty        | Skill names.                                          | Replaces the disabled-skill list in overlays.                                                     |
+| `poll_interval`             | duration     | `3s`         | Positive Go duration.                                 | Filesystem poll interval for skill catalog refresh.                                               |
+| `allowed_marketplace_mcp`   | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for MCP servers declared by marketplace skills.                                   |
+| `allowed_marketplace_hooks` | string array | empty        | Marketplace slug, `registry:slug`, or verified hash.  | Trust allowlist for hooks declared by marketplace skills.                                         |
+
+`sources` and `custom_sources` pass through all four config layers — user, personal profile,
+workspace, workspace named profile. Each layer decides each key on its own: leave the key out and the
+layer inherits it, write a list and that list replaces the inherited one, write an empty list and the
+layer scans no configured folders for that key. CompozyOS's own skill folders are always scanned and
+never appear in `sources`. Both keys apply live: the daemon rescans and the next session picks up the
+change without a restart.
+
+`sources` accepts only the names in the preset table CompozyOS ships — `agents`
+(`.agents/skills` and `~/.agents/skills`) and `claude` (`.claude/skills` and `~/.claude/skills`). A
+name outside that table is rejected with `unknown_skill_source`, which lists the valid names and the
+closest match. A `custom_sources` path that resolves to a directory another source already owns is
+rejected with `duplicate_skill_source`. A workspace-relative path written at user or profile scope is
+rejected with `invalid_source_path`.
+
+Walkthrough with expected output: [Use skills from your other tools](/docs/skills/sources).
 
 ## `[skills.marketplace]`
 

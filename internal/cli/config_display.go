@@ -44,6 +44,60 @@ func loadConfigForDisplay(
 	return cfg, workspace, nil
 }
 
+func loadConfigForDisplayScope(
+	cmd *cobra.Command,
+	deps commandDeps,
+	scopeRaw string,
+	workspaceRoot string,
+) (compozyconfig.Config, error) {
+	if strings.TrimSpace(scopeRaw) == "" {
+		cfg, _, err := loadConfigForDisplay(cmd, deps, workspaceRoot)
+		return cfg, err
+	}
+	scope, err := parseWriteScope(scopeRaw)
+	if err != nil {
+		return compozyconfig.Config{}, err
+	}
+	if scope == compozyconfig.WriteScopeWorkspace {
+		workspace, resolveErr := resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
+		if resolveErr != nil {
+			return compozyconfig.Config{}, resolveErr
+		}
+		cfg, _, loadErr := loadConfigForDisplay(cmd, deps, workspace)
+		return cfg, loadErr
+	}
+
+	homeWorkspace, err := currentWorkingDirectory(deps)
+	if err != nil {
+		return compozyconfig.Config{}, err
+	}
+	if strings.TrimSpace(workspaceRoot) != "" {
+		homeWorkspace, err = resolveConfigWorkspaceRoot(cmd, deps, workspaceRoot)
+		if err != nil {
+			return compozyconfig.Config{}, err
+		}
+	}
+	homePaths, err := deps.resolveHomeForWorkspace(homeWorkspace)
+	if err != nil {
+		return compozyconfig.Config{}, err
+	}
+	options := make([]compozyconfig.LoadOption, 0, 1)
+	if scope == compozyconfig.WriteScopeProfile {
+		profileName, profileErr := resolveConfigWriteProfile(cmd, deps)
+		if profileErr != nil {
+			return compozyconfig.Config{}, profileErr
+		}
+		if profileName == "" || profileName == configDefaultKey {
+			return compozyconfig.Config{}, errors.New(
+				"cli: the default profile reads user config; select a non-default profile or use --scope user",
+			)
+		}
+		options = append(options, compozyconfig.WithProfile(profileName))
+	}
+	cfg, err := compozyconfig.LoadForHome(homePaths, options...)
+	return cfg, err
+}
+
 func configDisplayCommandLoadOptions(
 	cmd *cobra.Command,
 	deps commandDeps,

@@ -5297,6 +5297,7 @@ export interface SkillSummary {
   name: string;
   description?: string;
   source: string;
+  origin: string;
   enabled: boolean;
   activation: SkillActivationPayload;
 }

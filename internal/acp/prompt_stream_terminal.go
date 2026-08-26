@@ -18,8 +18,9 @@ func PromptStreamIncompleteEvent() AgentEvent {
 		Type:  EventTypeError,
 		Error: summary,
 		Failure: &store.SessionFailure{
-			Kind:    store.FailureTransport,
-			Summary: summary,
+			Kind:       store.FailureTransport,
+			ReasonCode: store.FailureReasonPromptStreamIncomplete,
+			Summary:    summary,
 		},
 	}
 }

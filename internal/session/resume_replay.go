@@ -65,6 +65,7 @@ func (m *Manager) buildResumeReplay(
 			SessionName:          info.Name,
 			AgentName:            info.AgentName,
 			Provider:             info.Provider,
+			ProviderHomePolicy:   info.ProviderHomePolicy,
 			WorkspaceID:          info.WorkspaceID,
 			Workspace:            info.Workspace,
 			NetworkParticipation: info.NetworkParticipation,

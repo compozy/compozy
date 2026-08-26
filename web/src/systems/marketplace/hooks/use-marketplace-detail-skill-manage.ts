@@ -8,14 +8,17 @@ import {
   useSkillShadows,
 } from "@/systems/skill";
 import { useActiveWorkspace } from "@/systems/workspace";
+import { useProfileReadScope } from "@/systems/profiles";
 
 function useMarketplaceDetailSkillManage(name: string) {
   const { activeWorkspaceId } = useActiveWorkspace();
+  const { destination } = useProfileReadScope();
   const workspaceId = activeWorkspaceId ?? "";
+  const profile = destination === "default" ? undefined : destination;
   const [contentRequested, setContentRequested] = useState(false);
-  const skillQuery = useSkill(name, workspaceId);
-  const contentQuery = useSkillContent(name, workspaceId, contentRequested);
-  const shadowsQuery = useSkillShadows(name, workspaceId);
+  const skillQuery = useSkill(name, workspaceId, profile);
+  const contentQuery = useSkillContent(name, workspaceId, contentRequested, profile);
+  const shadowsQuery = useSkillShadows(name, workspaceId, profile);
   const enableMutation = useEnableSkill();
   const disableMutation = useDisableSkill();
   const skill = skillQuery.data;
@@ -38,8 +41,8 @@ function useMarketplaceDetailSkillManage(name: string) {
     toggleError,
     toggleEnabled: (next: boolean) => {
       if (acting || !skill) return;
-      if (next) enableMutation.mutate({ name, workspace: workspaceId });
-      else disableMutation.mutate({ name, workspace: workspaceId });
+      if (next) enableMutation.mutate({ name, workspace: workspaceId, profile });
+      else disableMutation.mutate({ name, workspace: workspaceId, profile });
     },
   };
 }

@@ -5780,11 +5780,15 @@ func TestSkillsRegistryConfigUsesDaemonHomeAndDisabledSkills(t *testing.T) {
 	if registryCfg.BundledFS == nil {
 		t.Fatal("skillsRegistryConfig() BundledFS = nil")
 	}
-	if got, want := registryCfg.UserSkillsDir, homePaths.SkillsDir; got != want {
-		t.Fatalf("skillsRegistryConfig() UserSkillsDir = %q, want %q", got, want)
+	canonicalSkillsDir, err := filepath.EvalSymlinks(homePaths.SkillsDir)
+	if err != nil {
+		t.Fatalf("EvalSymlinks(skills dir) error = %v", err)
 	}
-	if got, want := registryCfg.UserAgentsDir, homePaths.AgentsDir; got != want {
-		t.Fatalf("skillsRegistryConfig() UserAgentsDir = %q, want %q", got, want)
+	if got := registryCfg.GlobalSkillRoots; len(got) != 2 || got[1].Dir != canonicalSkillsDir {
+		t.Fatalf("skillsRegistryConfig() GlobalSkillRoots = %#v, want agents plus compozy home", got)
+	}
+	if got, want := registryCfg.GlobalAgentsDir, homePaths.AgentsDir; got != want {
+		t.Fatalf("skillsRegistryConfig() GlobalAgentsDir = %q, want %q", got, want)
 	}
 	if got := registryCfg.DisabledSkills; len(got) != 2 || got[0] != "alpha" || got[1] != "beta" {
 		t.Fatalf("skillsRegistryConfig() DisabledSkills = %#v, want [alpha beta]", got)
@@ -8785,6 +8789,43 @@ type queuedAttachmentRecordingRegistry struct {
 
 type queuedAttachmentStore struct {
 	entries []store.SessionInputQueueEntry
+}
+
+func (r *recordingRegistry) CreateSkillExposure(
+	context.Context,
+	store.SkillExposureRecord,
+) (store.SkillExposureRecord, error) {
+	return store.SkillExposureRecord{}, errors.New("recording registry: skill exposure writes are not configured")
+}
+
+func (r *recordingRegistry) GetSkillExposureByOwnerTarget(
+	context.Context,
+	string,
+	store.SkillExposureOwnerScope,
+	string,
+	string,
+) (store.SkillExposureRecord, error) {
+	return store.SkillExposureRecord{}, sql.ErrNoRows
+}
+
+func (r *recordingRegistry) ListSkillExposuresByOwner(
+	context.Context,
+	string,
+	store.SkillExposureOwnerScope,
+	string,
+) ([]store.SkillExposureRecord, error) {
+	return []store.SkillExposureRecord{}, nil
+}
+
+func (r *recordingRegistry) ListSkillExposuresByCanonicalDir(
+	context.Context,
+	string,
+) ([]store.SkillExposureRecord, error) {
+	return []store.SkillExposureRecord{}, nil
+}
+
+func (r *recordingRegistry) DeleteSkillExposure(context.Context, int64) error {
+	return nil
 }
 
 func (r *recordingRegistry) VerifyDefaultProfile(context.Context) error {

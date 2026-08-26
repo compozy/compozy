@@ -21,13 +21,13 @@ func settingsUserScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.Se
 	return payloads
 }
 
-func settingsAgentScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsAgentScopeKind {
+func settingsScopeKindsPayload(scopes []settingspkg.ScopeKind) []contract.SettingsScopeKind {
 	if len(scopes) == 0 {
 		return nil
 	}
-	payloads := make([]contract.SettingsAgentScopeKind, 0, len(scopes))
+	payloads := make([]contract.SettingsScopeKind, 0, len(scopes))
 	for _, scope := range scopes {
-		payloads = append(payloads, contract.SettingsAgentScopeKind(scope))
+		payloads = append(payloads, contract.SettingsScopeKind(scope))
 	}
 	return payloads
 }
@@ -220,6 +220,8 @@ func settingsMemoryProviderPayload(value compozyconfig.MemoryProviderConfig) con
 func settingsSkillsConfigPayload(value compozyconfig.SkillsConfig) contract.SettingsSkillsConfigPayload {
 	return contract.SettingsSkillsConfigPayload{
 		Enabled:                 value.Enabled,
+		Sources:                 append([]string{}, value.Sources...),
+		CustomSources:           append([]string{}, value.CustomSources...),
 		DisabledSkills:          cloneStrings(value.DisabledSkills),
 		PollInterval:            value.PollInterval.String(),
 		AllowedMarketplaceMCP:   cloneStrings(value.AllowedMarketplaceMCP),

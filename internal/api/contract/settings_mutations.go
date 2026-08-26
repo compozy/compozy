@@ -19,7 +19,8 @@ type UpdateSettingsRolesRequest struct {
 }
 
 type UpdateSettingsSkillsRequest struct {
-	Config SettingsSkillsConfigPayload `json:"config"`
+	Config   SettingsSkillsConfigPayload    `json:"config,omitzero"`
+	Override *SettingsSkillsOverridePayload `json:"override,omitempty"`
 }
 
 type UpdateSettingsAutomationRequest struct {
@@ -86,12 +87,14 @@ type SettingsRolesResponse struct {
 
 type SettingsSkillsResponse struct {
 	SettingsSkillsSectionResponseMetaPayload
-	Config           SettingsSkillsConfigPayload      `json:"config"`
-	DiscoveredCount  int                              `json:"discovered_count"`
-	DisabledCount    int                              `json:"disabled_count"`
-	RuntimeAvailable bool                             `json:"runtime_available"`
-	Diagnostics      []SkillDiagnosticPayload         `json:"diagnostics,omitempty"`
-	Links            []SettingsOperationalLinkPayload `json:"links,omitempty"`
+	Config           SettingsSkillsConfigPayload            `json:"config"`
+	DiscoveredCount  int                                    `json:"discovered_count"`
+	DisabledCount    int                                    `json:"disabled_count"`
+	RuntimeAvailable bool                                   `json:"runtime_available"`
+	Diagnostics      []SkillDiagnosticPayload               `json:"diagnostics,omitempty"`
+	Sources          []SettingsSkillSourcePayload           `json:"sources"`
+	Inherits         *SettingsSkillSourceInheritancePayload `json:"inherits,omitempty"`
+	Links            []SettingsOperationalLinkPayload       `json:"links,omitempty"`
 }
 
 type SettingsAutomationResponse struct {
@@ -193,9 +196,10 @@ type SettingsWorkspaceSectionMutationResult struct {
 
 type SettingsSkillsMutationResult struct {
 	Section         SettingsSectionName      `json:"section"`
-	Scope           SettingsAgentScopeKind   `json:"scope"`
+	Scope           SettingsScopeKind        `json:"scope"`
 	WriteTarget     SettingsWriteTargetKind  `json:"write_target,omitempty"`
 	WorkspaceID     string                   `json:"workspace_id,omitempty"`
+	Profile         string                   `json:"profile,omitempty"`
 	AgentName       string                   `json:"agent_name,omitempty"`
 	Behavior        SettingsMutationBehavior `json:"behavior"`
 	Applied         bool                     `json:"applied"`
@@ -240,6 +244,24 @@ type SettingsApplyResponse struct {
 	WorkspaceID      string                        `json:"workspace_id,omitempty"`
 	Profile          string                        `json:"profile,omitempty"`
 	AgentName        string                        `json:"agent_name,omitempty"`
+	Applied          bool                          `json:"applied"`
+	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
+	ApplyRecordID    string                        `json:"apply_record_id"`
+	ActiveGeneration int64                         `json:"active_generation"`
+	ActiveConfigHash string                        `json:"active_config_hash"`
+	NextAction       SettingsApplyNextAction       `json:"next_action"`
+	RestartRequired  bool                          `json:"restart_required,omitempty"`
+	RestartScope     string                        `json:"restart_scope,omitempty"`
+	Warnings         []string                      `json:"warnings,omitempty"`
+	PartialFailures  []SettingsApplyFailurePayload `json:"partial_failures,omitempty"`
+	Skipped          bool                          `json:"skipped,omitempty"`
+	SkippedReason    string                        `json:"skipped_reason,omitempty"`
+}
+
+// SettingsSkillsMutationResponse returns the refreshed skills read model with apply metadata.
+type SettingsSkillsMutationResponse struct {
+	SettingsSkillsResponse
+	WriteTarget      SettingsWriteTargetKind       `json:"write_target,omitempty"`
 	Applied          bool                          `json:"applied"`
 	Lifecycle        SettingsApplyLifecycle        `json:"lifecycle"`
 	ApplyRecordID    string                        `json:"apply_record_id"`

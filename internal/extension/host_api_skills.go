@@ -55,6 +55,7 @@ func (h *HostAPIHandler) handleSkillsList(ctx context.Context, raw json.RawMessa
 			Name:        skill.Meta.Name,
 			Description: skill.Meta.Description,
 			Source:      skillspkg.SkillSourceName(skill.Source),
+			Origin:      strings.TrimSpace(skill.Origin),
 			Enabled:     skill.Enabled,
 			Activation:  hostAPISkillActivation(skill),
 		})

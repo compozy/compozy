@@ -5,12 +5,14 @@ import (
 
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
 	"github.com/spf13/cobra"
 )
@@ -20,10 +22,19 @@ const (
 )
 
 const (
-	additionalSkillSource  = "additional"
-	bundledSkillSource     = "bundled"
-	marketplaceSkillSource = "marketplace"
-	userSkillSource        = "user"
+	additionalSkillSource       = "additional"
+	agentsSkillSource           = compozyconfig.SkillSourceAgents
+	bundledSkillSource          = "bundled"
+	claudeSkillSource           = compozyconfig.SkillSourceClaude
+	compozySkillSource          = compozyconfig.SkillSourceCompozy
+	customSkillSource           = "custom"
+	marketplaceSkillSource      = "marketplace"
+	profileSkillSource          = "profile"
+	userSkillSource             = "user"
+	workspaceProfileSkillSource = "workspace_profile"
+	skillExposeAction           = "expose"
+	skillUnexposeAction         = "unexpose"
+	skillExposureHealthyStatus  = "healthy"
 )
 
 type skillCommandScope struct {
@@ -38,23 +49,40 @@ func loadSkillCommandContext(ctx context.Context, deps commandDeps, agentName st
 	}
 
 	registry := skills.NewRegistry(skills.RegistryConfig{
-		BundledFS:      skillbundled.FS(),
-		UserAgentsDir:  runtime.HomePaths.AgentsDir,
-		UserSkillsDir:  runtime.HomePaths.SkillsDir,
-		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
+		BundledFS:        skillbundled.FS(),
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&runtime.Config.Skills, runtime.HomePaths),
+		GlobalAgentsDir:  runtime.HomePaths.AgentsDir,
+		DisabledSkills:   append([]string(nil), runtime.Config.Skills.DisabledSkills...),
 	})
 	if err := registry.LoadAll(ctx); err != nil {
 		return skillCommandContext{}, fmt.Errorf("cli: load skill registry: %w", err)
 	}
 
+	var resolved *workspacepkg.ResolvedWorkspace
+	if selection, ok := ctx.Value(profileResolutionContextKey{}).(profileResolution); ok {
+		profileName := strings.TrimSpace(selection.Profile.Name)
+		if profileName != "" {
+			profileConfig, loadErr := compozyconfig.LoadForHome(
+				runtime.HomePaths,
+				compozyconfig.WithProfile(profileName),
+			)
+			if loadErr != nil {
+				return skillCommandContext{}, fmt.Errorf("cli: load profile skill config: %w", loadErr)
+			}
+			resolved = &workspacepkg.ResolvedWorkspace{
+				ProfileID: strings.TrimSpace(selection.Profile.ID), ProfileName: profileName,
+				ProfileRoot: filepath.Join(runtime.HomePaths.ProfilesDir, profileName), Config: profileConfig,
+			}
+		}
+	}
 	var skillList []*skills.Skill
 	if strings.TrimSpace(agentName) != "" {
-		skillList, err = registry.ForAgent(ctx, nil, agentName)
+		skillList, err = registry.ForAgent(ctx, resolved, agentName)
 		if err != nil {
 			return skillCommandContext{}, fmt.Errorf("cli: load agent skills: %w", err)
 		}
 	} else {
-		skillList, err = registry.ForWorkspace(ctx, nil)
+		skillList, err = registry.ForWorkspace(ctx, resolved)
 		if err != nil {
 			return skillCommandContext{}, fmt.Errorf("cli: load global skills: %w", err)
 		}
@@ -134,6 +162,7 @@ func skillShadowEntryRecordFromDomain(entry skills.ShadowEntry) contract.SkillSh
 	return contract.SkillShadowEntryPayload{
 		Path:             strings.TrimSpace(entry.Path),
 		Tier:             strings.TrimSpace(entry.Tier),
+		Origin:           strings.TrimSpace(entry.Origin),
 		ResolvedToWinner: entry.ResolvedToWinner,
 		DetectedAt:       entry.DetectedAt.UTC(),
 	}
@@ -196,8 +225,10 @@ func normalizeSkillSourceFilter(sourceFilter string) (string, error) {
 	case bundledSkillSource,
 		marketplaceSkillSource,
 		userSkillSource,
+		profileSkillSource,
 		additionalSkillSource,
 		workspaceSkillSource,
+		workspaceProfileSkillSource,
 		agentLocalSkillSource:
 		return filter, nil
 	default:

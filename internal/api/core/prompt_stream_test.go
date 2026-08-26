@@ -47,6 +47,9 @@ func TestDeliverPromptEventStream(t *testing.T) {
 			!strings.Contains(stream, "ended before a terminal event") {
 			t.Fatalf("stream = %q, want explicit incomplete-stream failure", stream)
 		}
+		if !strings.Contains(stream, `"reason_code":"prompt_stream_incomplete"`) {
+			t.Fatalf("stream = %q, want machine-readable incomplete-stream reason", stream)
+		}
 		if !strings.Contains(stream, "data: [DONE]") {
 			t.Fatalf("stream = %q, want a terminal sentinel after the failure", stream)
 		}

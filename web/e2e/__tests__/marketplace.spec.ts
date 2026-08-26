@@ -1014,9 +1014,10 @@ test.describe("Skills marketplace management", () => {
     skillName: string
   ) {
     const query = `workspace=${encodeURIComponent(workspaceID)}`;
+    const detailQuery = `workspace_id=${encodeURIComponent(workspaceID)}`;
     const httpList = await runtime.requestJSON<SkillsResponse>(`/api/skills?${query}`);
     const httpDetail = await runtime.requestJSON<SkillResponse>(
-      `/api/skills/${encodeURIComponent(skillName)}?${query}`
+      `/api/skills/${encodeURIComponent(skillName)}?${detailQuery}`
     );
     const httpContent = await runtime.requestJSON<SkillContentResponse>(
       `/api/skills/${encodeURIComponent(skillName)}/content?${query}`
@@ -1027,7 +1028,7 @@ test.describe("Skills marketplace management", () => {
     );
     const udsDetail = await requestOperatorJSONOrThrow<SkillResponse>(
       runtime,
-      `/api/skills/${encodeURIComponent(skillName)}?${query}`
+      `/api/skills/${encodeURIComponent(skillName)}?${detailQuery}`
     );
     const cliList = await skillCLI<SkillPayload[]>(runtime, [
       "skill",
@@ -1037,7 +1038,7 @@ test.describe("Skills marketplace management", () => {
     ]);
     const cliInfo = await skillCLI<SkillPayload>(runtime, [
       "skill",
-      "inspect",
+      "info",
       skillName,
       "--workspace",
       workspaceID,

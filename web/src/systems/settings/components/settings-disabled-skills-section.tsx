@@ -20,6 +20,7 @@ interface SettingsDisabledSkillsSectionProps {
   emptyTitle: string;
   note: string;
   onToggle: (name: string) => void;
+  readOnly?: boolean;
 }
 
 export function SettingsDisabledSkillsSection({
@@ -30,6 +31,7 @@ export function SettingsDisabledSkillsSection({
   emptyTitle,
   note,
   onToggle,
+  readOnly = false,
 }: SettingsDisabledSkillsSectionProps) {
   const disabledSkills = new Set(disabled);
   const candidates = Array.from(new Set([...baselineDisabled, ...disabled])).sort();
@@ -70,6 +72,7 @@ export function SettingsDisabledSkillsSection({
                     <Switch
                       data-testid={`settings-page-skills-disabled-toggle-${name}`}
                       checked={disabledSkills.has(name)}
+                      disabled={readOnly}
                       onCheckedChange={() => onToggle(name)}
                       aria-label={`Toggle ${name}`}
                     />

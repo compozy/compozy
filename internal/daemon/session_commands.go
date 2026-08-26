@@ -36,6 +36,7 @@ type sessionCommandService struct {
 	registry          sessionCommandSkills
 	agentResolver     func() session.AgentResolver
 	workspaceResolver func() promptSkillsWorkspaceResolver
+	profileNames      session.ProfileNameResolver
 }
 
 var _ session.CommandService = (*sessionCommandService)(nil)
@@ -49,11 +50,13 @@ func newSessionCommandService(
 	registry sessionCommandSkills,
 	agentResolver func() session.AgentResolver,
 	workspaceResolver func() promptSkillsWorkspaceResolver,
+	profileNames session.ProfileNameResolver,
 ) *sessionCommandService {
 	return &sessionCommandService{
 		registry:          registry,
 		agentResolver:     agentResolver,
 		workspaceResolver: workspaceResolver,
+		profileNames:      profileNames,
 	}
 }
 
@@ -82,11 +85,11 @@ func (s *sessionCommandService) Expand(
 	}
 	invoked := make([]commandpkg.InvokedSkill, 0, len(invocations))
 	for _, invocation := range invocations {
-		candidate := skillsByCommandID[invocation.Ref.CommandID]
-		if candidate == nil || !sameSkillSource(invocation.Ref.Source, candidate) {
+		candidate, ok := skillsByCommandID[invocation.Ref.CommandID]
+		if !ok || !sameSkillSource(invocation.Ref.Source, candidate) {
 			return "", fmt.Errorf("%w: %s", commandpkg.ErrUnavailable, invocation.Token)
 		}
-		content, loadErr := s.registry.LoadContent(ctx, candidate)
+		content, loadErr := s.registry.LoadContent(ctx, candidate.Skill)
 		if loadErr != nil {
 			return "", fmt.Errorf("daemon: load invoked skill %q: %w", invocation.Ref.CommandID, loadErr)
 		}
@@ -109,7 +112,7 @@ func (s *sessionCommandService) project(
 	ctx context.Context,
 	info *session.Info,
 	agent compozyconfig.AgentDef,
-) (commandpkg.Catalog, map[string]*skillspkg.Skill, error) {
+) (commandpkg.Catalog, map[string]skillspkg.CommandCandidate, error) {
 	if info == nil {
 		return commandpkg.Catalog{}, nil, errors.New("daemon: session info is required")
 	}
@@ -163,6 +166,8 @@ func (s *sessionCommandService) commandSkillCandidates(
 	workspace, err := resolvePromptSkillsWorkspace(
 		ctx,
 		s.workspaceResolver,
+		s.profileNames,
+		info.ProfileID,
 		info.WorkspaceID,
 		info.Workspace,
 	)
@@ -191,9 +196,9 @@ func (s *sessionCommandService) commandSkillCandidates(
 
 func projectCommandSkillCandidates(
 	candidates []skillspkg.CommandCandidate,
-) ([]commandpkg.SkillSpec, map[string]*skillspkg.Skill, error) {
+) ([]commandpkg.SkillSpec, map[string]skillspkg.CommandCandidate, error) {
 	skillSpecs := make([]commandpkg.SkillSpec, 0, len(candidates))
-	skillsByCommandID := make(map[string]*skillspkg.Skill, len(candidates))
+	skillsByCommandID := make(map[string]skillspkg.CommandCandidate, len(candidates))
 	for _, candidate := range candidates {
 		if candidate.Skill == nil {
 			continue
@@ -202,10 +207,11 @@ func projectCommandSkillCandidates(
 			Name:        candidate.Skill.Meta.Name,
 			Description: candidate.Skill.Meta.Description,
 			Source: commandpkg.Source{
-				Kind:  candidate.SourceKind,
-				ID:    candidate.SourceID,
-				Key:   candidate.SourceKey,
-				Scope: candidate.Scope,
+				Kind:   candidate.SourceKind,
+				ID:     candidate.SourceID,
+				Key:    candidate.SourceKey,
+				Scope:  candidate.Scope,
+				Origin: candidate.Origin,
 			},
 			Available: candidate.Available,
 			Qualified: candidate.Qualified,
@@ -215,7 +221,7 @@ func projectCommandSkillCandidates(
 			return nil, nil, descriptorErr
 		}
 		if len(descriptor.Commands) == 1 {
-			skillsByCommandID[descriptor.Commands[0].ID] = candidate.Skill
+			skillsByCommandID[descriptor.Commands[0].ID] = candidate
 		}
 		skillSpecs = append(skillSpecs, spec)
 	}
@@ -224,29 +230,29 @@ func projectCommandSkillCandidates(
 
 func availableCommandSkills(
 	catalog commandpkg.Catalog,
-	skillsByCommandID map[string]*skillspkg.Skill,
-) map[string]*skillspkg.Skill {
-	availableSkills := make(map[string]*skillspkg.Skill, len(skillsByCommandID))
+	skillsByCommandID map[string]skillspkg.CommandCandidate,
+) map[string]skillspkg.CommandCandidate {
+	availableSkills := make(map[string]skillspkg.CommandCandidate, len(skillsByCommandID))
 	for _, descriptor := range catalog.Commands {
 		if descriptor.Skill == nil {
 			continue
 		}
-		if skill := skillsByCommandID[descriptor.ID]; skill != nil {
-			availableSkills[descriptor.ID] = skill
+		if candidate, ok := skillsByCommandID[descriptor.ID]; ok {
+			availableSkills[descriptor.ID] = candidate
 		}
 	}
 	return availableSkills
 }
 
-func sameSkillSource(source commandpkg.Source, skill *skillspkg.Skill) bool {
-	if skill == nil {
+func sameSkillSource(source commandpkg.Source, candidate skillspkg.CommandCandidate) bool {
+	if candidate.Skill == nil {
 		return false
 	}
-	expected := skillspkg.CommandSourceForSkill(skill)
-	return commandpkg.Slug(source.Kind) == commandpkg.Slug(expected.Kind) &&
-		commandpkg.Slug(source.ID) == commandpkg.Slug(expected.ID) &&
-		strings.TrimSpace(source.Key) == expected.Key &&
-		strings.TrimSpace(source.Scope) == expected.Scope
+	return commandpkg.Slug(source.Kind) == commandpkg.Slug(candidate.SourceKind) &&
+		commandpkg.Slug(source.ID) == commandpkg.Slug(candidate.SourceID) &&
+		strings.TrimSpace(source.Key) == candidate.SourceKey &&
+		strings.TrimSpace(source.Scope) == candidate.Scope &&
+		strings.TrimSpace(source.Origin) == candidate.Origin
 }
 
 func firstCriticalSkillWarning(warnings []skillspkg.Warning) *skillspkg.Warning {

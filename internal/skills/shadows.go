@@ -44,6 +44,7 @@ func shadowEntryForWinner(skill *Skill, fallbackDetectedAt time.Time) ShadowEntr
 	return ShadowEntry{
 		Path:             skillPathForShadow(skill),
 		Tier:             SkillPrecedenceTierName(skill.Source),
+		Origin:           strings.TrimSpace(skill.Origin),
 		ResolvedToWinner: true,
 		DetectedAt:       normalizedShadowDetectedAt(fallbackDetectedAt),
 	}
@@ -57,6 +58,7 @@ func shadowEntryForRef(ref SkillDefinitionRef, fallbackDetectedAt time.Time) Sha
 	return ShadowEntry{
 		Path:             strings.TrimSpace(ref.Path),
 		Tier:             precedenceTierFromSourceLabel(ref.Source),
+		Origin:           strings.TrimSpace(ref.Origin),
 		ResolvedToWinner: false,
 		DetectedAt:       normalizedShadowDetectedAt(detectedAt),
 	}
@@ -68,6 +70,7 @@ func shadowDefinitionRefsForWinner(skill *Skill, detectedAt time.Time) []SkillDe
 	}
 	refs := []SkillDefinitionRef{{
 		Source:     skillSourceName(skill.Source),
+		Origin:     strings.TrimSpace(skill.Origin),
 		Path:       skillPathForShadow(skill),
 		DetectedAt: normalizedShadowDetectedAt(detectedAt),
 	}}

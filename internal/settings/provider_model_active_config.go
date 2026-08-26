@@ -49,6 +49,11 @@ func (s *service) recordProjectedMutationApply(
 	nextActiveHash string,
 	nextActiveConfig *compozyconfig.Config,
 ) (ApplyResult, error) {
+	correlatedCtx, err := s.withSkillSourceEventCorrelation(ctx, result)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	ctx = correlatedCtx
 	configLifecycle := mutationLifecycle(result)
 	noChanges := mutationResultHasNoChanges(result)
 	record, plan, err := s.persistRuntimeApply(

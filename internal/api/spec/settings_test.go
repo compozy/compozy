@@ -359,7 +359,7 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 		)
 
 		updateSkills := operationFor(t, doc, "/api/settings/skills", "PATCH")
-		assertParameterEnumValues(t, updateSkills, "scope", "agent", "user")
+		assertParameterEnumValues(t, updateSkills, "scope", "agent", "profile", "user", "workspace")
 		skillsMutationSchema := jsonResponseSchema(t, updateSkills, 200)
 		assertRequired(
 			t,
@@ -368,17 +368,27 @@ func TestSettingsRoutesAndSchemas(t *testing.T) {
 			"active_generation",
 			"applied",
 			"apply_record_id",
+			"available_scopes",
+			"config",
+			"disabled_count",
+			"discovered_count",
 			"lifecycle",
 			"next_action",
+			"runtime_available",
+			"scope",
+			"section",
+			"sources",
 		)
 		assertNotRequired(
 			t,
 			skillsMutationSchema,
-			"section",
-			"scope",
 			"write_target",
 			"workspace_id",
+			"profile",
 			"agent_name",
+			"diagnostics",
+			"inherits",
+			"links",
 			"restart_required",
 			"restart_scope",
 			"warnings",

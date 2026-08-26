@@ -2,6 +2,7 @@ package skills
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -95,6 +96,73 @@ func TestBuildCurrentCatalogFormatsAuthoritativeTurnScopedCatalog(t *testing.T) 
 
 	if got != want {
 		t.Fatalf("BuildCurrentCatalog() mismatch\nwant:\n%s\n\ngot:\n%s", want, got)
+	}
+}
+
+func TestBuildCatalogWithinBudgetPreservesEverySkillIdentityAndStructure(t *testing.T) {
+	t.Parallel()
+
+	skills := make([]*Skill, 96)
+	for index := range skills {
+		skills[index] = &Skill{
+			Meta: SkillMeta{
+				Name:        fmt.Sprintf("skill-%03d", index),
+				Description: strings.Repeat("description ", 24),
+			},
+			Enabled: true,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		openTag   string
+		closeTag  string
+		unbounded func([]*Skill) string
+		bounded   func([]*Skill, int) string
+	}{
+		{
+			name:      "Should preserve a complete startup catalog while shortening descriptions",
+			openTag:   "<available-skills>",
+			closeTag:  "</available-skills>",
+			unbounded: BuildCatalog,
+			bounded:   BuildCatalogWithinBudget,
+		},
+		{
+			name:      "Should preserve a complete current catalog while shortening descriptions",
+			openTag:   currentCatalogOpen,
+			closeTag:  currentCatalogClose,
+			unbounded: BuildCurrentCatalog,
+			bounded:   BuildCurrentCatalogWithinBudget,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			const budget = 16_000
+			unbounded := test.unbounded(skills)
+			if got := utf8.RuneCountInString(unbounded); got <= budget {
+				t.Fatalf("unbounded catalog runes = %d, want more than %d", got, budget)
+			}
+
+			got := test.bounded(skills, budget)
+			if got == "" {
+				t.Fatal("bounded catalog is empty, want every skill identity")
+			}
+			if runes := utf8.RuneCountInString(got); runes > budget {
+				t.Fatalf("bounded catalog runes = %d, want <= %d", runes, budget)
+			}
+			if !strings.HasPrefix(got, test.openTag+"\n") || !strings.Contains(got, "\n"+test.closeTag+"\n\n") {
+				t.Fatalf("bounded catalog has incomplete boundaries: %q", got)
+			}
+			for index := range skills {
+				name := fmt.Sprintf(`name="skill-%03d"`, index)
+				if !strings.Contains(got, name) {
+					t.Fatalf("bounded catalog missing identity %q", name)
+				}
+			}
+		})
 	}
 }
 
@@ -399,7 +467,7 @@ func TestCatalogProviderPromptSectionUsesWorkspaceScopedSkills(t *testing.T) {
 	)
 
 	registry := newTestRegistry(t, RegistryConfig{
-		UserSkillsDir: userDir,
+		GlobalSkillRoots: testGlobalSkillRoots(userDir),
 	})
 	if err := registry.LoadAll(context.Background()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)

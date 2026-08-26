@@ -181,7 +181,7 @@ func (b *harnessReentryBridge) evaluateDecision(
 				b.ctx,
 				target.SessionID,
 				b.resolveSummaryAgentName(target, metadata),
-				resolved,
+				&resolved,
 				run.EndedAt,
 			)
 		}
@@ -196,7 +196,7 @@ func (b *harnessReentryBridge) evaluateDecision(
 			b.ctx,
 			target.SessionID,
 			b.resolveSummaryAgentName(target, metadata),
-			resolved,
+			&resolved,
 			run.EndedAt,
 		)
 	}

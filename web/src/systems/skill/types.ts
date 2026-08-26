@@ -11,6 +11,23 @@ export type SkillShadowEntryPayload = SkillShadowsResponse["shadows"][number];
 export type SkillActionResponse = OperationResponse<"enableSkill", 200>;
 export type ProvenancePayload = NonNullable<SkillPayload["provenance"]>;
 
+/** Reconciled expose links; `status` is filesystem truth, not the stored record. */
+export type SkillExposurePayload = NonNullable<SkillPayload["exposures"]>[number];
+export type SkillExposureStatus = SkillExposurePayload["status"];
+export type SkillExposeResponse = OperationResponse<"exposeSkill", 200>;
+/** Unexpose is per-target independent, so its envelope carries no rollback flag. */
+export type SkillUnexposeResponse = OperationResponse<"unexposeSkill", 200>;
+export type SkillExposeResult = SkillExposeResponse["results"][number];
+export type SkillExposeRequest = OperationRequestBody<"exposeSkill">;
+export type SkillExposeFailureResponse = OperationResponse<"exposeSkill", 409>;
+
+export interface SkillExposeTarget {
+  slug: string;
+  label: string;
+  /** The folder convention this target writes into, e.g. `.agents`. */
+  hint: string | null;
+}
+
 export type SkillMarketplaceInstallResponse = OperationResponse<"installSkillMarketplace", 200>;
 export type SkillMarketplaceInstallPayload = SkillMarketplaceInstallResponse["skill"];
 export type SkillMarketplaceInstallRequest = OperationRequestBody<"installSkillMarketplace">;

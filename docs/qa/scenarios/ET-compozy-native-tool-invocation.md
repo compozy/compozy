@@ -11,8 +11,8 @@ bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-config-get-missing.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-config-get-missing-summary.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-info-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
 
@@ -31,3 +31,5 @@ QA impact 2026-08-13: reset because `compozy__config_get` now distinguishes an a
 QA evidence correction 2026-08-13: the prior pass is not valid evidence for PR #372 because its build predates this PR head. It is historical only and does not set this scenario status.
 
 QA verdict 2026-08-13 (fresh native-CLI lab): passed. The real operator-home Codex reviewer invoked hosted skill-list, empty skill-search, all ten skill views, and `compozy__config_get`; the missing `loops.inputs.batuta-deliver.auto_commit` path returned `config_path_not_found`. This is a substantive persona-walk verdict only: the QA report remains blocked on C14 until a successful final gate exists.
+
+QA impact 2026-08-25 (skill sources): reset because the skill native-tool descriptors changed in this cycle. `compozy__skill_list` and `compozy__skill_search` now require `origin` and `owner_scope`, `compozy__skill_view` additionally requires `exposures[]`, the descriptions were rewritten, and the recorded native-tool catalog and schema digests were regenerated. Re-walk discovery and invocation across the managed session, the operator CLI, and hosted MCP against the new digests. Charter: `CH-skill-sources-agent-plane`.

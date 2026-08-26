@@ -38,7 +38,7 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 		}
 		generations := renderHumanTable(
 			"Generations",
-			[]string{"GENERATION", "PARENT", "ORIGIN", "VERDICTS", "OUTPUTS"},
+			[]string{"GENERATION", "PARENT", cliOriginHeader, "VERDICTS", "OUTPUTS"},
 			rows,
 		)
 		return renderHumanBlocks(run, generations), nil

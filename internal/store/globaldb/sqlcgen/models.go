@@ -1829,6 +1829,19 @@ type SessionPromptAdmission struct {
 	UpdatedAt              string         `json:"updated_at"`
 }
 
+type SkillExposure struct {
+	ID           int64          `json:"id"`
+	SkillName    string         `json:"skill_name"`
+	CanonicalDir string         `json:"canonical_dir"`
+	TargetSlug   string         `json:"target_slug"`
+	LinkPath     string         `json:"link_path"`
+	LinkTarget   string         `json:"link_target"`
+	OwnerScope   string         `json:"owner_scope"`
+	WorkspaceID  sql.NullString `json:"workspace_id"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
 type Task struct {
 	ID                    string         `json:"id"`
 	ProfileID             string         `json:"profile_id"`

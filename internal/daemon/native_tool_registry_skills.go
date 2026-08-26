@@ -2,13 +2,22 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+)
+
+const (
+	resourceScopeUserKind      = "user"
+	resourceScopeWorkspaceKind = "workspace"
 )
 
 func (n *daemonNativeTools) toolList(
@@ -137,12 +146,24 @@ func (n *daemonNativeTools) skillView(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := map[string]any{
-		"skill":   core.SkillPayloadFromSkill(skill),
+		"skill":   skillViewPayloadWithoutExposure(skill),
 		"content": content,
+	}
+	resourceScope := skill.ResourceScope.Normalize()
+	if resourceScope.Kind == resourceScopeUserKind || resourceScope.Kind == resourceScopeWorkspaceKind {
+		skillPayload, exposureErr := n.skillViewPayload(ctx, scope, input, skill)
+		if exposureErr != nil {
+			return toolspkg.ToolResult{}, exposureErr
+		}
+		payload["skill"] = skillPayload
 	}
 	if commandID := strings.TrimSpace(input.CommandID); commandID != "" {
 		payload["command_id"] = commandID
-		payload["skill"] = sourceQualifiedSkillViewPayload(skill)
+		exposures := []contract.SkillExposurePayload{}
+		if projected, ok := payload["skill"].(contract.SkillPayload); ok && projected.Exposures != nil {
+			exposures = append(exposures, (*projected.Exposures)...)
+		}
+		payload["skill"] = sourceQualifiedSkillViewPayload(skill, exposures)
 	}
 	if file != "" {
 		payload["file"] = file
@@ -155,18 +176,78 @@ func (n *daemonNativeTools) skillView(
 	return result, nil
 }
 
-func sourceQualifiedSkillViewPayload(skill *skillspkg.Skill) map[string]any {
+func sourceQualifiedSkillViewPayload(
+	skill *skillspkg.Skill,
+	exposures []contract.SkillExposurePayload,
+) map[string]any {
 	if skill == nil {
 		return map[string]any{}
 	}
-	source := skillspkg.CommandSourceForSkill(skill)
+	projectedExposures := make([]contract.SkillExposurePayload, len(exposures))
+	copy(projectedExposures, exposures)
+	owner := core.SkillPayloadFromSkill(skill)
 	return map[string]any{
 		bootNameKey:   skill.Meta.Name,
 		"description": skill.Meta.Description,
 		"version":     skill.Meta.Version,
-		bootSourceKey: source,
+		bootSourceKey: skillspkg.CommandSourceForSkill(skill),
+		"origin":      strings.TrimSpace(skill.Origin),
+		"owner_scope": owner.OwnerScope,
+		"owner_id":    owner.OwnerID,
+		"exposures":   projectedExposures,
 		"enabled":     skill.Enabled,
 	}
+}
+
+func skillViewPayloadWithoutExposure(skill *skillspkg.Skill) contract.SkillPayload {
+	payload := core.SkillPayloadFromSkill(skill)
+	exposures := []contract.SkillExposurePayload{}
+	payload.Exposures = &exposures
+	return payload
+}
+
+func (n *daemonNativeTools) skillViewPayload(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	input skillViewInput,
+	skill *skillspkg.Skill,
+) (contract.SkillPayload, error) {
+	payload := core.SkillPayloadFromSkill(skill)
+	if n == nil || n.deps == nil || n.deps.SkillExposures == nil {
+		return payload, errors.New("daemon: skill exposure repository is required")
+	}
+	provider, ok := n.deps.Skills.(core.SkillExposureRootsProvider)
+	if !ok {
+		return payload, errors.New("daemon: skill exposure roots are required")
+	}
+	var resolved *workspacepkg.ResolvedWorkspace
+	workspaceRef := nativeCallerWorkspaceInput(input.WorkspaceID, scope)
+	if workspaceRef != "" {
+		if n.deps.WorkspaceResolver == nil {
+			return payload, errors.New("daemon: workspace resolver is required for workspace skill exposure")
+		}
+		workspace, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceRef)
+		if err != nil {
+			return payload, err
+		}
+		resolved = &workspace
+	}
+	logger := n.deps.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+	options := []skillspkg.ExposeManagerOption{skillspkg.WithExposureLogger(logger)}
+	if n.deps.SkillExposureEvents != nil {
+		options = append(options, skillspkg.WithExposureEventStore(n.deps.SkillExposureEvents))
+	}
+	manager := skillspkg.NewExposeManager(n.deps.SkillExposures, provider.ExposureRoots(resolved), options...)
+	states, err := manager.Exposures(ctx, skill)
+	if err != nil {
+		return payload, err
+	}
+	exposures := core.SkillExposurePayloadsFromDomain(states)
+	payload.Exposures = &exposures
+	return payload, nil
 }
 
 // resolveSkillViewTarget resolves the skill a skill_view call targets: a workspace-fenced skill
@@ -232,17 +313,18 @@ func (n *daemonNativeTools) resolveSkillViewTarget(
 		registry,
 		func() session.AgentResolver { return n.deps.AgentResolver },
 		func() promptSkillsWorkspaceResolver { return n.deps.WorkspaceResolver },
+		n.deps.Profiles,
 	)
 	_, byCommandID, err := service.project(ctx, info, agent)
 	if err != nil {
 		return nil, err
 	}
-	skill := byCommandID[commandID]
-	if skill == nil {
+	candidate, found := byCommandID[commandID]
+	if !found || candidate.Skill == nil {
 		return nil, nativeCommandNotFoundError(
 			toolspkg.ToolIDSkillView,
 			fmt.Sprintf("skill command %q not found", commandID),
 		)
 	}
-	return skill, nil
+	return candidate.Skill, nil
 }

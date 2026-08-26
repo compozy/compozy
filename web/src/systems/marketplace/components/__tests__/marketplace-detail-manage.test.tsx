@@ -74,6 +74,7 @@ const mocks = vi.hoisted(() => ({
   extensionWorkspaceId: null as string | null,
   skillContent: "# Bundled skill\n\nFollow the incident checklist.",
   skillEnabled: true,
+  skillExposureEligible: true,
   skillError: null as Error | null,
   extensionError: null as Error | null,
   extensionLoading: false,
@@ -99,6 +100,10 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/systems/profiles", async importOriginal => ({
   ...(await importOriginal<typeof import("@/systems/profiles")>()),
   openProfileDialog: mocks.openProfileDialog,
+}));
+
+vi.mock("@/systems/profiles/hooks/use-profile-read-scope", () => ({
+  useProfileReadScope: () => ({ destination: "default" }),
 }));
 
 // The settings barrel participates in cross-system module cycles, so barrel-level
@@ -178,6 +183,30 @@ vi.mock("@/systems/skill/hooks/use-skill-actions", async () => {
     useEnableSkill: () => ({ error: null, isPending: false, mutate: vi.fn() }),
   };
 });
+
+// Exposure state is transport-backed and owned by the skill system's own suites;
+// this one asserts that the rail still carries the card.
+vi.mock("@/systems/skill/hooks/use-skill-exposures", () => ({
+  useSkillExposures: () => ({
+    eligible: mocks.skillExposureEligible,
+    exposures: [],
+    targets: [],
+    targetsLoading: false,
+    targetsError: null,
+    retryTargets: vi.fn(),
+    expose: {
+      pendingTargets: [],
+      isPending: false,
+      results: [],
+      failure: null,
+      rolledBack: false,
+      expose: vi.fn(),
+      unexpose: vi.fn(),
+      dismiss: vi.fn(),
+    },
+    labelForTarget: (slug: string) => slug,
+  }),
+}));
 
 vi.mock("@/systems/skill/hooks/use-skills", () => ({
   useSkill: () => ({
@@ -400,6 +429,7 @@ describe("Marketplace installed-detail management", () => {
     vi.clearAllMocks();
     mocks.skillError = null;
     mocks.skillEnabled = true;
+    mocks.skillExposureEligible = true;
     mocks.disableSkillError = null;
     mocks.extensionError = null;
     mocks.extensionLoading = false;
@@ -455,6 +485,16 @@ describe("Marketplace installed-detail management", () => {
     view.rerender(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
     expect(screen.getByText("Disabled")).toBeInTheDocument();
     expect(screen.getByTestId("skill-enabled-switch")).toHaveAttribute("aria-checked", "false");
+  });
+
+  it("Should carry the exposures card only for a skill with a folder to link", () => {
+    const view = render(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
+    expect(screen.getByTestId("skill-exposures-card")).toBeInTheDocument();
+
+    // Bundled skills have no on-disk home, so the card is absent, not disabled.
+    mocks.skillExposureEligible = false;
+    view.rerender(<MarketplaceDetailSkillInstalled data={skillDetailData()} />);
+    expect(screen.queryByTestId("skill-exposures-card")).not.toBeInTheDocument();
   });
 
   it("Should surface a rejected skill availability update", async () => {

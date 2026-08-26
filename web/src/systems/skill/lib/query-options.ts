@@ -3,38 +3,43 @@ import { queryOptions } from "@tanstack/react-query";
 import { getSkill, getSkillContent, getSkillShadows, listSkills } from "../adapters/skill-api";
 import { skillKeys } from "./query-keys";
 
-export function skillsListOptions(workspace: string, enabled = true) {
+export function skillsListOptions(workspace: string, enabled = true, profile?: string) {
   return queryOptions({
-    queryKey: skillKeys.list(workspace),
-    queryFn: ({ signal }) => listSkills(workspace, signal),
+    queryKey: skillKeys.list(workspace, profile),
+    queryFn: ({ signal }) => listSkills(workspace, signal, profile),
     staleTime: 30_000,
     refetchInterval: 60_000,
     enabled,
   });
 }
 
-export function skillDetailOptions(name: string, workspace: string) {
+export function skillDetailOptions(name: string, workspace: string, profile?: string) {
   return queryOptions({
-    queryKey: skillKeys.detail(name, workspace),
-    queryFn: ({ signal }) => getSkill(name, workspace, signal),
+    queryKey: skillKeys.detail(name, workspace, profile),
+    queryFn: ({ signal }) => getSkill(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });
 }
 
-export function skillContentOptions(name: string, workspace: string, enabled: boolean) {
+export function skillContentOptions(
+  name: string,
+  workspace: string,
+  enabled: boolean,
+  profile?: string
+) {
   return queryOptions({
-    queryKey: skillKeys.content(name, workspace),
-    queryFn: ({ signal }) => getSkillContent(name, workspace, signal),
+    queryKey: skillKeys.content(name, workspace, profile),
+    queryFn: ({ signal }) => getSkillContent(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: enabled && !!name,
   });
 }
 
-export function skillShadowsOptions(name: string, workspace: string) {
+export function skillShadowsOptions(name: string, workspace: string, profile?: string) {
   return queryOptions({
-    queryKey: skillKeys.shadows(name, workspace),
-    queryFn: ({ signal }) => getSkillShadows(name, workspace, signal),
+    queryKey: skillKeys.shadows(name, workspace, profile),
+    queryFn: ({ signal }) => getSkillShadows(name, workspace, signal, profile),
     staleTime: 30_000,
     enabled: !!name,
   });

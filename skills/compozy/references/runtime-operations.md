@@ -90,6 +90,10 @@ and the crash bundle before sending another prompt.
 
 After prompt admission, the daemon owns the turn lifetime. Closing a browser tab, navigating away from the web app, dropping an SSE stream, or disconnecting a CLI/UDS response only detaches that viewer; it does not cancel the accepted prompt. Use explicit runtime intent such as `compozy session stop`, prompt cancel, or interrupt controls when cancellation is required.
 
+If an accepted prompt stream closes before a terminal result, its error frame carries
+`failure.reason_code=prompt_stream_incomplete`. Branch on that code, then inspect session status and
+events before deciding whether to submit another prompt.
+
 Use `interrupt` with replacement text to cancel the expected active turn and submit that replacement
 as the next generation-fenced input. Use `steer` for the same fenced replacement semantics when the
 operator intent is guidance. Neither mode reuses or combines the canceled authored prompt.

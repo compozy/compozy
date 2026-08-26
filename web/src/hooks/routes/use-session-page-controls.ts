@@ -59,7 +59,14 @@ export function useSessionPageControls(
   const messages = useAuiState(state => state.thread.messages);
   const transcriptMessages = useSessionTranscriptThreadMessages();
   const isRunning = useAuiState(state => state.thread.isRunning);
-  const deleteMutation = useDeleteSession({ workspaceId });
+  const deleteMutation = useDeleteSession({
+    workspaceId,
+    onDeleteSuccess: () => {
+      aui.thread.reset();
+      toast.success("Session deleted.");
+      onDeleteSuccess?.();
+    },
+  });
   const stopMutation = useStopSession({ workspaceId });
   const resumeMutation = useResumeSession({ workspaceId });
   const unarchiveMutation = useUnarchiveSession({ workspaceId });
@@ -310,11 +317,6 @@ export function useSessionPageControls(
     }
 
     deleteMutation.mutate(sessionId, {
-      onSuccess: () => {
-        aui.thread.reset();
-        toast.success("Session deleted.");
-        onDeleteSuccess?.();
-      },
       onError: error => {
         console.error("Failed to delete session", error);
         toast.error("Couldn't delete this session.");

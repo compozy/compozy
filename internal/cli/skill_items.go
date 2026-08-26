@@ -29,6 +29,7 @@ func skillListItems(allSkills []*skills.Skill, sourceFilter string) ([]skillList
 			Name:        skill.Meta.Name,
 			Description: skill.Meta.Description,
 			Source:      source,
+			Origin:      strings.TrimSpace(skill.Origin),
 			Enabled:     skill.Enabled,
 			Activation:  skillActivationPayloadFromSkill(skill),
 		})
@@ -54,6 +55,7 @@ func skillListItemsFromRecords(records []SkillRecord, sourceFilter string) ([]sk
 			Name:        record.Name,
 			Description: record.Description,
 			Source:      source,
+			Origin:      strings.TrimSpace(record.Origin),
 			Enabled:     record.Enabled,
 			Activation:  record.Activation,
 		})
@@ -63,17 +65,23 @@ func skillListItemsFromRecords(records []SkillRecord, sourceFilter string) ([]sk
 }
 
 func skillInfoItemFromRecord(record SkillRecord) skillInfoItem {
-	return skillInfoItem{
+	item := skillInfoItem{
 		Name:        record.Name,
 		Description: record.Description,
 		Version:     record.Version,
 		Source:      strings.TrimSpace(record.Source),
+		Origin:      strings.TrimSpace(record.Origin),
 		Path:        record.Dir,
 		Enabled:     record.Enabled,
 		Activation:  record.Activation,
 		Metadata:    cloneMetadata(record.Metadata),
 		Provenance:  record.Provenance,
+		Exposures:   []contract.SkillExposurePayload{},
 	}
+	if record.Exposures != nil {
+		item.Exposures = append([]contract.SkillExposurePayload(nil), (*record.Exposures)...)
+	}
+	return item
 }
 
 func skillInfoItemFromSkill(skill *skills.Skill, resources []string, now time.Time) skillInfoItem {
@@ -82,11 +90,13 @@ func skillInfoItemFromSkill(skill *skills.Skill, resources []string, now time.Ti
 		Description: skill.Meta.Description,
 		Version:     skill.Meta.Version,
 		Source:      skillSourceLabel(skill.Source),
+		Origin:      strings.TrimSpace(skill.Origin),
 		Path:        skill.FilePath,
 		Enabled:     skill.Enabled,
 		Activation:  skillActivationPayloadFromSkill(skill),
 		Metadata:    cloneMetadata(skill.Meta.Metadata),
 		Resources:   resources,
+		Exposures:   []contract.SkillExposurePayload{},
 	}
 	shadows, ok := skills.ShadowsForSkill(skill, now)
 	if ok {
@@ -112,5 +122,30 @@ func skillActivationPayloadFromSkill(skill *skills.Skill) contract.SkillActivati
 	return contract.SkillActivationPayload{
 		Active:  !skill.Activation.Evaluated || skill.Activation.Active,
 		Reasons: reasons,
+	}
+}
+
+func skillWhereItemFromRecords(detail SkillRecord, shadows SkillShadowsRecord) skillWhereItem {
+	item := skillWhereItem{
+		Name: detail.Name, Source: strings.TrimSpace(detail.Source), Origin: strings.TrimSpace(detail.Origin),
+		Dir: detail.Dir, Winner: shadows.Winner,
+		Shadows:   append([]contract.SkillShadowEntryPayload(nil), shadows.Shadows...),
+		Exposures: []contract.SkillExposurePayload{},
+	}
+	if detail.Exposures != nil {
+		item.Exposures = append([]contract.SkillExposurePayload(nil), (*detail.Exposures)...)
+	}
+	return item
+}
+
+func skillWhereItemFromSkill(skill *skills.Skill, shadows SkillShadowsRecord) skillWhereItem {
+	if skill == nil {
+		return skillWhereItem{}
+	}
+	return skillWhereItem{
+		Name: skill.Meta.Name, Source: skillSourceLabel(skill.Source), Origin: strings.TrimSpace(skill.Origin),
+		Dir: skill.Dir, Winner: shadows.Winner,
+		Shadows:   append([]contract.SkillShadowEntryPayload(nil), shadows.Shadows...),
+		Exposures: []contract.SkillExposurePayload{},
 	}
 }

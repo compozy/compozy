@@ -9,6 +9,7 @@ const routeHookMocks = vi.hoisted(() => ({
   toastSuccess: vi.fn(),
   cancelSessionPrompt: vi.fn(),
   clearMutation: { isPending: false, mutate: vi.fn() },
+  deleteOptions: { current: undefined as { onDeleteSuccess?: () => void } | undefined },
   deleteMutation: { isPending: false, mutate: vi.fn() },
   renameMutation: { isPending: false, mutateAsync: vi.fn() },
   resumeMutation: { isPending: false, mutateAsync: vi.fn() },
@@ -50,7 +51,10 @@ vi.mock("@/systems/session", async () => {
     queuedPromptAttachmentSummary,
     useCancelSessionInput: () => routeHookMocks.cancelInputMutation,
     useClearSessionConversation: () => routeHookMocks.clearMutation,
-    useDeleteSession: () => routeHookMocks.deleteMutation,
+    useDeleteSession: (options: { onDeleteSuccess?: () => void }) => {
+      routeHookMocks.deleteOptions.current = options;
+      return routeHookMocks.deleteMutation;
+    },
     useInterruptSessionPrompt: () => routeHookMocks.interruptPromptMutation,
     usePromoteSessionInput: () => routeHookMocks.promoteInputMutation,
     useQueueSessionPrompt: () => routeHookMocks.queuePromptMutation,
@@ -106,8 +110,10 @@ function makeSession(state: SessionPayload["state"], turnId?: string): SessionPa
   };
 }
 
-function renderControls(session = makeSession("active")) {
-  return renderHook(() => useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID }));
+function renderControls(session = makeSession("active"), onDeleteSuccess?: () => void) {
+  return renderHook(() =>
+    useSessionPageControls("sess-1", session, { workspaceId: WORKSPACE_ID, onDeleteSuccess })
+  );
 }
 
 function createDeferredPromise<T>() {
@@ -129,6 +135,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = false;
     routeHookMocks.auiState.thread.messages = [];
     routeHookMocks.transcriptMessages = [];
+    routeHookMocks.deleteOptions.current = undefined;
     routeHookMocks.sessionInputsQuery.data = { inputs: [] };
     routeHookMocks.resetThread.mockReset();
     routeHookMocks.toastError.mockReset();
@@ -183,6 +190,21 @@ describe("useSessionPageControls", () => {
       cancellation.resolve();
       await cancellation.promise;
     });
+  });
+
+  it("Should own delete success in the mutation lifecycle before the route unmounts", () => {
+    const onDeleteSuccess = vi.fn();
+    const { result } = renderControls(makeSession("stopped"), onDeleteSuccess);
+
+    act(() => result.current.handleDelete());
+    act(() => routeHookMocks.deleteOptions.current?.onDeleteSuccess?.());
+
+    expect(routeHookMocks.deleteMutation.mutate).toHaveBeenCalledWith("sess-1", {
+      onError: expect.any(Function),
+    });
+    expect(routeHookMocks.resetThread).toHaveBeenCalledOnce();
+    expect(routeHookMocks.toastSuccess).toHaveBeenCalledWith("Session deleted.");
+    expect(onDeleteSuccess).toHaveBeenCalledOnce();
   });
 
   it("Should allow a normal prompt to resume a stopped user session", () => {

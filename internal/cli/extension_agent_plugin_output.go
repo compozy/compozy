@@ -187,7 +187,7 @@ func extensionDiagnosticComponentFromScope(scope string) string {
 	switch {
 	case strings.HasPrefix(scope, extensionMCPKind+":") || scope == extensionMCPKind:
 		return extensionMCPServerKind
-	case strings.HasPrefix(scope, extensionSkillKind+":") || scope == "skills":
+	case strings.HasPrefix(scope, extensionSkillKind+":") || scope == configSkillsKey:
 		return extensionSkillKind
 	default:
 		return "manifest"

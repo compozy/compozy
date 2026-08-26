@@ -60,7 +60,7 @@ func TestRegistryForWorkspaceDisabledOverlay(t *testing.T) {
 			}
 
 			registry := newTestRegistry(t, RegistryConfig{
-				UserSkillsDir: userDir,
+				GlobalSkillRoots: testGlobalSkillRoots(userDir),
 			})
 			if err := registry.LoadAll(context.Background()); err != nil {
 				t.Fatalf("LoadAll() error = %v", err)

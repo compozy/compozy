@@ -19,6 +19,13 @@ only when it needs it.
 
 <RouteList>
   <RouteRow
+    href="/docs/skills/sources"
+    label="Sources"
+    title="Use skills from your other tools"
+    description="Use this page to turn on the folder conventions other agent tools already use, see where every skill came from, and expose a CompozyOS skill back to them."
+    meta="Walkthrough"
+  />
+  <RouteRow
     href="/docs/skills/skill-md"
     label="Format"
     title="SKILL.md schema and authoring"
@@ -95,23 +102,102 @@ rejected.
 
 ## Source Hierarchy
 
-CompozyOS starts from the filesystem-backed skill layers implemented today, then applies the winning
-agent's `skills/` directory as a final overlay when one effective agent is selected. Later rows
-override earlier rows when the same skill name is visible.
+CompozyOS resolves eight layers of filesystem-backed skills. The final layer comes from the winning
+agent's `skills/` directory when one effective agent is selected. Later rows override earlier rows
+when the same skill name is visible.
 
-| Precedence | Source          | Directory or owner                                                       | Notes                                                                        |
-| ---------- | --------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| 1          | Bundled         | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.              |
-| 2          | Marketplace     | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
-| 3          | User            | `$COMPOZY_HOME/skills/<group>/.../<name>`                                | Local operator-controlled global skills.                                     |
-| 4          | Additional root | `<additional-dir>/.compozy/skills/<group>/.../<name>`                    | Visible to workspaces that registered additional roots.                      |
-| 5          | Workspace       | `<workspace>/.compozy/skills/<group>/.../<name>`                         | Highest base precedence for that workspace.                                  |
-| 6          | Agent-local     | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                         |
+| Precedence | Tier                | Directory or owner                                                       | Notes                                                                        |
+| ---------- | ------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| 1          | `bundled`           | compiled from `skills/<group>/.../<name>/SKILL.md`                       | Lowest precedence. Optional groups are transparent to identity.              |
+| 2          | `marketplace`       | `$COMPOZY_HOME/skills/<group>/.../<name>` with leaf `.compozy-meta.json` | Installed by `compozy skill install`. Load-time hash verification must pass. |
+| 3          | `user`              | `$COMPOZY_HOME/skills/...` plus user-level configured source roots       | Your own skills, shared by every profile and workspace.                      |
+| 4          | `profile`           | `$COMPOZY_HOME/profiles/<name>/skills/...` plus its configured roots     | Private to one personal profile.                                             |
+| 5          | `additional`        | `<additional-dir>/.compozy/skills/...`                                   | Skills from additional roots registered for the workspace.                   |
+| 6          | `workspace`         | `<workspace>/.compozy/skills/...` plus workspace configured roots        | The project's own skills.                                                    |
+| 7          | `workspace_profile` | `<workspace>/.compozy/profiles/<name>/skills/...` plus its source roots  | Binds only while that profile is active. Repository-authored, read-only.     |
+| 8          | `agent_local`       | `<effective-agent-root>/skills/<group>/.../<name>`                       | Final overlay for the winning agent definition only.                         |
 
-In short, bundled, marketplace, user, additional root, and workspace form the base stack, then
-Agent-local overlays on top. Agent-local is resolved from the winning `AGENT.md` directory only
-after CompozyOS chooses the effective agent definition for that scope. It does not create a separate
-skill mode; it only overrides or augments the already-resolved base set.
+Agent-local is resolved from the winning `AGENT.md` directory only after CompozyOS chooses the
+effective agent definition for that scope. It does not create a separate skill mode; it only
+overrides or augments the already-resolved base set.
+
+## Where CompozyOS Looks
+
+CompozyOS's own skill folders are always scanned. Two configuration keys add more folders:
+
+- `skills.sources` names the folder conventions other agent tools already use. CompozyOS ships a
+  closed table: `agents` (`.agents/skills` and `~/.agents/skills`, on by default) and `claude`
+  (`.claude/skills` and `~/.claude/skills`, off by default). A name outside the table is rejected.
+- `skills.custom_sources` names extra directories to scan exactly as given — no `.compozy/skills`
+  suffix is appended. Absolute and `~/` paths work at any scope; workspace-relative paths require
+  workspace scope.
+
+Both keys pass through the same four config layers as the rest of `config.toml` — user, personal
+profile, workspace, workspace named profile — and each layer decides each key independently: an
+absent key inherits, a list replaces the inherited list, and an empty list scans nothing configured
+for that key. Both apply live, without a daemon restart.
+
+A skill is one directory containing a `SKILL.md`. Inside a source root, CompozyOS follows first-level
+symlinks and identifies each skill by its resolved real location, so one physical skill reachable
+through several paths is loaded once. Links that dangle, cycle, or point outside trusted locations
+are skipped and reported per entry.
+
+Extensions cannot register new folder conventions, and CompozyOS never copies skill content between
+folders. Walkthrough: [Use skills from your other tools](/docs/skills/sources).
+
+When custom directories share the same final directory name, CompozyOS adds a deterministic short
+hash to the repeated origin labels. `compozy skill sources -o json` is the authority for those
+labels; clients never rebuild them from paths.
+
+## Origin Attribution
+
+A skill carries two independent facts. Its **tier** is the precedence layer that won, and its
+**origin** is the folder convention or custom directory the winning copy came from. Skills in
+CompozyOS's own folders have no origin label; everything else carries one — `agents`, `claude`, or a
+custom source's name, taken from that directory's own name.
+
+Origin is visible wherever you pick or manage a skill: the `ORIGIN` column of `compozy skill list`,
+the `origin` field on `GET /api/skills` and `GET /api/skills/{name}`, the same field on
+`compozy__skill_list`, `compozy__skill_search`, and `compozy__skill_view`, the session `/` picker
+rows, and Settings > Skills.
+
+## Same Name, Different Source
+
+When two visible skills share a name, precedence still decides which one runs by default and the
+losers are recorded as shadows. Both stay invocable in a session: the winner answers the bare token
+`/<name>`, and every other eligible copy answers a qualified token `/<origin>:<name>`. If two roots
+share one origin name, the qualified token gains a short deterministic suffix
+(`<origin>-<hash>:<name>`) so each one stays unambiguous.
+
+`compozy skill where <name>` prints the winner, every shadowed definition with its tier and origin,
+and the qualified form to use for each.
+
+## Skills Your Provider Already Reads
+
+An agent CLI that reads a folder convention itself does not need CompozyOS to inject those skills
+again. When a session's provider natively reads an enabled source, and the winning copy of a skill
+lives in one of that provider's own folders, CompozyOS omits it from that session's injected
+catalog:
+
+| Provider   | Origin it reads natively |
+| ---------- | ------------------------ |
+| `claude`   | `claude`                 |
+| `openclaw` | `agents`                 |
+| `hermes`   | `agents`                 |
+
+Nothing else changes: the skill stays in the picker, in every list, and in every management surface,
+and an explicit invocation always delivers it. Any other provider receives the full catalog.
+
+## One Profile At A Time
+
+Skill catalogs, source diagnostics, and skill settings always answer for one exact profile — the one
+resolved for your command, or the one a session was bound to when it was created. There is no
+cross-profile skill view, because skills are layered resources rather than owned work. Agents read
+the profile their session is bound to and cannot ask for another one.
+
+Operators select a personal profile explicitly with `--profile <name>` and `--scope profile` when
+reading or changing source settings. Workspace named profiles are repository-authored read-only
+layers, selected by the same active profile name.
 
 ## Public surfaces
 
@@ -119,9 +205,11 @@ The operator and API surfaces resolve the same effective skill set:
 
 - CLI: `compozy skill list|info|view|enable|disable --for-agent <name> [--workspace <ref>]`
 - HTTP/UDS: `GET /api/skills?for_agent=<name>&workspace=<path-or-id>`
-- HTTP/UDS detail/content/mutate: the same optional `for_agent` and `workspace` query parameters
-  apply to `GET /api/skills/{name}`, `GET /api/skills/{name}/content`, `POST /api/skills/{name}/enable`,
-  and `POST /api/skills/{name}/disable`
+- HTTP/UDS content, shadows, enable, and disable retain the optional `for_agent` and `workspace`
+  query parameters. `GET /api/skills/{name}` instead takes the canonical `workspace_id` query.
+- Sources and exposure: `compozy skill sources|expose|unexpose`, `GET|PATCH /api/settings/skills`,
+  and `POST /api/skills/{name}/expose|unexpose`. Exposure routes take canonical `workspace_id` in
+  the request body; the CLI accepts an ID, name, or path in `--workspace` and resolves it first.
 
 If `for_agent` is omitted, CompozyOS returns the base effective set for the selected global or workspace
 resolution context. If `for_agent` is present, CompozyOS overlays the winning agent's `skills/` tree and
@@ -140,8 +228,10 @@ root.
 ## Provenance And Shadow Audit
 
 Every skill list/detail payload includes `provenance.precedence_tier`, which is the resolver tier
-that won for that skill: `bundled`, `marketplace`, `user`, `additional`, `workspace`, or
-`agent_local`. Marketplace metadata remains in `slug`, `registry`, `version`, and `installed_at`.
+that won for that skill: `bundled`, `marketplace`, `user`, `profile`, `additional`, `workspace`,
+`workspace_profile`, or `agent_local`. The separate `origin` field names the folder convention or
+custom directory it came from. Marketplace metadata remains in `slug`, `registry`, `version`, and
+`installed_at`.
 Skills supplied by extensions can also carry `installed_from_extension` so operators can trace the
 owning extension.
 
@@ -169,34 +259,41 @@ Boot --> Global[Load global user skills]
 Global --> Marketplace[Classify marketplace skills by .compozy-meta.json]
 Bundled --> Registry[Global skill registry]
 Marketplace --> Registry
+Boot --> Sources[Resolve configured source roots]
+Sources --> Registry
 Session[Session start] --> Workspace[Resolve workspace snapshot]
-Workspace --> Roots[Discover workspace and additional skill dirs]
+Workspace --> Roots[Discover workspace, source, and additional skill dirs]
 Registry --> Merge[Merge by skill name]
 Roots --> Merge
 Merge --> Agent[Overlay agent-local skills]
-Agent --> Catalog[Build available-skills catalog]
+Agent --> Filter[Omit skills the provider reads natively]
+Filter --> Catalog[Build available-skills catalog]
 Catalog --> Prompt[Append catalog after agent prompt]
 Agent --> MCP[Resolve skill MCP servers]
 MCP --> StartOpts[Merge into ACP start options]`}
-  caption="CompozyOS loads global skills at boot, resolves workspace and additional skills per session, overlays Agent-local skills when an agent is selected, appends only a compact catalog to the prompt, and resolves MCP servers for startup."
+  caption="CompozyOS loads user skills and configured source roots at boot, resolves workspace, source, and additional skills per session, overlays Agent-local skills when an agent is selected, omits skills the session provider already reads, appends only a compact catalog to the prompt, and resolves MCP servers for startup."
 />
 
-The daemon boot path is responsible for the global registry:
+The daemon boot path is responsible for the user-level registry:
 
 1. Load bundled skills.
-2. Load global CompozyOS skills from `$COMPOZY_HOME/skills/`.
-3. Start the global watcher when `skills.enabled` is true.
+2. Load user skills from `$COMPOZY_HOME/skills/` and from every user-level root the effective
+   `skills.sources` and `skills.custom_sources` resolve to.
+3. Start the watcher when `skills.enabled` is true. A source-configuration change is applied live:
+   the roots are re-resolved and rescanned without a restart.
 
 The session start path is workspace-aware:
 
-1. Resolve the workspace snapshot.
-2. Discover `<workspace>/.compozy/skills/` and any registered additional roots.
-3. Overlay workspace-visible skills over the global registry.
+1. Resolve the workspace snapshot and the session's profile.
+2. Discover `<workspace>/.compozy/skills/`, the project-level source roots, custom directories, and
+   any registered additional roots.
+3. Overlay workspace-visible skills over the user registry, following the eight-tier order.
 4. Resolve the winning `AGENT.md` and, if it has a `skills/` directory, overlay those skills last.
 5. Apply agent-scoped logical tombstones from `AGENT.md` `skills.disabled`.
 6. Evaluate `metadata.compozy.when` against the current platform, authored agent capabilities, and
    session-callable tools.
-7. Build the prompt catalog from skills that are both enabled and active.
+7. Build the prompt catalog from skills that are both enabled and active, omitting skills the
+   session's own provider already reads natively.
 8. Resolve MCP servers declared by enabled resolved skills; offer-time activation does not gate MCP
    startup.
 
@@ -286,14 +383,18 @@ There is no interactive MCP consent prompt today. Consent is a static config all
 | Global skill edit             | The watcher refreshes global skills on `skills.poll_interval`, default `3s`.                                                                            |
 | Workspace skill edit          | Workspace skill cache uses file snapshots and is rechecked when a workspace is resolved. Cache entries expire after 10 minutes.                         |
 | Agent-local skill edit        | Agent-local resolution is rechecked when the winning `AGENT.md` or its `skills/` tree changes. Invalid agent-local state is fail-closed for that agent. |
+| Source configuration change   | `skills.sources` and `skills.custom_sources` apply live: roots are re-resolved and rescanned without a daemon restart.                                  |
 | Missing global directory      | Treated as empty.                                                                                                                                       |
+| Missing source directory      | Reported as absent for that root. An existing directory CompozyOS cannot read reports `readable: false` with its counts omitted, never as zero.         |
 | Scan depth                    | No fixed depth. CompozyOS discovers eligible `SKILL.md` files at arbitrary nesting under each scanned directory.                                        |
-| Scan limit                    | Each scan root stops after 20,000 filesystem entries or 300 `SKILL.md` candidates, whichever comes first.                                               |
+| Scan limit                    | Each scan root stops after 20,000 filesystem entries or 300 `SKILL.md` candidates, whichever comes first. The root is then flagged truncated.           |
 | Critical verification finding | The skill is blocked from loading.                                                                                                                      |
 | Marketplace hash mismatch     | The marketplace skill is blocked from loading.                                                                                                          |
 
 ## Related Pages
 
+- [Use skills from your other tools](/docs/skills/sources) walks through source configuration, origin
+  labels, and exposing a skill back to another tool.
 - [SKILL.md Format](/docs/skills/skill-md) documents the file format and schema.
 - [Marketplace](/docs/skills/marketplace) shows how to search, install, update, and remove skills.
 - [Bundled Skill](/docs/skills/bundled) documents the `compozy` skill shipped in the CompozyOS binary.

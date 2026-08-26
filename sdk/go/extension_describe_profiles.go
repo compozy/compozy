@@ -67,8 +67,11 @@ func normalizeDescribeProfiles(profiles []contracts.DescribeProfile) []contracts
 			Name: strings.TrimSpace(profile.Name), Color: strings.TrimSpace(profile.Color),
 			Icon: strings.TrimSpace(profile.Icon), Emoji: strings.TrimSpace(profile.Emoji),
 			Defaults: contracts.DescribeProfileDefaults{
-				Agent: strings.TrimSpace(profile.Defaults.Agent), Provider: strings.TrimSpace(profile.Defaults.Provider),
-				Sandbox: strings.TrimSpace(profile.Defaults.Sandbox),
+				Agent: strings.TrimSpace(
+					profile.Defaults.Agent,
+				),
+				Provider: strings.TrimSpace(profile.Defaults.Provider),
+				Sandbox:  strings.TrimSpace(profile.Defaults.Sandbox),
 			},
 			Credentials: slices.Compact(credentials),
 		})

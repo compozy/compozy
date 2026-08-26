@@ -16,6 +16,7 @@ type SessionProviderOptionPayload struct {
 type SkillShadowEntryPayload struct {
 	Path             string    `json:"path"`
 	Tier             string    `json:"tier"`
+	Origin           string    `json:"origin,omitempty"`
 	ResolvedToWinner bool      `json:"resolved_to_winner"`
 	DetectedAt       time.Time `json:"detected_at"`
 }
@@ -26,12 +27,85 @@ type SkillPayload struct {
 	Description string                   `json:"description"`
 	Version     string                   `json:"version,omitempty"`
 	Source      string                   `json:"source"`
+	Origin      string                   `json:"origin"`
+	OwnerScope  string                   `json:"owner_scope"`
+	OwnerID     string                   `json:"owner_id,omitempty"`
 	Enabled     bool                     `json:"enabled"`
 	Activation  SkillActivationPayload   `json:"activation"`
 	Dir         string                   `json:"dir"`
 	Metadata    map[string]any           `json:"metadata,omitempty"`
 	Provenance  *ProvenancePayload       `json:"provenance,omitempty"`
 	Diagnostics []SkillDiagnosticPayload `json:"diagnostics,omitempty"`
+	Exposures   *[]SkillExposurePayload  `json:"exposures,omitempty"`
+}
+
+// SkillExposurePayload is one provider-root link and its reconciled health.
+type SkillExposurePayload struct {
+	Target string              `json:"target"`
+	Path   string              `json:"path"`
+	Status SkillExposureStatus `json:"status"`
+}
+
+// SkillExposureStatus is the reconciled provider-link health vocabulary.
+type SkillExposureStatus string
+
+const (
+	SkillExposureStatusHealthy         SkillExposureStatus = "healthy"
+	SkillExposureStatusMissing         SkillExposureStatus = "missing"
+	SkillExposureStatusBroken          SkillExposureStatus = "broken"
+	SkillExposureStatusForeignConflict SkillExposureStatus = "foreign_conflict"
+)
+
+// SkillExposureRequest mutates exposure links for one skill.
+type SkillExposureRequest struct {
+	Targets     []string `json:"targets"                binding:"required,min=1,dive,required"`
+	WorkspaceID string   `json:"workspace_id,omitempty"`
+}
+
+// SkillExposureErrorPayload is one deterministic public exposure failure.
+type SkillExposureErrorPayload struct {
+	Code       string `json:"code"`
+	Message    string `json:"message,omitempty"`
+	OccupiedBy string `json:"occupied_by,omitempty"`
+}
+
+// SkillExposureFailureErrorPayload is the required top-level failure summary.
+type SkillExposureFailureErrorPayload struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+// SkillExposureTargetResultPayload reports one target without hiding partial outcomes.
+type SkillExposureTargetResultPayload struct {
+	Target       string                     `json:"target"`
+	OK           bool                       `json:"ok"`
+	Exposure     *SkillExposurePayload      `json:"exposure,omitempty"`
+	Error        *SkillExposureErrorPayload `json:"error,omitempty"`
+	CleanupError *SkillExposureErrorPayload `json:"cleanup_error,omitempty"`
+}
+
+// SkillExposeResponse is the successful expose result.
+type SkillExposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+	RolledBack  bool                               `json:"rolled_back"`
+}
+
+// SkillUnexposeResponse is the successful independent removal result.
+type SkillUnexposeResponse struct {
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+}
+
+// SkillExposureFailureResponse is the only expose/unexpose failure envelope.
+type SkillExposureFailureResponse struct {
+	Error       SkillExposureFailureErrorPayload   `json:"error"`
+	Name        string                             `json:"name"`
+	WorkspaceID string                             `json:"workspace_id,omitempty"`
+	Results     []SkillExposureTargetResultPayload `json:"results"`
+	RolledBack  *bool                              `json:"rolled_back,omitempty"`
 }
 
 // SkillMarketplaceInstallRequest installs one remote marketplace skill.

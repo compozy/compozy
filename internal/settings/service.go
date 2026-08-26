@@ -69,6 +69,19 @@ type SkillsDiagnosticsRuntime interface {
 	) ([]skillspkg.SkillDiagnostic, error)
 }
 
+// SkillsWorkspaceRuntime optionally exposes exact profile/workspace projections.
+type SkillsWorkspaceRuntime interface {
+	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skillspkg.Skill, error)
+}
+
+// SkillsSourcesRuntime optionally exposes daemon-owned per-root discovery measurements.
+type SkillsSourcesRuntime interface {
+	SkillSourceRoots(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+	) ([]skillspkg.SkillSourceRootStatus, error)
+}
+
 // AutomationRuntimeProvider returns automation runtime metadata.
 type AutomationRuntimeProvider interface {
 	AutomationRuntimeStatus(ctx context.Context) (AutomationRuntimeStatus, error)

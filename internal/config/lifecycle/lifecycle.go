@@ -80,6 +80,8 @@ var Matrix = []Rule{
 	{Pattern: "attention.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "shell.*.*", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: "skills.disabled_skills", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "skills.sources", Lifecycle: Live, DiffClass: DiffClassLive},
+	{Pattern: "skills.custom_sources", Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutProviders, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutMCP, Lifecycle: Live, DiffClass: DiffClassLive},
 	{Pattern: pathDaemonReloadTimeoutBridges, Lifecycle: Live, DiffClass: DiffClassLive},

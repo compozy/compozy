@@ -1645,8 +1645,13 @@ func TestDaemonNativeTools(t *testing.T) {
 		t.Parallel()
 
 		skillRegistry := newLoadedNativeSkillRegistry(t)
+		homePaths, err := compozyconfig.ResolveHomePathsFrom(filepath.Join(t.TempDir(), compozyconfig.DirName))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
-			Skills: skillRegistry,
+			Skills:    skillRegistry,
+			HomePaths: homePaths,
 		}, nativeApproveAllPolicyInputs())
 
 		listResult, err := registry.Call(
@@ -1655,9 +1660,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{ToolID: toolspkg.ToolIDSkillList},
 		)
 		if err != nil {
-			t.Fatalf("Registry.Call(skill_list) error = %v", err)
+			t.Fatalf("Registry.Call(skill_list) error = %v; cause = %v", err, errors.Unwrap(err))
 		}
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"origin":""`))
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -1671,6 +1677,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(skill_search) error = %v", err)
 		}
 		requireNativeStructuredContains(t, searchResult, []byte(`"compozy"`))
+		requireNativeStructuredContains(t, searchResult, []byte(`"origin":""`))
 
 		viewResult, err := registry.Call(
 			t.Context(),
@@ -1701,6 +1708,8 @@ func TestDaemonNativeTools(t *testing.T) {
 			viewResult.Content[0].Text != expectedContent {
 			t.Fatalf("skill_view did not return the resolved bundled resource")
 		}
+		requireNativeStructuredContains(t, viewResult, []byte(`"origin":""`))
+		requireNativeStructuredContains(t, viewResult, []byte(`"exposures":[]`))
 	})
 
 	t.Run("Should list workspace agents and redacted global Vault refs", func(t *testing.T) {
@@ -2095,6 +2104,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			skillRegistry,
 			func() session.AgentResolver { return agentResolver },
 			func() promptSkillsWorkspaceResolver { return workspaces },
+			nil,
 		).Catalog(t.Context(), info, manager.agent)
 		if err != nil {
 			t.Fatalf("Catalog() error = %v", err)
@@ -2140,6 +2150,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			if _, exposed := viewedSkill[field]; exposed {
 				t.Fatalf("skill_view command_id exposed field %q: %#v", field, viewedSkill)
 			}
+		}
+		if origin, present := viewedSkill["origin"]; !present || origin != "" {
+			t.Fatalf("skill_view command_id origin = %#v, want explicit empty origin", origin)
+		}
+		if exposures, present := viewedSkill["exposures"].([]any); !present || len(exposures) != 0 {
+			t.Fatalf("skill_view command_id exposures = %#v, want explicit empty list", viewedSkill["exposures"])
 		}
 	})
 

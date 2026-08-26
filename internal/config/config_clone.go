@@ -18,6 +18,8 @@ func CloneConfig(source *Config) Config {
 	cloned.Memory = CloneMemoryConfig(&source.Memory)
 	cloned.Roles = CloneRolesConfig(&source.Roles)
 	cloned.RoleSources = CloneRoleFieldSources(source.RoleSources)
+	cloned.Skills.Sources = cloneStrings(source.Skills.Sources)
+	cloned.Skills.CustomSources = cloneStrings(source.Skills.CustomSources)
 	cloned.Skills.DisabledSkills = cloneStrings(source.Skills.DisabledSkills)
 	cloned.Skills.AllowedMarketplaceMCP = cloneStrings(source.Skills.AllowedMarketplaceMCP)
 	cloned.Skills.AllowedMarketplaceHooks = cloneStrings(source.Skills.AllowedMarketplaceHooks)

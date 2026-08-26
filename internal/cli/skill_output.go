@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -28,7 +30,7 @@ const (
 	skillOutputEnabledKey        = automationEnabledKey
 	skillOutputActiveKey         = authoredContextActiveKey
 	skillOutputInactiveKey       = "inactive_reason"
-	skillOutputPathKey           = "path"
+	skillOutputPathKey           = cliPathKey
 	skillOutputStatusKey         = automationStatusKey
 	skillOutputValueKey          = "value"
 )
@@ -78,24 +80,72 @@ func skillSearchBundle(items []registrypkg.Listing) outputBundle {
 	)
 }
 
+func renderSkillInfoTranscript(item skillInfoItem) string {
+	rows := []struct {
+		label string
+		value string
+	}{
+		{label: cliNameHeader, value: stringOrDash(item.Name)},
+		{label: cliSourceHeader, value: stringOrDash(item.Source)},
+		{label: "PATH", value: stringOrDash(item.Path)},
+	}
+	if len(item.Exposures) == 0 {
+		rows = append(rows, struct {
+			label string
+			value string
+		}{label: "EXPOSED TO", value: "— none —"})
+	} else {
+		for index, exposure := range item.Exposures {
+			label := ""
+			if index == 0 {
+				label = "EXPOSED TO"
+			}
+			rows = append(rows, struct {
+				label string
+				value string
+			}{label: label, value: fmt.Sprintf(
+				"%s → %s (%s)", exposure.Target, exposure.Path, skillExposureStatusLabel(exposure.Status),
+			)})
+		}
+	}
+	lines := make([]string, 0, len(rows))
+	for _, row := range rows {
+		lines = append(lines, fmt.Sprintf("%-10s   %s", row.label, row.value))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func skillExposureStatusLabel(status contract.SkillExposureStatus) string {
+	trimmed := strings.TrimSpace(string(status))
+	switch trimmed {
+	case string(contract.SkillExposureStatusMissing):
+		return "missing — re-expose repairs"
+	case string(contract.SkillExposureStatusBroken):
+		return "broken — unexpose or re-expose repairs"
+	case string(contract.SkillExposureStatusForeignConflict):
+		return "foreign conflict — not our link; no action"
+	default:
+		return strings.ReplaceAll(trimmed, "_", " ")
+	}
+}
+
 func skillListBundle(items []skillListItem) outputBundle {
-	return listBundle(
+	bundle := listBundle(
 		items,
 		items,
-		"Skills",
+		"",
 		[]string{
 			automationNameValue,
-			skillOutputDescriptionValue,
 			authoredContextSourceValue,
-			skillOutputEnabledValue,
-			skillOutputActiveValue,
-			skillOutputInactiveValue,
+			"Origin",
+			skillOutputDescriptionValue,
 		},
 		"skills",
 		[]string{
 			automationNameKey,
 			skillOutputDescriptionKey,
 			automationSourceKey,
+			cliOriginKey,
 			skillOutputEnabledKey,
 			skillOutputActiveKey,
 			skillOutputInactiveKey,
@@ -103,11 +153,9 @@ func skillListBundle(items []skillListItem) outputBundle {
 		func(item skillListItem) []string {
 			return []string{
 				stringOrDash(item.Name),
-				stringOrDash(item.Description),
 				stringOrDash(item.Source),
-				strconv.FormatBool(item.Enabled),
-				strconv.FormatBool(item.Activation.Active),
-				stringOrDash(skillInactiveReason(item.Activation)),
+				stringOrDash(item.Origin),
+				stringOrDash(item.Description),
 			}
 		},
 		func(item skillListItem) []string {
@@ -115,12 +163,40 @@ func skillListBundle(items []skillListItem) outputBundle {
 				item.Name,
 				item.Description,
 				item.Source,
+				item.Origin,
 				strconv.FormatBool(item.Enabled),
 				strconv.FormatBool(item.Activation.Active),
 				skillInactiveReason(item.Activation),
 			}
 		},
 	)
+	bundle.human = func() (string, error) {
+		return renderSkillListTranscript(items), nil
+	}
+	return bundle
+}
+
+func renderSkillListTranscript(items []skillListItem) string {
+	rows := make([][]string, 0, len(items)+1)
+	rows = append(rows, []string{cliNameHeader, cliSourceHeader, cliOriginHeader, "DESCRIPTION"})
+	for _, item := range items {
+		origin := strings.TrimSpace(item.Origin)
+		if origin == "" {
+			origin = "—"
+		}
+		rows = append(rows, []string{
+			stringOrDash(item.Name),
+			stringOrDash(item.Source),
+			origin,
+			stringOrDash(item.Description),
+		})
+	}
+	widths := humanTableColumnWidths(rows)
+	var builder strings.Builder
+	for _, row := range rows {
+		writeHumanTableRow(&builder, row, widths)
+	}
+	return strings.TrimRight(builder.String(), "\n")
 }
 
 func skillViewBundle(item skillViewItem, rendered string) outputBundle {
@@ -139,36 +215,7 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 	return outputBundle{
 		jsonValue: item,
 		human: func() (string, error) {
-			base := renderHumanSection("Skill", []keyValue{
-				{Label: automationNameValue, Value: stringOrDash(item.Name)},
-				{Label: skillOutputDescriptionValue, Value: stringOrDash(item.Description)},
-				{Label: versionValue, Value: stringOrDash(item.Version)},
-				{Label: authoredContextSourceValue, Value: stringOrDash(item.Source)},
-				{Label: skillOutputPathValue, Value: stringOrDash(item.Path)},
-				{Label: skillOutputEnabledValue, Value: strconv.FormatBool(item.Enabled)},
-				{Label: skillOutputActiveValue, Value: strconv.FormatBool(item.Activation.Active)},
-				{Label: skillOutputInactiveValue, Value: stringOrDash(skillInactiveReason(item.Activation))},
-			})
-			provenanceRows := skillProvenanceRows(item.Provenance)
-			provenance := renderHumanTable(
-				"Provenance",
-				[]string{cliFieldValue, skillOutputValueValue},
-				provenanceRows,
-			)
-
-			metadataRows := make([][]string, 0, len(item.Metadata))
-			for _, entry := range sortedSkillMetadataEntries(item.Metadata) {
-				metadataRows = append(metadataRows, []string{entry.Label, entry.Value})
-			}
-			metadata := renderHumanTable("Metadata", []string{cliKeyValue, skillOutputValueValue}, metadataRows)
-
-			resourceRows := make([][]string, 0, len(item.Resources))
-			for _, resource := range item.Resources {
-				resourceRows = append(resourceRows, []string{resource})
-			}
-			resources := renderHumanTable("Resources", []string{skillOutputPathValue}, resourceRows)
-
-			return renderHumanBlocks(base, provenance, metadata, resources), nil
+			return renderSkillInfoTranscript(item), nil
 		},
 		toon: func() (string, error) {
 			metadataRows := make([][]string, 0, len(item.Metadata))
@@ -179,6 +226,12 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 			resourceRows := make([][]string, 0, len(item.Resources))
 			for _, resource := range item.Resources {
 				resourceRows = append(resourceRows, []string{resource})
+			}
+			exposureRows := make([][]string, 0, len(item.Exposures))
+			for _, exposure := range item.Exposures {
+				exposureRows = append(exposureRows, []string{
+					exposure.Target, exposure.Path, string(exposure.Status),
+				})
 			}
 
 			return renderHumanBlocks(
@@ -212,6 +265,11 @@ func skillInfoBundle(item skillInfoItem) outputBundle {
 				),
 				renderToonArray("metadata", []string{cliKeyKey, skillOutputValueKey}, metadataRows),
 				renderToonArray("resources", []string{skillOutputPathKey}, resourceRows),
+				renderToonArray(
+					"exposures",
+					[]string{automationTargetKey, cliPathKey, automationStatusKey},
+					exposureRows,
+				),
 			), nil
 		},
 	}
@@ -255,55 +313,100 @@ func skillProvenanceRows(provenance *SkillProvenanceRecord) [][]string {
 	return rows
 }
 
-func skillWhereBundle(record SkillShadowsRecord) outputBundle {
+func skillWhereBundle(record skillWhereItem) outputBundle {
 	return outputBundle{
 		jsonValue: record,
 		human: func() (string, error) {
-			rows := skillWhereRows(record)
-			return renderHumanBlocks(
-				renderHumanSection("Skill Resolution", []keyValue{
-					{Label: automationNameValue, Value: stringOrDash(record.Name)},
-					{Label: "Winner", Value: stringOrDash(record.Winner.Path)},
-					{Label: extensionMarketplaceTierValue, Value: stringOrDash(record.Winner.Tier)},
-				}),
-				renderHumanTable(
-					"Locations",
-					[]string{"Winner", extensionMarketplaceTierValue, skillOutputPathValue},
-					rows,
-				),
-			), nil
+			return renderSkillWhereTranscript(record), nil
 		},
 		toon: func() (string, error) {
-			return renderHumanBlocks(
-				renderToonObject(
-					"skill_resolution",
-					[]string{automationNameKey, "winner_path", "winner_tier"},
-					[]string{record.Name, record.Winner.Path, record.Winner.Tier},
-				),
-				renderToonArray(
-					"locations",
-					[]string{"winner", extensionMarketplaceTierKey, skillOutputPathKey},
-					skillWhereRows(record),
-				),
-			), nil
+			return renderSkillWhereTranscript(record), nil
 		},
 	}
 }
 
-func skillWhereRows(record SkillShadowsRecord) [][]string {
-	rows := make([][]string, 0, len(record.Shadows))
-	for _, entry := range record.Shadows {
-		winner := "no"
-		if entry.ResolvedToWinner {
-			winner = yesFlagName
-		}
-		rows = append(rows, []string{
-			winner,
-			stringOrDash(entry.Tier),
-			stringOrDash(entry.Path),
-		})
+func renderSkillWhereTranscript(record skillWhereItem) string {
+	winnerOrigin := strings.TrimSpace(record.Origin)
+	if winnerOrigin == "" {
+		winnerOrigin = compozySkillSource
 	}
-	return rows
+	winnerPath := strings.TrimSpace(record.Dir)
+	if winnerPath == "" {
+		winnerPath = skillDefinitionDirectory(record.Winner.Path)
+	}
+	lines := []string{fmt.Sprintf(
+		"WINNER   %s (%s · %s)", winnerPath, record.Source, winnerOrigin,
+	)}
+	alternatives := make([]contract.SkillShadowEntryPayload, 0, len(record.Shadows))
+	for _, entry := range record.Shadows {
+		if !entry.ResolvedToWinner {
+			alternatives = append(alternatives, entry)
+		}
+	}
+	if len(alternatives) == 0 {
+		lines = append(lines, "ALSO     — none —")
+	} else {
+		qualifiedOrigins := make(map[string]struct{})
+		for index, entry := range alternatives {
+			label := "         "
+			if index == 0 {
+				label = "ALSO     "
+			}
+			origin := strings.TrimSpace(entry.Origin)
+			if origin == "" {
+				if entry.Tier == bundledSkillSource || entry.Tier == marketplaceSkillSource {
+					origin = compozySkillSource
+				} else {
+					origin = skillOriginFromPath(entry.Path)
+				}
+			}
+			hint := ""
+			if origin != compozySkillSource && origin != customSkillSource {
+				_, alreadyHinted := qualifiedOrigins[origin]
+				if !alreadyHinted {
+					qualifiedOrigins[origin] = struct{}{}
+					hint = " — invoke as " + origin + ":" + record.Name
+				}
+			}
+			lines = append(lines, fmt.Sprintf(
+				"%s%s (%s · %s · shadowed%s)",
+				label, skillDefinitionDirectory(entry.Path), entry.Tier, origin, hint,
+			))
+		}
+	}
+	for index, exposure := range record.Exposures {
+		label := "         "
+		if index == 0 {
+			label = "LINKS    "
+		}
+		lines = append(lines, fmt.Sprintf(
+			"%s%s → %s (exposure · %s)",
+			label, exposure.Path, record.Dir, skillExposureStatusLabel(exposure.Status),
+		))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func skillDefinitionDirectory(path string) string {
+	trimmed := strings.TrimSpace(path)
+	if strings.EqualFold(filepath.Base(trimmed), skillMarkdownFileName) {
+		return filepath.Dir(trimmed)
+	}
+	return trimmed
+}
+
+func skillOriginFromPath(path string) string {
+	normalized := strings.ReplaceAll(strings.TrimSpace(path), "\\", "/")
+	switch {
+	case strings.Contains(normalized, "/.agents/skills/"):
+		return agentsSkillSource
+	case strings.Contains(normalized, "/.claude/skills/"):
+		return claudeSkillSource
+	case strings.Contains(normalized, "/.compozy/skills/"):
+		return compozySkillSource
+	default:
+		return customSkillSource
+	}
 }
 
 func skillCreateBundle(item skillCreateItem) outputBundle {

@@ -31,6 +31,12 @@ func buildHarnessObservabilityTags(
 		harnessContextHarnessNetworkLivePath:     boolTag(sessionCtx.NetworkLive),
 		harnessContextHarnessDiagnosticLabelPath: policy.DiagnosticLabel,
 	}
+	if sessionID := strings.TrimSpace(sessionCtx.SessionID); sessionID != "" {
+		tags["session_id"] = sessionID
+	}
+	if provider := strings.TrimSpace(sessionCtx.Provider); provider != "" {
+		tags["provider"] = provider
+	}
 	if turnCtx.Synthetic != nil {
 		tags["harness.synthetic_reason"] = turnCtx.Synthetic.Reason
 		tags["harness.synthetic_trigger"] = turnCtx.Synthetic.Trigger

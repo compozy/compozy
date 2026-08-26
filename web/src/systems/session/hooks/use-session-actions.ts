@@ -138,7 +138,9 @@ export function useStopSession(options: UseSessionWorkspaceOptions = {}) {
   });
 }
 
-export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
+export function useDeleteSession(
+  options: UseSessionWorkspaceOptions & { onDeleteSuccess?: () => void } = {}
+) {
   const queryClient = useQueryClient();
   const { runtimeWorkspaceId } = useActiveWorkspace();
   const workspaceId = resolveWorkspaceId(options.workspaceId, runtimeWorkspaceId);
@@ -158,6 +160,7 @@ export function useDeleteSession(options: UseSessionWorkspaceOptions = {}) {
       sessionStore.trigger.sessionInteractionRemoved({ sessionId: id });
       queryClient.removeQueries({ queryKey: sessionKeys.detail(successWorkspaceId, id) });
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
+      options.onDeleteSuccess?.();
 
       return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
     },

@@ -88,7 +88,7 @@ func newMarketplaceLoadRegistry(t *testing.T) (*Registry, *Skill, string) {
 		t.Fatalf("WriteSidecar() error = %v", err)
 	}
 
-	registry := newTestRegistry(t, RegistryConfig{UserSkillsDir: userDir})
+	registry := newTestRegistry(t, RegistryConfig{GlobalSkillRoots: testGlobalSkillRoots(userDir)})
 	if err := registry.LoadAll(context.Background()); err != nil {
 		t.Fatalf("LoadAll() error = %v", err)
 	}

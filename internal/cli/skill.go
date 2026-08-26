@@ -33,6 +33,7 @@ type skillListItem struct {
 	Name        string                          `json:"name"`
 	Description string                          `json:"description"`
 	Source      string                          `json:"source"`
+	Origin      string                          `json:"origin"`
 	Enabled     bool                            `json:"enabled"`
 	Activation  contract.SkillActivationPayload `json:"activation"`
 }
@@ -51,12 +52,14 @@ type skillInfoItem struct {
 	Description string                          `json:"description"`
 	Version     string                          `json:"version,omitempty"`
 	Source      string                          `json:"source"`
+	Origin      string                          `json:"origin"`
 	Path        string                          `json:"path"`
 	Enabled     bool                            `json:"enabled"`
 	Activation  contract.SkillActivationPayload `json:"activation"`
 	Metadata    map[string]any                  `json:"metadata,omitempty"`
 	Resources   []string                        `json:"resources,omitempty"`
 	Provenance  *SkillProvenanceRecord          `json:"provenance,omitempty"`
+	Exposures   []contract.SkillExposurePayload `json:"exposures"`
 }
 
 type skillCreateItem struct {
@@ -66,6 +69,16 @@ type skillCreateItem struct {
 	File   string `json:"file"`
 	Source string `json:"source"`
 	Status string `json:"status"`
+}
+
+type skillWhereItem struct {
+	Name      string                             `json:"name"`
+	Source    string                             `json:"source"`
+	Origin    string                             `json:"origin"`
+	Dir       string                             `json:"dir"`
+	Winner    contract.SkillShadowEntryPayload   `json:"winner"`
+	Shadows   []contract.SkillShadowEntryPayload `json:"shadows"`
+	Exposures []contract.SkillExposurePayload    `json:"exposures"`
 }
 
 type skillInstallItem struct {

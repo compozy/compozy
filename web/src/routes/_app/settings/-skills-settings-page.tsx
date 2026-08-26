@@ -1,41 +1,24 @@
 import { AlertCircle } from "lucide-react";
-import type { Dispatch, SetStateAction } from "react";
-import { Link } from "@tanstack/react-router";
 
+import { useSettingsSkillsPage } from "@/systems/settings/hooks/use-settings-skills-page";
 import {
-  useSettingsSkillsPage,
-  type SkillsScopeSelection,
-} from "@/systems/settings/hooks/use-settings-skills-page";
-import { AgentCommandSelect, type AgentPayload } from "@/systems/agent";
-import {
-  SettingLinkRow,
   SettingsAdvancedFold,
   SettingsDisabledSkillsSection,
-  SettingsFieldRow,
-  SettingsGroup,
   SettingsPageFrame,
-  SettingsProvChip,
   SettingsRuntimeUnavailable,
   SettingsInlineSaveControls,
   SettingsSaveBar,
-  SettingsTaglistField,
+  SettingsSkillsScopeNotice,
+  SettingsSkillsEngineSection,
+  SettingsSkillsInstallPolicySection,
+  SettingsSkillsManageSection,
+  SettingsSkillsMarketplaceSection,
+  SettingsSkillSourcesSection,
+  SettingsSkillsScopeSelector,
   useSettingsSaveBarState,
   useSettingsTopbar,
-  type SettingsScope,
-  type SettingsSkillsSection,
 } from "@/systems/settings";
-import type { WorkspacePayload } from "@/systems/workspace";
-import {
-  Button,
-  Input,
-  NativeSelect,
-  NativeSelectOption,
-  PillGroup,
-  Spinner,
-  Switch,
-} from "@compozy/ui";
-
-type SkillsConfig = SettingsSkillsSection["config"];
+import { Button, Spinner } from "@compozy/ui";
 
 export function SkillsSettingsPage() {
   const page = useSettingsSkillsPage();
@@ -79,11 +62,13 @@ export function SkillsSettingsPage() {
   }
 
   const { envelope, draft, setDraft, restart } = page;
-  const isUserScope = page.selection.scope === "user";
+  const isPersonalPolicyScope = page.selection.scope === "user";
   const scopeLabel =
     page.selection.scope === "user"
-      ? "user"
-      : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
+      ? page.personalLabel.toLowerCase()
+      : page.selection.scope === "workspace"
+        ? `workspace ${page.selectedWorkspace?.name ?? page.selection.workspaceId}`
+        : `agent ${page.selectedAgent?.name ?? page.selection.agentName}`;
 
   return (
     <SettingsPageFrame
@@ -117,7 +102,7 @@ export function SkillsSettingsPage() {
       ]}
       restart={restart}
       saveBar={
-        isUserScope ? (
+        isPersonalPolicyScope ? (
           <SettingsSaveBar
             onReset={page.handleResetPolicy}
             onSave={page.handleSavePolicy}
@@ -131,33 +116,40 @@ export function SkillsSettingsPage() {
       {!envelope.runtime_available ? (
         <SettingsRuntimeUnavailable
           slug="skills"
-          description="Skill discovery counts could not be measured. Policy settings remain editable."
+          description="CompozyOS isn't reachable right now. Skill counts are hidden until it's back. You can still change these settings."
         />
       ) : null}
-      {isUserScope ? (
-        <>
-          <EngineSection draft={draft} setDraft={setDraft} />
-          <MarketplaceSection draft={draft} setDraft={setDraft} />
-          <ManageSection />
-        </>
+      {isPersonalPolicyScope ? (
+        <SettingsSkillsEngineSection draft={draft} onChange={setDraft} />
       ) : null}
-      <ScopeSelector
+      <SettingsSkillsScopeSelector
         selection={page.selection}
         availableScopes={page.availableScopes}
+        personalLabel={page.personalLabel}
         agents={page.agents}
         workspaces={page.workspaces}
         onSelectUser={page.selectUser}
+        onSelectWorkspaceScope={page.selectWorkspaceScope}
         onSelectAgentScope={page.selectAgentScope}
         onSelectAgent={page.selectAgent}
-        onSelectWorkspaceContext={page.selectWorkspaceContext}
+        onSelectWorkspace={page.selectWorkspace}
       />
+      <SettingsSkillSourcesSection model={page.sources} />
+      {isPersonalPolicyScope ? (
+        <>
+          <SettingsSkillsMarketplaceSection draft={draft} onChange={setDraft} />
+          <SettingsSkillsManageSection />
+        </>
+      ) : null}
       <SettingsDisabledSkillsSection
         baselineDisabled={envelope.config.disabled_skills ?? []}
         disabled={draft.disabled_skills ?? []}
         note={
-          page.selection.scope === "agent"
-            ? `applies immediately · scoped to ${page.selectedAgent?.name ?? page.selection.agentName}${page.selectedWorkspaceContext ? ` via ${page.selectedWorkspaceContext.name}` : ""}`
-            : "applies immediately · no restart required"
+          page.isRepositoryProfile
+            ? "read only · active profile projection"
+            : page.selection.scope === "agent"
+              ? `applies immediately · scoped to ${page.selectedAgent?.name ?? page.selection.agentName}${page.selectedWorkspace ? ` via ${page.selectedWorkspace.name}` : ""}`
+              : "applies immediately · no restart required"
         }
         emptyTitle={
           page.selection.scope === "agent" ? "No agent-local tombstones" : "No skills installed"
@@ -168,318 +160,37 @@ export function SkillsSettingsPage() {
             : "Manage availability from the Skills operational page; nothing has been disabled yet."
         }
         onToggle={page.toggleDisabled}
+        readOnly={page.isRepositoryProfile}
         controls={
-          <SettingsInlineSaveControls
-            controlTestIdPrefix="settings-page-skills-disabled"
-            testId="settings-page-skills-disabled-controls"
-            saveLabel="Apply"
-            isDirty={page.isDisabledDirty}
-            isSaving={page.isSavingDisabled}
-            error={page.saveDisabledError}
-            warnings={page.disabledWarnings}
-            lastAppliedLabel={page.lastDisabledLabel}
-            onSave={page.handleSaveDisabled}
-            onReset={page.handleResetDisabled}
-          />
+          page.isRepositoryProfile ? undefined : (
+            <SettingsInlineSaveControls
+              controlTestIdPrefix="settings-page-skills-disabled"
+              testId="settings-page-skills-disabled-controls"
+              saveLabel="Apply"
+              isDirty={page.isDisabledDirty}
+              isSaving={page.isSavingDisabled}
+              error={page.saveDisabledError}
+              warnings={page.disabledWarnings}
+              lastAppliedLabel={page.lastDisabledLabel}
+              onSave={page.handleSaveDisabled}
+              onReset={page.handleResetDisabled}
+            />
+          )
         }
       />
-      {isUserScope ? (
+      {isPersonalPolicyScope ? (
         <SettingsAdvancedFold
           data-testid="settings-page-skills-advanced"
           label="Advanced — endpoint & install policy"
           padded
         >
-          <InstallPolicySection draft={draft} setDraft={setDraft} />
+          <SettingsSkillsInstallPolicySection draft={draft} onChange={setDraft} />
         </SettingsAdvancedFold>
-      ) : (
-        <AgentScopePolicyNotice />
-      )}
-    </SettingsPageFrame>
-  );
-}
-
-type SkillsScopeValue = "user" | "agent";
-interface ScopeSelectorProps {
-  selection: SkillsScopeSelection;
-  availableScopes: readonly SettingsScope[];
-  agents: AgentPayload[];
-  workspaces: WorkspacePayload[];
-  onSelectUser: () => void;
-  onSelectAgentScope: () => void;
-  onSelectAgent: (agentName: string) => void;
-  onSelectWorkspaceContext: (workspaceId: string) => void;
-}
-
-function ScopeSelector({
-  selection,
-  availableScopes,
-  agents,
-  workspaces,
-  onSelectUser,
-  onSelectAgentScope,
-  onSelectAgent,
-  onSelectWorkspaceContext,
-}: ScopeSelectorProps) {
-  const agentScopeAvailable = availableScopes.includes("agent");
-  const items: Array<{ value: SkillsScopeValue; label: string; testId: string }> = [
-    {
-      value: "user",
-      label: "User",
-      testId: "settings-page-skills-scope-user",
-    },
-  ];
-  if (agentScopeAvailable) {
-    items.push({
-      value: "agent",
-      label: "Agent",
-      testId: "settings-page-skills-scope-agent",
-    });
-  }
-
-  return (
-    <SettingsGroup
-      title="Scope"
-      description="agent scope only changes logical disabled skills for one effective agent"
-    >
-      <div
-        className="flex flex-wrap items-center gap-2"
-        data-testid="settings-page-skills-scope-row"
-      >
-        <PillGroup<SkillsScopeValue>
-          items={items}
-          value={selection.scope}
-          size="sm"
-          aria-label="Skills scope"
-          onChange={next => {
-            if (next === "user") {
-              onSelectUser();
-              return;
-            }
-            onSelectAgentScope();
-          }}
-        />
-      </div>
-
-      {selection.scope === "agent" ? (
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <SettingsFieldRow
-            data-testid="settings-page-skills-agent-select"
-            label="Agent"
-            help="Select the logical agent that receives the tombstone list"
-            control={
-              <AgentCommandSelect
-                agents={agents}
-                value={selection.agentName || null}
-                onChange={next => onSelectAgent(next ?? "")}
-                triggerTestId="settings-agent-select"
-                className="w-56"
-                placeholder="Select an agent"
-              />
-            }
-          />
-          <SettingsFieldRow
-            data-testid="settings-page-skills-workspace-context"
-            label="Workspace context"
-            help="Optional workspace resolver context for the selected agent"
-            control={
-              <NativeSelect
-                className="w-56"
-                data-testid="settings-page-skills-workspace-context-input"
-                value={selection.workspaceId ?? ""}
-                onChange={event => onSelectWorkspaceContext(event.target.value)}
-              >
-                <NativeSelectOption value="">User resolution</NativeSelectOption>
-                {workspaces.map(workspace => (
-                  <NativeSelectOption key={workspace.id} value={workspace.id}>
-                    {workspace.name}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-            }
-          />
-        </div>
+      ) : page.selection.scope === "agent" ? (
+        <SettingsSkillsScopeNotice kind="agent" />
+      ) : page.isRepositoryProfile ? (
+        <SettingsSkillsScopeNotice kind="repository-profile" />
       ) : null}
-    </SettingsGroup>
-  );
-}
-
-interface DraftSectionProps {
-  draft: SkillsConfig;
-  setDraft: Dispatch<SetStateAction<SkillsConfig | null>>;
-}
-
-function EngineSection({ draft, setDraft }: DraftSectionProps) {
-  return (
-    <SettingsGroup title="Skills engine" description="restart required to apply">
-      <SettingsFieldRow
-        data-testid="settings-page-skills-enabled"
-        label="Use skills"
-        control={
-          <Switch
-            data-testid="settings-page-skills-enabled-switch"
-            checked={draft.enabled}
-            onCheckedChange={checked =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, enabled: checked };
-              })
-            }
-          />
-        }
-      />
-    </SettingsGroup>
-  );
-}
-
-function MarketplaceSection({ draft, setDraft }: DraftSectionProps) {
-  return (
-    <SettingsGroup title="Marketplace">
-      <SettingsFieldRow
-        data-testid="settings-page-skills-marketplace-registry"
-        label="Skills come from"
-        help="Identifier of the marketplace publisher"
-        control={
-          <Input
-            className="w-56"
-            data-testid="settings-page-skills-marketplace-registry-input"
-            value={draft.marketplace.registry ?? ""}
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  marketplace: { ...current.marketplace, registry: event.target.value },
-                };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
-        data-testid="settings-page-skills-poll-interval"
-        label="Check for updates every"
-        help="How often the registry re-scans sources"
-        control={
-          <Input
-            className="w-32 font-mono"
-            data-testid="settings-page-skills-poll-interval-input"
-            value={draft.poll_interval ?? ""}
-            placeholder="5m"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, poll_interval: event.target.value };
-              })
-            }
-          />
-        }
-      />
-    </SettingsGroup>
-  );
-}
-
-function ManageSection() {
-  return (
-    <SettingsGroup title="Manage">
-      <SettingLinkRow
-        data-testid="settings-page-skills-link-skills"
-        label="Manage installed skills"
-        render={<Link to="/marketplace/skills" />}
-      />
-    </SettingsGroup>
-  );
-}
-
-function AgentScopePolicyNotice() {
-  return (
-    <SettingsGroup
-      title="Marketplace & policy"
-      data-testid="settings-page-skills-agent-policy-note"
-    >
-      <p className="text-sm text-muted">
-        Agent scope only supports logical `skills.disabled_skills` tombstones. Registry enablement,
-        poll interval, and marketplace allowlists remain user settings.
-      </p>
-    </SettingsGroup>
-  );
-}
-
-function InstallPolicySection({ draft, setDraft }: DraftSectionProps) {
-  return (
-    <SettingsGroup title="Endpoint & install policy" description="restart required to apply">
-      <SettingsFieldRow
-        data-testid="settings-page-skills-marketplace-base-url"
-        label="Marketplace URL"
-        help={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            Override the registry&apos;s default endpoint
-            <SettingsProvChip>skills.marketplace.base_url</SettingsProvChip>
-          </span>
-        }
-        control={
-          <Input
-            className="w-72 font-mono"
-            data-testid="settings-page-skills-marketplace-base-url-input"
-            value={draft.marketplace.base_url ?? ""}
-            placeholder="https://"
-            onChange={event =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return {
-                  ...current,
-                  marketplace: { ...current.marketplace, base_url: event.target.value },
-                };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
-        data-testid="settings-page-skills-allowed-mcp"
-        label="Allowed MCP installs"
-        help={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            Marketplace MCP packages that may be installed
-            <SettingsProvChip>skills.allowed_marketplace_mcp</SettingsProvChip>
-          </span>
-        }
-        control={
-          <SettingsTaglistField
-            data-testid="settings-page-skills-allowed-mcp-input"
-            label="Allowed MCP installs"
-            value={draft.allowed_marketplace_mcp ?? []}
-            onChange={value =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, allowed_marketplace_mcp: value };
-              })
-            }
-          />
-        }
-      />
-      <SettingsFieldRow
-        data-testid="settings-page-skills-allowed-hooks"
-        label="Allowed hook installs"
-        help={
-          <span className="inline-flex flex-wrap items-center gap-1.5">
-            Marketplace hook packages that may be installed
-            <SettingsProvChip>skills.allowed_marketplace_hooks</SettingsProvChip>
-          </span>
-        }
-        control={
-          <SettingsTaglistField
-            data-testid="settings-page-skills-allowed-hooks-input"
-            label="Allowed hook installs"
-            value={draft.allowed_marketplace_hooks ?? []}
-            onChange={value =>
-              setDraft(prev => {
-                const current = prev ?? draft;
-                return { ...current, allowed_marketplace_hooks: value };
-              })
-            }
-          />
-        }
-      />
-    </SettingsGroup>
+    </SettingsPageFrame>
   );
 }

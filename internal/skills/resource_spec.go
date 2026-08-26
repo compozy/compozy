@@ -35,6 +35,9 @@ type SkillResourceSpec struct {
 	Provenance             *Provenance         `json:"provenance,omitempty"`
 	InstalledFrom          string              `json:"installed_from,omitempty"`
 	InstalledFromExtension string              `json:"installed_from_extension,omitempty"`
+	Origin                 string              `json:"origin,omitempty"`
+	RootID                 string              `json:"root_id,omitempty"`
+	RootDir                string              `json:"root_dir,omitempty"`
 }
 
 // NewResourceCodec builds the canonical skill resource codec.
@@ -62,6 +65,9 @@ func SkillToResourceSpec(skill *Skill) SkillResourceSpec {
 		Provenance:             cloneProvenance(skill.Provenance),
 		InstalledFrom:          strings.TrimSpace(skill.InstalledFrom),
 		InstalledFromExtension: strings.TrimSpace(skill.InstalledFromExtension),
+		Origin:                 strings.TrimSpace(skill.Origin),
+		RootID:                 strings.TrimSpace(skill.RootID),
+		RootDir:                strings.TrimSpace(skill.RootDir),
 	}
 }
 
@@ -89,6 +95,9 @@ func SkillFromResourceSpec(spec SkillResourceSpec) (*Skill, error) {
 		Provenance:             cloneProvenance(spec.Provenance),
 		InstalledFrom:          strings.TrimSpace(spec.InstalledFrom),
 		InstalledFromExtension: strings.TrimSpace(spec.InstalledFromExtension),
+		Origin:                 strings.TrimSpace(spec.Origin),
+		RootID:                 strings.TrimSpace(spec.RootID),
+		RootDir:                strings.TrimSpace(spec.RootDir),
 	}
 	refreshSkillHookDecls(skill)
 	return skill, nil
@@ -123,6 +132,9 @@ func validateSkillResourceSpec(
 		Provenance:             cloneProvenance(spec.Provenance),
 		InstalledFrom:          strings.TrimSpace(spec.InstalledFrom),
 		InstalledFromExtension: strings.TrimSpace(spec.InstalledFromExtension),
+		Origin:                 strings.TrimSpace(spec.Origin),
+		RootID:                 strings.TrimSpace(spec.RootID),
+		RootDir:                strings.TrimSpace(spec.RootDir),
 	}
 	if normalized.Name == "" {
 		return SkillResourceSpec{}, fmt.Errorf("%w: skill.name is required", resources.ErrValidation)

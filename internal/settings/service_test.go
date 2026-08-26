@@ -1526,6 +1526,163 @@ func TestUpdateSectionSkillsWithoutRuntimeDoesNotPersistChanges(t *testing.T) {
 	})
 }
 
+func TestUpdateSectionSkillSourceScopesAndConcurrentWrites(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should reject invalid source policy at the settings domain boundary", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		before := readFile(t, homePaths.ConfigFile)
+		service := testService(t, homePaths, Dependencies{})
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		loaded.Skills.Sources = []string{"agnets"}
+
+		_, err = service.UpdateSection(context.Background(), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeUser},
+			Skills:         &loaded.Skills,
+		})
+		var validation *compozyconfig.SkillSourceValidationError
+		if !errors.Is(err, ErrValidation) || !errors.As(err, &validation) ||
+			validation.Code != "unknown_skill_source" || validation.Suggestion != "agents" {
+			t.Fatalf("UpdateSection(invalid sources) error = %#v, want portable source validation", err)
+		}
+		if after := readFile(t, homePaths.ConfigFile); after != before {
+			t.Fatalf("config changed after invalid source update\nbefore:\n%s\nafter:\n%s", before, after)
+		}
+	})
+
+	t.Run("Should reserve source policy at agent scope while leaving disabled skills mutable", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		agentPath := filepath.Join(homePaths.AgentsDir, "coder", compozyconfig.AgentDefinitionFileName)
+		writeFile(t, agentPath, `---
+name: coder
+provider: codex
+skills:
+  disabled:
+    - alpha
+---
+
+Test agent.
+`)
+		runtime := newFakeSkillsRuntime(testSkill("alpha", false), testSkill("beta", false))
+		service := testService(t, homePaths, Dependencies{SkillsRuntime: runtime})
+		loaded, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		sourceChange := loaded.Skills
+		sourceChange.Sources = []string{"claude"}
+		_, err = service.UpdateSection(context.Background(), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder"},
+			Skills:         &sourceChange,
+		})
+		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "only supports skills.disabled_skills") ||
+			!strings.Contains(err.Error(), "skills.sources") {
+			t.Fatalf("agent source update error = %v, want scope-policy rejection", err)
+		}
+
+		disabledChange := loaded.Skills
+		disabledChange.DisabledSkills = []string{"beta"}
+		result, err := service.UpdateSection(context.Background(), SectionUpdateRequest{
+			SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeAgent, AgentName: "coder"},
+			Skills:         &disabledChange,
+		})
+		if err != nil {
+			t.Fatalf("agent disabled_skills update error = %v", err)
+		}
+		if result.Scope != ScopeAgent || !result.Applied || runtime.enabled["beta"] {
+			t.Fatalf("agent disabled_skills result = %#v, runtime=%#v", result, runtime.enabled)
+		}
+	})
+
+	t.Run(
+		"Should serialize user and workspace source writes without losing either overlay [IT-011]",
+		func(t *testing.T) {
+			homePaths := testHomePaths(t)
+			writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+			workspaceRoot := t.TempDir()
+			resolver := fakeWorkspaceResolver{resolved: map[string]workspacepkg.ResolvedWorkspace{
+				"ws-alpha": {
+					Workspace:   workspacepkg.Workspace{ID: "ws-alpha", RootDir: workspaceRoot},
+					WorkspaceID: "ws-alpha",
+				},
+			}}
+			service := testService(t, homePaths, Dependencies{WorkspaceResolver: resolver})
+			loaded, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome() error = %v", err)
+			}
+			userSkills := loaded.Skills
+			userSkills.Sources = []string{"claude"}
+
+			requests := []SectionUpdateRequest{
+				{
+					SectionRequest: SectionRequest{Section: SectionSkills, Scope: ScopeUser},
+					Skills:         &userSkills,
+				},
+				{
+					SectionRequest: SectionRequest{
+						Section:     SectionSkills,
+						Scope:       ScopeWorkspace,
+						WorkspaceID: "ws-alpha",
+					},
+					SkillSourcesOverride: &SkillSourcesOverride{
+						Sources: OptionalStringList{Present: true, Value: []string{"agents"}},
+					},
+				},
+			}
+			var wait sync.WaitGroup
+			errorsByRequest := make([]error, len(requests))
+			for index := range requests {
+				wait.Add(1)
+				go func(requestIndex int) {
+					defer wait.Done()
+					_, errorsByRequest[requestIndex] = service.UpdateSection(
+						context.Background(),
+						requests[requestIndex],
+					)
+				}(index)
+			}
+			wait.Wait()
+			for index, updateErr := range errorsByRequest {
+				if updateErr != nil {
+					t.Fatalf("UpdateSection(request %d) error = %v", index, updateErr)
+				}
+			}
+
+			global, err := compozyconfig.LoadForHome(homePaths)
+			if err != nil {
+				t.Fatalf("LoadForHome(global after writes) error = %v", err)
+			}
+			if !slices.Equal(global.Skills.Sources, []string{"claude"}) {
+				t.Fatalf("global sources = %q, want claude", global.Skills.Sources)
+			}
+			workspace, err := compozyconfig.LoadForHome(homePaths, compozyconfig.WithWorkspaceRoot(workspaceRoot))
+			if err != nil {
+				t.Fatalf("LoadForHome(workspace after writes) error = %v", err)
+			}
+			if !slices.Equal(workspace.Skills.Sources, []string{"agents"}) {
+				t.Fatalf("workspace sources = %q, want override agents", workspace.Skills.Sources)
+			}
+			if !slices.Equal(workspace.Skills.CustomSources, global.Skills.CustomSources) {
+				t.Fatalf(
+					"workspace custom_sources = %q, want inherited %q",
+					workspace.Skills.CustomSources,
+					global.Skills.CustomSources,
+				)
+			}
+		},
+	)
+}
+
 func TestClassifyMutationDominatesMixedLifecycleWithRestartRequired(t *testing.T) {
 	t.Parallel()
 

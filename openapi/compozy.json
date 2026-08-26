@@ -20054,6 +20054,9 @@
                                 "kind": {
                                   "type": "string"
                                 },
+                                "reason_code": {
+                                  "type": "string"
+                                },
                                 "summary": {
                                   "type": "string"
                                 }
@@ -136379,6 +136382,9 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "reason_code": {
+                                "type": "string"
+                              },
                               "summary": {
                                 "type": "string"
                               }
@@ -137937,6 +137943,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -139876,6 +139885,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -165553,15 +165565,25 @@
             "schema": {
               "enum": [
                 "user",
+                "profile",
+                "workspace",
                 "agent"
               ],
               "type": "string"
             }
           },
           {
-            "description": "Optional workspace id for agent resolution context",
+            "description": "Workspace id for workspace or agent resolution context",
             "in": "query",
             "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name when scope=profile",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -165588,6 +165610,8 @@
                       "items": {
                         "enum": [
                           "user",
+                          "profile",
+                          "workspace",
                           "agent"
                         ],
                         "type": "string"
@@ -165603,6 +165627,12 @@
                           "type": "array"
                         },
                         "allowed_marketplace_mcp": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "custom_sources": {
                           "items": {
                             "type": "string"
                           },
@@ -165633,12 +165663,20 @@
                         },
                         "poll_interval": {
                           "type": "string"
+                        },
+                        "sources": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
                         }
                       },
                       "required": [
+                        "custom_sources",
                         "enabled",
                         "marketplace",
-                        "poll_interval"
+                        "poll_interval",
+                        "sources"
                       ],
                       "type": "object"
                     },
@@ -165773,6 +165811,22 @@
                     "discovered_count": {
                       "type": "integer"
                     },
+                    "inherits": {
+                      "nullable": true,
+                      "properties": {
+                        "custom_sources": {
+                          "type": "boolean"
+                        },
+                        "sources": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "custom_sources",
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
                     "links": {
                       "items": {
                         "properties": {
@@ -165791,12 +165845,17 @@
                       },
                       "type": "array"
                     },
+                    "profile": {
+                      "type": "string"
+                    },
                     "runtime_available": {
                       "type": "boolean"
                     },
                     "scope": {
                       "enum": [
                         "user",
+                        "profile",
+                        "workspace",
                         "agent"
                       ],
                       "type": "string"
@@ -165819,6 +165878,152 @@
                       ],
                       "type": "string"
                     },
+                    "sources": {
+                      "items": {
+                        "properties": {
+                          "always_on": {
+                            "type": "boolean"
+                          },
+                          "default": {
+                            "type": "boolean"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "global_path": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "roots": {
+                            "items": {
+                              "properties": {
+                                "collisions": {
+                                  "items": {
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "qualified_form": {
+                                        "type": "string"
+                                      },
+                                      "winner_root_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "qualified_form",
+                                      "winner_root_id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "exists": {
+                                  "type": "boolean"
+                                },
+                                "native_readers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "readable": {
+                                  "type": "boolean"
+                                },
+                                "root_id": {
+                                  "type": "string"
+                                },
+                                "scanned_count": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "skill_count": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "skipped_links": {
+                                  "items": {
+                                    "properties": {
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "path",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "truncated": {
+                                  "type": "boolean"
+                                },
+                                "verification": {
+                                  "properties": {
+                                    "blocked": {
+                                      "type": "integer"
+                                    },
+                                    "warned": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "blocked",
+                                    "warned"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "collisions",
+                                "exists",
+                                "native_readers",
+                                "path",
+                                "readable",
+                                "root_id",
+                                "skipped_links",
+                                "truncated",
+                                "verification"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "workspace_path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "always_on",
+                          "enabled",
+                          "kind",
+                          "label",
+                          "roots",
+                          "slug"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
                     "workspace_id": {
                       "type": "string"
                     }
@@ -165830,7 +166035,8 @@
                     "discovered_count",
                     "runtime_available",
                     "scope",
-                    "section"
+                    "section",
+                    "sources"
                   ],
                   "type": "object"
                 }
@@ -166150,15 +166356,25 @@
             "schema": {
               "enum": [
                 "user",
+                "profile",
+                "workspace",
                 "agent"
               ],
               "type": "string"
             }
           },
           {
-            "description": "Optional workspace id for agent resolution context",
+            "description": "Workspace id for workspace or agent resolution context",
             "in": "query",
             "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Profile name when scope=profile",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -166176,6 +166392,7 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
                 "properties": {
                   "config": {
                     "properties": {
@@ -166186,6 +166403,12 @@
                         "type": "array"
                       },
                       "allowed_marketplace_mcp": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "custom_sources": {
                         "items": {
                           "type": "string"
                         },
@@ -166216,19 +166439,45 @@
                       },
                       "poll_interval": {
                         "type": "string"
+                      },
+                      "sources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
                       }
                     },
                     "required": [
+                      "custom_sources",
                       "enabled",
                       "marketplace",
-                      "poll_interval"
+                      "poll_interval",
+                      "sources"
                     ],
+                    "type": "object"
+                  },
+                  "override": {
+                    "additionalProperties": false,
+                    "nullable": true,
+                    "properties": {
+                      "custom_sources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true,
+                        "type": "array"
+                      },
+                      "sources": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "nullable": true,
+                        "type": "array"
+                      }
+                    },
                     "type": "object"
                   }
                 },
-                "required": [
-                  "config"
-                ],
                 "type": "object"
               }
             }
@@ -166258,6 +166507,227 @@
                     "apply_record_id": {
                       "type": "string"
                     },
+                    "available_scopes": {
+                      "items": {
+                        "enum": [
+                          "user",
+                          "profile",
+                          "workspace",
+                          "agent"
+                        ],
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "config": {
+                      "properties": {
+                        "allowed_marketplace_hooks": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "allowed_marketplace_mcp": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "custom_sources": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "disabled_skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
+                        "enabled": {
+                          "type": "boolean"
+                        },
+                        "marketplace": {
+                          "properties": {
+                            "base_url": {
+                              "type": "string"
+                            },
+                            "registry": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "registry"
+                          ],
+                          "type": "object"
+                        },
+                        "poll_interval": {
+                          "type": "string"
+                        },
+                        "sources": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        }
+                      },
+                      "required": [
+                        "custom_sources",
+                        "enabled",
+                        "marketplace",
+                        "poll_interval",
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
+                    "diagnostics": {
+                      "items": {
+                        "properties": {
+                          "activation_reasons": {
+                            "items": {
+                              "properties": {
+                                "code": {
+                                  "enum": [
+                                    "platform_mismatch",
+                                    "environment_context_unavailable",
+                                    "environment_mismatch",
+                                    "tool_context_unavailable",
+                                    "missing_tool",
+                                    "capability_context_unavailable",
+                                    "missing_capability"
+                                  ],
+                                  "type": "string"
+                                },
+                                "gate": {
+                                  "type": "string"
+                                },
+                                "message": {
+                                  "type": "string"
+                                },
+                                "missing": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "code",
+                                "gate",
+                                "message"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "failure": {
+                            "nullable": true,
+                            "properties": {
+                              "actual_hash": {
+                                "type": "string"
+                              },
+                              "code": {
+                                "type": "string"
+                              },
+                              "expected_hash": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code",
+                              "message"
+                            ],
+                            "type": "object"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "state": {
+                            "enum": [
+                              "valid",
+                              "shadowed",
+                              "verification_failed",
+                              "inactive"
+                            ],
+                            "type": "string"
+                          },
+                          "verification_status": {
+                            "enum": [
+                              "passed",
+                              "warning",
+                              "failed"
+                            ],
+                            "type": "string"
+                          },
+                          "warnings": {
+                            "items": {
+                              "properties": {
+                                "message": {
+                                  "type": "string"
+                                },
+                                "pattern": {
+                                  "type": "string"
+                                },
+                                "severity": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "message",
+                                "severity"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "winning_path": {
+                            "type": "string"
+                          },
+                          "winning_source": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "state",
+                          "verification_status"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "disabled_count": {
+                      "type": "integer"
+                    },
+                    "discovered_count": {
+                      "type": "integer"
+                    },
+                    "inherits": {
+                      "nullable": true,
+                      "properties": {
+                        "custom_sources": {
+                          "type": "boolean"
+                        },
+                        "sources": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "custom_sources",
+                        "sources"
+                      ],
+                      "type": "object"
+                    },
                     "lifecycle": {
                       "enum": [
                         "live",
@@ -166267,6 +166737,24 @@
                         "session-rebind"
                       ],
                       "type": "string"
+                    },
+                    "links": {
+                      "items": {
+                        "properties": {
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "label",
+                          "path"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "next_action": {
                       "enum": [
@@ -166346,6 +166834,9 @@
                     "restart_scope": {
                       "type": "string"
                     },
+                    "runtime_available": {
+                      "type": "boolean"
+                    },
                     "scope": {
                       "enum": [
                         "user",
@@ -166369,11 +166860,7 @@
                         "attention",
                         "shell",
                         "observability",
-                        "hooks-extensions",
-                        "providers",
-                        "mcp-servers",
-                        "sandboxes",
-                        "hooks"
+                        "hooks-extensions"
                       ],
                       "type": "string"
                     },
@@ -166382,6 +166869,152 @@
                     },
                     "skipped_reason": {
                       "type": "string"
+                    },
+                    "sources": {
+                      "items": {
+                        "properties": {
+                          "always_on": {
+                            "type": "boolean"
+                          },
+                          "default": {
+                            "type": "boolean"
+                          },
+                          "enabled": {
+                            "type": "boolean"
+                          },
+                          "global_path": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "roots": {
+                            "items": {
+                              "properties": {
+                                "collisions": {
+                                  "items": {
+                                    "properties": {
+                                      "name": {
+                                        "type": "string"
+                                      },
+                                      "qualified_form": {
+                                        "type": "string"
+                                      },
+                                      "winner_root_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "name",
+                                      "qualified_form",
+                                      "winner_root_id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "exists": {
+                                  "type": "boolean"
+                                },
+                                "native_readers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "path": {
+                                  "type": "string"
+                                },
+                                "readable": {
+                                  "type": "boolean"
+                                },
+                                "root_id": {
+                                  "type": "string"
+                                },
+                                "scanned_count": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "skill_count": {
+                                  "nullable": true,
+                                  "type": "integer"
+                                },
+                                "skipped_links": {
+                                  "items": {
+                                    "properties": {
+                                      "path": {
+                                        "type": "string"
+                                      },
+                                      "reason": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "path",
+                                      "reason"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
+                                "truncated": {
+                                  "type": "boolean"
+                                },
+                                "verification": {
+                                  "properties": {
+                                    "blocked": {
+                                      "type": "integer"
+                                    },
+                                    "warned": {
+                                      "type": "integer"
+                                    }
+                                  },
+                                  "required": [
+                                    "blocked",
+                                    "warned"
+                                  ],
+                                  "type": "object"
+                                }
+                              },
+                              "required": [
+                                "collisions",
+                                "exists",
+                                "native_readers",
+                                "path",
+                                "readable",
+                                "root_id",
+                                "skipped_links",
+                                "truncated",
+                                "verification"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "slug": {
+                            "type": "string"
+                          },
+                          "workspace_path": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "always_on",
+                          "enabled",
+                          "kind",
+                          "label",
+                          "roots",
+                          "slug"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
                     },
                     "warnings": {
                       "items": {
@@ -166411,8 +167044,16 @@
                     "active_generation",
                     "applied",
                     "apply_record_id",
+                    "available_scopes",
+                    "config",
+                    "disabled_count",
+                    "discovered_count",
                     "lifecycle",
-                    "next_action"
+                    "next_action",
+                    "runtime_available",
+                    "scope",
+                    "section",
+                    "sources"
                   ],
                   "type": "object"
                 }
@@ -166424,70 +167065,115 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "code": {
-                      "type": "string"
-                    },
-                    "details": {
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "type": "object"
-                    },
-                    "diagnostic": {
-                      "nullable": true,
+                  "oneOf": [
+                    {
                       "properties": {
-                        "category": {
-                          "type": "string"
-                        },
                         "code": {
                           "type": "string"
                         },
-                        "data_freshness": {
-                          "type": "string"
-                        },
-                        "doc_url": {
-                          "type": "string"
-                        },
-                        "evidence": {
-                          "additionalProperties": {},
+                        "details": {
+                          "additionalProperties": {
+                            "type": "string"
+                          },
                           "type": "object"
                         },
-                        "id": {
-                          "type": "string"
+                        "diagnostic": {
+                          "nullable": true,
+                          "properties": {
+                            "category": {
+                              "type": "string"
+                            },
+                            "code": {
+                              "type": "string"
+                            },
+                            "data_freshness": {
+                              "type": "string"
+                            },
+                            "doc_url": {
+                              "type": "string"
+                            },
+                            "evidence": {
+                              "additionalProperties": {},
+                              "type": "object"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "severity": {
+                              "type": "string"
+                            },
+                            "suggested_command": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "category",
+                            "code",
+                            "data_freshness",
+                            "id",
+                            "message",
+                            "severity",
+                            "title"
+                          ],
+                          "type": "object"
                         },
-                        "message": {
-                          "type": "string"
-                        },
-                        "severity": {
-                          "type": "string"
-                        },
-                        "suggested_command": {
-                          "type": "string"
-                        },
-                        "title": {
+                        "error": {
                           "type": "string"
                         }
                       },
                       "required": [
-                        "category",
-                        "code",
-                        "data_freshness",
-                        "id",
-                        "message",
-                        "severity",
-                        "title"
+                        "error"
                       ],
                       "type": "object"
                     },
-                    "error": {
-                      "type": "string"
+                    {
+                      "properties": {
+                        "error": {
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "existing_source": {
+                              "type": "string"
+                            },
+                            "field": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "suggestion": {
+                              "type": "string"
+                            },
+                            "valid": {
+                              "items": {
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ],
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "error"
+                      ],
+                      "type": "object"
                     }
-                  },
-                  "required": [
-                    "error"
-                  ],
-                  "type": "object"
+                  ]
                 }
               }
             },
@@ -169752,6 +170438,14 @@
             }
           },
           {
+            "description": "Exact profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Logical agent name for agent-local resolution",
             "in": "query",
             "name": "for_agent",
@@ -169951,11 +170645,49 @@
                           "enabled": {
                             "type": "boolean"
                           },
+                          "exposures": {
+                            "items": {
+                              "properties": {
+                                "path": {
+                                  "type": "string"
+                                },
+                                "status": {
+                                  "enum": [
+                                    "healthy",
+                                    "missing",
+                                    "broken",
+                                    "foreign_conflict"
+                                  ],
+                                  "type": "string"
+                                },
+                                "target": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "path",
+                                "status",
+                                "target"
+                              ],
+                              "type": "object"
+                            },
+                            "nullable": true,
+                            "type": "array"
+                          },
                           "metadata": {
                             "additionalProperties": {},
                             "type": "object"
                           },
                           "name": {
+                            "type": "string"
+                          },
+                          "origin": {
+                            "type": "string"
+                          },
+                          "owner_id": {
+                            "type": "string"
+                          },
+                          "owner_scope": {
                             "type": "string"
                           },
                           "provenance": {
@@ -169980,6 +170712,9 @@
                                   "properties": {
                                     "detected_at": {
                                       "format": "date-time",
+                                      "type": "string"
+                                    },
+                                    "origin": {
                                       "type": "string"
                                     },
                                     "path": {
@@ -170027,6 +170762,8 @@
                           "dir",
                           "enabled",
                           "name",
+                          "origin",
+                          "owner_scope",
                           "source"
                         ],
                         "type": "object"
@@ -171717,9 +172454,17 @@
             }
           },
           {
-            "description": "Workspace id or path for resolution context",
+            "description": "Canonical workspace id for resolution context",
             "in": "query",
-            "name": "workspace",
+            "name": "workspace_id",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact profile name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -171923,11 +172668,49 @@
                         "enabled": {
                           "type": "boolean"
                         },
+                        "exposures": {
+                          "items": {
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "nullable": true,
+                          "type": "array"
+                        },
                         "metadata": {
                           "additionalProperties": {},
                           "type": "object"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "origin": {
+                          "type": "string"
+                        },
+                        "owner_id": {
+                          "type": "string"
+                        },
+                        "owner_scope": {
                           "type": "string"
                         },
                         "provenance": {
@@ -171952,6 +172735,9 @@
                                 "properties": {
                                   "detected_at": {
                                     "format": "date-time",
+                                    "type": "string"
+                                  },
+                                  "origin": {
                                     "type": "string"
                                   },
                                   "path": {
@@ -171999,6 +172785,8 @@
                         "dir",
                         "enabled",
                         "name",
+                        "origin",
+                        "owner_scope",
                         "source"
                       ],
                       "type": "object"
@@ -172406,6 +173194,14 @@
             "description": "Workspace id or path for resolution context",
             "in": "query",
             "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact profile name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -172836,6 +173632,14 @@
             }
           },
           {
+            "description": "Exact profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Logical agent name for agent-local resolution",
             "in": "query",
             "name": "for_agent",
@@ -173261,6 +174065,14 @@
             }
           },
           {
+            "description": "Exact profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Logical agent name for agent-local resolution",
             "in": "query",
             "name": "for_agent",
@@ -173664,6 +174476,301 @@
         ]
       }
     },
+    "/api/skills/{name}/expose": {
+      "post": {
+        "operationId": "exposeSkill",
+        "parameters": [
+          {
+            "description": "Skill name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact acting profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Logical agent name for agent-local resolution",
+            "in": "query",
+            "name": "for_agent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "targets": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "workspace_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "targets"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rolled_back": {
+                      "type": "boolean"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "results",
+                    "rolled_back"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rolled_back": {
+                      "nullable": true,
+                      "type": "boolean"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "name",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Exposure failed"
+          }
+        },
+        "summary": "Expose one user- or workspace-owned skill to provider roots",
+        "tags": [
+          "skills"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
     "/api/skills/{name}/shadows": {
       "get": {
         "operationId": "getSkillShadows",
@@ -173681,6 +174788,14 @@
             "description": "Workspace id or path for resolution context",
             "in": "query",
             "name": "workspace",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact profile name",
+            "in": "query",
+            "name": "profile",
             "schema": {
               "type": "string"
             }
@@ -173710,6 +174825,9 @@
                             "format": "date-time",
                             "type": "string"
                           },
+                          "origin": {
+                            "type": "string"
+                          },
                           "path": {
                             "type": "string"
                           },
@@ -173734,6 +174852,9 @@
                       "properties": {
                         "detected_at": {
                           "format": "date-time",
+                          "type": "string"
+                        },
+                        "origin": {
                           "type": "string"
                         },
                         "path": {
@@ -174133,6 +175254,297 @@
           }
         },
         "summary": "Get resolver provenance and shadow declarations for one skill",
+        "tags": [
+          "skills"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/skills/{name}/unexpose": {
+      "post": {
+        "operationId": "unexposeSkill",
+        "parameters": [
+          {
+            "description": "Skill name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Exact acting profile name",
+            "in": "query",
+            "name": "profile",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Logical agent name for agent-local resolution",
+            "in": "query",
+            "name": "for_agent",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "targets": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "workspace_id": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "targets"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "description": "JSON request body",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "error": {
+                      "properties": {
+                        "code": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "code",
+                        "message"
+                      ],
+                      "type": "object"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "results": {
+                      "items": {
+                        "properties": {
+                          "cleanup_error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "error": {
+                            "nullable": true,
+                            "properties": {
+                              "code": {
+                                "type": "string"
+                              },
+                              "message": {
+                                "type": "string"
+                              },
+                              "occupied_by": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "code"
+                            ],
+                            "type": "object"
+                          },
+                          "exposure": {
+                            "nullable": true,
+                            "properties": {
+                              "path": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "enum": [
+                                  "healthy",
+                                  "missing",
+                                  "broken",
+                                  "foreign_conflict"
+                                ],
+                                "type": "string"
+                              },
+                              "target": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "path",
+                              "status",
+                              "target"
+                            ],
+                            "type": "object"
+                          },
+                          "ok": {
+                            "type": "boolean"
+                          },
+                          "target": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "ok",
+                          "target"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "rolled_back": {
+                      "nullable": true,
+                      "type": "boolean"
+                    },
+                    "workspace_id": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "name",
+                    "results"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Removal failed"
+          }
+        },
+        "summary": "Remove owned provider-root links for one skill",
         "tags": [
           "skills"
         ],
@@ -241814,6 +243226,9 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "reason_code": {
+                                "type": "string"
+                              },
                               "summary": {
                                 "type": "string"
                               }
@@ -295202,6 +296617,9 @@
                                   "kind": {
                                     "type": "string"
                                   },
+                                  "reason_code": {
+                                    "type": "string"
+                                  },
                                   "summary": {
                                     "type": "string"
                                   }
@@ -296672,6 +298090,9 @@
                                     "type": "string"
                                   },
                                   "kind": {
+                                    "type": "string"
+                                  },
+                                  "reason_code": {
                                     "type": "string"
                                   },
                                   "summary": {
@@ -298159,6 +299580,9 @@
                                     "type": "string"
                                   },
                                   "kind": {
+                                    "type": "string"
+                                  },
+                                  "reason_code": {
                                     "type": "string"
                                   },
                                   "summary": {
@@ -307848,6 +309272,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -308968,6 +310395,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -310534,6 +311964,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -311827,6 +313260,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -315015,6 +316451,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -316166,6 +317605,9 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "origin": {
+                                "type": "string"
+                              },
                               "scope": {
                                 "type": "string"
                               }
@@ -316557,6 +317999,9 @@
                                 "type": "string"
                               },
                               "kind": {
+                                "type": "string"
+                              },
+                              "reason_code": {
                                 "type": "string"
                               },
                               "summary": {
@@ -320015,6 +321460,9 @@
                                       "type": "string"
                                     },
                                     "kind": {
+                                      "type": "string"
+                                    },
+                                    "reason_code": {
                                       "type": "string"
                                     },
                                     "summary": {
@@ -324783,6 +326231,9 @@
                                     "kind": {
                                       "type": "string"
                                     },
+                                    "origin": {
+                                      "type": "string"
+                                    },
                                     "scope": {
                                       "type": "string"
                                     }
@@ -325731,6 +327182,9 @@
                                     "type": "string"
                                   },
                                   "kind": {
+                                    "type": "string"
+                                  },
+                                  "origin": {
                                     "type": "string"
                                   },
                                   "scope": {
@@ -327400,6 +328854,9 @@
                                   "type": "string"
                                 },
                                 "kind": {
+                                  "type": "string"
+                                },
+                                "reason_code": {
                                   "type": "string"
                                 },
                                 "summary": {
@@ -329072,6 +330529,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -330407,6 +331867,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -331709,6 +333172,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -335067,6 +336533,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -335261,6 +336730,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -338493,6 +339965,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -340575,6 +342050,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {

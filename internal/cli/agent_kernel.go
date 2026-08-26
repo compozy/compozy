@@ -31,7 +31,7 @@ const (
 	agentKernelAgentNameKey = "agent_name"
 	agentKernelChannelKey   = "channel"
 	agentKernelContextKey   = "context"
-	agentKernelKindKey      = "kind"
+	agentKernelKindKey      = cliKindKey
 	agentKernelListKey      = "list"
 	agentKernelReplyKey     = "reply"
 	agentKernelRunIDKey     = "run_id"

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -25,6 +26,8 @@ func TestApplyConfigOverlayFileAppliesSkillsOverlay(t *testing.T) {
 	writeFile(t, overlayPath, `
 [skills]
 enabled = false
+sources = ["claude"]
+custom_sources = ["~/team-skills"]
 disabled_skills = ["workspace-skill", "code-review"]
 poll_interval = "9s"
 allowed_marketplace_mcp = ["@registry/mcp-a", "@registry/mcp-b"]
@@ -41,6 +44,12 @@ base_url = "https://registry.example.test/api/v1"
 
 	if cfg.Skills.Enabled {
 		t.Fatal("ApplyConfigOverlayFile() Skills.Enabled = true, want false")
+	}
+	if got, want := cfg.Skills.Sources, []string{SkillSourceClaude}; !slices.Equal(got, want) {
+		t.Fatalf("ApplyConfigOverlayFile() Skills.Sources = %#v, want %#v", got, want)
+	}
+	if got, want := cfg.Skills.CustomSources, []string{"~/team-skills"}; !slices.Equal(got, want) {
+		t.Fatalf("ApplyConfigOverlayFile() Skills.CustomSources = %#v, want %#v", got, want)
 	}
 	if got, want := cfg.Skills.PollInterval, 9*time.Second; got != want {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.PollInterval = %s, want %s", got, want)
@@ -72,6 +81,81 @@ base_url = "https://registry.example.test/api/v1"
 	if got, want := cfg.Skills.Marketplace.BaseURL, "https://registry.example.test/api/v1"; got != want {
 		t.Fatalf("ApplyConfigOverlayFile() Skills.Marketplace.BaseURL = %q, want %q", got, want)
 	}
+}
+
+func TestSkillSourceOverlayLayersReplaceIndependently(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should apply absent replace and present-empty semantics through all four layers", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		workspaceRoot := t.TempDir()
+		writeFile(t, homePaths.ConfigFile, `
+[skills]
+sources = ["agents"]
+custom_sources = ["~/user-skills"]
+`)
+		writeFile(t, filepath.Join(homePaths.ProfilesDir, "marketing", ConfigName), `
+[skills]
+sources = ["claude"]
+`)
+		writeFile(t, filepath.Join(workspaceRoot, DirName, ConfigName), `
+[skills]
+custom_sources = ["./workspace-skills"]
+`)
+		writeFile(t, filepath.Join(workspaceRoot, DirName, ProfilesDirName, "marketing", ConfigName), `
+[skills]
+sources = []
+`)
+
+		cfg, err := LoadForHome(
+			homePaths,
+			WithWorkspaceRoot(workspaceRoot),
+			WithProfile("marketing"),
+		)
+		if err != nil {
+			t.Fatalf("LoadForHome() error = %v", err)
+		}
+		if len(cfg.Skills.Sources) != 0 {
+			t.Fatalf("four-layer sources = %#v, want explicit empty workspace-profile replacement", cfg.Skills.Sources)
+		}
+		if got, want := cfg.Skills.CustomSources, []string{"./workspace-skills"}; !slices.Equal(got, want) {
+			t.Fatalf("four-layer custom_sources = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should reject repository workspace-profile writes", func(t *testing.T) {
+		t.Parallel()
+
+		err := WriteScope("workspace_profile").Validate()
+		if err == nil || !strings.Contains(err.Error(), "invalid write scope") {
+			t.Fatalf("WriteScope(workspace_profile).Validate() error = %v, want read-only rejection", err)
+		}
+	})
+
+	t.Run("Should validate custom paths against the owning overlay layer", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		writeFile(t, homePaths.ConfigFile, `
+[skills]
+custom_sources = ["./relative-user-source"]
+`)
+
+		_, err = LoadForHome(homePaths)
+		var validation *SkillSourceValidationError
+		if !errors.As(err, &validation) || validation.Code != "invalid_source_path" ||
+			!strings.Contains(err.Error(), "workspace-relative paths require workspace scope") {
+			t.Fatalf("LoadForHome(relative user source) error = %#v, want invalid_source_path", err)
+		}
+	})
 }
 
 func TestApplyConfigOverlayFileAppliesDaemonRuntimeHealthSettings(t *testing.T) {

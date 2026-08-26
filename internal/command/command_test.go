@@ -2,6 +2,7 @@ package command_test
 
 import (
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -66,6 +67,44 @@ func TestBuildCatalog(t *testing.T) {
 		})
 		if err == nil || !strings.Contains(err.Error(), "duplicate skill token") {
 			t.Fatalf("BuildCatalog() error = %v, want duplicate token", err)
+		}
+	})
+
+	t.Run("Should retain qualified fallbacks when bare names collide", func(t *testing.T) {
+		t.Parallel()
+		catalog, err := commandpkg.BuildCatalog(commandpkg.DefaultBuiltins(), nil, []commandpkg.SkillSpec{
+			{
+				Name: "goal", Available: true,
+				Source: commandpkg.Source{Kind: "user", ID: "agents", Key: "root_agents", Scope: "global"},
+			},
+			{
+				Name: "goal", Available: true, Qualified: true,
+				Source: commandpkg.Source{Kind: "user", ID: "agents", Key: "root_agents", Scope: "global"},
+			},
+			{
+				Name: "review", Available: true,
+				Source: commandpkg.Source{Kind: "workspace", ID: "claude", Key: "root_claude", Scope: "workspace"},
+			},
+			{
+				Name: "review", Available: true, Qualified: true,
+				Source: commandpkg.Source{Kind: "user", ID: "agents", Key: "root_agents", Scope: "global"},
+			},
+			{
+				Name: "review", Available: true, Qualified: true,
+				Source: commandpkg.Source{Kind: "workspace", ID: "claude", Key: "root_claude", Scope: "workspace"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("BuildCatalog() error = %v", err)
+		}
+		tokens := make([]string, 0, len(catalog.Commands))
+		for _, descriptor := range catalog.Commands {
+			tokens = append(tokens, descriptor.CanonicalToken)
+		}
+		for _, want := range []string{"/goal", "/agents:goal", "/review", "/agents:review", "/claude:review"} {
+			if !slices.Contains(tokens, want) {
+				t.Fatalf("BuildCatalog() tokens = %#v, want qualified fallback %q", tokens, want)
+			}
 		}
 	})
 

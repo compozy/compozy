@@ -7,6 +7,7 @@ import (
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 )
 
 func (s *service) persistRuntimeApply(
@@ -33,7 +34,9 @@ func (s *service) persistRuntimeApply(
 		return ApplyRecord{}, runtimeApplyPlan{}, err
 	}
 	if plan.applied && !noChanges {
-		plan.partialFailures = s.reconcileRuntimeConfig(ctx, nextActiveConfig, configLifecycle)
+		plan.partialFailures = s.reconcileRuntimeConfig(
+			ctx, nextActiveConfig, configLifecycle, plan.generation,
+		)
 		if len(plan.partialFailures) > 0 {
 			plan.status = lifecycle.StatusFailed
 			plan.activeHash = state.hash
@@ -109,12 +112,13 @@ func (s *service) reconcileRuntimeConfig(
 	ctx context.Context,
 	desired *compozyconfig.Config,
 	configLifecycle lifecycle.Lifecycle,
+	generation int64,
 ) []ApplyFailure {
 	if desired == nil || s.runtimeApplier == nil || !requiresRuntimeReconcile(configLifecycle) {
 		return nil
 	}
 	snapshot := cloneActiveConfig(desired)
-	return s.runtimeApplier.ApplyActiveConfig(ctx, &snapshot)
+	return s.runtimeApplier.ApplyActiveConfig(skillspkg.WithConfigGeneration(ctx, generation), &snapshot)
 }
 
 func requiresRuntimeReconcile(configLifecycle lifecycle.Lifecycle) bool {

@@ -22,23 +22,22 @@ func newSkillCommand(deps commandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   skillCommandsSkillKey,
 		Short: "Manage local AgentSkills",
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			return ensureSkillCLIUsesSupportedSurface(deps)
+		PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+			return ensureSkillCLIUsesSupportedSurface(cmd, deps)
 		},
 	}
 
-	cmd.AddCommand(newSkillListCommand(deps))
-	cmd.AddCommand(newSkillViewCommand(deps))
-	cmd.AddCommand(newSkillInfoCommand(deps))
-	cmd.AddCommand(newSkillInspectCommand(deps))
-	cmd.AddCommand(newSkillWhereCommand(deps))
-	cmd.AddCommand(newSkillSearchCommand(deps))
-	cmd.AddCommand(newSkillInstallCommand(deps))
-	cmd.AddCommand(newSkillRemoveCommand(deps))
-	cmd.AddCommand(newSkillUpdateCommand(deps))
-	cmd.AddCommand(newSkillCreateCommand(deps))
-	cmd.AddCommand(newSkillEnableCommand(deps))
-	cmd.AddCommand(newSkillDisableCommand(deps))
+	commands := []*cobra.Command{
+		newSkillListCommand(deps), newSkillSourcesCommand(deps), newSkillViewCommand(deps),
+		newSkillInfoCommand(deps), newSkillWhereCommand(deps), newSkillSearchCommand(deps),
+		newSkillInstallCommand(deps), newSkillRemoveCommand(deps), newSkillUpdateCommand(deps),
+		newSkillCreateCommand(deps), newSkillEnableCommand(deps), newSkillDisableCommand(deps),
+		newSkillExposeCommand(deps), newSkillUnexposeCommand(deps),
+	}
+	for _, command := range commands {
+		configureSingleProfileReadCommand(command, deps)
+		cmd.AddCommand(command)
+	}
 	return cmd
 }
 
@@ -97,7 +96,7 @@ func newSkillListCommand(deps commandDeps) *cobra.Command {
 		&sourceFilter,
 		"source",
 		"",
-		"Filter by source: bundled, marketplace, user, additional, workspace, or agent-local",
+		"Filter by source: bundled, marketplace, user, profile, additional, workspace, workspace_profile, or agent-local",
 	)
 	cmd.Flags().StringVar(
 		&workspace,

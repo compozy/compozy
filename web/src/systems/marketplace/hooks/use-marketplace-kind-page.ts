@@ -136,7 +136,11 @@ function useMarketplaceKindPage(
     isFetchingNextPage: isFetchingNextMarketPage,
   } = marketQuery;
 
-  const skillsQuery = useSkills(activeWorkspaceId ?? "", liveDataEnabled);
+  const skillsQuery = useSkills(
+    activeWorkspaceId ?? "",
+    liveDataEnabled,
+    profileName === "default" ? undefined : profileName
+  );
   const extensionsQuery = useExtensionInventory(liveDataEnabled);
   const mcpPollInterval = SETTINGS_QUERY_INTERVALS.collectionRefetchInterval;
   const mcpQuery = useSettingsMCPServers(mcpFilter, {

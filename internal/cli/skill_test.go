@@ -294,17 +294,173 @@ func TestSkillListCommandFiltersBySource(t *testing.T) {
 	}
 }
 
-func TestSkillListCommandSourceHelpIncludesMarketplaceAndAgentLocal(t *testing.T) {
+func TestSkillListCommandSourceHelpIncludesEveryPublicTier(t *testing.T) {
+	t.Parallel()
+	t.Run("Should mention every public skill source tier", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
+		usage := cmd.Flags().Lookup("source").Usage
+
+		for _, expected := range []string{
+			"bundled", "marketplace", "user", "profile", "additional", "workspace", "workspace_profile", "agent-local",
+		} {
+			if !strings.Contains(usage, expected) {
+				t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
+			}
+		}
+	})
+}
+
+func TestSkillSourcesCommand(t *testing.T) {
 	t.Parallel()
 
-	cmd := newSkillListCommand(newSkillTestEnv(t, nil).deps)
-	usage := cmd.Flags().Lookup("source").Usage
-
-	for _, expected := range []string{"marketplace", "agent-local"} {
-		if !strings.Contains(usage, expected) {
-			t.Fatalf("source flag usage = %q, want mention of %q", usage, expected)
-		}
+	count := 2
+	response := contract.SettingsSkillsResponse{
+		Sources: []contract.SettingsSkillSourcePayload{
+			{
+				Slug: "compozy", Label: "CompozyOS", Kind: "builtin", Enabled: true, AlwaysOn: true,
+				WorkspacePath: ".compozy/skills", GlobalPath: "~/.compozy/skills",
+				Roots: []contract.SettingsSkillSourceRootPayload{{
+					RootID: "root-compozy", Path: "/home/.compozy/skills", Exists: true, Readable: true,
+					SkillCount: &count, NativeReaders: []string{"compozy"},
+				}},
+			},
+			{
+				Slug: "agents", Label: "Agent skills", Kind: "preset", Enabled: true,
+				WorkspacePath: ".agents/skills", GlobalPath: "~/.agents/skills",
+				Roots: []contract.SettingsSkillSourceRootPayload{{
+					RootID: "root-agents", Path: "/home/.agents/skills", Exists: true, Readable: true,
+					SkillCount: &count, Truncated: true, NativeReaders: []string{"hermes"},
+				}},
+			},
+		},
 	}
+
+	t.Run("Should render the source table and user scope footer", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		client := &skillSourcesReaderClient{stubClient: &stubClient{}, response: response}
+		env.deps.newClient = func(ClientTarget) (DaemonClient, error) { return client, nil }
+
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "sources")
+		if err != nil {
+			t.Fatalf("skill sources error = %v", err)
+		}
+		for _, expected := range []string{
+			"SOURCE", "compozy", "always on", "agents", "truncated", "scope: user · overrides: none",
+		} {
+			if !strings.Contains(stdout, expected) {
+				t.Fatalf("skill sources output missing %q:\n%s", expected, stdout)
+			}
+		}
+	})
+
+	t.Run("Should emit the stable JSON source schema without workspace fields at user scope", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		client := &skillSourcesReaderClient{stubClient: &stubClient{}, response: response}
+		env.deps.newClient = func(ClientTarget) (DaemonClient, error) { return client, nil }
+
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "sources", "-o", "json")
+		if err != nil {
+			t.Fatalf("skill sources -o json error = %v", err)
+		}
+		var payload map[string]any
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("Unmarshal(skill sources JSON) error = %v; stdout=%s", err, stdout)
+		}
+		if got, want := payload["scope"], "user"; got != want {
+			t.Fatalf("scope = %#v, want %#v", got, want)
+		}
+		if _, exists := payload["workspace_id"]; exists {
+			t.Fatalf("workspace_id present at user scope: %#v", payload)
+		}
+		if _, exists := payload["inherits"]; exists {
+			t.Fatalf("inherits present at user scope: %#v", payload)
+		}
+		sources, ok := payload["sources"].([]any)
+		if !ok || len(sources) != 2 {
+			t.Fatalf("sources = %#v, want two rows", payload["sources"])
+		}
+		first, ok := sources[0].(map[string]any)
+		if !ok || first["slug"] != "compozy" || first["kind"] != "builtin" || first["always_on"] != true {
+			t.Fatalf("first source = %#v, want compozy schema", sources[0])
+		}
+		roots, ok := first["roots"].([]any)
+		if !ok || len(roots) != 1 {
+			t.Fatalf("roots = %#v, want one root", first["roots"])
+		}
+		root, ok := roots[0].(map[string]any)
+		if !ok || root["native_readers"] == nil {
+			t.Fatalf("root = %#v, want native_readers", roots[0])
+		}
+	})
+
+	t.Run("Should resolve workspace names and report per-key inheritance", func(t *testing.T) {
+		t.Parallel()
+
+		env := newSkillTestEnv(t, nil)
+		inherits := &contract.SettingsSkillSourceInheritancePayload{Sources: false, CustomSources: true}
+		client := &skillSourcesReaderClient{
+			stubClient: &stubClient{getWorkspaceFn: func(_ context.Context, ref string) (WorkspaceDetailRecord, error) {
+				if ref != "payments" {
+					t.Fatalf("GetWorkspace() ref = %q, want payments", ref)
+				}
+				return WorkspaceDetailRecord{Workspace: WorkspaceRecord{ID: "ws-payments", Name: "payments"}}, nil
+			}},
+			response: contract.SettingsSkillsResponse{Sources: response.Sources, Inherits: inherits},
+		}
+		env.deps.newClient = func(ClientTarget) (DaemonClient, error) { return client, nil }
+
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "sources", "--workspace", "payments")
+		if err != nil {
+			t.Fatalf("skill sources --workspace error = %v", err)
+		}
+		if !strings.Contains(
+			stdout,
+			"scope: workspace (payments) · overrides: sources · inherits: custom_sources",
+		) {
+			t.Fatalf("workspace footer missing:\n%s", stdout)
+		}
+		if client.query.Scope != contract.SettingsScopeWorkspace || client.query.WorkspaceID != "ws-payments" {
+			t.Fatalf("settings query = %#v, want canonical workspace", client.query)
+		}
+
+		stdout, _, err = executeRootCommand(
+			t,
+			env.deps,
+			"skill", "sources", "--workspace", "payments", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("skill sources --workspace -o json error = %v", err)
+		}
+		var payload skillSourcesRecord
+		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+			t.Fatalf("Unmarshal(workspace sources JSON) error = %v", err)
+		}
+		if payload.Scope != "workspace" || payload.WorkspaceID != "ws-payments" || payload.Inherits == nil ||
+			payload.Inherits.Sources || !payload.Inherits.CustomSources {
+			t.Fatalf("workspace payload = %#v, want id and inheritance", payload)
+		}
+	})
+}
+
+type skillSourcesReaderClient struct {
+	*stubClient
+	response contract.SettingsSkillsResponse
+	query    settingsSkillsScopeQuery
+	err      error
+}
+
+func (s *skillSourcesReaderClient) GetSettingsSkills(
+	_ context.Context,
+	query settingsSkillsScopeQuery,
+) (contract.SettingsSkillsResponse, error) {
+	s.query = query
+	return s.response, s.err
 }
 
 func TestSkillViewCommandReturnsXMLLikeContent(t *testing.T) {
@@ -492,7 +648,7 @@ func TestSkillViewCommandRejectsSymlinkEscape(t *testing.T) {
 	}
 }
 
-func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
+func TestSkillInfoCommandShowsMetadataSourcePathResourcesAndExposures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should show metadata source path and resources", func(t *testing.T) {
@@ -521,14 +677,14 @@ func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 			"Useful notes.\n",
 		)
 
-		stdout, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill", "-o", "json")
+		stdout, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill", "-o", "json")
 		if err != nil {
-			t.Fatalf("skill inspect json error = %v", err)
+			t.Fatalf("skill info json error = %v", err)
 		}
 
 		var payload skillInfoItem
 		if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
-			t.Fatalf("json.Unmarshal(skill inspect) error = %v; stdout=%s", err, stdout)
+			t.Fatalf("json.Unmarshal(skill info) error = %v; stdout=%s", err, stdout)
 		}
 
 		if payload.Name != "info-skill" || payload.Version != "1.2.3" {
@@ -548,12 +704,13 @@ func TestSkillInspectCommandShowsMetadataSourcePathAndResources(t *testing.T) {
 			t.Fatalf("payload.Metadata = %#v, want author", payload.Metadata)
 		}
 
-		humanOut, _, err := executeRootCommand(t, env.deps, "skill", "inspect", "info-skill")
+		humanOut, _, err := executeRootCommand(t, env.deps, "skill", "info", "info-skill")
 		if err != nil {
-			t.Fatalf("skill inspect human error = %v", err)
+			t.Fatalf("skill info human error = %v", err)
 		}
-		if !strings.Contains(humanOut, "Metadata") || !strings.Contains(humanOut, "references/notes.md") {
-			t.Fatalf("skill inspect human output missing metadata/resources:\n%s", humanOut)
+		if !strings.Contains(humanOut, "NAME") || !strings.Contains(humanOut, "SOURCE") ||
+			!strings.Contains(humanOut, "PATH") || !strings.Contains(humanOut, "EXPOSED TO   — none —") {
+			t.Fatalf("skill info human output missing public transcript fields:\n%s", humanOut)
 		}
 	})
 }
@@ -650,9 +807,10 @@ func TestSkillCreateCommandScaffoldsSkill(t *testing.T) {
 			t.Fatalf("Resolve() error = %v", err)
 		}
 
+		defaultSkills := compozyconfig.DefaultWithHome(env.homePaths).Skills
 		registry := skills.NewRegistry(skills.RegistryConfig{
-			UserAgentsDir: env.homePaths.AgentsDir,
-			UserSkillsDir: env.homePaths.SkillsDir,
+			GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&defaultSkills, env.homePaths),
+			GlobalAgentsDir:  env.homePaths.AgentsDir,
 		})
 		if err := registry.LoadAll(ctx); err != nil {
 			t.Fatalf("Registry.LoadAll() error = %v", err)
@@ -1091,7 +1249,7 @@ func TestSkillCommandsWorkWithoutDaemonAndSupportToonOutput(t *testing.T) {
 		{args: []string{"skill", "list", "-o", "toon"}, contains: "skills["},
 		{args: []string{"skill", "view", "toon-skill", "-o", "toon"}, contains: `<skill_content name="toon-skill">`},
 		{
-			args:     []string{"skill", "inspect", "toon-skill", "-o", "toon"},
+			args:     []string{"skill", "info", "toon-skill", "-o", "toon"},
 			contains: "skill{name,description,version,source,path,enabled,active,inactive_reason}:",
 		},
 		{
@@ -2594,9 +2752,19 @@ func TestSkillHelpersAndBundles(t *testing.T) {
 	if got := skillSourceLabel(skills.SourceMarketplace); got != "marketplace" {
 		t.Fatalf("skillSourceLabel(marketplace) = %q, want marketplace", got)
 	}
-	if got, err := normalizeSkillSourceFilter("marketplace"); err != nil || got != "marketplace" {
-		t.Fatalf("normalizeSkillSourceFilter(marketplace) = %q, %v, want marketplace", got, err)
-	}
+	t.Run("Should map profile source tiers through labels and filters", func(t *testing.T) {
+		for source, want := range map[skills.SkillSource]string{
+			skills.SourceProfile:          profileSkillSource,
+			skills.SourceWorkspaceProfile: workspaceProfileSkillSource,
+		} {
+			if got := skillSourceLabel(source); got != want {
+				t.Fatalf("skillSourceLabel(%v) = %q, want %q", source, got, want)
+			}
+			if got, err := normalizeSkillSourceFilter(want); err != nil || got != want {
+				t.Fatalf("normalizeSkillSourceFilter(%q) = %q, %v, want %q", want, got, err, want)
+			}
+		}
+	})
 	t.Run("Should validate helper skill slug normalization", func(t *testing.T) {
 		t.Parallel()
 
@@ -3014,7 +3182,10 @@ func newMarketplaceTestServer(t *testing.T, fixture marketplaceServerFixture) *m
 			return
 		case request.Method == http.MethodGet && strings.HasPrefix(request.URL.Path, "/api/v1/skills/") && strings.Contains(request.URL.Path, "/versions/") && strings.HasSuffix(request.URL.Path, "/archive"):
 			slug := strings.TrimPrefix(request.URL.Path, "/api/v1/skills/")
-			slug, _, _ = strings.Cut(slug, "/versions/")
+			slug, versionPath, found := strings.Cut(slug, "/versions/")
+			if !found || strings.TrimSpace(versionPath) == "" {
+				t.Fatalf("archive request path has no version: %q", request.URL.Path)
+			}
 			slug = decodeSkillSlug(t, slug)
 
 			download, ok := srv.fixture.downloads[slug]

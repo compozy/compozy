@@ -34,6 +34,7 @@ func (s *Session) infoLocked() *Info {
 		Name:                     s.Name,
 		AgentName:                s.AgentName,
 		Provider:                 s.Provider,
+		ProviderHomePolicy:       s.providerHomePolicy,
 		Model:                    s.Model,
 		ReasoningEffort:          s.ReasoningEffort,
 		Speed:                    s.Speed,

@@ -11,6 +11,7 @@ import {
   filterSkillsByQuery,
   MARKETPLACE_CATEGORIES,
   matchesMarketplaceCategory,
+  skillOriginLabel,
   skillSourceLabel,
   skillSourceTone,
   skillStatusTone,
@@ -21,9 +22,11 @@ function makeSkill(overrides: Partial<SkillPayload> = {}): SkillPayload {
     name: "test-skill",
     description: "desc",
     source: "bundled",
+    owner_scope: "user",
     enabled: true,
     activation: { active: true },
     dir: "/path",
+    origin: "",
     ...overrides,
   };
 }
@@ -49,6 +52,12 @@ describe("skill-formatters", () => {
     expect(skillSourceLabel("bundled")).toBe("bundled");
     expect(skillSourceLabel("workspace")).toBe("workspace");
     expect(skillSourceLabel("marketplace")).toBe("marketplace");
+  });
+
+  it("Should trim origin labels and omit missing origins", () => {
+    expect(skillOriginLabel("  claude  ")).toBe("claude");
+    expect(skillOriginLabel("   ")).toBeNull();
+    expect(skillOriginLabel(undefined)).toBeNull();
   });
 
   it("Should map enabled flag to status dot tone", () => {

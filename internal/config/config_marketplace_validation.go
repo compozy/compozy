@@ -13,6 +13,12 @@ import (
 
 // Validate ensures the skills configuration is internally consistent.
 func (c SkillsConfig) Validate() error {
+	if err := ValidateSkillSources(c.Sources); err != nil {
+		return err
+	}
+	if err := validateDuplicateSkillSourceRoots(c.Sources, c.CustomSources); err != nil {
+		return err
+	}
 	if !c.Enabled {
 		return nil
 	}

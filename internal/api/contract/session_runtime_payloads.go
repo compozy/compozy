@@ -149,9 +149,10 @@ type PromptRuntimeSelectionPayload struct {
 // SessionFailurePayload is the redacted lifecycle failure diagnostic shared by
 // session read paths, event streams, and health summaries.
 type SessionFailurePayload struct {
-	Kind            store.FailureKind `json:"kind"`
-	Summary         string            `json:"summary,omitempty"`
-	CrashBundlePath string            `json:"crash_bundle_path,omitempty"`
+	Kind            store.FailureKind       `json:"kind"`
+	ReasonCode      store.FailureReasonCode `json:"reason_code,omitempty"`
+	Summary         string                  `json:"summary,omitempty"`
+	CrashBundlePath string                  `json:"crash_bundle_path,omitempty"`
 }
 
 // RuntimeActivityPayload is the shared JSON representation of active prompt supervision state.

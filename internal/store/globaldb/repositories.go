@@ -89,6 +89,7 @@ type HeartbeatRepo struct{ *repoBase }
 type SoulRepo struct{ *repoBase }
 type ModelCatalogRepo struct{ *repoBase }
 type MarketplaceRepo struct{ *repoBase }
+type SkillExposureRepo struct{ *repoBase }
 type ObserveRepo struct{ *repoBase }
 type AttentionRepo struct{ *repoBase }
 type ToolRuntimeRepo struct{ *repoBase }
@@ -133,6 +134,7 @@ func (g *GlobalDB) initializeRepositories(config openConfig) {
 	g.SoulRepo = &SoulRepo{repoBase: base}
 	g.ModelCatalogRepo = &ModelCatalogRepo{repoBase: base}
 	g.MarketplaceRepo = &MarketplaceRepo{repoBase: base}
+	g.SkillExposureRepo = &SkillExposureRepo{repoBase: base}
 	g.ObserveRepo = &ObserveRepo{repoBase: base}
 	g.NotificationRepo = &NotificationRepo{repoBase: base}
 	g.AttentionRepo = &AttentionRepo{repoBase: base}

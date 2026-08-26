@@ -2,10 +2,11 @@ package contract
 
 // SessionCommandSource identifies one command owner without exposing filesystem paths.
 type SessionCommandSource struct {
-	Kind  string `json:"kind"`
-	ID    string `json:"id,omitempty"`
-	Key   string `json:"key,omitempty"`
-	Scope string `json:"scope"`
+	Kind   string `json:"kind"`
+	ID     string `json:"id,omitempty"`
+	Key    string `json:"key,omitempty"`
+	Scope  string `json:"scope"`
+	Origin string `json:"origin,omitempty"`
 }
 
 // SessionCommandPayload is one command available in a session composer.

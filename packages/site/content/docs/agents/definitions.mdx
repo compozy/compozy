@@ -316,15 +316,15 @@ surface, run the relevant verification commands, and summarize the exact files c
 RFC 001 proposes a larger portable agent format. The current parser and runtime diverge from that
 draft in these ways today:
 
-| RFC field                 | Proposed type | Current behavior                                                                                     |
-| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------- |
-| `description`             | string        | Rejected as an unknown field.                                                                        |
-| `skills.inherit`          | boolean       | Rejected as an unknown field.                                                                        |
-| `skills.disabled`         | string array  | Accepted. Disables the logical skill for this agent without falling back to a lower-precedence copy. |
-| `skills.extra_sources`    | string array  | Rejected as an unknown field.                                                                        |
-| `memory.inherit`          | boolean       | Rejected as an unknown field.                                                                        |
-| `memory.scope`            | string        | Rejected as an unknown field.                                                                        |
-| `memory.auto_consolidate` | boolean       | Rejected as an unknown field.                                                                        |
+| RFC field                 | Proposed type | Current behavior                                                                                                                   |
+| ------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `description`             | string        | Rejected as an unknown field.                                                                                                      |
+| `skills.inherit`          | boolean       | Rejected as an unknown field.                                                                                                      |
+| `skills.disabled`         | string array  | Accepted. Disables the logical skill for this agent without falling back to a lower-precedence copy.                               |
+| `skills.extra_sources`    | string array  | Rejected as an unknown field. Scan roots are runtime config: [`skills.sources` and `skills.custom_sources`](/docs/skills/sources). |
+| `memory.inherit`          | boolean       | Rejected as an unknown field.                                                                                                      |
+| `memory.scope`            | string        | Rejected as an unknown field.                                                                                                      |
+| `memory.auto_consolidate` | boolean       | Rejected as an unknown field.                                                                                                      |
 
 Agent-scoped memory is still part of the design direction. Skill resolution remains runtime-owned,
 but `skills.disabled` is now persisted in `AGENT.md` as the agent-scoped tombstone list.

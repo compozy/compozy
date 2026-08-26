@@ -43,6 +43,7 @@ type Option func(*Registry)
 type Registry struct {
 	mu                                        sync.RWMutex
 	globalSkills                              map[string]*Skill
+	globalCommandCandidates                   []*Skill
 	resourceAuthority                         bool
 	resourceRevision                          int64
 	resourceWorkspaces                        map[string]map[string]*Skill
@@ -55,18 +56,26 @@ type Registry struct {
 	globalLoaded                              bool
 	globalSnapshots                           map[string]filesnap.Snapshot
 	globalDiagnostics                         []SkillDiagnostic
+	resourceWorkspaceDiagnostics              map[string][]SkillDiagnostic
 	workspaceDisabled                         map[string][]string
 	profileDisabled                           map[string][]string
 	workspaceProfileDisabled                  map[string][]string
 	wsCache                                   map[string]*wsCache
 
-	globalVersion atomic.Int64
+	globalVersion    atomic.Int64
+	configGeneration atomic.Int64
 
-	cfg               RegistryConfig
-	logger            *slog.Logger
-	now               func() time.Time
-	events            store.EventSummaryStore
-	activationContext ActivationContextProvider
+	cfg                         RegistryConfig
+	pendingConfig               *RegistryConfig
+	pendingGeneration           int64
+	pendingProjection           *resourceSkillProjection
+	pendingRevision             int64
+	pendingGlobalDiagnostics    []SkillDiagnostic
+	pendingWorkspaceDiagnostics map[string][]SkillDiagnostic
+	logger                      *slog.Logger
+	now                         func() time.Time
+	events                      store.EventSummaryStore
+	activationContext           ActivationContextProvider
 }
 
 type skillToggleScope int
@@ -111,10 +120,12 @@ func NewRegistry(cfg RegistryConfig, opts ...Option) *Registry {
 		resourceWorkspaceCommandCandidates:        make(map[string][]*Skill),
 		resourceWorkspaceProfileCommandCandidates: make(map[string][]*Skill),
 		globalSnapshots:                           make(map[string]filesnap.Snapshot),
+		resourceWorkspaceDiagnostics:              make(map[string][]SkillDiagnostic),
 		workspaceDisabled:                         make(map[string][]string),
 		profileDisabled:                           make(map[string][]string),
 		workspaceProfileDisabled:                  make(map[string][]string),
 		wsCache:                                   make(map[string]*wsCache),
+		pendingWorkspaceDiagnostics:               make(map[string][]SkillDiagnostic),
 		cfg:                                       cfg,
 		logger:                                    slog.Default(),
 		now:                                       time.Now,
@@ -245,6 +256,7 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 	cacheKey string,
 	workspaceSkills map[string]*Skill,
 	workspaceDiagnostics []SkillDiagnostic,
+	workspaceCommandCandidates []*Skill,
 	workspaceDisabled []string,
 	now time.Time,
 ) ([]*Skill, []store.EventSummary) {
@@ -262,11 +274,13 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 		"",
 	)
 	r.wsCache[cacheKey] = &wsCache{
-		skills:        workspaceSkills,
-		diagnostics:   workspaceDiagnostics,
-		snapshots:     load.snapshots,
-		lastAccess:    now,
-		globalVersion: currentGlobalVersion,
+		skills:            workspaceSkills,
+		commandCandidates: cloneCommandSkillSlice(workspaceCommandCandidates),
+		diagnostics:       workspaceDiagnostics,
+		snapshots:         load.snapshots,
+		rootPaths:         append([]string(nil), load.rootPaths...),
+		lastAccess:        now,
+		globalVersion:     currentGlobalVersion,
 	}
 	return mergedSkillListWithDisabled(globalSkills, workspaceSkills, workspaceDisabled), shadowEvents
 }

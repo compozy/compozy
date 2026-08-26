@@ -416,6 +416,20 @@ func TestToolConfigPathPolicy(t *testing.T) {
 			redacted: true,
 		},
 		{
+			// The shipped agent-facing reference states these two keys are writable by
+			// compozy__config_set. Keep that statement true: they are listed in
+			// skillsConfigPathIsTrustRoot but the agent-mutable lookup returns first, so a change
+			// that reorders those checks would silently start denying them and falsify the doc.
+			name: "Should allow skill source preset mutation",
+			path: "skills.sources",
+			kind: ConfigValueStringSlice,
+		},
+		{
+			name: "Should allow skill custom source mutation",
+			path: "skills.custom_sources",
+			kind: ConfigValueStringSlice,
+		},
+		{
 			name:   "Should reject daemon socket trust root",
 			path:   "daemon.socket",
 			denial: ConfigPathTrustForbidden,

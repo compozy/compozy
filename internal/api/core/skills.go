@@ -1,7 +1,6 @@
 package core
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,7 +9,6 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 	skillmarketplace "github.com/compozy/compozy/internal/skills/marketplace"
-	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
 
@@ -57,13 +55,47 @@ func (h *BaseHandlers) GetSkill(c *gin.Context) {
 		return
 	}
 
-	skill, err := h.resolveSkill(c, name)
+	resolved, agentName, err := h.resolveSkillDetailScope(c)
 	if err != nil {
 		h.respondError(c, StatusForSkillError(err), err)
 		return
 	}
+	skillList, err := h.resolveScopedSkills(c, resolved, agentName)
+	if err != nil {
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
+	skill := findSkillByName(skillList, name)
+	if skill == nil {
+		err = fmt.Errorf("%w: %q", ErrSkillNotFound, name)
+		h.respondError(c, StatusForSkillError(err), err)
+		return
+	}
 
-	c.JSON(http.StatusOK, contract.SkillResponse{Skill: SkillPayloadFromSkill(skill)})
+	payload := SkillPayloadFromSkill(skill)
+	emptyExposures := []contract.SkillExposurePayload{}
+	payload.Exposures = &emptyExposures
+	resourceKind := skill.ResourceScope.Normalize().Kind
+	if resourceKind == "user" || resourceKind == workspaceScopeValue {
+		manager, managerErr := h.newSkillExposureManager(resolved)
+		if managerErr != nil {
+			h.respondError(c, http.StatusServiceUnavailable, managerErr)
+			return
+		}
+		exposureCtx, contextErr := h.skillExposureInspectionContext(c, skill)
+		if contextErr != nil {
+			h.respondError(c, StatusForSkillError(contextErr), contextErr)
+			return
+		}
+		states, exposureErr := manager.Exposures(exposureCtx, skill)
+		if exposureErr != nil {
+			h.respondError(c, http.StatusInternalServerError, exposureErr)
+			return
+		}
+		exposures := SkillExposurePayloadsFromDomain(states)
+		payload.Exposures = &exposures
+	}
+	c.JSON(http.StatusOK, contract.SkillResponse{Skill: payload})
 }
 
 // GetSkillContent returns the explicit body for one skill.
@@ -353,74 +385,30 @@ func (h *BaseHandlers) resolveSkill(
 	return nil, fmt.Errorf("%w: %q", ErrSkillNotFound, name)
 }
 
-func (h *BaseHandlers) resolveScopedSkills(
-	c *gin.Context,
-	resolved *workspacepkg.ResolvedWorkspace,
-	agentName string,
-) ([]*skills.Skill, error) {
-	if agentName != "" {
-		skillList, err := h.SkillsRegistry.ForAgent(c.Request.Context(), resolved, agentName)
-		if err != nil {
-			return nil, mapSkillScopeError(err)
-		}
-		return skillList, nil
-	}
-	if resolved != nil {
-		return h.SkillsRegistry.ForWorkspace(c.Request.Context(), resolved)
-	}
-	return h.SkillsRegistry.ForWorkspace(c.Request.Context(), nil)
-}
-
-func (h *BaseHandlers) resolveSkillScope(
-	c *gin.Context,
-) (*workspacepkg.ResolvedWorkspace, string, error) {
-	workspace := strings.TrimSpace(c.Query("workspace"))
-	agentName, hasAgent := c.GetQuery("for_agent")
-	agentName = strings.TrimSpace(agentName)
-	if hasAgent && agentName == "" {
-		return nil, "", fmt.Errorf("%w: for_agent is required", ErrSkillValidation)
-	}
-	if agentName != "" {
-		if err := compozyconfig.ValidateAgentName(agentName); err != nil {
-			return nil, "", fmt.Errorf("%w: %v", ErrSkillValidation, err)
-		}
-	}
-
-	if workspace == "" {
-		return nil, agentName, nil
-	}
-	if h.Workspaces == nil {
-		return nil, "", errors.New("workspace resolver is not configured")
-	}
-	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspace)
-	if err != nil {
-		return nil, "", err
-	}
-	return &resolved, agentName, nil
-}
-
-func mapSkillScopeError(err error) error {
-	switch {
-	case err == nil:
-		return nil
-	case errors.Is(err, skills.ErrAgentNotFound):
-		return fmt.Errorf("%w: %v", ErrSkillNotFound, err)
-	case errors.Is(err, skills.ErrAgentLocalInvalid):
-		return fmt.Errorf("%w: %v", ErrSkillUnprocessable, err)
-	default:
-		return err
-	}
-}
-
 func (h *BaseHandlers) skillMarketplaceService() SkillMarketplaceService {
 	if h.SkillMarketplace != nil {
 		return h.SkillMarketplace
 	}
+	options := []skillmarketplace.Option{
+		skillmarketplace.WithLogger(h.Logger),
+		skillmarketplace.WithNow(h.Now),
+	}
+	if h.SkillExposures != nil {
+		exposureOptions := []skills.ExposeManagerOption{skills.WithExposureLogger(h.Logger)}
+		if h.SkillExposureEvents != nil {
+			exposureOptions = append(exposureOptions, skills.WithExposureEventStore(h.SkillExposureEvents))
+		}
+		exposures := skills.NewExposeManager(
+			h.SkillExposures,
+			compozyconfig.ResolveGlobalSkillRoots(&h.Config.Skills, h.HomePaths),
+			exposureOptions...,
+		)
+		options = append(options, skillmarketplace.WithExposureLifecycle(exposures))
+	}
 	return skillmarketplace.NewService(
 		h.HomePaths,
 		h.Config.Skills,
-		skillmarketplace.WithLogger(h.Logger),
-		skillmarketplace.WithNow(h.Now),
+		options...,
 	)
 }
 

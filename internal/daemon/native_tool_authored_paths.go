@@ -36,29 +36,67 @@ func (n *daemonNativeTools) skillsFor(
 	if err != nil {
 		return nil, err
 	}
-	if workspaceID == "" {
-		if hasSessionAgent {
-			return n.skillsForSessionAgent(ctx, nil, agentDef, scope.SessionID)
-		}
-		if agentName != "" {
-			return n.deps.Skills.ForAgentSession(ctx, nil, agentName, scope.SessionID)
-		}
-		return n.deps.Skills.ForWorkspace(ctx, nil)
-	}
-	if n.deps.WorkspaceResolver == nil {
-		return nil, errors.New("daemon: workspace resolver is required for workspace skills")
-	}
-	resolved, err := n.deps.WorkspaceResolver.Resolve(ctx, workspaceID)
+	resolved, err := n.nativeSkillWorkspace(ctx, scope.ProfileID, workspaceID)
 	if err != nil {
 		return nil, err
 	}
+	if workspaceID == "" {
+		if hasSessionAgent {
+			return n.skillsForSessionAgent(ctx, resolved, agentDef, scope.SessionID)
+		}
+		if agentName != "" {
+			return n.deps.Skills.ForAgentSession(ctx, resolved, agentName, scope.SessionID)
+		}
+		return n.deps.Skills.ForWorkspace(ctx, resolved)
+	}
 	if hasSessionAgent {
-		return n.skillsForSessionAgent(ctx, &resolved, agentDef, scope.SessionID)
+		return n.skillsForSessionAgent(ctx, resolved, agentDef, scope.SessionID)
 	}
 	if agentName != "" {
-		return n.deps.Skills.ForAgentSession(ctx, &resolved, agentName, scope.SessionID)
+		return n.deps.Skills.ForAgentSession(ctx, resolved, agentName, scope.SessionID)
 	}
-	return n.deps.Skills.ForWorkspace(ctx, &resolved)
+	return n.deps.Skills.ForWorkspace(ctx, resolved)
+}
+
+func (n *daemonNativeTools) nativeSkillWorkspace(
+	ctx context.Context,
+	profileID string,
+	workspaceID string,
+) (*workspacepkg.ResolvedWorkspace, error) {
+	profileID = strings.TrimSpace(profileID)
+	if profileID == "" && workspaceID == "" {
+		return nil, nil
+	}
+	profileName := compozyconfig.DefaultProfileDirName
+	if n.deps.Profiles != nil {
+		resolvedName, err := n.deps.Profiles.ProfileName(ctx, profileID)
+		if err != nil {
+			return nil, fmt.Errorf("daemon: resolve native skill profile: %w", err)
+		}
+		profileName = strings.TrimSpace(resolvedName)
+	}
+	if workspaceID != "" {
+		if n.deps.WorkspaceResolver == nil {
+			return nil, errors.New("daemon: workspace resolver is required for workspace skills")
+		}
+		profileResolver, ok := n.deps.WorkspaceResolver.(workspacepkg.ProfileRuntimeResolver)
+		if !ok {
+			return nil, errors.New("daemon: profile-aware workspace resolver is required for workspace skills")
+		}
+		resolved, err := profileResolver.ResolveForProfile(ctx, workspaceID, profileName)
+		if err != nil {
+			return nil, err
+		}
+		return &resolved, nil
+	}
+	config, err := compozyconfig.LoadForHome(n.deps.HomePaths, compozyconfig.WithProfile(profileName))
+	if err != nil {
+		return nil, fmt.Errorf("daemon: load native skill profile config: %w", err)
+	}
+	return &workspacepkg.ResolvedWorkspace{
+		ProfileID: profileID, ProfileName: profileName,
+		ProfileRoot: filepath.Join(n.deps.HomePaths.ProfilesDir, profileName), Config: config,
+	}, nil
 }
 
 func (n *daemonNativeTools) skillsForSessionAgent(

@@ -7,6 +7,8 @@ import {
 import { createElement, Fragment, useEffect, useEffectEvent, useRef } from "react";
 import { useStore } from "@xstate/store-react";
 
+import { Pill } from "@compozy/ui";
+
 import { cn } from "@/lib/utils";
 import {
   commandIcon,
@@ -68,6 +70,7 @@ function CommandMenuItemRow({
       ref={rowRef}
       item={item}
       index={flatIndex}
+      data-command-token={presentation.token}
       data-testid="composer-command-item"
       data-unavailable={presentation.available ? undefined : ""}
       disabled={!presentation.available}
@@ -104,13 +107,24 @@ function CommandMenuItemRow({
           </span>
         )}
       </span>
-      <span
-        className={cn(
-          "ml-auto shrink-0 text-badge text-faint",
-          trailing.mono ? "font-mono tracking-mono" : null
-        )}
-      >
-        {trailing.text}
+      <span className="ml-auto flex shrink-0 items-center gap-1.5">
+        {/* Where a skill came from is a fact, not a warning: neutral, never toned. */}
+        {trailing.origin ? (
+          <Pill
+            className="max-w-28 truncate"
+            data-slot="composer-command-origin"
+            mono
+            size="xs"
+            title={trailing.origin}
+          >
+            {trailing.origin}
+          </Pill>
+        ) : null}
+        <span
+          className={cn("text-badge text-faint", trailing.mono ? "font-mono tracking-mono" : null)}
+        >
+          {trailing.text}
+        </span>
       </span>
     </ComposerPrimitive.Unstable_TriggerPopoverItem>
   );

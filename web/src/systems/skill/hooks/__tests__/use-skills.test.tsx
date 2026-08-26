@@ -33,9 +33,11 @@ const validSkill = {
   name: "test-skill",
   description: "A test skill",
   source: "bundled",
+  owner_scope: "user",
   enabled: true,
   activation: { active: true },
   dir: "/path/to/skill",
+  origin: "",
 };
 
 describe("useSkills", () => {
@@ -61,7 +63,18 @@ describe("useSkills", () => {
     });
 
     expect(result.current.data).toEqual([validSkill]);
-    expect(listSkills).toHaveBeenCalledWith("ws_123", expect.any(AbortSignal));
+    expect(listSkills).toHaveBeenCalledWith("ws_123", expect.any(AbortSignal), undefined);
+  });
+
+  it("keeps the exact profile in a workspace skill read", async () => {
+    vi.mocked(listSkills).mockResolvedValue([validSkill]);
+
+    const { result } = renderHook(() => useSkills("ws_123", true, "research"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual([validSkill]));
+    expect(listSkills).toHaveBeenCalledWith("ws_123", expect.any(AbortSignal), "research");
   });
 
   it("loads global skills when workspace is empty", async () => {
@@ -71,7 +84,7 @@ describe("useSkills", () => {
     });
 
     await waitFor(() => expect(result.current.data).toEqual([validSkill]));
-    expect(listSkills).toHaveBeenCalledWith("", expect.any(AbortSignal));
+    expect(listSkills).toHaveBeenCalledWith("", expect.any(AbortSignal), undefined);
   });
 
   it("does not fetch skills while its retained window is inactive", () => {
@@ -104,7 +117,28 @@ describe("useSkill", () => {
       expect(result.current.data?.name).toBe("test-skill");
     });
 
-    expect(getSkill).toHaveBeenCalledWith("test-skill", "ws_123", expect.any(AbortSignal));
+    expect(getSkill).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      undefined
+    );
+  });
+
+  it("keeps the exact profile in a workspace skill detail read", async () => {
+    vi.mocked(getSkill).mockResolvedValue(validSkill);
+
+    const { result } = renderHook(() => useSkill("test-skill", "ws_123", "research"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toEqual(validSkill));
+    expect(getSkill).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      "research"
+    );
   });
 
   it("does not fetch when name is empty", () => {
@@ -122,7 +156,7 @@ describe("useSkill", () => {
     });
 
     await waitFor(() => expect(result.current.data).toEqual(validSkill));
-    expect(getSkill).toHaveBeenCalledWith("test-skill", "", expect.any(AbortSignal));
+    expect(getSkill).toHaveBeenCalledWith("test-skill", "", expect.any(AbortSignal), undefined);
   });
 });
 
@@ -146,7 +180,28 @@ describe("useSkillContent", () => {
       expect(result.current.data).toBe("full skill content");
     });
 
-    expect(getSkillContent).toHaveBeenCalledWith("test-skill", "ws_123", expect.any(AbortSignal));
+    expect(getSkillContent).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      undefined
+    );
+  });
+
+  it("keeps the exact profile in a workspace skill content read", async () => {
+    vi.mocked(getSkillContent).mockResolvedValue("profile skill content");
+
+    const { result } = renderHook(() => useSkillContent("test-skill", "ws_123", true, "research"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.data).toBe("profile skill content"));
+    expect(getSkillContent).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      "research"
+    );
   });
 
   it("does not fetch when disabled", () => {
@@ -178,6 +233,37 @@ describe("useSkillShadows", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toEqual(response);
-    expect(getSkillShadows).toHaveBeenCalledWith("test-skill", "ws_123", expect.any(AbortSignal));
+    expect(getSkillShadows).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      undefined
+    );
+  });
+
+  it("keeps the exact profile in a workspace skill shadow read", async () => {
+    const response = {
+      name: "test-skill",
+      winner: {
+        detected_at: "2026-04-17T17:00:00Z",
+        path: "/workspace/.compozy/skills/test-skill/SKILL.md",
+        resolved_to_winner: true,
+        tier: "workspace",
+      },
+      shadows: [],
+    };
+    vi.mocked(getSkillShadows).mockResolvedValue(response);
+
+    const { result } = renderHook(() => useSkillShadows("test-skill", "ws_123", "research"), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(getSkillShadows).toHaveBeenCalledWith(
+      "test-skill",
+      "ws_123",
+      expect.any(AbortSignal),
+      "research"
+    );
   });
 });

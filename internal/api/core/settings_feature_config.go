@@ -31,6 +31,8 @@ func skillsConfigFromPayload(payload contract.SettingsSkillsConfigPayload) (comp
 
 	value := compozyconfig.SkillsConfig{
 		Enabled:                 payload.Enabled,
+		Sources:                 cloneStrings(payload.Sources),
+		CustomSources:           cloneStrings(payload.CustomSources),
 		DisabledSkills:          cloneStrings(payload.DisabledSkills),
 		PollInterval:            pollInterval,
 		AllowedMarketplaceMCP:   cloneStrings(payload.AllowedMarketplaceMCP),

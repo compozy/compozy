@@ -11,12 +11,76 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
+	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
 )
+
+func TestComposedAssemblerFiltersProviderNativeSkillsAtStartup(t *testing.T) {
+	t.Parallel()
+	t.Run("Should suppress native skills only for their provider", func(t *testing.T) {
+		t.Parallel()
+
+		operatorHome := t.TempDir()
+		claudeRoot := filepath.Join(operatorHome, ".claude", "skills")
+		skillDir := filepath.Join(claudeRoot, "native-review")
+		if err := os.MkdirAll(skillDir, 0o755); err != nil {
+			t.Fatalf("os.MkdirAll(%q) error = %v", skillDir, err)
+		}
+		content := "---\nname: native-review\ndescription: Native review.\n---\n\nNative body.\n"
+		if err := os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte(content), 0o600); err != nil {
+			t.Fatalf("os.WriteFile(skill) error = %v", err)
+		}
+		registry := skillspkg.NewRegistry(skillspkg.RegistryConfig{GlobalSkillRoots: []compozyconfig.SkillRootSpec{{
+			Dir: claudeRoot, SourceSlug: compozyconfig.SkillSourceClaude, Kind: compozyconfig.RootKindPreset,
+			ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+		}}})
+		if err := registry.LoadAll(t.Context()); err != nil {
+			t.Fatalf("LoadAll() error = %v", err)
+		}
+		resolver := NewHarnessContextResolver(
+			HarnessRuntimeSignals{SkillsPromptSectionEnabled: true},
+			WithHarnessSkillInjectionHome(compozyconfig.HomePaths{OperatorHomeDir: operatorHome}),
+			WithHarnessSkillInjectionEnvLookup(func(string) (string, bool) { return "", false }),
+		)
+		assembler := NewComposedAssembler(
+			WithSectionSelector(NewSectionSelector(resolver, nil)),
+			WithPromptSectionDescriptors(defaultStartupPromptSectionDescriptors(
+				nil, skillspkg.NewCatalogProvider(registry), nil,
+			)...),
+		)
+		agent := compozyconfig.AgentDef{Name: "coder", Prompt: "Base prompt."}
+		workspace := &workspacepkg.ResolvedWorkspace{
+			Workspace: workspacepkg.Workspace{ID: "ws-start", RootDir: t.TempDir()},
+		}
+
+		suppressed, err := assembler.AssembleStartup(t.Context(), session.StartupPromptContext{
+			SessionID: "sess-claude", AgentName: "coder", Provider: "claude",
+			SessionType: session.SessionTypeUser, WorkspaceID: workspace.ID, Workspace: workspace.RootDir,
+		}, agent, workspace)
+		if err != nil {
+			t.Fatalf("AssembleStartup(claude) error = %v", err)
+		}
+		if strings.Contains(suppressed, `name="native-review"`) {
+			t.Fatalf("AssembleStartup(claude) = %q, want native skill suppressed", suppressed)
+		}
+
+		included, err := assembler.AssembleStartup(t.Context(), session.StartupPromptContext{
+			SessionID: "sess-custom", AgentName: "coder", Provider: "custom",
+			SessionType: session.SessionTypeUser, WorkspaceID: workspace.ID, Workspace: workspace.RootDir,
+		}, agent, workspace)
+		if err != nil {
+			t.Fatalf("AssembleStartup(custom) error = %v", err)
+		}
+		if !strings.Contains(included, `name="native-review"`) {
+			t.Fatalf("AssembleStartup(custom) = %q, want fail-open native skill inclusion", included)
+		}
+	})
+}
 
 func TestComposedAssemblerAssemble(t *testing.T) {
 	t.Parallel()

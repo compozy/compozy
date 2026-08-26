@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	registrypkg "github.com/compozy/compozy/internal/registry"
 	registryclawhub "github.com/compozy/compozy/internal/registry/clawhub"
 	"github.com/compozy/compozy/internal/skills"
@@ -163,10 +164,10 @@ func verifyInstalledMarketplaceSkill(
 	}
 
 	registry := skills.NewRegistry(skills.RegistryConfig{
-		BundledFS:      skillbundled.FS(),
-		UserAgentsDir:  runtime.HomePaths.AgentsDir,
-		UserSkillsDir:  runtime.HomePaths.SkillsDir,
-		DisabledSkills: append([]string(nil), runtime.Config.Skills.DisabledSkills...),
+		BundledFS:        skillbundled.FS(),
+		GlobalSkillRoots: compozyconfig.ResolveGlobalSkillRoots(&runtime.Config.Skills, runtime.HomePaths),
+		GlobalAgentsDir:  runtime.HomePaths.AgentsDir,
+		DisabledSkills:   append([]string(nil), runtime.Config.Skills.DisabledSkills...),
 	}, skills.WithLogger(slog.Default()))
 	if err := registry.LoadAll(ctx); err != nil {
 		return fmt.Errorf("cli: reload skill registry after marketplace install %q: %w", result.Name, err)
