@@ -34,7 +34,12 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 
 	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
 		harness, ctx := startImplementTasksE2EHarness(t)
-		detail := runImplementTasksE2E(t, ctx, harness, nil)
+		detail := runImplementTasksE2E(t, ctx, harness, []string{
+			"--input", `orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
+			"--input", `backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
+			"--input", `frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
+			"--input", `default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
+		})
 		assertImplementTasksPerTaskRuntimes(t, detail)
 		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
 	})
@@ -42,7 +47,7 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Run("Should complete orchestrated mode and stop every category worker", func(t *testing.T) {
 		harness, ctx := startImplementTasksE2EHarness(t)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{"--input", "mode=orchestrated"})
-		assertImplementTasksOrchestratorRuntime(t, detail)
+		assertImplementTasksOrchestratorRuntimeFallback(t, detail)
 		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
 		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness)
 	})
@@ -208,10 +213,6 @@ func runImplementTasksE2E(
 	args := []string{
 		"loop", "run", "--workspace", harness.WorkspaceRoot, "--name", "implement-tasks",
 		"--input", "slug=" + implementTasksE2ESlug,
-		"--input", `orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
-		"--input", `backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
-		"--input", `frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
-		"--input", `default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
 	}
 	args = append(args, extraArgs...)
 	stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, args...)
@@ -364,6 +365,15 @@ func assertImplementTasksPerTaskRuntimes(t testing.TB, detail contract.LoopRunRe
 	for _, generation := range detail.Generations {
 		for _, output := range generation.Outputs {
 			if strings.HasPrefix(output.NodeID, "execute_") && output.ResolvedRuntime != nil {
+				if existing, ok := got[output.ItemIndex]; ok {
+					t.Fatalf(
+						"implement-tasks item %d resolved twice: %#v then %s/%#v",
+						output.ItemIndex,
+						existing,
+						output.NodeID,
+						*output.ResolvedRuntime,
+					)
+				}
 				got[output.ItemIndex] = *output.ResolvedRuntime
 			}
 		}
@@ -404,25 +414,27 @@ func assertImplementTasksPerTaskRuntimes(t testing.TB, detail contract.LoopRunRe
 	}
 }
 
-func assertImplementTasksOrchestratorRuntime(t testing.TB, detail contract.LoopRunResponse) {
+func assertImplementTasksOrchestratorRuntimeFallback(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
+	var got []contract.LoopResolvedRuntime
 	for _, generation := range detail.Generations {
 		for _, output := range generation.Outputs {
-			if output.NodeID != "orchestrate" || output.ResolvedRuntime == nil {
-				continue
+			if output.NodeID == "orchestrate" && output.ResolvedRuntime != nil {
+				got = append(got, *output.ResolvedRuntime)
 			}
-			want := contract.LoopResolvedRuntime{
-				Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "high", Speed: speed.SpeedNormal,
-				SpeedResolution: unsupportedNormalSpeedResolution(),
-				Source: contract.LoopRuntimeProvenance{
-					Provider: "input", Model: "input", Reasoning: "input", Speed: "input",
-				},
-			}
-			loopRuntimeAssertJSONEqual(t, "implement-tasks orchestrator runtime", *output.ResolvedRuntime, want)
-			return
 		}
 	}
-	t.Fatal("implement-tasks orchestrator resolved runtime missing")
+	if len(got) != 1 {
+		t.Fatalf("implement-tasks orchestrator resolved runtimes = %#v, want exactly one", got)
+	}
+	want := contract.LoopResolvedRuntime{
+		Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low", Speed: speed.SpeedNormal,
+		SpeedResolution: unsupportedNormalSpeedResolution(),
+		Source: contract.LoopRuntimeProvenance{
+			Provider: "agent", Model: "agent", Reasoning: "agent", Speed: "agent",
+		},
+	}
+	loopRuntimeAssertJSONEqual(t, "implement-tasks orchestrator runtime", got[0], want)
 }
 
 func assertImplementTasksRoute(

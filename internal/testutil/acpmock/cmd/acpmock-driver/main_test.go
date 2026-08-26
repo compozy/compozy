@@ -448,12 +448,18 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 			Args:    []string{"-c", "true"},
 		})
 
-		want := []acpsdk.EnvVariable{
-			{Name: "COMPOZY_SESSION_ID", Value: "sess-agent"},
-			{Name: "COMPOZY_AGENT", Value: "orchestrator"},
+		want := map[string]string{
+			"COMPOZY_SESSION_ID": "sess-agent",
+			"COMPOZY_AGENT":      "orchestrator",
 		}
-		if !reflect.DeepEqual(conn.createRequest.Env, want) {
-			t.Fatalf("CreateTerminal().Env = %#v, want %#v", conn.createRequest.Env, want)
+		got := make(map[string]string, len(conn.createRequest.Env))
+		for _, variable := range conn.createRequest.Env {
+			got[variable.Name] = variable.Value
+		}
+		for name, value := range want {
+			if got[name] != value {
+				t.Fatalf("CreateTerminal().Env[%q] = %q, want %q; env=%#v", name, got[name], value, conn.createRequest.Env)
+			}
 		}
 	})
 }

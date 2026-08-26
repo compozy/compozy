@@ -41,6 +41,12 @@ type spawnCommandFlags struct {
 	idempotencyKey   string
 }
 
+type spawnRequestOptions struct {
+	notifyFlagChanged          bool
+	reasoningEffortFlagChanged bool
+	speedFlagChanged           bool
+}
+
 func newSpawnCommand(deps commandDeps) *cobra.Command {
 	flags := &spawnCommandFlags{}
 	cmd := &cobra.Command{
@@ -102,11 +108,11 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 
 func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
-		request, err := flags.request(
-			cmd.Flags().Changed("no-notify-creator"),
-			cmd.Flags().Changed("reasoning-effort"),
-			cmd.Flags().Changed("speed"),
-		)
+		request, err := flags.request(spawnRequestOptions{
+			notifyFlagChanged:          cmd.Flags().Changed("no-notify-creator"),
+			reasoningEffortFlagChanged: cmd.Flags().Changed("reasoning-effort"),
+			speedFlagChanged:           cmd.Flags().Changed("speed"),
+		})
 		if err != nil {
 			return err
 		}
@@ -127,9 +133,7 @@ func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Com
 }
 
 func (flags *spawnCommandFlags) request(
-	notifyFlagChanged bool,
-	reasoningEffortFlagChanged bool,
-	speedFlagChanged bool,
+	options spawnRequestOptions,
 ) (AgentSpawnRequest, error) {
 	if strings.TrimSpace(flags.agentName) == "" {
 		return AgentSpawnRequest{}, fmt.Errorf("cli: --agent is required")
@@ -140,13 +144,13 @@ func (flags *spawnCommandFlags) request(
 	if strings.EqualFold(strings.TrimSpace(flags.spawnRole), "coordinator") {
 		return AgentSpawnRequest{}, fmt.Errorf("cli: coordinator spawn role is not supported")
 	}
-	if reasoningEffortFlagChanged {
+	if options.reasoningEffortFlagChanged {
 		if err := validateAgentReasoningEffort(flags.reasoningEffort); err != nil {
 			return AgentSpawnRequest{}, err
 		}
 	}
 	var requestedSpeed speedpkg.Speed
-	if speedFlagChanged {
+	if options.speedFlagChanged {
 		parsedSpeed, err := speedpkg.Parse(flags.speed)
 		if err != nil {
 			return AgentSpawnRequest{}, fmt.Errorf("cli: invalid --speed: %w", err)
@@ -175,7 +179,7 @@ func (flags *spawnCommandFlags) request(
 		},
 		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
 	}
-	if notifyFlagChanged {
+	if options.notifyFlagChanged {
 		notifyCreator := !flags.noNotifyCreator
 		request.NotifyCreator = &notifyCreator
 	}

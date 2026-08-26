@@ -773,6 +773,10 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			if got := def.Inputs[input].Type; got != dsl.InputTypeRuntime {
 				t.Fatalf("implement-tasks input %q type = %q, want runtime", input, got)
 			}
+			defaultRuntime, ok := def.Inputs[input].Default.(map[string]any)
+			if !ok || len(defaultRuntime) != 0 {
+				t.Fatalf("implement-tasks input %q default = %#v, want empty runtime object", input, def.Inputs[input].Default)
+			}
 		}
 		for nodeID, runtimeInput := range map[dsl.NodeID]string{
 			"execute_backend":  "backend_runtime",
@@ -927,6 +931,23 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		} {
 			if !strings.Contains(objective, required) {
 				t.Fatalf("orchestrate objective missing %q", required)
+			}
+		}
+		resolvedInputs, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{"slug": "ship-loops"}})
+		if err != nil {
+			t.Fatalf("ResolveInputs(implement-tasks) error = %v", err)
+		}
+		renderedObjective, err := refs.RenderTemplateString(
+			"implement-tasks.orchestrate.objective",
+			objective,
+			map[string]any{"inputs": resolvedInputs},
+		)
+		if err != nil {
+			t.Fatalf("RenderTemplateString(orchestrate objective) error = %v", err)
+		}
+		for _, runtime := range []string{"backend", "frontend", "default"} {
+			if !strings.Contains(renderedObjective, "- "+runtime+": {}") {
+				t.Fatalf("rendered orchestrate objective missing empty %s runtime: %q", runtime, renderedObjective)
 			}
 		}
 		judge := requireOrchestrateJudgeForTest(t, orchestrate)

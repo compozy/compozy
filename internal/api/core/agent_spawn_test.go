@@ -67,7 +67,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		"agent_name":"coder",
 		"provider":"codex",
 		"model":"gpt-test",
-		"reasoning_effort":"high",
+		"reasoning_effort":" high ",
 		"speed":"fast",
 		"name":"child",
 		"workspace":"ws-target",
