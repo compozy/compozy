@@ -173,7 +173,7 @@ extension, and MCP tool is a Loop action for free.
 | Kind        | Params                                                                                                                                         |
 | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `run-agent` | `agent` (required), `prompt` (required), `output_schema?`, `cwd?`, `runtime?`, `allowed_tools?`, `max_turns?`                                  |
-| `run-loop`  | `loop` (name), `inputs?`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)                             |
+| `run-loop`  | `loop` (name), `inputs?`, `config_overrides?`, `mode: await` (default, parks in `awaiting_child`) or `detach` (returns `{loop_run_id}`)        |
 | `transform` | `map` — each entry is `{from: <ns path>}`, `{value: <literal>}`, or `{template: "{{ }}"}`                                                      |
 | `goal`      | `agent`, `objective`, `judge`, `max_turns`, `on_exhausted?`, `output_schema`, `runtime?`; see the [Goal node reference](/docs/loops/goal-node) |
 | any tool ID | `params` = the tool's own input schema, template-interpolated; optional `harvest`                                                              |
@@ -209,6 +209,31 @@ fields from the agent definition. `resolved_runtime.source` reports a referenced
 Rule specificity is `id > type + complexity > type > complexity`; matching rules merge scalar fields
 and ACP option IDs independently, and a later equal-specificity rule wins only the values it sets. A
 child `run-loop` resolves its own rules and never inherits the parent's per-run rules.
+
+Use `run-loop.params.config_overrides` to apply the same closed Loop configuration accepted by a
+direct run to one child run. The override works with `await` and `detach`, has per-run precedence,
+and does not change stored configuration. When it is absent, parent-environment forwarding remains
+unchanged. Unknown literal keys and wrong literal types fail lint; exact template references retain
+their typed array or number value until execution.
+
+```yaml
+- id: implement
+  class: action
+  kind: run-loop
+  params:
+    loop: implement-tasks
+    config_overrides:
+      iteration_cap: 4
+      budget_tokens: "{{ .nodes.routing.output.remaining_tokens }}"
+      budget_wall_sec: 7200
+      budget_on_exceeded: halt
+      reattempt_strategy: halt
+      environment: { mode: worktree, worktree_ref: "{{ .inputs.worktree_ref }}" }
+      runtime_rules: "{{ .nodes.routing.output.runtime_rules }}"
+      enabled_checks_json:
+        quality: { enabled: true }
+```
+
 `run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool
