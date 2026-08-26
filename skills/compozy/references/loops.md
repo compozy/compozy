@@ -315,33 +315,6 @@ same child identity without submitting another child. Child `done` or `no-op` se
 `succeeded`; every other child terminal outcome settles it as `failed`. `detach` remains immediate
 success and does not establish parent wait ownership.
 
-`run-loop.params.config_overrides` applies the same closed `LoopConfig` fields accepted by a direct
-run to that child run only. It supports both `await` and `detach`, never writes the child's stored
-configuration, and leaves parent-environment forwarding unchanged when omitted. Literal unknown
-keys and wrong types fail lint; exact template references keep arrays and numbers typed until the
-executor validates the materialized value.
-
-```yaml
-- id: implement
-  class: action
-  kind: run-loop
-  params:
-    loop: implement-tasks
-    mode: await
-    inputs:
-      slug: "{{ .inputs.slug }}"
-    config_overrides:
-      iteration_cap: 4
-      budget_tokens: "{{ .nodes.routing.output.remaining_tokens }}"
-      budget_wall_sec: 7200
-      budget_on_exceeded: halt
-      reattempt_strategy: halt
-      environment: { mode: worktree, worktree_ref: "{{ .inputs.worktree_ref }}" }
-      runtime_rules: "{{ .nodes.routing.output.runtime_rules }}"
-      enabled_checks_json:
-        quality: { enabled: true }
-```
-
 Native control rejections are `tool_invalid_input`: `invalid_status_transition` for an unsupported
 live state, or `terminal_loop_run` after termination. `schema_invalid` is reserved for malformed input.
 
@@ -540,8 +513,7 @@ Rules match one exact `id`, one `type`, one `complexity`, or the conjunction
 `type + complexity`. The conjunction is AND. Specificity is
 `id > type + complexity > type > complexity`; later equal-specificity rules
 win per non-empty runtime field. Child `run-loop` definitions resolve their own rules and never
-inherit the parent's per-run rules implicitly. An authored `run-loop.params.config_overrides`
-supplies a distinct per-run layer for the child.
+inherit the parent's per-run rules.
 
 Use `contract.runtime_defaults` and `contract.runtime_rules` in a Loop definition, or
 `[loops.defaults.delivery|watch]` plus stored Loop config for operator defaults. `run-agent` and
