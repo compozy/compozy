@@ -1506,6 +1506,71 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			wantCodes: []string{refs.CodeUnresolvablePath},
 		},
 		{
+			name: "Should reject unknown child loop config override fields",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "implement-tasks",
+					"config_overrides": map[string]any{
+						"iteration_caps": 4,
+					},
+				},
+			}),
+			wantCodes: []string{refs.CodeUnresolvablePath},
+		},
+		{
+			name: "Should reject wrong child loop config override types",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "implement-tasks",
+					"config_overrides": map[string]any{
+						"iteration_cap": "four",
+					},
+				},
+			}),
+			wantCodes: []string{refs.CodeUnresolvablePath},
+		},
+		{
+			name: "Should reject unknown referenced child loop config override fields",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "implement-tasks",
+					"config_overrides": map[string]any{
+						"iteration_caps": "{{ .inputs.items }}",
+					},
+				},
+			}),
+			wantCodes: []string{refs.CodeUnresolvablePath},
+		},
+		{
+			name: "Should accept literal JSON child loop config overrides",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "implement-tasks",
+					"config_overrides": map[string]any{
+						"enabled_checks_json": map[string]any{
+							"quality": map[string]any{"enabled": true},
+						},
+					},
+				},
+			}),
+		},
+		{
+			name: "Should accept typed references in child loop config overrides",
+			def:  runLoopTemplateConfigDefinition(),
+		},
+		{
 			name: "Should reject transform without map",
 			def: singleNodeDefinition(dsl.Node{
 				ID:     "transform",
@@ -2588,6 +2653,44 @@ func singleNodeDefinition(node dsl.Node) dsl.Definition {
 			Start: []dsl.StartBinding{{Kind: dsl.StartManual}},
 		},
 	}
+}
+
+func runLoopTemplateConfigDefinition() dsl.Definition {
+	definition := singleNodeDefinition(dsl.Node{
+		ID:    "routing",
+		Class: dsl.NodeClassAction,
+		Kind:  string(dsl.ActionTransform),
+		Produces: dsl.Schema{
+			"remaining_tokens": "number",
+			"runtime_rules": []any{map[string]any{
+				"match": map[string]any{"id": "string"},
+				"runtime": map[string]any{
+					"provider": "string",
+					"model":    "string",
+				},
+			}},
+		},
+		Params: dsl.NodeParams{
+			"map": map[string]any{
+				"remaining_tokens": map[string]any{"value": 250000},
+				"runtime_rules":    map[string]any{"value": []any{}},
+			},
+		},
+	})
+	definition.Graph.Nodes = append(definition.Graph.Nodes, dsl.Node{
+		ID:    "child",
+		Class: dsl.NodeClassAction,
+		Kind:  string(dsl.ActionRunLoop),
+		Params: dsl.NodeParams{
+			"loop": "implement-tasks",
+			"config_overrides": map[string]any{
+				"budget_tokens": "{{ .nodes.routing.output.remaining_tokens }}",
+				"runtime_rules": "{{ .nodes.routing.output.runtime_rules }}",
+			},
+		},
+	})
+	definition.Graph.Edges = append(definition.Graph.Edges, dsl.Edge{From: "routing", To: "child"})
+	return definition
 }
 
 func watchEventsNodeForTest(events []dsl.EventSubscription) dsl.Node {

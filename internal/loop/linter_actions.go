@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
@@ -51,6 +52,23 @@ func (c *lintContext) lintRunLoopNode(node dsl.Node) {
 	}
 	if params.Mode != "" && params.Mode != dsl.RunLoopAwait && params.Mode != dsl.RunLoopDetach {
 		c.add(node.ID, refs.CodeUnresolvablePath, "run-loop params.mode must be await or detach")
+	}
+	c.lintRunLoopConfigOverrides(node.ID, params.ConfigOverrides)
+}
+
+func (c *lintContext) lintRunLoopConfigOverrides(nodeID dsl.NodeID, raw map[string]any) {
+	literals := maps.Clone(raw)
+	for key, value := range literals {
+		templateValue, ok := value.(string)
+		if !ok {
+			continue
+		}
+		if _, direct := directTemplateReferencePath(templateValue); direct {
+			literals[key] = nil
+		}
+	}
+	if _, err := decodeRunLoopConfigOverrides(literals); err != nil {
+		c.add(nodeID, refs.CodeUnresolvablePath, "run-loop params.config_overrides are invalid: %v", err)
 	}
 }
 

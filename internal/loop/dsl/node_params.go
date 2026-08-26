@@ -123,10 +123,11 @@ type EnvironmentSpec struct {
 
 // RunLoopParams is the canonical schema for action kind run-loop.
 type RunLoopParams struct {
-	Loop   string         `json:"loop"             yaml:"loop"`
-	Inputs map[string]any `json:"inputs,omitempty" yaml:"inputs,omitempty"`
-	Mode   RunLoopMode    `json:"mode,omitempty"   yaml:"mode,omitempty"`
-	Extra  map[string]any `json:"-"                yaml:",inline"`
+	Loop            string         `json:"loop"                       yaml:"loop"`
+	Inputs          map[string]any `json:"inputs,omitempty"           yaml:"inputs,omitempty"`
+	Mode            RunLoopMode    `json:"mode,omitempty"             yaml:"mode,omitempty"`
+	ConfigOverrides map[string]any `json:"config_overrides,omitempty" yaml:"config_overrides,omitempty"`
+	Extra           map[string]any `json:"-"                          yaml:",inline"`
 }
 
 // RunLoopMode controls child-loop completion semantics.

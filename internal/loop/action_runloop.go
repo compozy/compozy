@@ -1,9 +1,12 @@
 package loop
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
@@ -42,10 +45,15 @@ func (e *RunLoopActionExecutor) Execute(
 	if spec.Mode == "" {
 		spec.Mode = dsl.RunLoopAwait
 	}
+	configOverrides, err := materializeRunLoopConfigOverrides(params)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
 	child, err := e.starter.Start(runCtx, in.WorkspaceID, spec.Loop, Inputs{
 		ProfileID:            in.ToolScope.ProfileID,
 		Values:               spec.Inputs,
 		ParentLoopRunID:      in.LoopRunID,
+		ConfigOverrides:      configOverrides,
 		InheritedEnvironment: cloneEnvironmentSpec(in.EnvironmentValue()),
 	}, in.Actor)
 	if err != nil {
@@ -72,6 +80,48 @@ func (e *RunLoopActionExecutor) Execute(
 	}
 	// Detach intentionally emits no awaiting status; the coordinator should not wait for the child terminal wake.
 	return raw, nil
+}
+
+func materializeRunLoopConfigOverrides(params map[string]any) (LoopConfig, error) {
+	raw, ok := params["config_overrides"]
+	if !ok || raw == nil {
+		return LoopConfig{}, nil
+	}
+	normalized, err := normalizeJSONValue(raw)
+	if err != nil {
+		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: normalize value: %w", err)
+	}
+	overrides, ok := normalized.(map[string]any)
+	if !ok {
+		return LoopConfig{}, fmt.Errorf(
+			"run-loop config_overrides: expected object, got %T",
+			normalized,
+		)
+	}
+	return decodeRunLoopConfigOverrides(overrides)
+}
+
+func decodeRunLoopConfigOverrides(raw map[string]any) (LoopConfig, error) {
+	if len(raw) == 0 {
+		return LoopConfig{}, nil
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: encode JSON: %w", err)
+	}
+	var config LoopConfig
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&config); err != nil {
+		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: decode JSON: %w", err)
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return LoopConfig{}, errors.New("run-loop config_overrides: expected one JSON value")
+		}
+		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: decode trailing JSON: %w", err)
+	}
+	return config, nil
 }
 
 // Harvest returns the run-loop child id and await status.
