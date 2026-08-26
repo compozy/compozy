@@ -5,9 +5,11 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -23,91 +25,246 @@ const (
 	implementTasksE2ESlug      = "implement-tasks"
 	implementTasksImplementer  = "code_implementer"
 	implementTasksFixtureAgent = "implement_tasks_implementer"
+	implementTasksOrchestrator = "orchestrator"
+	implementTasksConductor    = "implement_tasks_orchestrator"
 )
 
 func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Parallel()
-	t.Run("Should implement tasks after explicit extension enable", func(t *testing.T) {
-		t.Parallel()
 
-		driverPath := acpmock.RequireDriver(t)
-		homePaths := e2etest.NewHomePaths(t)
-		workspaceRoot := filepath.Join(t.TempDir(), "implement-tasks-workspace")
-		fixturePath := mockFixturePath(t, "implement_tasks_fixture.json")
-		seedImplementTasksTree(t, workspaceRoot)
-
-		harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
-			HomePaths: homePaths,
-			Workspace: e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
-			ConfigSeed: e2etest.ConfigSeedOptions{
-				DefaultAgent:    implementTasksImplementer,
-				DefaultProvider: acpmock.ProviderName,
-				PermissionMode:  config.PermissionModeApproveAll,
-				Mutate: func(cfg *config.Config) {
-					acpMockProvider := acpmock.ProviderConfig(driverPath)
-					acpMockProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
-					cfg.Providers[acpmock.ProviderName] = acpMockProvider
-					claudeProvider := acpmock.ProviderConfig(acpmock.BuildCommand(
-						driverPath,
-						fixturePath,
-						implementTasksFixtureAgent,
-						filepath.Join(homePaths.LogsDir, "implement-tasks-claude.jsonl"),
-					))
-					claudeProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
-					cfg.Providers["claude"] = claudeProvider
-				},
-			},
-			StartTimeout: 30 * time.Second,
-		})
-		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-		defer cancel()
-		requireSpecCycleExtensionEnabled(t, ctx, harness)
-		configureExtensionAgentFixture(
-			t,
-			ctx,
-			harness,
-			extensionAgentFixtureConfig{
-				DriverPath:         driverPath,
-				FixturePath:        fixturePath,
-				FixtureAgentName:   implementTasksFixtureAgent,
-				ExtensionAgentName: implementTasksImplementer,
-			},
-		)
-		waitForLoopCatalogEntry(t, ctx, harness, "implement-tasks")
-
-		stdout, stderr, err := harness.CLI.RunInDir(
-			ctx,
-			workspaceRoot,
-			"loop", "run",
-			"--workspace", workspaceRoot,
-			"--name", "implement-tasks",
-			"--input", "slug="+implementTasksE2ESlug,
-			"--runtime", "type=frontend:claude/opus",
-		)
-		if err != nil {
-			t.Fatalf("CLI implement-tasks run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
-		}
-		webURL, runID := implementTasksRunURL(t, harness, stdout)
-		if !strings.HasSuffix(strings.TrimSpace(stdout), webURL) {
-			t.Fatalf("CLI implement-tasks output = %q, want web URL as final line", stdout)
-		}
-
-		waitForLoopRunStatus(t, ctx, harness, runID, contract.LoopRunStatusDone)
-
-		var detail contract.LoopRunResponse
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			workspaceRoot,
-			&detail,
-			"loop", "status",
-			"--workspace", workspaceRoot,
-			"--run-id", runID,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI implement-tasks status error = %v", err)
-		}
-		assertImplementTasksRuntimes(t, detail)
+	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
+		harness, ctx := startImplementTasksE2EHarness(t)
+		detail := runImplementTasksE2E(t, ctx, harness, nil)
+		assertImplementTasksPerTaskRuntimes(t, detail)
+		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
 	})
+
+	t.Run("Should complete orchestrated mode and stop every category worker", func(t *testing.T) {
+		harness, ctx := startImplementTasksE2EHarness(t)
+		detail := runImplementTasksE2E(t, ctx, harness, []string{"--input", "mode=orchestrated"})
+		assertImplementTasksOrchestratorRuntime(t, detail)
+		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
+		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness)
+	})
+}
+
+func startImplementTasksE2EHarness(
+	t testing.TB,
+) (*e2etest.RuntimeHarness, context.Context) {
+	t.Helper()
+
+	driverPath := acpmock.RequireDriver(t)
+	binaryPath := e2etest.BuildCompozyBinary(t)
+	homePaths := e2etest.NewHomePaths(t)
+	workspaceRoot := filepath.Join(t.TempDir(), "implement-tasks-workspace")
+	fixturePath := materializeImplementTasksFixture(
+		t,
+		mockFixturePath(t, "implement_tasks_fixture.json"),
+		binaryPath,
+	)
+	seedImplementTasksTree(t, workspaceRoot)
+	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
+		BinaryPath: binaryPath,
+		HomePaths:  homePaths,
+		Workspace:  e2etest.WorkspaceSeedOptions{Root: workspaceRoot},
+		ConfigSeed: e2etest.ConfigSeedOptions{
+			DefaultAgent:    implementTasksImplementer,
+			DefaultProvider: acpmock.ProviderName,
+			PermissionMode:  config.PermissionModeApproveAll,
+			Mutate: func(cfg *config.Config) {
+				acpMockProvider := acpmock.ProviderConfig(driverPath)
+				acpMockProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
+				cfg.Providers[acpmock.ProviderName] = acpMockProvider
+				claudeProvider := acpmock.ProviderConfig(acpmock.BuildCommand(
+					driverPath,
+					fixturePath,
+					implementTasksFixtureAgent,
+					filepath.Join(homePaths.LogsDir, "implement-tasks-claude.jsonl"),
+				))
+				claudeProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
+				cfg.Providers["claude"] = claudeProvider
+			},
+		},
+		StartTimeout: 30 * time.Second,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	t.Cleanup(cancel)
+	requireSpecCycleExtensionEnabled(t, ctx, harness)
+	diagnostics := map[string]string{
+		implementTasksFixtureAgent: filepath.Join(homePaths.LogsDir, "implement-tasks-worker.jsonl"),
+		implementTasksConductor:    filepath.Join(homePaths.LogsDir, "implement-tasks-conductor.jsonl"),
+		"implement_tasks_claude":   filepath.Join(homePaths.LogsDir, "implement-tasks-claude.jsonl"),
+	}
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		for name, path := range diagnostics {
+			records, err := acpmock.ReadDiagnostics(path)
+			if err != nil {
+				t.Logf("read %s diagnostics: %v", name, err)
+				continue
+			}
+			for _, record := range acpmock.PromptDiagnostics(records) {
+				t.Logf(
+					"%s prompt turn=%q meta=%#v match=%#v",
+					name,
+					record.TurnName,
+					record.PromptMeta,
+					record.Match,
+				)
+				for _, step := range record.Steps {
+					t.Logf(
+						"%s step kind=%q command=%q exit=%v",
+						name,
+						step.Kind,
+						step.Command,
+						step.ExitCode,
+					)
+					logDiagnosticChunks(t, name+" output", diagnosticTail(step.Output, 600))
+					logDiagnosticChunks(t, name+" error", diagnosticTail(step.Error, 600))
+				}
+			}
+		}
+		for name, path := range map[string]string{
+			"daemon":         homePaths.LogFile,
+			"daemon-process": filepath.Join(harness.Artifacts.RootDir(), "daemon-process.log"),
+		} {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Logf("read %s log: %v", name, err)
+				continue
+			}
+			logDiagnosticChunks(t, name+" log", diagnosticTail(string(data), 5000))
+		}
+	})
+	for _, agent := range []extensionAgentFixtureConfig{
+		{
+			DriverPath: driverPath, FixturePath: fixturePath,
+			FixtureAgentName: implementTasksFixtureAgent, ExtensionAgentName: implementTasksImplementer,
+			DiagnosticsPath: diagnostics[implementTasksFixtureAgent],
+		},
+		{
+			DriverPath: driverPath, FixturePath: fixturePath,
+			FixtureAgentName: implementTasksConductor, ExtensionAgentName: implementTasksOrchestrator,
+			DiagnosticsPath: diagnostics[implementTasksConductor],
+		},
+	} {
+		configureExtensionAgentFixture(t, ctx, harness, agent)
+	}
+	waitForLoopCatalogEntry(t, ctx, harness, "implement-tasks")
+	return harness, ctx
+}
+
+func logDiagnosticChunks(t testing.TB, label string, value string) {
+	t.Helper()
+	if value == "" {
+		return
+	}
+	const chunkSize = 80
+	for len(value) > chunkSize {
+		t.Logf("%s: %s", label, value[:chunkSize])
+		value = value[chunkSize:]
+	}
+	t.Logf("%s: %s", label, value)
+}
+
+func diagnosticTail(value string, limit int) string {
+	if len(value) <= limit {
+		return value
+	}
+	return value[len(value)-limit:]
+}
+
+func materializeImplementTasksFixture(
+	t testing.TB,
+	sourcePath string,
+	binaryPath string,
+) string {
+	t.Helper()
+	data, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", sourcePath, err)
+	}
+	rendered := strings.ReplaceAll(string(data), `"__COMPOZY_BINARY__"`, strconv.Quote(binaryPath))
+	if rendered == string(data) {
+		t.Fatalf("implement-tasks fixture %q is missing binary placeholder", sourcePath)
+	}
+	destination := filepath.Join(t.TempDir(), "implement_tasks_fixture.json")
+	if err := os.WriteFile(destination, []byte(rendered), 0o600); err != nil {
+		t.Fatalf("WriteFile(%q) error = %v", destination, err)
+	}
+	return destination
+}
+
+func runImplementTasksE2E(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	extraArgs []string,
+) contract.LoopRunResponse {
+	t.Helper()
+
+	args := []string{
+		"loop", "run", "--workspace", harness.WorkspaceRoot, "--name", "implement-tasks",
+		"--input", "slug=" + implementTasksE2ESlug,
+		"--input", `orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
+		"--input", `backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
+		"--input", `frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
+		"--input", `default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
+	}
+	args = append(args, extraArgs...)
+	stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, args...)
+	if err != nil {
+		t.Fatalf("CLI implement-tasks run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+	}
+	webURL, runID := implementTasksRunURL(t, harness, stdout)
+	if !strings.HasSuffix(strings.TrimSpace(stdout), webURL) {
+		t.Fatalf("CLI implement-tasks output = %q, want web URL as final line", stdout)
+	}
+	waitForImplementTasksRunDone(t, ctx, harness, runID)
+	var detail contract.LoopRunResponse
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &detail, "loop", "status",
+		"--workspace", harness.WorkspaceRoot, "--run-id", runID, "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI implement-tasks status error = %v", err)
+	}
+	return detail
+}
+
+func waitForImplementTasksRunDone(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) {
+	t.Helper()
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var response contract.LoopRunResponse
+		path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
+			"/loop-runs/" + url.PathEscape(runID)
+		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+			t.Fatalf("HTTP implement-tasks status error = %v", err)
+		}
+		if response.Run.Status == contract.LoopRunStatusDone {
+			return
+		}
+		if loopRunStatusTerminal(response.Run.Status) {
+			t.Fatalf(
+				"implement-tasks reached terminal status %s; detail=%#v",
+				response.Run.Status,
+				response,
+			)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf("wait implement-tasks run %s: %v", runID, ctx.Err())
+		case <-ticker.C:
+		}
+	}
 }
 
 func seedImplementTasksTree(t testing.TB, workspaceRoot string) {
@@ -201,34 +358,36 @@ func implementTasksRunURL(
 	return webURL, runID
 }
 
-func assertImplementTasksRuntimes(t testing.TB, detail contract.LoopRunResponse) {
+func assertImplementTasksPerTaskRuntimes(t testing.TB, detail contract.LoopRunResponse) {
 	t.Helper()
 	got := make(map[int]contract.LoopResolvedRuntime, 3)
 	for _, generation := range detail.Generations {
 		for _, output := range generation.Outputs {
-			if output.NodeID == "execute_task" && output.ResolvedRuntime != nil {
+			if strings.HasPrefix(output.NodeID, "execute_") && output.ResolvedRuntime != nil {
 				got[output.ItemIndex] = *output.ResolvedRuntime
 			}
 		}
 	}
 	want := map[int]contract.LoopResolvedRuntime{
 		0: {
-			Provider: "claude", Model: "opus", Speed: speed.SpeedNormal,
+			Provider: "claude", Model: "opus", Reasoning: "high", Speed: speed.SpeedNormal,
 			SpeedResolution: unsupportedNormalSpeedResolution(),
-			Source:          contract.LoopRuntimeProvenance{Provider: "run", Model: "run", Speed: "agent"},
+			Source: contract.LoopRuntimeProvenance{
+				Provider: "input", Model: "input", Reasoning: "input", Speed: "input",
+			},
 		},
 		1: {
 			Provider: acpmock.ProviderName, Model: "docs-model", Reasoning: "high", Speed: speed.SpeedNormal,
 			SpeedResolution: unsupportedNormalSpeedResolution(),
 			Source: contract.LoopRuntimeProvenance{
-				Provider: "frontmatter", Model: "frontmatter", Reasoning: "frontmatter", Speed: "agent",
+				Provider: "frontmatter", Model: "frontmatter", Reasoning: "frontmatter", Speed: "input",
 			},
 		},
 		2: {
-			Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "low", Speed: speed.SpeedNormal,
-			SpeedResolution: unsupportedNormalSpeedResolution(),
+			Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "high", Speed: speed.SpeedFast,
+			SpeedResolution: unsupportedSpeedResolution(speed.SpeedFast),
 			Source: contract.LoopRuntimeProvenance{
-				Provider: "agent", Model: "agent", Reasoning: "agent", Speed: "agent",
+				Provider: "input", Model: "input", Reasoning: "input", Speed: "input",
 			},
 		},
 	}
@@ -245,9 +404,95 @@ func assertImplementTasksRuntimes(t testing.TB, detail contract.LoopRunResponse)
 	}
 }
 
+func assertImplementTasksOrchestratorRuntime(t testing.TB, detail contract.LoopRunResponse) {
+	t.Helper()
+	for _, generation := range detail.Generations {
+		for _, output := range generation.Outputs {
+			if output.NodeID != "orchestrate" || output.ResolvedRuntime == nil {
+				continue
+			}
+			want := contract.LoopResolvedRuntime{
+				Provider: acpmock.ProviderName, Model: "base-model", Reasoning: "high", Speed: speed.SpeedNormal,
+				SpeedResolution: unsupportedNormalSpeedResolution(),
+				Source: contract.LoopRuntimeProvenance{
+					Provider: "input", Model: "input", Reasoning: "input", Speed: "input",
+				},
+			}
+			loopRuntimeAssertJSONEqual(t, "implement-tasks orchestrator runtime", *output.ResolvedRuntime, want)
+			return
+		}
+	}
+	t.Fatal("implement-tasks orchestrator resolved runtime missing")
+}
+
+func assertImplementTasksRoute(
+	t testing.TB,
+	detail contract.LoopRunResponse,
+	nodeID string,
+	wantOutputRef string,
+) {
+	t.Helper()
+	for _, generation := range detail.Generations {
+		for _, output := range generation.Outputs {
+			if output.NodeID == nodeID && output.OutputRef == wantOutputRef {
+				return
+			}
+		}
+	}
+	t.Fatalf("implement-tasks node %q did not record %q: %#v", nodeID, wantOutputRef, detail.Generations)
+}
+
+func assertImplementTasksSpawnedWorkerRuntimes(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) {
+	t.Helper()
+	var page contract.SessionCatalogResponse
+	if err := harness.CLI.RunJSONInDir(
+		ctx, harness.WorkspaceRoot, &page,
+		"session", "list", "--type", "spawned", "--state", "stopped",
+		"--query", "orchestrate-implement-tasks-", "--limit", "10", "-o", "json",
+	); err != nil {
+		t.Fatalf("CLI spawned worker list error = %v", err)
+	}
+	want := map[string]contract.RuntimeSelectionPayload{
+		"orchestrate-implement-tasks-task_01": {
+			Provider: "claude", Model: "opus", ReasoningEffort: "high", Speed: speed.SpeedNormal,
+		},
+		"orchestrate-implement-tasks-task_02": {
+			Provider: acpmock.ProviderName, Model: "docs-model", ReasoningEffort: "high", Speed: speed.SpeedNormal,
+		},
+		"orchestrate-implement-tasks-task_03": {
+			Provider: acpmock.ProviderName, Model: "base-model", ReasoningEffort: "high", Speed: speed.SpeedFast,
+		},
+	}
+	if len(page.Sessions) != len(want) {
+		t.Fatalf("spawned implement-tasks workers = %#v, want three stopped workers", page.Sessions)
+	}
+	for _, worker := range page.Sessions {
+		expected, ok := want[worker.Name]
+		if !ok {
+			t.Fatalf("unexpected spawned worker %q", worker.Name)
+		}
+		if worker.State != "stopped" || worker.Runtime.Effective == nil {
+			t.Fatalf("spawned worker %q state/runtime = %q/%#v", worker.Name, worker.State, worker.Runtime)
+		}
+		got := *worker.Runtime.Effective
+		got.SpeedResolution = nil
+		if got != expected {
+			t.Fatalf("spawned worker %q runtime = %#v, want %#v", worker.Name, got, expected)
+		}
+	}
+}
+
 func unsupportedNormalSpeedResolution() *contract.SpeedResolution {
+	return unsupportedSpeedResolution(speed.SpeedNormal)
+}
+
+func unsupportedSpeedResolution(requested speed.Speed) *contract.SpeedResolution {
 	return &contract.SpeedResolution{
-		Requested: speed.SpeedNormal,
+		Requested: requested,
 		Status:    speed.ResolutionUnsupported,
 		Reason:    speed.ReasonCapabilityAbsent,
 	}

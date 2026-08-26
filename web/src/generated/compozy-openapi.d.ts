@@ -13575,6 +13575,8 @@ export interface operations {
           };
           prompt_overlay?: string;
           provider?: string;
+          /** @enum {string} */
+          reasoning_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
           spawn_role: string;
           /** @enum {string} */
           speed?: "normal" | "fast";

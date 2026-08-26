@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/spf13/cobra"
 )
 
@@ -21,6 +23,8 @@ type spawnCommandFlags struct {
 	agentName        string
 	provider         string
 	model            string
+	reasoningEffort  string
+	speed            string
 	name             string
 	workspace        string
 	promptOverlay    string
@@ -65,6 +69,8 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringVar(&flags.agentName, "agent", "", "Child agent name")
 	cmd.Flags().StringVar(&flags.provider, "provider", "", "Optional provider override")
 	cmd.Flags().StringVar(&flags.model, "model", "", "Optional model override")
+	cmd.Flags().StringVar(&flags.reasoningEffort, "reasoning-effort", "", "Optional reasoning effort override")
+	cmd.Flags().StringVar(&flags.speed, "speed", "", "Optional runtime speed override (normal or fast)")
 	cmd.Flags().StringVar(&flags.name, "name", "", "Optional child session display name")
 	cmd.Flags().StringVar(&flags.workspace, "workspace", "", "Override child workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&flags.promptOverlay, "prompt-overlay", "", "Prompt overlay for the child session")
@@ -96,7 +102,11 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 
 func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Command, []string) error {
 	return func(cmd *cobra.Command, _ []string) error {
-		request, err := flags.request(cmd.Flags().Changed("no-notify-creator"))
+		request, err := flags.request(
+			cmd.Flags().Changed("no-notify-creator"),
+			cmd.Flags().Changed("reasoning-effort"),
+			cmd.Flags().Changed("speed"),
+		)
 		if err != nil {
 			return err
 		}
@@ -116,7 +126,11 @@ func runSpawnCommand(deps commandDeps, flags *spawnCommandFlags) func(*cobra.Com
 	}
 }
 
-func (flags *spawnCommandFlags) request(notifyFlagChanged bool) (AgentSpawnRequest, error) {
+func (flags *spawnCommandFlags) request(
+	notifyFlagChanged bool,
+	reasoningEffortFlagChanged bool,
+	speedFlagChanged bool,
+) (AgentSpawnRequest, error) {
 	if strings.TrimSpace(flags.agentName) == "" {
 		return AgentSpawnRequest{}, fmt.Errorf("cli: --agent is required")
 	}
@@ -126,10 +140,25 @@ func (flags *spawnCommandFlags) request(notifyFlagChanged bool) (AgentSpawnReque
 	if strings.EqualFold(strings.TrimSpace(flags.spawnRole), "coordinator") {
 		return AgentSpawnRequest{}, fmt.Errorf("cli: coordinator spawn role is not supported")
 	}
+	if reasoningEffortFlagChanged {
+		if err := validateAgentReasoningEffort(flags.reasoningEffort); err != nil {
+			return AgentSpawnRequest{}, err
+		}
+	}
+	var requestedSpeed speedpkg.Speed
+	if speedFlagChanged {
+		parsedSpeed, err := speedpkg.Parse(flags.speed)
+		if err != nil {
+			return AgentSpawnRequest{}, fmt.Errorf("cli: invalid --speed: %w", err)
+		}
+		requestedSpeed = parsedSpeed
+	}
 	request := AgentSpawnRequest{
 		AgentName:        strings.TrimSpace(flags.agentName),
 		Provider:         strings.TrimSpace(flags.provider),
 		Model:            strings.TrimSpace(flags.model),
+		ReasoningEffort:  contract.ReasoningEffort(strings.TrimSpace(flags.reasoningEffort)),
+		Speed:            requestedSpeed,
 		Name:             strings.TrimSpace(flags.name),
 		Workspace:        strings.TrimSpace(flags.workspace),
 		PromptOverlay:    strings.TrimSpace(flags.promptOverlay),

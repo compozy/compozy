@@ -697,11 +697,14 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep implement-tasks focused on task implementation", func(t *testing.T) {
+	t.Run("Should merge task delivery modes with category runtimes", func(t *testing.T) {
 		t.Parallel()
 
 		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
-		wantInputs := []string{"slug", "implementer", "auto_commit"}
+		wantInputs := []string{
+			"slug", "mode", "implementer", "orchestrator", "auto_commit",
+			"orchestrator_runtime", "backend_runtime", "frontend_runtime", "default_runtime",
+		}
 		if len(def.Inputs) != len(wantInputs) {
 			t.Fatalf("implement-tasks inputs = %#v, want exactly %#v", def.Inputs, wantInputs)
 		}
@@ -711,7 +714,11 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			}
 		}
 
-		wantNodes := []dsl.NodeID{"slug_input", "load_tasks", "implement", "execute_task", "collect"}
+		wantNodes := []dsl.NodeID{
+			"slug_input", "select_mode", "load_tasks", "implement", "select_category",
+			"stage_orchestrated", "execute_backend", "execute_frontend", "execute_default",
+			"collect", "select_delivery", "per_task_done", "orchestrate",
+		}
 		if len(def.Graph.Nodes) != len(wantNodes) {
 			t.Fatalf("implement-tasks nodes = %#v, want exactly %#v", def.Graph.Nodes, wantNodes)
 		}
@@ -723,8 +730,19 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		wantEdges := [][2]dsl.NodeID{
 			{"slug_input", "load_tasks"},
 			{"load_tasks", "implement"},
-			{"implement", "execute_task"},
-			{"execute_task", "collect"},
+			{"implement", "select_mode"},
+			{"select_mode", "select_category"},
+			{"select_mode", "stage_orchestrated"},
+			{"select_category", "execute_backend"},
+			{"select_category", "execute_frontend"},
+			{"select_category", "execute_default"},
+			{"stage_orchestrated", "collect"},
+			{"execute_backend", "collect"},
+			{"execute_frontend", "collect"},
+			{"execute_default", "collect"},
+			{"collect", "select_delivery"},
+			{"select_delivery", "per_task_done"},
+			{"select_delivery", "orchestrate"},
 		}
 		if len(def.Graph.Edges) != len(wantEdges) {
 			t.Fatalf("implement-tasks edges = %#v, want exactly %#v", def.Graph.Edges, wantEdges)
@@ -743,7 +761,31 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			}
 		}
 
-		execute := requireSpecCycleNode(t, def, "execute_task")
+		if got, want := def.Inputs["mode"].Default, "per-task"; got != want {
+			t.Fatalf("implement-tasks mode default = %#v, want %q", got, want)
+		}
+		if !slices.Equal(def.Inputs["mode"].Enum, []string{"per-task", "orchestrated"}) {
+			t.Fatalf("implement-tasks mode enum = %#v", def.Inputs["mode"].Enum)
+		}
+		for _, input := range []string{
+			"orchestrator_runtime", "backend_runtime", "frontend_runtime", "default_runtime",
+		} {
+			if got := def.Inputs[input].Type; got != dsl.InputTypeRuntime {
+				t.Fatalf("implement-tasks input %q type = %q, want runtime", input, got)
+			}
+		}
+		for nodeID, runtimeInput := range map[dsl.NodeID]string{
+			"execute_backend":  "backend_runtime",
+			"execute_frontend": "frontend_runtime",
+			"execute_default":  "default_runtime",
+		} {
+			node := requireSpecCycleNode(t, def, nodeID)
+			if got, want := node.Params["runtime"], "{{ .inputs."+runtimeInput+" }}"; got != want {
+				t.Fatalf("%s runtime = %#v, want %q", nodeID, got, want)
+			}
+		}
+
+		execute := requireSpecCycleNode(t, def, "execute_default")
 		prompt := requireStringParam(t, execute, "prompt")
 		for _, required := range []string{
 			".compozy/tasks/{{ .inputs.slug }}/memory",
@@ -761,21 +803,21 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			"Closing directive:",
 		} {
 			if !strings.Contains(prompt, required) {
-				t.Fatalf("execute_task prompt missing %q", required)
+				t.Fatalf("execute_default prompt missing %q", required)
 			}
 		}
 		if strings.Contains(prompt, "verify_command") || strings.Contains(prompt, "`blocked`") {
-			t.Fatalf("execute_task prompt retains removed final-gate language: %q", prompt)
+			t.Fatalf("execute_default prompt retains removed final-gate language: %q", prompt)
 		}
 		if strings.Contains(prompt, "_techspec.md") {
-			t.Fatalf("execute_task prompt retains retired _techspec.md reference")
+			t.Fatalf("execute_default prompt retains retired _techspec.md reference")
 		}
 		outputSchema := requireSchemaObject(t, execute.Params, "output_schema")
 		properties := requireSchemaObject(t, outputSchema, "properties")
 		status := requireSchemaObject(t, properties, "status")
 		statuses, ok := status["enum"].([]any)
 		if !ok || len(statuses) != 1 || statuses[0] != compozyTaskStatusCompletedValue {
-			t.Fatalf("execute_task status enum = %#v, want [completed]", status["enum"])
+			t.Fatalf("execute_default status enum = %#v, want [completed]", status["enum"])
 		}
 	})
 
@@ -823,7 +865,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		t.Parallel()
 
 		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
-		execute := requireSpecCycleNode(t, def, "execute_task")
+		execute := requireSpecCycleNode(t, def, "execute_default")
 		prompt := requireStringParam(t, execute, "prompt")
 
 		autoCommit := renderImplementTasksPromptForTest(t, prompt, true)
@@ -848,36 +890,18 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		}
 	})
 
-	t.Run("Should keep orchestrate-tasks delegating every task to a worker session", func(t *testing.T) {
+	t.Run("Should provide orchestrated implement-tasks mode with a bounded conductor", func(t *testing.T) {
 		t.Parallel()
 
-		def := parseEmbeddedLoopForTest(t, "loops/orchestrate-tasks/loop.yaml")
-		wantInputs := []string{"slug", "orchestrator"}
-		if len(def.Inputs) != len(wantInputs) {
-			t.Fatalf("orchestrate-tasks inputs = %#v, want exactly %#v", def.Inputs, wantInputs)
-		}
-		for _, input := range wantInputs {
-			if _, ok := def.Inputs[input]; !ok {
-				t.Fatalf("orchestrate-tasks input %q missing", input)
-			}
-		}
+		def := parseEmbeddedLoopForTest(t, "loops/implement-tasks/loop.yaml")
 		if !def.Inputs["slug"].Required {
-			t.Fatal("orchestrate-tasks slug required = false, want true")
+			t.Fatal("implement-tasks slug required = false, want true")
 		}
 		if got, want := def.Inputs["orchestrator"].Type, dsl.InputTypeAgent; got != want {
-			t.Fatalf("orchestrate-tasks orchestrator type = %q, want %q", got, want)
+			t.Fatalf("implement-tasks orchestrator type = %q, want %q", got, want)
 		}
-		if got, want := def.Inputs["orchestrator"].Default, compozyconfig.DefaultAgentName; got != want {
-			t.Fatalf("orchestrate-tasks orchestrator default = %#v, want %q", got, want)
-		}
-		wantNodes := []dsl.NodeID{"slug_input", "orchestrate"}
-		if len(def.Graph.Nodes) != len(wantNodes) {
-			t.Fatalf("orchestrate-tasks nodes = %#v, want exactly %#v", def.Graph.Nodes, wantNodes)
-		}
-		for index, wantNode := range wantNodes {
-			if got := def.Graph.Nodes[index].ID; got != wantNode {
-				t.Fatalf("orchestrate-tasks node[%d] = %q, want %q", index, got, wantNode)
-			}
+		if got, want := def.Inputs["orchestrator"].Default, "orchestrator"; got != want {
+			t.Fatalf("implement-tasks orchestrator default = %#v, want %q", got, want)
 		}
 		orchestrate := requireSpecCycleNode(t, def, "orchestrate")
 		if got, want := orchestrate.Kind, string(dsl.ActionGoal); got != want {
@@ -889,11 +913,17 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if got, want := orchestrate.Params["agent"], "{{ .inputs.orchestrator }}"; got != want {
 			t.Fatalf("orchestrate params.agent = %#v, want %q", got, want)
 		}
+		if got, want := orchestrate.Params["runtime"], "{{ .inputs.orchestrator_runtime }}"; got != want {
+			t.Fatalf("orchestrate params.runtime = %#v, want %q", got, want)
+		}
 		objective := requireStringParam(t, orchestrate, "objective")
 		for _, required := range []string{
 			"cy-orchestrate-tasks",
 			".compozy/tasks/{{ .inputs.slug }}",
-			"one bounded worker session per task",
+			"one bounded `code_implementer` worker session",
+			"backend: {{ json .inputs.backend_runtime }}",
+			"frontend: {{ json .inputs.frontend_runtime }}",
+			"default: {{ json .inputs.default_runtime }}",
 		} {
 			if !strings.Contains(objective, required) {
 				t.Fatalf("orchestrate objective missing %q", required)
@@ -965,8 +995,8 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		properties := requireSchemaObject(t, outputSchema, "properties")
 		status := requireSchemaObject(t, properties, "status")
 		statuses, ok := status["enum"].([]any)
-		if !ok || len(statuses) != 2 || statuses[0] != compozyTaskStatusCompletedValue || statuses[1] != "blocked" {
-			t.Fatalf("orchestrate status enum = %#v, want [completed blocked]", status["enum"])
+		if !ok || len(statuses) != 2 || statuses[0] != "complete" || statuses[1] != "blocked" {
+			t.Fatalf("orchestrate status enum = %#v, want [complete blocked]", status["enum"])
 		}
 		if _, exists := orchestrate.Params["runtime_defaults"]; exists {
 			t.Fatal("orchestrate params retain provider pinning via runtime_defaults")
@@ -1015,7 +1045,7 @@ printf '{"type":"list_page","page":{"total":0}}\n'
 		t.Fatalf("WriteFile(fake compozy) error = %v", err)
 	}
 	rendered, err := refs.RenderTemplateString(
-		"orchestrate-tasks.tasks_completed.check",
+		"implement-tasks.orchestrate.tasks_completed.check",
 		check,
 		map[string]any{"inputs": map[string]any{"slug": "review-fixture"}},
 	)
@@ -1153,6 +1183,29 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 		}
 		if strings.Contains(prompt, "_techspec.md") {
 			t.Fatalf("code_implementer prompt retains retired _techspec.md reference")
+		}
+	})
+
+	t.Run("Should keep orchestrator delegation and teardown discipline", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := fs.ReadFile(FS(), "agents/orchestrator/AGENT.md")
+		if err != nil {
+			t.Fatalf("ReadFile(orchestrator) error = %v", err)
+		}
+		prompt := string(data)
+		for _, required := range []string{
+			"cy-orchestrate-tasks",
+			"Conduct only",
+			"Never edit production code",
+			"code_implementer",
+			"provider, model, reasoning effort, and speed",
+			"status: completed",
+			"Stop every worker on every terminal path",
+		} {
+			if !strings.Contains(prompt, required) {
+				t.Fatalf("orchestrator prompt missing %q", required)
+			}
 		}
 	})
 

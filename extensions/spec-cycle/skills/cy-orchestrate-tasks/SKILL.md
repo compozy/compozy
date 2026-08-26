@@ -12,6 +12,8 @@ This session is the **conductor** of the spec: it conducts, it does not play. Ev
 
 - `slug` — the directory name under `.compozy/tasks/<slug>/`, holding `_tasks.md` (the task graph)
   and `task_NN.md` files whose frontmatter carries `status`, `title`, and `type`.
+- `backend_runtime`, `frontend_runtime`, and `default_runtime` — optional runtime objects supplied
+  in the Goal objective. Each can carry `provider`, `model`, `reasoning`, and `speed`.
 
 ## Workflow
 
@@ -25,11 +27,15 @@ _Done when:_ the queue lists the id, `title`, and `status` of every queued task,
 
 ### 2. Spawn the worker session
 
-Create one bounded `spawned` session bound to this conductor. TTL and parent-stop are the
-containment contract; `--ttl-seconds` is mandatory:
+Choose the worker runtime by exact frontmatter type: `backend` uses `backend_runtime`, `frontend`
+uses `frontend_runtime`, and every other value uses `default_runtime`. Merge the task's own
+frontmatter `runtime` over that category object field by field before building spawn flags. Create
+one bounded
+`spawned` session bound to this conductor. TTL and parent-stop are the containment contract;
+`--ttl-seconds` is mandatory:
 
 ```bash
-compozy spawn --agent general \
+compozy spawn --agent code_implementer \
   --name "orchestrate-<slug>-<task_id>" \
   --role worker \
   --ttl-seconds 3600 \
@@ -38,9 +44,10 @@ compozy spawn --agent general \
   -o json
 ```
 
-Capture `.session.id`. Omit `--provider` and `--model`: the child resolves its runtime from the
-named agent definition, falling back to the workspace `defaults.provider` and the provider's
-default model. Operators own that pinning through `[loops.defaults.delivery.runtime_defaults]`.
+Append `--provider`, `--model`, `--reasoning-effort`, and `--speed` only for non-empty fields in the
+selected runtime object; `reasoning` maps to `--reasoning-effort`. When every field is empty, omit
+all runtime flags so the child resolves from the `code_implementer` definition and workspace
+defaults. Capture `.session.id`.
 
 When the spawn response is lost or ambiguous, reconcile before acting — a blind respawn creates a
 second worker for one task:
@@ -98,8 +105,9 @@ _Done when:_ the worker session is no longer active and the stop outcome is reco
 
 ### 6. Report
 
-Answer with the structured result the loop asks for: `status`, `summary` (1–3 sentences), and
-`tasks` — each entry naming the task and the worker session that executed it.
+Answer with the structured result the loop asks for: `status`, optional `summary` (1–3 sentences),
+and optional `tasks` — each task entry names the worker session that executed it. Use `complete`
+or `blocked`; task-file frontmatter continues to use `completed`.
 
 _Done when:_ every task in the queue appears in the report with its task id and session id.
 

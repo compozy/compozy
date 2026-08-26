@@ -47,6 +47,7 @@ import (
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
 	"github.com/compozy/compozy/internal/skills"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -566,7 +567,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			{
 				toolspkg.ToolIDSessionSpawn,
-				`{"agent_name":"researcher","ttl_seconds":3600,"notify_creator":false}`,
+				`{"agent_name":"researcher","provider":"codex","model":"gpt-test","reasoning_effort":"high","speed":"fast","ttl_seconds":3600,"notify_creator":false}`,
 				`"session_id":"sess-child"`,
 			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
@@ -597,8 +598,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			!slices.Equal(waitRequest.Until, []session.Badge{session.BadgeIdle}) {
 			t.Fatalf("WaitForBadge() request = %#v", waitRequest)
 		}
-		if spawnOpts.ParentSessionID != callerID || spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
-			t.Fatalf("Spawn() opts = %#v, want explicit notify_creator=false", spawnOpts)
+		if spawnOpts.ParentSessionID != callerID || spawnOpts.Provider != "codex" ||
+			spawnOpts.Model != "gpt-test" || spawnOpts.ReasoningEffort != "high" ||
+			spawnOpts.Speed != speedpkg.SpeedFast || spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
+			t.Fatalf("Spawn() opts = %#v, want runtime overrides and explicit notify_creator=false", spawnOpts)
 		}
 		if stopTarget != targetID || approval.RequestID != "perm-1" ||
 			approval.ResolvedBy != "agent_session:"+callerID || canceledTarget != targetID {

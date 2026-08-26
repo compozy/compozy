@@ -19,20 +19,10 @@ export const MOCK_WORKSPACE_ID = "ws_default";
 const implementTasksContract: LoopContract = {
   goal: "Implement every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order.",
   definition_of_done:
-    "Every loaded task completed implementation, task-level validation, and tracking updates.",
+    "Every loaded task completed implementation, task-level validation, tracking updates, and every conductor-created worker stopped.",
   iteration_cap: 50,
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
   no_progress: { window: 3 },
-  terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
-};
-
-const orchestrateTasksContract: LoopContract = {
-  goal: "Drive every authored task under .compozy/tasks/{{ .inputs.slug }} to completed by delegating each task to its own worker session.",
-  definition_of_done:
-    "Every task frontmatter carries status completed and no orchestrator-created worker session is nonterminal.",
-  iteration_cap: 3,
-  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: "halt" },
-  no_progress: { window: 2 },
   terminal_states: ["done", "no-op", "blocked", "failed", "exhausted", "stalled"],
 };
 
@@ -310,18 +300,29 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
     name: "implement-tasks",
     source: "marketplace",
     version: 0,
-    description: "Implement pending CompozyOS task files for one slug.",
+    description: "Implement pending CompozyOS task files directly or through a task conductor.",
     catalog: {
       category: "Engineering",
       use_when:
-        "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order.",
-      keywords: ["tasks", "implement", "engineering"],
+        "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order, directly or through a conductor.",
+      keywords: ["tasks", "implement", "orchestrate", "engineering"],
     },
     contract: implementTasksContract,
     inputs: {
       slug: { type: "string", required: true },
+      mode: {
+        type: "string",
+        required: false,
+        enum: ["per-task", "orchestrated"],
+        default: "per-task",
+      },
       implementer: { type: "agent", required: false, default: "code_implementer" },
+      orchestrator: { type: "agent", required: false, default: "orchestrator" },
       auto_commit: { type: "boolean", required: false, default: false },
+      orchestrator_runtime: { type: "runtime", required: false },
+      backend_runtime: { type: "runtime", required: false },
+      frontend_runtime: { type: "runtime", required: false },
+      default_runtime: { type: "runtime", required: false },
     },
     start: [
       { kind: "manual" },
@@ -334,33 +335,6 @@ export const loopCatalogFixtures: LoopCatalogEntry[] = [
     last_run: loopRunFixture("looprun_running"),
     aggregate_30d: { runs: 42, succeeded: 38, failed: 4 },
     success_rate_30d: 0.9,
-  },
-  {
-    name: "orchestrate-tasks",
-    source: "marketplace",
-    version: 0,
-    description:
-      "Delegate every authored task for one slug to a dedicated worker session conducted by an orchestrator agent.",
-    catalog: {
-      category: "Engineering",
-      use_when:
-        "You have authored tasks under .compozy/tasks/<slug> and want one orchestrator agent to conduct them in dependency order.",
-      keywords: ["tasks", "orchestrate", "sessions", "engineering"],
-    },
-    contract: orchestrateTasksContract,
-    inputs: {
-      slug: { type: "string", required: true },
-      orchestrator: { type: "agent", required: false, default: "general" },
-    },
-    start: [
-      { kind: "manual" },
-      { kind: "cli" },
-      { kind: "http" },
-      { kind: "uds" },
-      { kind: "native_tool" },
-    ],
-    aggregate_30d: { runs: 0, succeeded: 0, failed: 0 },
-    success_rate_30d: 0,
   },
   {
     name: "review-and-fix",

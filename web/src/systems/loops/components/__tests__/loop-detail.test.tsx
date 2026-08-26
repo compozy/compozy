@@ -99,10 +99,24 @@ describe("LoopDetailView", () => {
     expect(screen.getByTestId("loop-stats")).toBeInTheDocument();
   });
 
-  it("Should render the implementation-only body graph in order", () => {
+  it("Should render both implementation modes in order", () => {
     renderDetail();
     const nodes = screen.getAllByTestId("loop-dag-node").map(node => node.dataset.nodeId);
-    expect(nodes).toEqual(["slug_input", "load_tasks", "implement", "execute_task", "collect"]);
+    expect(nodes).toEqual([
+      "slug_input",
+      "load_tasks",
+      "implement",
+      "select_mode",
+      "select_category",
+      "stage_orchestrated",
+      "execute_backend",
+      "execute_frontend",
+      "execute_default",
+      "collect",
+      "select_delivery",
+      "per_task_done",
+      "orchestrate",
+    ]);
   });
 
   it("Should list the six possible endings as text and fold the 30d stats behind their gist", () => {

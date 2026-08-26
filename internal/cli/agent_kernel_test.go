@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -241,6 +242,10 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			"codex",
 			"--model",
 			"gpt-test",
+			"--reasoning-effort",
+			"high",
+			"--speed",
+			"fast",
 			"--name",
 			"child",
 			"--workspace",
@@ -274,6 +279,8 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 		if gotRequest.AgentName != "coder" ||
 			gotRequest.Provider != "codex" ||
 			gotRequest.Model != "gpt-test" ||
+			gotRequest.ReasoningEffort != "high" ||
+			gotRequest.Speed != speedpkg.SpeedFast ||
 			gotRequest.Name != "child" ||
 			gotRequest.Workspace != "ws-target" ||
 			gotRequest.PromptOverlay != "focus" ||
