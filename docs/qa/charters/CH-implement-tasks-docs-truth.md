@@ -18,7 +18,7 @@ charter:
     must_try:
       - "Reach the example from the Examples index and confirm the removed software-delivery route is absent."
       - "Copy the YAML and compare it with extensions/spec-cycle/loops/implement-tasks/loop.yaml."
-      - "Confirm the page documents slug, implementer, and auto_commit only and never claims review, verify, or approve."
+      - "Confirm the page documents all nine inputs, both modes, category runtime precedence, and no review, verify, or approve phase."
       - "Follow the shown CLI command shape against the generated CLI reference."
     must_avoid:
       - "Rechecking the other four wave-one examples beyond one adjacent-link canary."

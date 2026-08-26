@@ -4,9 +4,9 @@ area: ET
 title: Docs Examples section ships runnable artifacts with honest maturity labels
 persona: Dora
 journey: J-evaluate-compozy-beta
-expected: /docs/examples appears in the sidebar under Guides & examples between Guides and Use cases with a FlaskConical icon, and lists six wave-one pages. Every example page follows the same anatomy — What you build, The artifact, Run it, How it works, Next steps — and carries a maturity chip in its masthead. The three Loop pages fence the exact `extensions/spec-cycle/loops/<name>/loop.yaml` shipped in the repository, copyable as one block. Every command shown is one the runtime accepts, and no page documents a mechanism that does not ship (no file-watch triggers, no invented config keys).
-entry_points: compozy.com /docs/examples; /docs/examples/review-and-fix-loop; /docs/examples/implement-tasks-loop; /docs/examples/orchestrate-tasks-loop; /docs/examples/morning-briefing-job; /docs/examples/webhook-to-agent-run; /docs/examples/react-to-session-end
-qa_status: pass
+expected: /docs/examples appears in the sidebar under Guides & examples between Guides and Use cases with a FlaskConical icon, and lists five wave-one pages. Every example page follows the same anatomy — What you build, The artifact, Run it, How it works, Next steps — and carries a maturity chip in its masthead. The two Loop pages fence the exact `extensions/spec-cycle/loops/<name>/loop.yaml` shipped in the repository, copyable as one block. Every command shown is one the runtime accepts, and no page documents a mechanism that does not ship (no file-watch triggers, no invented config keys).
+entry_points: compozy.com /docs/examples; /docs/examples/review-and-fix-loop; /docs/examples/implement-tasks-loop; /docs/examples/morning-briefing-job; /docs/examples/webhook-to-agent-run; /docs/examples/react-to-session-end
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -38,3 +38,6 @@ walk must verify the six-page index, all three Loop examples, and the new page's
 QA result 2026-08-14: passed on the local production-shaped docs site. The Examples index rendered
 all six entries, the orchestrate-tasks page preserved the shared anatomy and copy affordance, and its
 artifact exposed the strict frontmatter parser plus starting/active/stopping worker checks after reload.
+
+QA impact 2026-08-26: reset because the standalone orchestration walkthrough was removed and the
+`implement-tasks` example now documents both modes and nine inputs in one byte-exact artifact.
