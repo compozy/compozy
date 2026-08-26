@@ -88,7 +88,7 @@ export function ProfileSwitcher({
       </PopoverTrigger>
       <PopoverContent
         align="end"
-        className="w-70 p-1.5"
+        className="w-70 p-1"
         data-testid="os-menubar-profile-menu"
         aria-label="Profiles"
       >

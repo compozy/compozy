@@ -446,7 +446,7 @@
   --size-icon-well-row: 34px; /* listing-row identity well */
   --size-topbar-glyph: 22px; /* OS window-head glyph */
   --size-profile-glyph-sm: 18px;
-  --ring-width-profile-current: 1.5px;
+  --ring-width-profile-current: 1px;
   --height-profile-row: 54px;
   --size-status-dot: 7px;
   --size-status-dot-sm: 6px;

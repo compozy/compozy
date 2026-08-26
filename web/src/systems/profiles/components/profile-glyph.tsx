@@ -32,13 +32,13 @@ export interface ProfileGlyphProps extends Omit<ComponentProps<"span">, "childre
 }
 
 const SIZE_CLASS: Record<ProfileGlyphSize, string> = {
-  sm: "size-profile-glyph-sm rounded-xs",
-  default: "size-topbar-glyph rounded-sm",
-  lg: "size-7 rounded-md",
+  sm: "size-profile-glyph-sm rounded-xs text-small-body",
+  default: "size-topbar-glyph rounded-sm text-small-body",
+  lg: "size-7 rounded-md text-item-title",
 };
 
 const GLYPH_CLASS: Record<ProfileGlyphSize, string> = {
-  sm: "size-3",
+  sm: "size-3.5",
   default: "size-3.5",
   lg: "size-4",
 };
@@ -72,7 +72,7 @@ export function ProfileGlyph({
       aria-label={decorative ? undefined : label}
       aria-hidden={decorative ? true : undefined}
       className={cn(
-        "relative inline-grid shrink-0 place-items-center text-badge leading-none",
+        "relative inline-grid shrink-0 place-items-center leading-none",
         SIZE_CLASS[size],
         aggregate && "border border-line-strong bg-badge-fill text-muted",
         current && !aggregate && "ring-[length:var(--ring-width-profile-current)]",
