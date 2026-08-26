@@ -1,9 +1,9 @@
-# CH-implement-tasks-dry-run: Preview the reduced task implementation graph
+# CH-implement-tasks-dry-run: Preview the mode-selectable task implementation graph
 
 ```yaml
 charter:
   id: CH-implement-tasks-dry-run
-  mission: "As Lea, dry-run implement-tasks and confirm the reduced inputs and five-node plan are truthful and side-effect free."
+  mission: "As Lea, dry-run implement-tasks and confirm its nine inputs and mode-selectable plan are truthful and side-effect free."
   mode: charter-with-tour
   persona:
     name: Lea
@@ -16,7 +16,7 @@ charter:
   time_box_minutes: 30
   guidance:
     must_try:
-      - "Dry-run with a valid slug and confirm the plan contains slug_input, load_tasks, implement, execute_task, and collect only."
+      - "Dry-run with a valid slug and confirm the plan contains the shared import/fan-out spine, category routes, both delivery endpoints, and collect."
       - "Read the Runs list through a fresh public request and confirm no run was created."
       - "Submit with the required slug absent and confirm no plan or run appears."
       - "Repeat the dry-run and confirm it remains side-effect free."

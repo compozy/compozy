@@ -412,7 +412,8 @@ The session catalog is counted and workspace-scoped. Dream sessions are internal
 Sessions created from inside another session record creation provenance in `lineage`: `compozy__session_create` links the calling session automatically (same-workspace only), and `session new --parent <id>` / `parent_session_id` on `POST /api/sessions` link explicitly. Provenance keeps `type=user` and carries no TTL, auto-stop, budget, or permission narrowing — governed children still come only from `compozy spawn`. Query hierarchy with `parent=<id>` (direct children) or `root=<id>` (whole tree, root included) on the catalog — CLI `session list --parent/--root`, same fields on `compozy__session_list`.
 
 `compozy spawn` and `compozy__session_spawn` create governed children with a required TTL and
-permission subsets. The parent receives one sanitized synthetic turn when an eligible child stops,
+permission subsets. Both accept optional provider, model, reasoning-effort, and speed overrides for
+the child runtime. The parent receives one sanitized synthetic turn when an eligible child stops,
 fails, or enters a needs-you state. This `notify_creator` behavior defaults to on and has no
 `config.toml` key. Use `--no-notify-creator` in the CLI or explicit `notify_creator: false` in the
 HTTP/UDS or native-tool request to opt out for that child.

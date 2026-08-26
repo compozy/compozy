@@ -1,14 +1,14 @@
 ---
 title: Implement-tasks loop
-description: Implement every authored task under one slug in dependency order, with task-level validation and tracking updates.
+description: Implement every authored task under one slug through sequential Loop actions or a conductor with bounded workers.
 maturity: shipped
 ---
 
 ## What you build
 
-An implementation run over a set of task files. The Loop imports every task under
-`.compozy/tasks/<slug>`, then implements them one at a time in dependency order. Each task run owns
-its focused validation, tracking updates, self-review, and optional commit.
+An implementation run over a set of task files. The default mode imports every task under
+`.compozy/tasks/<slug>`, then implements them one at a time in dependency order. The orchestrated
+mode gives the same task graph to a conductor that starts and stops one bounded worker per task.
 
 Use it when you have authored tasks under `.compozy/tasks/<slug>` and want them implemented.
 
@@ -22,10 +22,10 @@ apiVersion: compozy.loop/v1
 kind: Loop
 meta:
   name: implement-tasks
-  description: Implement pending CompozyOS task files for one slug.
+  description: Implement pending CompozyOS task files directly or through a task conductor.
   catalog:
-    use_when: "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order."
-    keywords: [tasks, implement, engineering]
+    use_when: "You have authored tasks under .compozy/tasks/<slug> and want them implemented in dependency order, either one Loop action per task or one conductor delegating dedicated workers."
+    keywords: [tasks, implement, orchestrate, engineering]
     category: Engineering
 
 concurrency: forbid
@@ -34,18 +34,38 @@ inputs:
   slug:
     type: string
     required: true
+  mode:
+    type: string
+    enum: [per-task, orchestrated]
+    default: per-task
   implementer:
     type: agent
     default: code_implementer
+  orchestrator:
+    type: agent
+    default: orchestrator
   auto_commit:
     type: boolean
     default: false
+  orchestrator_runtime:
+    type: runtime
+    default: {}
+  backend_runtime:
+    type: runtime
+    default: {}
+  frontend_runtime:
+    type: runtime
+    default: {}
+  default_runtime:
+    type: runtime
+    default: {}
 
 contract:
   goal: >
     Implement every authored task under .compozy/tasks/{{ .inputs.slug }} in dependency order.
   definition_of_done: >
-    Every loaded task completed implementation, task-level validation, and tracking updates.
+    Every loaded task completed implementation, task-level validation, tracking updates, and any
+    worker session created by the conductor has stopped.
   iteration_cap: 50
   no_progress:
     window: 3
@@ -61,6 +81,14 @@ graph:
       class: source
       kind: input
       input_ref: slug
+
+    - id: select_mode
+      class: control
+      kind: route
+      routes:
+        - when: "inputs.mode == 'orchestrated'"
+          to: stage_orchestrated
+      default: select_category
 
     - id: load_tasks
       class: action
@@ -78,12 +106,36 @@ graph:
       max_parallel: 1
       max_fan_out: 64
 
-    - id: execute_task
+    - id: select_category
+      class: control
+      kind: route
+      routes:
+        - when: "item.type == 'backend'"
+          to: execute_backend
+        - when: "item.type == 'frontend'"
+          to: execute_frontend
+      default: execute_default
+
+    - id: stage_orchestrated
+      class: action
+      kind: transform
+      params:
+        map:
+          task_id:
+            value: "{{ .item.id }}"
+          status:
+            value: staged
+      produces:
+        task_id: string
+        status: string
+
+    - id: execute_backend
       class: action
       kind: run-agent
       params:
         agent: "{{ .inputs.implementer }}"
-        prompt: |
+        runtime: "{{ .inputs.backend_runtime }}"
+        prompt: &implement_prompt |
           Kickoff directive:
           Begin work on {{ .item.title }} immediately. This run is the operator's authorization
           to implement exactly this pending task — do NOT ask for confirmation, do NOT wait for
@@ -141,7 +193,7 @@ graph:
           You have the full brief above — start work on {{ .item.title }} now instead of
           summarizing the plan back. Return `status`, `summary`, and `files_changed`. Use
           only `completed` after all required implementation and verification work succeeds.
-        output_schema:
+        output_schema: &implement_output
           type: object
           required: [status, summary]
           properties:
@@ -151,15 +203,118 @@ graph:
               type: string
             files_changed:
               type: array
-      session:
+      session: &implement_session
         isolated: true
       timeout: 45m
-      retry:
+      retry: &implement_retry
         max_attempts: 2
+
+    - id: execute_frontend
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.implementer }}"
+        runtime: "{{ .inputs.frontend_runtime }}"
+        prompt: *implement_prompt
+        output_schema: *implement_output
+      session: *implement_session
+      timeout: 45m
+      retry: *implement_retry
+
+    - id: execute_default
+      class: action
+      kind: run-agent
+      params:
+        agent: "{{ .inputs.implementer }}"
+        runtime: "{{ .inputs.default_runtime }}"
+        prompt: *implement_prompt
+        output_schema: *implement_output
+      session: *implement_session
+      timeout: 45m
+      retry: *implement_retry
 
     - id: collect
       class: control
       kind: collect
+
+    - id: select_delivery
+      class: control
+      kind: route
+      routes:
+        - when: "inputs.mode == 'orchestrated'"
+          to: orchestrate
+      default: per_task_done
+
+    - id: per_task_done
+      class: action
+      kind: transform
+      params:
+        map:
+          status:
+            value: completed
+      produces:
+        status: string
+
+    - id: orchestrate
+      class: action
+      kind: goal
+      session:
+        mode: continuous
+      params:
+        agent: "{{ .inputs.orchestrator }}"
+        runtime: "{{ .inputs.orchestrator_runtime }}"
+        objective: |
+          Activate the `cy-orchestrate-tasks` skill and follow it strictly for the spec
+          `.compozy/tasks/{{ .inputs.slug }}`.
+
+          Conduct only. Read the task graph and spawn one bounded `code_implementer` worker session
+          per task, in dependency order. For each task: dispatch the briefing, wait for the turn to
+          end, re-read the task frontmatter as proof, and stop the worker before advancing.
+          Implementation belongs to the workers — leave every code edit to them.
+
+          Pass these category runtime inputs to each spawned worker. Use the backend runtime only
+          for exact task type `backend`, the frontend runtime only for exact task type `frontend`,
+          and the default runtime for every other task type. Omit runtime flags whose values are
+          absent:
+          - backend: {{ json .inputs.backend_runtime }}
+          - frontend: {{ json .inputs.frontend_runtime }}
+          - default: {{ json .inputs.default_runtime }}
+
+          Return `status`, `summary`, and `tasks`, naming each task with the worker session id that
+          executed it. Use `complete` only when every task file carries `status: completed` in its
+          frontmatter and no conductor-created worker is starting, active, or stopping. If any
+          worker cannot be stopped, return `blocked`.
+        judge:
+          - id: tasks_completed
+            type: command
+            check: >-
+              slug={{ .inputs.slug | shellQuote }};
+              task_dir=".compozy/tasks/$slug";
+              set -- "$task_dir"/task_*.md;
+              [ -e "$1" ] || exit 1;
+              for f in "$@"; do
+              awk '
+              NR == 1 { if ($0 != "---") exit 1; frontmatter = 1; next }
+              frontmatter && $0 == "---" { frontmatter = 0; found_end = 1; next }
+              frontmatter && /^status:/ { status_count++; completed = ($0 == "status: completed") }
+              END { if (!found_end || status_count != 1 || !completed) exit 1 }
+              ' "$f" || exit 1;
+              done;
+              for state in starting active stopping; do
+              sessions="$(compozy session list --type spawned --state "$state" --query "orchestrate-${slug}-" --limit 1 -o jsonl)" || exit 1;
+              if printf '%s\n' "$sessions" | grep -q '"id"[[:space:]]*:'; then exit 1; fi;
+              done
+        max_turns: 12
+        output_schema:
+          type: object
+          required: [status]
+          properties:
+            status:
+              enum: [complete, blocked]
+            summary:
+              type: string
+            tasks:
+              type: array
 
   edges:
     - from: slug_input
@@ -167,9 +322,31 @@ graph:
     - from: load_tasks
       to: implement
     - from: implement
-      to: execute_task
-    - from: execute_task
+      to: select_mode
+    - from: select_mode
+      to: select_category
+    - from: select_mode
+      to: stage_orchestrated
+    - from: select_category
+      to: execute_backend
+    - from: select_category
+      to: execute_frontend
+    - from: select_category
+      to: execute_default
+    - from: stage_orchestrated
       to: collect
+    - from: execute_backend
+      to: collect
+    - from: execute_frontend
+      to: collect
+    - from: execute_default
+      to: collect
+    - from: collect
+      to: select_delivery
+    - from: select_delivery
+      to: per_task_done
+    - from: select_delivery
+      to: orchestrate
 
 start:
   - kind: manual
@@ -182,7 +359,10 @@ start:
 
 ## Run it
 
-`slug` is the one required input. `implementer` and `auto_commit` ship with defaults.
+`slug` is the one required input. `mode` defaults to `per-task`; choose `orchestrated` when you want
+the bundled `orchestrator` agent to conduct dedicated workers. The four optional runtime inputs
+select the conductor, backend workers, frontend workers, and every other worker. Empty runtime
+inputs fall through to agent and config defaults, while a task file's own `runtime` fields win.
 
 ```bash
 # check the definition against compozy.loop/v1
@@ -194,6 +374,14 @@ compozy loop create loop.yaml
 # rehearse a generation without side effects, then run it
 compozy loop run --name implement-tasks --input slug=<slug> --dry-run
 compozy loop run --name implement-tasks --input slug=<slug>
+
+# conduct one bounded worker per task with per-category runtime choices
+compozy loop run --name implement-tasks \
+  --input slug=<slug> \
+  --input mode=orchestrated \
+  --input 'orchestrator_runtime={"provider":"codex","model":"gpt-5.6-sol","reasoning":"high"}' \
+  --input 'backend_runtime={"provider":"codex","model":"gpt-5.6-sol"}' \
+  --input 'frontend_runtime={"provider":"claude","model":"sonnet"}'
 ```
 
 The definition ships inside the bundled `spec-cycle` extension, so the Loop is already published in
@@ -206,16 +394,23 @@ review Loop it declares no webhook start, so a signed HTTP delivery cannot begin
 
 <Workflow>
   <WorkflowStep title="Read the slug — `slug_input`">
-    A source node binds the required `slug` input, which every downstream path templates against.
+    A source node binds the required `slug`, then `select_mode` chooses the per-task or orchestrated
+    branch. Existing runs omit `mode` and keep the per-task path.
   </WorkflowStep>
   <WorkflowStep title="Import the task files — `load_tasks`">
     An extension action parses `.compozy/tasks/<slug>/task_*.md` into ordered pending task
     payloads, each carrying its id, title, path, body, and the tasks it depends on.
   </WorkflowStep>
-  <WorkflowStep title="Implement one task at a time — `implement` to `execute_task`">
-    A fan-out runs the implementer agent once per task, sequentially, in an isolated session. Each
-    run receives the task body, the workflow-memory paths, the verification expectations, and the
-    commit policy, and returns `status`, `summary`, and `files_changed`.
+  <WorkflowStep title="Implement one task at a time — `implement` to `select_category`">
+    A fan-out routes each task by exact frontmatter type. `backend` and `frontend` select their named
+    runtime input; every other type selects `default_runtime`. Each isolated task session receives
+    the task body, workflow memory, verification expectations, and commit policy.
+  </WorkflowStep>
+  <WorkflowStep title="Conduct bounded workers — `orchestrate`">
+    In orchestrated mode, one continuous Goal session follows `cy-orchestrate-tasks`. It starts a
+    `code_implementer` worker per task with the category runtime, waits for proof on disk, and stops
+    the worker on every path. Its command judge accepts only completed task frontmatter and zero
+    surviving conductor workers.
   </WorkflowStep>
   <WorkflowStep title="Collect the results — `collect`">
     The terminal collect node joins the sequential task results. When every task action succeeds,

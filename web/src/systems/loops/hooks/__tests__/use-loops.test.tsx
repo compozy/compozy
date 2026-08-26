@@ -42,13 +42,12 @@ describe("loop read hooks", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.loops.map(loop => loop.name)).toEqual([
       "implement-tasks",
-      "orchestrate-tasks",
       "review-and-fix",
     ]);
-    expect(result.current.total).toBe(3);
+    expect(result.current.total).toBe(2);
     expect(result.current.facets).toEqual({
-      categories: { Engineering: 3 },
-      kinds: { read_only: 3 },
+      categories: { Engineering: 2 },
+      kinds: { read_only: 2 },
       statuses: { running: 2 },
     });
   });

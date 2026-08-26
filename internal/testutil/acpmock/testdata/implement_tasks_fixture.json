@@ -41,6 +41,61 @@
                     ]
                 }
             ]
+        },
+        {
+            "name": "implement_tasks_orchestrator",
+            "provider": "acpmock",
+            "model": "base-model",
+            "reasoning_effort": "low",
+            "permissions": "approve-all",
+            "prompt": "You are the deterministic implement-tasks conductor.",
+            "config_options": [
+                {
+                    "id": "model",
+                    "name": "Model",
+                    "current": "base-model",
+                    "values": [
+                        { "value": "base-model", "label": "Base model" },
+                        { "value": "opus", "label": "Opus" }
+                    ]
+                },
+                {
+                    "id": "reasoning_effort",
+                    "name": "Reasoning effort",
+                    "current": "low",
+                    "values": [
+                        { "value": "low", "label": "Low" },
+                        { "value": "high", "label": "High" }
+                    ]
+                }
+            ],
+            "turns": [
+                {
+                    "name": "conduct-delivery-tasks",
+                    "match": {
+                        "raw_user_text_contains": "Activate the `cy-orchestrate-tasks` skill"
+                    },
+                    "steps": [
+                        {
+                            "kind": "sandbox_exec",
+                            "tool_call_id": "conduct-delivery-tasks",
+                            "title": "Conduct bounded task workers",
+                            "command": "/bin/sh",
+                            "args": [
+                                "-c",
+                                "set -eu; compozy_bin=$1; mkdir -p .compozy/tasks/implement-tasks/logs; for task in .compozy/tasks/implement-tasks/task_*.md; do task_id=$(basename \"$task\" .md); task_type=$(awk '/^type:/ { print $2; exit }' \"$task\"); set -- spawn --agent code_implementer --name \"orchestrate-implement-tasks-$task_id\" --role worker --ttl-seconds 3600 --auto-stop-on-parent=true --no-notify-creator --idempotency-key \"orchestrate-implement-tasks-$task_id\"; case \"$task_type\" in frontend) set -- \"$@\" --provider claude --model opus --reasoning-effort high --speed normal ;; backend) set -- \"$@\" --provider acpmock --model base-model --reasoning-effort high --speed fast ;; *) set -- \"$@\" --provider acpmock --model docs-model --reasoning-effort high --speed normal ;; esac; spawn_json=$(\"$compozy_bin\" \"$@\" -o json); session_id=$(printf '%s\\n' \"$spawn_json\" | sed -n 's/.*\"id\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*/\\1/p' | head -n 1); test -n \"$session_id\"; if ! \"$compozy_bin\" session prompt \"$session_id\" \"Implement $task_id from .compozy/tasks/implement-tasks/.\" -o jsonl > \".compozy/tasks/implement-tasks/logs/$task_id.jsonl\" 2>&1; then cat \".compozy/tasks/implement-tasks/logs/$task_id.jsonl\"; exit 1; fi; sed 's/^status: pending$/status: completed/' \"$task\" > \"$task.tmp\"; mv \"$task.tmp\" \"$task\"; grep -q '^status: completed$' \"$task\"; \"$compozy_bin\" session stop \"$session_id\" -o json >/dev/null; done",
+                                "conductor",
+                                "__COMPOZY_BINARY__"
+                            ],
+                            "expect_exit_code": 0
+                        },
+                        {
+                            "kind": "assistant",
+                            "text": "All task files are complete and every worker has stopped."
+                        }
+                    ]
+                }
+            ]
         }
     ]
 }

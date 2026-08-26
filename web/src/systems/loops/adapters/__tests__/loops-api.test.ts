@@ -471,11 +471,7 @@ describe("loops-api (against MSW mock handlers)", () => {
     // Invariant: the adapter fixture catalog mirrors every bundled spec-cycle Loop and exposes
     // each real graph. This adapter suite owns the public mock HTTP boundary.
     const loops = await listLoops(WS);
-    expect(loops.loops.map(loop => loop.name)).toEqual([
-      "implement-tasks",
-      "orchestrate-tasks",
-      "review-and-fix",
-    ]);
+    expect(loops.loops.map(loop => loop.name)).toEqual(["implement-tasks", "review-and-fix"]);
 
     const detail = await getLoop(WS, "implement-tasks");
     expect(detail.definition.meta.name).toBe("implement-tasks");
@@ -485,12 +481,15 @@ describe("loops-api (against MSW mock handlers)", () => {
       "slug_input",
       "load_tasks",
       "implement",
-      "execute_task",
+      "select_mode",
+      "select_category",
+      "stage_orchestrated",
+      "execute_backend",
+      "execute_frontend",
+      "execute_default",
       "collect",
-    ]);
-    const orchestrateDetail = await getLoop(WS, "orchestrate-tasks");
-    expect(orchestrateDetail.definition.graph.nodes.map(node => node.id)).toEqual([
-      "slug_input",
+      "select_delivery",
+      "per_task_done",
       "orchestrate",
     ]);
 
@@ -503,10 +502,15 @@ describe("loops-api (against MSW mock handlers)", () => {
     expect(runDetail.run.status).toBe("running");
     expect(runDetail.generations?.[0]?.outputs.map(output => output.node_id)).toEqual([
       "slug_input",
+      "select_mode",
       "load_tasks",
       "implement",
-      "execute_task",
+      "select_category",
+      "execute_backend",
+      "execute_frontend",
+      "execute_default",
       "collect",
+      "orchestrate",
     ]);
 
     const stalledDetail = await getLoopRun(WS, "looprun_stalled");
@@ -556,12 +560,16 @@ describe("loops-api (against MSW mock handlers)", () => {
     expect(dryRun.dry_run).toMatchObject({
       resolved_inputs: {
         slug: "billing-webhooks",
+        mode: "per-task",
         implementer: "code_implementer",
+        orchestrator: "orchestrator",
         auto_commit: false,
       },
       input_origins: {
         slug: "run",
+        mode: "definition",
         implementer: "definition",
+        orchestrator: "definition",
         auto_commit: "definition",
       },
     });
@@ -580,16 +588,69 @@ describe("loops-api (against MSW mock handlers)", () => {
         depends_on: ["load_tasks"],
       },
       {
-        id: "execute_task",
+        id: "select_mode",
+        class: "control",
+        kind: "route",
+        depends_on: ["implement"],
+      },
+      {
+        id: "select_category",
+        class: "control",
+        kind: "route",
+        depends_on: ["select_mode"],
+      },
+      {
+        id: "stage_orchestrated",
+        class: "action",
+        kind: "transform",
+        depends_on: ["select_mode"],
+      },
+      {
+        id: "execute_backend",
         class: "action",
         kind: "run-agent",
-        depends_on: ["implement"],
+        depends_on: ["select_category"],
+      },
+      {
+        id: "execute_frontend",
+        class: "action",
+        kind: "run-agent",
+        depends_on: ["select_category"],
+      },
+      {
+        id: "execute_default",
+        class: "action",
+        kind: "run-agent",
+        depends_on: ["select_category"],
       },
       {
         id: "collect",
         class: "control",
         kind: "collect",
-        depends_on: ["execute_task"],
+        depends_on: [
+          "stage_orchestrated",
+          "execute_backend",
+          "execute_frontend",
+          "execute_default",
+        ],
+      },
+      {
+        id: "select_delivery",
+        class: "control",
+        kind: "route",
+        depends_on: ["collect"],
+      },
+      {
+        id: "per_task_done",
+        class: "action",
+        kind: "transform",
+        depends_on: ["select_delivery"],
+      },
+      {
+        id: "orchestrate",
+        class: "action",
+        kind: "goal",
+        depends_on: ["select_delivery"],
       },
     ]);
     const started = await runLoop(WS, "implement-tasks", {
@@ -597,7 +658,9 @@ describe("loops-api (against MSW mock handlers)", () => {
     });
     expect(started.run?.inputs).toEqual({
       slug: "billing-webhooks",
+      mode: "per-task",
       implementer: "code_implementer",
+      orchestrator: "orchestrator",
       auto_commit: false,
     });
     await expect(deleteLoop(WS, "implement-tasks")).resolves.toBeUndefined();

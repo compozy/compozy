@@ -5,7 +5,6 @@
         "index",
         "review-and-fix-loop",
         "implement-tasks-loop",
-        "orchestrate-tasks-loop",
         "morning-briefing-job",
         "webhook-to-agent-run",
         "react-to-session-end"

@@ -15,10 +15,13 @@ function implementTasksGenerations(run: LoopRun): LoopRunGeneration[] {
       verdicts: [],
       outputs: [
         { node_id: "slug_input", status: "succeeded", generation },
+        { node_id: "select_mode", status: "succeeded", generation },
         { node_id: "load_tasks", status: "succeeded", generation },
         { node_id: "implement", status: "succeeded", generation },
+        { node_id: "select_category", status: "succeeded", generation, item_index: 0 },
+        { node_id: "execute_backend", status: "not_taken", generation, item_index: 0 },
         {
-          node_id: "execute_task",
+          node_id: "execute_frontend",
           status: active ? "running" : failed ? "failed" : "succeeded",
           generation,
           item_index: 0,
@@ -30,7 +33,9 @@ function implementTasksGenerations(run: LoopRun): LoopRunGeneration[] {
             source: { provider: "run", model: "frontmatter", reasoning: "config" },
           },
         },
+        { node_id: "execute_default", status: "not_taken", generation, item_index: 0 },
         { node_id: "collect", status: active || failed ? "pending" : "succeeded", generation },
+        { node_id: "orchestrate", status: "not_taken", generation },
       ],
     },
   ];

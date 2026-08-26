@@ -108,7 +108,9 @@ const sessionSpawnInputSchema = `{
 	"required":["agent_name","ttl_seconds"],
 	"properties":{
 		"agent_name":{"type":"string","minLength":1},
-		"provider":{"type":"string"},"model":{"type":"string"},"name":{"type":"string"},
+		"provider":{"type":"string"},"model":{"type":"string"},
+		"reasoning_effort":{"type":"string"},"speed":{"type":"string","enum":["normal","fast"]},
+		"name":{"type":"string"},
 		"prompt_overlay":{"type":"string"},"spawn_role":{"type":"string"},
 		"ttl_seconds":{"type":"integer","minimum":1},
 		"auto_stop_on_parent":{"type":"boolean"},"notify_creator":{"type":"boolean"},

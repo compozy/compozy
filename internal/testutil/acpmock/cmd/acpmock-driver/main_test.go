@@ -412,11 +412,7 @@ func TestMockAgentLoadSessionValidation(t *testing.T) {
 }
 
 func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
-	t.Parallel()
-
 	t.Run("Should release terminal with detached context after wait cancellation", func(t *testing.T) {
-		t.Parallel()
-
 		conn := &recordingSandboxConnection{}
 		agent := &mockAgent{conn: conn}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -437,11 +433,41 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 			t.Fatalf("ObservedError = %q, want wait cancellation surfaced", result.ObservedError)
 		}
 	})
+
+	t.Run("Should pass daemon-issued agent identity to the terminal", func(t *testing.T) {
+		t.Setenv("COMPOZY_SESSION_ID", "sess-agent")
+		t.Setenv("COMPOZY_AGENT", "orchestrator")
+
+		conn := &recordingSandboxConnection{}
+		agent := &mockAgent{conn: conn}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+
+		agent.runSandboxCommand(ctx, acpsdk.SessionId("sess-agent"), acpmock.Step{
+			Command: "/bin/sh",
+			Args:    []string{"-c", "true"},
+		})
+
+		want := map[string]string{
+			"COMPOZY_SESSION_ID": "sess-agent",
+			"COMPOZY_AGENT":      "orchestrator",
+		}
+		got := make(map[string]string, len(conn.createRequest.Env))
+		for _, variable := range conn.createRequest.Env {
+			got[variable.Name] = variable.Value
+		}
+		for name, value := range want {
+			if got[name] != value {
+				t.Fatalf("CreateTerminal().Env[%q] = %q, want %q; env=%#v", name, got[name], value, conn.createRequest.Env)
+			}
+		}
+	})
 }
 
 type recordingSandboxConnection struct {
 	releaseCalled     bool
 	releaseContextErr error
+	createRequest     acpsdk.CreateTerminalRequest
 }
 
 func (c *recordingSandboxConnection) SessionUpdate(
@@ -459,9 +485,10 @@ func (c *recordingSandboxConnection) RequestPermission(
 }
 
 func (c *recordingSandboxConnection) CreateTerminal(
-	context.Context,
-	acpsdk.CreateTerminalRequest,
+	_ context.Context,
+	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
+	c.createRequest = request
 	return acpsdk.CreateTerminalResponse{TerminalId: "term-cancel"}, nil
 }
 

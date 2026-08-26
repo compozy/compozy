@@ -14,6 +14,8 @@ type nativeSessionSpawnInput struct {
 	AgentName        string   `json:"agent_name"`
 	Provider         string   `json:"provider"`
 	Model            string   `json:"model"`
+	ReasoningEffort  string   `json:"reasoning_effort"`
+	Speed            string   `json:"speed"`
 	Name             string   `json:"name"`
 	PromptOverlay    string   `json:"prompt_overlay"`
 	SpawnRole        string   `json:"spawn_role"`

@@ -10,6 +10,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
@@ -97,6 +98,8 @@ func (n *daemonNativeTools) sessionSpawn(
 		AgentName:        strings.TrimSpace(input.AgentName),
 		Provider:         strings.TrimSpace(input.Provider),
 		Model:            strings.TrimSpace(input.Model),
+		ReasoningEffort:  strings.TrimSpace(input.ReasoningEffort),
+		Speed:            speedpkg.Speed(strings.TrimSpace(input.Speed)),
 		Name:             strings.TrimSpace(input.Name),
 		Workspace:        parent.WorkspaceID,
 		PromptOverlay:    strings.TrimSpace(input.PromptOverlay),

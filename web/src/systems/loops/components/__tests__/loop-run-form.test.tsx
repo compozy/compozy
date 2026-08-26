@@ -110,6 +110,22 @@ describe("LoopRunForm", () => {
       "data-input-type",
       "boolean"
     );
+    expect(screen.getByTestId("loop-run-field-mode")).toHaveAttribute("data-input-type", "string");
+    expect(screen.getByTestId("loop-run-field-orchestrator")).toHaveAttribute(
+      "data-input-type",
+      "agent"
+    );
+    for (const input of [
+      "orchestrator_runtime",
+      "backend_runtime",
+      "frontend_runtime",
+      "default_runtime",
+    ]) {
+      expect(screen.getByTestId(`loop-run-field-${input}`)).toHaveAttribute(
+        "data-input-type",
+        "runtime"
+      );
+    }
   });
 
   it("Should keep Start run disabled until the required input is filled", () => {

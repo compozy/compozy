@@ -3,7 +3,7 @@
 ```yaml
 charter:
   id: CH-implement-tasks-first-run
-  mission: "As Bruno, start implement-tasks from the bundled catalog and prove its public contract and runtime stop at task implementation and collection."
+  mission: "As Bruno, start both implement-tasks modes from the bundled catalog and prove each selected path stops at task implementation and collection."
   mode: charter-with-tour
   persona:
     name: Bruno
@@ -17,9 +17,9 @@ charter:
   guidance:
     must_try:
       - "Find implement-tasks in the Built-in catalog and confirm software-delivery is absent."
-      - "Confirm the run form declares only slug, implementer, and auto_commit."
-      - "Inspect the materialized graph and confirm it ends at collect with no review, verify, or approve nodes."
-      - "Run a small authored task graph and independently read the persisted terminal state."
+      - "Confirm the run form declares slug, implementer, auto_commit, mode, orchestrator, and four optional category runtime inputs."
+      - "Inspect the materialized graph and confirm both delivery paths join at collect with no review, verify, or approve nodes."
+      - "Run a small authored task graph in each mode and independently read the persisted terminal state and not_taken path."
     must_avoid:
       - "Treating review-and-fix as part of this Loop; it remains a separate bundled Loop."
 ```

@@ -40,13 +40,13 @@ journey:
   actions:
     - step: 1
       verb: "Fill the declared inputs"
-      expected_observable: "Run values override workspace, global, then definition defaults per key; explicit false, zero, and valid empty values remain present"
+      expected_observable: "The mode defaults to per-task; optional orchestrator and category runtimes remain empty; run values override workspace, global, then definition defaults per key"
     - step: 2
       verb: "Press Dry run"
       expected_observable: "Inputs and effective runtime validate before ACP spawn; input_default/runtime_validation errors are typed and deterministic, with NO plan or persisted run"
     - step: 3
       verb: "Read the returned plan"
-      expected_observable: "A PlanPreview with resolved input values and origins, effective runtime intent, the generation-1 materialized node list, and the contract"
+      expected_observable: "A PlanPreview with all nine resolved input values and origins, category runtime intent, the generation-1 mode-selectable node list, and the contract"
   goal:
     observable: "The gen-1 plan is shown (toast + preview) and the run form remains armed to Run for real"
     side_effects: []

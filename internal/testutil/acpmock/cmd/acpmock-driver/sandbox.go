@@ -13,6 +13,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
@@ -182,6 +183,7 @@ func (a *mockAgent) runSandboxCommand(
 		SessionId: sessionID,
 		Command:   strings.TrimSpace(step.Command),
 		Args:      append([]string(nil), step.Args...),
+		Env:       daemonIssuedAgentIdentityEnv(),
 	}
 	if cwd := strings.TrimSpace(step.Cwd); cwd != "" {
 		req.Cwd = new(cwd)
@@ -222,6 +224,19 @@ func (a *mockAgent) runSandboxCommand(
 		result.observeError(fmt.Errorf("release terminal: %w", releaseErr))
 	}
 	return result
+}
+
+func daemonIssuedAgentIdentityEnv() []acpsdk.EnvVariable {
+	keys := []string{agentidentity.EnvSessionID, agentidentity.EnvAgent}
+	env := make([]acpsdk.EnvVariable, 0, len(keys))
+	for _, key := range keys {
+		value := strings.TrimSpace(os.Getenv(key))
+		if value == "" {
+			continue
+		}
+		env = append(env, acpsdk.EnvVariable{Name: key, Value: value})
+	}
+	return env
 }
 
 func (r *sandboxRunResult) observeError(err error) {

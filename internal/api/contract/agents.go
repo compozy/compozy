@@ -284,6 +284,7 @@ type AgentSpawnRequest struct {
 	AgentName        string                       `json:"agent_name"`
 	Provider         string                       `json:"provider,omitempty"`
 	Model            string                       `json:"model,omitempty"`
+	ReasoningEffort  ReasoningEffort              `json:"reasoning_effort,omitempty"`
 	Speed            Speed                        `json:"speed,omitempty"`
 	Name             string                       `json:"name,omitempty"`
 	Workspace        string                       `json:"workspace,omitempty"`

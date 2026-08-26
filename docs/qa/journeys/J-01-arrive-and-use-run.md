@@ -1,6 +1,6 @@
 # J-01 — Arrive and use: implement an authored task graph
 
-The hero path (PRD F11 layer 1, use-cases §2). A user arrives at the Loops catalog, launches the default-enrolled `implement-tasks` Loop with a task slug, and watches it implement the already-authored task graph in dependency order — no Loop authoring or graph assembly. If this is one step harder than Compozy today, the design failed.
+The hero path (PRD F11 layer 1, use-cases §2). A user arrives at the Loops catalog, launches the default-enrolled `implement-tasks` Loop with a task slug, and watches it implement the already-authored task graph in dependency order — either one isolated session per task by default or one conductor delegating bounded workers. No Loop authoring or graph assembly is needed. If the default is one step harder than Compozy today, the design failed.
 
 For the v0.3 migration candidate, the same journey also proves that one run can resolve distinct
 per-task runtimes, persist the applied provider/model/reasoning provenance, expose it identically
@@ -14,7 +14,7 @@ flowchart TD
     C -->|click row| D[Loop detail: contract + read-only DAG + recent runs]
     C -->|inline Run| E[Run form: auto-generated typed inputs]
     D -->|Run loop CTA| E
-    E --> E2[Choose exact entities and runtime from catalogs or keep an exact manual value]
+    E --> E2[Keep per-task mode or choose orchestrated; optionally choose category runtimes]
     E2 --> R
     R[Resolve input defaults and optional per-task runtime overrides]
     R --> F{Required inputs set? slug*}
@@ -26,7 +26,7 @@ flowchart TD
     F -->|yes, Run loop| H[Side effect: loop_run created 201, run page opens]
     H --> H2[CLI returns the persisted run id and effective-port Web deep link]
     H2 --> I[run-detail: Running pill + contract header + applied runtime provenance + meters + live SSE timeline]
-    I --> J[Import tasks, execute each task sequentially, then collect results]
+    I --> J[Import tasks, route the chosen delivery mode, then collect results]
     J --> K[True end: terminal banner done — every task completed, meters final, outcome NOT coerced]
     I -.->|user closes tab mid-run| X1[Abandon: re-find via global Runs; run keeps running server-side, resumes observation]
     F2 -.->|gives up at the form| X2[Abandon: leaves without running — first-impression friction is the bug]
@@ -36,7 +36,7 @@ flowchart TD
 journey:
   id: J-01
   name: "Implement an authored task graph with the default spec-cycle Loop"
-  value_statement: "A user runs implement-tasks with a slug and it implements every authored task in dependency order without adding review, verification, or approval gates."
+  value_statement: "A user runs implement-tasks with a slug, optionally chooses orchestrated delegation and category runtimes, and gets every authored task implemented in dependency order without review, verification, or approval gates."
   personas: [Lea, Bruno]
   entry_points:
     - url: "web /loops (loops-catalog)"
@@ -53,7 +53,7 @@ journey:
       expected_observable: "The Built-in group shows implement-tasks with its goal, last-outcome pill, 30d success-rate, and inline Run"
     - step: 2
       verb: "Open the run form and fill the declared inputs"
-      expected_observable: "The shared controls show exact entity catalogs, enum choices, partial runtime selection, and manual values from the declared schema; Run stays disabled until required values exist"
+      expected_observable: "The shared controls show slug, implementer, auto_commit, mode, orchestrator, and four partial runtime selectors; per-task remains the default and Run stays disabled only until slug exists"
     - step: 3
       verb: "(optional) Open Advanced overrides"
       expected_observable: "6 numeric fields each show per-loop default / daemon ceiling and clamp at ceiling; NO Cost cap (USD) input; canonical defaults render (iteration cap 50, unbounded as ∞)"
@@ -65,11 +65,11 @@ journey:
       expected_observable: "loop_run created (201); CLI/JSON/TOON identify the same persisted run and effective-port Web URL; the run page shows applied runtime provenance as read-only truth"
     - step: 6
       verb: "Watch every task execute and finish"
-      expected_observable: "The imported task graph runs sequentially through execute_task, collect completes, and a terminal banner shows the single truthful outcome (done)"
+      expected_observable: "The imported task graph runs sequentially through the selected per-task or orchestrated path, the other path is not_taken, collect completes, and a terminal banner shows done"
   goal:
     observable: "Terminal banner reads done after every imported task completed implementation; applied runtime provenance and Attempts/Tokens/Wall/Cost/Breadth meters show final truth"
     side_effects: [loop_run-created, task_runs-executed, generation-timeline-events-streamed]
-  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on the five-node implementation graph and persisted runtime provenance, no review/verify/approve nodes appear, and another workspace cannot observe it."
+  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on the selected delivery path, not_taken branch, and persisted runtime provenance, no review/verify/approve nodes appear, and another workspace cannot observe it."
   exit:
     natural: "User lands on the terminal run page; can open the merged result / recent-runs history."
   abandonment:
@@ -97,14 +97,14 @@ design_reference:
 
 e2e_backbone:
   runtime:
-    - "E2E-runtime-1: Should run implement-tasks through import, sequential execution, and collection to a truthful terminal outcome unattended."
+    - "E2E-runtime-1: Should run both implement-tasks modes through import, routed sequential execution, and collection to a truthful terminal outcome unattended."
     - "E2E-runtime-7: budget never kills a progressing run; no-progress → stalled; ceiling → exhausted (guardrail side of self-correction)."
   web:
     - "E2E-web-1: Catalog filter + success-rate + last-outcome pill + launch run inline → run form."
     - "E2E-web-2: Run form auto-generates typed inputs, Run gated until required, override default/ceiling + clamp, NO Cost cap input, start a run on Run."
     - "E2E-web-3: Run page contract header (goal + DoD + terminal chips + live Running pill, no pulse under reduced-motion)."
     - "E2E-web-4: Run page meters (Attempts/Tokens/Wall/Cost(derived)/Breadth, warn-tint near ceiling only, cost display-only, no cap control)."
-    - "E2E-web-5: Run page timeline (collapsible generations + five-node implementation spine + carried-forward tags)."
+    - "E2E-web-5: Run page timeline (collapsible generations + selected delivery path + not_taken branch + carried-forward tags)."
   component:
     - "Web-unit-3 (right control per input type + block submit until required); Web-unit-4 (clamp + overrides-set badge); Web-unit-6 (meter warn-tint, no cost cap control)."
   followups:

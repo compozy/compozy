@@ -121,9 +121,13 @@ func (e *Executor) recoverPendingPrompt(ctx context.Context, segment *segmentSta
 		}
 		operationBase, operationBaseReported := segment.usage.snapshot()
 		contextSequence, contextUsed := recoveredCompactionBaseline(checkpoint)
-		_, err := e.binder.PrepareActionPrompt(ctx, segment.binding, loop.ActionPromptRequest{
+		message, err := e.recoveryPromptMessage(segment, checkpoint)
+		if err != nil {
+			return nil, fmt.Errorf("goal: render recovered prompt: %w", err)
+		}
+		_, err = e.binder.PrepareActionPrompt(ctx, segment.binding, loop.ActionPromptRequest{
 			PromptID:             checkpoint.PromptID,
-			Message:              e.recoveryPromptMessage(segment, checkpoint),
+			Message:              message,
 			Kind:                 checkpoint.PromptKind,
 			Owner:                segment.promptOwner(turn),
 			UsageBaseTokens:      operationBase,
@@ -168,9 +172,9 @@ func recoveredCompactionBaseline(checkpoint Checkpoint) (*int64, *int64) {
 	return &sequence, &used
 }
 
-func (e *Executor) recoveryPromptMessage(segment *segmentState, checkpoint Checkpoint) string {
+func (e *Executor) recoveryPromptMessage(segment *segmentState, checkpoint Checkpoint) (string, error) {
 	if checkpoint.PromptKind == promptKindCompact {
-		return renderCompactionPrompt(segment)
+		return renderCompactionPrompt(segment), nil
 	}
 	turn := checkpoint.TurnsUsed + 1
 	return renderWorkPrompt(segment, turn, checkpoint.PromptKind)

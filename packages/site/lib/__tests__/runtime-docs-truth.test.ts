@@ -478,7 +478,6 @@ describe("runtime docs truth", () => {
     const loopExamples = [
       { page: "docs/examples/review-and-fix-loop.mdx", loop: "review-and-fix" },
       { page: "docs/examples/implement-tasks-loop.mdx", loop: "implement-tasks" },
-      { page: "docs/examples/orchestrate-tasks-loop.mdx", loop: "orchestrate-tasks" },
     ];
 
     for (const { page, loop } of loopExamples) {

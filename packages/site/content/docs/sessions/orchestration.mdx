@@ -60,10 +60,15 @@ prompt.
 ```bash
 compozy spawn --agent researcher --ttl-seconds 3600
 compozy spawn --agent researcher --ttl-seconds 3600 --no-notify-creator
+compozy spawn --agent researcher --ttl-seconds 3600 \
+  --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
 ```
 
 `notify_creator` defaults to true on HTTP, UDS, and `compozy__session_spawn`. Set it explicitly to
 false to opt out for one child. This default has no `config.toml` key.
+
+Provider, model, reasoning effort, and speed are optional child-runtime overrides on the CLI,
+HTTP/UDS request, and native tool. Omit them to use the named agent and workspace defaults.
 
 ## Native orchestration tools
 

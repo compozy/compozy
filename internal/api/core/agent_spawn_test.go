@@ -67,6 +67,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		"agent_name":"coder",
 		"provider":"codex",
 		"model":"gpt-test",
+		"reasoning_effort":" high ",
 		"speed":"fast",
 		"name":"child",
 		"workspace":"ws-target",
@@ -94,6 +95,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		got.AgentName != "coder" ||
 		got.Provider != "codex" ||
 		got.Model != "gpt-test" ||
+		got.ReasoningEffort != "high" ||
 		got.Speed != speedpkg.SpeedFast ||
 		got.Name != "child" ||
 		got.Workspace != "ws-target" ||

@@ -41,7 +41,7 @@ describe("loop-catalog", () => {
   });
 
   it("Should count declared inputs and distinguish bounded review loops", () => {
-    expect(loopInputCount(delivery)).toBe(3);
+    expect(loopInputCount(delivery)).toBe(9);
     expect(loopInputCount(review)).toBe(4);
     expect(isUnboundedCap(review)).toBe(false);
     expect(isUnboundedCap(delivery)).toBe(false);
@@ -127,7 +127,7 @@ describe("loop-catalog", () => {
     });
     expect(all.map(group => group.kind)).toEqual(["read-only"]);
     expect(all.map(group => group.label)).toEqual(["Built-in"]);
-    expect(all[0].entries).toHaveLength(3);
+    expect(all[0].entries).toHaveLength(2);
 
     const readOnlyOnly = groupLoopCatalog(loopCatalogFixtures, {
       kind: "read-only",
@@ -153,14 +153,14 @@ describe("loop-catalog", () => {
   });
 
   it("Should lead facts with category and append best as a plain segment", () => {
-    expect(loopFactsSegments(delivery)).toEqual(["Engineering", "3 inputs", "iteration cap 50"]);
+    expect(loopFactsSegments(delivery)).toEqual(["Engineering", "9 inputs", "iteration cap 50"]);
     const withBest: LoopCatalogEntry = {
       ...delivery,
       last_run: { ...delivery.last_run!, best_generation: 2, best_score: 0.92 },
     };
     expect(loopFactsSegments(withBest)).toEqual([
       "Engineering",
-      "3 inputs",
+      "9 inputs",
       "iteration cap 50",
       "best Gen 2 · 0.92",
     ]);

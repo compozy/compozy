@@ -60,10 +60,10 @@ graph:
         max_turns: 6
         output_schema:
           type: object
-          required: [status, summary]
+          required: [status]
           properties:
             status:
-              enum: [completed, blocked]
+              enum: [complete, blocked]
             summary:
               type: string
             follow_ups:

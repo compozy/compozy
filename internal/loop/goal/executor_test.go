@@ -1,11 +1,15 @@
 package goal
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"math"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -808,14 +812,7 @@ func TestExecutorShouldProjectAuthoritativeTerminalStatus(t *testing.T) {
 			&fakeBudgetGuard{},
 		)
 		node := testGoalNode(1)
-		node.Params["output_schema"] = map[string]any{
-			"type":                 "object",
-			"additionalProperties": true,
-			"properties": map[string]any{
-				"status": map[string]any{"type": "string", "enum": []any{"complete", "blocked"}},
-			},
-			"required": []any{"status"},
-		}
+		node.Params["output_schema"] = bundledImplementTasksGoalOutputSchema(t)
 
 		raw, err := executor.Execute(context.Background(), node, testGoalInput(t))
 		if err != nil {
@@ -831,6 +828,111 @@ func TestExecutorShouldProjectAuthoritativeTerminalStatus(t *testing.T) {
 			t.Fatalf("ActionRawResult.Control = %#v, want succeeded", raw.Control)
 		}
 	})
+}
+
+func TestAuthoritativeGoalStructuredResultShouldSatisfyBundledImplementTasksContract(t *testing.T) {
+	t.Parallel()
+
+	schema := bundledImplementTasksGoalOutputSchema(t)
+	tests := []struct {
+		name       string
+		result     loop.ActionPromptResult
+		status     string
+		wantStatus string
+		wantFields map[string]any
+	}{
+		{
+			name:       "Should accept an approved plain-text terminal result",
+			result:     loop.ActionPromptResult{Text: "All tasks are complete."},
+			status:     goalStatusComplete,
+			wantStatus: goalStatusComplete,
+		},
+		{
+			name: "Should preserve explicit structured fields under authoritative completion",
+			result: loop.ActionPromptResult{Structured: json.RawMessage(
+				`{"status":"completed","summary":"Delivered every task.","tasks":[{"id":"task_01"}]}`,
+			)},
+			status:     goalStatusComplete,
+			wantStatus: goalStatusComplete,
+			wantFields: map[string]any{
+				"summary": "Delivered every task.",
+				"tasks":   []any{map[string]any{"id": "task_01"}},
+			},
+		},
+		{
+			name: "Should project blocked through the same bundled contract",
+			result: loop.ActionPromptResult{Structured: json.RawMessage(
+				`{"status":"complete","summary":"A worker could not be stopped."}`,
+			)},
+			status:     goalStatusBlocked,
+			wantStatus: goalStatusBlocked,
+			wantFields: map[string]any{"summary": "A worker could not be stopped."},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			structured, err := authoritativeGoalStructuredResult(tc.result, tc.status)
+			if err != nil {
+				t.Fatalf("authoritativeGoalStructuredResult() error = %v", err)
+			}
+			result := loop.ActionPromptResult{Structured: structured}
+			if _, err := loop.ValidateActionStructured(schema, result); err != nil {
+				t.Fatalf("ValidateActionStructured(bundled schema) error = %v; structured=%s", err, structured)
+			}
+			var got map[string]any
+			if err := json.Unmarshal(structured, &got); err != nil {
+				t.Fatalf("json.Unmarshal(structured) error = %v", err)
+			}
+			if got["status"] != tc.wantStatus {
+				t.Fatalf("structured status = %#v, want %q", got["status"], tc.wantStatus)
+			}
+			for key, want := range tc.wantFields {
+				if !equalJSONValues(got[key], want) {
+					t.Fatalf("structured[%q] = %#v, want %#v", key, got[key], want)
+				}
+			}
+		})
+	}
+}
+
+func bundledImplementTasksGoalOutputSchema(t *testing.T) dsl.Schema {
+	t.Helper()
+
+	path := filepath.Join("..", "..", "..", "extensions", "spec-cycle", "loops", "implement-tasks", "loop.yaml")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%q) error = %v", path, err)
+	}
+	definition, err := dsl.Parse(data)
+	if err != nil {
+		t.Fatalf("dsl.Parse(%q) error = %v", path, err)
+	}
+	for _, node := range definition.Graph.Nodes {
+		if node.ID != "orchestrate" {
+			continue
+		}
+		decodable := make(dsl.NodeParams, len(node.Params))
+		maps.Copy(decodable, node.Params)
+		delete(decodable, "runtime")
+		var params dsl.GoalParams
+		if err := decodable.Decode(&params); err != nil {
+			t.Fatalf("Decode(orchestrate Goal params) error = %v", err)
+		}
+		if params.OutputSchema == nil {
+			t.Fatal("orchestrate output_schema = nil")
+		}
+		return *params.OutputSchema
+	}
+	t.Fatal("implement-tasks orchestrate Goal node missing")
+	return nil
+}
+
+func equalJSONValues(got any, want any) bool {
+	gotJSON, gotErr := json.Marshal(got)
+	wantJSON, wantErr := json.Marshal(want)
+	return gotErr == nil && wantErr == nil && bytes.Equal(gotJSON, wantJSON)
 }
 
 func TestExecutorShouldSettlePromptBeforeYieldingAnOperatorPause(t *testing.T) {
@@ -1707,11 +1809,14 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 				Message: strings.Repeat("diagnostic evidence ", goalPromptDiagnosticFieldBytes),
 			})
 		}
-		message := renderWorkPrompt(&segmentState{
+		message, err := renderWorkPrompt(&segmentState{
 			params:       dsl.GoalParams{Objective: "Finish the durable objective"},
 			checkpoint:   Checkpoint{TurnLimit: 5},
 			lastWarnings: warnings,
 		}, 2, promptKindContinuation)
+		if err != nil {
+			t.Fatalf("renderWorkPrompt() error = %v", err)
+		}
 		start := strings.Index(message, goalPromptDiagnosticOpen)
 		end := strings.Index(message, goalPromptDiagnosticClose)
 		if start < 0 || end <= start {
@@ -1724,6 +1829,36 @@ func TestExecutorShouldRestorePriorBlockingIssuesAfterRestart(t *testing.T) {
 		records := decodeGoalPromptDiagnostics(t, message)
 		if len(records) == 0 || !records[len(records)-1].Truncated {
 			t.Fatalf("bounded diagnostic records = %#v, want terminal truncation marker", records)
+		}
+	})
+
+	t.Run("Should expose the exact authored output contract in a Goal work prompt", func(t *testing.T) {
+		t.Parallel()
+
+		schema := bundledImplementTasksGoalOutputSchema(t)
+		withoutContract, err := renderWorkPrompt(&segmentState{
+			params:     dsl.GoalParams{Objective: "Finish the durable objective"},
+			checkpoint: Checkpoint{TurnLimit: 5},
+		}, 1, promptKindWork)
+		if err != nil {
+			t.Fatalf("renderWorkPrompt(without schema) error = %v", err)
+		}
+		withContract, err := renderWorkPrompt(&segmentState{
+			params: dsl.GoalParams{
+				Objective:    "Finish the durable objective",
+				OutputSchema: &schema,
+			},
+			checkpoint: Checkpoint{TurnLimit: 5},
+		}, 1, promptKindWork)
+		if err != nil {
+			t.Fatalf("renderWorkPrompt(with schema) error = %v", err)
+		}
+		want, err := loop.ActionPromptWithOutputContract(withoutContract, schema)
+		if err != nil {
+			t.Fatalf("ActionPromptWithOutputContract() error = %v", err)
+		}
+		if withContract != want {
+			t.Fatalf("Goal output-contract prompt differs from run-agent parity helper")
 		}
 	})
 

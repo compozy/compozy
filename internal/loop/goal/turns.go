@@ -70,9 +70,13 @@ func (e *Executor) runWorkTurn(ctx context.Context, segment *segmentState) (*tur
 		control, controlErr := e.budgetBoundary(ctx, segment, decision)
 		return &turnBoundary{checkpoint: segment.checkpoint, control: control}, controlErr
 	}
+	message, err := renderWorkPrompt(segment, turn, kind)
+	if err != nil {
+		return nil, fmt.Errorf("goal: render work prompt: %w", err)
+	}
 	request := loop.ActionPromptRequest{
 		PromptID:          promptID,
-		Message:           renderWorkPrompt(segment, turn, kind),
+		Message:           message,
 		Kind:              kind,
 		Owner:             segment.promptOwner(turn),
 		UsageBaseTokens:   operationBase,
