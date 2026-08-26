@@ -16,6 +16,27 @@ import (
 func TestCoordinatorRunnerShouldApplyNodeFailurePrecedence(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should record failed Goal attempt evidence", func(t *testing.T) {
+		t.Parallel()
+
+		now := time.Date(2026, time.August, 26, 15, 0, 0, 0, time.UTC)
+		plan := runLifecycleFailurePlan(
+			t,
+			"goal-attempt-evidence",
+			now,
+			lifecycleDefinition(lifecycleGoalNode("work")),
+		)
+		payload := coordinatorSnapshotPayloadForTest(t, plan)
+		if len(payload.Attempts) != 1 {
+			t.Fatalf("Goal attempt intents = %#v, want one durable attempt", payload.Attempts)
+		}
+		attempt := payload.Attempts[0]
+		if attempt.NodeID != "work" || attempt.Attempt != 1 || attempt.Disposition != AttemptEscalated ||
+			attempt.FailureClass == nil {
+			t.Fatalf("Goal attempt = %#v, want classified escalated failure evidence", attempt)
+		}
+	})
+
 	t.Run("Should apply only the first matching autopause rule with durable provenance", func(t *testing.T) {
 		t.Parallel()
 
@@ -730,6 +751,19 @@ func lifecycleNode(id dsl.NodeID) dsl.Node {
 		Params: dsl.NodeParams{"map": map[string]any{
 			"value": map[string]any{"value": string(id)},
 		}},
+	}
+}
+
+func lifecycleGoalNode(id dsl.NodeID) dsl.Node {
+	return dsl.Node{
+		ID: id, Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal),
+		Params: dsl.NodeParams{
+			"agent": "codex", "objective": "Make verification pass", "max_turns": 3,
+			"judge": []any{map[string]any{"id": "verify", "type": "command", "check": "make verify"}},
+			"output_schema": map[string]any{
+				"status": map[string]any{"type": "string", "enum": []any{"complete", "blocked"}},
+			},
+		},
 	}
 }
 

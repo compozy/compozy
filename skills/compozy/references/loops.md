@@ -168,7 +168,9 @@ assuming the last generation is the best candidate.
 Use `compozy__loop_diff` for an ungated workspace read. `compozy__loop_rerun` opens a same-run
 `operator_rerun` generation from a settled node and its dependents. `compozy__loop_fork` creates a linked
 run whose settled generation 1 is `fork_seed` and whose full body first executes in generation 2. Rerun
-and fork require `loops.timetravel`; an agent cannot apply either operation to its own executing run.
+includes downstream pending cells that never started, even across an unmaterialized fan-out body;
+pending cells outside that dependency chain and active cells still block it. Rerun and fork require
+`loops.timetravel`; an agent cannot apply either operation to its own executing run.
 Pass `request_id` for replay-safe transport retries. The same key with different arguments returns
 `timetravel_key_reuse`; omitting it creates a fresh operation.
 
@@ -360,6 +362,7 @@ Node failure and gate rejection use different controls:
 | -------------------------------- | --------------------------------------------------------------------------------- | ---------------------- |
 | Node failure, `failed_only`      | Failed/pending nodes plus transitive dependents rerun; unrelated successes carry. | `reattempt`            |
 | Node failure, `full_body`        | Every body node reruns.                                                           | `reattempt`            |
+| Node failure, `halt`             | The run ends `failed`; no successor generation or new reservation is admitted.    | none                   |
 | In-body gate `revise`            | Producers of every route-causing gate, those gates, and dependents rerun.         | `gate_revise`          |
 | Metric-gate `revise` with a best | The producer-scoped repair carries unrelated outputs from the best baseline.      | `ratchet_restore`      |
 | In-body gate `next_generation`   | A fresh full-body generation starts.                                              | `gate_next_generation` |
@@ -370,6 +373,9 @@ ordered gate IDs in `previous.route_causes`. `revise` is targeted repair; `next_
 fresh pass. Bounds still apply. For evidence-sensitive work, put the acceptance rule in a typed gate
 and route a weak verdict through `revise`, `next_generation`, or `halt`; do not hide the transition
 inside prompt prose.
+
+`halt` is terminal automatic policy, not a ban on operator recovery. An explicit rerun remains
+available after the failure.
 
 ## The Approve Capability Gate
 

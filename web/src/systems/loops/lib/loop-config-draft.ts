@@ -55,7 +55,9 @@ export function normalizeLoopEnvironment(
 function normalizeReattempt(
   raw: LoopConfig["reattempt_strategy"] | null | undefined
 ): LoopReattemptStrategy {
-  return raw === "full_body" ? "full_body" : DEFAULT_REATTEMPT;
+  if (raw === "full_body") return "full_body";
+  if (raw === "halt") return "halt";
+  return DEFAULT_REATTEMPT;
 }
 
 function normalizePolicy(

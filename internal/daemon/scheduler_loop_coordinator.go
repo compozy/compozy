@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
@@ -65,10 +66,17 @@ func (s schedulerTaskSource) RunLoopCoordinatorBackstop(
 			if startKey == "" {
 				startKey = "coordinator-start:" + claim.Run.ID
 			}
-			if _, err := s.manager.StartRun(ctx, claim.Run.ID, taskpkg.StartRun{
+			settled, err := s.manager.StartRun(ctx, claim.Run.ID, taskpkg.StartRun{
 				IdempotencyKey: startKey,
 				ClaimToken:     claim.ClaimToken,
-			}, actor); err != nil {
+			}, actor)
+			if err != nil {
+				if settled != nil &&
+					settled.Status.Normalize() == taskpkg.TaskRunStatusFailed &&
+					errors.Is(err, looppkg.ErrExecutedDefinitionSnapshot) {
+					startedForScope++
+					continue
+				}
 				return started, err
 			}
 			started++

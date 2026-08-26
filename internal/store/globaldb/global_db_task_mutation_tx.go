@@ -209,11 +209,7 @@ func (s *taskMutationTxStore) InvalidateForceRunInputs(
 		return taskpkg.ForceRunInputInvalidation{}, fmt.Errorf("store: advance force-run input generation: %w", err)
 	}
 	if affected == 0 {
-		return taskpkg.ForceRunInputInvalidation{}, fmt.Errorf(
-			"%w: %s",
-			storepkg.ErrSessionInputQueueEntryNotFound,
-			target,
-		)
+		return taskpkg.ForceRunInputInvalidation{}, nil
 	}
 	generation, err := queries.GetSessionInputGeneration(ctx, target)
 	if err != nil {

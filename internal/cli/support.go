@@ -351,7 +351,7 @@ func supportBundleResultBundle(result supportBundleResult) outputBundle {
 			}
 			if operation.CompletedAt != nil {
 				rows = append(rows, keyValue{
-					Label: "Completed",
+					Label: cliCompletedValue,
 					Value: stringOrDash(formatTime(*operation.CompletedAt)),
 				})
 			}

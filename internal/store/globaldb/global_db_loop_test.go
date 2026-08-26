@@ -651,6 +651,14 @@ func TestGlobalDBLoopTerminalSettlementShouldApplyCauseMatrix(t *testing.T) {
 			); err != nil {
 				t.Fatalf("CompareAndSwapLoopRunStatus() error = %v", err)
 			}
+			settled, err := globalDB.GetLoopRun(ctx, run.WorkspaceID, run.ID)
+			if err != nil {
+				t.Fatalf("GetLoopRun(settled) error = %v", err)
+			}
+			wantCompletedAt := now.Add(time.Second)
+			if settled.CompletedAt == nil || !settled.CompletedAt.Equal(wantCompletedAt) {
+				t.Fatalf("completed_at = %v, want %s", settled.CompletedAt, wantCompletedAt)
+			}
 			assertLoopSettlementFinalStateForTest(
 				t,
 				globalDB,
@@ -876,9 +884,11 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 		) VALUES (?, 1, 'finish', 0, 'failed', 1, 0)`, source.ID); err != nil {
 				t.Fatalf("insert source output error = %v", err)
 			}
+			completedAt := now.Add(45 * time.Second)
 			if _, err := globalDB.db.ExecContext(
 				ctx,
-				`UPDATE loop_runs SET status = 'done' WHERE id = ?`,
+				`UPDATE loop_runs SET status = 'done', completed_at = ? WHERE id = ?`,
+				completedAt,
 				source.ID,
 			); err != nil {
 				t.Fatalf("terminalize source error = %v", err)
@@ -888,6 +898,7 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 				t.Fatalf("complete source coordinator error = %v", err)
 			}
 			source.Status = looppkg.StatusDone
+			source.CompletedAt = &completedAt
 			actor := operatorActorContextForTest("operator:rerun")
 			generation := int64(2)
 			rerunDigest := strings.Repeat("a", 64)
@@ -919,6 +930,9 @@ func TestGlobalDBLoopTimeTravelShouldCommitOneAtomicOperation(t *testing.T) {
 			}
 			if persisted.Status != looppkg.StatusRunning || persisted.Generation != 2 {
 				t.Fatalf("reactivated run = %#v, want running generation 2", persisted)
+			}
+			if persisted.CompletedAt != nil {
+				t.Fatalf("reactivated completed_at = %v, want nil", persisted.CompletedAt)
 			}
 			if got := countCoordinatorTaskRunsForLoop(ctx, t, globalDB, source.ID); got != 2 {
 				t.Fatalf("coordinator task runs = %d, want initial plus rerun", got)

@@ -395,10 +395,11 @@ func insertGoalSchemaLoopRun(
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
 		`INSERT INTO loop_runs (
-			id, workspace_id, loop_name, status, last_progress_at, inputs_json,
+			id, profile_id, workspace_id, loop_name, status, last_progress_at, inputs_json,
 			origin_kind, origin_session_id
-		) VALUES (?, ?, 'goal-schema', 'running', ?, '{}', ?, ?)`,
+		) VALUES (?, ?, ?, 'goal-schema', 'running', ?, '{}', ?, ?)`,
 		runID,
+		store.DefaultProfileID,
 		workspaceID,
 		now,
 		originKind,

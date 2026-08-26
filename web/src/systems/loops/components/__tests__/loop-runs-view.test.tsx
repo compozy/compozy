@@ -130,6 +130,22 @@ describe("LoopRunsView", () => {
     expect(within(row).getByTestId("loop-run-duration")).toHaveTextContent("18m 00s");
   });
 
+  it("Should stop a terminal run duration at its completion time", () => {
+    const terminal = run({
+      id: "looprun_completed_duration",
+      status: "done",
+      created_at: "2026-07-05T12:00:00Z",
+      completed_at: "2026-07-05T12:05:00Z",
+      last_progress_at: "2026-07-05T12:18:00Z",
+    });
+
+    render(
+      <LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[terminal]} />
+    );
+
+    expect(screen.getByTestId("loop-run-duration")).toHaveTextContent("5m 00s");
+  });
+
   it("Should lead a needs-you row with a warning chip and demote its run id under the name", () => {
     render(
       <LoopRunsView outcome="all" profileScope={scopedListingScopeFixture} runs={[NEEDS_YOU]} />

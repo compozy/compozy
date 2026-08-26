@@ -74,7 +74,7 @@ func insertRerunGeneration(
 	affected, err := exec.ExecContext(ctx, `UPDATE loop_runs SET
 		status = 'running', completion_state = 'complete', pause_requested = 0,
 		cancel_requested = 0, cancel_kind = '', active_gate_id = '', active_human_criteria_json = '[]',
-		generation = ?, last_progress_at = ?
+		generation = ?, last_progress_at = ?, completed_at = NULL
 		WHERE id = ? AND workspace_id = ? AND generation = ? AND status = ?`,
 		request.Intent.Generation, request.At.UTC(), current.ID, current.WorkspaceID,
 		current.Generation, current.Status)

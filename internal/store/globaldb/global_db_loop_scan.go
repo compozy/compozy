@@ -28,6 +28,7 @@ type loopRunScanValues struct {
 	createdAtRaw      string
 	startedAtRaw      string
 	lastProgressAtRaw string
+	completedAtRaw    sql.NullString
 	activeHumanRaw    string
 	startMetadataRaw  string
 	parentID          sql.NullString
@@ -82,6 +83,7 @@ func (v *loopRunScanValues) scan(row loopRunScanner) error {
 		&v.createdAtRaw,
 		&v.startedAtRaw,
 		&v.lastProgressAtRaw,
+		&v.completedAtRaw,
 		&v.run.DefinitionVersion,
 		&v.run.DefinitionDigest,
 		&v.run.ActiveGateID,
@@ -144,7 +146,9 @@ func (v *loopRunScanValues) toRun() (looppkg.Run, error) {
 	run.SetCompletionState(completionState)
 	run.ReattemptStrategy = looppkg.ReattemptStrategy(v.reattempt)
 	run.BudgetOnExceeded = dsl.BudgetExceeded(v.budgetOnExceeded)
-	if err := applyLoopRunScanTimestamps(&run, v.createdAtRaw, v.startedAtRaw, v.lastProgressAtRaw); err != nil {
+	if err := applyLoopRunScanTimestamps(
+		&run, v.createdAtRaw, v.startedAtRaw, v.lastProgressAtRaw, v.completedAtRaw,
+	); err != nil {
 		return looppkg.Run{}, err
 	}
 	if v.parentID.Valid {
@@ -248,6 +252,7 @@ func applyLoopRunScanTimestamps(
 	createdAtRaw string,
 	startedAtRaw string,
 	lastProgressAtRaw string,
+	completedAtRaw sql.NullString,
 ) error {
 	createdAt, err := parseLoopRunTimestamp(createdAtRaw)
 	if err != nil {
@@ -264,6 +269,13 @@ func applyLoopRunScanTimestamps(
 		return fmt.Errorf("store: parse loop run last_progress_at: %w", err)
 	}
 	run.LastProgressAt = lastProgressAt
+	if completedAtRaw.Valid {
+		completedAt, err := parseLoopRunTimestamp(completedAtRaw.String)
+		if err != nil {
+			return fmt.Errorf("store: parse loop run completed_at: %w", err)
+		}
+		run.CompletedAt = new(completedAt)
+	}
 	return nil
 }
 

@@ -222,6 +222,46 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose effective config sources through native inspect", func(t *testing.T) {
+		t.Parallel()
+
+		effective := contract.LoopEffectiveConfig{
+			IterationCap: 12,
+			Sources: map[string]string{
+				"/iteration_cap": looppkg.EffectiveConfigSourceDeliveryDefaults,
+			},
+		}
+		document := loopAPITestDocument(t, "release", 3, "Release safely")
+		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
+			Sessions: nativeNetworkTestSessionManager("ws-alpha"),
+			Loops: func() core.LoopService {
+				return &nativeLoopServiceStub{getLoopFn: func(
+					context.Context,
+					string,
+					string,
+				) (contract.LoopResponse, error) {
+					return contract.LoopResponse{Loop: contract.LoopDefinitionPayload{
+						Name: "release", Version: 3, Definition: document, EffectiveConfig: &effective,
+					}}, nil
+				}}
+			},
+		}, nativeApproveAllPolicyInputs())
+
+		result, err := registry.Call(
+			t.Context(),
+			toolspkg.Scope{SessionID: "sess-alpha", WorkspaceID: "ws-alpha"},
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDLoopInspect,
+				Input:  json.RawMessage(`{"name":"release"}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(loop_inspect) error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"effective_config"`))
+		requireNativeStructuredContains(t, result, []byte(`"/iteration_cap":"loops.defaults.delivery"`))
+	})
+
 	t.Run("Should forward the selected profile read scope when listing runs", func(t *testing.T) {
 		t.Parallel()
 		const profileID = "profile-loop-owner"
@@ -729,6 +769,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 								},
 								EffectiveConfig: contract.LoopEffectiveConfig{
 									RunRuntimeRules: request.ConfigOverrides.RuntimeRules,
+									Sources: map[string]string{
+										"/run_runtime_rules/0": looppkg.EffectiveConfigSourcePerRun,
+									},
 								},
 							},
 						}, nil
@@ -777,6 +820,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			result,
 			[]byte(`"match":{"complexity":"low"},"runtime":{"model":"gpt-5.6-luna"}`),
 		)
+		requireNativeStructuredContains(t, result, []byte(`"/run_runtime_rules/0":"per_run"`))
 	})
 
 	t.Run("Should reject structurally invalid runtime rules before Loop service", func(t *testing.T) {
@@ -1075,6 +1119,9 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 						capturedWorkspaceID = workspaceID
 						return contract.LoopRunResponse{
 							Run: contract.LoopRunPayload{ID: "run-1", Status: contract.LoopRunStatusRunning},
+							EffectiveConfig: contract.LoopEffectiveConfig{Sources: map[string]string{
+								"/runtime_defaults/worker/model": looppkg.EffectiveConfigSourceDefinition,
+							}},
 							Generations: []contract.LoopGenerationPayload{{
 								Generation: 1,
 								Outputs: []contract.LoopGenerationOutput{{
@@ -1113,6 +1160,11 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		requireNativeStructuredContains(t, result, []byte(`"resolved_runtime"`))
 		requireNativeStructuredContains(t, result, []byte(`"model":"gpt-5.4"`))
 		requireNativeStructuredContains(t, result, []byte(`"model":"frontmatter"`))
+		requireNativeStructuredContains(
+			t,
+			result,
+			[]byte(`"/runtime_defaults/worker/model":"definition"`),
+		)
 	})
 
 	t.Run("Should keep loop tools unavailable until service is ready", func(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"strings"
 
 	"github.com/compozy/compozy/internal/hooks"
@@ -105,6 +106,15 @@ func LoadExecutedDefinitionSnapshot(
 	if expectedDigest == "" {
 		return nil, fmt.Errorf("%w: executed definition digest is required", ErrValidation)
 	}
+	digest := executedDefinitionDigest(raw)
+	if digest != expectedDigest {
+		return nil, fmt.Errorf(
+			"%w: executed definition digest %q does not match %q",
+			ErrValidation,
+			digest,
+			expectedDigest,
+		)
+	}
 	var envelope executedDefinitionSnapshot
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.DisallowUnknownFields()
@@ -120,19 +130,6 @@ func LoadExecutedDefinitionSnapshot(
 	}
 	if err := validateExecutedDefinitionSnapshot(&envelope); err != nil {
 		return nil, err
-	}
-	canonical, err := json.Marshal(envelope)
-	if err != nil {
-		return nil, fmt.Errorf("loop: marshal hydrated definition snapshot: %w", err)
-	}
-	digest := executedDefinitionDigest(canonical)
-	if digest != expectedDigest {
-		return nil, fmt.Errorf(
-			"%w: executed definition digest %q does not match %q",
-			ErrValidation,
-			digest,
-			expectedDigest,
-		)
 	}
 	resolved, err := hydrateExecutedDefinitionSnapshot(&envelope)
 	if err != nil {
@@ -162,6 +159,10 @@ func executedDefinitionDigest(data []byte) string {
 
 func cloneEffectiveConfig(config EffectiveConfig) EffectiveConfig {
 	config.EnabledChecks = cloneRawMessage(config.EnabledChecks)
+	config.RuntimeDefaults = *cloneRuntimeDefaults(&config.RuntimeDefaults)
+	config.RuntimeRules = cloneRuntimeRules(config.RuntimeRules)
+	config.RunRuntimeRules = cloneRuntimeRules(config.RunRuntimeRules)
+	config.Sources = maps.Clone(config.Sources)
 	lifecycle := DefaultLifecycleConfig()
 	mergeLifecycleLayer(&lifecycle, config.Lifecycle)
 	config.Lifecycle = lifecycle

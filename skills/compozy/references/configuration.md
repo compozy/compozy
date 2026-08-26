@@ -172,6 +172,13 @@ the stored value before restarting the daemon.
 
 `[loops.defaults.delivery]` and `[loops.defaults.watch]` seed new loop effective config before per-loop `loop_config` overrides; they are desired-state defaults, not the DB-backed override plane. Delivery defaults are `iteration_cap = 50`, `no_progress.window = 3`, `gates.max_revisions = 10`, `budget.tokens = 0`, `budget.wall_clock_sec = 0`, `budget.on_exceeded = "halt"`, and `fan_out_width = 4`. Watch defaults are `iteration_cap = 0`, `no_progress.window = 2`, `budget.tokens = 0`, `budget.wall_clock_sec = 0`, `budget.on_exceeded = "halt"`, and `fan_out_width = 2`; gate revisions remain unset for watch unless configured. Both families accept optional positive `requests.expire_after`, used when an ask or review request omits authored expiry, plus field-merged `runtime_defaults.worker|judge.{provider,model,reasoning}` and ordered `runtime_rules`. Rules match one exact `id`, one `type`, one `complexity`, or the conjunction `type + complexity`. The conjunction is AND. Specificity is `id > type + complexity > type > complexity`; later equal-specificity rules win per non-empty runtime field. Operator config may set any nonnegative `fan_out_width`; it controls the active lane window while each node's positive `max_fan_out` bounds logical width. No-progress window must not exceed `30`, and gate revisions must not exceed `64`. `budget.on_exceeded` accepts only `halt` or `escalate`. These paths are restart-required config lifecycle entries; use `compozy config reload -o json` and apply history to inspect activation.
 
+Effective Loop responses carry `sources`, a JSON Pointer map to the winning logical layer. Values are
+`builtin`, `definition`, `loops.defaults.delivery`, `loops.defaults.watch`,
+`inherited_environment`, `loop_config`, or `per_run`. This is provenance for the resolved runtime
+value, not the physical user/profile/workspace scope that supplied a `config.toml` file. Inspect and
+dry-run resolve current values; run status reads the pinned effective config from that run's stored
+definition snapshot.
+
 For example, this matrix rule applies only when both task fields match:
 
 ```toml

@@ -310,6 +310,11 @@ func (s *daemonLoopAPIService) GetLoop(
 		return contract.LoopResponse{}, fmt.Errorf("daemon: resolve effective Loop lifecycle: %w", err)
 	}
 	lifecyclePayload := loopResolvedLifecyclePayload(resolvedLifecycle)
+	effectivePayload, err := loopEffectiveConfigPayload(snapshot.Effective)
+	if err != nil {
+		return contract.LoopResponse{}, err
+	}
+	payload.EffectiveConfig = &effectivePayload
 	payload.EffectiveLifecycle = &lifecyclePayload
 	return contract.LoopResponse{Loop: payload}, nil
 }

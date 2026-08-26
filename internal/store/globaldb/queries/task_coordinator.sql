@@ -31,7 +31,8 @@ SET status = sqlc.arg(to_status),
 	completion_state = CASE
 		WHEN sqlc.arg(completion_partial) = 1 THEN 'partial'
 		ELSE completion_state
-	END
+	END,
+	completed_at = NULLIF(CAST(sqlc.arg(completed_at) AS TEXT), '')
 WHERE id = sqlc.arg(id) AND status = sqlc.arg(from_status);
 
 -- name: UpdateLoopRunGeneration :execrows

@@ -184,7 +184,8 @@ func (r *CoordinatorRunner) buildFailedGenerationPlan(
 	if terminalErr != nil {
 		return task.CoordinatorCompletionPlan{}, terminalErr
 	}
-	if live || terminal.Status != string(StatusFailed) {
+	if live || terminal.Status != string(StatusFailed) ||
+		normalizeReattemptStrategy(run.ReattemptStrategy) == ReattemptHalt {
 		plan.Terminal = terminal
 		return plan, nil
 	}

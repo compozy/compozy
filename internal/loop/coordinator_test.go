@@ -3997,6 +3997,47 @@ func TestCoordinatorRunnerShouldPlanReattemptStrategy(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should halt on the failed generation without a successor", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-reattempt-halt", WorkspaceID: "ws-1", LoopName: "delivery",
+			Status: StatusRunning, Generation: 2, ReattemptStrategy: ReattemptHalt,
+		}
+		coordinatorRun := task.Run{
+			ID: "run-coordinator-reattempt-halt", TaskID: "task-coordinator-reattempt-halt",
+			RunKind: task.RunKindCoordinator, LoopRunID: string(loopRun.ID), Status: task.TaskRunStatusClaimed,
+		}
+		outputs := []GenerationOutput{
+			{Generation: 2, NodeID: "load", Status: generationOutputSucceeded, OutputRef: "sha256:load"},
+			{Generation: 2, NodeID: "agent", Status: generationOutputFailed, OutputRef: "tool_failed"},
+		}
+		runner := newCoordinatorRunnerForTestWithGraph(
+			t,
+			loopRun,
+			coordinatorRun,
+			map[string]task.Run{coordinatorRun.ID: coordinatorRun},
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{2: outputs}},
+			coordinatorTestGraph(),
+		)
+
+		plan, err := runner.Run(context.Background(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal == nil || plan.Terminal.Status != string(StatusFailed) ||
+			plan.NextCoordinator != nil || plan.PostReserveSnapshot != nil ||
+			len(plan.NodeRuns) != 0 || len(plan.NodeTasks) != 0 {
+			t.Fatalf("halt plan = %#v, want failed terminal without successor work", plan)
+		}
+		current := coordinatorSnapshotPayloadForTest(t, plan)
+		settled := outputsByNodeForTest(current.Outputs)
+		if len(current.Outputs) != 2 || settled["load"].OutputRef != "sha256:load" ||
+			settled["agent"].Status != generationOutputFailed {
+			t.Fatalf("halt outputs = %#v, want settled generation snapshot", current.Outputs)
+		}
+	})
 }
 
 func TestCoordinatorRunnerShouldClearSubLoopChildOnFailedOnlyRetry(t *testing.T) {

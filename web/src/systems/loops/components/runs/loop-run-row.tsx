@@ -14,14 +14,12 @@ interface LoopRunRowProps {
   owner?: ProfileOwner;
 }
 
-/**
- * The durable span the read already carries (`created_at` -> `last_progress_at`).
- * A run that has not moved yet has no span to state, so it reads `—` rather than
- * a `0m 00s` that would imply it ran and finished instantly.
- */
-function durationLabel(run: Pick<LoopRun, "created_at" | "last_progress_at">): string {
+/** Terminal runs stop at `completed_at`; live runs use their latest progress. */
+function durationLabel(
+  run: Pick<LoopRun, "completed_at" | "created_at" | "last_progress_at">
+): string {
   const created = Date.parse(run.created_at);
-  const last = Date.parse(run.last_progress_at);
+  const last = Date.parse(run.completed_at ?? run.last_progress_at);
   if (Number.isNaN(created) || Number.isNaN(last) || last <= created) return "—";
   return formatClockDuration(Math.round((last - created) / 1000));
 }

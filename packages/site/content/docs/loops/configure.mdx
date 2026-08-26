@@ -17,8 +17,9 @@ The sheet has four groups, all scoped to the checks and limits the Loop already 
   removed here — that is structure.
 - **Human approval gate** — a single switch to require, or drop, a human approval before the Loop
   finishes.
-- **Re-attempt strategy** — `failed-only` (the default; retry only what failed) or `full-body`
-  (re-run the whole body). This is where re-attempt granularity is chosen, not on the run form.
+- **Re-attempt strategy** — `failed-only` (the default; retry only what failed), `full-body`
+  (re-run the whole body), or `halt` (end the run on the first node failure without admitting a
+  successor generation). This is where failure handling is chosen, not on the run form.
 - **Stop limits** — the same six numeric limits as the run form's folded Limits panel, each clamped at
   its daemon ceiling. Configure sets the per-Loop **default**; the run form can still override per
   run.
@@ -43,18 +44,27 @@ Configure writes a separate per-Loop config store keyed `(workspace_id, loop_nam
 the definition, which stays filesystem-as-truth. It is read and written through `GET`/`PUT
 /loops/:name/config`, `compozy loop configure`, and `compozy__loop_configure`.
 
-The effective config a run actually uses is a **four-layer merge**, each layer bounded by the
-compile-time ceilings:
+The effective config a run actually uses is a field-by-field merge, bounded by the compile-time
+ceilings. From lowest to highest precedence, its logical sources are:
 
-1. the definition's own defaults,
-2. `[loops.defaults.*]` in `config.toml`,
-3. this per-Loop configure overlay,
-4. any per-run overrides from the run form.
+1. built-in defaults (`builtin`),
+2. the definition (`definition`),
+3. `[loops.defaults.delivery]` or `[loops.defaults.watch]`,
+4. a parent Loop's environment (`inherited_environment`),
+5. this per-Loop configure overlay (`loop_config`),
+6. per-run overrides (`per_run`).
+
+`effective_config.sources` maps each effective field's JSON Pointer, such as `/iteration_cap` or
+`/runtime_defaults/worker/model`, to the source that won. Explicit `0` and `false` values keep their
+source; they are not mistaken for missing overrides. Ordered runtime rules use indexed pointers such
+as `/runtime_rules/0`, while per-run rules use `/run_runtime_rules/0`.
 
 Node reliability resolves more narrowly: authored node fields override the stored per-Loop
 lifecycle layer, which overrides the matching delivery or watch default. The resolved values are
 pinned when work is admitted, so a config reload never rewrites a running attempt. `compozy loop
-inspect -o json` reports the effective lifecycle values and a source for each field.
+inspect -o json` and dry-run report the current effective values and sources. Run status reads the
+effective config from that run's persisted definition snapshot, so later default or overlay changes
+cannot rewrite history.
 
 `GET /loops/:name/config` returns the stored per-Loop override as `config` and the daemon-resolved
 first three layers as `effective_config`. A missing override is `config: null`; it is not a missing

@@ -505,6 +505,41 @@ func TestServiceTransitionShouldEnforceTruthyStatusFSM(t *testing.T) {
 func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should accept halt without changing the failed-only default", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := compileDefinition(t, validDefinition())
+		defaulted, err := loop.ResolveEffectiveConfig(
+			resolved, loop.LoopDefaults{}, nil, loop.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig(default) error = %v", err)
+		}
+		halt := loop.ReattemptHalt
+		halted, err := loop.ResolveEffectiveConfig(
+			resolved, loop.LoopDefaults{}, nil, loop.LoopConfig{ReattemptStrategy: &halt},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig(halt) error = %v", err)
+		}
+		if defaulted.ReattemptStrategy != loop.ReattemptFailedOnly ||
+			halted.ReattemptStrategy != loop.ReattemptHalt {
+			t.Fatalf(
+				"reattempt strategies = default:%q halt:%q",
+				defaulted.ReattemptStrategy,
+				halted.ReattemptStrategy,
+			)
+		}
+		if defaulted.Sources["/reattempt_strategy"] != loop.EffectiveConfigSourceBuiltin ||
+			halted.Sources["/reattempt_strategy"] != loop.EffectiveConfigSourcePerRun {
+			t.Fatalf(
+				"reattempt sources = default:%q halt:%q",
+				defaulted.Sources["/reattempt_strategy"],
+				halted.Sources["/reattempt_strategy"],
+			)
+		}
+	})
+
 	t.Run("Should merge definition defaults loop config and per run overrides", func(t *testing.T) {
 		t.Parallel()
 
@@ -620,6 +655,49 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 			effective.RunRuntimeRules[0].Runtime.Reasoning != "max" {
 			t.Fatalf("RunRuntimeRules = %#v, want separated per-run rule", effective.RunRuntimeRules)
 		}
+		wantSources := map[string]string{
+			"/iteration_cap":                 loop.EffectiveConfigSourcePerRun,
+			"/no_progress_window":            loop.EffectiveConfigSourceLoopConfig,
+			"/fan_out_width":                 loop.EffectiveConfigSourcePerRun,
+			"/gate_max_revisions":            loop.EffectiveConfigSourcePerRun,
+			"/budget_on_exceeded":            loop.EffectiveConfigSourcePerRun,
+			"/runtime_defaults/worker/model": loop.EffectiveConfigSourceLoopConfig,
+			"/runtime_defaults/judge/model":  loop.EffectiveConfigSourcePerRun,
+			"/runtime_rules/0":               loop.EffectiveConfigSourceDefinition,
+			"/runtime_rules/1":               loop.EffectiveConfigSourceDeliveryDefaults,
+			"/runtime_rules/2":               loop.EffectiveConfigSourceLoopConfig,
+			"/run_runtime_rules/0":           loop.EffectiveConfigSourcePerRun,
+		}
+		for path, want := range wantSources {
+			if got := effective.Sources[path]; got != want {
+				t.Fatalf("Sources[%q] = %q, want %q", path, got, want)
+			}
+		}
+	})
+
+	t.Run("Should preserve explicit zero and false override sources", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := compileDefinition(t, validDefinition())
+		disabled := false
+		effective, err := loop.ResolveEffectiveConfig(
+			resolved,
+			loop.LoopDefaults{Delivery: loop.LoopConfig{IterationCap: new(0)}},
+			&loop.LoopConfig{HumanGateEnabled: &disabled},
+			loop.LoopConfig{},
+		)
+		if err != nil {
+			t.Fatalf("ResolveEffectiveConfig() error = %v", err)
+		}
+		if effective.IterationCap != 0 || effective.HumanGateEnabled {
+			t.Fatalf("effective zero/false = iteration:%d gate:%t", effective.IterationCap, effective.HumanGateEnabled)
+		}
+		if got := effective.Sources["/iteration_cap"]; got != loop.EffectiveConfigSourceDeliveryDefaults {
+			t.Fatalf("iteration source = %q, want delivery defaults", got)
+		}
+		if got := effective.Sources["/human_gate_enabled"]; got != loop.EffectiveConfigSourceLoopConfig {
+			t.Fatalf("human gate source = %q, want loop config", got)
+		}
 	})
 
 	t.Run("Should select watch runtime defaults only for watch definitions", func(t *testing.T) {
@@ -653,6 +731,14 @@ func TestEffectiveConfigShouldMergeLayersAndClampCeilings(t *testing.T) {
 				"runtime defaults delivery/watch = %q/%q, want delivery-model/watch-model",
 				delivery.RuntimeDefaults.Worker.Model,
 				watch.RuntimeDefaults.Worker.Model,
+			)
+		}
+		if delivery.Sources["/runtime_defaults/worker/model"] != loop.EffectiveConfigSourceDeliveryDefaults ||
+			watch.Sources["/runtime_defaults/worker/model"] != loop.EffectiveConfigSourceWatchDefaults {
+			t.Fatalf(
+				"runtime default sources delivery/watch = %q/%q",
+				delivery.Sources["/runtime_defaults/worker/model"],
+				watch.Sources["/runtime_defaults/worker/model"],
 			)
 		}
 	})
@@ -1807,6 +1893,9 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 				childEnvironment,
 			)
 		}
+		if got := preview.EffectiveConfig.Sources["/environment"]; got != loop.EffectiveConfigSourceLoopConfig {
+			t.Fatalf("child environment source = %q, want loop config", got)
+		}
 		explicitRunEnvironment := dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot}
 		preview, err = svc.DryRun(
 			context.Background(),
@@ -1827,6 +1916,33 @@ func TestServiceConfigMethodsShouldReadWriteRawOverrides(t *testing.T) {
 				preview.EffectiveConfig.Environment,
 				explicitRunEnvironment,
 			)
+		}
+		if got := preview.EffectiveConfig.Sources["/environment"]; got != loop.EffectiveConfigSourcePerRun {
+			t.Fatalf("run environment source = %q, want per run", got)
+		}
+	})
+
+	t.Run("Should report an inherited environment when no later layer overrides it", func(t *testing.T) {
+		t.Parallel()
+
+		svc := newTestService(t, newFakeLoopStore(), validDefinition())
+		inherited := dsl.EnvironmentSpec{Mode: dsl.EnvironmentPerRun}
+		preview, err := svc.DryRun(
+			context.Background(),
+			"ws-inherited-environment",
+			"valid-loop",
+			loop.Inputs{
+				ProfileID:            storepkg.DefaultProfileID,
+				Values:               map[string]any{"tasks": "task-ref"},
+				InheritedEnvironment: &inherited,
+			},
+		)
+		if err != nil {
+			t.Fatalf("DryRun(inherited environment) error = %v", err)
+		}
+		if preview.EffectiveConfig.Environment != inherited ||
+			preview.EffectiveConfig.Sources["/environment"] != loop.EffectiveConfigSourceInheritedEnvironment {
+			t.Fatalf("inherited environment config = %#v", preview.EffectiveConfig)
 		}
 	})
 
@@ -2621,11 +2737,30 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		}
 	})
 
+	// Invariant: terminal runs may rerun past untouched pending dependents, while live runs and
+	// generations with active cells remain busy. The service time-travel suite owns this policy.
 	t.Run("Should record rerun intent provenance and guard live runs UT-070 through UT-077", func(t *testing.T) {
 		t.Parallel()
 
 		store := newTimeTravelFakeStore()
-		service := newTestServiceWithOptions(t, store, validDefinition())
+		definition := validDefinition()
+		definition.Graph.Nodes = append(
+			definition.Graph.Nodes,
+			dsl.Node{
+				ID: "bridge", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{"agent": "codex", "prompt": "Bridge {{ .item.title }}"},
+			},
+			dsl.Node{
+				ID: "publish", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunAgent),
+				Params: dsl.NodeParams{"agent": "codex", "prompt": "Publish {{ .item.title }}"},
+			},
+		)
+		definition.Graph.Edges = append(
+			definition.Graph.Edges,
+			dsl.Edge{From: "agent", To: "bridge"},
+			dsl.Edge{From: "bridge", To: "publish"},
+		)
+		service := newTestServiceWithOptions(t, store, definition)
 		svc := service.(loop.TimeTravelService)
 		run, err := service.Start(
 			context.Background(),
@@ -2647,6 +2782,7 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 			{Generation: 1, NodeID: "load", Status: "succeeded", OutputRef: "load"},
 			{Generation: 1, NodeID: "fan", Status: "succeeded", OutputRef: "fan"},
 			{Generation: 1, NodeID: "agent", Status: "failed", OutputRef: "agent"},
+			{Generation: 1, NodeID: "publish", Status: "pending"},
 		}
 		store.mu.Unlock()
 		actor := humanActor(t)
@@ -2657,12 +2793,23 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RerunFromNode() error = %v", err)
 		}
-		if result.Generation != 2 || result.ParentGeneration != 1 || len(result.RerunNodes) != 1 {
+		if result.Generation != 2 || result.ParentGeneration != 1 ||
+			!reflect.DeepEqual(result.RerunNodes, []string{"agent[0]", "publish[0]"}) {
 			t.Fatalf("rerun result = %#v", result)
 		}
 		if store.rerunRequest == nil || store.rerunRequest.Intent.Origin != loop.OriginOperatorRerun ||
 			store.rerunRequest.Operation.Actor.Actor != actor.Actor || store.rerunRequest.Operation.Reason != "retry flaky provider" {
 			t.Fatalf("rerun request = %#v, want operator_rerun provenance", store.rerunRequest)
+		}
+		var publish *loop.GenerationOutput
+		for index := range store.rerunRequest.NextOutputs {
+			if store.rerunRequest.NextOutputs[index].NodeID == "publish" {
+				publish = &store.rerunRequest.NextOutputs[index]
+				break
+			}
+		}
+		if publish == nil || publish.Status != "pending" {
+			t.Fatalf("publish rerun output = %#v, want pending across an unmaterialized bridge", publish)
 		}
 		storedReplay := result
 		store.rerunReplay = &storedReplay
@@ -2682,6 +2829,31 @@ func TestServiceTimeTravelShouldPreserveHistoryContracts(t *testing.T) {
 		})
 		if !errors.Is(err, loop.ErrRerunBusy) {
 			t.Fatalf("live RerunFromNode() error = %v, want ErrRerunBusy", err)
+		}
+		terminal.Status = loop.StatusDone
+		store.seed(terminal)
+		store.mu.Lock()
+		store.rerunReplay = nil
+		store.replayDigest = ""
+		store.generationOutputs[run.ID][0].Status = "pending"
+		store.mu.Unlock()
+		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", RequestID: "rerun-unrelated-pending",
+			Actor: actor,
+		})
+		if !errors.Is(err, loop.ErrRerunBusy) {
+			t.Fatalf("unrelated pending RerunFromNode() error = %v, want ErrRerunBusy", err)
+		}
+		store.mu.Lock()
+		store.generationOutputs[run.ID][0].Status = "succeeded"
+		store.generationOutputs[run.ID][3].Status = "running"
+		store.mu.Unlock()
+		_, err = svc.RerunFromNode(context.Background(), loop.RerunInput{
+			WorkspaceID: run.WorkspaceID, RunID: run.ID, FromNode: "agent", RequestID: "rerun-busy-output",
+			Actor: actor,
+		})
+		if !errors.Is(err, loop.ErrRerunBusy) {
+			t.Fatalf("active output RerunFromNode() error = %v, want ErrRerunBusy", err)
 		}
 	})
 

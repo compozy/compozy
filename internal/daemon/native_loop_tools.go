@@ -85,6 +85,7 @@ func (n *daemonNativeTools) loopInspect(
 		nativeConfigHookToolsNameKey: loop.Name,
 		loopInputsKey:                loop.Definition.Inputs,
 		"contract":                   loop.Definition.Contract,
+		"effective_config":           loop.EffectiveConfig,
 		"start":                      loop.Definition.Start,
 		"version":                    loop.Version,
 	}, fmt.Sprintf("loop %s v%d", loop.Name, loop.Version))

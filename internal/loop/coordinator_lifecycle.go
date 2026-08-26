@@ -155,7 +155,7 @@ func lifecycleActionNode(
 	if !found || !terminal || output.TaskRunID == "" || node.Class != dsl.NodeClassAction {
 		return dsl.Node{}, false
 	}
-	if dsl.ActionKind(node.Kind) == dsl.ActionGoal || output.FirstScheduledAt == nil {
+	if output.FirstScheduledAt == nil {
 		return dsl.Node{}, false
 	}
 	return node, !nodeAttemptRecorded(attempts, generation, output)

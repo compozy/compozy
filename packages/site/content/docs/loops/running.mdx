@@ -211,11 +211,11 @@ the generation count, timing, and a budget mini-bar.
 Use the detail surface when you need provenance or gate decisions. List surfaces stay deliberately
 small.
 
-| Surface                                        | Shape                                                                                                                                                                                                                                 |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `compozy loop status` / `compozy__loop_status` | The detail includes raw `executed_definition` plus input-resolved `materialized_contract`; `run` includes optional `best_generation`/`best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs. |
-| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                |
-| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                      |
+| Surface                                        | Shape                                                                                                                                                                                                                                                                                                                       |
+| ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compozy loop status` / `compozy__loop_status` | The detail includes raw `executed_definition`, input-resolved `materialized_contract`, and the snapshot-pinned `effective_config` with per-field `sources`; `run` includes optional `completed_at`, `best_generation`, and `best_score`; `generations[]` includes `parent_generation`, `origin`, `verdicts[]`, and outputs. |
+| `compozy loop runs` / `compozy__loop_runs`     | Each run summary includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                                                                                                      |
+| Loop catalog list                              | `last_run` includes optional `best_generation`/`best_score`; it never embeds generation history.                                                                                                                                                                                                                            |
 
 The best fields are omitted until an approved finite score establishes a baseline. A detailed JSON
 response can therefore look like this:
@@ -237,6 +237,15 @@ response can therefore look like this:
   ]
 }
 ```
+
+`completed_at` is the exact time a run entered a terminal state. It remains absent for live runs and
+for migrated history that has no durable terminal-status event. Terminal duration is
+`completed_at - started_at`; live duration continues to use the latest progress time. An explicit
+rerun clears the old completion time before the run becomes live again.
+
+Run detail always returns the effective config persisted with that run. Its `sources` object maps
+JSON Pointer paths to logical sources such as `definition`, `loops.defaults.delivery`,
+`loop_config`, or `per_run`. Changing current defaults does not change a historical status response.
 
 Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, `gate_revise`,
 `gate_next_generation`, `dod_retry`, `ratchet_restore`, `requeue`, `operator_rerun`, and `fork_seed`. See

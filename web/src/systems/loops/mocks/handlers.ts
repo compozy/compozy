@@ -317,6 +317,7 @@ export const handlers: HttpHandler[] = [
               ],
               no_progress_window: 3,
               reattempt_strategy: "failed_only",
+              request_expire_after: "",
               enabled_checks_json: null,
             },
           },

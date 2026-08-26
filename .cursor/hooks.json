@@ -3,7 +3,7 @@
     "hooks": {
         "afterFileEdit": [
             {
-                "command": "scripts/hooks/go-edit-lint.sh",
+                "command": "scripts/hooks/edit-lint.sh",
                 "timeout": 45
             }
         ]

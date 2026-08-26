@@ -130,31 +130,44 @@ func resolveEffectiveConfig(
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
 		Environment:       dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
 		Lifecycle:         DefaultLifecycleConfig(),
+		Sources:           builtinEffectiveConfigSources(),
 	}
-	mergeConfigLayer(&effective, definitionConfigLayer(resolved.Definition))
-	mergeConfigLayer(&effective, defaults.forDefinition(resolved.Definition))
+	mergeConfigLayer(&effective, definitionConfigLayer(resolved.Definition), EffectiveConfigSourceDefinition)
+	defaultLayer, defaultSource := defaults.forDefinition(resolved.Definition)
+	mergeConfigLayer(&effective, defaultLayer, defaultSource)
 	if inheritedEnvironment != nil {
 		inherited := *inheritedEnvironment
-		mergeConfigLayer(&effective, LoopConfig{Environment: &inherited})
+		mergeConfigLayer(
+			&effective,
+			LoopConfig{Environment: &inherited},
+			EffectiveConfigSourceInheritedEnvironment,
+		)
 	}
 	if stored != nil {
-		mergeConfigLayer(&effective, *stored)
+		mergeConfigLayer(&effective, *stored, EffectiveConfigSourceLoopConfig)
 	}
 	runRules := cloneRuntimeRules(perRun.RuntimeRules)
 	perRun.RuntimeRules = nil
-	mergeConfigLayer(&effective, perRun)
+	mergeConfigLayer(&effective, perRun, EffectiveConfigSourcePerRun)
 	effective.RunRuntimeRules = runRules
+	setRuntimeRuleSources(
+		&effective,
+		"/run_runtime_rules",
+		0,
+		len(runRules),
+		EffectiveConfigSourcePerRun,
+	)
 	if err := validateEffectiveConfig(effective); err != nil {
 		return EffectiveConfig{}, err
 	}
 	return effective, nil
 }
 
-func (defaults LoopDefaults) forDefinition(def dsl.Definition) LoopConfig {
+func (defaults LoopDefaults) forDefinition(def dsl.Definition) (LoopConfig, string) {
 	if definitionLooksWatch(def) {
-		return defaults.Watch
+		return defaults.Watch, EffectiveConfigSourceWatchDefaults
 	}
-	return defaults.Delivery
+	return defaults.Delivery, EffectiveConfigSourceDeliveryDefaults
 }
 
 func definitionLooksWatch(def dsl.Definition) bool {
@@ -207,52 +220,65 @@ func definitionGateMaxRevisions(def dsl.Definition) int {
 	return revisions
 }
 
-func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig) {
+func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig, source string) {
 	layer = ClampLoopConfig(layer)
 	if layer.HumanGateEnabled != nil {
 		effective.HumanGateEnabled = *layer.HumanGateEnabled
+		setEffectiveConfigSource(effective, "/human_gate_enabled", source)
 	}
 	if layer.ReattemptStrategy != nil {
 		effective.ReattemptStrategy = *layer.ReattemptStrategy
+		setEffectiveConfigSource(effective, "/reattempt_strategy", source)
 	}
 	if len(layer.EnabledChecks) > 0 {
 		effective.EnabledChecks = cloneRawMessage(layer.EnabledChecks)
+		setEffectiveConfigSource(effective, "/enabled_checks_json", source)
 	}
 	if layer.IterationCap != nil {
 		effective.IterationCap = *layer.IterationCap
+		setEffectiveConfigSource(effective, "/iteration_cap", source)
 	}
 	if layer.BudgetTokens != nil {
 		effective.BudgetTokens = *layer.BudgetTokens
+		setEffectiveConfigSource(effective, "/budget_tokens", source)
 	}
 	if layer.BudgetWallSec != nil {
 		effective.BudgetWallSec = *layer.BudgetWallSec
+		setEffectiveConfigSource(effective, "/budget_wall_sec", source)
 	}
 	if layer.BudgetOnExceeded != nil {
 		effective.BudgetOnExceeded = *layer.BudgetOnExceeded
+		setEffectiveConfigSource(effective, "/budget_on_exceeded", source)
 	}
 	if layer.NoProgressWindow != nil {
 		effective.NoProgressWindow = *layer.NoProgressWindow
+		setEffectiveConfigSource(effective, "/no_progress_window", source)
 	}
 	if layer.FanOutWidth != nil {
 		effective.FanOutWidth = *layer.FanOutWidth
+		setEffectiveConfigSource(effective, "/fan_out_width", source)
 	}
 	if layer.GateMaxRevisions != nil {
 		effective.GateMaxRevisions = *layer.GateMaxRevisions
+		setEffectiveConfigSource(effective, "/gate_max_revisions", source)
 	}
 	if layer.Lifecycle != nil {
 		mergeLifecycleLayer(&effective.Lifecycle, *layer.Lifecycle)
 	}
 	if layer.RequestExpireAfter != nil {
 		effective.RequestExpireAfter = strings.TrimSpace(*layer.RequestExpireAfter)
+		setEffectiveConfigSource(effective, "/request_expire_after", source)
 	}
 	if layer.Environment != nil {
 		effective.Environment = normalizeEnvironmentSpec(*layer.Environment)
+		setEffectiveConfigSource(effective, "/environment", source)
 	}
-	mergeRuntimeConfigLayer(effective, layer)
+	mergeRuntimeConfigLayer(effective, layer, source)
 }
 
 func validateEffectiveConfig(cfg EffectiveConfig) error {
-	if cfg.ReattemptStrategy != ReattemptFailedOnly && cfg.ReattemptStrategy != ReattemptFullBody {
+	if cfg.ReattemptStrategy != ReattemptFailedOnly && cfg.ReattemptStrategy != ReattemptFullBody &&
+		cfg.ReattemptStrategy != ReattemptHalt {
 		return fmt.Errorf("%w: reattempt_strategy is invalid: %q", ErrValidation, cfg.ReattemptStrategy)
 	}
 	switch cfg.BudgetOnExceeded {

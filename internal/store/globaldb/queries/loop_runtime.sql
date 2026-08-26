@@ -358,5 +358,6 @@ SET status = sqlc.arg(status),
     control_actor_id = CASE WHEN sqlc.arg(clear_control_state) THEN NULL ELSE control_actor_id END,
     control_requested_at = CASE WHEN sqlc.arg(clear_control_state) THEN NULL ELSE control_requested_at END,
     active_gate_id = CASE WHEN sqlc.arg(status) != 'needs-approval' THEN '' ELSE active_gate_id END,
-    active_human_criteria_json = CASE WHEN sqlc.arg(status) != 'needs-approval' THEN '[]' ELSE active_human_criteria_json END
+    active_human_criteria_json = CASE WHEN sqlc.arg(status) != 'needs-approval' THEN '[]' ELSE active_human_criteria_json END,
+    completed_at = NULLIF(CAST(sqlc.arg(completed_at) AS TEXT), '')
 WHERE id = sqlc.arg(id) AND status = sqlc.arg(expected_status);

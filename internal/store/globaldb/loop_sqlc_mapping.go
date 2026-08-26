@@ -72,6 +72,10 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 	if row.ControlRequestedAt.Valid {
 		controlRequested = sql.NullString{String: store.FormatTimestamp(row.ControlRequestedAt.Time), Valid: true}
 	}
+	completedAt := sql.NullString{}
+	if row.CompletedAt.Valid {
+		completedAt = sql.NullString{String: store.FormatTimestamp(row.CompletedAt.Time), Valid: true}
+	}
 	values := loopRunScanValues{
 		run: looppkg.Run{
 			ProfileID: row.ProfileID,
@@ -86,6 +90,7 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		completionState:  row.CompletionState,
 		budgetOnExceeded: row.BudgetOnExceeded, createdAtRaw: row.CreatedAt,
 		startedAtRaw: row.StartedAt, lastProgressAtRaw: store.FormatTimestamp(row.LastProgressAt),
+		completedAtRaw: completedAt,
 		activeHumanRaw: row.ActiveHumanCriteriaJson, startMetadataRaw: row.StartMetadataJson,
 		parentID: row.ParentLoopRunID, pauseRequested: int(row.PauseRequested),
 		cancelRequested: int(row.CancelRequested), cancelKind: row.CancelKind,

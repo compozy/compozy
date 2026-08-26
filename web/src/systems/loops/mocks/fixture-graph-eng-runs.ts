@@ -8,6 +8,7 @@ import {
   graphEngResolvedRequests,
 } from "./fixture-graph-eng-requests";
 import { RELEASE_TRAIN_LOOP_NAME, releaseTrainDetail } from "./fixture-release-train";
+import { loopEffectiveConfigFixture } from "./fixtures-config";
 import { materializeContractFixture } from "./materialize-contract-fixture";
 import type {
   LoopAmendment,
@@ -178,6 +179,7 @@ export const releaseTrainRunDetail: LoopRunDetail = {
     releaseTrainDetail.definition.contract,
     releaseTrainRun.inputs ?? {}
   ),
+  effective_config: loopEffectiveConfigFixture,
   generations: [
     rolloutGeneration(1, true),
     rolloutGeneration(2, true),
@@ -201,6 +203,7 @@ export const releaseTrainPartialRunDetail: LoopRunDetail = {
     releaseTrainDetail.definition.contract,
     releaseTrainPartialRun.inputs ?? {}
   ),
+  effective_config: loopEffectiveConfigFixture,
   generations: [rolloutGeneration(1, true), rolloutGeneration(2, true), rolloutGeneration(3, true)],
   node_controls: [],
   waits: [],
@@ -221,6 +224,7 @@ export const releaseTrainForkRunDetail: LoopRunDetail = {
     releaseTrainDetail.definition.contract,
     releaseTrainForkRun.inputs ?? {}
   ),
+  effective_config: loopEffectiveConfigFixture,
   generations: [
     {
       generation: 1,

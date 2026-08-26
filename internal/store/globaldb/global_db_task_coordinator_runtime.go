@@ -101,6 +101,7 @@ func transitionLoopBoundaryStatus(
 			ToStatus: string(to), Generation: int64(generation),
 			NeedsApprovalStatus: string(loop.StatusNeedsApproval), ID: string(current.ID),
 			FromStatus: string(current.Status), CompletionPartial: completionPartial,
+			CompletedAt: completedAtForLoopStatus(to, at),
 		})
 	if err != nil {
 		return nil, fmt.Errorf("store: transition loop run %q at coordinator boundary: %w", current.ID, err)

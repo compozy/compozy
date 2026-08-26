@@ -83,6 +83,7 @@ type LoopReattemptStrategy string
 const (
 	LoopReattemptFailedOnly LoopReattemptStrategy = "failed_only"
 	LoopReattemptFullBody   LoopReattemptStrategy = "full_body"
+	LoopReattemptHalt       LoopReattemptStrategy = "halt"
 )
 
 // LoopBudgetExceeded controls the outcome for a budget breach.
@@ -126,6 +127,7 @@ type LoopDefinitionPayload struct {
 	Source             LoopSource                   `json:"source"`
 	Catalog            LoopCatalogResourceSpec      `json:"catalog"`
 	Definition         LoopDefinitionDocument       `json:"definition"`
+	EffectiveConfig    *LoopEffectiveConfig         `json:"effective_config,omitempty"`
 	EffectiveLifecycle *LoopResolvedLifecycleConfig `json:"effective_lifecycle,omitempty"`
 }
 
@@ -304,20 +306,22 @@ type LoopConfig struct {
 
 // LoopEffectiveConfig is the public fully resolved runtime config.
 type LoopEffectiveConfig struct {
-	HumanGateEnabled  bool                  `json:"human_gate_enabled"`
-	ReattemptStrategy LoopReattemptStrategy `json:"reattempt_strategy"`
-	EnabledChecks     json.RawMessage       `json:"enabled_checks_json"`
-	IterationCap      int                   `json:"iteration_cap"`
-	BudgetTokens      int                   `json:"budget_tokens"`
-	BudgetWallSec     int                   `json:"budget_wall_sec"`
-	BudgetOnExceeded  LoopBudgetExceeded    `json:"budget_on_exceeded"`
-	NoProgressWindow  int                   `json:"no_progress_window"`
-	FanOutWidth       int                   `json:"fan_out_width"`
-	GateMaxRevisions  int                   `json:"gate_max_revisions"`
-	RuntimeDefaults   LoopRuntimeDefaults   `json:"runtime_defaults"`
-	RuntimeRules      []LoopRuntimeRule     `json:"runtime_rules"`
-	RunRuntimeRules   []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
-	Environment       LoopEnvironment       `json:"environment"`
+	HumanGateEnabled   bool                  `json:"human_gate_enabled"`
+	ReattemptStrategy  LoopReattemptStrategy `json:"reattempt_strategy"`
+	EnabledChecks      json.RawMessage       `json:"enabled_checks_json"`
+	IterationCap       int                   `json:"iteration_cap"`
+	BudgetTokens       int                   `json:"budget_tokens"`
+	BudgetWallSec      int                   `json:"budget_wall_sec"`
+	BudgetOnExceeded   LoopBudgetExceeded    `json:"budget_on_exceeded"`
+	NoProgressWindow   int                   `json:"no_progress_window"`
+	FanOutWidth        int                   `json:"fan_out_width"`
+	GateMaxRevisions   int                   `json:"gate_max_revisions"`
+	RuntimeDefaults    LoopRuntimeDefaults   `json:"runtime_defaults"`
+	RuntimeRules       []LoopRuntimeRule     `json:"runtime_rules"`
+	RunRuntimeRules    []LoopRuntimeRule     `json:"run_runtime_rules,omitempty"`
+	Environment        LoopEnvironment       `json:"environment"`
+	RequestExpireAfter string                `json:"request_expire_after"`
+	Sources            map[string]string     `json:"sources,omitempty"`
 }
 
 // LoopAnnotationPayload is one editor node position.

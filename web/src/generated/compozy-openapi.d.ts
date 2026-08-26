@@ -101823,6 +101823,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              /** Format: date-time */
+              completed_at?: string | null;
               /** @enum {string} */
               completion_state: "complete" | "partial";
               /** Format: date-time */
@@ -101862,7 +101864,7 @@ export interface operations {
                 steps_total: number;
               };
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
               resolved_network_participation:
                 | (
                     | {
@@ -102077,6 +102079,74 @@ export interface operations {
               } | null;
               reason?: string;
             }[];
+            effective_config: {
+              /** @enum {string} */
+              budget_on_exceeded: "halt" | "escalate";
+              budget_tokens: number;
+              budget_wall_sec: number;
+              enabled_checks_json: unknown;
+              environment: {
+                directory?: string;
+                /** @enum {string} */
+                mode: "root" | "worktree" | "per_run" | "directory";
+                worktree_ref?: string;
+              };
+              fan_out_width: number;
+              gate_max_revisions: number;
+              human_gate_enabled: boolean;
+              iteration_cap: number;
+              no_progress_window: number;
+              /** @enum {string} */
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
+              request_expire_after: string;
+              run_runtime_rules?: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                };
+              }[];
+              runtime_defaults: {
+                judge?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                };
+                worker?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                };
+              };
+              runtime_rules: {
+                match: {
+                  complexity?: string;
+                  id?: string;
+                  type?: string;
+                };
+                runtime: {
+                  model?: string;
+                  provider?: string;
+                  reasoning?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                };
+              }[];
+              sources?: {
+                [key: string]: string;
+              };
+            };
             executed_definition?: {
               apiVersion: string;
               concurrency?: string;
@@ -103082,6 +103152,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              /** Format: date-time */
+              completed_at?: string | null;
               /** @enum {string} */
               completion_state: "complete" | "partial";
               /** Format: date-time */
@@ -103121,7 +103193,7 @@ export interface operations {
                 steps_total: number;
               };
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
               resolved_network_participation:
                 | (
                     | {
@@ -104346,7 +104418,7 @@ export interface operations {
                   /** Format: int64 */
                   parent_generation: number;
                   /** @enum {string} */
-                  reattempt_strategy: "failed_only" | "full_body";
+                  reattempt_strategy: "failed_only" | "full_body" | "halt";
                 };
                 /** Format: int64 */
                 seq: number;
@@ -104613,6 +104685,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              /** Format: date-time */
+              completed_at?: string | null;
               /** @enum {string} */
               completion_state: "complete" | "partial";
               /** Format: date-time */
@@ -104652,7 +104726,7 @@ export interface operations {
                 steps_total: number;
               };
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
               resolved_network_participation:
                 | (
                     | {
@@ -110501,6 +110575,74 @@ export interface operations {
                 }[];
               };
               description?: string;
+              effective_config?: {
+                /** @enum {string} */
+                budget_on_exceeded: "halt" | "escalate";
+                budget_tokens: number;
+                budget_wall_sec: number;
+                enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
+                fan_out_width: number;
+                gate_max_revisions: number;
+                human_gate_enabled: boolean;
+                iteration_cap: number;
+                no_progress_window: number;
+                /** @enum {string} */
+                reattempt_strategy: "failed_only" | "full_body" | "halt";
+                request_expire_after: string;
+                run_runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                }[];
+                runtime_defaults: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                };
+                runtime_rules: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                }[];
+                sources?: {
+                  [key: string]: string;
+                };
+              } | null;
               effective_lifecycle?: {
                 admission_horizon: string;
                 liveness_silence_window: string;
@@ -111349,6 +111491,74 @@ export interface operations {
                 }[];
               };
               description?: string;
+              effective_config?: {
+                /** @enum {string} */
+                budget_on_exceeded: "halt" | "escalate";
+                budget_tokens: number;
+                budget_wall_sec: number;
+                enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
+                fan_out_width: number;
+                gate_max_revisions: number;
+                human_gate_enabled: boolean;
+                iteration_cap: number;
+                no_progress_window: number;
+                /** @enum {string} */
+                reattempt_strategy: "failed_only" | "full_body" | "halt";
+                request_expire_after: string;
+                run_runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                }[];
+                runtime_defaults: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                };
+                runtime_rules: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                }[];
+                sources?: {
+                  [key: string]: string;
+                };
+              } | null;
               effective_lifecycle?: {
                 admission_horizon: string;
                 liveness_silence_window: string;
@@ -112923,6 +113133,74 @@ export interface operations {
                 }[];
               };
               description?: string;
+              effective_config?: {
+                /** @enum {string} */
+                budget_on_exceeded: "halt" | "escalate";
+                budget_tokens: number;
+                budget_wall_sec: number;
+                enabled_checks_json: unknown;
+                environment: {
+                  directory?: string;
+                  /** @enum {string} */
+                  mode: "root" | "worktree" | "per_run" | "directory";
+                  worktree_ref?: string;
+                };
+                fan_out_width: number;
+                gate_max_revisions: number;
+                human_gate_enabled: boolean;
+                iteration_cap: number;
+                no_progress_window: number;
+                /** @enum {string} */
+                reattempt_strategy: "failed_only" | "full_body" | "halt";
+                request_expire_after: string;
+                run_runtime_rules?: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                }[];
+                runtime_defaults: {
+                  judge?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                  worker?: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                };
+                runtime_rules: {
+                  match: {
+                    complexity?: string;
+                    id?: string;
+                    type?: string;
+                  };
+                  runtime: {
+                    model?: string;
+                    provider?: string;
+                    reasoning?: string;
+                    /** @enum {string} */
+                    speed?: "normal" | "fast";
+                  };
+                }[];
+                sources?: {
+                  [key: string]: string;
+                };
+              } | null;
               effective_lifecycle?: {
                 admission_horizon: string;
                 liveness_silence_window: string;
@@ -113501,7 +113779,7 @@ export interface operations {
               iteration_cap?: number | null;
               no_progress_window?: number | null;
               /** @enum {string|null} */
-              reattempt_strategy?: "failed_only" | "full_body" | null;
+              reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
               runtime_defaults?: {
                 judge?: {
                   model?: string;
@@ -113551,7 +113829,8 @@ export interface operations {
               iteration_cap: number;
               no_progress_window: number;
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
+              request_expire_after: string;
               run_runtime_rules?: {
                 match: {
                   complexity?: string;
@@ -113596,6 +113875,9 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
               }[];
+              sources?: {
+                [key: string]: string;
+              };
             };
           };
         };
@@ -113755,7 +114037,7 @@ export interface operations {
             iteration_cap?: number | null;
             no_progress_window?: number | null;
             /** @enum {string|null} */
-            reattempt_strategy?: "failed_only" | "full_body" | null;
+            reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
             runtime_defaults?: {
               judge?: {
                 model?: string;
@@ -113816,7 +114098,7 @@ export interface operations {
               iteration_cap?: number | null;
               no_progress_window?: number | null;
               /** @enum {string|null} */
-              reattempt_strategy?: "failed_only" | "full_body" | null;
+              reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
               runtime_defaults?: {
                 judge?: {
                   model?: string;
@@ -113866,7 +114148,8 @@ export interface operations {
               iteration_cap: number;
               no_progress_window: number;
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
+              request_expire_after: string;
               run_runtime_rules?: {
                 match: {
                   complexity?: string;
@@ -113911,6 +114194,9 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
               }[];
+              sources?: {
+                [key: string]: string;
+              };
             };
           };
         };
@@ -115032,7 +115318,7 @@ export interface operations {
             iteration_cap?: number | null;
             no_progress_window?: number | null;
             /** @enum {string|null} */
-            reattempt_strategy?: "failed_only" | "full_body" | null;
+            reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
             runtime_defaults?: {
               judge?: {
                 model?: string;
@@ -115351,7 +115637,8 @@ export interface operations {
                 iteration_cap: number;
                 no_progress_window: number;
                 /** @enum {string} */
-                reattempt_strategy: "failed_only" | "full_body";
+                reattempt_strategy: "failed_only" | "full_body" | "halt";
+                request_expire_after: string;
                 run_runtime_rules?: {
                   match: {
                     complexity?: string;
@@ -115396,6 +115683,9 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                 }[];
+                sources?: {
+                  [key: string]: string;
+                };
               };
               generation: number;
               input_origins: {
@@ -115670,6 +115960,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              /** Format: date-time */
+              completed_at?: string | null;
               /** @enum {string} */
               completion_state: "complete" | "partial";
               /** Format: date-time */
@@ -115709,7 +116001,7 @@ export interface operations {
                 steps_total: number;
               };
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
               resolved_network_participation:
                 | (
                     | {
@@ -116007,7 +116299,8 @@ export interface operations {
                 iteration_cap: number;
                 no_progress_window: number;
                 /** @enum {string} */
-                reattempt_strategy: "failed_only" | "full_body";
+                reattempt_strategy: "failed_only" | "full_body" | "halt";
+                request_expire_after: string;
                 run_runtime_rules?: {
                   match: {
                     complexity?: string;
@@ -116052,6 +116345,9 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                 }[];
+                sources?: {
+                  [key: string]: string;
+                };
               };
               generation: number;
               input_origins: {
@@ -116326,6 +116622,8 @@ export interface operations {
               budget_on_exceeded: "halt" | "escalate";
               budget_tokens: number;
               budget_wall_sec: number;
+              /** Format: date-time */
+              completed_at?: string | null;
               /** @enum {string} */
               completion_state: "complete" | "partial";
               /** Format: date-time */
@@ -116365,7 +116663,7 @@ export interface operations {
                 steps_total: number;
               };
               /** @enum {string} */
-              reattempt_strategy: "failed_only" | "full_body";
+              reattempt_strategy: "failed_only" | "full_body" | "halt";
               resolved_network_participation:
                 | (
                     | {

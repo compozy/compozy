@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/loop"
+	"github.com/compozy/compozy/internal/store"
 )
 
 // BindingOwnership determines whether terminal cleanup may stop the bound session.
@@ -95,6 +96,30 @@ type PrepareBindingAttemptRequest struct {
 	PolicySpecDigest   string
 	CreationDigest     string
 	CreatedAt          time.Time
+}
+
+// AllocateBindingAttemptRequest atomically selects and prepares the next Goal-owned binding epoch.
+type AllocateBindingAttemptRequest struct {
+	Key                            BindingKey
+	CheckpointKey                  TurnKey
+	TargetBindingEpoch             int64
+	ExpectedControlEpoch           int64
+	ExpectedCheckpointPhase        string
+	ExpectedTaskRunID              string
+	ExpectedQueueEntryID           string
+	ExpectedPromptID               string
+	ExpectedCheckpointBindingEpoch int64
+	ExpectedCheckpointSessionID    string
+	ExpectedCheckpointHandle       string
+	IdentityHandle                 string
+	CreationProfile                store.SessionCreationProfile
+	CreationOptions                store.SessionCreationOptions
+	CreatedAt                      time.Time
+}
+
+// BindingAttemptAllocator reserves Goal-owned epochs under the checkpoint ownership fence.
+type BindingAttemptAllocator interface {
+	AllocateSessionBindingAttempt(context.Context, *AllocateBindingAttemptRequest) (SessionBinding, error)
 }
 
 // AdvanceBindingCreationFailureRequest atomically consumes one Goal-owned creation attempt.

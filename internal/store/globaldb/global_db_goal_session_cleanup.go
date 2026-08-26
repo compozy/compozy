@@ -133,7 +133,7 @@ func enqueueGoalSessionCleanupWithExecutor(
 	if err != nil {
 		return err
 	}
-	if !goalSessionCleanupMatches(persisted, obligation) {
+	if !goalSessionCleanupIdentityMatches(persisted, obligation) {
 		return fmt.Errorf(
 			"%w: Goal session cleanup %q payload changed",
 			looppkg.ErrTransitionConflict,
@@ -175,12 +175,11 @@ func loadGoalSessionCleanup(
 	return obligation, nil
 }
 
-func goalSessionCleanupMatches(
+func goalSessionCleanupIdentityMatches(
 	persisted goal.SessionCleanupObligation,
 	want goal.SessionCleanupObligation,
 ) bool {
 	return persisted.CleanupID == want.CleanupID && persisted.WorkspaceID == want.WorkspaceID &&
 		persisted.LoopRunID == want.LoopRunID && persisted.Handle == want.Handle &&
-		persisted.BindingEpoch == want.BindingEpoch && persisted.SessionID == want.SessionID &&
-		persisted.Cause == want.Cause && persisted.CreatedAt.Equal(want.CreatedAt)
+		persisted.BindingEpoch == want.BindingEpoch && persisted.SessionID == want.SessionID
 }

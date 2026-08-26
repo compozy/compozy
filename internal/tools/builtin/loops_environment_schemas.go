@@ -63,7 +63,7 @@ const loopConfigInputSchema = `{
 	"additionalProperties":false,
 	"properties":{
 		"human_gate_enabled":{"type":"boolean"},
-		"reattempt_strategy":{"type":"string","enum":["failed_only","full_body"]},
+		"reattempt_strategy":{"type":"string","enum":["failed_only","full_body","halt"]},
 		"enabled_checks_json":{},
 		"iteration_cap":{"type":"integer","minimum":0},
 		"budget_tokens":{"type":"integer","minimum":0},

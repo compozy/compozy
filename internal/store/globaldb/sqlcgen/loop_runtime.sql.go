@@ -66,13 +66,15 @@ SET status = ?1,
     control_actor_id = CASE WHEN ?2 THEN NULL ELSE control_actor_id END,
     control_requested_at = CASE WHEN ?2 THEN NULL ELSE control_requested_at END,
     active_gate_id = CASE WHEN ?1 != 'needs-approval' THEN '' ELSE active_gate_id END,
-    active_human_criteria_json = CASE WHEN ?1 != 'needs-approval' THEN '[]' ELSE active_human_criteria_json END
-WHERE id = ?3 AND status = ?4
+    active_human_criteria_json = CASE WHEN ?1 != 'needs-approval' THEN '[]' ELSE active_human_criteria_json END,
+    completed_at = NULLIF(CAST(?3 AS TEXT), '')
+WHERE id = ?4 AND status = ?5
 `
 
 type CompareAndSwapLoopRunStatusParams struct {
 	Status            string `json:"status"`
 	ClearControlState int64  `json:"clear_control_state"`
+	CompletedAt       string `json:"completed_at"`
 	ID                string `json:"id"`
 	ExpectedStatus    string `json:"expected_status"`
 }
@@ -81,6 +83,7 @@ func (q *Queries) CompareAndSwapLoopRunStatus(ctx context.Context, arg CompareAn
 	result, err := q.db.ExecContext(ctx, compareAndSwapLoopRunStatus,
 		arg.Status,
 		arg.ClearControlState,
+		arg.CompletedAt,
 		arg.ID,
 		arg.ExpectedStatus,
 	)
