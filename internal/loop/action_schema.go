@@ -250,9 +250,9 @@ func shorthandPropertySchema(value any) any {
 	}
 }
 
-// runAgentPromptWithOutputContract appends the authored output schema so the
-// agent knows the exact terminal JSON shape before its first attempt.
-func runAgentPromptWithOutputContract(prompt string, schema dsl.Schema) (string, error) {
+// ActionPromptWithOutputContract appends the authored output schema so an
+// action agent knows the exact terminal JSON shape before its first attempt.
+func ActionPromptWithOutputContract(prompt string, schema dsl.Schema) (string, error) {
 	if len(schema) == 0 {
 		return prompt, nil
 	}

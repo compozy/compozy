@@ -1949,6 +1949,16 @@ func TestLinterShouldValidateGoalContractsWithoutMutation(t *testing.T) {
 			wantCodes: []string{loop.CodeGoalOutputStatusMissingBlocked},
 		},
 		{
+			name:       "Should reject output status without complete",
+			definition: validGoalDefinition,
+			mutate: func(def *dsl.Definition) {
+				requireNode(t, def, "converge").Params["output_schema"] = map[string]any{
+					"status": map[string]any{"type": "string", "enum": []any{"completed", "blocked"}},
+				}
+			},
+			wantCodes: []string{loop.CodeGoalOutputStatusMissingComplete},
+		},
+		{
 			name:       "Should reject an invalid exhaustion policy",
 			definition: validGoalDefinition,
 			mutate: func(def *dsl.Definition) {

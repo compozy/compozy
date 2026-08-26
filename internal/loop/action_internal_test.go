@@ -226,7 +226,7 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 			"properties": map[string]any{"status": map[string]any{"type": "string"}},
 			"required":   []any{"status"},
 		}
-		prompt, err := runAgentPromptWithOutputContract("Do the task", schema)
+		prompt, err := ActionPromptWithOutputContract("Do the task", schema)
 		if err != nil {
 			t.Fatalf("runAgentPromptWithOutputContract() error = %v", err)
 		}
@@ -234,7 +234,7 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 			!strings.Contains(prompt, `"required":["status"]`) {
 			t.Fatalf("contract prompt = %q, want prompt plus authored schema", prompt)
 		}
-		unchanged, err := runAgentPromptWithOutputContract("Do the task", nil)
+		unchanged, err := ActionPromptWithOutputContract("Do the task", nil)
 		if err != nil {
 			t.Fatalf("runAgentPromptWithOutputContract(no schema) error = %v", err)
 		}
@@ -242,7 +242,7 @@ func TestActionSchemaAndJSONInternalsShouldCoverStructuredExtraction(t *testing.
 			t.Fatalf("contract prompt without schema = %q, want untouched prompt", unchanged)
 		}
 
-		_, err = runAgentPromptWithOutputContract("Do the task", dsl.Schema{
+		_, err = ActionPromptWithOutputContract("Do the task", dsl.Schema{
 			"payload": map[any]any{12: "bad"},
 		})
 		if !errors.Is(err, ErrValidation) || !strings.Contains(err.Error(), "normalize output contract schema") {

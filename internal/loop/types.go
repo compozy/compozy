@@ -123,6 +123,8 @@ const (
 	CodeGoalMaxTurnsRequired = "goal_max_turns_required"
 	// CodeGoalOutputStatusMissingBlocked reports a Goal output schema that cannot represent blocked.
 	CodeGoalOutputStatusMissingBlocked = "goal_output_status_missing_blocked"
+	// CodeGoalOutputStatusMissingComplete reports a Goal output schema that cannot represent completion.
+	CodeGoalOutputStatusMissingComplete = "goal_output_status_missing_complete"
 	// CodeGoalOnExhaustedInvalid reports an unsupported Goal exhaustion policy.
 	CodeGoalOnExhaustedInvalid = "goal_on_exhausted_invalid"
 	// CodeGoalHumanJudgeUnsupported reports a human Goal judge, which v1 cannot lease safely.

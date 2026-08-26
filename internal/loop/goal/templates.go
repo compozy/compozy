@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
@@ -83,7 +84,7 @@ func stableDigest(value any) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-func renderWorkPrompt(segment *segmentState, turn int, kind string) string {
+func renderWorkPrompt(segment *segmentState, turn int, kind string) (string, error) {
 	var prompt strings.Builder
 	prompt.WriteString("You are advancing a durable Goal.\n\nObjective:\n")
 	prompt.WriteString(strings.TrimSpace(segment.params.Objective))
@@ -115,7 +116,14 @@ func renderWorkPrompt(segment *segmentState, turn int, kind string) string {
 			"Use the Goal report tool only for an explicit complete or evidenced blocked boundary; " +
 			"reporting does not end the current prompt.",
 	)
-	return prompt.String()
+	return loop.ActionPromptWithOutputContract(prompt.String(), dereferenceSchema(segment.params.OutputSchema))
+}
+
+func dereferenceSchema(schema *dsl.Schema) dsl.Schema {
+	if schema == nil {
+		return nil
+	}
+	return *schema
 }
 
 func renderCompactionPrompt(segment *segmentState) string {

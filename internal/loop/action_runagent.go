@@ -58,7 +58,7 @@ func (e *RunAgentActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, err
 	}
-	spec.Prompt, err = runAgentPromptWithOutputContract(spec.Prompt, spec.OutputSchema)
+	spec.Prompt, err = ActionPromptWithOutputContract(spec.Prompt, spec.OutputSchema)
 	if err != nil {
 		return ActionRawResult{}, err
 	}

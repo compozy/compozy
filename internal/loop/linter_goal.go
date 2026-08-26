@@ -28,7 +28,14 @@ func (c *lintContext) lintGoalNode(node dsl.Node) {
 	if params.MaxTurns < 1 {
 		c.add(node.ID, CodeGoalMaxTurnsRequired, "goal params.max_turns must be at least 1")
 	}
-	if !goalOutputAllowsBlocked(params.OutputSchema) {
+	if !goalOutputAllowsStatus(params.OutputSchema, "complete") {
+		c.add(
+			node.ID,
+			CodeGoalOutputStatusMissingComplete,
+			"goal params.output_schema status enum must include complete",
+		)
+	}
+	if !goalOutputAllowsStatus(params.OutputSchema, string(ActionDispositionBlocked)) {
 		c.add(
 			node.ID,
 			CodeGoalOutputStatusMissingBlocked,
@@ -128,7 +135,7 @@ func (c *lintContext) lintGoalRetry(node dsl.Node, continuous bool) {
 	}
 }
 
-func goalOutputAllowsBlocked(schema *dsl.Schema) bool {
+func goalOutputAllowsStatus(schema *dsl.Schema, expected string) bool {
 	if schema == nil {
 		return false
 	}
@@ -149,10 +156,10 @@ func goalOutputAllowsBlocked(schema *dsl.Schema) bool {
 	switch typed := values.(type) {
 	case []any:
 		return slices.ContainsFunc(typed, func(value any) bool {
-			return fmt.Sprint(value) == string(ActionDispositionBlocked)
+			return fmt.Sprint(value) == expected
 		})
 	case []string:
-		return slices.Contains(typed, "blocked")
+		return slices.Contains(typed, expected)
 	default:
 		return false
 	}
