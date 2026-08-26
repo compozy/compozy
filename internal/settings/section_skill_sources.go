@@ -52,6 +52,7 @@ func (s *service) buildSkillSourceReadModel(
 ) ([]SkillSourceItem, *SkillSourceInheritance, error) {
 	items := presetSkillSourceItems(cfg)
 	indexBySlug := make(map[string]int, len(items)+len(statuses))
+	configuredCustomPaths := configuredCustomSourcePaths(cfg.CustomSources)
 	for index := range items {
 		indexBySlug[items[index].Slug] = index
 	}
@@ -59,7 +60,11 @@ func (s *service) buildSkillSourceReadModel(
 		slug := strings.TrimSpace(status.Spec.SourceSlug)
 		index, ok := indexBySlug[slug]
 		if !ok {
-			item := customSkillSourceItem(slug, status.Spec.Dir)
+			path := status.Spec.Dir
+			if configuredPath := configuredCustomPaths[slug]; configuredPath != "" {
+				path = configuredPath
+			}
+			item := customSkillSourceItem(slug, path)
 			items = append(items, item)
 			index = len(items) - 1
 			indexBySlug[slug] = index
@@ -73,6 +78,18 @@ func (s *service) buildSkillSourceReadModel(
 		return nil, nil, err
 	}
 	return items, inherits, nil
+}
+
+func configuredCustomSourcePaths(paths []string) map[string]string {
+	slugs := compozyconfig.CustomSourceSlugs(paths)
+	configured := make(map[string]string, len(paths))
+	for _, path := range paths {
+		slug := slugs[compozyconfig.CanonicalSkillSourcePath(path)]
+		if slug != "" {
+			configured[slug] = path
+		}
+	}
+	return configured
 }
 
 func presetSkillSourceItems(cfg compozyconfig.SkillsConfig) []SkillSourceItem {

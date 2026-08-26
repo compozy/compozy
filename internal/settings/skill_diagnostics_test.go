@@ -145,6 +145,39 @@ func TestSkillsSectionDiagnostics(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve configured custom paths beside canonical root measurements", func(t *testing.T) {
+		t.Parallel()
+
+		configuredPath := "/var/team-skills"
+		canonicalPath := "/private/var/team-skills"
+		items, _, err := (&service{}).buildSkillSourceReadModel(
+			compozyconfig.SkillsConfig{CustomSources: []string{configuredPath}},
+			nil,
+			ScopeUser,
+			[]skillspkg.SkillSourceRootStatus{{
+				Spec: compozyconfig.SkillRootSpec{
+					Dir: canonicalPath, SourceSlug: "team-skills", Kind: compozyconfig.RootKindCustom,
+					ResourceScope: resources.ResourceScope{Kind: resources.ResourceScopeKindUser},
+				},
+				Exists: true, Readable: true, ScannedCount: 1, SkillCount: 1,
+			}},
+			true,
+		)
+		if err != nil {
+			t.Fatalf("buildSkillSourceReadModel() error = %v", err)
+		}
+		custom := findSkillSourceItem(t, items, "team-skills")
+		if got, want := custom.Path, configuredPath; got != want {
+			t.Fatalf("custom path = %q, want configured path %q", got, want)
+		}
+		if got, want := custom.Roots[0].Path, canonicalPath; got != want {
+			t.Fatalf("custom root path = %q, want canonical measurement %q", got, want)
+		}
+		if custom.Roots[0].SkillCount == nil || *custom.Roots[0].SkillCount != 1 {
+			t.Fatalf("custom root skill count = %#v, want 1", custom.Roots[0].SkillCount)
+		}
+	})
+
 	t.Run("Should report workspace inheritance independently per source key", func(t *testing.T) {
 		t.Parallel()
 

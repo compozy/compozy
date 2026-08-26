@@ -5,6 +5,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuTrigger,
   Spinner,
@@ -112,22 +113,24 @@ export function SkillExposeTargetPicker({
         }
       />
       <DropdownMenuContent align="start" className="min-w-56" data-testid={`${TEST_ID}-menu`}>
-        <DropdownMenuLabel>Expose to</DropdownMenuLabel>
-        {targets.map(target => (
-          <DropdownMenuCheckboxItem
-            checked={selected.has(target.slug)}
-            className="gap-2"
-            data-testid={`${TEST_ID}-option-${target.slug}`}
-            key={target.slug}
-            onCheckedChange={() => toggle(target.slug)}
-            onSelect={event => event.preventDefault()}
-          >
-            <span className="min-w-0 flex-1 truncate text-fg">{target.label}</span>
-            {target.hint !== null ? (
-              <span className="shrink-0 font-mono text-badge text-faint">{target.hint}</span>
-            ) : null}
-          </DropdownMenuCheckboxItem>
-        ))}
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Expose to</DropdownMenuLabel>
+          {targets.map(target => (
+            <DropdownMenuCheckboxItem
+              checked={selected.has(target.slug)}
+              className="gap-2"
+              data-testid={`${TEST_ID}-option-${target.slug}`}
+              key={target.slug}
+              onCheckedChange={() => toggle(target.slug)}
+              onSelect={event => event.preventDefault()}
+            >
+              <span className="min-w-0 flex-1 truncate text-fg">{target.label}</span>
+              {target.hint !== null ? (
+                <span className="shrink-0 font-mono text-badge text-faint">{target.hint}</span>
+              ) : null}
+            </DropdownMenuCheckboxItem>
+          ))}
+        </DropdownMenuGroup>
         <div className="mt-1 flex items-center justify-end gap-1.5 border-t border-line pt-1.5">
           <Button onClick={() => setOpen(false)} size="sm" type="button" variant="ghost">
             Cancel

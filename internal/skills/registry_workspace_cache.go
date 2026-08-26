@@ -247,10 +247,7 @@ func workspaceResolvedSkillRoots(resolved *workspacepkg.ResolvedWorkspace) []com
 			continue
 		}
 		discoveryRoot.ProfileID = strings.TrimSpace(resolved.ProfileID)
-		discoveryRoot.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
-		if discoveryRoot.WorkspaceID == "" {
-			discoveryRoot.WorkspaceID = strings.TrimSpace(resolved.ID)
-		}
+		discoveryRoot.WorkspaceID = resourceWorkspaceKey(resolved)
 		discoveryRoot.ResourceScopeID = discoveryRoot.WorkspaceID + "@pf:" + strings.TrimSpace(resolved.ProfileName)
 		roots = append(roots, discoveryRoot.SkillsDirs(&resolved.Config.Skills)...)
 	}

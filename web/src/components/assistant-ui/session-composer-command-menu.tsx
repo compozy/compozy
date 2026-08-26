@@ -70,6 +70,7 @@ function CommandMenuItemRow({
       ref={rowRef}
       item={item}
       index={flatIndex}
+      data-command-token={presentation.token}
       data-testid="composer-command-item"
       data-unavailable={presentation.available ? undefined : ""}
       disabled={!presentation.available}

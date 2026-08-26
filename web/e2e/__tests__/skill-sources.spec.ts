@@ -5,7 +5,6 @@ import { appWindow, openAppWindow, sessionWindow } from "../fixtures/os-navigati
 import type { BrowserRuntime } from "../fixtures/runtime";
 import {
   deleteExposeLink,
-  exposeLinkPath,
   pathExists,
   readLinkTarget,
   replaceWithForeignLink,
@@ -67,6 +66,12 @@ interface SettingsSkillsEnvelope {
     enabled: boolean;
     roots: { path: string; exists: boolean; skill_count?: number | null }[];
   }[];
+}
+
+interface SkillDetailEnvelope {
+  skill: {
+    exposures?: { path: string; target: string }[];
+  };
 }
 
 function requirePaths(runtime: BrowserRuntime) {
@@ -247,7 +252,7 @@ test.describe("skill sources", () => {
     const menu = sessionWin.getByTestId("composer-command-menu");
     await expect(menu).toBeVisible();
 
-    const absorbed = menu.getByTestId("composer-command-item").filter({ hasText: ABSORBED_SKILL });
+    const absorbed = menu.locator(`[data-command-token="/${ABSORBED_SKILL}"]`);
     await expect(absorbed.locator("[data-slot='composer-command-origin']")).toHaveText("agents", {
       timeout: 20_000,
     });
@@ -270,6 +275,7 @@ test.describe("skill sources", () => {
       "Pre-merge review checklist"
     );
     await ensureProjectWorkspace(appPage, runtime);
+    const workspace = await runtime.resolveWorkspace(paths.workspaceDir);
 
     await openInstalledSkillDetail(appPage, runtime, NATIVE_SKILL);
     const expose = skillExposeSelectors(appPage);
@@ -280,7 +286,14 @@ test.describe("skill sources", () => {
     await expose.pickerConfirm.click();
 
     await expect(expose.rowStatus("agents")).toHaveText("active", { timeout: 20_000 });
-    const linkPath = exposeLinkPath(paths.operatorHomeDir, "agents", NATIVE_SKILL);
+    const detail = await runtime.requestJSON<SkillDetailEnvelope>(
+      `/api/skills/${NATIVE_SKILL}?workspace_id=${encodeURIComponent(workspace.id)}`
+    );
+    const linkPath = detail.skill.exposures?.find(exposure => exposure.target === "agents")?.path;
+    expect(linkPath).toBeDefined();
+    if (linkPath === undefined) {
+      throw new Error("Active agents exposure did not include its resolved filesystem path.");
+    }
     expect(await readLinkTarget(linkPath)).not.toBeNull();
     await browserArtifacts.captureScreenshot("e2e-011-exposed-healthy", appPage);
 
