@@ -90,7 +90,15 @@ func (c *daemonClient) AwaitCall(
 	request contract.AwaitCallsRequest,
 ) (contract.AwaitCallsResponse, error) {
 	var response contract.AwaitCallsResponse
-	err := c.doJSON(ctx, http.MethodPost, callClientPath(workspaceID, callID)+"/await", profileQueryValues(ctx, nil), request, &response)
+	err := c.doBoundedWaitJSON(
+		ctx,
+		http.MethodPost,
+		callClientPath(workspaceID, callID)+"/await",
+		profileQueryValues(ctx, nil),
+		request,
+		boundedWaitDuration(request.TimeoutMS),
+		&response,
+	)
 	return response, err
 }
 

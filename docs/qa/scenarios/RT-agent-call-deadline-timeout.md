@@ -7,7 +7,7 @@ journey: J-delegate-work-to-an-agent
 expected: A call with no deadline runs until it settles or is canceled, a call with one settles timeout exactly once through the deadline sweeper, and an await box that elapses returns a resume handle at exit code 3 without touching the call.
 entry_points: compozy call reviewer "Run until the deadline" --deadline 5s; compozy call await call_01JBD8H9PW2M --timeout 120s and --resume cawait_01JBD8KQ33; HTTP and UDS POST /api/workspaces/{workspace_id}/calls with {"target":{"agent":"reviewer"},"prompt":"Run until the deadline","deadline_seconds":5}; HTTP and UDS POST /api/workspaces/{workspace_id}/calls/{call_id}/await with {"timeout_ms":120000,"resume":"cawait_01JBD8KQ33"}; compozy__call_await with {"call_ids":["call_01JBD8H9PW2M"],"timeout_ms":120000,"resume":"cawait_01JBD8KQ33"}
 qa_status: fail
-bug_ids: BUG-20260826-call-deadline-activation-fence
+bug_ids: BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout
 fix_status: fixed
 retest_status: pending
 fix_commits: pending QA remediation commit

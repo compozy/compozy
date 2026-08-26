@@ -14,6 +14,7 @@ import (
 
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
@@ -40,6 +41,50 @@ func (c *daemonClient) doJSON(
 	defer mergeResponseBodyCloseError(&err, response, method, path)
 
 	return c.decodeJSONResponse(ctx, method, path, response, responseBody)
+}
+
+func (c *daemonClient) doBoundedWaitJSON(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	wait time.Duration,
+	responseBody any,
+) (err error) {
+	if wait <= 0 {
+		return c.doJSON(ctx, method, path, query, requestBody, responseBody)
+	}
+	if wait > maxBoundedLongPollTimeout {
+		wait = maxBoundedLongPollTimeout
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, wait+longPollResponseGrace)
+	defer cancel()
+	response, err := c.doRequestWithCredentialsAndClient(
+		waitCtx,
+		method,
+		path,
+		query,
+		requestBody,
+		"",
+		agentidentity.Credentials{},
+		c.streamHTTPClient(),
+	)
+	if err != nil {
+		return err
+	}
+	defer mergeResponseBodyCloseError(&err, response, method, path)
+	return c.decodeJSONResponse(waitCtx, method, path, response, responseBody)
+}
+
+func boundedWaitDuration(timeoutMS int64) time.Duration {
+	if timeoutMS <= 0 {
+		return 0
+	}
+	if timeoutMS >= maxBoundedLongPollTimeout.Milliseconds() {
+		return maxBoundedLongPollTimeout
+	}
+	return time.Duration(timeoutMS) * time.Millisecond
 }
 
 func (c *daemonClient) doAgentJSON(

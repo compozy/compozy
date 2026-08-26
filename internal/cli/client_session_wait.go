@@ -34,7 +34,15 @@ func (c *daemonClient) WaitSession(
 	path := "/api/workspaces/" + url.PathEscape(workspaceRef) + "/sessions/" +
 		url.PathEscape(sessionRef) + "/wait"
 	var response SessionWaitRecord
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+	if err := c.doBoundedWaitJSON(
+		ctx,
+		http.MethodPost,
+		path,
+		nil,
+		request,
+		boundedWaitDuration(request.TimeoutMS),
+		&response,
+	); err != nil {
 		return SessionWaitRecord{}, err
 	}
 	return response, nil

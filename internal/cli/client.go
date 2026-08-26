@@ -19,6 +19,8 @@ const (
 const (
 	baseURL                        = "http://unix"
 	defaultUnixSocketClientTimeout = 30 * time.Second
+	maxBoundedLongPollTimeout      = 30 * time.Minute
+	longPollResponseGrace          = 5 * time.Second
 	defaultUserAgentName           = "compozy-cli"
 )
 

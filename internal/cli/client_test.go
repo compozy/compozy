@@ -5364,6 +5364,83 @@ func TestNewClientConfiguresTimeouts(t *testing.T) {
 	}
 }
 
+func TestBoundedWaitClientsUseRequestedDeadline(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name       string
+		wait       time.Duration
+		wantBound  time.Duration
+		wantPath   string
+		invokeWait func(*daemonClient, time.Duration) error
+	}{
+		{
+			name: "Should let call await exceed the default request timeout",
+			wait: 2 * time.Minute, wantBound: 2 * time.Minute,
+			wantPath: "/api/workspaces/ws-1/calls/call-1/await",
+			invokeWait: func(client *daemonClient, wait time.Duration) error {
+				_, err := client.AwaitCall(t.Context(), "ws-1", "call-1", contract.AwaitCallsRequest{
+					TimeoutMS: wait.Milliseconds(),
+				})
+				return err
+			},
+		},
+		{
+			name: "Should let session wait exceed the default request timeout",
+			wait: 2 * time.Minute, wantBound: 2 * time.Minute,
+			wantPath: "/api/workspaces/ws-1/sessions/ses-1/wait",
+			invokeWait: func(client *daemonClient, wait time.Duration) error {
+				_, err := client.WaitSession(t.Context(), "ws-1", "ses-1", SessionWaitRequest{
+					TimeoutMS: wait.Milliseconds(),
+				})
+				return err
+			},
+		},
+		{
+			name: "Should clamp the transport deadline to the public wait ceiling",
+			wait: time.Hour, wantBound: maxBoundedLongPollTimeout,
+			wantPath: "/api/workspaces/ws-1/calls/call-1/await",
+			invokeWait: func(client *daemonClient, wait time.Duration) error {
+				_, err := client.AwaitCall(t.Context(), "ws-1", "call-1", contract.AwaitCallsRequest{
+					TimeoutMS: wait.Milliseconds(),
+				})
+				return err
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			client := &daemonClient{
+				target: LocalClientTarget("/tmp/compozy.sock"),
+				httpClient: &http.Client{Transport: roundTripperFunc(func(*http.Request) (*http.Response, error) {
+					t.Fatal("bounded wait used the default timeout-bound client")
+					return nil, nil
+				})},
+				streamClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+					if request.URL.Path != tc.wantPath {
+						t.Fatalf("bounded wait path = %q, want %q", request.URL.Path, tc.wantPath)
+					}
+					deadline, ok := request.Context().Deadline()
+					if !ok {
+						t.Fatal("bounded wait request has no context deadline")
+					}
+					remaining := time.Until(deadline)
+					want := tc.wantBound + longPollResponseGrace
+					if remaining < want-time.Second || remaining > want+time.Second {
+						t.Fatalf("bounded wait deadline = %v, want about %v", remaining, want)
+					}
+					return newHTTPResponse(http.StatusOK, `{}`), nil
+				})},
+			}
+			if err := tc.invokeWait(client, tc.wait); err != nil {
+				t.Fatalf("bounded wait error = %v", err)
+			}
+		})
+	}
+}
+
 func TestDoRequestSetsHeaders(t *testing.T) {
 	t.Parallel()
 

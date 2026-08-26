@@ -31,7 +31,7 @@
 |---|---|---|---|---|---|---|---|
 | 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-operator-caller-model-runtime | pending QA remediation commit |
 | 2 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-cancel | Bruno | Interrupt Tour | Pending | | |
-| 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-deadline-activation-fence | pending QA remediation commit |
+| 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout | pending QA remediation commits |
 | 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Pending | | |
 | 5 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-call-wake-delivery-exactly-once | Ada | Multi-Tab Tour | Pending | | |
 | 6 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-follow-up | Ada | Multi-Tab Tour | Pending | | |
@@ -80,6 +80,10 @@ Pending execution.
   later calls after crash recovery. The daemon now resolves this role before delivery and records
   operator attention without status, resume, or prompt operations. Focused regression is green;
   public restart/reuse retest remains pending.
+- `BUG-20260826-bounded-wait-client-timeout` — valid call/session waits longer than 30 seconds were
+  interrupted by the generic CLI HTTP timeout. Bounded waits now use the dedicated transport with
+  the requested/clamped server wait plus response grace. Five focused race-enabled client tests pass;
+  public UDS retest remains pending.
 
 ## Paper Cuts
 
@@ -93,6 +97,9 @@ None recorded yet.
 - The operator caller `ses_operator_225d12b20945a1568f3fee27` acquired a model runtime through
   completion delivery. After interrupted daemon shutdown, its dead runtime blocked the next call
   before admission. See `BUG-20260826-operator-caller-model-runtime`.
+- `session wait --timeout 55s` and `call await --timeout 60s` both failed at about 30 seconds with
+  `Client.Timeout exceeded while awaiting headers`, before the server-owned wait completed. See
+  `BUG-20260826-bounded-wait-client-timeout`.
 
 ## Human Verifications Needed
 
