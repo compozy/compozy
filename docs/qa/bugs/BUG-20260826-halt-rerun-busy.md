@@ -1,6 +1,6 @@
 # BUG-20260826-halt-rerun-busy: A halted Loop cannot be explicitly rerun
 
-- **Status:** open
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Bruno
@@ -33,11 +33,21 @@ already terminal.
 
 ## Fix
 
-- **Root cause:** Pending investigation.
-- **Fix commit:** Pending.
-- **Regression test:** Pending.
+- **Root cause:** Rerun admission treated every pending output as active work. A halted generation
+  leaves downstream nodes pending by design, including nodes not yet materialized in a fan-out
+  lane, so the guard rejected the same graph closure that the operator explicitly selected.
+- **Fix commit:** `151e299e6`
+- **Regression test:** `internal/loop/coordinator_test.go::TestCoordinatorOperatorRerunPlanner`
+  and `internal/loop/service_test.go::TestServiceTimeTravelShouldPreserveHistoryContracts`
+  cover closure traversal through unmaterialized nodes, selected pending outputs, active states,
+  and pending work outside the selected closure.
 
 ## Verification
 
-- **Retested:** Pending.
-- **Result:** Pending.
+- **Retested:** 2026-08-26 in the fresh isolated lab at `http://127.0.0.1:55115`.
+- **Result:** The CLI admitted generation 2 from `load_tasks`, naming six selected downstream
+  nodes. It settled on the same deterministic payload failure, HTTP and Web showed generation 2,
+  and a later read confirmed there were exactly two generations.
+- **Evidence:** `/Users/pedronauck/dev/qa-labs/compozy-loop-issues-fixes-rerun-20260826-200713-569291-lab/qa-artifacts/qa/logs/explicit-rerun-current-head.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-issues-fixes-rerun-20260826-200713-569291-lab/qa-artifacts/qa/logs/terminal-status-current-head.json`;
+  `/Users/pedronauck/dev/qa-labs/compozy-loop-issues-fixes-rerun-20260826-200713-569291-lab/qa-artifacts/qa/screenshots/loop-rerun-terminal-refresh.png`.
