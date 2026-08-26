@@ -32,8 +32,8 @@
         "typecheck:raw": "node ../node_modules/@typescript/native/bin/tsc --noEmit"
     },
     "dependencies": {
-        "@assistant-ui/react": "0.15.16",
-        "@assistant-ui/react-ai-sdk": "1.4.7",
+        "@assistant-ui/react": "0.15.1",
+        "@assistant-ui/react-ai-sdk": "1.4.2",
         "@assistant-ui/react-lexical": "0.2.10",
         "@base-ui/react": "^1.7.0",
         "@compozy/ui": "workspace:*",

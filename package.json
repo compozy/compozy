@@ -46,8 +46,8 @@
         "openapi-typescript": "^7.13.0",
         "oxfmt": "^0.61.0",
         "oxlint": "^1.80.0",
-        "oxlint-plugin-react-doctor": "^0.9.12",
-        "react-doctor": "^0.9.12",
+        "oxlint-plugin-react-doctor": "0.9.3",
+        "react-doctor": "0.9.3",
         "shadcn": "^4.19.0",
         "tailwindcss": "^4.3.3",
         "turbo": "^2.10.12",
@@ -57,6 +57,9 @@
         "vitest": "^4.1.11"
     },
     "overrides": {
+        "@assistant-ui/core": "0.3.2",
+        "@assistant-ui/store": "0.3.2",
+        "@assistant-ui/tap": "0.9.7",
         "assistant-stream": "0.3.31"
     },
     "lint-staged": {
