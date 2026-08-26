@@ -710,7 +710,10 @@ func eventWaitDefinitionForTest(ahead dsl.WaitAheadArrival) dsl.Definition {
 							"kind":   string(hooks.HookTaskStatusChanged),
 							"filter": `event.task_id == "task-42"`,
 						},
-						"expect": map[string]any{"type": "object"}, "ahead_arrival": string(ahead),
+						"expect": map[string]any{
+							"type": "object", "properties": map[string]any{},
+						},
+						"ahead_arrival": string(ahead),
 					}},
 				{ID: "summarize", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
 					Params: dsl.NodeParams{"map": map[string]any{"ok": map[string]any{"value": true}}}},
