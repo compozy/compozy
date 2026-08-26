@@ -107,6 +107,12 @@ func runGolangCILint() error {
 	}
 	env := map[string]string{"GOLANGCI_LINT_CACHE": cacheDir}
 
+	formattersInRun := golangciFormattersInRun()
+	if !formattersInRun {
+		if err := goFmtLane(cacheDir); err != nil {
+			return err
+		}
+	}
 	args := []string{
 		"run",
 		"--allow-parallel-runners",
@@ -115,7 +121,18 @@ func runGolangCILint() error {
 		"--concurrency",
 		golangciLintConcurrency(),
 	}
+	if !formattersInRun {
+		linters, err := golangciEnabledLinters(golangciConfigPath)
+		if err != nil {
+			return err
+		}
+		args = append(args, "--enable-only", strings.Join(linters, ","))
+	}
 	args = append(args, golangciLintScopes(os.Getenv(goLintScopesEnvVar))...)
+	return runGolangciCommand(env, args...)
+}
+
+func runGolangciCommand(env map[string]string, args ...string) error {
 	if hasPinnedTool("golangci-lint", golangciLintVersion, "version") {
 		return sh.RunWithV(env, "golangci-lint", args...)
 	}

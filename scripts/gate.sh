@@ -96,7 +96,7 @@ is_ci_full_trigger() {
 is_no_lane() {
   case "$1" in
     extensions/* | skills/*) return 1 ;;
-		docs/* | packages/site/content/* | .claude/* | .codex/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
+		docs/* | packages/site/content/* | .claude/* | .codex/* | .cursor/* | .agents/* | .compozy/* | .github/* | .vscode/* | .deep-review/*) return 0 ;;
     *.md | *.mdc | LICENSE* | .gitignore | .gitattributes | .editorconfig) return 0 ;;
     *) return 1 ;;
   esac

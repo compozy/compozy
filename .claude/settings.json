@@ -1,0 +1,17 @@
+{
+    "hooks": {
+        "PostToolUse": [
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "\"$CLAUDE_PROJECT_DIR\"/scripts/hooks/go-edit-lint.sh",
+                        "timeout": 45,
+                        "statusMessage": "golangci fast tier"
+                    }
+                ]
+            }
+        ]
+    }
+}

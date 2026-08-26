@@ -9,6 +9,12 @@
                         "command": "node \".agents/skills/impeccable/scripts/hook.mjs\"",
                         "timeout": 5,
                         "statusMessage": "Checking UI changes"
+                    },
+                    {
+                        "type": "command",
+                        "command": "bash \"scripts/hooks/go-edit-lint.sh\"",
+                        "timeout": 45,
+                        "statusMessage": "golangci fast tier"
                     }
                 ]
             }

@@ -1,0 +1,11 @@
+{
+    "version": 1,
+    "hooks": {
+        "afterFileEdit": [
+            {
+                "command": "scripts/hooks/go-edit-lint.sh",
+                "timeout": 45
+            }
+        ]
+    }
+}
