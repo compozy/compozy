@@ -33,6 +33,7 @@ const meta: Meta<typeof ProfileSwitcher> = {
     onSelectProfile: fn(),
     onSelectAggregate: fn(),
     onCreate: fn(),
+    onEditProfile: fn(),
     onOpenSettings: fn(),
   },
   decorators: [

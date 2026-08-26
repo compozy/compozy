@@ -260,7 +260,7 @@ Every static resource accepts an optional `profile` placement. Omit it for every
 profile to publish only when that profile exists and the extension is enabled there. An absent named
 profile leaves the placement dormant.
 
-`[[profiles]]` declares `name`, optional `color` plus one of `icon` or `emoji`, optional
+`[[profiles]]` declares `name`, optional `color` plus one of `icon` (any Lucide icon name) or `emoji`, optional
 `[profiles.defaults]` (`agent`, `provider`, `sandbox`), and optional `[[profiles.credentials]]`
 (`provider`, `slot`). Install preview reports create versus bind and credential needs. Installation
 creates a missing declaration once without activating it; an existing name binds without seeding;

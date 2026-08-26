@@ -113,7 +113,7 @@ func newProfileCreateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&color, "color", "", "Profile color as #rrggbb")
-	cmd.Flags().StringVar(&icon, "icon", "", "Profile icon name")
+	cmd.Flags().StringVar(&icon, "icon", "", "Profile icon: any Lucide icon name (lucide.dev/icons)")
 	cmd.Flags().StringVar(&emoji, "emoji", "", "Profile emoji")
 	mustMarkFlagsMutuallyExclusive(cmd, "icon", "emoji")
 	return cmd
@@ -149,7 +149,7 @@ func newProfileUpdateCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&color, "color", "", "Profile color as #rrggbb")
-	cmd.Flags().StringVar(&icon, "icon", "", "Profile icon name")
+	cmd.Flags().StringVar(&icon, "icon", "", "Profile icon: any Lucide icon name (lucide.dev/icons)")
 	cmd.Flags().StringVar(&emoji, "emoji", "", "Profile emoji")
 	mustMarkFlagsMutuallyExclusive(cmd, "icon", "emoji")
 	return cmd

@@ -1,5 +1,6 @@
 import { useProfileLens } from "../hooks/use-profile-lens";
 import { useProfileSwitcher } from "../hooks/use-profile-switcher";
+import { openProfileDialog } from "../stores/profile-dialog-store";
 import { ProfileSwitcher } from "./profile-switcher";
 
 export interface ProfileSwitcherSlotProps {
@@ -26,6 +27,7 @@ export function ProfileSwitcherSlot({ onOpenSettings }: ProfileSwitcherSlotProps
       onSelectProfile={model.selectProfile}
       onSelectAggregate={model.selectAggregate}
       onCreate={model.create}
+      onEditProfile={name => openProfileDialog({ flow: "update", profile: name })}
       onOpenSettings={onOpenSettings}
       manageable={model.manageable}
       isLoading={model.isLoading}

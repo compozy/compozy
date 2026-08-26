@@ -20,9 +20,10 @@ Flagged by Profiles task 07. The final QA tasks own the real-user walk, evidence
 
 Walk:
 
-1. With three profiles — one of them archived — turn All profiles on and confirm every session, task,
-   loop run, automation job, and automation trigger row names its owner, and that the archived
-   owner's tag reads as archived rather than only appearing dimmer.
+1. With three profiles — one of them archived — turn All profiles on and confirm every task, loop
+   run, automation job, and automation trigger row names its owner; session rows instead carry only
+   the owner's colored glyph, with the name available on hover and to assistive tech. Confirm the
+   archived owner reads as archived rather than only appearing dimmer.
 2. Switch to a real profile and confirm the same listings carry no owner tags at all.
 3. In both states confirm worktree rows still carry their owner tag, and that no worktree disappears
    from a scoped list.

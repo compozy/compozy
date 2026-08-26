@@ -50,7 +50,7 @@ export function OsPaletteSessionRow({ session, owner, workspaceLabel }: OsPalett
           )}
         </span>
       </span>
-      {owner ? <ProfileOwnerTag className="ml-auto shrink-0" owner={owner} /> : null}
+      {owner ? <ProfileOwnerTag compact className="ml-auto shrink-0" owner={owner} /> : null}
       <Time
         iso={attentionOrderKey(session)}
         className={cn("shrink-0 font-mono text-micro text-subtle", owner ? "" : "ml-auto")}

@@ -54,6 +54,25 @@ describe("ProfileOwnerTag", () => {
     expect(screen.getByText("old agency · archived")).toBeInTheDocument();
     expect(screen.getByText("old agency · archived").closest("[data-archived]")).not.toBeNull();
   });
+
+  // Invariant: the compact tag still names its owner — through the accessible
+  // label and the hover title — while showing only the colored glyph.
+  // Owning layer: ProfileOwnerTag's compact contract.
+  // Canonical suite: this aggregate composites suite.
+  it("Should keep the owner name accessible when compact shows only the glyph", () => {
+    renderWithUI(<ProfileOwnerTag compact owner={MARKETING} />);
+    expect(screen.queryByText("marketing")).not.toBeInTheDocument();
+    const glyph = screen.getByRole("img", { name: "marketing" });
+    expect(glyph).toHaveAttribute("title", "marketing");
+  });
+
+  it("Should carry the archived suffix into the compact label", () => {
+    renderWithUI(<ProfileOwnerTag compact owner={ARCHIVED} />);
+    expect(screen.getByRole("img", { name: "old agency · archived" })).toHaveAttribute(
+      "data-archived",
+      "true"
+    );
+  });
 });
 
 describe("ProfileDestinationChip", () => {

@@ -1,4 +1,4 @@
-import { Check, Plus } from "lucide-react";
+import { Check, Palette, Plus } from "lucide-react";
 
 import {
   Button,
@@ -22,6 +22,7 @@ export interface ProfileSwitcherMenuProps {
   onSelectProfile: (name: string) => void;
   onSelectAggregate: () => void;
   onCreate: () => void;
+  onEditProfile?: (name: string) => void;
   onOpenSettings: () => void;
   manageable?: boolean;
   isLoading?: boolean;
@@ -36,6 +37,7 @@ export function ProfileSwitcherMenu({
   onSelectProfile,
   onSelectAggregate,
   onCreate,
+  onEditProfile,
   onOpenSettings,
   manageable = true,
   isLoading = false,
@@ -75,6 +77,7 @@ export function ProfileSwitcherMenu({
               }}
               data-testid={`profile-switcher-option-${row.name}`}
               aria-current={row.current && !aggregate ? "true" : undefined}
+              className="group/profile-row"
             >
               <ProfileGlyph
                 decorative
@@ -91,10 +94,31 @@ export function ProfileSwitcherMenu({
                 <span className="ml-auto shrink-0 text-micro font-medium text-warning">
                   {row.disabledReason}
                 </span>
-              ) : null}
-              {row.current && !aggregate ? (
-                <Check aria-hidden="true" className="ml-auto size-3 shrink-0 text-fg-strong" />
-              ) : null}
+              ) : (
+                <span className="ml-auto flex shrink-0 items-center gap-1">
+                  {row.current && !aggregate ? (
+                    <Check aria-hidden="true" className="size-3 shrink-0 text-fg-strong" />
+                  ) : null}
+                  {manageable && onEditProfile ? (
+                    <Button
+                      size="icon-xs"
+                      variant="ghost"
+                      aria-label={`Edit identity for ${row.name}`}
+                      data-testid={`profile-switcher-edit-${row.name}`}
+                      onClick={event => {
+                        event.stopPropagation();
+                        onEditProfile(row.name);
+                      }}
+                      className={cn(
+                        "opacity-0 transition-opacity focus-visible:opacity-100",
+                        "group-hover/profile-row:opacity-100 group-data-[selected=true]/profile-row:opacity-100"
+                      )}
+                    >
+                      <Palette aria-hidden="true" />
+                    </Button>
+                  ) : null}
+                </span>
+              )}
             </CommandItem>
           ))}
         </CommandGroup>

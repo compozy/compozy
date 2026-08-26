@@ -38,8 +38,8 @@ const SIZE_CLASS: Record<ProfileGlyphSize, string> = {
 };
 
 const GLYPH_CLASS: Record<ProfileGlyphSize, string> = {
-  sm: "size-2.5",
-  default: "size-3",
+  sm: "size-3",
+  default: "size-3.5",
   lg: "size-4",
 };
 

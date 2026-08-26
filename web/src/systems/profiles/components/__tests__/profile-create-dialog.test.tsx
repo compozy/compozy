@@ -2,16 +2,23 @@
 // Invariant: creation rejects blank names and activates the new profile in exactly the selected lens.
 // Owning layer: web/src/systems/profiles/components/profile-create-dialog.tsx.
 // Boundary OUT: mutation transport and daemon-side name validation.
+import type React from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+
+function renderWithClient(ui: React.ReactElement) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 import { ProfileCreateDialog } from "../profile-create-dialog";
 
 describe("ProfileCreateDialog", () => {
   it("Should reject a blank profile name locally", async () => {
     const onCreate = vi.fn();
-    render(
+    renderWithClient(
       <ProfileCreateDialog
         open
         onOpenChange={vi.fn()}
@@ -30,7 +37,7 @@ describe("ProfileCreateDialog", () => {
 
   it("Should trim the name and activate a workspace profile", async () => {
     const onCreate = vi.fn();
-    render(
+    renderWithClient(
       <ProfileCreateDialog
         open
         onOpenChange={vi.fn()}
@@ -58,7 +65,7 @@ describe("ProfileCreateDialog", () => {
 
   it("Should activate a global profile without a workspace identifier", async () => {
     const onCreate = vi.fn();
-    render(
+    renderWithClient(
       <ProfileCreateDialog
         open
         onOpenChange={vi.fn()}

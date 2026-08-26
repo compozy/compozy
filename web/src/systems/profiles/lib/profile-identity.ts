@@ -16,6 +16,7 @@ export const PROFILE_EMOJIBASE_URL = "/vendor/emojibase";
  * lucide-static release (internal/profile/lucide_icons.gen.txt).
  */
 export async function loadProfileIconCatalog(): Promise<SymbolIconOption[]> {
+  // Hand-typed so tsc never infers the 1.8k-entry JSON literal.
   const { default: tags } = (await import("lucide-static/tags.json")) as unknown as {
     default: Record<string, readonly string[]>;
   };

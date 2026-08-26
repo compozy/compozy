@@ -18,6 +18,7 @@ export interface ProfileSwitcherProps {
   onSelectProfile: (name: string) => void;
   onSelectAggregate: () => void;
   onCreate: () => void;
+  onEditProfile?: (name: string) => void;
   onOpenSettings: () => void;
   manageable?: boolean;
   isLoading?: boolean;
@@ -35,6 +36,7 @@ export function ProfileSwitcher({
   onSelectProfile,
   onSelectAggregate,
   onCreate,
+  onEditProfile,
   onOpenSettings,
   manageable = true,
   isLoading = false,
@@ -59,9 +61,9 @@ export function ProfileSwitcher({
             data-testid="os-menubar-profile"
             aria-label={quiet ? "Profile" : `Profile: ${aggregate ? "All profiles" : activeName}`}
             className={cn(
-              "flex shrink-0 items-center gap-1.5 rounded-md text-muted outline-none",
+              "flex shrink-0 items-center gap-menubar-workspace-gap rounded-md text-muted outline-none",
               "hover:bg-btn-default-fill focus-visible:shadow-focus-ring data-[popup-open]:bg-btn-default-fill",
-              quiet ? "grid size-7 place-items-center" : "h-7 px-1.5"
+              quiet ? "grid size-7 place-items-center" : "h-7 px-2"
             )}
           />
         }
@@ -77,7 +79,7 @@ export function ProfileSwitcher({
               aggregate={aggregate}
               {...(active ? { color: active.color, icon: active.icon, emoji: active.emoji } : {})}
             />
-            <span className="max-w-32 truncate text-badge font-semibold text-fg-strong">
+            <span className="max-w-32 truncate text-small-body font-semibold text-fg-strong">
               {aggregate ? "All profiles" : activeName}
             </span>
             <ChevronsUpDown aria-hidden="true" className="size-3 shrink-0 text-subtle" />
@@ -97,6 +99,9 @@ export function ProfileSwitcher({
           onSelectProfile={name => close(() => onSelectProfile(name))()}
           onSelectAggregate={close(onSelectAggregate)}
           onCreate={close(onCreate)}
+          {...(onEditProfile
+            ? { onEditProfile: (name: string) => close(() => onEditProfile(name))() }
+            : {})}
           onOpenSettings={close(onOpenSettings)}
           manageable={manageable}
           isLoading={isLoading}

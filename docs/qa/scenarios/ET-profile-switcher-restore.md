@@ -23,7 +23,9 @@ Walk:
 1. On a fresh home, confirm the switcher renders as a quiet icon button with no name or color, and
    that nothing else in the product mentions profiles.
 2. Create a second profile from the switcher, choosing an icon and a color in the picker; confirm the
-   switcher becomes an identity element and the new profile is active.
+   switcher becomes an identity element showing the exact icon and color that were chosen (never a
+   generic placeholder glyph), both on the trigger and on the menu rows, and the new profile is
+   active.
 3. Switch profiles and confirm listings refilter, the boundary sentence is present verbatim, and the
    project picker lists the same projects in every profile.
 4. Leave the project, return, and confirm the remembered profile is restored; repeat for the Global
