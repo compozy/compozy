@@ -13673,6 +13673,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -56972,6 +56973,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -57507,6 +57509,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -58208,6 +58211,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -99255,6 +99259,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -118566,6 +118571,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -119060,6 +119066,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -119561,6 +119568,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -123114,6 +123122,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -123577,6 +123586,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -124137,6 +124147,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -124586,6 +124597,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -125803,6 +125815,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -126346,6 +126359,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               goal?: {
@@ -127954,6 +127968,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 goal?: {
@@ -131071,6 +131086,7 @@ export interface operations {
                 failure?: {
                   crash_bundle_path?: string;
                   kind: string;
+                  reason_code?: string;
                   summary?: string;
                 } | null;
                 health?: {
@@ -131655,6 +131671,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -132133,6 +132150,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -132569,6 +132587,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -133840,6 +133859,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               goal?: {
@@ -133905,6 +133925,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               goal?: {
@@ -135402,6 +135423,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {
@@ -136168,6 +136190,7 @@ export interface operations {
               failure?: {
                 crash_bundle_path?: string;
                 kind: string;
+                reason_code?: string;
                 summary?: string;
               } | null;
               health?: {

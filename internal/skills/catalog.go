@@ -47,11 +47,18 @@ var (
 // the composed prompt assembly pipeline.
 type CatalogProvider struct {
 	registry *Registry
+	maxRunes int
 }
 
 // NewCatalogProvider constructs a CatalogProvider backed by the provided registry.
 func NewCatalogProvider(registry *Registry) *CatalogProvider {
 	return &CatalogProvider{registry: registry}
+}
+
+// NewBoundedCatalogProvider constructs a CatalogProvider that keeps every
+// advertised skill identity while fitting the rendered catalog within maxRunes.
+func NewBoundedCatalogProvider(registry *Registry, maxRunes int) *CatalogProvider {
+	return &CatalogProvider{registry: registry, maxRunes: max(maxRunes, 0)}
 }
 
 // PromptSection loads the workspace-scoped skills and returns their XML-like
@@ -69,7 +76,7 @@ func (cp *CatalogProvider) PromptSection(
 		return "", fmt.Errorf("skills: build catalog for workspace %q: %w", catalogWorkspaceLabel(workspace), err)
 	}
 
-	return BuildCatalog(skills), nil
+	return cp.buildCatalog(skills), nil
 }
 
 // PromptStartupSection resolves the effective catalog for the concrete agent
@@ -87,7 +94,7 @@ func (cp *CatalogProvider) PromptAgentSection(
 	if err != nil {
 		return "", fmt.Errorf("skills: build catalog for agent %q: %w", agent.Name, err)
 	}
-	return BuildCatalog(skills), nil
+	return cp.buildCatalog(skills), nil
 }
 
 // PromptAgentSessionSection resolves activation gates against the concrete startup session.
@@ -105,7 +112,7 @@ func (cp *CatalogProvider) PromptAgentSessionSection(
 	if err != nil {
 		return "", fmt.Errorf("skills: build catalog for agent %q session %q: %w", agent.Name, sessionID, err)
 	}
-	return BuildCatalog(skills), nil
+	return cp.buildCatalog(skills), nil
 }
 
 // PromptAgentSessionFilteredSection applies one session-resolved injection-only filter.
@@ -123,7 +130,14 @@ func (cp *CatalogProvider) PromptAgentSessionFilteredSection(
 	if err != nil {
 		return "", fmt.Errorf("skills: build filtered catalog for agent %q session %q: %w", agent.Name, sessionID, err)
 	}
-	return BuildCatalog(filterInjectedSkills(skills, filter)), nil
+	return cp.buildCatalog(filterInjectedSkills(skills, filter)), nil
+}
+
+func (cp *CatalogProvider) buildCatalog(skills []*Skill) string {
+	if cp == nil || cp.maxRunes <= 0 {
+		return BuildCatalog(skills)
+	}
+	return BuildCatalogWithinBudget(skills, cp.maxRunes)
 }
 
 func filterInjectedSkills(skills []*Skill, filter func(*Skill) bool) []*Skill {
@@ -142,7 +156,20 @@ func filterInjectedSkills(skills []*Skill, filter func(*Skill) bool) []*Skill {
 // BuildCatalog renders the XML-like available-skills block injected into agent
 // system prompts.
 func BuildCatalog(skills []*Skill) string {
-	return buildCatalog(skills, "<available-skills>", "</available-skills>", catalogUsageInstructions)
+	return buildCatalog(skills, "<available-skills>", "</available-skills>", catalogUsageInstructions, 0)
+}
+
+// BuildCatalogWithinBudget renders a complete catalog within maxRunes by
+// shortening descriptions. It returns an empty string when every identity
+// cannot fit without cutting the catalog structure.
+func BuildCatalogWithinBudget(skills []*Skill, maxRunes int) string {
+	return buildCatalog(
+		skills,
+		"<available-skills>",
+		"</available-skills>",
+		catalogUsageInstructions,
+		maxRunes,
+	)
 }
 
 // BuildCurrentCatalog renders the authoritative per-turn skills block injected
@@ -153,6 +180,19 @@ func BuildCurrentCatalog(skills []*Skill) string {
 		currentCatalogOpen,
 		currentCatalogClose,
 		currentCatalogInstructions+"\n"+catalogUsageInstructions,
+		0,
+	)
+}
+
+// BuildCurrentCatalogWithinBudget renders the authoritative per-turn catalog
+// without cutting tags or dropping individual skill identities.
+func BuildCurrentCatalogWithinBudget(skills []*Skill, maxRunes int) string {
+	return buildCatalog(
+		skills,
+		currentCatalogOpen,
+		currentCatalogClose,
+		currentCatalogInstructions+"\n"+catalogUsageInstructions,
+		maxRunes,
 	)
 }
 
@@ -168,12 +208,7 @@ func BuildCurrentCatalogUnchanged() string {
 	}, "\n")
 }
 
-func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions string) string {
-	type catalogEntry struct {
-		name        string
-		description string
-	}
-
+func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions string, maxRunes int) string {
 	entries := make([]catalogEntry, 0, len(skills))
 	for _, skill := range skills {
 		if skill == nil || !skill.Enabled || !skillIsActive(skill) {
@@ -187,7 +222,7 @@ func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions
 
 		entries = append(entries, catalogEntry{
 			name:        name,
-			description: truncateCatalogDescription(skill.Meta.Description),
+			description: skill.Meta.Description,
 		})
 	}
 
@@ -198,7 +233,38 @@ func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions
 	slices.SortFunc(entries, func(left, right catalogEntry) int {
 		return strings.Compare(left.name, right.name)
 	})
+	full := renderCatalog(entries, openTag, closeTag, instructions, catalogDescriptionLimit)
+	if maxRunes <= 0 || utf8.RuneCountInString(full) <= maxRunes {
+		return full
+	}
 
+	low, high := 0, catalogDescriptionLimit-1
+	bounded := ""
+	for low <= high {
+		limit := low + (high-low)/2
+		candidate := renderCatalog(entries, openTag, closeTag, instructions, limit)
+		if utf8.RuneCountInString(candidate) <= maxRunes {
+			bounded = candidate
+			low = limit + 1
+			continue
+		}
+		high = limit - 1
+	}
+	return bounded
+}
+
+type catalogEntry struct {
+	name        string
+	description string
+}
+
+func renderCatalog(
+	entries []catalogEntry,
+	openTag string,
+	closeTag string,
+	instructions string,
+	descriptionLimit int,
+) string {
 	var builder strings.Builder
 	builder.Grow(len(entries) * 64)
 	builder.WriteString(openTag)
@@ -207,7 +273,7 @@ func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions
 		builder.WriteString(`  <skill name="`)
 		builder.WriteString(escapeCatalogAttr(entry.name))
 		builder.WriteString(`">`)
-		builder.WriteString(escapeCatalogText(entry.description))
+		builder.WriteString(escapeCatalogText(truncateCatalogDescriptionToLimit(entry.description, descriptionLimit)))
 		builder.WriteString("</skill>\n")
 	}
 	builder.WriteString(closeTag)
@@ -217,12 +283,18 @@ func buildCatalog(skills []*Skill, openTag string, closeTag string, instructions
 	return builder.String()
 }
 
-func truncateCatalogDescription(description string) string {
-	if utf8.RuneCountInString(description) <= catalogDescriptionLimit {
+func truncateCatalogDescriptionToLimit(description string, limit int) string {
+	if limit <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(description) <= limit {
 		return description
 	}
 
-	truncationLimit := catalogDescriptionLimit - len(catalogEllipsis)
+	if limit <= len(catalogEllipsis) {
+		return catalogEllipsis[:limit]
+	}
+	truncationLimit := limit - len(catalogEllipsis)
 	runeCount := 0
 	for idx := range description {
 		if runeCount == truncationLimit {

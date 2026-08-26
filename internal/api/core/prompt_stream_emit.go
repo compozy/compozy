@@ -117,7 +117,11 @@ func (e *PromptStreamEncoder) emitError(writer FlushWriter, event acp.AgentEvent
 		return err
 	}
 	if err := WriteSSE(writer, SSEMessage{
-		Data: promptErrorPayload{Type: promptStreamErrorKey, ErrorText: e.errorText(event)},
+		Data: promptErrorPayload{
+			Type:      promptStreamErrorKey,
+			ErrorText: e.errorText(event),
+			Failure:   SessionFailurePayloadFromStore(event.Failure),
+		},
 	}); err != nil {
 		return err
 	}

@@ -35,6 +35,7 @@ func SessionFailurePayloadFromStore(failure *store.SessionFailure) *contract.Ses
 	}
 	return &contract.SessionFailurePayload{
 		Kind:            normalized.Kind,
+		ReasonCode:      normalized.ReasonCode,
 		Summary:         diagnostics.RedactAndBound(normalized.Summary, maxDiagnosticPayloadBytes),
 		CrashBundlePath: diagnostics.RedactAndBound(normalized.CrashBundlePath, maxDiagnosticPayloadBytes),
 	}

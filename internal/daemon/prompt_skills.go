@@ -151,7 +151,7 @@ func (a *skillsCatalogAugmenter) augment(
 			filtered = append(filtered, skill)
 		}
 	}
-	catalog := skillspkg.BuildCurrentCatalog(filtered)
+	catalog := skillspkg.BuildCurrentCatalogWithinBudget(filtered, startupSkillsSectionBudget)
 	if strings.TrimSpace(catalog) == "" {
 		a.forgetSession(info.ID)
 		return message, nil

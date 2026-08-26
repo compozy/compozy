@@ -11,13 +11,17 @@ flowchart TD
   A1[Entry: open a session and type / in the composer] --> B
   A2["Entry: compozy session commands <session-id> -o json"] --> B
   A3["Entry: GET /api/workspaces/{workspace_id}/sessions/{session_id}/commands"] --> B
-  A4[Entry: session startup prompt assembly] --> S
+  A4[Entry: session startup prompt assembly] --> Q
   B[Command catalog: built-ins, agent commands, and skills from every enabled source]
   B --> B1["Absorbed rows carry a discreet origin label; Compozy-native rows carry none and are otherwise unchanged"]
   B1 --> B2{Two enabled sources carry the same bare name?}
   B2 -->|yes| B3["Both stay reachable and distinguishable; each has a stable qualified form the picker shows"]
   B2 -->|no| C
   B3 --> C
+  Q{Does the complete rendered catalog fit the prompt budget?}
+  Q -->|yes| S
+  Q -->|no| Q1[Shorten descriptions until one complete catalog fits; preserve every enabled identity and both boundary tags]
+  Q1 --> S
   S{Does this session's provider read the winning root natively?}
   S -->|provider is claude and the skill won from a claude-native folder| S1["Omitted from prompt sections A and B only"]
   S -->|provider is openclaw or hermes and the folder matches at that exact level| S2["Omitted at per-folder granularity — a provider that reads only the workspace-level folder does not suppress the global one"]
@@ -76,7 +80,7 @@ journey:
       expected_observable: "Absorbed skills appear beside native ones, each foreign row carrying a discreet origin label and native rows carrying none."
     - step: 2
       verb: "Start sessions under each supported provider and its aliases"
-      expected_observable: "Only skills whose winning root that provider already reads natively are omitted from the prompt, at per-folder granularity, and an unknown provider suppresses nothing."
+      expected_observable: "The startup prompt keeps every enabled skill identity inside one complete catalog by shortening descriptions when needed; only skills whose winning root that provider already reads natively are omitted, at per-folder granularity, and an unknown provider suppresses nothing."
     - step: 3
       verb: "Ask why a skill is not in the prompt"
       expected_observable: "Harness diagnostics name the skill, its source, the provider, and the reason — the omission is explainable, not invisible."
@@ -92,7 +96,7 @@ journey:
   goal:
     observable: "The person invokes any absorbed skill as easily as a native one, and the prompt contains each skill's text at most once."
     side_effects: [prompt-sections-a-and-b-filtered, skills-injection-suppressed-log-record, session-command-revision-broadcast, skill-invocation-recorded-in-transcript]
-  true_end_state: "The requested skill arrived exactly once, the prompt carried no duplicate of what the provider already reads, the web picker and the structured command catalog list the same rows with the same origins and the same revision, and every omission is traceable in diagnostics."
+  true_end_state: "The requested skill arrived exactly once, the prompt carried one complete bounded catalog with every non-suppressed identity and no duplicate of what the provider already reads, the web picker and the structured command catalog list the same rows with the same origins and the same revision, and every omission is traceable in diagnostics."
   exit:
     natural: "The conversation continues with the skill's content in play and no wasted context."
   abandonment:

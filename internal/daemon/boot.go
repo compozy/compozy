@@ -298,7 +298,7 @@ func (d *Daemon) bootSkillsPromptProvider(
 		bootProfileNameResolver{state: state},
 	)
 	state.mcpResolver = skills.NewMCPResolver(state.cfg.Skills, state.logger)
-	return skills.NewCatalogProvider(state.skillsRegistry), nil
+	return skills.NewBoundedCatalogProvider(state.skillsRegistry, startupSkillsSectionBudget), nil
 }
 
 func (d *Daemon) bootHarnessPromptRuntime(

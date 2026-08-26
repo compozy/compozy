@@ -10,13 +10,17 @@ func TestSessionFailureHelpers(t *testing.T) {
 		t.Parallel()
 
 		failure := SessionFailure{
-			Kind:            FailureTimeout,
-			Summary:         "  provider timeout  ",
+			Kind:            FailureTransport,
+			ReasonCode:      FailureReasonCode("  prompt_stream_incomplete  "),
+			Summary:         "  prompt stream closed  ",
 			CrashBundlePath: "  /tmp/compozy-crash  ",
 		}
 		normalized := failure.Normalize()
-		if normalized.Summary != "provider timeout" {
-			t.Fatalf("Normalize().Summary = %q, want provider timeout", normalized.Summary)
+		if normalized.ReasonCode != FailureReasonPromptStreamIncomplete {
+			t.Fatalf("Normalize().ReasonCode = %q, want prompt stream incomplete", normalized.ReasonCode)
+		}
+		if normalized.Summary != "prompt stream closed" {
+			t.Fatalf("Normalize().Summary = %q, want prompt stream closed", normalized.Summary)
 		}
 		if normalized.CrashBundlePath != "/tmp/compozy-crash" {
 			t.Fatalf("Normalize().CrashBundlePath = %q, want /tmp/compozy-crash", normalized.CrashBundlePath)
@@ -34,7 +38,7 @@ func TestSessionFailureHelpers(t *testing.T) {
 		if clone == &failure {
 			t.Fatal("CloneSessionFailure() returned original pointer")
 		}
-		if clone.Summary != "provider timeout" {
+		if clone.ReasonCode != FailureReasonPromptStreamIncomplete || clone.Summary != "prompt stream closed" {
 			t.Fatalf("CloneSessionFailure().Summary = %q, want normalized summary", clone.Summary)
 		}
 	})
@@ -50,6 +54,16 @@ func TestSessionFailureHelpers(t *testing.T) {
 		}
 		if err := (SessionFailure{Kind: FailureKind("bogus")}).Validate(); err == nil {
 			t.Fatal("Validate(invalid kind) error = nil, want validation error")
+		}
+		if err := (SessionFailure{
+			Kind: FailureTransport, ReasonCode: FailureReasonCode("bogus"),
+		}).Validate(); err == nil {
+			t.Fatal("Validate(invalid reason code) error = nil, want validation error")
+		}
+		if err := (SessionFailure{
+			Kind: FailureTimeout, ReasonCode: FailureReasonPromptStreamIncomplete,
+		}).Validate(); err == nil {
+			t.Fatal("Validate(incompatible reason code) error = nil, want validation error")
 		}
 		if !(SessionFailure{}).IsZero() {
 			t.Fatal("IsZero(empty) = false, want true")

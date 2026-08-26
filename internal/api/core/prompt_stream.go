@@ -107,8 +107,9 @@ type promptToolOutputAvailablePayload struct {
 }
 
 type promptErrorPayload struct {
-	Type      string `json:"type"`
-	ErrorText string `json:"errorText"`
+	Type      string                          `json:"type"`
+	ErrorText string                          `json:"errorText"`
+	Failure   *contract.SessionFailurePayload `json:"failure,omitempty"`
 }
 
 // PromptStreamEncoder converts raw ACP agent events into the typed public

@@ -20054,6 +20054,9 @@
                                 "kind": {
                                   "type": "string"
                                 },
+                                "reason_code": {
+                                  "type": "string"
+                                },
                                 "summary": {
                                   "type": "string"
                                 }
@@ -136379,6 +136382,9 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "reason_code": {
+                                "type": "string"
+                              },
                               "summary": {
                                 "type": "string"
                               }
@@ -137937,6 +137943,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -139876,6 +139885,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -243214,6 +243226,9 @@
                               "kind": {
                                 "type": "string"
                               },
+                              "reason_code": {
+                                "type": "string"
+                              },
                               "summary": {
                                 "type": "string"
                               }
@@ -296602,6 +296617,9 @@
                                   "kind": {
                                     "type": "string"
                                   },
+                                  "reason_code": {
+                                    "type": "string"
+                                  },
                                   "summary": {
                                     "type": "string"
                                   }
@@ -298072,6 +298090,9 @@
                                     "type": "string"
                                   },
                                   "kind": {
+                                    "type": "string"
+                                  },
+                                  "reason_code": {
                                     "type": "string"
                                   },
                                   "summary": {
@@ -299559,6 +299580,9 @@
                                     "type": "string"
                                   },
                                   "kind": {
+                                    "type": "string"
+                                  },
+                                  "reason_code": {
                                     "type": "string"
                                   },
                                   "summary": {
@@ -309248,6 +309272,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -310368,6 +310395,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -311934,6 +311964,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -313227,6 +313260,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -316415,6 +316451,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -317960,6 +317999,9 @@
                                 "type": "string"
                               },
                               "kind": {
+                                "type": "string"
+                              },
+                              "reason_code": {
                                 "type": "string"
                               },
                               "summary": {
@@ -321418,6 +321460,9 @@
                                       "type": "string"
                                     },
                                     "kind": {
+                                      "type": "string"
+                                    },
+                                    "reason_code": {
                                       "type": "string"
                                     },
                                     "summary": {
@@ -328811,6 +328856,9 @@
                                 "kind": {
                                   "type": "string"
                                 },
+                                "reason_code": {
+                                  "type": "string"
+                                },
                                 "summary": {
                                   "type": "string"
                                 }
@@ -330481,6 +330529,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -331816,6 +331867,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -333118,6 +333172,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -336476,6 +336533,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -336670,6 +336730,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
@@ -339902,6 +339965,9 @@
                             "kind": {
                               "type": "string"
                             },
+                            "reason_code": {
+                              "type": "string"
+                            },
                             "summary": {
                               "type": "string"
                             }
@@ -341984,6 +342050,9 @@
                               "type": "string"
                             },
                             "kind": {
+                              "type": "string"
+                            },
+                            "reason_code": {
                               "type": "string"
                             },
                             "summary": {
