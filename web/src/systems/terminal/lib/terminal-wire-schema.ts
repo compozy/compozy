@@ -9,23 +9,36 @@
 
 import { z } from "zod";
 
-const leaseStateSchema = z.enum(["agent_owned", "human_owned", "available"]);
-const actorKindSchema = z.enum(["human", "agent", "system"]);
+import {
+  terminalActorKindSchema,
+  terminalLeaseStateSchema,
+  terminalModeSchema,
+} from "./terminal-wire-enums";
+import {
+  TERMINAL_MAX_COLS,
+  TERMINAL_MAX_ROWS,
+  TERMINAL_MIN_COLS,
+  TERMINAL_MIN_ROWS,
+} from "./terminal-wire";
+
+const sequenceSchema = z.number().int().nonnegative();
+const colsSchema = z.number().int().min(TERMINAL_MIN_COLS).max(TERMINAL_MAX_COLS);
+const rowsSchema = z.number().int().min(TERMINAL_MIN_ROWS).max(TERMINAL_MAX_ROWS);
 
 export const terminalAttachedFrameSchema = z.object({
-  seq: z.number(),
+  seq: sequenceSchema,
   truncated: z.boolean(),
-  cols: z.number(),
-  rows: z.number(),
-  lease: leaseStateSchema,
-  mode: z.enum(["pty", "pipe"]),
+  cols: colsSchema,
+  rows: rowsSchema,
+  lease: terminalLeaseStateSchema,
+  mode: terminalModeSchema,
 });
 
 export const terminalExitFrameSchema = z.object({
   cause: z.enum(["exited", "signaled", "unknown"]),
-  exit_code: z.number().nullable(),
+  exit_code: z.number().int().nonnegative().nullable(),
   signal: z.string().nullable(),
-  seq: z.number(),
+  seq: sequenceSchema,
 });
 
 export const terminalErrorFrameSchema = z.object({
@@ -38,23 +51,37 @@ export const terminalTitleFrameSchema = z.object({
 });
 
 export const terminalResizedFrameSchema = z.object({
-  cols: z.number(),
-  rows: z.number(),
+  cols: colsSchema,
+  rows: rowsSchema,
 });
 
 export const terminalGapFrameSchema = z.object({
-  from_seq: z.number(),
-  to_seq: z.number(),
-  dropped_bytes: z.number(),
+  from_seq: sequenceSchema,
+  to_seq: sequenceSchema,
+  dropped_bytes: z.number().int().positive(),
 });
 
 /** The only authority on who holds the write lease. */
-export const terminalOwnerFrameSchema = z.object({
-  lease: leaseStateSchema,
-  actor_kind: actorKindSchema.optional(),
-  actor_id: z.string().optional(),
-  reason: z.string().optional(),
-});
+export const terminalOwnerFrameSchema = z.discriminatedUnion("lease", [
+  z.object({
+    lease: z.literal("available"),
+    actor_kind: z.never().optional(),
+    actor_id: z.never().optional(),
+    reason: z.string().optional(),
+  }),
+  z.object({
+    lease: z.literal("human_owned"),
+    actor_kind: z.literal(terminalActorKindSchema.enum.human),
+    actor_id: z.string().min(1),
+    reason: z.string().optional(),
+  }),
+  z.object({
+    lease: z.literal("agent_owned"),
+    actor_kind: z.literal(terminalActorKindSchema.enum.agent),
+    actor_id: z.string().min(1),
+    reason: z.string().optional(),
+  }),
+]);
 
 export type TerminalAttachedFrame = z.infer<typeof terminalAttachedFrameSchema>;
 export type TerminalExitFrame = z.infer<typeof terminalExitFrameSchema>;

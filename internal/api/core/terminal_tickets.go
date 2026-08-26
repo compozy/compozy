@@ -37,7 +37,6 @@ type terminalTicket struct {
 	Token     string
 	Binding   terminalTicketBinding
 	Actor     terminalpkg.Actor
-	CreatedAt time.Time
 	ExpiresAt time.Time
 	group     *terminalTicketGroup
 }
@@ -79,8 +78,7 @@ func (s *terminalTicketStore) Mint(binding terminalTicketBinding, actor terminal
 	now := s.now()
 	ticket := terminalTicket{
 		Token: "tkt-" + hex.EncodeToString(tokenBytes), Binding: binding,
-		Actor:     actor,
-		CreatedAt: now, ExpiresAt: now.Add(terminalTicketTTL),
+		Actor: actor, ExpiresAt: now.Add(terminalTicketTTL),
 	}
 	s.mu.Lock()
 	s.sweepExpiredLocked(now)

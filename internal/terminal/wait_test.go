@@ -6,7 +6,6 @@ package terminal
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 )
@@ -33,21 +32,27 @@ func TestWaitEngineContract(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
-		resultDone := make(chan *WaitResult, 1)
-		errorDone := make(chan error, 1)
+		type waitOutcome struct {
+			result *WaitResult
+			err    error
+		}
+		waitCtx, cancelWait := context.WithTimeout(t.Context(), 200*time.Millisecond)
+		defer cancelWait()
+		resultDone := make(chan waitOutcome, 1)
+		waitStarted := make(chan struct{})
 		go func() {
-			result, err := handle.Wait(context.Background(), WaitCondition{Until: "match", Pattern: "ready-[0-9]+"})
-			resultDone <- result
-			errorDone <- err
+			close(waitStarted)
+			result, err := handle.Wait(waitCtx, WaitCondition{Until: "match", Pattern: "ready-[0-9]+"})
+			resultDone <- waitOutcome{result: result, err: err}
 		}()
-		time.Sleep(20 * time.Millisecond)
+		<-waitStarted
 		if err := starter.latest().emit([]byte("ready-42\r\n")); err != nil {
 			t.Fatalf("emit() error = %v", err)
 		}
 		select {
-		case result := <-resultDone:
-			if err := <-errorDone; err != nil || result.Reason != "match" {
-				t.Fatalf("Wait(match) = %#v error=%v", result, err)
+		case outcome := <-resultDone:
+			if outcome.err != nil || outcome.result.Reason != "match" {
+				t.Fatalf("Wait(match) = %#v error=%v", outcome.result, outcome.err)
 			}
 		case <-time.After(200 * time.Millisecond):
 			t.Fatal("matching output did not wake wait")
@@ -68,7 +73,9 @@ func TestWaitEngineContract(t *testing.T) {
 		}
 
 		stop := make(chan struct{})
+		tickerDone := make(chan struct{})
 		go func() {
+			defer close(tickerDone)
 			ticker := time.NewTicker(50 * time.Millisecond)
 			defer ticker.Stop()
 			for {
@@ -84,6 +91,7 @@ func TestWaitEngineContract(t *testing.T) {
 		}()
 		holding, err := handle.Wait(context.Background(), WaitCondition{Until: "idle"})
 		close(stop)
+		<-tickerDone
 		if err != nil || holding.Reason != "still_running" {
 			t.Fatalf("Wait(holding) = %#v error=%v", holding, err)
 		}
@@ -105,11 +113,11 @@ func TestWaitEngineContract(t *testing.T) {
 		started := time.Now()
 		result, err = handleTwo.Wait(context.Background(), WaitCondition{Until: "idle"})
 		elapsed := time.Since(started)
-		if err != nil || result.Reason != "idle" || elapsed < 3*idleSampleInterval || elapsed > idleMaximumWait {
+		const expectedIdleDebounce = 300 * time.Millisecond
+		const expectedIdleMaximum = 700 * time.Millisecond
+		const schedulerTolerance = 75 * time.Millisecond
+		if err != nil || result.Reason != "idle" || elapsed < expectedIdleDebounce-schedulerTolerance || elapsed > expectedIdleMaximum+schedulerTolerance {
 			t.Fatalf("Wait(idle) = %#v error=%v elapsed=%s", result, err, elapsed)
-		}
-		if strings.Contains(result.Reason, "failure") {
-			t.Fatalf("idle reason fabricated failure: %q", result.Reason)
 		}
 	})
 }

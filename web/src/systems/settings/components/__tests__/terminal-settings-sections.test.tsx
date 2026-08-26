@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { UIProvider } from "@compozy/ui";
 
+import { terminalSettingsFixture } from "../../mocks/fixtures";
+import { parsePositiveDurationMilliseconds } from "../../lib/terminal-settings-duration";
 import { readTerminalSettings } from "../../lib/terminal-settings-projection";
 import {
   TerminalSettingsSections,
@@ -19,21 +21,8 @@ import {
  * runtime does not expose.
  */
 
-const DEFAULTS: TerminalSettingsConfig = {
-  default_shell: "",
-  shell_integration: true,
-  scrollback_bytes: 1_048_576,
-  detached_ttl: "24h",
-  exit_retention: "15m",
-  recording: false,
-  recording_retention_days: 30,
-  max_per_workspace: 8,
-  max_per_daemon: 32,
-  max_subscribers: 16,
-};
-
 function Harness({
-  initial = DEFAULTS,
+  initial = terminalSettingsFixture,
   validationErrors = {},
 }: {
   initial?: TerminalSettingsConfig;
@@ -92,20 +81,22 @@ describe("TerminalSettingsSections", () => {
   });
 
   it("Should write an edited value back into the draft", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
 
     const shell = screen.getByTestId("settings-terminal-default-shell");
-    await userEvent.type(shell, "/bin/bash");
+    await user.type(shell, "/bin/bash");
 
     expect(shell).toHaveValue("/bin/bash");
   });
 
   it("Should carry a limit change through to the control", async () => {
+    const user = userEvent.setup();
     render(<Harness />);
 
     const limit = screen.getByTestId("settings-terminal-max-per-workspace");
-    await userEvent.clear(limit);
-    await userEvent.type(limit, "4");
+    await user.clear(limit);
+    await user.type(limit, "4");
 
     expect(limit).toHaveValue("4");
   });
@@ -120,18 +111,7 @@ describe("TerminalSettingsSections", () => {
  * them.
  */
 describe("readTerminalSettings", () => {
-  const FULL_BLOCK = {
-    default_shell: "/bin/zsh",
-    shell_integration: true,
-    scrollback_bytes: 1_048_576,
-    detached_ttl: "24h",
-    exit_retention: "15m",
-    recording: false,
-    recording_retention_days: 30,
-    max_per_workspace: 8,
-    max_per_daemon: 32,
-    max_subscribers: 16,
-  };
+  const FULL_BLOCK = { ...terminalSettingsFixture, default_shell: "/bin/zsh" };
 
   it("Should keep every value the daemon projected", () => {
     expect(readTerminalSettings({ terminal: FULL_BLOCK })).toEqual(FULL_BLOCK);
@@ -158,14 +138,26 @@ describe("readTerminalSettings", () => {
     const wrong: Array<[string, unknown]> = [
       ["default_shell", 7],
       ["detached_ttl", null],
+      ["exit_retention", 15],
       ["shell_integration", "true"],
       ["recording", 0],
       ["scrollback_bytes", "1048576"],
+      ["recording_retention_days", "30"],
       ["max_per_workspace", Number.NaN],
+      ["max_per_daemon", Infinity],
+      ["max_subscribers", false],
     ];
     for (const [key, value] of wrong) {
       expect(readTerminalSettings({ terminal: { ...FULL_BLOCK, [key]: value } })).toBeNull();
     }
+  });
+
+  it("Should parse every positive duration shape accepted by the form", () => {
+    expect(parsePositiveDurationMilliseconds("1h30m")).toBe(5_400_000);
+    expect(parsePositiveDurationMilliseconds("1.5s")).toBe(1_500);
+    expect(parsePositiveDurationMilliseconds("250ms")).toBe(250);
+    expect(parsePositiveDurationMilliseconds("0s")).toBeUndefined();
+    expect(parsePositiveDurationMilliseconds("15 minutes")).toBeUndefined();
   });
 
   it("Should render nothing at all when the block is absent", () => {

@@ -13,7 +13,7 @@ import type {
  * against them without inventing a second world. Minting extra fixtures would
  * quietly break that comparison.
  */
-export const TERMINAL_FIXTURE_WORKSPACE = "atlas-api";
+export const TERMINAL_FIXTURE_WORKSPACE = "ws-atlas";
 export const TERMINAL_FIXTURE_PROFILE = "work";
 export const TERMINAL_FIXTURE_PROFILE_ID = "01JB4Z2K9QW8XR3TFN6VYD5HAC";
 export const TERMINAL_FIXTURE_VIEWER = "pedro";
@@ -258,7 +258,6 @@ export const JOURNAL_FIXTURES: readonly TerminalJournalEntry[] = [
   }),
 ];
 
-/** A short asciicast v2 capture of `make gate`, with real inter-frame gaps. */
 /**
  * A real asciicast v2 artifact for `make gate`, at its real length.
  *

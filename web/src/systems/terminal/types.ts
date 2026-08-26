@@ -36,6 +36,12 @@ export interface TerminalExit {
   at: string;
 }
 
+export interface TerminalExitNotice {
+  cause: TerminalExitCause;
+  code: number | null;
+  signal: string | null;
+}
+
 export interface TerminalCapabilities {
   interactive: boolean;
 }
@@ -168,10 +174,11 @@ export interface TerminalReadResult {
 }
 
 /** The two selectors are mutually exclusive — `profile_selection_conflict`. */
-export interface TerminalScopeParams {
-  profile?: string;
-  all_profiles?: boolean;
-}
+export type TerminalScopeParams =
+  | { profile: string; all_profiles?: never }
+  | { profile?: never; all_profiles: true };
+
+export type TerminalProfileScopeParams = Extract<TerminalScopeParams, { profile: string }>;
 
 /** Cache and stream identity. A read without both halves cannot be scoped. */
 export interface TerminalScopeKey {

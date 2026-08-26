@@ -6,8 +6,7 @@
  * the terminal itself, and that record is the same truth. These read it.
  */
 
-import type { TerminalExitNotice } from "../stores/terminal-store";
-import type { TerminalInfo } from "../types";
+import type { TerminalExitNotice, TerminalInfo } from "../types";
 
 /** The terminal's own recorded outcome, in the shape the exit bar reads. */
 export function exitNoticeFromTerminal(terminal: TerminalInfo): TerminalExitNotice | null {

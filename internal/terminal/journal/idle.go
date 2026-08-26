@@ -185,15 +185,7 @@ func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
 			CommandID: id, Command: candidate.command, Cwd: l.info.Cwd, DetectedBy: "idle",
 		},
 	})
-	l.enqueue(row)
-	l.emitEvent(terminalpkg.TerminalEvent{
-		Kind: terminalpkg.EventKindCommandFinished, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,
-		TerminalID: l.info.ID, Actor: candidate.actor, At: finishedAt,
-		Detail: terminalpkg.EventDetail{
-			CommandID: id, ExitCause: "unknown", DurationMS: duration,
-			DetectedBy: "idle", Approval: row.Approval,
-		},
-	})
+	l.finishCommand(row, finishedAt)
 }
 
 func inputSubmissionCount(input []byte) int {

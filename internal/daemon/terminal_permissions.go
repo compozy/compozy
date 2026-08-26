@@ -9,6 +9,7 @@ import (
 
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
 type terminalExecApprover interface {
@@ -53,7 +54,7 @@ func (b *terminalPermissionBridge) ApproveTerminalExec(
 			toolspkg.ReasonApprovalUnreachable,
 		)
 	}
-	view := &toolspkg.ToolView{Descriptor: toolspkg.Descriptor{ID: call.ToolID}}
+	view := &toolspkg.ToolView{Descriptor: terminalToolDescriptor(call.ToolID)}
 	if err := approval.RequestToolApproval(ctx, scope, &call, view); err != nil {
 		return "", err
 	}
@@ -64,16 +65,26 @@ func (b *terminalPermissionBridge) ApproveTerminalExec(
 	return label, nil
 }
 
+func terminalToolDescriptor(id toolspkg.ToolID) toolspkg.Descriptor {
+	for _, descriptor := range builtintools.NativeDescriptors() {
+		if descriptor.ID == id {
+			return descriptor
+		}
+	}
+	return toolspkg.Descriptor{ID: id}
+}
+
 func (b *terminalPermissionBridge) AuthorizeTerminalExec(
 	ctx context.Context,
 	request terminalpkg.ExecRequest,
-	_ terminalpkg.CommandClassification,
+	classification terminalpkg.CommandClassification,
 ) (string, error) {
 	input, err := json.Marshal(map[string]any{
 		"command": request.Command,
 		"args":    request.Args,
 		"cwd":     request.Cwd,
 		"visible": request.Visible,
+		"risk":    terminalPermissionRisk(classification),
 	})
 	if err != nil {
 		return "", err
@@ -88,6 +99,13 @@ func (b *terminalPermissionBridge) AuthorizeTerminalExec(
 		AgentName: request.Actor.ID, ActorKind: string(request.Actor.Kind), Input: input,
 	}
 	return b.ApproveTerminalExec(ctx, scope, call)
+}
+
+func terminalPermissionRisk(classification terminalpkg.CommandClassification) string {
+	if classification.Reason == "irreversible" || classification.Reason == "unclassifiable" {
+		return classification.Reason
+	}
+	return "ordinary"
 }
 
 func (b *terminalPermissionBridge) AuthorizeTerminalInput(

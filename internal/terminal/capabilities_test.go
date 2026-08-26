@@ -17,8 +17,8 @@ func TestResolveCapabilities(t *testing.T) { // IT-016
 	}{
 		{name: "Should allow a local Unix terminal", goos: "darwin", workspaceKind: WorkspaceKindLocal, interactive: true},
 		{name: "Should allow a local Windows terminal after ConPTY [IT-038]", goos: "windows", workspaceKind: WorkspaceKindLocal, interactive: true},
-		{name: "Should keep Windows sandbox workspaces execute-only [E2E-021]", goos: "windows", workspaceKind: "sandbox"},
-		{name: "Should keep remote workspaces execute-only", goos: "linux", workspaceKind: "sandbox"},
+		{name: "Should keep Windows sandbox workspaces execute-only [E2E-021]", goos: "windows", workspaceKind: "sandbox", interactive: false},
+		{name: "Should keep remote workspaces execute-only", goos: "linux", workspaceKind: "sandbox", interactive: false},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()

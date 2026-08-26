@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { useProfileReadScope } from "@/systems/profiles";
+import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useSettingsGeneral } from "@/systems/settings";
 import {
   answerTerminalInputRequest,
@@ -25,6 +25,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
+import { matchTerminalInstance } from "../../../lib/app-catalog";
 
 const DEFAULT_ROUTE = "/terminal";
 
@@ -32,11 +33,6 @@ interface TerminalReplaySelection {
   id: string;
   profile: string;
   title: string;
-}
-
-function terminalIdFromPath(pathname: string): string | null {
-  const match = /^\/terminal\/([^/]+)$/.exec(pathname);
-  return match ? decodeURIComponent(match[1]) : null;
 }
 
 export function useTerminalWindowControllerState(windowId: string) {
@@ -47,6 +43,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
   const profile = useProfileReadScope();
+  const profiles = useProfiles();
   const settings = useSettingsGeneral();
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? DEFAULT_ROUTE);
   const viewerId = useDesktop(state => state.client?.clientId ?? null);
@@ -76,6 +73,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     workspaceId,
     profileKey: catalogScope.key.profileKey,
     allProfiles: profile.aggregate,
+    profiles: profiles.data?.map(candidate => candidate.name) ?? [],
     enabled: workspaceId !== "",
   });
 
@@ -120,7 +118,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     onSuccess: async (_exit, closedId) => {
       await invalidateTerminalReads();
       const next = (catalog.data ?? []).find(terminal => terminal.id !== closedId);
-      if (terminalIdFromPath(pathname) !== closedId) return;
+      if (matchTerminalInstance(pathname) !== closedId) return;
       if (next) {
         await coordinator.userRetarget(windowId, {
           app: "terminal",

@@ -391,6 +391,7 @@ export { useSettingsPersonaPage } from "./hooks/use-settings-persona-page";
 export { useSettingsSaveBarState } from "./hooks/use-settings-save-bar-state";
 export { useSettingsTopbar, type UseSettingsTopbarOptions } from "./hooks/use-settings-topbar";
 export type { SettingsSaveBarState } from "./lib/save-state";
+export { parsePositiveDurationMilliseconds } from "./lib/terminal-settings-duration";
 export {
   settingsUpdateIndicatorAvailable,
   settingsUpdateApplicableTargets,

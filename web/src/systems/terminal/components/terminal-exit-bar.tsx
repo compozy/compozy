@@ -1,8 +1,7 @@
 import { MonoId, Pill, Time } from "@compozy/ui";
 
 import { terminalExitCopy } from "../lib/terminal-copy";
-import type { TerminalExitNotice } from "../stores/terminal-store";
-import type { TerminalInfo } from "../types";
+import type { TerminalExitNotice, TerminalInfo } from "../types";
 
 export interface TerminalExitBarProps {
   exit: TerminalExitNotice;

@@ -1,6 +1,7 @@
 package pty
 
 import (
+	"runtime"
 	"sort"
 	"strings"
 
@@ -12,22 +13,26 @@ var blockedEnvironmentPrefixes = []string{
 }
 
 func environment(overrides map[string]string) []string {
-	values := make(map[string]string)
+	type environmentValue struct {
+		key   string
+		value string
+	}
+	values := make(map[string]environmentValue)
 	for _, entry := range procutil.FilteredDaemonEnv(nil) {
 		key, value, ok := strings.Cut(entry, "=")
 		if !ok || blockedEnvironmentKey(key) {
 			continue
 		}
-		values[key] = value
+		values[environmentIdentity(key)] = environmentValue{key: key, value: value}
 	}
 	for key, value := range overrides {
 		if blockedEnvironmentKey(key) {
 			continue
 		}
-		values[key] = value
+		values[environmentIdentity(key)] = environmentValue{key: key, value: value}
 	}
-	values["TERM"] = "xterm-256color"
-	values["COLORTERM"] = "truecolor"
+	values[environmentIdentity("TERM")] = environmentValue{key: "TERM", value: "xterm-256color"}
+	values[environmentIdentity("COLORTERM")] = environmentValue{key: "COLORTERM", value: "truecolor"}
 	keys := make([]string, 0, len(values))
 	for key := range values {
 		keys = append(keys, key)
@@ -35,16 +40,25 @@ func environment(overrides map[string]string) []string {
 	sort.Strings(keys)
 	result := make([]string, 0, len(keys))
 	for _, key := range keys {
-		result = append(result, key+"="+values[key])
+		entry := values[key]
+		result = append(result, entry.key+"="+entry.value)
 	}
 	return result
 }
 
 func blockedEnvironmentKey(key string) bool {
+	key = environmentIdentity(key)
 	for _, prefix := range blockedEnvironmentPrefixes {
-		if strings.HasPrefix(key, prefix) {
+		if strings.HasPrefix(key, environmentIdentity(prefix)) {
 			return true
 		}
 	}
 	return false
+}
+
+func environmentIdentity(key string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(key)
+	}
+	return key
 }

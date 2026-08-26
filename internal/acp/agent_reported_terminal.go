@@ -83,7 +83,7 @@ func (p *AgentProcess) projectAgentReportedTerminal(
 		state.append(meta.data)
 	}
 	if meta.hasExit {
-		state.exitCode = cloneInt(meta.exitCode)
+		state.exitCode = cloneIntPtr(meta.exitCode)
 		state.signal = strings.TrimSpace(meta.signal)
 	}
 
@@ -110,7 +110,7 @@ func (p *AgentProcess) projectAgentReportedTerminal(
 			Cwd:        state.cwd,
 			TotalBytes: state.totalBytes,
 			Truncated:  truncated,
-			ExitCode:   cloneInt(state.exitCode),
+			ExitCode:   cloneIntPtr(state.exitCode),
 			Signal:     state.signal,
 		},
 	}
@@ -162,14 +162,6 @@ func validUTF8Tail(value []byte) []byte {
 		value = value[1:]
 	}
 	return value
-}
-
-func cloneInt(value *int) *int {
-	if value == nil {
-		return nil
-	}
-	cloned := *value
-	return &cloned
 }
 
 func reportedTerminalMeta(update acpsdk.SessionUpdate) (agentReportedTerminalMeta, string, bool) {

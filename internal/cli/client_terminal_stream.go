@@ -72,25 +72,15 @@ func (c *daemonClient) takeoverTerminal(
 	workspace, id string,
 	force bool,
 ) (returnErr error) {
-	ticket, err := c.mintTerminalTicket(ctx, workspace, id, terminalStreamModeRead)
-	if err != nil {
-		return err
-	}
-	dialer := websocket.Dialer{
-		HandshakeTimeout: terminalClientHandshakeTimeout,
-		Subprotocols:     []string{terminalwire.Subprotocol},
-	}
-	if c.target.kind == clientTargetLocal {
-		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var networkDialer net.Dialer
-			return networkDialer.DialUnix(
-				ctx,
-				clientUnixNetwork,
-				nil,
-				&net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork},
-			)
+	ticket := ""
+	if c.target.kind != clientTargetLocal {
+		var err error
+		ticket, err = c.mintTerminalTicket(ctx, workspace, id, terminalStreamModeRead)
+		if err != nil {
+			return err
 		}
 	}
+	dialer := c.terminalWebSocketDialer()
 	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, TerminalAttachOptions{
 		Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop,
 	})
@@ -100,7 +90,7 @@ func (c *daemonClient) takeoverTerminal(
 	conn, response, err := dialer.DialContext(ctx, target, headers)
 	if err != nil {
 		if response != nil {
-			return readAndCloseWindowManagerHandshakeError(response)
+			return readAndCloseStreamHandshakeError(response)
 		}
 		if c.target.isRemoteGateway() {
 			return newGatewayReachabilityError(c.target, err)
@@ -123,16 +113,9 @@ func runTerminalTakeover(ctx context.Context, conn *websocket.Conn, force bool) 
 		if err := conn.SetReadDeadline(time.Now().Add(terminalClientHandshakeTimeout)); err != nil {
 			return fmt.Errorf("cli: set terminal takeover deadline: %w", err)
 		}
-		messageType, encoded, err := conn.ReadMessage()
+		frame, err := readTerminalServerFrame(conn)
 		if err != nil {
 			return fmt.Errorf("cli: read terminal takeover stream: %w", err)
-		}
-		if messageType != websocket.BinaryMessage {
-			return terminalPermanentError(errors.New("cli: terminal server sent a non-binary frame"))
-		}
-		frame, err := terminalwire.DecodeServer(encoded)
-		if err != nil {
-			return terminalPermanentError(err)
 		}
 		switch frame.Op {
 		case terminalwire.ServerOpAttached:
@@ -174,25 +157,15 @@ func (c *daemonClient) attachTerminalOnce(
 	inputReads <-chan terminalInputRead,
 	output io.Writer,
 ) (afterSeq uint64, returnErr error) {
-	ticket, err := c.mintTerminalTicket(ctx, workspace, id, options.Mode)
-	if err != nil {
-		return options.AfterSeq, err
-	}
-	dialer := websocket.Dialer{
-		HandshakeTimeout: terminalClientHandshakeTimeout,
-		Subprotocols:     []string{terminalwire.Subprotocol},
-	}
-	if c.target.kind == clientTargetLocal {
-		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
-			var networkDialer net.Dialer
-			return networkDialer.DialUnix(
-				ctx,
-				clientUnixNetwork,
-				nil,
-				&net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork},
-			)
+	ticket := ""
+	if c.target.kind != clientTargetLocal {
+		var err error
+		ticket, err = c.mintTerminalTicket(ctx, workspace, id, options.Mode)
+		if err != nil {
+			return options.AfterSeq, err
 		}
 	}
+	dialer := c.terminalWebSocketDialer()
 	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, options)
 	if err != nil {
 		return options.AfterSeq, err
@@ -200,7 +173,7 @@ func (c *daemonClient) attachTerminalOnce(
 	conn, response, err := dialer.DialContext(ctx, target, headers)
 	if err != nil {
 		if response != nil {
-			return options.AfterSeq, readAndCloseWindowManagerHandshakeError(response)
+			return options.AfterSeq, readAndCloseStreamHandshakeError(response)
 		}
 		if c.target.isRemoteGateway() {
 			return options.AfterSeq, newGatewayReachabilityError(c.target, err)
@@ -245,8 +218,9 @@ func (c *daemonClient) terminalStreamTarget(
 	if err != nil {
 		return "", nil, terminalPermanentError(err)
 	}
-	query := url.Values{
-		"ticket": {ticket}, terminalModeKey: {options.Mode}, "flow": {options.Flow},
+	query := url.Values{terminalModeKey: {options.Mode}, "flow": {options.Flow}}
+	if ticket != "" {
+		query.Set("ticket", ticket)
 	}
 	if options.AfterSeq > 0 {
 		query.Set("after_seq", strconv.FormatUint(options.AfterSeq, 10))
@@ -345,17 +319,7 @@ func runTerminalClientStreamWithInput(
 
 func readTerminalServer(ctx context.Context, conn *websocket.Conn, reads chan<- terminalServerRead) {
 	for {
-		messageType, encoded, err := conn.ReadMessage()
-		if err == nil && messageType != websocket.BinaryMessage {
-			err = terminalPermanentError(errors.New("cli: terminal server sent a non-binary frame"))
-		}
-		var frame terminalwire.Frame
-		if err == nil {
-			frame, err = terminalwire.DecodeServer(encoded)
-			if err != nil {
-				err = terminalPermanentError(err)
-			}
-		}
+		frame, err := readTerminalServerFrame(conn)
 		select {
 		case reads <- terminalServerRead{frame: frame, err: err}:
 		case <-ctx.Done():
@@ -365,6 +329,40 @@ func readTerminalServer(ctx context.Context, conn *websocket.Conn, reads chan<- 
 			return
 		}
 	}
+}
+
+func (c *daemonClient) terminalWebSocketDialer() websocket.Dialer {
+	dialer := websocket.Dialer{
+		HandshakeTimeout: terminalClientHandshakeTimeout,
+		Subprotocols:     []string{terminalwire.Subprotocol},
+	}
+	if c.target.kind == clientTargetLocal {
+		dialer.NetDialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var networkDialer net.Dialer
+			return networkDialer.DialUnix(
+				ctx,
+				clientUnixNetwork,
+				nil,
+				&net.UnixAddr{Name: c.target.socketPath, Net: clientUnixNetwork},
+			)
+		}
+	}
+	return dialer
+}
+
+func readTerminalServerFrame(conn *websocket.Conn) (terminalwire.Frame, error) {
+	messageType, encoded, err := conn.ReadMessage()
+	if err != nil {
+		return terminalwire.Frame{}, err
+	}
+	if messageType != websocket.BinaryMessage {
+		return terminalwire.Frame{}, terminalPermanentError(errors.New("cli: terminal server sent a non-binary frame"))
+	}
+	frame, err := terminalwire.DecodeServer(encoded)
+	if err != nil {
+		return terminalwire.Frame{}, terminalPermanentError(err)
+	}
+	return frame, nil
 }
 
 func handleTerminalServerFrame(

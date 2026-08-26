@@ -20,13 +20,14 @@ type Ring struct {
 	oldest   uint64
 	next     uint64
 	preamble []byte
+	modes    *modePreambleTracker
 }
 
 func NewRing(capacity int) *Ring {
 	if capacity < 1 {
 		capacity = 1
 	}
-	return &Ring{capacity: capacity, data: make([]byte, 0, capacity)}
+	return &Ring{capacity: capacity, data: make([]byte, 0, capacity), modes: newModePreambleTracker()}
 }
 
 func (r *Ring) Append(input []byte) (start uint64, end uint64) {
@@ -47,7 +48,7 @@ func (r *Ring) Append(input []byte) (start uint64, end uint64) {
 func (r *Ring) SetModePreamble(preamble []byte) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.preamble = append(r.preamble[:0], preamble...)
+	r.preamble = append(r.preamble[:0], r.modes.Observe(preamble)...)
 }
 
 func (r *Ring) ReplayFrom(seq uint64) Replay {
@@ -87,6 +88,9 @@ func (r *Ring) trim() {
 	cut := safeTrimIndex(r.data, excess)
 	if cut < 1 {
 		cut = excess
+	}
+	for cut < len(r.data) && r.data[cut]&0xc0 == 0x80 {
+		cut++
 	}
 	r.oldest += uint64(cut)
 	remaining := len(r.data) - cut

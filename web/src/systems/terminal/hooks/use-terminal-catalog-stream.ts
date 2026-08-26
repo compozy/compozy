@@ -5,10 +5,11 @@ import { useEffect } from "react";
 
 import { createStreamEventSource, type StreamEventSource } from "@/lib/ticketed-event-source";
 
-import { terminalCatalogStreamPath } from "../adapters/terminal-api";
 import {
   parseTerminalCatalogEvent,
   reconcileTerminalCatalog,
+  reconcileTerminalProfileSnapshot,
+  terminalCatalogStreamPath,
   TERMINAL_CATALOG_EVENTS,
 } from "../lib/terminal-catalog-stream";
 import { terminalKeys } from "../lib/query-keys";
@@ -22,6 +23,8 @@ export interface UseTerminalCatalogStreamOptions {
   profileKey: string;
   /** Reads the labeled aggregate without treating its cache key as a profile name. */
   allProfiles?: boolean;
+  /** Concrete owners subscribed into the aggregate cache. */
+  profiles?: readonly string[];
   enabled?: boolean;
   /** Test seam; the ticketed browser source is the default. */
   eventSourceFactory?: TerminalCatalogEventSourceFactory;
@@ -44,7 +47,8 @@ function openTerminalCatalogStream(
   queryClient: QueryClient,
   workspaceId: string,
   profileKey: string,
-  allProfiles: boolean,
+  streamProfile: string,
+  aggregate: boolean,
   eventSourceFactory: TerminalCatalogEventSourceFactory
 ): () => void {
   const queryKey = terminalKeys.catalog({ workspaceId, profileKey });
@@ -64,9 +68,12 @@ function openTerminalCatalogStream(
       }
       const parsed = parseTerminalCatalogEvent(name, raw);
       if (!parsed) return;
-      queryClient.setQueryData<TerminalInfo[]>(queryKey, current =>
-        reconcileTerminalCatalog(current, parsed)
-      );
+      queryClient.setQueryData<TerminalInfo[]>(queryKey, current => {
+        if (aggregate && parsed.name === "terminal.snapshot") {
+          return reconcileTerminalProfileSnapshot(current, streamProfile, parsed.terminals);
+        }
+        return reconcileTerminalCatalog(current, parsed);
+      });
     };
   };
 
@@ -78,9 +85,7 @@ function openTerminalCatalogStream(
   };
 
   const listeners = TERMINAL_CATALOG_EVENTS.map(name => ({ name, listener: handleFrame(name) }));
-  const source = eventSourceFactory(
-    terminalCatalogStreamPath(workspaceId, profileKey, allProfiles)
-  );
+  const source = eventSourceFactory(terminalCatalogStreamPath(workspaceId, streamProfile));
   const detach = () => {
     source.removeEventListener("open", handleOpen);
     for (const entry of listeners) {
@@ -118,24 +123,45 @@ export function useTerminalCatalogStream({
   workspaceId,
   profileKey,
   allProfiles = false,
+  profiles = [],
   enabled = true,
   eventSourceFactory,
 }: UseTerminalCatalogStreamOptions): void {
   const queryClient = useQueryClient();
+  const streamProfiles = allProfiles
+    ? [...new Set(profiles.map(value => value.trim()).filter(Boolean))].sort()
+    : [profileKey];
+  const streamProfileSignature = JSON.stringify(streamProfiles);
   const canConnect =
     enabled &&
     workspaceId.trim() !== "" &&
     typeof window !== "undefined" &&
-    (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
+    (eventSourceFactory !== undefined || typeof EventSource !== "undefined") &&
+    streamProfiles.length > 0;
 
   useEffect(() => {
     if (!canConnect) return undefined;
-    return openTerminalCatalogStream(
-      queryClient,
-      workspaceId,
-      profileKey,
-      allProfiles,
-      eventSourceFactory ?? defaultEventSourceFactory
+    const concreteProfiles = JSON.parse(streamProfileSignature) as string[];
+    const cleanups = concreteProfiles.map(streamProfile =>
+      openTerminalCatalogStream(
+        queryClient,
+        workspaceId,
+        profileKey,
+        streamProfile,
+        allProfiles,
+        eventSourceFactory ?? defaultEventSourceFactory
+      )
     );
-  }, [allProfiles, canConnect, eventSourceFactory, profileKey, queryClient, workspaceId]);
+    return () => {
+      for (const cleanup of cleanups) cleanup();
+    };
+  }, [
+    allProfiles,
+    canConnect,
+    eventSourceFactory,
+    profileKey,
+    queryClient,
+    streamProfileSignature,
+    workspaceId,
+  ]);
 }

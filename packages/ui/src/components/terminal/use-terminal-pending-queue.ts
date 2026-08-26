@@ -19,6 +19,8 @@ export type PendingOperation =
 export interface PendingQueue {
   key: string;
   operations: PendingOperation[];
+  /** Keeps live calls behind the startup operations already being replayed. */
+  draining: boolean;
   /**
    * Writes handed to the emulator but not yet parsed.
    *
@@ -30,7 +32,7 @@ export interface PendingQueue {
 }
 
 function createQueue(key: string): PendingQueue {
-  return { key, operations: [], inFlight: new Set() };
+  return { key, operations: [], draining: false, inFlight: new Set() };
 }
 
 /**
@@ -78,13 +80,16 @@ export function useTerminalPendingQueue(instanceId: string): PendingQueue {
  * handed to a disposed emulator are answered the same way: their parse callback
  * is never going to fire.
  */
-export function abandonPendingOperations(queue: PendingQueue): void {
+export function abandonPendingOperations(
+  queue: PendingQueue,
+  cause: unknown = new TerminalWriteAbandonedError()
+): void {
   for (const operation of queue.operations) {
-    if (operation.kind === "write") operation.reject(new TerminalWriteAbandonedError());
+    if (operation.kind === "write") operation.reject(cause);
   }
   queue.operations.length = 0;
   for (const reject of queue.inFlight) {
-    reject(new TerminalWriteAbandonedError());
+    reject(cause);
   }
   queue.inFlight.clear();
 }

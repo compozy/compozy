@@ -415,6 +415,7 @@ func (h *BaseHandlers) ShutdownWindowManagerStreams(ctx context.Context) error {
 	return h.windowManagerStreams.shutdown(ctx)
 }
 
+// ShutdownTerminalStreams stops upgrades and waits for every terminal stream.
 func (h *BaseHandlers) ShutdownTerminalStreams(ctx context.Context) error {
 	if h == nil || h.terminalStreams == nil {
 		return nil

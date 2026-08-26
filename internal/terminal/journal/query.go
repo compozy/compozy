@@ -31,6 +31,9 @@ func (s *Service) Query(
 	if err := scope.Validate(); err != nil || strings.TrimSpace(workspaceID) == "" {
 		return &terminalpkg.Page{Entries: []terminalpkg.CommandRow{}}, nil
 	}
+	workspaceID = strings.TrimSpace(workspaceID)
+	scope.ProfileID = strings.TrimSpace(scope.ProfileID)
+	query = normalizeQuery(query)
 	limit := query.Limit
 	if limit == 0 {
 		limit = defaultPageLimit
@@ -83,6 +86,14 @@ func (s *Service) Query(
 		}
 	}
 	return &terminalpkg.Page{Entries: entries, Next: next}, nil
+}
+
+func normalizeQuery(query terminalpkg.Query) terminalpkg.Query {
+	query.Actor = strings.TrimSpace(query.Actor)
+	query.Since = strings.TrimSpace(query.Since)
+	query.Terminal = strings.TrimSpace(query.Terminal)
+	query.Cursor = strings.TrimSpace(query.Cursor)
+	return query
 }
 
 func (s *Service) queryStatement(

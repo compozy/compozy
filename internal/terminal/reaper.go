@@ -3,6 +3,7 @@ package terminal
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -50,6 +51,9 @@ func (m *Service) reap(ctx context.Context) {
 			targets = append(targets, candidate)
 		}
 	}
+	slices.SortFunc(targets, func(left, right reapTarget) int {
+		return compareTerminalKeys(left.key, right.key)
+	})
 	for _, target := range targets {
 		if target.reason == "detached_ttl" {
 			settings := target.item.settings(ctx)
@@ -63,7 +67,7 @@ func (m *Service) reap(ctx context.Context) {
 				continue
 			}
 		}
-		m.removeWithTombstone(target.key, target.item, now.Add(idleTombstoneTTL))
+		m.removeWithTombstone(target.key, target.item, m.tombstoneExpiry(target.item))
 	}
 	m.sweepTombstones(now)
 }

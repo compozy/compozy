@@ -2,6 +2,7 @@
 
 import { Check, Clock, KeyRound, Keyboard, MessageCircleQuestionMark, X } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { Button, cn, Input, MonoId, Time } from "@compozy/ui";
 
@@ -32,6 +33,7 @@ export interface TerminalInputRequestCardProps {
 }
 
 const INPUT_FIELD_NAME = "terminal-input";
+const EXPIRY_REFRESH_MS = 30_000;
 
 /**
  * The agent's question, pinned to the terminal it belongs to.
@@ -63,7 +65,13 @@ export function TerminalInputRequestCard({
     : request.redacted
       ? "A password is needed"
       : "An answer is needed";
-  const expiry = terminalInputExpiry(request.requested_at, now);
+  const [liveNow, setLiveNow] = useState(() => now ?? Date.now());
+  useEffect(() => {
+    if (now !== undefined) return undefined;
+    const timer = window.setInterval(() => setLiveNow(Date.now()), EXPIRY_REFRESH_MS);
+    return () => window.clearInterval(timer);
+  }, [now]);
+  const expiry = terminalInputExpiry(request.requested_at, now ?? liveNow);
   return (
     <form
       className="flex flex-none flex-col gap-2.5 border-line border-t bg-canvas px-3.5 py-3"

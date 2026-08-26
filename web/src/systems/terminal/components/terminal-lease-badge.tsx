@@ -46,7 +46,13 @@ export function TerminalLeaseBadge({ view, viewers, className }: TerminalLeaseBa
         </span>
       </Pill>
       {viewers === undefined ? null : (
-        <Pill data-testid="terminal-viewers" mono size="sm" tone="neutral">
+        <Pill
+          aria-label={`${viewers} ${viewers === 1 ? "viewer" : "viewers"}`}
+          data-testid="terminal-viewers"
+          mono
+          size="sm"
+          tone="neutral"
+        >
           <Eye aria-hidden="true" className="size-3" />
           {viewers}
         </Pill>

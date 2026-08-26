@@ -14,6 +14,7 @@ import (
 	"github.com/compozy/compozy/internal/deadentity"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/store"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -256,6 +257,30 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			workspaceID:        fixture.workspace.ID,
 			preparation:        sessionPreparation,
 		}
+		terminals, err := terminalpkg.NewManager()
+		if err != nil {
+			t.Fatalf("terminal.NewManager() error = %v", err)
+		}
+		if err := terminals.Start(ctx); err != nil {
+			t.Fatalf("terminal manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 3*time.Second)
+			defer cancel()
+			if err := terminals.Shutdown(shutdownCtx); err != nil {
+				t.Errorf("terminal manager Shutdown() error = %v", err)
+			}
+		})
+		terminalHandle, err := terminals.OpenPipe(ctx, terminalpkg.PipeRequest{
+			WS: fixture.workspace.ID, Argv: []string{"sh", "-c", "sleep 30"}, Cwd: t.TempDir(),
+			Actor: terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindHuman, ID: terminalpkg.OperatorActorID,
+				ProfileID: store.DefaultProfileID,
+			},
+		})
+		if err != nil {
+			t.Fatalf("terminal OpenPipe() error = %v", err)
+		}
 		state := &bootState{
 			windowManagerBootState: windowManagerBootState{
 				windowManagerStoreResolver: fixture.storeResolver,
@@ -265,6 +290,7 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 			workspaceResolver: fixture.resolver,
 			deadEntities:      deadEntities,
 			mcpToolProvider:   mcpRetirer,
+			terminals:         terminals,
 		}
 		if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
 			t.Fatalf("installWorkspaceRemovalPreparer() error = %v", err)
@@ -304,6 +330,11 @@ func TestWindowManagerWorkspaceDeletionGate(t *testing.T) {
 
 		if err := fixture.resolver.Unregister(ctx, fixture.workspace.ID); err != nil {
 			t.Fatalf("Unregister() error = %v", err)
+		}
+		if _, err := terminals.Handle(
+			ctx, fixture.workspace.ID, store.DefaultProfileID, terminalHandle.Info().ID,
+		); !errors.Is(err, terminalpkg.ErrExpired) {
+			t.Fatalf("terminal Handle() after unregister error = %v, want ErrExpired", err)
 		}
 		if sessionPreparation.commits != 1 || sessionPreparation.rollbacks != 0 {
 			t.Fatalf(

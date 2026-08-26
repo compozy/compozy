@@ -1,5 +1,10 @@
 import type { TerminalSocket, TerminalSocketFactory } from "../../adapters/terminal-socket";
-import { TERMINAL_SERVER_OP } from "../../lib/terminal-wire";
+import {
+  encodeTerminalServerControlFrame,
+  encodeTerminalServerOutputFrame,
+  TERMINAL_SERVER_OP,
+} from "../../lib/terminal-wire";
+import type { TerminalLeaseState, TerminalMode } from "../../types";
 
 /**
  * A socket that plays a fixed script.
@@ -11,29 +16,10 @@ import { TERMINAL_SERVER_OP } from "../../lib/terminal-wire";
 export interface ScriptedTerminalScreen {
   cols: number;
   rows: number;
-  lease: "human_owned" | "agent_owned" | "available";
-  mode: "pty" | "pipe";
+  lease: TerminalLeaseState;
+  mode: TerminalMode;
   /** Written as one OUTPUT frame from sequence zero. */
   output: string;
-}
-
-const encoder = new TextEncoder();
-
-function controlFrame(op: number, payload: unknown): ArrayBuffer {
-  const body = encoder.encode(JSON.stringify(payload));
-  const frame = new Uint8Array(body.byteLength + 1);
-  frame[0] = op;
-  frame.set(body, 1);
-  return frame.buffer;
-}
-
-function outputFrame(text: string): ArrayBuffer {
-  const body = encoder.encode(text);
-  const frame = new Uint8Array(body.byteLength + 9);
-  frame[0] = TERMINAL_SERVER_OP.output;
-  new DataView(frame.buffer).setBigUint64(1, 0n, false);
-  frame.set(body, 9);
-  return frame.buffer;
 }
 
 export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalSocketFactory {
@@ -51,7 +37,7 @@ export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalS
     setTimeout(() => {
       socket.onopen?.(new Event("open"));
       socket.onmessage?.({
-        data: controlFrame(TERMINAL_SERVER_OP.attached, {
+        data: encodeTerminalServerControlFrame(TERMINAL_SERVER_OP.attached, {
           seq: 0,
           truncated: false,
           cols: screen.cols,
@@ -60,7 +46,9 @@ export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalS
           mode: screen.mode,
         }),
       } as MessageEvent<unknown>);
-      socket.onmessage?.({ data: outputFrame(screen.output) } as MessageEvent<unknown>);
+      socket.onmessage?.({
+        data: encodeTerminalServerOutputFrame(0, screen.output),
+      } as MessageEvent<unknown>);
     }, 0);
     return socket;
   };

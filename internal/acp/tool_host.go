@@ -24,6 +24,7 @@ const (
 	permissionReadTextFile     = sandbox.PermissionOperationReadTextFile
 	permissionWriteTextFile    = sandbox.PermissionOperationWriteTextFile
 	permissionCreateTerminal   = sandbox.PermissionOperationCreateTerminal
+	permissionCloseTerminal    = sandbox.PermissionOperationCloseTerminal
 	permissionRequestToolGrant = sandbox.PermissionOperationRequestToolGrant
 )
 
@@ -53,11 +54,12 @@ type localRuntimeConfig struct {
 }
 
 type terminalScope struct {
-	workspaceID string
-	profileID   string
-	sessionID   string
-	generation  int64
-	actorID     string
+	workspaceID  string
+	profileID    string
+	sessionID    string
+	generation   int64
+	actorID      string
+	allowedRoots []string
 }
 
 // LocalRuntimeOption customizes local ACP runtime helpers.
@@ -70,7 +72,7 @@ func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption
 	}
 }
 
-func WithLocalTerminalManager(manager TerminalHost, scope terminalScope) LocalRuntimeOption {
+func withLocalTerminalManager(manager TerminalHost, scope terminalScope) LocalRuntimeOption {
 	return func(cfg *localRuntimeConfig) {
 		cfg.terminalManager = manager
 		cfg.terminalScope = scope
@@ -218,6 +220,9 @@ func (h *localToolHost) createTerminal(
 }
 
 func (h *localToolHost) KillTerminal(id string) error {
+	if err := h.Authorize(permissionCloseTerminal); err != nil {
+		return err
+	}
 	return h.terminals.kill(id)
 }
 

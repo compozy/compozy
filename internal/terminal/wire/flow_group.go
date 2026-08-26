@@ -74,6 +74,8 @@ func (g *Group) ResumeProducer() {
 		return
 	}
 	g.mu.Lock()
+	// Process exit is terminal for this group: once released, producer
+	// backpressure stays disabled so the final output drain cannot deadlock.
 	g.disabled = true
 	g.signalLocked()
 	g.mu.Unlock()

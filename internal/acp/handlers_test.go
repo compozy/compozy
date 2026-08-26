@@ -122,65 +122,6 @@ func TestFallbackPermissionEventRaw(t *testing.T) {
 	}
 }
 
-func TestWatchTerminalShutdown(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should exit when terminal finishes first", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		terminalDone := make(chan struct{})
-		shutdownCalls := make(chan struct{}, 1)
-		watcherDone := watchTerminalShutdown(ctx, terminalDone, func() {
-			shutdownCalls <- struct{}{}
-		})
-
-		close(terminalDone)
-
-		select {
-		case <-watcherDone:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("watchTerminalShutdown() did not exit after terminal completion")
-		}
-
-		cancel()
-		select {
-		case <-shutdownCalls:
-			t.Fatal("watchTerminalShutdown() called shutdown after terminal completion")
-		case <-time.After(20 * time.Millisecond):
-		}
-	})
-
-	t.Run("Should run shutdown when manager context cancels first", func(t *testing.T) {
-		t.Parallel()
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		terminalDone := make(chan struct{})
-		shutdownCalls := make(chan struct{}, 1)
-		watcherDone := watchTerminalShutdown(ctx, terminalDone, func() {
-			shutdownCalls <- struct{}{}
-		})
-
-		cancel()
-
-		select {
-		case <-shutdownCalls:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("watchTerminalShutdown() did not run shutdown callback after context cancellation")
-		}
-
-		select {
-		case <-watcherDone:
-		case <-time.After(200 * time.Millisecond):
-			t.Fatal("watchTerminalShutdown() did not exit after context cancellation")
-		}
-	})
-}
-
 func TestNormalizeStartOptsRejectsInvalidAdditionalDirs(t *testing.T) {
 	t.Parallel()
 
@@ -1637,7 +1578,7 @@ func TestHandleSessionUpdateAgentReportedTerminal(t *testing.T) {
 				"sessionUpdate": "tool_call_update", "toolCallId": "tool-reported", "status": "completed",
 				"_meta": map[string]any{
 					"terminal_output": map[string]any{"terminal_id": "agent-term-1", "data": "world"},
-					"terminal_exit":   map[string]any{"terminal_id": "agent-term-1", "exit_code": 0},
+					"terminal_exit":   map[string]any{"terminal_id": "agent-term-1", "signal": "TERM"},
 				},
 			},
 		}
@@ -1679,8 +1620,8 @@ func TestHandleSessionUpdateAgentReportedTerminal(t *testing.T) {
 		if got, want := terminal.ID, "agent-term-1"; got != want {
 			t.Fatalf("reported terminal id = %q, want %q", got, want)
 		}
-		if terminal.ExitCode == nil || *terminal.ExitCode != 0 {
-			t.Fatalf("reported terminal exit code = %#v, want 0", terminal.ExitCode)
+		if terminal.ExitCode != nil || terminal.Signal != "TERM" {
+			t.Fatalf("reported terminal exit = code:%#v signal:%#v, want nil/TERM", terminal.ExitCode, terminal.Signal)
 		}
 		if terminalHost.calls != 0 {
 			t.Fatalf("supervised terminal host calls = %d, want none for registry and catalog isolation", terminalHost.calls)
@@ -2023,7 +1964,7 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 	}
 }
 
-func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
+func TestToolHostOrDefaultCreatesProcessOwnedTerminalHost(t *testing.T) {
 	t.Parallel()
 
 	if _, err := (&AgentProcess{}).toolHostOrDefault(); !errors.Is(err, errProcessLifecycleUninitialized) {
@@ -2059,12 +2000,8 @@ func TestToolHostOrDefaultUsesProcessLifecycleContext(t *testing.T) {
 	if !ok {
 		t.Fatalf("toolHostOrDefault() type = %T, want *localToolHost", toolHost)
 	}
-
-	cancel()
-	select {
-	case <-host.terminals.ctx.Done():
-	case <-time.After(time.Second):
-		t.Fatal("terminal manager context did not close with process lifecycle")
+	if host.terminals == nil || host.terminals.ownedCore == nil {
+		t.Fatal("toolHostOrDefault() did not create a process-owned terminal core")
 	}
 }
 

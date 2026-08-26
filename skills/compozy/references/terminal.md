@@ -71,8 +71,8 @@ wider typing grant or treat an execution allowlist as typing authority.
 ## Input Handoff
 
 Use `compozy__terminal_request_input` when the program is waiting for the operator. Supply a bounded
-reason and prompt excerpt, and mark secret input as redacted. Yield control as part of the handoff;
-do not keep typing while an operator request is pending.
+reason and prompt excerpt, and mark secret input as redacted. The tool creates the request and yields
+control atomically; do not call `terminal_yield` first or keep typing while the request is pending.
 
 After the operator answers, resume from the returned handoff outcome and current lease. A rejected or
 expired request is terminal for that request; do not infer consent or replay old input. Redacted input
@@ -117,7 +117,8 @@ not retry `terminal_interactive_unavailable` through another interactive surface
 
 When a native tool is absent or denied, use the matching structured CLI surface:
 
-`compozy terminal open|list|get|attach|exec|kill|signal|respond|input-requests|journal|record|quote`
-with `-o json`. Use `compozy terminal journal --all-profiles` or `list --all-profiles` only as an
-operator. Grant administration stays under `compozy tool approvals`; there is no second terminal
+Use `compozy terminal list|get|exec|kill|signal|respond|input-requests|journal|record|quote` with
+`-o json`; `open` also needs `--detach` for structured output. `attach` is an interactive byte stream
+and does not support structured output. Use `journal --all-profiles` or `list --all-profiles` only as
+an operator. Grant administration stays under `compozy tool approvals`; there is no second terminal
 policy store.

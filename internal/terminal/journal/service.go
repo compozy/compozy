@@ -71,7 +71,10 @@ func (s *Service) RemoveWorkspace(ctx context.Context, workspaceID string) error
 	laneErr := s.closeLanes(ctx, func(lane *terminalLane) bool {
 		return lane.info.WS == workspaceID
 	})
-	return errors.Join(laneErr, s.databases.RemoveWorkspace(ctx, workspaceID))
+	s.artifactMu.Lock()
+	artifactErr := s.removeWorkspaceFiles(workspaceID)
+	s.artifactMu.Unlock()
+	return errors.Join(laneErr, s.databases.RemoveWorkspace(ctx, workspaceID), artifactErr)
 }
 
 // Shutdown closes every open workspace database.

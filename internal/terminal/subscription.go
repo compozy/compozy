@@ -23,6 +23,22 @@ type subscription struct {
 	finishOnce sync.Once
 }
 
+type attachedFramePayload struct {
+	Seq       uint64     `json:"seq"`
+	Truncated bool       `json:"truncated"`
+	Cols      uint16     `json:"cols"`
+	Rows      uint16     `json:"rows"`
+	Lease     LeaseState `json:"lease"`
+	Mode      Mode       `json:"mode"`
+}
+
+type exitFramePayload struct {
+	Cause    string  `json:"cause"`
+	ExitCode *int    `json:"exit_code"`
+	Signal   *string `json:"signal"`
+	Seq      uint64  `json:"seq"`
+}
+
 func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription, error) {
 	if err := s.authorizeProfile(options.Actor); err != nil {
 		return nil, err
@@ -73,11 +89,12 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	s.lastActivity = s.manager.now()
 	info := s.infoSnapshotLocked()
 	cols, rows := s.cols, s.rows
-	s.mu.Unlock()
 	if err := subscriber.enqueueInitialFrames(options, info, cols, rows); err != nil {
+		s.mu.Unlock()
 		closeErr := subscriber.Close()
 		return nil, errors.Join(err, closeErr)
 	}
+	s.mu.Unlock()
 	if options.Cols > 0 && options.Rows > 0 && mode == "write" {
 		if err := subscriber.Resize(options.Cols, options.Rows); err != nil {
 			closeErr := subscriber.Close()
@@ -110,9 +127,9 @@ func normalizeAttachOptions(options AttachOptions) (string, string, error) {
 
 func (s *subscription) enqueueInitialFrames(options AttachOptions, info Info, cols, rows uint16) error {
 	replay := s.session.ring.ReplayFrom(options.AfterSeq)
-	attached, err := json.Marshal(map[string]any{
-		"seq": replay.Seq, "truncated": replay.Truncated, "cols": cols,
-		"rows": rows, "lease": info.Lease, "mode": info.Mode,
+	attached, err := json.Marshal(attachedFramePayload{
+		Seq: replay.Seq, Truncated: replay.Truncated, Cols: cols,
+		Rows: rows, Lease: info.Lease, Mode: info.Mode,
 	})
 	if err != nil {
 		return fmt.Errorf("terminal: encode ATTACHED frame: %w", err)
@@ -160,8 +177,8 @@ func (s *subscription) deliver(frame Frame, end uint64) {
 }
 
 func (s *subscription) finish(exit Exit) {
-	payload, err := json.Marshal(map[string]any{
-		"cause": exit.Cause, "exit_code": exit.Code, "signal": exit.Signal, "seq": s.session.ringNext(),
+	payload, err := json.Marshal(exitFramePayload{
+		Cause: exit.Cause, ExitCode: exit.Code, Signal: exit.Signal, Seq: s.session.ringNext(),
 	})
 	if err != nil {
 		if closeErr := s.Close(); closeErr != nil {

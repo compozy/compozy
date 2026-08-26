@@ -125,8 +125,9 @@ func (p *fakeProc) Close() error {
 	return closeErr
 }
 
-func (p *fakeProc) PID() int            { return p.pid }
-func (p *fakeProc) ProcessGroupID() int { return p.pid }
+func (p *fakeProc) PID() int             { return p.pid }
+func (p *fakeProc) ProcessGroupID() int  { return p.pid }
+func (p *fakeProc) StartedAt() time.Time { return time.Time{} }
 
 func (p *fakeProc) emit(input []byte) error {
 	_, err := p.output.Write(input)

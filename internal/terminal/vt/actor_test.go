@@ -57,21 +57,33 @@ func TestActorScreenContract(t *testing.T) {
 			}
 		})
 		var writers sync.WaitGroup
+		workerErrors := make(chan error, 1)
 		for index := 0; index < 4; index++ {
-			writers.Add(1)
-			go func(worker int) {
-				defer writers.Done()
+			writers.Go(func() {
 				for line := 0; line < 200; line++ {
-					if _, err := actor.Write([]byte(fmt.Sprintf("worker-%d-%03d\r\n", worker, line))); err != nil {
+					if _, err := actor.Write([]byte(fmt.Sprintf("worker-%d-%03d\r\n", index, line))); err != nil {
+						select {
+						case workerErrors <- fmt.Errorf("worker %d write: %w", index, err):
+						default:
+						}
 						return
 					}
 					if _, err := actor.Screen(context.Background()); err != nil {
+						select {
+						case workerErrors <- fmt.Errorf("worker %d screen: %w", index, err):
+						default:
+						}
 						return
 					}
 				}
-			}(index)
+			})
 		}
 		writers.Wait()
+		select {
+		case err := <-workerErrors:
+			t.Fatal(err)
+		default:
+		}
 		if _, err := actor.Screen(context.Background()); err != nil {
 			t.Fatalf("Screen() error = %v", err)
 		}
@@ -93,12 +105,9 @@ func TestActorScreenContract(t *testing.T) {
 		if _, err := actor.Write([]byte(frameB)); err != nil {
 			t.Fatalf("Write(frame B) error = %v", err)
 		}
-		snapshot, err := actor.Screen(context.Background())
-		if err != nil {
-			t.Fatalf("Screen() error = %v", err)
-		}
-		if strings.Contains(snapshot.Content, "A") && strings.Contains(snapshot.Content, "B") {
-			t.Fatalf("Screen() returned torn frame: %q", snapshot.Content)
+		content := waitForContent(t, actor, "BBBBBBBBBBBBBBBBBBBB")
+		if strings.Contains(content, "A") || !strings.Contains(content, "BBBBBBBBBBBBBBBBBBBB") {
+			t.Fatalf("Screen() returned incomplete or torn frame: %q", content)
 		}
 	})
 
@@ -134,6 +143,7 @@ func TestActorOverflowRebuild(t *testing.T) {
 	sequence := uint64(len(ringData))
 	rebuildEntered := make(chan struct{})
 	releaseRebuild := make(chan struct{})
+	releaseRebuildOnce := sync.OnceFunc(func() { close(releaseRebuild) })
 	var calls atomic.Int32
 	snapshot := func() ([]byte, uint64) {
 		if calls.Add(1) > 1 {
@@ -149,6 +159,12 @@ func TestActorOverflowRebuild(t *testing.T) {
 		return append([]byte(nil), ringData...), sequence
 	}
 	actor := New(20, 5, snapshot)
+	t.Cleanup(func() {
+		releaseRebuildOnce()
+		if err := actor.Close(); err != nil {
+			t.Errorf("Close(actor) error = %v", err)
+		}
+	})
 	actor.capacity = 32
 	large := []byte("\x1b[2J\x1b[Hrebuilt-from-ring")
 	mu.Lock()
@@ -170,13 +186,18 @@ func TestActorOverflowRebuild(t *testing.T) {
 	if err != nil || !busy.Busy {
 		t.Fatalf("Screen(rebuilding) = %#v error=%v, want busy", busy, err)
 	}
-	close(releaseRebuild)
+	releaseRebuildOnce()
 	got := waitForContent(t, actor, "rebuilt-from-ring")
 
 	fresh := New(20, 5, func() ([]byte, uint64) {
 		mu.RLock()
 		defer mu.RUnlock()
 		return append([]byte(nil), ringData...), sequence
+	})
+	t.Cleanup(func() {
+		if err := fresh.Close(); err != nil {
+			t.Errorf("Close(fresh) error = %v", err)
+		}
 	})
 	want := waitForContent(t, fresh, "rebuilt-from-ring")
 	if got != want {
@@ -200,6 +221,11 @@ func TestActorCloseShouldPreemptOverflowRebuild(t *testing.T) {
 			return nil, 0
 		}
 		return large, uint64(len(large))
+	})
+	t.Cleanup(func() {
+		if err := actor.Close(); err != nil {
+			t.Errorf("Close() error = %v", err)
+		}
 	})
 	actor.capacity = 1
 	if _, err := actor.WriteAt([]byte("overflow"), uint64(len(large))); err != nil {
@@ -228,7 +254,9 @@ func waitForContent(t *testing.T, actor *Actor, contains string) string {
 	t.Helper()
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
-		snapshot, err := actor.Screen(context.Background())
+		ctx, cancel := context.WithDeadline(t.Context(), deadline)
+		snapshot, err := actor.Screen(ctx)
+		cancel()
 		if err != nil {
 			t.Fatalf("Screen() error = %v", err)
 		}

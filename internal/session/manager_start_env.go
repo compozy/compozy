@@ -41,7 +41,7 @@ func (m *Manager) sessionStartOpts(
 		CompozySessionID:  s.sessionID,
 		WorkspaceID:       s.workspace.ID,
 		ProfileID:         s.profileID,
-		RuntimeGeneration: session.RuntimeGeneration,
+		RuntimeGeneration: max(session.RuntimeGeneration, 1),
 		Command:           resolved.Command,
 		Cwd:               s.cwd,
 		AdditionalDirs:    s.executionAdditionalDirs(),

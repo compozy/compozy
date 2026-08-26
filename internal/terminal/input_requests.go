@@ -21,7 +21,6 @@ const (
 
 type pendingInput struct {
 	projection PendingInputRequest
-	requester  Actor
 	session    *session
 	result     chan InputOutcome
 	timer      *time.Timer
@@ -47,51 +46,58 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 		return nil, err
 	}
 	info := s.Info()
-	if info.Controller == nil || info.Controller.Kind != ActorKindAgent {
-		return nil, &Error{Code: "write_owner_held", Message: "only the controlling agent can request terminal input", Controller: info.Controller, Err: ErrWriteOwnerHeld}
+	echoProc, err := requireEchoAwareProc(s.proc)
+	if err != nil {
+		return nil, err
 	}
 	redacted := request.Redact
-	if echoProc, ok := s.proc.(echoAwareProc); ok {
-		echoEnabled, err := echoProc.EchoEnabled()
-		if err != nil {
-			return nil, err
-		}
-		redacted = redacted || !echoEnabled
+	echoEnabled, err := echoProc.EchoEnabled()
+	if err != nil {
+		return nil, err
 	}
-	pending, err := s.manager.inputs.create(s, *info.Controller, request, redacted, func() (InputRequestID, error) {
-		return newInputRequestID(s.manager.entropy)
+	redacted = redacted || !echoEnabled
+	var pending *pendingInput
+	var requester Actor
+	err = s.lease.withAgentController(func(controller Actor) error {
+		requester = controller
+		var createErr error
+		pending, createErr = s.manager.inputs.create(s, controller, request, redacted, func() (InputRequestID, error) {
+			return newInputRequestID(s.manager.entropy)
+		})
+		return createErr
 	})
 	if err != nil {
 		return nil, err
 	}
 	s.manager.events.Emit(context.WithoutCancel(ctx), TerminalEvent{
 		Kind: EventKindInputRequested, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: s.profileName,
-		TerminalID: info.ID, Actor: *info.Controller, Reason: request.Reason,
+		TerminalID: info.ID, Actor: requester, Reason: request.Reason,
 		Detail: EventDetail{RequestID: pending.projection.ID, Redacted: redacted}, At: s.manager.now(),
 	})
 	outcome := <-pending.result
 	return &outcome, nil
 }
 
-func (s *session) AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) error {
+func (s *session) AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) (*InputOutcome, error) {
 	if err := s.authorizeProfile(actor); err != nil {
-		return err
+		return nil, err
 	}
 	if actor.Kind != ActorKindHuman {
-		return &Error{Code: "input_answer_requires_write", Message: "only a human write participant can answer an input request", Err: ErrInputRequiresWrite}
+		return nil, &Error{Code: "input_answer_requires_write", Message: "only a human write participant can answer an input request", Err: ErrInputRequiresWrite}
 	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	filtered := s.filter.FilterInput(answer.Input)
 	if err := s.deliverInputMode(ctx, actor, answer.Input, pending.projection.Redacted, true); err != nil {
 		s.manager.inputs.release(id)
-		return err
+		return nil, err
 	}
-	s.manager.inputs.complete(id, InputOutcome{Outcome: "answered", Redacted: pending.projection.Redacted, Length: len(filtered)})
+	outcome := InputOutcome{Outcome: "answered", Redacted: pending.projection.Redacted, Length: len(filtered)}
+	s.manager.inputs.complete(id, outcome)
 	s.emitInputProvided(ctx, pending, actor, "answered", len(filtered))
-	return nil
+	return &outcome, nil
 }
 
 func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestID, _ string) error {
@@ -177,7 +183,7 @@ func (r *inputRegistry) create(
 			Reason: strings.TrimSpace(request.Reason), PromptExcerpt: strings.TrimSpace(request.PromptExcerpt),
 			Redacted: redacted, RequestedAt: session.manager.now(),
 		},
-		requester: requester, session: session, result: make(chan InputOutcome, 1),
+		session: session, result: make(chan InputOutcome, 1),
 	}
 	pending.timer = time.AfterFunc(session.manager.inputRequestTTL, func() {
 		if resolved := r.resolve(id, InputOutcome{Outcome: "expired", Redacted: redacted}); resolved != nil {

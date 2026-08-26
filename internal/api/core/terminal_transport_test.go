@@ -285,6 +285,7 @@ func TestTerminalAgentHandlersShouldPreserveUntrustedAndRedactedContracts(t *tes
 	handle := terminalHandleStub{
 		screenResult: &terminalpkg.ReadResult{Content: "terminal bytes", Seq: 12, Untrusted: true},
 		pending:      &terminalpkg.PendingInputRequest{ID: "input-a", Redacted: true},
+		answer:       &terminalpkg.InputOutcome{Outcome: "answered", Redacted: true, Length: 3},
 	}
 	provider := &terminalProviderStub{manager: terminalManagerStub{handle: handle}}
 	handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
@@ -311,7 +312,8 @@ func TestTerminalAgentHandlersShouldPreserveUntrustedAndRedactedContracts(t *tes
 	)
 	request.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(answer, request)
-	if answer.Code != http.StatusOK || !strings.Contains(answer.Body.String(), `"redacted":true`) {
+	if answer.Code != http.StatusOK || !strings.Contains(answer.Body.String(), `"redacted":true`) ||
+		!strings.Contains(answer.Body.String(), `"delivered_bytes":3`) {
 		t.Fatalf("answer status/body = %d/%s", answer.Code, answer.Body.String())
 	}
 }
@@ -341,16 +343,16 @@ func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) {
 		path       string
 		body       string
 		wantStatus int
-		wantBody   string
+		wantBody   []string
 	}{
-		{"exec", http.MethodPost, "/api/workspaces/workspace-a/terminals/exec", `{"command":"server","yield_ms":250}`, http.StatusAccepted, `"still_running":true`},
-		{"wait", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/wait", `{"until":"match","pattern":"ok"}`, http.StatusOK, `"untrusted":true`},
-		{"signal", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/signal", `{"signal":"TERM"}`, http.StatusOK, `"delivered":true`},
-		{"input requests", http.MethodGet, "/api/workspaces/workspace-a/terminal-input-requests?all_profiles=true", "", http.StatusOK, `"requests"`},
-		{"reject", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/input-requests/input-a/reject", `{"reason":"later"}`, http.StatusOK, `"outcome":"rejected"`},
-		{"record start", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/recording", `{"action":"start"}`, http.StatusOK, `"state":"recording"`},
-		{"record stop", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/recording", `{"action":"stop"}`, http.StatusOK, `"state":"saved"`},
-		{"journal", http.MethodGet, "/api/workspaces/workspace-a/terminal-journal?all_profiles=true&limit=25", "", http.StatusOK, `"entries"`},
+		{"exec", http.MethodPost, "/api/workspaces/workspace-a/terminals/exec", `{"command":"server","yield_ms":250}`, http.StatusAccepted, []string{`"exit_code":null`, `"signal":null`, `"output":""`, `"truncated":false`, `"untrusted":true`, `"duration_ms":0`, `"command_id":"cmd-a"`, `"still_running":true`, `"terminal_id":"term-a"`}},
+		{"wait", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/wait", `{"until":"match","pattern":"ok"}`, http.StatusOK, []string{`"reason":"match"`, `"screen":"ok"`, `"untrusted":true`}},
+		{"signal", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/signal", `{"signal":"TERM"}`, http.StatusOK, []string{`"delivered":true`}},
+		{"input requests", http.MethodGet, "/api/workspaces/workspace-a/terminal-input-requests?all_profiles=true", "", http.StatusOK, []string{`"requests"`}},
+		{"reject", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/input-requests/input-a/reject", `{"reason":"later"}`, http.StatusOK, []string{`"outcome":"rejected"`}},
+		{"record start", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/recording", `{"action":"start"}`, http.StatusOK, []string{`"state":"recording"`}},
+		{"record stop", http.MethodPost, "/api/workspaces/workspace-a/terminals/term-a/recording", `{"action":"stop"}`, http.StatusOK, []string{`"state":"saved"`}},
+		{"journal", http.MethodGet, "/api/workspaces/workspace-a/terminal-journal?all_profiles=true&limit=25", "", http.StatusOK, []string{`"entries"`}},
 	}
 	for _, testCase := range testCases {
 		t.Run("Should execute "+testCase.name, func(t *testing.T) {
@@ -360,8 +362,13 @@ func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, request)
-			if response.Code != testCase.wantStatus || !strings.Contains(response.Body.String(), testCase.wantBody) {
-				t.Fatalf("status/body = %d/%s, want %d containing %s", response.Code, response.Body.String(), testCase.wantStatus, testCase.wantBody)
+			if response.Code != testCase.wantStatus {
+				t.Fatalf("status/body = %d/%s, want %d", response.Code, response.Body.String(), testCase.wantStatus)
+			}
+			for _, expected := range testCase.wantBody {
+				if !strings.Contains(response.Body.String(), expected) {
+					t.Fatalf("body = %s, want field %s", response.Body.String(), expected)
+				}
 			}
 		})
 	}
@@ -457,13 +464,16 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 			{
 				name: "lease", event: terminalpkg.TerminalEvent{
 					Kind: terminalpkg.EventKindLeaseChanged, TerminalID: "term-a",
-					Actor: terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator"}, Reason: "takeover",
+					Actor: terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent, ID: "requester"}, Reason: "takeover",
 					Detail: terminalpkg.EventDetail{LeaseTo: terminalpkg.LeaseHumanOwned},
+					Info: &terminalpkg.Info{Controller: &terminalpkg.Actor{
+						Kind: terminalpkg.ActorKindHuman, ID: "operator",
+					}},
 				},
 				wantName: "terminal.lease_changed",
 				wantPayload: gin.H{
 					"terminal_id": terminalpkg.ID("term-a"), "lease": terminalpkg.LeaseHumanOwned,
-					"actor_kind": terminalpkg.ActorKindHuman, "actor_id": "operator", "reason": "takeover",
+					"controller_kind": terminalpkg.ActorKindHuman, "controller_id": "operator", "reason": "takeover",
 				},
 			},
 			{
@@ -696,6 +706,7 @@ type terminalHandleStub struct {
 	screenResult *terminalpkg.ReadResult
 	screenErr    error
 	pending      *terminalpkg.PendingInputRequest
+	answer       *terminalpkg.InputOutcome
 }
 
 type terminalAgentHandleStub struct {
@@ -748,8 +759,11 @@ func (terminalHandleStub) Yield(context.Context, terminalpkg.Actor) error       
 func (terminalHandleStub) RequestInput(context.Context, terminalpkg.InputRequest) (*terminalpkg.InputOutcome, error) {
 	return nil, nil
 }
-func (terminalHandleStub) AnswerInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, terminalpkg.InputAnswer) error {
-	return nil
+func (h terminalHandleStub) AnswerInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, terminalpkg.InputAnswer) (*terminalpkg.InputOutcome, error) {
+	if h.answer != nil {
+		return h.answer, nil
+	}
+	return &terminalpkg.InputOutcome{Outcome: "answered"}, nil
 }
 func (terminalHandleStub) RejectInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, string) error {
 	return nil

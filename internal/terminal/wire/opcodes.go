@@ -2,8 +2,10 @@ package wire
 
 import "errors"
 
+// Subprotocol is the permanent WebSocket protocol identifier for terminal frames.
 const Subprotocol = "compozy.terminal.v1"
 
+// Direction selects the opcode namespace used to validate a frame.
 type Direction uint8
 
 const (
@@ -51,6 +53,7 @@ type Frame struct {
 	Payload []byte
 }
 
+// ValidOpcode reports whether opcode is assigned in the selected direction.
 func ValidOpcode(direction Direction, opcode byte) bool {
 	switch direction {
 	case ServerToClient:
@@ -62,6 +65,7 @@ func ValidOpcode(direction Direction, opcode byte) bool {
 	}
 }
 
+// ClampDimensions normalizes a non-zero terminal size to protocol bounds.
 func ClampDimensions(cols, rows uint16) (uint16, uint16, bool) {
 	if cols == 0 || rows == 0 {
 		return 0, 0, false

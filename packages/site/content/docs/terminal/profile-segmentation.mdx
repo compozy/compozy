@@ -14,6 +14,7 @@ Operators can ask for an aggregate read when they need oversight:
 
 ```bash
 compozy terminal list --workspace my-project --all-profiles -o json
+compozy terminal input-requests --workspace my-project --all-profiles -o json
 compozy terminal journal --workspace my-project --all-profiles -o json
 ```
 
@@ -23,8 +24,9 @@ single-profile operations; `--all-profiles` does not become cross-owner write au
 ## Archive and delete behavior
 
 Archiving a profile closes its live terminals, invalidates attach tickets, and resolves pending input
-requests. Its journal rows, artifacts, and recordings remain readable as historical facts. Unarchive
-the profile before opening or mutating a terminal under that owner.
+requests. Its journal rows, artifacts, and recordings remain readable as historical facts through
+operator aggregate reads. Unarchive the profile before using single-profile history reads or opening
+or mutating a terminal under that owner.
 
 Deleting a workspace removes the terminal runtime and its workspace-owned journal, recordings, and
 artifacts. Terminal data never needs a cross-workspace query, and a terminal ID from another workspace

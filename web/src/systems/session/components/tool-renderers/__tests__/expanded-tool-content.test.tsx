@@ -100,6 +100,30 @@ describe("ExpandedToolContent", () => {
     );
   });
 
+  it("routes terminal open as a live terminal even without an explicit running flag", async () => {
+    blockProps.mockClear();
+    render(
+      <ExpandedToolContent
+        message={makeMessage({
+          toolName: "compozy__terminal_open",
+          toolInput: { title: "Build logs" },
+          toolResult: {
+            rawOutput: {
+              terminal_id: "term-open",
+              output: "waiting for input",
+            },
+          },
+        })}
+      />
+    );
+
+    await waitFor(() => expect(blockProps).toHaveBeenCalled());
+    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
+      stillRunning: true,
+      terminalId: "term-open",
+    });
+  });
+
   it("scopes a still-running terminal to the session's own profile", async () => {
     blockProps.mockClear();
     render(

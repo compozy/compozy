@@ -22,6 +22,13 @@ import type { TerminalActorKind, TerminalJournalFilters } from "../types";
 
 const ANY_ACTOR = "any";
 
+interface EditableJournalFilters {
+  actor: TerminalActorKind | null;
+  since: string;
+  failed: boolean;
+  terminalId: string;
+}
+
 export interface TerminalJournalFilterDialogProps {
   open: boolean;
   value: TerminalJournalFilters;
@@ -29,7 +36,7 @@ export interface TerminalJournalFilterDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
-function editableFilters(value: TerminalJournalFilters): TerminalJournalFilters {
+function editableFilters(value: TerminalJournalFilters): EditableJournalFilters {
   return {
     actor: value.actor ?? null,
     since: value.since ?? "",
@@ -44,11 +51,11 @@ export function TerminalJournalFilterDialog({
   onApply,
   onOpenChange,
 }: TerminalJournalFilterDialogProps) {
-  const [draft, setDraft] = useState<TerminalJournalFilters>(() => editableFilters(value));
+  const [draft, setDraft] = useState<EditableJournalFilters>(() => editableFilters(value));
 
   const apply = () => {
-    const since = draft.since?.trim();
-    const terminalId = draft.terminalId?.trim();
+    const since = draft.since.trim();
+    const terminalId = draft.terminalId.trim();
     onApply({
       ...(draft.actor ? { actor: draft.actor } : {}),
       ...(since ? { since } : {}),
@@ -68,6 +75,7 @@ export function TerminalJournalFilterDialog({
         <DialogHeader className="px-5 pt-5 pb-3" variant="ruled">
           <DialogTitle>Filter command journal</DialogTitle>
         </DialogHeader>
+        <form onSubmit={event => { event.preventDefault(); apply(); }}>
         <div className="grid gap-4 px-5 py-4">
           <div className="grid gap-1.5">
             <Label htmlFor="terminal-journal-filter-actor">Who</Label>
@@ -101,7 +109,7 @@ export function TerminalJournalFilterDialog({
               id="terminal-journal-filter-since"
               onChange={event => setDraft(current => ({ ...current, since: event.target.value }))}
               placeholder="24h"
-              value={draft.since ?? ""}
+              value={draft.since}
             />
           </div>
           <div className="grid gap-1.5">
@@ -112,13 +120,13 @@ export function TerminalJournalFilterDialog({
               onChange={event =>
                 setDraft(current => ({ ...current, terminalId: event.target.value }))
               }
-              value={draft.terminalId ?? ""}
+              value={draft.terminalId}
             />
           </div>
           <div className="flex items-center justify-between gap-4">
             <Label htmlFor="terminal-journal-filter-failed">Failed commands only</Label>
             <Switch
-              checked={draft.failed ?? false}
+              checked={draft.failed}
               data-testid="terminal-journal-filter-failed"
               id="terminal-journal-filter-failed"
               onCheckedChange={failed => setDraft(current => ({ ...current, failed }))}
@@ -136,10 +144,11 @@ export function TerminalJournalFilterDialog({
           >
             Clear filters
           </Button>
-          <Button data-testid="terminal-journal-filter-apply" onClick={apply} type="button">
+          <Button data-testid="terminal-journal-filter-apply" type="submit">
             Apply filters
           </Button>
         </DialogFooter>
+        </form>
       </DialogContent>
     </Dialog>
   );

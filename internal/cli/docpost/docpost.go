@@ -46,6 +46,10 @@ const (
 	OutputProfileRaw OutputProfile = "raw"
 	// OutputProfileHumanJSONL identifies a stream that supports human and JSONL output only.
 	OutputProfileHumanJSONL OutputProfile = "human-jsonl"
+	// OutputProfileTerminalInteractive identifies an attached terminal byte stream.
+	OutputProfileTerminalInteractive OutputProfile = "terminal-interactive"
+	// OutputProfileTerminalOpen identifies a command that renders a result only when detached.
+	OutputProfileTerminalOpen OutputProfile = "terminal-open"
 )
 
 // Options supplies command-tree facts that Cobra's Markdown generator does

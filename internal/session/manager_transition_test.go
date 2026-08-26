@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -32,9 +33,14 @@ func TestPermissionInteractionPayloadShouldPreserveCanonicalToolID(t *testing.T)
 			"tool_call":{"title":"Terminal Exec"}
 		}`),
 	})
-	if title != "Terminal Exec" || payload.ToolID != "compozy__terminal_exec" ||
-		len(payload.Decisions) != 1 || payload.Decisions[0] != "allow-once" {
-		t.Fatalf("permission payload/title = %#v/%q", payload, title)
+	if got, want := title, "Terminal Exec"; got != want {
+		t.Fatalf("title = %q, want %q", got, want)
+	}
+	if got, want := payload.ToolID, "compozy__terminal_exec"; got != want {
+		t.Fatalf("tool id = %q, want %q", got, want)
+	}
+	if got, want := payload.Decisions, []string{"allow-once"}; !slices.Equal(got, want) {
+		t.Fatalf("decisions = %#v, want %#v", got, want)
 	}
 }
 

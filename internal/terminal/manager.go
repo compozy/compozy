@@ -17,9 +17,9 @@ import (
 )
 
 const (
-	maxTombstones       = 256
-	idleTombstoneTTL    = time.Hour
-	defaultReaperPeriod = time.Minute
+	maxTombstones                 = 256
+	defaultReaperPeriod           = time.Minute
+	defaultJournalShutdownTimeout = 5 * time.Second
 )
 
 type terminalKey struct {
@@ -193,13 +193,16 @@ func (m *Service) ArchiveWorkspace(ctx context.Context, workspaceID string) erro
 	archiveErr := m.archiveTerminals(ctx, "workspace_deleted", "workspace-lifecycle", func(key terminalKey) bool {
 		return key.workspaceID == workspaceID
 	})
+	if archiveErr != nil {
+		return archiveErr
+	}
 	var removeErr error
 	if lifecycle, ok := m.journal.(interface {
 		RemoveWorkspace(context.Context, string) error
 	}); ok {
 		removeErr = lifecycle.RemoveWorkspace(ctx, workspaceID)
 	}
-	return errors.Join(archiveErr, removeErr)
+	return removeErr
 }
 
 func (m *Service) archiveTerminals(
@@ -207,18 +210,30 @@ func (m *Service) archiveTerminals(
 	reason, actorID string,
 	matches func(terminalKey) bool,
 ) error {
-	type archiveTarget struct {
-		key  terminalKey
-		item *session
-	}
 	m.mu.RLock()
-	targets := make([]archiveTarget, 0)
+	targets := make([]terminalLifecycleTarget, 0)
 	for key, item := range m.terminals {
 		if matches(key) {
-			targets = append(targets, archiveTarget{key: key, item: item})
+			targets = append(targets, terminalLifecycleTarget{key: key, item: item})
 		}
 	}
 	m.mu.RUnlock()
+	return m.closeAndArchiveTerminals(ctx, targets, reason, actorID)
+}
+
+type terminalLifecycleTarget struct {
+	key  terminalKey
+	item *session
+}
+
+func (m *Service) closeAndArchiveTerminals(
+	ctx context.Context,
+	targets []terminalLifecycleTarget,
+	reason, actorID string,
+) error {
+	slices.SortFunc(targets, func(left, right terminalLifecycleTarget) int {
+		return compareTerminalKeys(left.key, right.key)
+	})
 	var closeErrors []error
 	for _, target := range targets {
 		actor := Actor{Kind: ActorKindSystem, ID: actorID, ProfileID: target.key.profileID}
@@ -226,9 +241,16 @@ func (m *Service) archiveTerminals(
 			closeErrors = append(closeErrors, err)
 			continue
 		}
-		m.removeWithTombstone(target.key, target.item, m.now().Add(idleTombstoneTTL))
+		m.removeWithTombstone(target.key, target.item, m.tombstoneExpiry(target.item))
 	}
 	return errors.Join(closeErrors...)
+}
+
+func compareTerminalKeys(left, right terminalKey) int {
+	return strings.Compare(
+		left.workspaceID+"\x00"+left.profileID+"\x00"+string(left.id),
+		right.workspaceID+"\x00"+right.profileID+"\x00"+string(right.id),
+	)
 }
 
 func (m *Service) Shutdown(ctx context.Context) error {
@@ -243,19 +265,14 @@ func (m *Service) Shutdown(ctx context.Context) error {
 	}
 	m.closing = true
 	cancel := m.reaperCancel
-	targets := make([]shutdownTarget, 0, len(m.terminals))
+	targets := make([]terminalLifecycleTarget, 0, len(m.terminals))
 	for key, item := range m.terminals {
-		targets = append(targets, shutdownTarget{key: key, item: item})
+		targets = append(targets, terminalLifecycleTarget{key: key, item: item})
 	}
 	done := m.shutdownDone
 	m.mu.Unlock()
 	go m.drain(cancel, targets)
 	return m.waitForShutdown(ctx, done)
-}
-
-type shutdownTarget struct {
-	key  terminalKey
-	item *session
 }
 
 func (m *Service) waitForShutdown(ctx context.Context, done <-chan struct{}) error {
@@ -269,33 +286,33 @@ func (m *Service) waitForShutdown(ctx context.Context, done <-chan struct{}) err
 	}
 }
 
-func (m *Service) drain(cancel context.CancelFunc, targets []shutdownTarget) {
+func (m *Service) drain(cancel context.CancelFunc, targets []terminalLifecycleTarget) {
 	if cancel != nil {
 		cancel()
 		<-m.reaperDone
 	}
-	var closeErrors []error
-	for _, target := range targets {
-		actor := Actor{Kind: ActorKindSystem, ID: "daemon-shutdown", ProfileID: target.item.Info().ProfileID}
-		if _, err := target.item.close(context.Background(), SignalHUP, "shutdown", actor); err != nil && !errors.Is(err, ErrExited) {
-			closeErrors = append(closeErrors, err)
-		}
-	}
-	for _, target := range targets {
-		<-target.item.done
-		m.removeWithTombstone(target.key, target.item, m.now().Add(idleTombstoneTTL))
-	}
+	closeErr := m.closeAndArchiveTerminals(context.Background(), targets, "shutdown", "daemon-shutdown")
+	closeErrors := []error{closeErr}
 	if lifecycle, ok := m.journal.(interface {
 		Shutdown(context.Context) error
 	}); ok {
-		if err := lifecycle.Shutdown(context.Background()); err != nil {
+		journalCtx, cancelJournal := context.WithTimeout(context.Background(), defaultJournalShutdownTimeout)
+		if err := lifecycle.Shutdown(journalCtx); err != nil {
 			closeErrors = append(closeErrors, err)
 		}
+		cancelJournal()
 	}
 	m.mu.Lock()
 	m.shutdownErr = errors.Join(closeErrors...)
 	close(m.shutdownDone)
 	m.mu.Unlock()
+}
+
+func (m *Service) tombstoneExpiry(item *session) time.Time {
+	item.mu.RLock()
+	retention := item.policy.ExitRetention
+	item.mu.RUnlock()
+	return m.now().Add(retention)
 }
 
 func (m *Service) lookup(key terminalKey) (*session, error) {
@@ -335,12 +352,7 @@ func (m *Service) processRegistration(
 		return nil, nil
 	}
 	info := item.Info()
-	pids := processIDs(item.proc)
 	registerCtx := context.WithoutCancel(ctx)
-	startedAt := time.Time{}
-	if provider, ok := item.proc.(interface{ StartedAt() time.Time }); ok {
-		startedAt = provider.StartedAt()
-	}
 	handle, err := m.registerProcess(registerCtx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceTerminal,
 		Owner: toolruntime.ProcessOwner{
@@ -348,12 +360,12 @@ func (m *Service) processRegistration(
 			TurnID:     info.ControllerRunID(),
 			TerminalID: string(info.ID),
 		},
-		PID:            pids.pid,
-		ProcessGroupID: pids.group,
+		PID:            item.proc.PID(),
+		ProcessGroupID: item.proc.ProcessGroupID(),
 		Command:        spec.Argv[0],
 		Args:           append([]string(nil), spec.Argv[1:]...),
 		Cwd:            spec.Cwd,
-		StartedAt:      startedAt,
+		StartedAt:      item.proc.StartedAt(),
 		Interrupt: func(interruptCtx context.Context, _ toolruntime.ProcessRecord) error {
 			_, interruptErr := item.close(interruptCtx, SignalHUP, "runtime_interrupt", Actor{
 				Kind: ActorKindSystem, ID: "toolruntime", ProfileID: info.ProfileID,
@@ -365,21 +377,6 @@ func (m *Service) processRegistration(
 		return nil, fmt.Errorf("terminal: register process %q: %w", info.ID, err)
 	}
 	return handle, nil
-}
-
-type processIDProvider interface {
-	PID() int
-	ProcessGroupID() int
-}
-
-type processIdentity struct{ pid, group int }
-
-func processIDs(proc Proc) processIdentity {
-	provider, ok := proc.(processIDProvider)
-	if !ok {
-		return processIdentity{}
-	}
-	return processIdentity{pid: provider.PID(), group: provider.ProcessGroupID()}
 }
 
 func (i Info) ControllerSessionID() string {

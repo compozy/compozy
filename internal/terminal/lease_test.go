@@ -99,11 +99,16 @@ func TestLeaseMachineContract(t *testing.T) {
 		go func() { writeDone <- lease.deliver(agent, []byte("whole-input")) }()
 		<-writer.firstWrite
 		takeoverDone := make(chan error, 1)
-		go func() { takeoverDone <- lease.takeover(humanA, true) }()
+		takeoverStarted := make(chan struct{})
+		go func() {
+			close(takeoverStarted)
+			takeoverDone <- lease.takeover(humanA, true)
+		}()
+		<-takeoverStarted
 		select {
 		case err := <-takeoverDone:
 			t.Fatalf("takeover completed before write boundary: %v", err)
-		case <-time.After(20 * time.Millisecond):
+		default:
 		}
 		close(writer.resume)
 		if err := <-writeDone; err != nil {
@@ -200,14 +205,30 @@ func TestLeaseMachineContract(t *testing.T) {
 		first := lease.attachWriter(humanA)
 		second := lease.attachWriter(humanA)
 		lease.detachWriter(first)
-		time.Sleep(50 * time.Millisecond)
+		lease.mu.Lock()
+		graceStartedEarly := lease.timer != nil
+		lease.mu.Unlock()
+		if graceStartedEarly {
+			t.Fatal("grace timer started while one controller attachment remained")
+		}
 		state, controller := lease.snapshot()
 		if state != LeaseHumanOwned || controller == nil || controller.ID != humanA.ID {
 			t.Fatalf("lease after one detach = %s %#v, want human-a held", state, controller)
 		}
 		lease.detachWriter(second)
+		lease.mu.Lock()
+		graceStarted := lease.timer != nil
+		lease.mu.Unlock()
+		if !graceStarted {
+			t.Fatal("grace timer did not start after the final controller attachment closed")
+		}
 		resumed := lease.attachWriter(humanA)
-		time.Sleep(50 * time.Millisecond)
+		lease.mu.Lock()
+		graceCanceled := lease.timer == nil
+		lease.mu.Unlock()
+		if !graceCanceled {
+			t.Fatal("reattachment did not cancel the controller grace timer")
+		}
 		state, controller = lease.snapshot()
 		if state != LeaseHumanOwned || controller == nil || controller.ID != humanA.ID {
 			t.Fatalf("lease after grace cancellation = %s %#v, want human-a held", state, controller)

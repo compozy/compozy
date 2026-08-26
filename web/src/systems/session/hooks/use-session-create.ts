@@ -41,6 +41,25 @@ export function useSessionCreateActions() {
     });
   };
 
+  const openWithPrompt = (firstMessage: string) => {
+    if (runtimeWorkspaceId === null) {
+      toast.error("Select an active workspace before starting a session.");
+      return;
+    }
+    if (!scopedWorktree.resolved) {
+      toast.error("Worktrees are not available yet. Try again.");
+      return;
+    }
+    store.trigger.dialogOpened({
+      agentName: "",
+      workspaceId: runtimeWorkspaceId,
+      firstMessage,
+      ...(scopedWorktree.worktreeId
+        ? { environment: { kind: "worktree" as const, worktreeId: scopedWorktree.worktreeId } }
+        : {}),
+    });
+  };
+
   /**
    * Starts session creation already pointed at one worktree, so the operator is
    * never asked to re-pick the environment they just came from.
@@ -57,7 +76,7 @@ export function useSessionCreateActions() {
     });
   };
 
-  return { openForAgent, openForWorktree };
+  return { openForAgent, openForWorktree, openWithPrompt };
 }
 
 export function useSessionCreateHasActiveWorkspace(): boolean {

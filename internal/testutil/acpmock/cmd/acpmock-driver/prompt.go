@@ -222,10 +222,7 @@ func (a *mockAgent) emitReportedTerminal(
 		"terminal_id": terminalID,
 		"cwd":         strings.TrimSpace(step.Cwd),
 	}}
-	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: start}); err != nil {
-		return acpmock.DiagnosticsStep{}, err
-	}
-	if err := pauseForDelivery(ctx); err != nil {
+	if err := a.deliverSessionUpdate(ctx, sessionID, start); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 
@@ -236,24 +233,21 @@ func (a *mockAgent) emitReportedTerminal(
 			"terminal_id": terminalID,
 			"data":        chunk,
 		}}
-		if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: update}); err != nil {
-			return acpmock.DiagnosticsStep{}, err
-		}
-		if err := pauseForDelivery(ctx); err != nil {
+		if err := a.deliverSessionUpdate(ctx, sessionID, update); err != nil {
 			return acpmock.DiagnosticsStep{}, err
 		}
 	}
 
 	final := acpsdk.UpdateToolCall(toolCallID, acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusCompleted))
-	final.ToolCallUpdate.Meta = map[string]any{"terminal_exit": map[string]any{
-		"terminal_id": terminalID,
-		"exit_code":   reportedTerminalExitCode(step.ExitCode),
-		"signal":      strings.TrimSpace(step.Signal),
-	}}
-	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: final}); err != nil {
-		return acpmock.DiagnosticsStep{}, err
+	terminalExit := map[string]any{"terminal_id": terminalID}
+	if step.ExitCode != nil {
+		terminalExit["exit_code"] = *step.ExitCode
 	}
-	if err := pauseForDelivery(ctx); err != nil {
+	if signal := strings.TrimSpace(step.Signal); signal != "" {
+		terminalExit["signal"] = signal
+	}
+	final.ToolCallUpdate.Meta = map[string]any{"terminal_exit": terminalExit}
+	if err := a.deliverSessionUpdate(ctx, sessionID, final); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 	return acpmock.DiagnosticsStep{
@@ -261,11 +255,15 @@ func (a *mockAgent) emitReportedTerminal(
 	}, nil
 }
 
-func reportedTerminalExitCode(exitCode *int) int {
-	if exitCode == nil {
-		return 0
+func (a *mockAgent) deliverSessionUpdate(
+	ctx context.Context,
+	sessionID acpsdk.SessionId,
+	update acpsdk.SessionUpdate,
+) error {
+	if err := a.conn.SessionUpdate(ctx, acpsdk.SessionNotification{SessionId: sessionID, Update: update}); err != nil {
+		return err
 	}
-	return *exitCode
+	return pauseForDelivery(ctx)
 }
 
 func (a *mockAgent) emitTextChunks(

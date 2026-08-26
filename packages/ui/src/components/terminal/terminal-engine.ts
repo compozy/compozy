@@ -49,10 +49,15 @@ export const loadTerminalEngine: TerminalEngineLoader = () => {
       import("@xterm/xterm/css/xterm.css"),
     ]);
     return {
-      createTerminal: options => new core.Terminal(options),
+      createTerminal: (options: ITerminalOptions) => new core.Terminal(options),
       createFitAddon: () => new fit.FitAddon(),
       createRendererAddon: () => new webgl.WebglAddon(),
     };
-  })();
+  })().catch((cause: unknown) => {
+    // A chunk request can fail transiently. Keeping that rejected promise here
+    // would poison every later terminal mount in the document.
+    pendingEngine = null;
+    throw cause;
+  });
   return pendingEngine;
 };

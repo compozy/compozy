@@ -90,7 +90,7 @@ export function TerminalJournalRow({
         </span>
       </TableCell>
       <TableCell>
-        <span className="block truncate font-mono text-[12.5px] text-fg-strong">
+        <span className="block truncate font-mono text-code-block text-fg-strong">
           {entry.command}
         </span>
         <span className="mt-0.75 block truncate font-mono text-micro text-faint">
@@ -129,14 +129,14 @@ export function TerminalJournalRow({
           <TableCell>
             {entry.recording && onReplay ? (
               <Button
-                aria-label="Replay this recording"
+                aria-label={`Replay ${entry.command}`}
                 data-testid={`terminal-journal-replay-${entry.command_id}`}
                 onClick={event => {
                   event.stopPropagation();
                   onReplay();
                 }}
                 size="icon-sm"
-                title="Replay recording"
+                title={`Replay ${entry.command}`}
                 type="button"
                 variant="ghost"
               >

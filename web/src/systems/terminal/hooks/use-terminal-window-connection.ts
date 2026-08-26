@@ -4,12 +4,15 @@ import type { TerminalViewHandle } from "@compozy/ui";
 import { useSelector } from "@xstate/store-react";
 import { useRef, useState } from "react";
 
-import type { TerminalSocketFactory } from "../adapters/terminal-socket";
 import { terminalLeaseView, type TerminalLeaseView } from "../lib/terminal-lease";
 import { terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalPaneState } from "../stores/terminal-store";
 import type { TerminalInfo } from "../types";
-import { useTerminalAttachment, type TerminalAttachment } from "./use-terminal-attachment";
+import {
+  useTerminalAttachment,
+  type TerminalAttachment,
+  type TerminalAttachmentSocketFactory,
+} from "./use-terminal-attachment";
 import { useTerminalStore } from "./use-terminal-store";
 
 export interface UseTerminalWindowConnectionOptions {
@@ -17,7 +20,8 @@ export interface UseTerminalWindowConnectionOptions {
   workspaceId: string;
   profile: string;
   viewerId: string | null;
-  socketFactory?: TerminalSocketFactory;
+  readOnly?: boolean;
+  socketFactory?: TerminalAttachmentSocketFactory;
 }
 
 export interface TerminalWindowConnection {
@@ -38,9 +42,8 @@ export interface TerminalWindowConnection {
  *
  * The catalog is a starting point, not an authority: it is whatever the list
  * said when it was last read. `ATTACHED` states the lease; only `OWNER` names
- * the actor — so until an owner frame lands, the catalog's controller stands,
- * and a terminal someone is actively holding does not read as free for the
- * moment in between.
+ * the actor. A fresh attachment clears any actor named by the previous stream
+ * pass; the next `OWNER` frame then names the current controller.
  */
 function leaseFrom(
   terminal: TerminalInfo,
@@ -74,6 +77,7 @@ export function useTerminalWindowConnection({
   profile,
   viewerId,
   socketFactory,
+  readOnly = false,
 }: UseTerminalWindowConnectionOptions): TerminalWindowConnection {
   const store = useTerminalStore();
   const handleRef = useRef<TerminalViewHandle>(null);
@@ -92,7 +96,16 @@ export function useTerminalWindowConnection({
   // The client reconnects on its own with backoff; this is how a person asks
   // for it now rather than waiting the delay out.
   const [restartKey, setRestartKey] = useState(0);
-  const lease = leaseFrom(terminal, pane, viewerId);
+  const observedLease = leaseFrom(terminal, pane, viewerId);
+  const lease = readOnly
+    ? {
+        ...observedLease,
+        canType: false,
+        canTakeControl: false,
+        requiresConfirmation: false,
+        canRelease: false,
+      }
+    : observedLease;
   // The request is over the moment the daemon's own frames agree the lease has
   // moved — derived here rather than reset by an effect, so there is never a
   // render where the two disagree.
@@ -101,7 +114,7 @@ export function useTerminalWindowConnection({
     workspaceId,
     terminalId: terminal.id,
     scope: { profile },
-    mode: lease.canType && !releasing ? "write" : "read",
+    mode: !readOnly && lease.canType && !releasing ? "write" : "read",
     handleRef,
     socketFactory,
     restartKey,

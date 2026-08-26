@@ -33,7 +33,9 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
       <div className="bg-chat-fill-code px-2.25 py-1.5 font-mono text-form-input leading-relaxed text-fg">
         {quote.lines.map((line, index) => (
           <span className="block" key={`${quote.fromLine + index}`}>
-            <i className="mr-2.5 not-italic text-faint select-none">{quote.fromLine + index}</i>
+            <span aria-hidden="true" className="mr-2.5 text-faint select-none">
+              {quote.fromLine + index}
+            </span>
             {line}
           </span>
         ))}

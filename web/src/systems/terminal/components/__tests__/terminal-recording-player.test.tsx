@@ -1,10 +1,10 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { destroyTerminalInstances } from "@compozy/ui";
 
-import { AsciicastPlayback, parseAsciicast } from "../../lib/asciicast";
+import { AsciicastPlayback, formatPlaybackClock, parseAsciicast } from "../../lib/asciicast";
 import { RECORDING_FIXTURE } from "../../mocks/terminal-fixtures";
 import { TerminalRecordingPlayer } from "../terminal-recording-player";
 import { stubEngineLoader } from "./terminal-window-harness";
@@ -85,6 +85,19 @@ describe("parseAsciicast", () => {
     const cast = parseAsciicast(withInput);
 
     expect(cast.frames).toEqual([{ atMs: 200, data: "visible output" }]);
+  });
+});
+
+describe("formatPlaybackClock", () => {
+  it.each([
+    [0, "0:00"],
+    [999, "0:00"],
+    [1_000, "0:01"],
+    [59_999, "0:59"],
+    [60_000, "1:00"],
+    [149_000, "2:29"],
+  ])("Should format %i milliseconds as %s", (positionMs, expected) => {
+    expect(formatPlaybackClock(positionMs)).toBe(expected);
   });
 });
 
@@ -222,11 +235,16 @@ describe("TerminalRecordingPlayer", () => {
       expect(screen.getByTestId("terminal-recording-toggle")).toHaveAccessibleName("Pause")
     );
 
-    clock.advanceTo(149_000);
+    act(() => clock.advanceTo(149_000));
 
     await waitFor(() =>
       expect(screen.getByTestId("terminal-recording-clock")).toHaveTextContent("2:29 / 2:29")
     );
+    expect(screen.getByTestId("terminal-recording-toggle")).toHaveAccessibleName("Play");
+
+    await userEvent.click(screen.getByTestId("terminal-recording-toggle"));
+
+    expect(screen.getByTestId("terminal-recording-toggle")).toHaveAccessibleName("Play");
   });
 
   it("Should name the recording and where it came from when the caller knows", async () => {
@@ -251,25 +269,28 @@ describe("TerminalRecordingPlayer", () => {
     const rejections: unknown[] = [];
     const onRejection = (event: PromiseRejectionEvent) => rejections.push(event.reason);
     window.addEventListener("unhandledrejection", onRejection);
-    const clock = createManualClock();
-    const { unmount } = render(
-      <TerminalRecordingPlayer
-        autoPlay
-        engineLoader={() => new Promise(() => undefined)}
-        recordingId="rec-9f21ac"
-        schedule={clock.schedule}
-        source={RECORDING_FIXTURE}
-      />
-    );
+    try {
+      const clock = createManualClock();
+      const { unmount } = render(
+        <TerminalRecordingPlayer
+          autoPlay
+          engineLoader={() => new Promise(() => undefined)}
+          recordingId="rec-9f21ac"
+          schedule={clock.schedule}
+          source={RECORDING_FIXTURE}
+        />
+      );
 
-    // Playback does not await the parse, so a view that closes mid-write would
-    // otherwise leave its rejection with nobody to catch it.
-    clock.advanceTo(0);
-    unmount();
-    await new Promise(resolve => setTimeout(resolve, 0));
+      // Playback does not await the parse, so a view that closes mid-write would
+      // otherwise leave its rejection with nobody to catch it.
+      clock.advanceTo(0);
+      unmount();
+      await new Promise(resolve => setTimeout(resolve, 0));
 
-    expect(rejections).toEqual([]);
-    window.removeEventListener("unhandledrejection", onRejection);
+      expect(rejections).toEqual([]);
+    } finally {
+      window.removeEventListener("unhandledrejection", onRejection);
+    }
   });
 
   it("Should say a recording is unreadable instead of showing an empty screen", async () => {

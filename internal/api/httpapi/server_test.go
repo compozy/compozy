@@ -719,6 +719,7 @@ func TestLoopbackServerAllowsSettingsAndExtensionMutations(t *testing.T) {
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
+					Terminal:       defaultSettingsTerminalPayload(),
 				},
 			}),
 			assert: func(t *testing.T) {

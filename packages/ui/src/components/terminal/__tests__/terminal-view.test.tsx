@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import * as React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -360,7 +360,7 @@ describe("TerminalView", () => {
     );
     await waitFor(() => expect(onRendererChange).toHaveBeenCalledWith("webgl"));
 
-    engine.rendererAddons[0].loseContext();
+    act(() => engine.rendererAddons[0].loseContext());
 
     await waitFor(() => expect(onRendererChange).toHaveBeenLastCalledWith("dom"));
     expect(engine.rendererAddons[0].disposed).toBe(true);
@@ -417,6 +417,33 @@ describe("TerminalView", () => {
     });
   });
 
+  it("Should normalize an upward selection into an ordered quote range", async () => {
+    const engine = createFakeEngine({
+      selectionPosition: {
+        start: { x: 4, y: 14 },
+        end: { x: 0, y: 12 },
+      },
+    });
+    const handleRef = React.createRef<TerminalViewHandle>();
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={loaderFor(engine)}
+        handleRef={handleRef}
+        instanceId={nextInstanceId()}
+      />
+    );
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+
+    engine.lastTerminal().emitSelectionChange("expected 201, received 500");
+
+    expect(handleRef.current?.getSelectionRange()).toEqual({
+      startLine: 13,
+      endLine: 15,
+      text: "expected 201, received 500",
+    });
+  });
+
   it("Should hold what is written before the emulator exists, in order", async () => {
     const engine = createFakeEngine();
     const engineLoad: { land?: () => void } = {};
@@ -456,6 +483,116 @@ describe("TerminalView", () => {
     expect(terminal.writes).toEqual(["first", "second"]);
     terminal.completeWrite(1);
     await waitFor(() => expect(parsed).toHaveBeenCalledTimes(2));
+  });
+
+  it("Should keep live operations behind a startup write still being parsed", async () => {
+    const engine = createFakeEngine();
+    const engineLoad: { land?: () => void } = {};
+    const handleRef = React.createRef<TerminalViewHandle>();
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={() =>
+          new Promise(resolve => {
+            engineLoad.land = () => resolve(engine);
+          })
+        }
+        handleRef={handleRef}
+        instanceId={nextInstanceId()}
+      />
+    );
+    await waitFor(() => expect(engineLoad.land).toBeDefined());
+
+    void handleRef.current?.write("startup");
+    engineLoad.land?.();
+    await waitFor(() => expect(engine.lastTerminal().writes).toEqual(["startup"]));
+
+    handleRef.current?.applyDimensions({ cols: 120, rows: 36 });
+    handleRef.current?.reset();
+    void handleRef.current?.write("live");
+    expect(engine.lastTerminal().resizes).toEqual([]);
+    expect(engine.lastTerminal().resetCount).toBe(0);
+    expect(engine.lastTerminal().writes).toEqual(["startup"]);
+
+    engine.lastTerminal().completeWrite(0);
+    await waitFor(() => expect(engine.lastTerminal().writes).toEqual(["startup", "live"]));
+    expect(engine.lastTerminal().resizes).toEqual([{ cols: 120, rows: 36 }]);
+    expect(engine.lastTerminal().resetCount).toBe(1);
+    engine.lastTerminal().completeWrite(1);
+  });
+
+  it("Should reject queued writes when loading fails and retry on a later mount", async () => {
+    const engine = createFakeEngine();
+    const loadFailure = new Error("terminal chunk unavailable");
+    let attempts = 0;
+    const retryingLoader = () => {
+      attempts += 1;
+      return attempts === 1 ? Promise.reject(loadFailure) : Promise.resolve(engine);
+    };
+    const handleRef = React.createRef<TerminalViewHandle>();
+    const first = render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={retryingLoader}
+        handleRef={handleRef}
+        instanceId={nextInstanceId()}
+      />
+    );
+    const firstOutcome = vi.fn();
+    void handleRef.current?.write("first attempt").then(
+      () => firstOutcome("resolved"),
+      cause => firstOutcome(cause)
+    );
+
+    await waitFor(() => expect(firstOutcome).toHaveBeenCalledExactlyOnceWith(loadFailure));
+    first.unmount();
+
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={retryingLoader}
+        handleRef={handleRef}
+        instanceId={nextInstanceId()}
+      />
+    );
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    const secondOutcome = vi.fn();
+    void handleRef.current?.write("second attempt").then(secondOutcome);
+    engine.lastTerminal().completeWrite(0);
+
+    await waitFor(() => expect(secondOutcome).toHaveBeenCalledOnce());
+    expect(attempts).toBe(2);
+  });
+
+  it("Should not announce attachment when a startup write is abandoned", async () => {
+    const engine = createFakeEngine();
+    const engineLoad: { land?: () => void } = {};
+    const handleRef = React.createRef<TerminalViewHandle>();
+    const onAttached = vi.fn();
+    const { unmount } = render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={() =>
+          new Promise(resolve => {
+            engineLoad.land = () => resolve(engine);
+          })
+        }
+        handleRef={handleRef}
+        instanceId={nextInstanceId()}
+        onAttached={onAttached}
+      />
+    );
+    await waitFor(() => expect(engineLoad.land).toBeDefined());
+    void handleRef.current?.write("startup").catch(() => undefined);
+    engineLoad.land?.();
+    await waitFor(() => expect(engine.lastTerminal().writes).toEqual(["startup"]));
+
+    unmount();
+    destroyTerminalInstances(() => true);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(onAttached).not.toHaveBeenCalled();
   });
 
   it("Should keep queued output through a StrictMode remount", async () => {

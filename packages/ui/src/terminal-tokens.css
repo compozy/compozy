@@ -1,0 +1,53 @@
+/* Terminal emulator tokens are composed into the canonical tokens.css entrypoint.
+   Keeping the palette here gives the terminal one focused token source while
+   preserving the same Tailwind utilities and runtime custom properties. */
+
+@theme {
+  /* Utility adapters over the canonical literals below. */
+  --color-terminal-bg: var(--terminal-bg);
+  --color-terminal-fg: var(--terminal-fg);
+  --color-terminal-cursor: var(--terminal-cursor);
+  --color-terminal-selection: var(--terminal-selection);
+  --color-terminal-ansi-0: var(--terminal-ansi-0);
+  --color-terminal-ansi-1: var(--terminal-ansi-1);
+  --color-terminal-ansi-2: var(--terminal-ansi-2);
+  --color-terminal-ansi-3: var(--terminal-ansi-3);
+  --color-terminal-ansi-4: var(--terminal-ansi-4);
+  --color-terminal-ansi-5: var(--terminal-ansi-5);
+  --color-terminal-ansi-6: var(--terminal-ansi-6);
+  --color-terminal-ansi-7: var(--terminal-ansi-7);
+  --color-terminal-ansi-8: var(--terminal-ansi-8);
+  --color-terminal-ansi-9: var(--terminal-ansi-9);
+  --color-terminal-ansi-10: var(--terminal-ansi-10);
+  --color-terminal-ansi-11: var(--terminal-ansi-11);
+  --color-terminal-ansi-12: var(--terminal-ansi-12);
+  --color-terminal-ansi-13: var(--terminal-ansi-13);
+  --color-terminal-ansi-14: var(--terminal-ansi-14);
+  --color-terminal-ansi-15: var(--terminal-ansi-15);
+}
+
+:root {
+  /* The byte well's palette, resolved by TerminalView through getComputedStyle.
+     ANSI 1–3 and 9–11 follow the danger, success, and warning lanes. ANSI 8 is
+     deliberately dim for terminal output and is not a UI-copy colour. */
+  --terminal-bg: #131211;
+  --terminal-fg: #e3e1de;
+  --terminal-cursor: #f7f6f4;
+  --terminal-selection: rgba(255, 255, 255, 0.16);
+  --terminal-ansi-0: #2a2927;
+  --terminal-ansi-1: #e0635a;
+  --terminal-ansi-2: #5fbf85;
+  --terminal-ansi-3: #d6a647;
+  --terminal-ansi-4: #7d9bc8;
+  --terminal-ansi-5: #b48ec6;
+  --terminal-ansi-6: #6fb5ab;
+  --terminal-ansi-7: #c9c7c3;
+  --terminal-ansi-8: #6f6d68;
+  --terminal-ansi-9: #ef837b;
+  --terminal-ansi-10: #7fd3a2;
+  --terminal-ansi-11: #e8c06a;
+  --terminal-ansi-12: #9db9e3;
+  --terminal-ansi-13: #cdaade;
+  --terminal-ansi-14: #8fd0c6;
+  --terminal-ansi-15: #f7f6f4;
+}

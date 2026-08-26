@@ -36,6 +36,13 @@ export function PermissionDock({
 }: PermissionDockProps) {
   const { menuItemRef, menuOpen, setMenuOpen, splitElement, splitRef, triggerRef } =
     useRejectMenuElements();
+  // The runtime classification governs both the visible actions and keyboard
+  // shortcuts. A hidden remembered decision must not remain reachable by key.
+  const terminalDetail = terminalPermissionDetail(permission.toolName, permission.toolInput);
+  const blockedDecisions =
+    terminalDetail?.kind === "exec" && terminalDetail.risk !== "ordinary"
+      ? (["allow-always"] as const)
+      : [];
   const { decide, decisionOptions, isResolved, isSubmitting, subject } = usePermissionDock({
     enabled,
     permission,
@@ -45,6 +52,7 @@ export function PermissionDock({
     rejectSplitElement: splitElement,
     menuOpen,
     setMenuOpen,
+    blockedDecisions,
   });
 
   if (isResolved) {
@@ -54,11 +62,8 @@ export function PermissionDock({
   const offersRejectOnce = decisionOptions.includes("reject-once");
   // A terminal ask carries facts the generic subject line cannot show: the exact
   // command, where it would run, and why the runtime is asking.
-  const terminalDetail = terminalPermissionDetail(permission.toolName, permission.toolInput);
   const offersRejectAlways =
     decisionOptions.includes("reject-always") && terminalDetail?.kind !== "typing";
-  const offersNoRememberedDecision =
-    terminalDetail?.kind === "exec" && terminalDetail.risk !== "ordinary";
 
   return (
     <Dock data-testid="permission-dock" role="region" aria-label="Permission required">
@@ -98,7 +103,7 @@ export function PermissionDock({
         ) : null}
         {/* No remembered decision covers the fixed irreversible set (US-022),
             so the option is absent here rather than offered and refused. */}
-        {decisionOptions.includes("allow-always") && !offersNoRememberedDecision ? (
+        {decisionOptions.includes("allow-always") ? (
           <Button
             size="sm"
             variant="outline"

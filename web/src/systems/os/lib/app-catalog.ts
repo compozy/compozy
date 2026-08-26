@@ -32,7 +32,7 @@ export interface OsAppDescriptor {
   /** Dock strip group, sessions launcher, or null for menubar-only settings. */
   dock: { group: 1 | 2 | 3 | 4 } | "sessions-launcher" | null;
   badge?: "sessions" | "tasks" | "terminal";
-  /** Extracts the multi-instance key from a pathname (session windows). */
+  /** Extracts the multi-instance key from a pathname (session and terminal windows). */
   matchInstance?: (pathname: string) => string | null;
 }
 

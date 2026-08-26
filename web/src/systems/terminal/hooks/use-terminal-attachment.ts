@@ -5,19 +5,23 @@ import { useEffect, useEffectEvent, useRef } from "react";
 
 import { TerminalProtocolClient, type TerminalStreamSink } from "../lib/terminal-protocol-client";
 import { terminalScopeKey } from "../lib/terminal-scope-key";
+import type { TerminalOwnerFrame } from "../lib/terminal-wire-schema";
 import type { TerminalSocketFactory } from "../adapters/terminal-socket";
-import type { TerminalActor, TerminalAttachMode, TerminalScopeParams } from "../types";
+import type { TerminalActor, TerminalAttachMode, TerminalSignal } from "../types";
 import { useTerminalStore } from "./use-terminal-store";
+
+/** Socket injection owned by the attachment boundary, for tests and scripted stories. */
+export type TerminalAttachmentSocketFactory = TerminalSocketFactory;
 
 export interface UseTerminalAttachmentOptions {
   workspaceId: string;
   terminalId: string;
-  scope: TerminalScopeParams;
+  scope: { profile: string };
   mode: TerminalAttachMode;
   /** The emulator this connection paints into. */
   handleRef: React.RefObject<TerminalViewHandle | null>;
   /** Test seam; the browser socket is the default. */
-  socketFactory?: TerminalSocketFactory;
+  socketFactory?: TerminalAttachmentSocketFactory;
   enabled?: boolean;
   /**
    * Bumped to start the connection over.
@@ -33,7 +37,7 @@ export interface TerminalAttachment {
   proposeDimensions: (cols: number, rows: number) => void;
   requestTakeover: (force: boolean) => void;
   releaseControl: () => void;
-  sendSignal: (signal: "INT" | "TERM" | "KILL" | "HUP") => void;
+  sendSignal: (signal: TerminalSignal) => void;
 }
 
 /**
@@ -109,6 +113,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
               toSeq: frame.to_seq,
             },
           }),
+        onGapCleared: () => store.trigger.gapCleared({ terminalId }),
         onInputEnabledChange: value =>
           store.trigger.inputEnabledChanged({ terminalId, enabled: value }),
         onExit: frame =>
@@ -145,7 +150,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   };
 }
 
-function controllerOf(frame: { actor_kind?: string; actor_id?: string }): TerminalActor | null {
+function controllerOf(frame: TerminalOwnerFrame): TerminalActor | null {
   if (!frame.actor_kind || !frame.actor_id) return null;
-  return { kind: frame.actor_kind as TerminalActor["kind"], id: frame.actor_id };
+  return { kind: frame.actor_kind, id: frame.actor_id };
 }

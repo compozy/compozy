@@ -1212,10 +1212,14 @@ func hostedViewByID(views []tools.ToolView, id tools.ToolID) *tools.ToolView {
 }
 
 type hostedApprovalBridge struct {
-	mu     sync.Mutex
-	scopes []tools.Scope
-	calls  []tools.CallRequest
-	views  []tools.ToolView
+	mu      sync.Mutex
+	records []hostedApprovalRecord
+}
+
+type hostedApprovalRecord struct {
+	scope tools.Scope
+	call  *tools.CallRequest
+	view  *tools.ToolView
 }
 
 var _ tools.ApprovalBridge = (*hostedApprovalBridge)(nil)
@@ -1228,13 +1232,16 @@ func (b *hostedApprovalBridge) RequestToolApproval(
 ) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.scopes = append(b.scopes, scope)
+	record := hostedApprovalRecord{scope: scope}
 	if call != nil {
-		b.calls = append(b.calls, *call)
+		cloned := *call
+		record.call = &cloned
 	}
 	if view != nil {
-		b.views = append(b.views, *view)
+		cloned := *view
+		record.view = &cloned
 	}
+	b.records = append(b.records, record)
 	return nil
 }
 
@@ -1243,11 +1250,14 @@ func (b *hostedApprovalBridge) last(t *testing.T) (tools.Scope, tools.CallReques
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if len(b.calls) == 0 {
+	if len(b.records) == 0 {
 		t.Fatal("approval bridge was not called")
 	}
-	view := b.views[len(b.views)-1]
-	return b.scopes[len(b.scopes)-1], b.calls[len(b.calls)-1], &view
+	record := b.records[len(b.records)-1]
+	if record.call == nil {
+		t.Fatal("last approval bridge call did not include a tool call")
+	}
+	return record.scope, *record.call, record.view
 }
 
 type hostedRegistryStub struct {

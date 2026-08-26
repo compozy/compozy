@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os/exec"
 	"syscall"
-	"time"
 
 	"github.com/compozy/compozy/internal/procutil"
 )
@@ -32,18 +31,20 @@ func forcePipeCommand(command *exec.Cmd) error {
 	if err := procutil.SignalCommandProcessGroup(command, syscall.SIGTERM); err != nil {
 		return fmt.Errorf("signal TERM: %w", err)
 	}
-	if err := procutil.WaitForCommandProcessGroupExit(command, time.Second); err == nil {
+	if err := procutil.WaitForCommandProcessGroupExit(command, processGroupGrace); err == nil {
 		return nil
 	}
-	return procutil.KillCommandProcessGroupAndWait(command, time.Second)
+	return procutil.KillCommandProcessGroupAndWait(command, processGroupGrace)
 }
 
 func escalatePipeCommand(command *exec.Cmd) error {
 	if command == nil || command.Process == nil {
 		return nil
 	}
-	if err := procutil.WaitForCommandProcessGroupExit(command, time.Second); err == nil {
+	if err := procutil.WaitForCommandProcessGroupExit(command, processGroupGrace); err == nil {
 		return nil
 	}
-	return procutil.KillCommandProcessGroupAndWait(command, time.Second)
+	return procutil.KillCommandProcessGroupAndWait(command, processGroupGrace)
 }
+
+func reportedPipeSignal(_ Signal, exit Exit) Exit { return exit }

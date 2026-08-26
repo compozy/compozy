@@ -89,6 +89,10 @@ func docOutputProfiles(root *cobra.Command) map[string]docpost.OutputProfile {
 			profile = docpost.OutputProfileProtocol
 		case "compozy layout watch":
 			profile = docpost.OutputProfileHumanJSONL
+		case "compozy terminal attach":
+			profile = docpost.OutputProfileTerminalInteractive
+		case "compozy terminal open":
+			profile = docpost.OutputProfileTerminalOpen
 		}
 		if strings.HasPrefix(command.CommandPath(), "compozy completion ") {
 			profile = docpost.OutputProfileRaw

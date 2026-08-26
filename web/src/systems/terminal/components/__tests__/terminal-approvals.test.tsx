@@ -24,6 +24,7 @@ describe("terminalPermissionDetail", () => {
       command: "bun",
       args: ["add", "@xterm/xterm"],
       cwd: "~/dev/atlas-api",
+      risk: "ordinary",
     });
 
     expect(detail).toEqual({
@@ -36,19 +37,35 @@ describe("terminalPermissionDetail", () => {
   });
 
   it("Should take the classification from the runtime, never from the text", () => {
-    const guessable = terminalPermissionDetail("compozy__terminal_exec", {
+    const missingClassification = terminalPermissionDetail("compozy__terminal_exec", {
       command: "rm -rf /var/lib/atlas",
     });
 
     // The runtime gates execution; a second classifier here would disagree with
-    // it exactly where it matters.
-    expect(guessable).toMatchObject({ risk: "ordinary" });
+    // it exactly where it matters. Missing metadata stays unclassifiable rather
+    // than being silently downgraded to ordinary.
+    expect(missingClassification).toMatchObject({ risk: "unclassifiable" });
     expect(
       terminalPermissionDetail("compozy__terminal_exec", {
         command: "rm -rf /var/lib/atlas",
         risk: "irreversible",
       })
     ).toMatchObject({ risk: "irreversible" });
+  });
+
+  it("Should model opening a terminal separately from running a command", () => {
+    expect(
+      terminalPermissionDetail("compozy__terminal_open", {
+        title: "release shell",
+        cwd: "~/dev/atlas-api",
+        shell: "/bin/zsh",
+      })
+    ).toEqual({
+      kind: "open",
+      title: "release shell",
+      cwd: "~/dev/atlas-api",
+      shell: "/bin/zsh",
+    });
   });
 
   it("Should leave every other tool to the generic surface", () => {
@@ -66,6 +83,24 @@ describe("terminalPermissionDetail", () => {
 });
 
 describe("TerminalApprovalDetail", () => {
+  it("Should show the title and folder of a terminal-open approval", () => {
+    render(
+      <TerminalApprovalDetail
+        detail={{
+          kind: "open",
+          title: "release shell",
+          cwd: "~/dev/atlas-api",
+          shell: "/bin/zsh",
+        }}
+      />
+    );
+
+    const detail = screen.getByTestId("terminal-open-approval-detail");
+    expect(detail).toHaveTextContent("Open release shell");
+    expect(detail).toHaveTextContent("~/dev/atlas-api");
+    expect(detail).toHaveTextContent("/bin/zsh");
+  });
+
   it("Should show the exact command unmodified, with its folder", () => {
     render(
       <TerminalApprovalDetail
@@ -241,7 +276,7 @@ describe("TerminalGrantRow", () => {
     expect(screen.getByText("Always allowed: any command in this project")).toBeInTheDocument();
   });
 
-  it("Should let either kind be revoked on its own", async () => {
+  it("Should let one exact-command grant be revoked on its own", async () => {
     const onRevoke = vi.fn();
     render(<TerminalGrantRow grant={shapeGrant} onRevoke={onRevoke} />);
 

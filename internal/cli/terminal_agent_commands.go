@@ -60,8 +60,8 @@ func newTerminalExecCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if tail > 0 {
-				shaped := terminalTailLines(result.Output, tail)
-				result.Truncated = result.Truncated || shaped != result.Output
+				shaped, tailTruncated := terminalTailLines(result.Output, tail)
+				result.Truncated = result.Truncated || tailTruncated
 				result.Output = shaped
 			}
 			return writeCommandOutput(cmd, terminalExecBundle(result))
@@ -257,8 +257,11 @@ func newTerminalQuoteCommand(deps commandDeps) *cobra.Command {
 
 func terminalYieldMilliseconds(value string) (int, error) {
 	duration, err := time.ParseDuration(value)
-	if err != nil || duration < 250*time.Millisecond || duration > 30*time.Second {
+	if err != nil {
 		return 0, errors.New("timeout_out_of_range — --yield must be between 250ms and 30s")
+	}
+	if err := terminalpkg.ValidateExecYieldDuration(duration); err != nil {
+		return 0, err
 	}
 	return int(duration.Milliseconds()), nil
 }
@@ -326,13 +329,14 @@ func readTerminalResponse(input io.Reader) ([]byte, error) {
 	return []byte(strings.TrimSuffix(strings.TrimSuffix(string(line), "\n"), "\r")), nil
 }
 
-func terminalTailLines(content string, count int) string {
+func terminalTailLines(content string, count int) (string, bool) {
 	lines := strings.Split(content, "\n")
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
-	if count < len(lines) {
+	truncated := count < len(lines)
+	if truncated {
 		lines = lines[len(lines)-count:]
 	}
-	return strings.Join(lines, "\n")
+	return strings.Join(lines, "\n"), truncated
 }

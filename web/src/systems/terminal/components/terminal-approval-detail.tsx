@@ -1,4 +1,4 @@
-import { Folder, Keyboard, OctagonAlert } from "lucide-react";
+import { Folder, Keyboard, OctagonAlert, SquareTerminal } from "lucide-react";
 
 import { cn, MonoId } from "@compozy/ui";
 
@@ -22,6 +22,21 @@ export function TerminalApprovalDetail({ detail, terminalTitle }: TerminalApprov
   if (detail.kind === "typing") {
     return <TerminalTypingGrantDetail detail={detail} terminalTitle={terminalTitle} />;
   }
+  if (detail.kind === "open") {
+    return (
+      <div className="flex flex-col gap-1.5" data-testid="terminal-open-approval-detail">
+        <span className="flex items-center gap-1.5 text-form-input text-fg">
+          <SquareTerminal aria-hidden="true" className="size-3 text-warning" />
+          Open {detail.title}
+        </span>
+        <span className="flex items-center gap-1.25 font-mono text-micro text-subtle">
+          <Folder aria-hidden="true" className="size-2.5" />
+          {detail.cwd}
+          {detail.shell ? <span>· {detail.shell}</span> : null}
+        </span>
+      </div>
+    );
+  }
   const danger = detail.risk === "irreversible";
   return (
     <div className="flex flex-col gap-1.5" data-testid="terminal-approval-detail">
@@ -38,7 +53,7 @@ export function TerminalApprovalDetail({ detail, terminalTitle }: TerminalApprov
         className={cn(
           "rounded-xs px-2.5 py-2 font-mono text-form-input leading-relaxed break-all whitespace-pre-wrap text-fg",
           danger
-            ? "bg-danger-tint shadow-[inset_0_0_0_1px_color-mix(in_oklab,var(--color-danger)_30%,transparent)]"
+            ? "bg-danger-tint shadow-danger-inset"
             : "bg-chat-fill-code"
         )}
         data-testid="terminal-approval-command"

@@ -27,7 +27,7 @@ const (
 var errTerminalDetached = errors.New("terminal websocket detached")
 
 func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
-	if h == nil || h.Terminal == nil || h.terminalTickets == nil {
+	if h == nil || h.Terminal == nil {
 		if h != nil {
 			h.respondTerminalUnavailable(c)
 		}
@@ -45,15 +45,41 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	terminalID := terminalpkg.ID(strings.TrimSpace(c.Param("id")))
 	mode := strings.TrimSpace(c.Query("mode"))
-	ticket, err := h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return
-	}
-	service, err := h.Terminal.TerminalFor(ticket.Binding.ProfileID)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return
+	var ticket terminalTicket
+	var service terminalpkg.Manager
+	var err error
+	if h.isUDSTransport() {
+		var profileID string
+		var ok bool
+		service, profileID, ok = h.terminalService(c, mode == "write")
+		if !ok {
+			return
+		}
+		actor, actorOK := h.terminalActor(c, workspaceID, profileID, "terminal.attach")
+		if !actorOK {
+			return
+		}
+		ticket = terminalTicket{
+			Binding: terminalTicketBinding{
+				WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: mode,
+			},
+			Actor: actor,
+		}
+	} else {
+		if h.terminalTickets == nil {
+			h.respondTerminalUnavailable(c)
+			return
+		}
+		ticket, err = h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
+		if err != nil {
+			h.respondTerminalError(c, err)
+			return
+		}
+		service, err = h.Terminal.TerminalFor(ticket.Binding.ProfileID)
+		if err != nil {
+			h.respondTerminalError(c, err)
+			return
+		}
 	}
 	handle, err := service.Handle(c.Request.Context(), workspaceID, ticket.Binding.ProfileID, terminalID)
 	if err != nil {
@@ -130,15 +156,22 @@ func parseTerminalUint(value string, bits int) (uint64, error) {
 }
 
 func (h *BaseHandlers) terminalHostAllowed(request *http.Request) bool {
+	if h.isUDSTransport() {
+		return true
+	}
 	host := terminalHostname(request.Host)
 	configured := terminalHostname(h.Config.HTTP.Host)
 	return isTerminalLoopback(host) || configured != "" && strings.EqualFold(host, configured)
 }
 
+func (h *BaseHandlers) isUDSTransport() bool {
+	return h != nil && h.TransportName == transportNameUDSAPI
+}
+
 func (h *BaseHandlers) terminalOriginAllowed(request *http.Request) bool {
 	origin := strings.TrimSpace(request.Header.Get("Origin"))
 	if origin == "" {
-		return strings.Contains(strings.ToLower(h.TransportName), "uds")
+		return h.isUDSTransport()
 	}
 	parsed, err := url.Parse(origin)
 	if err != nil || (parsed.Scheme != "http" && parsed.Scheme != "https") {
@@ -156,7 +189,11 @@ func terminalHostname(value string) string {
 }
 
 func isTerminalLoopback(host string) bool {
-	return strings.EqualFold(host, "localhost") || net.ParseIP(host) != nil && net.ParseIP(host).IsLoopback()
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
 }
 
 func terminalProtocolAllowed(request *http.Request) bool {

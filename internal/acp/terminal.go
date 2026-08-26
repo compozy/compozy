@@ -25,7 +25,6 @@ const (
 )
 
 type terminalManager struct {
-	ctx       context.Context
 	logger    *slog.Logger
 	core      TerminalHost
 	ownedCore *terminalpkg.Service
@@ -342,7 +341,7 @@ func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {
 		p.permissions,
 		slog.Default(),
 		WithLocalProcessRegistry(p.processRegistry),
-		WithLocalTerminalManager(p.terminalCore, p.terminalScope),
+		withLocalTerminalManager(p.terminalCore, p.terminalScope),
 	)
 	if p.terminals != nil {
 		host.terminals = p.terminals

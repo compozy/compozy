@@ -13,6 +13,7 @@ export interface FakeTerminal extends Terminal {
   readonly writes: string[];
   readonly resizes: Array<{ cols: number; rows: number }>;
   readonly openedIn: HTMLElement[];
+  resetCount: number;
   disposed: boolean;
   emitData(payload: string): void;
   emitSelectionChange(selection: string): void;
@@ -24,6 +25,10 @@ export interface FakeEngineOptions {
   /** Throws where a machine without a usable GPU context would throw. */
   rendererFailure?: "construct" | "activate";
   proposedDimensions?: { cols: number; rows: number };
+  selectionPosition?: {
+    start: { x: number; y: number };
+    end: { x: number; y: number };
+  };
 }
 
 export interface FakeEngine extends TerminalEngine {
@@ -116,6 +121,7 @@ function createFakeTerminal(
     writes: [] as string[],
     resizes: [] as Array<{ cols: number; rows: number }>,
     openedIn: [] as HTMLElement[],
+    resetCount: 0,
     disposed: false,
     get rows() {
       return rows;
@@ -142,14 +148,21 @@ function createFakeTerminal(
       terminal.resizes.push({ cols: nextCols, rows: nextRows });
     },
     refresh: () => undefined,
-    reset: () => undefined,
+    reset: () => {
+      terminal.resetCount += 1;
+    },
     focus: () => undefined,
     dispose: () => {
       terminal.disposed = true;
     },
     getSelection: () => selection,
     getSelectionPosition: () =>
-      selection ? { start: { x: 0, y: 12 }, end: { x: 4, y: 14 } } : undefined,
+      selection
+        ? (engineOptions.selectionPosition ?? {
+            start: { x: 0, y: 12 },
+            end: { x: 4, y: 14 },
+          })
+        : undefined,
     onData: (listener: (payload: string) => void) => {
       dataListeners.push(listener);
       return { dispose: () => dataListeners.splice(dataListeners.indexOf(listener), 1) };

@@ -15,7 +15,7 @@ import type { TerminalGapBuffer } from "./terminal-gap-buffer";
 
 export interface TerminalResyncPort {
   /** Fetches the current screen and the sequence it ends at. */
-  readSnapshot: () => Promise<{ content: string; seq: number }>;
+  readSnapshot: () => Promise<{ content: string; seq: number; busy: boolean }>;
   /** Clears the emulator. Runs inside the serialized emulator chain. */
   reset: () => void;
   write: (content: string) => Promise<void>;
@@ -25,6 +25,8 @@ export interface TerminalResyncPort {
   commit: (seqEnd: number) => void;
   setStatus: (status: "resyncing" | "connected") => void;
   setInputEnabled: (enabled: boolean) => void;
+  /** Reports that the snapshot and held tail now form one continuous screen. */
+  onRecovered: () => void;
   reportError: (cause: unknown, fallback: string) => void;
   /** Abandons the connection and asks again from the last drawn byte. */
   reconnectFromCommitted: () => void;
@@ -99,11 +101,12 @@ export class TerminalResync {
       } while (this.queued);
       this.port.setStatus("connected");
       this.port.setInputEnabled(this.port.mayWrite());
+      this.port.onRecovered();
     } catch (cause) {
       if (this.port.isStopped() || epoch !== this.port.currentEpoch()) return;
-      // Credit for held bytes still goes back: they were received, and a
-      // stalled window would freeze the terminal on top of a failed catch-up.
-      this.port.gapBuffer.discard();
+      // This socket is abandoned below. Its held tail is replayed from the last
+      // committed byte on the fresh connection, so none of it belongs here.
+      this.port.gapBuffer.drop();
       this.port.reportError(cause, "The terminal could not catch up after skipped output.");
       // Carrying on over this socket would commit every later frame onto a
       // screen that still has a hole in it.
@@ -116,6 +119,9 @@ export class TerminalResync {
   private async rebuild(epoch: number): Promise<void> {
     const snapshot = await this.port.readSnapshot();
     if (this.port.isStopped() || epoch !== this.port.currentEpoch()) return;
+    if (snapshot.busy) {
+      throw new Error("The terminal screen is still rebuilding.");
+    }
     // Reset, snapshot and the held tail are one indivisible step on the screen:
     // nothing else may write between them, or a frame issued before the gap
     // would land on top of the screen that replaced it.

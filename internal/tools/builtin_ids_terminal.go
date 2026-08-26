@@ -1,7 +1,6 @@
 package tools
 
-// Integrated-terminal native tool IDs. Registration is intentionally deferred
-// until the runtime and web surfaces co-ship.
+// Integrated-terminal native tool IDs registered by the terminal toolset.
 const (
 	ToolIDTerminalExec         ToolID = "compozy__terminal_exec"
 	ToolIDTerminalOpen         ToolID = "compozy__terminal_open"

@@ -8,10 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/spf13/cobra"
 )
 
-const terminalCLIActorID = "operator"
+const terminalCLIActorID = terminalpkg.OperatorActorID
 
 func writeTerminalOpenAttachBanner(output io.Writer, terminal TerminalRecord) error {
 	_, err := fmt.Fprintf(

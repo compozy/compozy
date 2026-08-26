@@ -67,6 +67,53 @@ const (
 	nativeNetworkTestWorkspaceIdentityID = "01NATIVEWORKSPACEIDENTITY"
 )
 
+func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
+	t.Run("Should call terminal tools through the daemon dependency builder", func(t *testing.T) {
+		t.Parallel()
+		manager, err := terminalpkg.NewManager()
+		if err != nil {
+			t.Fatalf("terminal.NewManager() error = %v", err)
+		}
+		if err := manager.Start(t.Context()); err != nil {
+			t.Fatalf("terminal manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 3*time.Second)
+			defer cancel()
+			if err := manager.Shutdown(ctx); err != nil {
+				t.Errorf("terminal manager Shutdown() error = %v", err)
+			}
+		})
+
+		daemon := &Daemon{}
+		state := &bootState{logger: discardLogger(), terminals: manager}
+		deps := daemon.nativeToolsDeps(state, func() toolspkg.Registry { return nil })
+		registry := newDaemonNativeRegistry(t, &deps, nativeApproveAllPolicyInputs())
+		result, err := registry.Call(t.Context(), toolspkg.Scope{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", AgentName: "agent-a",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)})
+		if err != nil {
+			t.Fatalf("terminal list through daemon provider error = %v", err)
+		}
+		requireNativeStructuredContains(t, result, []byte(`"terminals":[]`))
+	})
+
+	t.Run("Should mark terminal tools unavailable when terminal boot did not produce a manager", func(t *testing.T) {
+		t.Parallel()
+		daemon := &Daemon{}
+		state := &bootState{logger: discardLogger()}
+		deps := daemon.nativeToolsDeps(state, func() toolspkg.Registry { return nil })
+		if manager := deps.Terminals(); manager != nil {
+			t.Fatalf("terminal dependency = %#v, want nil", manager)
+		}
+		registry := newDaemonNativeRegistry(t, &deps, nativeApproveAllPolicyInputs())
+		_, err := registry.Call(t.Context(), toolspkg.Scope{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", AgentName: "agent-a",
+		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)})
+		requireToolReason(t, err, toolspkg.ErrToolUnavailable, toolspkg.ReasonDependencyMissing)
+	})
+}
+
 func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(t *testing.T) { // UT-068, UT-089, UT-090, IT-008, IT-034, IT-036
 	t.Parallel()
 	handle := &terminalNativeHandleStub{
@@ -448,8 +495,8 @@ func (h *terminalNativeHandleStub) Yield(context.Context, terminalpkg.Actor) err
 func (h *terminalNativeHandleStub) RequestInput(context.Context, terminalpkg.InputRequest) (*terminalpkg.InputOutcome, error) {
 	return h.inputResult, nil
 }
-func (*terminalNativeHandleStub) AnswerInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, terminalpkg.InputAnswer) error {
-	return nil
+func (*terminalNativeHandleStub) AnswerInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, terminalpkg.InputAnswer) (*terminalpkg.InputOutcome, error) {
+	return &terminalpkg.InputOutcome{Outcome: "answered"}, nil
 }
 func (*terminalNativeHandleStub) RejectInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, string) error {
 	return nil

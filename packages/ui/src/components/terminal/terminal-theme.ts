@@ -37,6 +37,7 @@ const TERMINAL_THEME_TOKENS: ReadonlyArray<readonly [keyof TerminalThemeColors, 
   ["background", "--terminal-bg"],
   ["foreground", "--terminal-fg"],
   ["cursor", "--terminal-cursor"],
+  // xterm needs the color beneath its cursor; the canonical ramp deliberately reuses the background.
   ["cursorAccent", "--terminal-bg"],
   ["selectionBackground", "--terminal-selection"],
   ["black", "--terminal-ansi-0"],

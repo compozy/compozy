@@ -33,17 +33,11 @@ compozy terminal attach <id> [flags]
 
 ## Output Formats
 
-The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+This command writes an interactive terminal stream. The inherited `-o, --output` and `--json` flags do not serialize attached terminal bytes.
 
-| Format  | Command result                          |
-| ------- | --------------------------------------- |
-| `human` | Interactive terminal rendering          |
-| `json`  | Machine-readable JSON rendering         |
-| `jsonl` | One JSON record per line when supported |
-| `toon`  | Compact agent-readable rendering        |
-
-Example:
-
-```bash
-compozy terminal attach <id> -o json
-```
+| Format  | Stream output                  |
+| ------- | ------------------------------ |
+| `human` | Interactive terminal rendering |
+| `json`  | Not supported                  |
+| `jsonl` | Not supported                  |
+| `toon`  | Not supported                  |

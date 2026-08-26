@@ -1,7 +1,6 @@
 package terminal
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -54,7 +53,7 @@ func newLeaseMachine(initial Actor, writer io.Writer, grace time.Duration, onTra
 		machine.state = LeaseHumanOwned
 		machine.controller = cloneActor(&initial)
 	} else if initial.Kind == ActorKindAgent {
-		machine.fallback = Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: initial.ProfileID}
+		machine.fallback = Actor{Kind: ActorKindHuman, ID: OperatorActorID, ProfileID: initial.ProfileID}
 		machine.state = LeaseAgentOwned
 		machine.controller = cloneActor(&initial)
 	}
@@ -65,6 +64,18 @@ func (m *leaseMachine) snapshot() (LeaseState, *Actor) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.state, cloneActor(m.controller)
+}
+
+func (m *leaseMachine) withAgentController(register func(Actor) error) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.controller == nil || m.controller.Kind != ActorKindAgent {
+		return &Error{
+			Code: "write_owner_held", Message: "only the controlling agent can request terminal input",
+			Controller: cloneActor(m.controller), Err: ErrWriteOwnerHeld,
+		}
+	}
+	return register(*m.controller)
 }
 
 func (m *leaseMachine) deliver(actor Actor, input []byte) error {
@@ -386,8 +397,4 @@ func cloneActor(actor *Actor) *Actor {
 	}
 	copyOfActor := *actor
 	return &copyOfActor
-}
-
-func isLeaseError(err error) bool {
-	return errors.Is(err, ErrGenerationFenced) || errors.Is(err, ErrLeaseRevoked) || errors.Is(err, ErrWriteOwnerHeld)
 }

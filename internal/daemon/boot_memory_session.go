@@ -49,6 +49,11 @@ func (d *Daemon) bootMemorySessionRuntime(
 		state.notifier.setSessionProfileResolver(
 			daemonSessionProfileResolver(sessions, "daemon: hook session profile is unavailable"),
 		)
+		if state.terminals != nil {
+			state.notifier.AddTaskRunTerminalObserver(&terminalRunLifecycleObserver{
+				terminals: state.terminals, sessions: sessions,
+			})
+		}
 	}
 	if state.harnessRecorder != nil {
 		state.harnessRecorder.SetProfileResolver(

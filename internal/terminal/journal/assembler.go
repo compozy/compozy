@@ -30,12 +30,23 @@ func (s *Service) RegisterTerminal(
 	if s == nil || info.ID == "" {
 		return
 	}
+	s.ensureLane(info, setBlocked, emit)
+}
+
+func (s *Service) ensureLane(
+	info terminalpkg.Info,
+	setBlocked func(bool),
+	emit func(terminalpkg.TerminalEvent),
+) (*terminalLane, bool) {
 	key := terminalLaneKey(info)
 	s.mu.Lock()
-	if s.lanes[key] == nil {
-		s.lanes[key] = newTerminalLane(s, info, setBlocked, emit)
+	defer s.mu.Unlock()
+	if lane := s.lanes[key]; lane != nil {
+		return lane, false
 	}
-	s.mu.Unlock()
+	lane := newTerminalLane(s, info, setBlocked, emit)
+	s.lanes[key] = lane
+	return lane, true
 }
 
 // ConsumeMarkerFacts assembles authenticated shell facts without parsing bytes again.
@@ -102,10 +113,18 @@ func (l *terminalLane) finishAssembly(exitCode *int, finishedAt time.Time) {
 		StartedAt: assembly.startedAt, DurationMs: &duration, ExitCode: exitCode,
 		ExitCause: exitCause, DetectedBy: detectedBy, Approval: approvalForActor(actor),
 	}
+	l.finishCommand(row, finishedAt)
+}
+
+func (l *terminalLane) finishCommand(row terminalpkg.CommandRow, finishedAt time.Time) {
+	duration := int64(0)
+	if row.DurationMs != nil {
+		duration = *row.DurationMs
+	}
 	l.enqueue(row)
 	l.emitEvent(terminalpkg.TerminalEvent{
 		Kind: terminalpkg.EventKindCommandFinished, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,
-		TerminalID: l.info.ID, Actor: actor, At: finishedAt,
+		TerminalID: l.info.ID, Actor: row.Actor, At: finishedAt,
 		Detail: terminalpkg.EventDetail{
 			CommandID: row.ID, ExitCode: row.ExitCode, ExitCause: row.ExitCause,
 			DurationMS: duration, DetectedBy: row.DetectedBy, Approval: row.Approval,

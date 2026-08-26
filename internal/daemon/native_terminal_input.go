@@ -1,6 +1,9 @@
 package daemon
 
-import terminalpkg "github.com/compozy/compozy/internal/terminal"
+import (
+	"github.com/compozy/compozy/internal/api/contract"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
+)
 
 type terminalExecInput struct {
 	Command string                  `json:"command"`
@@ -51,7 +54,7 @@ type terminalSignalInput struct {
 	Signal     string `json:"signal"`
 }
 
-type terminalRequestInputInput struct {
+type terminalInputRequestInput struct {
 	TerminalID    string `json:"terminal_id"`
 	Reason        string `json:"reason"`
 	PromptExcerpt string `json:"prompt_excerpt"`
@@ -63,7 +66,4 @@ type terminalYieldInput struct {
 	Reason     string `json:"reason"`
 }
 
-type terminalToolInfo struct {
-	terminalpkg.Info
-	ProfileName string `json:"profile_name"`
-}
+type terminalToolInfo = contract.TerminalInfoPayload

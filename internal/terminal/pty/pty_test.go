@@ -201,7 +201,7 @@ func TestUnixPTYHardening(t *testing.T) {
 		if err := proc.Kill(SignalHUP); err != nil {
 			t.Fatalf("Kill(HUP) error = %v", err)
 		}
-		if elapsed := time.Since(started); elapsed > killGrace+500*time.Millisecond {
+		if elapsed := time.Since(started); elapsed > processGroupGrace+500*time.Millisecond {
 			t.Fatalf("kill escalation took %s", elapsed)
 		}
 		exit, err := proc.Wait(context.Background())
@@ -287,7 +287,7 @@ func TestPipeRunnerContract(t *testing.T) {
 		if err := proc.Kill(SignalHUP); err != nil {
 			t.Fatalf("Kill(HUP) error = %v", err)
 		}
-		if elapsed := time.Since(started); elapsed > killGrace+500*time.Millisecond {
+		if elapsed := time.Since(started); elapsed > processGroupGrace+500*time.Millisecond {
 			t.Fatalf("pipe escalation took %s", elapsed)
 		}
 		exit, err := proc.Wait(context.Background())

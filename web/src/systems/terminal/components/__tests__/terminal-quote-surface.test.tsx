@@ -42,10 +42,10 @@ describe("TerminalSelectionActions", () => {
       />
     );
 
-    await userEvent.click(screen.getByText("Send to conversation"));
+    await userEvent.click(screen.getByRole("button", { name: "Send to conversation" }));
     expect(onSendToConversation).toHaveBeenCalledOnce();
 
-    await userEvent.click(screen.getByText("Copy"));
+    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
     expect(onCopy).toHaveBeenCalledOnce();
   });
 
@@ -66,13 +66,13 @@ describe("TerminalSelectionActions", () => {
     // Never a dead end: the gesture says what is missing and offers both ways
     // to fix it, with copying as the fallback that always works.
     expect(screen.getByTestId("terminal-selection-actions-no-session")).toBeInTheDocument();
-    await userEvent.click(screen.getByText("Choose a session…"));
+    await userEvent.click(screen.getByRole("button", { name: "Choose a session…" }));
     expect(onChooseSession).toHaveBeenCalledOnce();
 
-    await userEvent.click(screen.getByText("Start a session with this quote"));
+    await userEvent.click(screen.getByRole("button", { name: "Start a session with this quote" }));
     expect(onStartSession).toHaveBeenCalledOnce();
 
-    await userEvent.click(screen.getByText("Copy as quoted block"));
+    await userEvent.click(screen.getByRole("button", { name: "Copy as quoted block" }));
     expect(onCopy).toHaveBeenCalledOnce();
   });
 });

@@ -16,7 +16,7 @@ export const terminalRouteStories = [
   {
     system: "terminal",
     routePath: "/terminal/$terminalId",
-    storybookPath: "/terminal/term-dev-server",
+    storybookPath: "/terminal/term-4f21c9a03b7e",
     title: "systems/terminal/routes/Terminal",
     storyName: "Controlled",
   },

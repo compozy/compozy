@@ -239,7 +239,7 @@ compozy status [flags]
 	t.Run("Should distinguish accepted values from result renderers", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileResult)
+		result := renderOutputFormatsSection(body, OutputProfileResult, "compozy status")
 		if !strings.Contains(result, "## Output Formats") {
 			t.Fatal("expected output formats section heading")
 		}
@@ -270,7 +270,7 @@ compozy status [flags]
 			{profile: OutputProfileResult, format: "json"},
 			{profile: OutputProfileHumanJSONL, format: "jsonl"},
 		} {
-			result := renderOutputFormatsSection(executableBody, test.profile)
+			result := renderOutputFormatsSection(executableBody, test.profile, "compozy window resize")
 			want := "compozy window resize --id \"$WINDOW_ID\" --rect 0.10,0.10,0.80,0.80 -o " + test.format
 			if !strings.Contains(result, want) {
 				t.Fatalf("output example = %q, want command %q", result, want)
@@ -290,7 +290,7 @@ compozy status [flags]
 			1,
 		)
 		for _, profile := range []OutputProfile{OutputProfileResult, OutputProfileHumanJSONL} {
-			result := renderOutputFormatsSection(markedBody, profile)
+			result := renderOutputFormatsSection(markedBody, profile, "compozy status")
 			for _, ignored := range []string{
 				"compozy prose-only",
 				"compozy outside-examples",
@@ -306,7 +306,7 @@ compozy status [flags]
 	t.Run("Should keep help-only groups human-readable", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileHelp)
+		result := renderOutputFormatsSection(body, OutputProfileHelp, "compozy status")
 		if !strings.Contains(result, "Not emitted for help") {
 			t.Fatal("expected help-only output matrix")
 		}
@@ -318,7 +318,7 @@ compozy status [flags]
 	t.Run("Should document human and JSONL streams precisely", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileHumanJSONL)
+		result := renderOutputFormatsSection(body, OutputProfileHumanJSONL, "compozy status")
 		if !strings.Contains(result, "`jsonl` | One JSON event per line") {
 			t.Fatal("expected JSONL stream contract")
 		}
@@ -327,6 +327,47 @@ compozy status [flags]
 		}
 		if strings.Contains(result, "compozy status -o json\n") {
 			t.Fatal("stream output must not advertise unsupported JSON output")
+		}
+	})
+
+	t.Run("Should keep attached terminal streams human-only", func(t *testing.T) {
+		t.Parallel()
+
+		result := renderOutputFormatsSection(body, OutputProfileTerminalInteractive, "compozy terminal attach")
+		if !strings.Contains(result, "do not serialize attached terminal bytes") {
+			t.Fatal("expected attached terminal stream warning")
+		}
+		if strings.Contains(result, "compozy status -o json") {
+			t.Fatal("interactive terminal stream must not advertise a JSON example")
+		}
+	})
+
+	t.Run("Should require detach before structured terminal-open output", func(t *testing.T) {
+		t.Parallel()
+
+		result := renderOutputFormatsSection(body, OutputProfileTerminalOpen, "compozy terminal open")
+		if !strings.Contains(result, "compozy status --detach -o json") {
+			t.Fatalf("terminal-open output example = %q, want detached JSON command", result)
+		}
+	})
+
+	t.Run("Should make terminal quote examples executable", func(t *testing.T) {
+		t.Parallel()
+
+		quoteBody := strings.ReplaceAll(body, "compozy status", "compozy terminal quote")
+		result := renderOutputFormatsSection(quoteBody, OutputProfileResult, "compozy terminal quote")
+		if !strings.Contains(result, "compozy terminal quote --lines 1-5 -o json") {
+			t.Fatalf("terminal quote output example = %q, want an explicit line range", result)
+		}
+	})
+
+	t.Run("Should place output flags before a child-command separator", func(t *testing.T) {
+		t.Parallel()
+
+		got := outputExampleCommand("compozy terminal exec -- <command> [args...]")
+		want := "compozy terminal exec -o json -- <command> [args...]"
+		if got != want {
+			t.Fatalf("output example = %q, want %q", got, want)
 		}
 	})
 }

@@ -10,15 +10,16 @@ INSERT INTO terminal_commands (
   sqlc.narg(exit_code), sqlc.narg(exit_signal), sqlc.arg(exit_cause),
   sqlc.arg(detected_by), sqlc.arg(approval), sqlc.arg(output_bytes),
   sqlc.arg(truncated), sqlc.narg(recording_id)
-)
-ON CONFLICT(id) DO NOTHING;
+);
 
--- name: UpdateTerminalCommandRecording :execrows
+-- name: UpdateTerminalCommandRecording :exec
 UPDATE terminal_commands
 SET recording_id = sqlc.arg(recording_id)
 WHERE terminal_id = sqlc.arg(terminal_id)
   AND profile_id = sqlc.arg(profile_id)
-  AND started_at >= sqlc.arg(recording_started_at);
+  AND started_at >= sqlc.arg(recording_started_at)
+  AND (sqlc.narg(recording_stopped_at) IS NULL OR started_at <= sqlc.narg(recording_stopped_at))
+  AND recording_id IS NULL;
 
 -- name: InsertTerminalArtifact :exec
 INSERT INTO terminal_artifacts (

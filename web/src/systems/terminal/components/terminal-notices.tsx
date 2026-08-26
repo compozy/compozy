@@ -1,5 +1,11 @@
-import { ScissorsLineDashed, ShieldAlert, TicketX, Unplug, Users } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+import {
+  ScissorsLineDashed,
+  ShieldAlert,
+  TicketX,
+  Unplug,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle, Button, MonoId } from "@compozy/ui";
 

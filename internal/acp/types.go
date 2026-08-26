@@ -70,10 +70,8 @@ const (
 	RuntimeApplicationProviderManaged RuntimeApplicationStrategy = "provider_managed"
 )
 
-const (
-	// AgentEventOriginAgentReported marks observational output supplied by the agent runtime.
-	AgentEventOriginAgentReported = "agent_reported"
-)
+// AgentEventOriginAgentReported marks observational output supplied by the agent runtime.
+const AgentEventOriginAgentReported = "agent_reported"
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {

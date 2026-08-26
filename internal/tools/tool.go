@@ -258,6 +258,8 @@ type HookRunner interface {
 }
 
 // ApprovalBridge mediates approval-required calls before provider execution.
+// Implementations may annotate call and view through the supplied pointers;
+// dispatch preserves those annotations for the provider and event ledger.
 type ApprovalBridge interface {
 	RequestToolApproval(ctx context.Context, scope Scope, call *CallRequest, view *ToolView) error
 }

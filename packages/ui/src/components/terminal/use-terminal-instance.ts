@@ -27,6 +27,7 @@ export interface UseTerminalInstanceOptions {
   onProposeDimensions: (dimensions: TerminalDimensions) => void;
   onRendererChange: (renderer: TerminalRendererKind) => void;
   onAttached: (instance: TerminalInstance) => void;
+  onLoadError: (cause: unknown) => void;
 }
 
 /** The emulator settings one view wants written onto the buffer it adopts. */
@@ -73,6 +74,9 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
   const emitAttached = useEffectEvent((instance: TerminalInstance) => {
     options.onAttached(instance);
   });
+  const emitLoadError = useEffectEvent((cause: unknown) => {
+    options.onLoadError(cause);
+  });
   const readViewOptions = useEffectEvent(
     (): TerminalViewOptions => ({
       readOnly: options.readOnly,
@@ -88,7 +92,13 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
     let release: (() => void) | null = null;
 
     void (async () => {
-      const engine = await engineLoader();
+      let engine: TerminalEngine;
+      try {
+        engine = await engineLoader();
+      } catch (cause: unknown) {
+        if (!cancelled) emitLoadError(cause);
+        return;
+      }
       if (cancelled) return;
       const instance =
         getTerminalInstance(instanceKey) ??

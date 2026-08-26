@@ -13,16 +13,22 @@ import (
 
 	"github.com/compozy/compozy/internal/redact"
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
+	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 const (
 	defaultExecYield = 10 * time.Second
 	minimumExecYield = 250 * time.Millisecond
 	maximumExecYield = 30 * time.Second
+	execCaptureLimit = 4 << 20
 )
 
 type artifactWriter interface {
 	WriteArtifact(context.Context, string, string, string, *ID, []byte, time.Time) (SpillRef, error)
+}
+
+type queuedJournal interface {
+	RecordQueued(context.Context, Info, CommandRow) error
 }
 
 type execRun struct {
@@ -61,7 +67,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	}
 	if request.Visible {
 		if err := m.publishExec(ctx, run, request); err != nil {
-			return nil, errors.Join(err, cleanupExecRun(run.item))
+			return nil, errors.Join(err, cleanupExecRun(ctx, run.item, err))
 		}
 		run.settlePublication()
 	}
@@ -86,7 +92,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		if !request.Visible {
 			if err := m.publishExec(ctx, run, request); err != nil {
 				run.settlePublication()
-				return nil, errors.Join(err, cleanupExecRun(run.item))
+				return nil, errors.Join(err, cleanupExecRun(ctx, run.item, err))
 			}
 		}
 		run.settlePublication()
@@ -94,7 +100,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		return &ExecResult{StillRunning: true, TerminalID: &id, Untrusted: true, CommandID: run.commandID}, nil
 	case <-ctx.Done():
 		run.settlePublication()
-		return nil, errors.Join(ctx.Err(), cleanupExecRun(run.item))
+		return nil, errors.Join(ctx.Err(), cleanupExecRun(ctx, run.item, ctx.Err()))
 	}
 }
 
@@ -138,12 +144,20 @@ func execYieldDuration(value int) (time.Duration, error) {
 		return defaultExecYield, nil
 	}
 	duration := time.Duration(value) * time.Millisecond
+	if err := ValidateExecYieldDuration(duration); err != nil {
+		return 0, err
+	}
+	return duration, nil
+}
+
+// ValidateExecYieldDuration enforces the public terminal exec yield range.
+func ValidateExecYieldDuration(duration time.Duration) error {
 	if duration < minimumExecYield || duration > maximumExecYield {
-		return 0, &Error{
+		return &Error{
 			Code: "timeout_out_of_range", Message: "terminal exec yield_ms must be between 250 and 30000", Err: ErrUnsupported,
 		}
 	}
-	return duration, nil
+	return nil
 }
 
 func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []string) (*execRun, error) {
@@ -180,7 +194,7 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 		ptyMode = terminalpty.ModePTY
 	}
 	title := SanitizeTitle(strings.Join(argv, " "))
-	spec := ProcSpec{Argv: argv, Cwd: cwd, Env: cloneStringMap(request.Env), Cols: 80, Rows: 24, Mode: ptyMode, Title: title, MarkerNonce: nonce}
+	spec := ProcSpec{Argv: argv, Cwd: cwd, Env: cloneStringMap(request.Env), Cols: 80, Rows: 24, Mode: ptyMode, MarkerNonce: nonce}
 	proc, err := m.pty.Start(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start exec %q: %w", argv[0], err)
@@ -218,6 +232,7 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 	if err := m.insert(run.key, run.item); err != nil {
 		return err
 	}
+	m.registerJournalTerminal(run.item)
 	run.registered.Store(true)
 	info := run.item.Info()
 	m.events.Emit(ctx, TerminalEvent{
@@ -242,16 +257,20 @@ func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
 	if request.Actor.Kind == ActorKindHuman {
 		approval = "human"
 	}
-	content := run.item.capturedOutput()
+	_, captureTruncated, outputBytes := run.item.capturedOutput()
 	row := CommandRow{
 		ID: run.commandID, ProfileID: info.ProfileID, ProfileName: run.item.profileName, Actor: request.Actor,
 		Command: redact.String(strings.Join(argv, " ")), ArgvDigest: &digest, Cwd: info.Cwd, StartedAt: run.startedAt,
 		DurationMs: &duration, ExitCause: info.Exit.Cause, ExitCode: info.Exit.Code, ExitSignal: info.Exit.Signal,
-		DetectedBy: "exact", Approval: approval, OutputBytes: int64(len(content)),
+		DetectedBy: "exact", Approval: approval, OutputBytes: outputBytes, Truncated: captureTruncated,
 	}
 	if run.registered.Load() {
 		id := info.ID
 		row.TerminalID = &id
+	}
+	if queued, ok := m.journal.(queuedJournal); ok {
+		run.journaled <- queued.RecordQueued(context.Background(), info, row)
+		return
 	}
 	run.journaled <- m.journal.Record(context.Background(), info.WS, row)
 }
@@ -271,17 +290,21 @@ func (r *execRun) settlePublication() {
 
 func (m *Service) execResult(ctx context.Context, run *execRun, request ExecRequest) (*ExecResult, error) {
 	info := run.item.Info()
-	content := run.item.capturedOutput()
-	output, truncated := shapeOutput(content, request.Output)
+	content, captureTruncated, _ := run.item.capturedOutput()
+	output, truncated, err := shapeOutput(modelFacingOutput(content), request.Output)
+	if err != nil {
+		return nil, err
+	}
 	result := &ExecResult{
-		ExitCode: info.Exit.Code, Signal: info.Exit.Signal, Output: output, Truncated: truncated, Untrusted: true,
+		ExitCode: info.Exit.Code, Signal: info.Exit.Signal, Output: output,
+		Truncated: truncated || captureTruncated, Untrusted: true,
 		DurationMs: m.now().Sub(run.startedAt).Milliseconds(), CommandID: run.commandID,
 	}
 	if run.registered.Load() {
 		id := info.ID
 		result.TerminalID = &id
 	}
-	if truncated {
+	if truncated || captureTruncated {
 		writer, ok := m.journal.(artifactWriter)
 		if ok {
 			spill, err := writer.WriteArtifact(ctx, info.WS, info.ProfileID, run.commandID, result.TerminalID, content, m.now().Add(infoSettingsRetention(run.item)))
@@ -301,16 +324,24 @@ func infoSettingsRetention(item *session) time.Duration {
 }
 
 func newCommandID(entropy io.Reader) (string, error) {
-	raw := make([]byte, 8)
+	raw := make([]byte, 3)
 	if _, err := io.ReadFull(entropy, raw); err != nil {
 		return "", fmt.Errorf("terminal: generate command id: %w", err)
 	}
 	return "cmd-" + hex.EncodeToString(raw), nil
 }
 
-func cleanupExecRun(item *session) error {
+func cleanupExecRun(ctx context.Context, item *session, cause error) error {
 	if item == nil {
 		return nil
 	}
-	return cleanupUnregisteredProcess(item.proc)
+	cleanupErr := cleanupUnregisteredProcess(item.proc)
+	var completeErr error
+	if item.processRecord != nil {
+		completeErr = item.processRecord.Complete(
+			context.WithoutCancel(ctx),
+			toolruntime.ProcessCompletion{Err: cause, Error: "terminal exec rollback"},
+		)
+	}
+	return errors.Join(cleanupErr, completeErr)
 }

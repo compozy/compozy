@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -38,6 +38,39 @@ import {
  */
 
 const TERMINAL_LIMIT = 8;
+
+function attachedPayload(overrides: Record<string, unknown> = {}) {
+  return {
+    seq: 0,
+    truncated: false,
+    lease: "human_owned",
+    mode: "pty",
+    cols: 96,
+    rows: 28,
+    ...overrides,
+  };
+}
+
+function humanOwnerPayload(actorId: string) {
+  return {
+    lease: "human_owned",
+    actor_kind: "human",
+    actor_id: actorId,
+    reason: "takeover",
+  };
+}
+
+async function waitForTerminalRenderer(terminalId: string) {
+  await act(async () => {
+    await Promise.resolve();
+  });
+  await waitFor(() => {
+    const view = screen
+      .getByTestId(`terminal-pane-${terminalId}`)
+      .querySelector('[data-slot="terminal-view"]');
+    expect(view).toHaveAttribute("data-renderer");
+  });
+}
 
 let restoreFetch: (() => void) | null = null;
 
@@ -167,31 +200,17 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(connecting).toHaveTextContent("Connecting…");
     expect(connecting).toHaveAttribute("data-status", "connecting");
 
-    await socket.deliver(TERMINAL_SERVER_OP.attached, {
-      seq: 0,
-      truncated: false,
-      lease: "human_owned",
-      mode: "pty",
-      cols: 96,
-      rows: 28,
-    });
+    await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
     await waitFor(() => expect(screen.queryByTestId("terminal-connecting")).toBeNull());
 
     const passesBeforeDrop = socket.connectionCount();
-    socket.drop();
+    await socket.drop();
     const reconnecting = await screen.findByTestId("terminal-connecting");
     expect(reconnecting).toHaveTextContent("Reconnecting…");
     expect(reconnecting).toHaveAttribute("data-status", "reconnecting");
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
     await socket.readyForConnectionCount(passesBeforeDrop + 1);
-    await socket.deliver(TERMINAL_SERVER_OP.attached, {
-      seq: 0,
-      truncated: false,
-      lease: "human_owned",
-      mode: "pty",
-      cols: 96,
-      rows: 28,
-    });
+    await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
 
     // A gap rebuilds the screen from the server, and says so while it does.
     await socket.deliver(TERMINAL_SERVER_OP.gap, {
@@ -327,16 +346,20 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
   });
 
-  it("Should mark the tab of a terminal that is waiting on an answer", () => {
+  it("Should mark the tab of a terminal that is waiting on an answer", async () => {
     renderWindow({ inputRequests: [PASSWORD_REQUEST] });
+
+    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
 
     expect(
       screen.getByTestId(`terminal-tab-attention-${PASSWORD_REQUEST.terminal_id}`)
     ).toBeInTheDocument();
   });
 
-  it("Should show a recording as running, with the way to stop it", () => {
+  it("Should show a recording as running, with the way to stop it", async () => {
     renderWindow({ recordings: { [DEV_SERVER_TERMINAL.id]: { elapsed: "02:14" } } });
+
+    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
 
     expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 02:14");
     expect(screen.getByTestId("terminal-stop-recording")).toBeInTheDocument();
@@ -405,21 +428,9 @@ describe("TerminalWindowApp — contention", () => {
 
     await waitFor(() => expect(screen.getByTestId("terminal-take-control")).toBeInTheDocument());
     await socket.ready();
-    await socket.deliver(TERMINAL_SERVER_OP.attached, {
-      seq: 0,
-      truncated: false,
-      lease: "agent_owned",
-      mode: "pty",
-      cols: 96,
-      rows: 28,
-    });
+    await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload({ lease: "agent_owned" }));
     // The daemon then hands the lease to this viewer.
-    await socket.deliver(TERMINAL_SERVER_OP.owner, {
-      lease: "human_owned",
-      actor_kind: "human",
-      actor_id: TERMINAL_FIXTURE_VIEWER,
-      reason: "takeover",
-    });
+    await socket.deliver(TERMINAL_SERVER_OP.owner, humanOwnerPayload(TERMINAL_FIXTURE_VIEWER));
 
     await waitFor(() => expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument());
     expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
@@ -450,12 +461,7 @@ describe("TerminalWindowApp — contention", () => {
     expect(screen.getByTestId("terminal-lease-badge")).not.toHaveAttribute("aria-live");
 
     await socket.ready();
-    await socket.deliver(TERMINAL_SERVER_OP.owner, {
-      lease: "human_owned",
-      actor_kind: "human",
-      actor_id: TERMINAL_FIXTURE_VIEWER,
-      reason: "takeover",
-    });
+    await socket.deliver(TERMINAL_SERVER_OP.owner, humanOwnerPayload(TERMINAL_FIXTURE_VIEWER));
 
     await waitFor(() =>
       expect(screen.getByTestId("terminal-lease-label")).toHaveTextContent("You're in control")
@@ -500,18 +506,17 @@ describe("TerminalWindowApp — contention", () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
 
+    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
     await socket.ready();
-    await socket.deliver(TERMINAL_SERVER_OP.attached, {
-      seq: 0,
-      truncated: false,
-      lease: "human_owned",
-      mode: "pty",
-      // The smallest controlling viewer decides, so this is frequently not the
-      // size this window would have chosen.
-      cols: 80,
-      rows: 24,
-    });
-
+    await socket.deliver(
+      TERMINAL_SERVER_OP.attached,
+      attachedPayload({
+        // The smallest controlling viewer decides, so this is frequently not the
+        // size this window would have chosen.
+        cols: 80,
+        rows: 24,
+      })
+    );
     await waitFor(() =>
       expect(screen.getByTestId("terminal-grid-chip")).toHaveTextContent("80×24")
     );

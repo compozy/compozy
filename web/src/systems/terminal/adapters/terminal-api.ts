@@ -22,6 +22,7 @@ import type {
   TerminalReadResult,
   TerminalReadView,
   TerminalRecording,
+  TerminalProfileScopeParams,
   TerminalScopeParams,
   TerminalSignal,
 } from "../types";
@@ -50,6 +51,10 @@ interface TerminalErrorEnvelope {
 
 function workspaceRoot(workspaceId: string): string {
   return `${apiBaseUrl}/api/workspaces/${encodeURIComponent(workspaceId)}/terminals`;
+}
+
+function terminalURL(workspaceId: string, terminalId: string, suffix = ""): string {
+  return `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}${suffix}`;
 }
 
 /**
@@ -116,10 +121,10 @@ export async function fetchTerminals(
 export async function fetchTerminal(
   workspaceId: string,
   terminalId: string,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   signal?: AbortSignal
 ): Promise<TerminalInfo> {
-  const url = `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}`;
+  const url = terminalURL(workspaceId, terminalId);
   const payload = await terminalRequest<{ terminal: TerminalInfo }>(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     "Failed to load the terminal",
@@ -131,7 +136,7 @@ export async function fetchTerminal(
 export async function createTerminal(
   workspaceId: string,
   input: CreateTerminalInput,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   signal?: AbortSignal
 ): Promise<TerminalInfo> {
   const payload = await terminalRequest<{ terminal: TerminalInfo }>(
@@ -145,17 +150,17 @@ export async function createTerminal(
 export async function closeTerminal(
   workspaceId: string,
   terminalId: string,
-  scope: TerminalScopeParams,
-  signal?: TerminalSignal,
+  scope: TerminalProfileScopeParams,
+  terminalSignal?: TerminalSignal,
   abortSignal?: AbortSignal
 ): Promise<TerminalExit | null> {
-  const url = `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}`;
+  const url = terminalURL(workspaceId, terminalId);
   const payload = await terminalRequest<{ exit: TerminalExit | null }>(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     "Failed to close the terminal",
     {
       method: "DELETE",
-      body: signal ? JSON.stringify({ signal }) : undefined,
+      body: terminalSignal ? JSON.stringify({ signal: terminalSignal }) : undefined,
       signal: abortSignal,
     }
   );
@@ -171,10 +176,10 @@ export async function mintTerminalAttachTicket(
   workspaceId: string,
   terminalId: string,
   mode: TerminalAttachMode,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   signal?: AbortSignal
 ): Promise<TerminalAttachTicket> {
-  const url = `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}/attach-ticket`;
+  const url = terminalURL(workspaceId, terminalId, "/attach-ticket");
   return terminalRequest<TerminalAttachTicket>(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     "Failed to open a connection pass",
@@ -195,7 +200,7 @@ export async function readTerminal(
   workspaceId: string,
   terminalId: string,
   params: TerminalReadParams,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   signal?: AbortSignal
 ): Promise<TerminalReadResult> {
   const query = terminalScopeQuery({ profile: scope.profile });
@@ -205,7 +210,7 @@ export async function readTerminal(
   if (params.from !== undefined) query.set("from", String(params.from));
   if (params.to !== undefined) query.set("to", String(params.to));
   if (params.grep) query.set("grep", params.grep);
-  const url = `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}/read`;
+  const url = terminalURL(workspaceId, terminalId, "/read");
   return terminalRequest<TerminalReadResult>(withQuery(url, query), "Failed to read the terminal", {
     method: "GET",
     signal,
@@ -216,10 +221,10 @@ export async function signalTerminal(
   workspaceId: string,
   terminalId: string,
   signal: TerminalSignal,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   abortSignal?: AbortSignal
 ): Promise<void> {
-  const url = `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}/signal`;
+  const url = terminalURL(workspaceId, terminalId, "/signal");
   await terminalRequest<{ delivered: boolean }>(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     "Failed to deliver the signal",
@@ -244,7 +249,11 @@ export async function fetchTerminalInputRequests(
 }
 
 function inputRequestRoot(workspaceId: string, terminalId: string, requestId: string): string {
-  return `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}/input-requests/${encodeURIComponent(requestId)}`;
+  return terminalURL(
+    workspaceId,
+    terminalId,
+    `/input-requests/${encodeURIComponent(requestId)}`
+  );
 }
 
 /**
@@ -256,7 +265,7 @@ export async function answerTerminalInputRequest(
   terminalId: string,
   requestId: string,
   input: string,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   abortSignal?: AbortSignal
 ): Promise<TerminalInputAnswerResult> {
   return terminalRequest<TerminalInputAnswerResult>(
@@ -274,7 +283,7 @@ export async function rejectTerminalInputRequest(
   terminalId: string,
   requestId: string,
   reason: string,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   abortSignal?: AbortSignal
 ): Promise<TerminalInputRejectResult> {
   return terminalRequest<TerminalInputRejectResult>(
@@ -291,10 +300,10 @@ export async function controlTerminalRecording(
   workspaceId: string,
   terminalId: string,
   action: "start" | "stop",
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   abortSignal?: AbortSignal
 ): Promise<TerminalRecording> {
-  const url = `${workspaceRoot(workspaceId)}/${encodeURIComponent(terminalId)}/recording`;
+  const url = terminalURL(workspaceId, terminalId, "/recording");
   const payload = await terminalRequest<{ recording: TerminalRecording }>(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     "Failed to change the recording",
@@ -329,7 +338,7 @@ export async function fetchTerminalJournal(
 export async function fetchTerminalRecording(
   workspaceId: string,
   recordingId: string,
-  scope: TerminalScopeParams,
+  scope: TerminalProfileScopeParams,
   signal?: AbortSignal
 ): Promise<string> {
   const url = withQuery(
@@ -369,14 +378,4 @@ export function terminalStreamPath(
   if (params.rows !== undefined) query.set("rows", String(params.rows));
   if (params.afterSeq !== undefined) query.set("after_seq", String(params.afterSeq));
   return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/${encodeURIComponent(terminalId)}/stream?${query.toString()}`;
-}
-
-/** The catalog SSE URL, workspace- and profile-scoped. */
-export function terminalCatalogStreamPath(
-  workspaceId: string,
-  profile: string,
-  allProfiles = false
-): string {
-  const query = terminalScopeQuery(allProfiles ? { all_profiles: true } : { profile });
-  return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`;
 }

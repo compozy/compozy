@@ -528,6 +528,10 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if got := len(requester.requests); got != 1 {
 			t.Fatalf("permission requests = %d, want 1 despite durable allow", got)
 		}
+		request := requester.lastRequest(t)
+		if got := request.Meta[acp.PermissionToolIDMetaKey]; got != toolspkg.ToolIDTerminalExec.String() {
+			t.Fatalf("permission tool id metadata = %#v, want %q", got, toolspkg.ToolIDTerminalExec)
+		}
 		if call.ApprovalLabel != "approved_once" {
 			t.Fatalf("approval label = %q, want approved_once", call.ApprovalLabel)
 		}

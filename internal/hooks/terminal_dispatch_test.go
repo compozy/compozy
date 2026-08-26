@@ -67,10 +67,13 @@ func TestDispatchTerminalHooksUseAsyncProfileOwnedPayloads(t *testing.T) {
 			t.Fatalf("timed out waiting for terminal hook %s", event)
 		}
 	}
+	// Close drains every accepted async task, so an empty channel after this
+	// barrier proves the cross-profile declaration did not run.
+	hooks.Close()
 	select {
 	case payload := <-seen:
 		t.Fatalf("cross-profile terminal hook executed: %#v", payload)
-	case <-time.After(20 * time.Millisecond):
+	default:
 	}
 }
 

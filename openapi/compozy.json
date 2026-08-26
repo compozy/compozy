@@ -95397,7 +95397,8 @@
                 "message",
                 "tool",
                 "permission",
-                "context"
+                "context",
+                "terminal"
               ],
               "type": "string"
             }
@@ -350649,30 +350650,16 @@
                         "properties": {
                           "actor": {
                             "properties": {
-                              "generation": {
-                                "format": "int64",
-                                "type": "integer"
-                              },
                               "id": {
                                 "type": "string"
                               },
                               "kind": {
                                 "type": "string"
-                              },
-                              "profile_id": {
-                                "type": "string"
-                              },
-                              "run_id": {
-                                "type": "string"
-                              },
-                              "session_id": {
-                                "type": "string"
                               }
                             },
                             "required": [
                               "id",
-                              "kind",
-                              "profile_id"
+                              "kind"
                             ],
                             "type": "object"
                           },

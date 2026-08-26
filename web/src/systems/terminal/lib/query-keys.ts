@@ -13,6 +13,8 @@ export const terminalKeys = {
     ["terminal", "catalog", scope.workspaceId, scope.profileKey] as const,
   detail: (scope: TerminalScopeKey, terminalId: string) =>
     ["terminal", "detail", scope.workspaceId, scope.profileKey, terminalId] as const,
+  read: (scope: TerminalScopeKey, terminalId: string, view: string) =>
+    ["terminal", "read", scope.workspaceId, scope.profileKey, terminalId, view] as const,
   inputRequests: (scope: TerminalScopeKey) =>
     ["terminal", "input-requests", scope.workspaceId, scope.profileKey] as const,
   journalScope: (scope: TerminalScopeKey) =>
@@ -23,11 +25,20 @@ export const terminalKeys = {
       "journal",
       scope.workspaceId,
       scope.profileKey,
-      journalFilterKey(filters),
+      journalFilterKey(terminalJournalFiltersWithDefaults(filters)),
     ] as const,
   recording: (scope: TerminalScopeKey, recordingId: string) =>
     ["terminal", "recording", scope.workspaceId, scope.profileKey, recordingId] as const,
 } as const;
+
+/** The server's page size. Paging is cursor-driven; there is no total. */
+export const TERMINAL_JOURNAL_PAGE_SIZE = 50;
+
+export function terminalJournalFiltersWithDefaults(
+  filters: TerminalJournalFilters
+): TerminalJournalFilters {
+  return { ...filters, limit: filters.limit ?? TERMINAL_JOURNAL_PAGE_SIZE };
+}
 
 /**
  * A stable, order-independent identity for a filter set.

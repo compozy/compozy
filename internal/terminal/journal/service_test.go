@@ -44,14 +44,30 @@ func TestService(t *testing.T) {
 		if err := service.Record(ctx, workspaceID, row); err != nil {
 			t.Fatalf("Record() error = %v", err)
 		}
+		for _, outside := range []terminalpkg.CommandRow{
+			{
+				ID: "cmd-before-recording", TerminalID: &terminalID, ProfileID: "profile-a",
+				Actor: row.Actor, Command: "before", Cwd: row.Cwd, StartedAt: time.UnixMilli(800),
+				ExitCause: "exited", DetectedBy: "exact", Approval: "approved_once",
+			},
+			{
+				ID: "cmd-after-recording", TerminalID: &terminalID, ProfileID: "profile-a",
+				Actor: row.Actor, Command: "after", Cwd: row.Cwd, StartedAt: time.UnixMilli(2100),
+				ExitCause: "exited", DetectedBy: "exact", Approval: "approved_once",
+			},
+		} {
+			if err := service.Record(ctx, workspaceID, outside); err != nil {
+				t.Fatalf("Record(%q) error = %v", outside.ID, err)
+			}
+		}
 		page, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: "profile-a"}, terminalpkg.Query{})
 		if err != nil {
 			t.Fatalf("Query() error = %v", err)
 		}
-		if len(page.Entries) != 1 {
-			t.Fatalf("len(entries) = %d, want 1", len(page.Entries))
+		if len(page.Entries) != 3 {
+			t.Fatalf("len(entries) = %d, want 3", len(page.Entries))
 		}
-		got := page.Entries[0]
+		got := commandRowByID(t, page, row.ID)
 		if got.ID != row.ID || got.ExitCode == nil || *got.ExitCode != 1 || got.DetectedBy != "exact" ||
 			got.Approval != "approved_once" || got.Actor.Kind != terminalpkg.ActorKindAgent {
 			t.Fatalf("Query() row = %#v, want exact persisted fields", got)
@@ -77,8 +93,77 @@ func TestService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Query(linked) error = %v", err)
 		}
-		if linked.Entries[0].RecordingID == nil || *linked.Entries[0].RecordingID != "rec-1" {
-			t.Fatalf("recording_id = %v, want rec-1", linked.Entries[0].RecordingID)
+		linkedInside := commandRowByID(t, linked, row.ID)
+		if linkedInside.RecordingID == nil || *linkedInside.RecordingID != "rec-1" {
+			t.Fatalf("inside recording_id = %v, want rec-1", linkedInside.RecordingID)
+		}
+		if before := commandRowByID(t, linked, "cmd-before-recording"); before.RecordingID != nil {
+			t.Fatalf("before recording_id = %v, want nil", before.RecordingID)
+		}
+		if after := commandRowByID(t, linked, "cmd-after-recording"); after.RecordingID != nil {
+			t.Fatalf("after recording_id = %v, want nil", after.RecordingID)
+		}
+
+		secondStoppedAt := time.UnixMilli(2200)
+		if _, err := service.PersistRecording(ctx, workspaceID, terminalID, terminalpkg.RecordingRef{
+			ID: "rec-2", TerminalID: terminalID, ProfileID: "profile-a",
+			StartedAt: time.UnixMilli(1500), StoppedAt: &secondStoppedAt, ExpiresAt: time.UnixMilli(9000),
+		}, recordingData); err != nil {
+			t.Fatalf("PersistRecording(second) error = %v", err)
+		}
+		relinked, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: "profile-a"}, terminalpkg.Query{})
+		if err != nil {
+			t.Fatalf("Query(relinked) error = %v", err)
+		}
+		if id := commandRowByID(t, relinked, row.ID).RecordingID; id == nil || *id != "rec-1" {
+			t.Fatalf("overlap recording_id = %v, want original rec-1", id)
+		}
+		if id := commandRowByID(t, relinked, "cmd-after-recording").RecordingID; id == nil || *id != "rec-2" {
+			t.Fatalf("later recording_id = %v, want rec-2", id)
+		}
+	})
+
+	t.Run("Should remove the workspace database and retained terminal files together", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(t, ctx)
+		terminalID := terminalpkg.ID("term-remove")
+		row := terminalpkg.CommandRow{
+			ID: "cmd-remove", TerminalID: &terminalID, ProfileID: "profile-a",
+			Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			Command: "pwd", Cwd: "/workspace", StartedAt: time.UnixMilli(1000),
+			ExitCause: "exited", DetectedBy: "exact", Approval: "human",
+		}
+		if err := service.Record(ctx, workspaceID, row); err != nil {
+			t.Fatalf("Record() error = %v", err)
+		}
+		artifact, err := service.WriteArtifact(
+			ctx, workspaceID, "profile-a", row.ID, &terminalID, []byte("artifact"), time.UnixMilli(9000),
+		)
+		if err != nil {
+			t.Fatalf("WriteArtifact() error = %v", err)
+		}
+		stoppedAt := time.UnixMilli(2000)
+		recording, err := service.PersistRecording(ctx, workspaceID, terminalID, terminalpkg.RecordingRef{
+			ID: "rec-remove", TerminalID: terminalID, ProfileID: "profile-a",
+			StartedAt: time.UnixMilli(900), StoppedAt: &stoppedAt, ExpiresAt: time.UnixMilli(9000),
+		}, []byte("recording"))
+		if err != nil {
+			t.Fatalf("PersistRecording() error = %v", err)
+		}
+		db, err := service.databases.Open(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("databases.Open() error = %v", err)
+		}
+		dbPath := db.Path()
+		if err := service.RemoveWorkspace(ctx, workspaceID); err != nil {
+			t.Fatalf("RemoveWorkspace() error = %v", err)
+		}
+		for _, path := range []string{artifact.Path, recording.Path, dbPath} {
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("Stat(%q) error = %v, want %v", path, err, os.ErrNotExist)
+			}
 		}
 	})
 
@@ -471,6 +556,17 @@ func newJournalTestService(t *testing.T, ctx context.Context) (*Service, string)
 
 func commandIDForIndex(index int) string {
 	return "cmd-" + string(rune('a'+index/26)) + string(rune('a'+index%26))
+}
+
+func commandRowByID(t *testing.T, page *terminalpkg.Page, id string) terminalpkg.CommandRow {
+	t.Helper()
+	for _, row := range page.Entries {
+		if row.ID == id {
+			return row
+		}
+	}
+	t.Fatalf("command row %q not found", id)
+	return terminalpkg.CommandRow{}
 }
 
 func intPointerValue(value int) *int { return &value }

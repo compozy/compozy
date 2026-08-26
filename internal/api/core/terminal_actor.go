@@ -12,7 +12,7 @@ func (h *BaseHandlers) terminalActor(
 ) (terminalpkg.Actor, bool) {
 	credentials := agentCallerCredentialsFromRequest(c)
 	if !hasAgentCallerIdentityCredentials(credentials) {
-		return terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: profileID}, true
+		return terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: terminalpkg.OperatorActorID, ProfileID: profileID}, true
 	}
 	caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, action, workspaceID)
 	if err != nil {

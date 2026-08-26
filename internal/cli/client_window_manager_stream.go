@@ -69,7 +69,7 @@ func (c *daemonClient) WatchWindowManager(
 	conn, response, err := dialer.DialContext(ctx, target, nil)
 	if err != nil {
 		if response != nil {
-			return readAndCloseWindowManagerHandshakeError(response)
+			return readAndCloseStreamHandshakeError(response)
 		}
 		if c.target.isRemoteGateway() {
 			return newGatewayReachabilityError(c.target, err)
@@ -120,11 +120,11 @@ func validateWindowManagerWatch(
 	return nil
 }
 
-func readAndCloseWindowManagerHandshakeError(response *http.Response) error {
+func readAndCloseStreamHandshakeError(response *http.Response) error {
 	apiErr := readAPIError(response)
 	closeErr := response.Body.Close()
 	if closeErr != nil {
-		closeErr = fmt.Errorf("cli: close window-manager handshake response: %w", closeErr)
+		closeErr = fmt.Errorf("cli: close stream handshake response: %w", closeErr)
 	}
 	return errors.Join(apiErr, closeErr)
 }

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -1779,7 +1778,7 @@ func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *te
 	if err != nil {
 		t.Fatalf("OnTaskRunTerminal() error = %v", err)
 	}
-	if got, want := spy.calls, []string{"profile-a/session-a/7"}; !reflect.DeepEqual(got, want) {
+	if got, want := spy.calls, []string{"profile-a/session-a/7"}; !slices.Equal(got, want) {
 		t.Fatalf("terminal run-end calls = %#v, want %#v", got, want)
 	}
 }

@@ -2,7 +2,6 @@ import { ThreadPrimitive, useAui } from "@assistant-ui/react";
 
 import { SessionGoalHeaderContainer } from "@/systems/session/components/goal/session-goal-header-container";
 import { SessionGoalCommandErrorNotice } from "@/systems/session/components/goal/session-goal-command-error-notice";
-import { SessionTerminalQuoteSlot } from "@/systems/session/components/session-terminal-quote-slot";
 
 import { useSessionComposerState } from "./hooks/use-session-composer-state";
 import { usePrefersReducedMotion } from "./hooks/use-prefers-reduced-motion";
@@ -16,6 +15,7 @@ import { ThreadViewport } from "./session-thread-viewport";
 import { WorkingIndicator } from "./session-working-row";
 import {
   SessionDecisionDock,
+  SessionTerminalQuoteSlot,
   useSessionFirstPrompt,
   type SessionFailurePayload,
   type SessionState,
@@ -51,7 +51,7 @@ interface SessionThreadProps extends Omit<SessionComposerProps, "onCancelPrompt"
 /**
  * The session surface composition root: pinned goal zone above the transcript
  * scroller, the viewport itself, and the composer zone (goal-command notice,
- * decision dock, composer) below it.
+ * quote handoff, decision dock, and composer) below it.
  */
 export function SessionThread({
   sessionId,

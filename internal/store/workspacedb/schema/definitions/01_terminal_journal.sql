@@ -16,6 +16,8 @@ CREATE INDEX idx_terminal_recordings_profile_started
 	ON terminal_recordings (profile_id, started_at DESC, id DESC);
 CREATE INDEX idx_terminal_recordings_expires
 	ON terminal_recordings (expires_at, id);
+CREATE INDEX idx_terminal_recordings_path
+	ON terminal_recordings (path, id);
 
 -- Profiles live in globaldb. Availability is enforced at terminal admission;
 -- this local trigger enforces only immutable ownership on historical rows.
@@ -54,6 +56,8 @@ CREATE INDEX idx_terminal_commands_profile_started
 	ON terminal_commands (profile_id, started_at DESC, id DESC);
 CREATE INDEX idx_terminal_commands_started
 	ON terminal_commands (started_at DESC, id DESC);
+CREATE INDEX idx_terminal_commands_recording
+	ON terminal_commands (recording_id);
 
 CREATE TRIGGER terminal_commands_profile_owner_immutable
 BEFORE UPDATE OF profile_id ON terminal_commands
@@ -78,6 +82,8 @@ CREATE INDEX idx_terminal_artifacts_profile
 	ON terminal_artifacts (profile_id, id);
 CREATE INDEX idx_terminal_artifacts_expires
 	ON terminal_artifacts (expires_at, id);
+CREATE INDEX idx_terminal_artifacts_path
+	ON terminal_artifacts (path, id);
 
 CREATE TRIGGER terminal_artifacts_profile_owner_immutable
 BEFORE UPDATE OF profile_id ON terminal_artifacts

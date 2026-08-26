@@ -23,8 +23,22 @@ import type {
   SettingsSkillSource,
   SettingsSkillSourceRoot,
   SettingsSkillsSection,
+  TerminalSettingsConfig,
 } from "@/systems/settings";
 import { storyAgentNames, storyCompany, storyWorkspacePaths } from "@/storybook/fintech-scenario";
+
+export const terminalSettingsFixture: TerminalSettingsConfig = {
+  default_shell: "",
+  shell_integration: true,
+  scrollback_bytes: 1_048_576,
+  detached_ttl: "24h",
+  exit_retention: "15m",
+  recording: false,
+  recording_retention_days: 30,
+  max_per_workspace: 8,
+  max_per_daemon: 32,
+  max_subscribers: 16,
+};
 
 export const settingsGeneralSectionFixture: SettingsGeneralSection = {
   section: "general",
@@ -44,18 +58,7 @@ export const settingsGeneralSectionFixture: SettingsGeneralSection = {
     permissions: { mode: "approve-all" },
     redact: { enabled: true },
     session_timeout: "0s",
-    terminal: {
-      default_shell: "",
-      shell_integration: true,
-      scrollback_bytes: 1_048_576,
-      detached_ttl: "24h",
-      exit_retention: "15m",
-      recording: false,
-      recording_retention_days: 30,
-      max_per_workspace: 8,
-      max_per_daemon: 32,
-      max_subscribers: 16,
-    },
+    terminal: terminalSettingsFixture,
   },
   config_paths: {
     daemon_info: "/tmp/daemon.json",

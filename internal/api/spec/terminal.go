@@ -29,8 +29,8 @@ func terminalOperations() []OperationSpec {
 		terminalRejectOperation(transports, workspace, id, requestID),
 		terminalRecordingOperation(transports, workspace, id),
 		terminalJournalOperation(transports, workspace),
-		terminalDownloadOperation(transports, workspace, id, true),
-		terminalDownloadOperation(transports, workspace, id, false),
+		terminalDownloadOperation(transports, workspace, id, terminalDownloadRecording),
+		terminalDownloadOperation(transports, workspace, id, terminalDownloadArtifact),
 	}
 }
 
@@ -164,9 +164,20 @@ func terminalJournalOperation(transports []Transport, workspace ParameterSpec) O
 		[]ResponseSpec{{Status: 200, Description: "OK", Body: contract.TerminalJournalResponse{}}, terminalErrorResponse(422, "Invalid journal query"), terminalErrorResponse(503, "Terminal journal unavailable")})
 }
 
-func terminalDownloadOperation(transports []Transport, workspace, id ParameterSpec, recording bool) OperationSpec {
+type terminalDownloadKind uint8
+
+const (
+	terminalDownloadArtifact terminalDownloadKind = iota
+	terminalDownloadRecording
+)
+
+func terminalDownloadOperation(
+	transports []Transport,
+	workspace, id ParameterSpec,
+	kind terminalDownloadKind,
+) OperationSpec {
 	segment, operationID, summary, contentType := "/artifacts/{id}", "downloadTerminalArtifact", "Download one terminal spill artifact", specBinaryContentType
-	if recording {
+	if kind == terminalDownloadRecording {
 		segment, operationID, summary, contentType = "/recordings/{id}", "downloadTerminalRecording", "Download one terminal recording", "application/x-asciicast"
 	}
 	return terminalOperation(httpMethodGet, terminalPath+segment, operationID, summary,

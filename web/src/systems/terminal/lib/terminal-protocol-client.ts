@@ -105,6 +105,7 @@ export class TerminalProtocolClient {
     commit: (seqEnd: number) => this.commit(seqEnd),
     setStatus: (status: "resyncing" | "connected") => this.setStatus(status),
     setInputEnabled: (enabled: boolean) => this.setInputEnabled(enabled),
+    onRecovered: () => this.options.handlers?.onGapCleared?.(),
     reportError: (cause: unknown, fallback: string) => this.reportClientError(cause, fallback),
     reconnectFromCommitted: () => this.reconnectFromCommitted(),
     isStopped: () => this.stopped,
@@ -250,6 +251,7 @@ export class TerminalProtocolClient {
       frame = decodeTerminalServerFrame(data);
     } catch (cause) {
       this.reportClientError(cause, "The terminal stream sent a frame this client cannot read.");
+      this.reconnectFromCommitted();
       return;
     }
     if (frame.op === TERMINAL_SERVER_OP.output) {
@@ -366,6 +368,7 @@ export class TerminalProtocolClient {
       });
     } catch (cause) {
       this.reportClientError(cause, "The terminal stream sent an unreadable frame.");
+      this.reconnectFromCommitted();
     }
   }
 

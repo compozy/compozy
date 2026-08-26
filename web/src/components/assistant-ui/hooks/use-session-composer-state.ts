@@ -7,6 +7,8 @@ import type { SessionComposerInputHandle } from "../session-composer-lexical-plu
 import { sessionComposerSyncLogic } from "./session-composer-sync-store";
 import {
   retainSubmittedComposerAttachments,
+  discardSessionTerminalQuote,
+  discardSessionTerminalQuoteIfMissing,
   sessionStore,
   useSessionComposerDraft,
 } from "@/systems/session";
@@ -79,9 +81,13 @@ export function useSessionComposerState(sessionId: string): SessionComposerState
       draftText,
       persist: text => sessionStore.trigger.composerDraftChanged({ sessionId, text }),
     });
+    discardSessionTerminalQuoteIfMissing(sessionId, composerText);
   }, [composerText, draftText, sessionId, syncStore]);
 
-  useAuiEvent("composer.send", clearDraftForSession);
+  useAuiEvent("composer.send", () => {
+    clearDraftForSession();
+    discardSessionTerminalQuote(sessionId);
+  });
 
   return {
     clearComposer,

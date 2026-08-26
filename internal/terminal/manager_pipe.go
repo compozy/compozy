@@ -16,6 +16,7 @@ type PipeRequest struct {
 	Cwd          string
 	Env          map[string]string
 	Title        string
+	AllowedRoots []string
 	Actor        Actor
 	Capabilities Capabilities
 }
@@ -28,10 +29,13 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	if len(request.Argv) == 0 || strings.TrimSpace(request.Argv[0]) == "" {
 		return nil, errors.New("terminal: pipe command is required")
 	}
+	request.Title = SanitizeTitle(request.Title)
 	if err := m.admit(ctx, request.WS, request.Actor); err != nil {
 		return nil, err
 	}
-	_, cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	_, cwd, workspaceID, err := m.resolveOpenWorkspace(
+		ctx, request.WS, request.Cwd, request.Actor.ProfileID, request.AllowedRoots...,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +62,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	}
 	spec := ProcSpec{
 		Argv: append([]string(nil), request.Argv...), Cwd: cwd, Env: cloneStringMap(request.Env),
-		Cols: 80, Rows: 24, Mode: terminalpty.ModePipe, Title: request.Title, MarkerNonce: nonce,
+		Cols: 80, Rows: 24, Mode: terminalpty.ModePipe, MarkerNonce: nonce,
 	}
 	proc, err := m.pty.Start(ctx, spec)
 	if err != nil {
@@ -77,7 +81,6 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	}
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(m, proc, info, settings, nonce, profileName, 80, 24, true)
-	m.registerJournalTerminal(item)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		return nil, errors.Join(err, cleanupUnregisteredProcess(proc))
@@ -85,8 +88,9 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	item.processRecord = processRecord
 	key := terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id}
 	if err := m.insert(key, item); err != nil {
-		return nil, errors.Join(err, cleanupUnregisteredProcess(proc))
+		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
 	}
+	m.registerJournalTerminal(item)
 	opened := item.Info()
 	m.events.Emit(ctx, TerminalEvent{
 		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
@@ -111,7 +115,7 @@ func (m *Service) Release(ctx context.Context, workspaceID, profileID string, id
 	if _, err := item.close(ctx, SignalHUP, "released", actor); err != nil && !errors.Is(err, ErrExited) {
 		return err
 	}
-	m.removeWithTombstone(key, item, m.now().Add(idleTombstoneTTL))
+	m.removeWithTombstone(key, item, m.tombstoneExpiry(item))
 	return nil
 }
 

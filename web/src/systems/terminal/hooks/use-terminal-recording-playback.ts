@@ -78,7 +78,7 @@ export function useTerminalRecordingPlayback({
       ...(schedule ? { schedule } : {}),
     });
     playbackRef.current = playback;
-    if (autoPlay) playback.play();
+    if (autoPlay && !playback.play()) setPlaying(false);
     return () => {
       playback.dispose();
       playbackRef.current = null;
@@ -100,8 +100,7 @@ export function useTerminalRecordingPlayback({
         setPlaying(false);
         return;
       }
-      playback.play();
-      setPlaying(true);
+      setPlaying(playback.play());
     },
     seek: next => playbackRef.current?.seek(next),
   };

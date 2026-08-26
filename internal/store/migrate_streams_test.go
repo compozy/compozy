@@ -72,7 +72,7 @@ func productionMigrationStreams() []productionMigrationStream {
 			name:              "workspace",
 			stream:            workspacedb.MigrationStream(),
 			schemaFS:          workspaceschema.Files,
-			declarativeSource: "schema.sql",
+			declarativeSource: "definitions",
 		},
 	}
 }

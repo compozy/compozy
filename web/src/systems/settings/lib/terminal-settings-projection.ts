@@ -1,4 +1,4 @@
-import type { TerminalSettingsConfig } from "../components/terminal-settings-sections";
+import type { TerminalSettingsConfig } from "./terminal-settings-types";
 
 /**
  * Reads the `[terminal]` block out of the general settings envelope.

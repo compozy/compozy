@@ -3,7 +3,7 @@ package terminal
 const WorkspaceKindLocal = "local"
 
 // ResolveCapabilities reports what one platform/workspace pairing can run.
-func ResolveCapabilities(goos, workspaceKind string) Capabilities {
+func ResolveCapabilities(_ string, workspaceKind string) Capabilities {
 	return Capabilities{Interactive: workspaceKind == "" || workspaceKind == WorkspaceKindLocal}
 }
 

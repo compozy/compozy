@@ -92,7 +92,7 @@ is_ci_full_trigger() {
   esac
 }
 
-# Docs, agent instructions, and CI definitions exercise no verify lane.
+# Docs and agent instructions exercise no verify lane; extension and skill resource manifests do.
 is_no_lane() {
   case "$1" in
     extensions/* | skills/*) return 1 ;;

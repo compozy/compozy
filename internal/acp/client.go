@@ -134,7 +134,7 @@ func WithTerminalManager(manager TerminalHost) Option {
 	}
 }
 
-// TerminalHost is the narrow terminal core consumed by ACP's five terminal methods.
+// TerminalHost is the narrow terminal core consumed by ACP's three terminal methods.
 type TerminalHost interface {
 	OpenPipe(context.Context, terminalpkg.PipeRequest) (terminalpkg.Handle, error)
 	Handle(context.Context, string, string, terminalpkg.ID) (terminalpkg.Handle, error)

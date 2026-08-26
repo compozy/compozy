@@ -16,7 +16,10 @@ import (
 	"github.com/compozy/compozy/internal/toolruntime"
 )
 
-const outputReadBytes = 32 * 1024
+const (
+	outputReadBytes  = 32 * 1024
+	outputDrainGrace = 200 * time.Millisecond
+)
 
 type session struct {
 	manager     *Service
@@ -31,31 +34,35 @@ type session struct {
 	profileName string
 	titlePinned bool
 
-	mu            sync.RWMutex
-	info          Info
-	lastActivity  time.Time
-	revision      uint64
-	revisionReady chan struct{}
-	readerEnded   bool
-	reaping       bool
-	exit          *Exit
-	closeReason   string
-	closeActor    Actor
-	closedEmitted bool
-	vtCarry       []byte
-	subscribers   map[uint64]*subscription
-	nextSubID     uint64
-	cols          uint16
-	rows          uint16
-	processRecord processCheckpoint
-	policy        Settings
-	recordingMu   sync.Mutex
-	recording     *activeRecording
-	captureMu     sync.Mutex
-	capture       []byte
-	captureOutput bool
-	done          chan struct{}
-	closeOnce     sync.Once
+	mu               sync.RWMutex
+	info             Info
+	lastActivity     time.Time
+	revision         uint64
+	revisionReady    chan struct{}
+	readerEnded      bool
+	reaping          bool
+	exit             *Exit
+	closeReason      string
+	closeActor       Actor
+	closedEmitted    bool
+	vtCarry          []byte
+	subscribers      map[uint64]*subscription
+	nextSubID        uint64
+	cols             uint16
+	rows             uint16
+	processRecord    processCheckpoint
+	policy           Settings
+	recordingMu      sync.Mutex
+	recordingWG      sync.WaitGroup
+	recording        *activeRecording
+	failedRecording  *activeRecording
+	captureMu        sync.Mutex
+	capture          []byte
+	captureBytes     int64
+	captureTruncated bool
+	captureOutput    bool
+	done             chan struct{}
+	closeOnce        sync.Once
 }
 
 func newSession(
@@ -140,6 +147,9 @@ func (s *session) readOutput() {
 			if len(filtered.MarkerFacts) > 0 {
 				s.manager.markers.ConsumeMarkerFacts(context.Background(), s.Info(), filtered.MarkerFacts)
 			}
+			if len(read.data) > 0 && len(filtered.DisplayBytes) == 0 {
+				s.acceptFilteredOutput()
+			}
 			coalescer.Push(filtered.DisplayBytes)
 			if read.err != nil {
 				coalescer.Flush()
@@ -185,20 +195,14 @@ func (s *session) acceptOutput(input []byte) {
 	}
 	if s.captureOutput {
 		s.captureMu.Lock()
-		s.capture = append(s.capture, input...)
+		s.appendCaptureLocked(input)
 		s.captureMu.Unlock()
 	}
 	s.appendRecording(input)
 	s.manager.observeJournalOutput(s.Info())
-	start, end := s.ring.Append(input)
-	vtInput := append(s.vtCarry, input...)
-	complete, carry := splitCompleteUTF8(vtInput)
-	s.vtCarry = append(s.vtCarry[:0], carry...)
-	completeEnd := end - uint64(len(carry))
-	if _, err := s.vt.WriteAt(complete, completeEnd); err != nil && !errors.Is(err, terminalvt.ErrClosed) {
-		s.manager.logger.Warn("terminal: feed emulator", "terminal_id", s.info.ID, "error", err)
-	}
 	s.mu.Lock()
+	s.ring.SetModePreamble(input)
+	start, end := s.ring.Append(input)
 	s.lastActivity = s.manager.now()
 	s.bumpRevisionLocked()
 	subscribers := make([]*subscription, 0, len(s.subscribers))
@@ -206,16 +210,58 @@ func (s *session) acceptOutput(input []byte) {
 		subscribers = append(subscribers, subscriber)
 	}
 	s.mu.Unlock()
+	vtInput := append(s.vtCarry, input...)
+	complete, carry := splitCompleteUTF8(vtInput)
+	s.vtCarry = append(s.vtCarry[:0], carry...)
+	completeEnd := end - uint64(len(carry))
+	if _, err := s.vt.WriteAt(complete, completeEnd); err != nil && !errors.Is(err, terminalvt.ErrClosed) {
+		s.manager.logger.Warn("terminal: feed emulator", "terminal_id", s.info.ID, "error", err)
+	}
 	frame := Frame{Op: terminalwire.ServerOpOutput, Seq: start, Payload: append([]byte(nil), input...)}
 	for _, subscriber := range subscribers {
 		subscriber.deliver(frame, end)
 	}
 }
 
-func (s *session) capturedOutput() []byte {
+func (s *session) acceptFilteredOutput() {
+	s.manager.observeJournalOutput(s.Info())
+	s.mu.Lock()
+	s.lastActivity = s.manager.now()
+	s.bumpRevisionLocked()
+	s.mu.Unlock()
+}
+
+func (s *session) capturedOutput() ([]byte, bool, int64) {
 	s.captureMu.Lock()
 	defer s.captureMu.Unlock()
-	return append([]byte(nil), s.capture...)
+	return append([]byte(nil), s.capture...), s.captureTruncated, s.captureBytes
+}
+
+func (s *session) appendCaptureLocked(input []byte) {
+	s.captureBytes += int64(len(input))
+	if !s.captureTruncated && len(s.capture)+len(input) <= execCaptureLimit {
+		s.capture = append(s.capture, input...)
+		return
+	}
+	headSize := execCaptureLimit / 2
+	tailSize := execCaptureLimit - headSize
+	if !s.captureTruncated {
+		combined := make([]byte, 0, len(s.capture)+len(input))
+		combined = append(combined, s.capture...)
+		combined = append(combined, input...)
+		s.capture = append(s.capture[:0], combined[:headSize]...)
+		s.capture = append(s.capture, combined[len(combined)-tailSize:]...)
+		s.captureTruncated = true
+		return
+	}
+	tail := make([]byte, 0, tailSize+len(input))
+	tail = append(tail, s.capture[headSize:]...)
+	tail = append(tail, input...)
+	s.capture = s.capture[:headSize]
+	if len(tail) > tailSize {
+		tail = tail[len(tail)-tailSize:]
+	}
+	s.capture = append(s.capture, tail...)
 }
 
 func (s *session) programTitleChanged(title string) {
@@ -255,7 +301,7 @@ func (s *session) waitProcess(outputDone <-chan struct{}) {
 	s.flow.ResumeProducer()
 	select {
 	case <-outputDone:
-	case <-time.After(200 * time.Millisecond):
+	case <-time.After(outputDrainGrace):
 		if err := s.proc.Close(); err != nil {
 			s.manager.logger.Debug("terminal: close output after wait", "terminal_id", s.info.ID, "error", err)
 		}
@@ -298,9 +344,13 @@ func (s *session) finalize(exit Exit) {
 		s.closedEmitted = true
 		info := s.infoSnapshotLocked()
 		s.mu.Unlock()
-		if _, err := s.stopRecording(context.Background(), actor, "terminal_closed"); err != nil &&
-			!isRecordingNotActive(err) {
-			s.manager.logger.Warn("terminal: stop recording on exit", "terminal_id", info.ID, "error", err)
+		s.recordingWG.Wait()
+		recordingCtx, cancelRecording := context.WithTimeout(context.Background(), recordingPersistenceTimeout)
+		_, recordingErr := s.stopRecording(recordingCtx, actor, "terminal_closed")
+		cancelRecording()
+		if recordingErr != nil &&
+			!isRecordingNotActive(recordingErr) {
+			s.manager.logger.Warn("terminal: stop recording on exit", "terminal_id", info.ID, "error", recordingErr)
 		}
 		for _, subscriber := range subscribers {
 			subscriber.finish(exit)

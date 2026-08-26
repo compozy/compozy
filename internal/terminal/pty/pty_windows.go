@@ -72,9 +72,17 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 			cleanupErr, device.Close(), job.close(),
 		)
 	}
+	startedAt, err := procutil.StartedAt(pid)
+	if err != nil {
+		cleanupErr := errors.Join(job.terminate(windowsJobExitCode), waitAndCloseWindowsProcess(process, pid))
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: read process %d start time: %w", pid, err),
+			cleanupErr, device.Close(), job.close(),
+		)
+	}
 	proc := &windowsProc{
 		device: device, job: job, waiter: newProcessWaiter(), pid: pid,
-		process: process, startedAt: time.Now().UTC(),
+		process: process, startedAt: startedAt,
 	}
 	proc.waiter.start(proc.waitForExit)
 	return proc, nil

@@ -79,6 +79,10 @@ export type {
 } from "./types";
 export type { SessionPromptRuntimeSnapshot } from "./contexts/session-prompt-runtime-context-value";
 export { isEditableTarget } from "./lib/editable-target";
+export {
+  SessionAgentReportedBlock,
+  type SessionAgentReportedBlockProps,
+} from "./components/session-agent-reported-block";
 
 export {
   SessionPromptRuntimeProvider,
@@ -460,6 +464,7 @@ export {
   type ClarificationDataPartProps,
 } from "./components/clarification-data-part";
 export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
+export { SessionTerminalQuoteSlot } from "./components/session-terminal-quote-slot";
 export {
   SessionInspector,
   type InspectorMemoryState,
@@ -470,32 +475,14 @@ export {
 export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
 
 // Environment surface — worktree binding, fork, target selection (./environment).
-export {
-  environmentTargetLabel,
-  forkSessionToWorktree,
-  isEnvironmentTargetMissing,
-  NEW_WORKTREE_LABEL,
-  ROOT_ENVIRONMENT_TARGET,
-  selectableWorktrees,
-  SessionEnvironmentChip,
-  SessionEnvironmentControl,
-  SessionEnvironmentField,
-  SessionWorktreeBindingChip,
-  SessionWorktreeForkDialog,
-  useForkSessionToWorktree,
-  useSessionEnvironment,
-  useSessionWorktreeBinding,
-  WORKSPACE_ROOT_LABEL,
-  WORKTREE_COMMAND_TOKEN,
-  type SessionEnvironmentChipState,
-  type SessionEnvironmentControlHandle,
-  type SessionEnvironmentModel,
-  type SessionEnvironmentTarget,
-  type SessionWorktreeBinding,
-} from "./environment";
+export * from "./environment";
 export { findSessionCommand } from "./hooks/use-session-commands";
 export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export { useSessionPromptStaging } from "./hooks/use-session-prompt-staging";
 export type { SessionPromptStaging } from "./hooks/use-session-prompt-staging";
-export { stageSessionTerminalQuote } from "./lib/session-terminal-quote";
+export {
+  discardSessionTerminalQuote,
+  discardSessionTerminalQuoteIfMissing,
+  stageSessionTerminalQuote,
+} from "./lib/session-terminal-quote";

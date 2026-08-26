@@ -1,6 +1,5 @@
 import { TerminalExitBar } from "./terminal-exit-bar";
-import type { TerminalExitNotice } from "../stores/terminal-store";
-import type { TerminalInfo } from "../types";
+import type { TerminalExitNotice, TerminalInfo } from "../types";
 
 export interface TerminalPipeLogPaneProps {
   terminal: TerminalInfo;

@@ -26,6 +26,7 @@ export interface UsePermissionDockOptions {
   rejectSplitElement: HTMLElement | null;
   menuOpen: boolean;
   setMenuOpen: Dispatch<SetStateAction<boolean>>;
+  blockedDecisions?: readonly PermissionDecision[];
 }
 
 /**
@@ -42,6 +43,7 @@ export function usePermissionDock({
   rejectSplitElement,
   menuOpen,
   setMenuOpen,
+  blockedDecisions = [],
 }: UsePermissionDockOptions) {
   const { decide, isResolved, isSubmitting } = useSessionPermissionDecision({
     workspaceId,
@@ -49,7 +51,9 @@ export function usePermissionDock({
     permission,
     onResolved,
   });
-  const decisionOptions = permissionDecisionOptions(permission);
+  const decisionOptions = permissionDecisionOptions(permission).filter(
+    decision => !blockedDecisions.includes(decision)
+  );
 
   const handleDecisionKey = useEffectEvent((event: KeyboardEvent) => {
     if (isSubmitting || isResolved) return;

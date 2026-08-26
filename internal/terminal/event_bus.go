@@ -84,6 +84,8 @@ func NewEventBus(logger *slog.Logger) *EventBus {
 	return &EventBus{logger: logger}
 }
 
+// Observe registers an observer until the first Emit freezes the observer set.
+// Registrations attempted after that point are ignored and logged.
 func (b *EventBus) Observe(fn func(context.Context, TerminalEvent)) {
 	if b == nil || fn == nil {
 		return

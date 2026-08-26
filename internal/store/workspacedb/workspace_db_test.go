@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -36,8 +37,8 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 2 || firstStatus.AppliedCount != 2 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 2", firstStatus)
+		if firstStatus.Version != 3 || firstStatus.AppliedCount != 3 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 3", firstStatus)
 		}
 		assertTerminalSchema(ctx, t, db.DB())
 		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
@@ -239,6 +240,70 @@ func TestOpen(t *testing.T) {
 		}
 		if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("Stat(%q) error = %v, want %v", dbPath, err, os.ErrNotExist)
+		}
+	})
+
+	t.Run("Should open independent workspace roots concurrently", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		firstRoot := t.TempDir()
+		firstIdentity, err := compozyworkspace.EnsureIdentity(ctx, firstRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity(first) error = %v", err)
+		}
+		secondRoot := t.TempDir()
+		secondIdentity, err := compozyworkspace.EnsureIdentity(ctx, secondRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity(second) error = %v", err)
+		}
+		firstEntered := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		pool, err := NewPool(func(_ context.Context, workspaceID string) (string, error) {
+			switch workspaceID {
+			case firstIdentity.WorkspaceID:
+				close(firstEntered)
+				<-releaseFirst
+				return firstRoot, nil
+			case secondIdentity.WorkspaceID:
+				return secondRoot, nil
+			default:
+				return "", fmt.Errorf("unexpected workspace %q", workspaceID)
+			}
+		})
+		if err != nil {
+			t.Fatalf("NewPool() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := pool.Close(ctx); err != nil {
+				t.Errorf("Pool.Close() error = %v", err)
+			}
+		})
+
+		firstResult := make(chan error, 1)
+		go func() {
+			_, openErr := pool.Open(ctx, firstIdentity.WorkspaceID)
+			firstResult <- openErr
+		}()
+		<-firstEntered
+
+		secondResult := make(chan error, 1)
+		go func() {
+			_, openErr := pool.Open(ctx, secondIdentity.WorkspaceID)
+			secondResult <- openErr
+		}()
+		var secondErr error
+		select {
+		case secondErr = <-secondResult:
+		case <-ctx.Done():
+			secondErr = errors.New("Pool.Open(second) waited for an unrelated workspace")
+		}
+		close(releaseFirst)
+		if secondErr != nil {
+			t.Fatal(secondErr)
+		}
+		if openErr := <-firstResult; openErr != nil {
+			t.Fatalf("Pool.Open(first) error = %v", openErr)
 		}
 	})
 }

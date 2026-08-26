@@ -22,6 +22,6 @@ Walk:
 
 1. Open a terminal under profile A, switch to B, and verify list, badge, catalog stream, and journal re-scope.
 2. Switch back to A and confirm the terminal is still running.
-3. Use the all-profiles read view and verify every terminal and journal row labels its owner.
-4. Archive A and verify its terminals close while history stays readable; delete the workspace and verify both disappear.
-
+3. Call CLI, HTTP, and UDS reads with the default scope, `--profile`/`?profile=`, and `--all-profiles`/`?all_profiles=true`; verify exact owner labels and refuse conflicting, unknown, archived, and cross-profile selectors without leaking rows.
+4. Use the all-profiles read view and verify every terminal and journal row labels its owner.
+5. Archive A and verify its terminals close while history stays readable; delete the workspace and verify both disappear.

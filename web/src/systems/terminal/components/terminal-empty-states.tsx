@@ -1,10 +1,10 @@
 import { MonitorX, Moon, RotateCcw, TerminalSquare } from "lucide-react";
+import type { ReactNode } from "react";
 
 import { Button, Empty } from "@compozy/ui";
 
 export interface TerminalEmptyStateProps {
   onOpenTerminal?: () => void;
-  onViewJournal?: () => void;
 }
 
 /**
@@ -37,7 +37,9 @@ export function TerminalEmptyState({ onOpenTerminal }: TerminalEmptyStateProps) 
   );
 }
 
-export interface TerminalExpiredStateProps extends TerminalEmptyStateProps {
+export interface TerminalExpiredStateProps {
+  onOpenTerminal?: () => void;
+  onViewJournal?: () => void;
   /**
    * How long it went unwatched, already phrased — `[terminal].detached_ttl`.
    *
@@ -48,6 +50,27 @@ export interface TerminalExpiredStateProps extends TerminalEmptyStateProps {
   idleFor?: string;
 }
 
+function terminalHistoryActions({
+  onOpenTerminal,
+  onViewJournal,
+}: Pick<TerminalExpiredStateProps, "onOpenTerminal" | "onViewJournal">): ReactNode | undefined {
+  if (!onOpenTerminal && !onViewJournal) return undefined;
+  return (
+    <>
+      {onViewJournal ? (
+        <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
+          View journal
+        </Button>
+      ) : null}
+      {onOpenTerminal ? (
+        <Button onClick={onOpenTerminal} size="sm" type="button" variant="ghost">
+          Open a new terminal
+        </Button>
+      ) : null}
+    </>
+  );
+}
+
 /** Reclaimed after an idle period. The journal outlives the terminal. */
 export function TerminalExpiredState({
   idleFor,
@@ -56,20 +79,7 @@ export function TerminalExpiredState({
 }: TerminalExpiredStateProps) {
   return (
     <Empty
-      action={
-        <>
-          {onViewJournal ? (
-            <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
-              View journal
-            </Button>
-          ) : null}
-          {onOpenTerminal ? (
-            <Button onClick={onOpenTerminal} size="sm" type="button" variant="ghost">
-              Open a new terminal
-            </Button>
-          ) : null}
-        </>
-      }
+      action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
       cause={`terminal_expired · 410 · reclaimed${idleFor ? ` after ${idleFor}` : ""} without viewers`}
       data-testid="terminal-expired"
       description={
@@ -90,23 +100,16 @@ export function TerminalExpiredState({
  * Deliberately distinct from a program's own exit: no exit code is shown,
  * because none exists.
  */
-export function TerminalNotFoundState({ onOpenTerminal, onViewJournal }: TerminalEmptyStateProps) {
+export function TerminalNotFoundState({
+  onOpenTerminal,
+  onViewJournal,
+}: {
+  onOpenTerminal?: () => void;
+  onViewJournal?: () => void;
+}) {
   return (
     <Empty
-      action={
-        <>
-          {onViewJournal ? (
-            <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
-              View journal
-            </Button>
-          ) : null}
-          {onOpenTerminal ? (
-            <Button onClick={onOpenTerminal} size="sm" type="button" variant="ghost">
-              Open a new terminal
-            </Button>
-          ) : null}
-        </>
-      }
+      action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
       data-testid="terminal-not-found"
       description="CompozyOS restarted, and live terminals don't carry across. Everything that ran is in the journal."
       framed
@@ -122,7 +125,7 @@ export function TerminalNotFoundState({ onOpenTerminal, onViewJournal }: Termina
  * Said before anything can hang, and the interactive option is absent rather
  * than greyed out: a disabled Open would still claim the feature exists here.
  */
-export function TerminalExecuteOnlyState({ onViewJournal }: TerminalEmptyStateProps) {
+export function TerminalExecuteOnlyState({ onViewJournal }: { onViewJournal?: () => void }) {
   return (
     <Empty
       action={

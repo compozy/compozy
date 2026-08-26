@@ -72,7 +72,7 @@ func TestAgentReportedTerminalProjection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("MarshalAgentEvent(first) error = %v", err)
 		}
-		terminal.ExitCode = new(int)
+		terminal.ExitCode = new(0)
 		second, err := MarshalAgentEvent(acp.AgentEvent{
 			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
 			SessionID: "sess-reported", TurnID: "turn-reported", Timestamp: timestamp.Add(time.Second),
@@ -120,18 +120,25 @@ func TestAgentReportedTerminalProjection(t *testing.T) {
 	t.Run("Should add no terminal data part when no report exists", func(t *testing.T) {
 		t.Parallel()
 
-		content, err := MarshalAgentEvent(acp.AgentEvent{
-			Type: acp.EventTypeAgentMessage, TurnID: "turn-no-report", Timestamp: time.Now().UTC(), Text: "done",
+		timestamp := time.Date(2026, 8, 25, 12, 5, 0, 0, time.UTC)
+		event := acp.AgentEvent{
+			Type: acp.EventTypeAgentMessage, SessionID: "sess-no-report", TurnID: "turn-no-report",
+			Timestamp: timestamp, Text: "done",
+		}
+		messages, err := ToUIMessages([]store.SessionEvent{
+			mustUIAgentSessionEvent(t, "ev-no-report", 1, timestamp, event),
 		})
 		if err != nil {
-			t.Fatalf("MarshalAgentEvent() error = %v", err)
-		}
-		messages, err := ToUIMessages([]store.SessionEvent{{
-			ID: "ev-no-report", SessionID: "sess-no-report", TurnID: "turn-no-report",
-			Sequence: 1, Type: acp.EventTypeAgentMessage, Content: content, Timestamp: time.Now().UTC(),
-		}})
-		if err != nil {
 			t.Fatalf("ToUIMessages() error = %v", err)
+		}
+		if got, want := len(messages), 1; got != want {
+			t.Fatalf("len(messages) = %d, want %d", got, want)
+		}
+		if got, want := len(messages[0].Parts), 1; got != want {
+			t.Fatalf("len(parts) = %d, want %d", got, want)
+		}
+		if part := messages[0].Parts[0]; part.Type != uiPartText || part.Text != "done" {
+			t.Fatalf("part = %#v, want one text part containing done", part)
 		}
 		for _, message := range messages {
 			for _, part := range message.Parts {

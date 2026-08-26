@@ -43,6 +43,14 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		)
 	}
 	procCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
+	terminalScope := terminalScope{
+		workspaceID:  normalized.WorkspaceID,
+		profileID:    normalized.ProfileID,
+		sessionID:    normalized.CompozySessionID,
+		generation:   normalized.RuntimeGeneration,
+		actorID:      normalized.AgentName,
+		allowedRoots: append([]string{normalized.Cwd}, normalized.AdditionalDirs...),
+	}
 
 	toolHost := normalized.ToolHost
 	if toolHost == nil {
@@ -55,17 +63,21 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 			policy,
 			d.logger,
 			WithLocalProcessRegistry(d.processRegistry),
-			WithLocalTerminalManager(d.terminals, terminalScope{
-				workspaceID: normalized.WorkspaceID,
-				profileID:   normalized.ProfileID,
-				sessionID:   normalized.CompozySessionID,
-				generation:  normalized.RuntimeGeneration,
-				actorID:     normalized.AgentName,
-			}),
+			withLocalTerminalManager(d.terminals, terminalScope),
 		)
 	}
 
-	process := d.newAgentProcess(procCtx, cancelProcess, normalized, command, args, handle, toolHost, policy)
+	process := d.newAgentProcess(
+		procCtx,
+		cancelProcess,
+		normalized,
+		command,
+		args,
+		handle,
+		toolHost,
+		policy,
+		terminalScope,
+	)
 	if localHost, ok := toolHost.(*localToolHost); ok {
 		process.terminals = localHost.terminals
 	}
@@ -106,28 +118,23 @@ func (d *Driver) newAgentProcess(
 	handle sandbox.Handle,
 	toolHost ToolHost,
 	policy permissionPolicy,
+	terminalScope terminalScope,
 ) *AgentProcess {
 	return &AgentProcess{
-		PID:           handle.PID(),
-		AgentName:     normalized.AgentName,
-		Command:       command,
-		Args:          append([]string(nil), args...),
-		Cwd:           normalized.Cwd,
-		StartedAt:     timeNowUTC(),
-		handle:        handle,
-		toolHost:      toolHost,
-		toolGateway:   normalized.ToolGateway,
-		processCtx:    procCtx,
-		cancelProcess: cancelProcess,
-		permissions:   policy,
-		terminalCore:  d.terminals,
-		terminalScope: terminalScope{
-			workspaceID: normalized.WorkspaceID,
-			profileID:   normalized.ProfileID,
-			sessionID:   normalized.CompozySessionID,
-			generation:  normalized.RuntimeGeneration,
-			actorID:     normalized.AgentName,
-		},
+		PID:                  handle.PID(),
+		AgentName:            normalized.AgentName,
+		Command:              command,
+		Args:                 append([]string(nil), args...),
+		Cwd:                  normalized.Cwd,
+		StartedAt:            timeNowUTC(),
+		handle:               handle,
+		toolHost:             toolHost,
+		toolGateway:          normalized.ToolGateway,
+		processCtx:           procCtx,
+		cancelProcess:        cancelProcess,
+		permissions:          policy,
+		terminalCore:         d.terminals,
+		terminalScope:        terminalScope,
 		done:                 make(chan struct{}),
 		pendingPermissions:   make(map[string]*pendingPermission),
 		permissionTimeout:    d.permissionWait,

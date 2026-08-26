@@ -3,8 +3,10 @@ import { Button, Empty, Spinner } from "@compozy/ui";
 import { AlertCircle, FolderOpen } from "lucide-react";
 import { toast } from "sonner";
 
-import { stageSessionTerminalQuote } from "@/systems/session";
+import { stageSessionTerminalQuote, useSessionCreateActions } from "@/systems/session";
+import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
+  buildTerminalQuote,
   terminalSelectionLines,
   TerminalJournalFilterDialog,
   TerminalJournalPanel,
@@ -16,23 +18,8 @@ import {
 } from "@/systems/terminal";
 
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
+import { matchTerminalInstance } from "../../lib/app-catalog";
 import { useTerminalWindowControllerState } from "./hooks/use-terminal-window-controller-state";
-
-function terminalIdFromPath(pathname: string): string | null {
-  const match = /^\/terminal\/([^/]+)$/.exec(pathname);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-function durationMilliseconds(value: string | undefined): number | undefined {
-  const match = value?.trim().match(/^(\d+)(ms|s|m|h)$/);
-  if (!match) return undefined;
-  const amount = Number(match[1]);
-  const unit = match[2];
-  if (unit === "h") return amount * 3_600_000;
-  if (unit === "m") return amount * 60_000;
-  if (unit === "s") return amount * 1_000;
-  return amount;
-}
 
 function orderedTerminals(terminals: readonly TerminalInfo[], requestedId: string | null) {
   if (requestedId === null) return terminals;
@@ -72,6 +59,7 @@ export function TerminalWindow({ windowId }: { windowId: string }) {
 }
 
 function TerminalWindowController({ windowId }: { windowId: string }) {
+  const sessionCreate = useSessionCreateActions();
   const {
     answer,
     catalog,
@@ -107,10 +95,20 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   }
   const error = catalog.error ?? inputRequests.error ?? journal.error;
   if (error) {
+    const retry = catalog.error
+      ? catalog.refetch
+      : inputRequests.error
+        ? inputRequests.refetch
+        : journal.refetch;
     return (
       <Empty
         action={
-          <Button onClick={() => void catalog.refetch()} size="sm" type="button" variant="outline">
+          <Button
+            onClick={() => void retry()}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
             Retry
           </Button>
         }
@@ -120,13 +118,43 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     );
   }
 
-  const requestedId = terminalIdFromPath(pathname);
+  const requestedId = matchTerminalInstance(pathname);
+  if (requestedId && !(catalog.data ?? []).some(terminal => terminal.id === requestedId)) {
+    const fallbackTerminal = catalog.data?.[0];
+    return (
+      <Empty
+        action={
+          <Button
+            onClick={() => {
+              if (!fallbackTerminal) {
+                create.mutate();
+                return;
+              }
+              void coordinator.userRetarget(windowId, {
+                app: "terminal",
+                instanceKey: fallbackTerminal.id,
+                route: {
+                  pathname: `/terminal/${encodeURIComponent(fallbackTerminal.id)}`,
+                  search: {},
+                },
+              });
+            }}
+            size="sm"
+            type="button"
+            variant="outline"
+          >
+            {fallbackTerminal ? "View terminals" : "Open terminal"}
+          </Button>
+        }
+        icon={AlertCircle}
+        title="Terminal not found"
+      />
+    );
+  }
   const terminals = orderedTerminals(catalog.data ?? [], requestedId);
   const activeSession = mostRecentSession(manager.getState(), windowId);
   const terminalSettings = settings.data?.config.terminal;
-  const interactiveAvailable =
-    !workspace.runtimeWorkspace?.sandbox_ref &&
-    terminals.every(terminal => terminal.capabilities.interactive);
+  const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
   const journalEntries = journal.data?.pages.flatMap(page => page.entries) ?? [];
   const journalContent = replay ? (
     recording.isPending ? (
@@ -228,11 +256,13 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
               route: { pathname: "/agents", search: {} },
             });
           },
-          onStartSession: () => {
-            void coordinator.userOpen({
-              app: "agents",
-              route: { pathname: "/agents", search: {} },
+          onStartSession: (terminalId, selection) => {
+            const quote = buildTerminalQuote({
+              terminalId,
+              fromLine: selection.startLine,
+              lines: terminalSelectionLines(selection.text),
             });
+            sessionCreate.openWithPrompt(quote.text);
           },
           hasActiveSession: activeSession !== null,
           onOpenSettings: () => {
@@ -242,12 +272,13 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
             });
           },
         }}
-        exitRetentionMs={durationMilliseconds(terminalSettings?.exit_retention)}
+        exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
         inputRequests={inputRequests.data ?? []}
         interactiveAvailable={interactiveAvailable}
         journal={journalContent}
         limit={terminalSettings?.max_per_workspace ?? 8}
         profile={profile.destination}
+        readOnly={profile.aggregate}
         terminals={terminals}
         viewerId={viewerId}
         workspaceId={workspaceId}

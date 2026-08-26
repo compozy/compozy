@@ -1,11 +1,13 @@
 "use client";
 
 import type { TerminalEngineLoader } from "@compozy/ui";
-import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import type { TerminalSocketFactory } from "../adapters/terminal-socket";
-import { useTerminalWindowConnection } from "../hooks/use-terminal-window-connection";
+import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
+import { useTerminalWindowBodyController } from "../hooks/use-terminal-window-body-controller";
 import { exitNoticeFromTerminal } from "../lib/terminal-exit";
+import { terminalLeaseView } from "../lib/terminal-lease";
+import { terminalPipeOutputQuery, terminalScope } from "../lib/query-options";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest } from "../types";
 import { TerminalHeader, type TerminalRecordingState } from "./terminal-header";
@@ -20,6 +22,7 @@ export interface TerminalWindowBodyProps {
   viewerId: string | null;
   workspaceId: string;
   profile: string;
+  readOnly?: boolean;
   inputRequests: readonly TerminalInputRequest[];
   auditBlocked: boolean;
   exitRetentionMs?: number;
@@ -28,7 +31,7 @@ export interface TerminalWindowBodyProps {
   actions: TerminalWindowActions;
   /** Opens the pinned journal tab, for a terminal that is no longer there. */
   onViewJournal: () => void;
-  socketFactory?: TerminalSocketFactory;
+  socketFactory?: TerminalAttachmentSocketFactory;
   engineLoader?: TerminalEngineLoader;
 }
 
@@ -40,29 +43,39 @@ export interface TerminalWindowBodyProps {
  * socket rather than calls to a parent. Nothing in the window claims either
  * happened before the daemon says so.
  */
-export function TerminalWindowBody({
+export function TerminalWindowBody(props: TerminalWindowBodyProps) {
+  return props.terminal.mode === "pipe" ? (
+    <TerminalPipeWindowBody {...props} />
+  ) : (
+    <TerminalInteractiveWindowBody {...props} />
+  );
+}
+
+function TerminalInteractiveWindowBody({
   terminal,
   viewerId,
   workspaceId,
   profile,
+  readOnly = false,
   inputRequests,
   auditBlocked,
   exitRetentionMs,
   recording,
-  pipeOutput,
   actions,
   onViewJournal,
   socketFactory,
   engineLoader,
 }: TerminalWindowBodyProps) {
-  const [pendingTakeover, setPendingTakeover] = useState(false);
-  const connection = useTerminalWindowConnection({
+  const controller = useTerminalWindowBodyController({
     terminal,
     workspaceId,
     profile,
     viewerId,
     socketFactory,
+    readOnly,
+    actions,
   });
+  const { connection } = controller;
   const { lease, pane, attachment, handleRef } = connection;
 
   return (
@@ -70,53 +83,34 @@ export function TerminalWindowBody({
       <TerminalHeader
         grid={pane?.cols && pane?.rows ? { cols: pane.cols, rows: pane.rows } : null}
         lease={lease}
-        onClose={() => actions.onCloseTerminal(terminal.id)}
-        onReleaseControl={connection.releaseControl}
-        onStop={() => actions.onStop(terminal.id)}
-        onStopRecording={
-          actions.onStopRecording ? () => actions.onStopRecording?.(terminal.id) : undefined
-        }
-        onTakeControl={() => {
-          // Displacing a person asks first; displacing an agent never does.
-          if (lease.requiresConfirmation) {
-            setPendingTakeover(true);
-            return;
-          }
-          connection.takeControl(false);
-        }}
+        onReleaseControl={controller.releaseControl}
+        onStop={controller.stop}
+        onStopRecording={controller.stopRecording}
+        onTakeControl={controller.takeControl}
         recording={recording}
         terminal={terminal}
       />
-      {terminal.mode === "pipe" ? (
-        <TerminalPipeLogPane
-          exit={exitNoticeFromTerminal(terminal)}
-          firstLineNumber={pipeOutput?.firstLineNumber ?? 1}
-          lines={pipeOutput?.lines ?? []}
-          terminal={terminal}
-        />
-      ) : (
-        <TerminalPane
-          attachment={attachment}
-          auditBlocked={auditBlocked}
-          engineLoader={engineLoader}
-          exitRetentionMs={exitRetentionMs}
-          handleRef={handleRef}
-          instanceId={terminalInstanceKey(workspaceId, profile, terminal.id)}
-          lease={lease}
-          onReconnect={connection.reconnect}
-          onViewJournal={onViewJournal}
-          pane={pane}
-          selectionActions={{
-            hasActiveSession: actions.hasActiveSession,
-            onChooseSession: actions.onChooseSession,
-            onCopy: selection => actions.onCopySelection(terminal.id, selection),
-            onSendToConversation: selection => actions.onSendSelection(terminal.id, selection),
-            onStartSession: selection => actions.onStartSession(terminal.id, selection),
-          }}
-          terminal={terminal}
-        />
-      )}
-      {inputRequests.map(request => (
+      <TerminalPane
+        attachment={attachment}
+        auditBlocked={auditBlocked}
+        engineLoader={engineLoader}
+        exitRetentionMs={exitRetentionMs}
+        handleRef={handleRef}
+        instanceId={terminalInstanceKey(workspaceId, profile, terminal.id)}
+        lease={lease}
+        onReconnect={connection.reconnect}
+        onViewJournal={onViewJournal}
+        pane={pane}
+        selectionActions={{
+          hasActiveSession: actions.hasActiveSession,
+          onChooseSession: actions.onChooseSession,
+          onCopy: selection => actions.onCopySelection(terminal.id, selection),
+          onSendToConversation: selection => actions.onSendSelection(terminal.id, selection),
+          onStartSession: selection => actions.onStartSession(terminal.id, selection),
+        }}
+        terminal={terminal}
+      />
+      {(readOnly ? [] : inputRequests).map(request => (
         <TerminalInputRequestCard
           canAnswerDirectly={lease.canType}
           key={request.id}
@@ -125,15 +119,11 @@ export function TerminalWindowBody({
           request={request}
         />
       ))}
-      {pendingTakeover ? (
+      {controller.pendingTakeover ? (
         <TerminalTakeoverDialog
           controllerName={lease.controllerName ?? "the current controller"}
-          onCancel={() => setPendingTakeover(false)}
-          onConfirm={() => {
-            // Confirmed displacement is the only forced takeover there is.
-            connection.takeControl(true);
-            setPendingTakeover(false);
-          }}
+          onCancel={controller.cancelTakeover}
+          onConfirm={controller.confirmTakeover}
           open
           terminalId={terminal.id}
           terminalTitle={terminal.title}
@@ -141,4 +131,53 @@ export function TerminalWindowBody({
       ) : null}
     </>
   );
+}
+
+function TerminalPipeWindowBody({
+  terminal,
+  viewerId,
+  workspaceId,
+  profile,
+  readOnly = false,
+  pipeOutput,
+  actions,
+}: TerminalWindowBodyProps) {
+  const scope = terminalScope(workspaceId, profile);
+  const output = useQuery({
+    ...terminalPipeOutputQuery(scope, terminal.id),
+    enabled: pipeOutput === undefined,
+  });
+  const captured = pipeOutput ?? {
+    lines: splitTerminalOutput(output.data?.content ?? ""),
+    firstLineNumber: 1,
+  };
+  const lease = terminalLeaseView({
+    lease: terminal.lease,
+    controller: terminal.controller,
+    viewerId,
+    mode: terminal.mode,
+    capabilities: terminal.capabilities,
+  });
+
+  return (
+    <>
+      <TerminalHeader
+        lease={lease}
+        onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
+        terminal={terminal}
+      />
+      <TerminalPipeLogPane
+        exit={exitNoticeFromTerminal(terminal)}
+        firstLineNumber={captured.firstLineNumber}
+        lines={captured.lines}
+        terminal={terminal}
+      />
+    </>
+  );
+}
+
+function splitTerminalOutput(content: string): string[] {
+  const lines = content.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
 }

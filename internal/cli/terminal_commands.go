@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,6 +16,11 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{
 		Use: terminalOpenCommandKey, Short: "Open an interactive terminal", Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !detach {
+				if err := requireTerminalInteractiveOutput(cmd); err != nil {
+					return err
+				}
+			}
 			client, workspaceID, err := terminalClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
@@ -63,7 +69,7 @@ func newTerminalListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return writeCommandOutput(cmd, terminalListBundle(cmd, items, time.Now))
+			return writeCommandOutput(cmd, terminalListBundle(cmd, items, deps.now))
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
@@ -100,6 +106,12 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 	command := &cobra.Command{
 		Use: "attach <id>", Short: "Attach to a running terminal", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if force && !control {
+				return errors.New("cli: --force requires --control")
+			}
+			if err := requireTerminalInteractiveOutput(cmd); err != nil {
+				return err
+			}
 			client, workspaceID, err := terminalClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
 				return err
@@ -235,8 +247,12 @@ func terminalListScopeLabels(cmd *cobra.Command) (string, string) {
 		}
 	}
 	profile := configDefaultKey
-	if selection, ok := commandProfileReadSelection(cmd); ok && strings.TrimSpace(selection.Profile) != "" {
-		profile = strings.TrimSpace(selection.Profile)
+	if selection, ok := commandProfileReadSelection(cmd); ok {
+		if selection.AllProfiles {
+			profile = "all"
+		} else if strings.TrimSpace(selection.Profile) != "" {
+			profile = strings.TrimSpace(selection.Profile)
+		}
 	}
 	return workspace, profile
 }
@@ -269,7 +285,25 @@ func terminalExitBundle(id string, exit TerminalExitRecord) outputBundle {
 	return outputBundle{
 		jsonValue: map[string]any{"exit": exit},
 		human: func() (string, error) {
-			return fmt.Sprintf("%s terminated (%s)", id, exit.Cause), nil
+			detail := exit.Cause
+			if exit.Signal != nil && strings.TrimSpace(*exit.Signal) != "" {
+				detail += ", signal " + strings.TrimSpace(*exit.Signal)
+			}
+			if exit.Code != nil {
+				detail += fmt.Sprintf(", exit code %d", *exit.Code)
+			}
+			return fmt.Sprintf("%s terminated (%s)", id, detail), nil
 		},
 	}
+}
+
+func requireTerminalInteractiveOutput(cmd *cobra.Command) error {
+	mode, err := resolveOutputFormat(cmd)
+	if err != nil {
+		return err
+	}
+	if mode != OutputHuman {
+		return errors.New("cli: interactive terminal streams require human output")
+	}
+	return nil
 }

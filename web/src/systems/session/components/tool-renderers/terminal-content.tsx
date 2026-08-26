@@ -1,9 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import { Suspense, lazy, use } from "react";
 
 import { OsShellContext } from "@/systems/os";
-import { useSessionRuntimeRenderContext } from "../../hooks/use-session-runtime-render-context";
-import { sessionDetailOptions } from "../../lib/query-options";
+import { useSessionTerminalScope } from "../../hooks/use-session-terminal-scope";
 import type { UIMessage } from "../../types";
 import { DetailPre } from "./detail-pre";
 
@@ -37,17 +35,24 @@ interface TerminalToolFacts {
  */
 function readTerminalFacts(message: UIMessage): TerminalToolFacts | null {
   const result = message.toolResult;
-  const raw = asRecord(result?.rawOutput);
+  const envelope = asRecord(result?.rawOutput);
+  const raw = asRecord(
+    envelope.structured ?? envelope.raw_output ?? envelope.rawOutput ?? result?.rawOutput
+  );
   const terminalId = readString(raw.terminal_id);
   if (!terminalId) return null;
   const command = readString(asRecord(message.toolInput).command) ?? message.toolName ?? "terminal";
+  const exitCode = typeof raw.exit_code === "number" ? raw.exit_code : null;
+  const signal = readString(raw.signal);
   return {
     terminalId,
     title: command,
     preview: readString(raw.output) ?? result?.stdout ?? result?.content ?? "",
-    exitCode: typeof raw.exit_code === "number" ? raw.exit_code : null,
-    signal: readString(raw.signal),
-    stillRunning: raw.still_running === true,
+    exitCode,
+    signal,
+    stillRunning:
+      raw.still_running === true ||
+      (message.toolName === "compozy__terminal_open" && exitCode === null && signal === null),
   };
 }
 
@@ -76,20 +81,15 @@ export function TerminalContent({ message }: { message: UIMessage }) {
   // showing. A conversation opened from a link, or read under the all-profiles
   // view, still belongs to the profile that started it, and a same-named
   // terminal in another profile is a different terminal.
-  const runtime = useSessionRuntimeRenderContext();
-  const { data: session } = useQuery({
-    ...sessionDetailOptions(runtime?.workspaceId ?? "", runtime?.sessionId ?? ""),
-    enabled: Boolean(runtime?.workspaceId && runtime?.sessionId),
-  });
-  const scope =
-    runtime && session?.profile_name
-      ? { workspaceId: runtime.workspaceId, profile: session.profile_name }
-      : null;
+  const scope = useSessionTerminalScope();
   if (!facts) {
     // A pipe exec finishes without a terminal object at all; that is a plain
     // command result and the generic pre keeps it readable rather than dressing
     // it as a window that never existed.
-    const raw = asRecord(message.toolResult?.rawOutput);
+    const envelope = asRecord(message.toolResult?.rawOutput);
+    const raw = asRecord(
+      envelope.structured ?? envelope.raw_output ?? envelope.rawOutput ?? message.toolResult?.rawOutput
+    );
     const output =
       readString(raw.output) ?? message.toolResult?.stdout ?? message.toolResult?.content ?? "";
     return output ? <DetailPre data-testid="terminal-content-plain">{output}</DetailPre> : null;

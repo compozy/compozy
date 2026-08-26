@@ -40,14 +40,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		return
 	}
 	if reset {
-		items, listErr := h.terminalListForProfile(c, service, workspaceID, profileID)
-		if listErr != nil {
-			h.logSSEWriteFailure("terminal.snapshot", listErr)
-			return
-		}
-		if err := WriteSSE(writer, SSEMessage{
-			ID: strconv.FormatUint(fence, 10), Name: "terminal.snapshot", Data: gin.H{"terminals": items},
-		}); err != nil {
+		if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, profileID, fence); err != nil {
 			return
 		}
 	} else {
@@ -68,14 +61,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 		case <-changed:
 			replay, reset, fence, changed = h.terminalCatalog.read(workspaceID, profileID, after)
 			if reset {
-				items, listErr := h.terminalListForProfile(c, service, workspaceID, profileID)
-				if listErr != nil {
-					h.logSSEWriteFailure("terminal.snapshot", listErr)
-					return
-				}
-				if err := WriteSSE(writer, SSEMessage{
-					ID: strconv.FormatUint(fence, 10), Name: "terminal.snapshot", Data: gin.H{"terminals": items},
-				}); err != nil {
+				if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, profileID, fence); err != nil {
 					return
 				}
 				after = fence
@@ -97,6 +83,23 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 			return
 		}
 	}
+}
+
+func (h *BaseHandlers) writeTerminalCatalogSnapshot(
+	c *gin.Context,
+	writer FlushWriter,
+	service terminalpkg.Manager,
+	workspaceID, profileID string,
+	fence uint64,
+) error {
+	items, err := h.terminalListForProfile(c, service, workspaceID, profileID)
+	if err != nil {
+		h.logSSEWriteFailure("terminal.snapshot", err)
+		return err
+	}
+	return WriteSSE(writer, SSEMessage{
+		ID: strconv.FormatUint(fence, 10), Name: "terminal.snapshot", Data: gin.H{"terminals": items},
+	})
 }
 
 func terminalCatalogCursor(raw string) (uint64, error) {
@@ -134,9 +137,15 @@ func terminalCatalogPayload(event terminalpkg.TerminalEvent) (string, any, error
 	case terminalpkg.EventKindTitleChanged:
 		return "terminal.title_changed", gin.H{"terminal_id": event.TerminalID, "title": event.Detail.Title}, nil
 	case terminalpkg.EventKindLeaseChanged:
+		var controllerKind terminalpkg.ActorKind
+		var controllerID string
+		if event.Info != nil && event.Info.Controller != nil {
+			controllerKind = event.Info.Controller.Kind
+			controllerID = event.Info.Controller.ID
+		}
 		return "terminal.lease_changed", gin.H{
 			"terminal_id": event.TerminalID, "lease": event.Detail.LeaseTo,
-			"actor_kind": event.Actor.Kind, "actor_id": event.Actor.ID, "reason": event.Reason,
+			"controller_kind": controllerKind, "controller_id": controllerID, "reason": event.Reason,
 		}, nil
 	case terminalpkg.EventKindModeChanged:
 		return "terminal.mode_changed", gin.H{"terminal_id": event.TerminalID, "mode": event.Detail.Mode}, nil

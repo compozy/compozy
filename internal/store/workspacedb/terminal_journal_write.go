@@ -40,10 +40,11 @@ func (d *DB) LinkTerminalRecording(ctx context.Context, recording TerminalRecord
 		}); err != nil {
 			return fmt.Errorf("insert recording: %w", err)
 		}
-		_, err := queries.UpdateTerminalCommandRecording(ctx, sqlcgen.UpdateTerminalCommandRecordingParams{
+		err := queries.UpdateTerminalCommandRecording(ctx, sqlcgen.UpdateTerminalCommandRecordingParams{
 			RecordingID: sql.NullString{String: recording.ID, Valid: true},
 			TerminalID:  sql.NullString{String: recording.TerminalID, Valid: true},
 			ProfileID:   recording.ProfileID, RecordingStartedAt: recording.StartedAt,
+			RecordingStoppedAt: nullableInt64(recording.StoppedAt),
 		})
 		if err != nil {
 			return fmt.Errorf("link commands: %w", err)

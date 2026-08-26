@@ -64,6 +64,8 @@ type SessionCreateStoreEvents = {
   dialogOpened: {
     agentName: string;
     workspaceId: string;
+    /** Optional first message supplied by the surface that opened creation. */
+    firstMessage?: string;
     /** Preselects where the session will run; omitted opens at the workspace root. */
     environment?: SessionEnvironmentTarget;
   };
@@ -127,6 +129,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         draft: {
           ...applySessionAgentSelection(context.draft, agentName, event.workspaceId),
           ...(event.environment ? { environment: event.environment } : {}),
+          ...(event.firstMessage !== undefined ? { firstMessage: event.firstMessage } : {}),
         },
         operation: { status: "idle" },
         submitError: null,

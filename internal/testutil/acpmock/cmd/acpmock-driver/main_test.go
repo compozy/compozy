@@ -144,6 +144,7 @@ func TestMockAgentReportedTerminalRequiresNegotiatedCapability(t *testing.T) {
 		entry, err := agent.emitReportedTerminal(context.Background(), "sess-reported", acpmock.Step{
 			Kind: acpmock.StepKindReportedTerminal, ToolCallID: "tool-1", TerminalID: "reported-1",
 			Title: "bun test", Cwd: "/workspace", Chunks: []string{"one\n", "two\n"},
+			ExitCode: new(7), Signal: "TERM",
 		})
 		if err != nil {
 			t.Fatalf("emitReportedTerminal() error = %v", err)
@@ -155,18 +156,22 @@ func TestMockAgentReportedTerminalRequiresNegotiatedCapability(t *testing.T) {
 			t.Fatalf("notification count = %d, want %d", got, want)
 		}
 		startMeta := conn.notifications[0].Update.ToolCall.Meta
-		if startMeta["terminal_info"] == nil {
-			t.Fatalf("start metadata = %#v, want terminal_info", startMeta)
+		startInfo, ok := startMeta["terminal_info"].(map[string]any)
+		if !ok || startInfo["terminal_id"] != "reported-1" || startInfo["cwd"] != "/workspace" {
+			t.Fatalf("start metadata = %#v, want reported-1 in /workspace", startMeta)
 		}
-		for _, index := range []int{1, 2} {
-			meta := conn.notifications[index].Update.ToolCallUpdate.Meta
-			if meta["terminal_output"] == nil {
-				t.Fatalf("chunk %d metadata = %#v, want terminal_output", index, meta)
+		for index, wantData := range []string{"one\n", "two\n"} {
+			notificationIndex := index + 1
+			meta := conn.notifications[notificationIndex].Update.ToolCallUpdate.Meta
+			output, ok := meta["terminal_output"].(map[string]any)
+			if !ok || output["terminal_id"] != "reported-1" || output["data"] != wantData {
+				t.Fatalf("chunk %d metadata = %#v, want reported-1/%q", notificationIndex, meta, wantData)
 			}
 		}
 		finalMeta := conn.notifications[3].Update.ToolCallUpdate.Meta
-		if finalMeta["terminal_exit"] == nil {
-			t.Fatalf("final metadata = %#v, want terminal_exit", finalMeta)
+		exit, ok := finalMeta["terminal_exit"].(map[string]any)
+		if !ok || exit["terminal_id"] != "reported-1" || exit["exit_code"] != 7 || exit["signal"] != "TERM" {
+			t.Fatalf("final metadata = %#v, want reported-1/7/TERM", finalMeta)
 		}
 	})
 

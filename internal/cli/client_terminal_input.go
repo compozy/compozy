@@ -13,6 +13,8 @@ import (
 )
 
 const (
+	// terminalDetachByte is Ctrl-\\; receiving it twice within
+	// terminalDetachTimeout detaches without forwarding either byte.
 	terminalDetachByte    = byte(0x1c)
 	terminalDetachTimeout = 150 * time.Millisecond
 )

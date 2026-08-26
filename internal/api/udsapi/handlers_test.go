@@ -525,6 +525,14 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"POST /api/tools/search",
 			"POST /api/workspaces",
 			"POST /api/workspaces/resolve",
+			"POST /api/workspaces/:workspace_id/terminals",
+			"POST /api/workspaces/:workspace_id/terminals/:id/attach-ticket",
+			"POST /api/workspaces/:workspace_id/terminals/:id/input-requests/:request_id/answer",
+			"POST /api/workspaces/:workspace_id/terminals/:id/input-requests/:request_id/reject",
+			"POST /api/workspaces/:workspace_id/terminals/:id/recording",
+			"POST /api/workspaces/:workspace_id/terminals/:id/signal",
+			"POST /api/workspaces/:workspace_id/terminals/:id/wait",
+			"POST /api/workspaces/:workspace_id/terminals/exec",
 			"PUT /api/agents/:name/heartbeat",
 			"PUT /api/agents/:name/soul",
 			"PUT /api/agents/:name",
@@ -554,6 +562,16 @@ func TestRegisterRoutesCoversTechSpecEndpoints(t *testing.T) {
 			"DELETE /api/workspaces/:workspace_id/loops/:name/input-defaults/:key",
 			"DELETE /api/agents/:name",
 			"DELETE /api/workspaces/:workspace_id/network/channels/:channel/subscriptions/:session_id",
+			"DELETE /api/workspaces/:workspace_id/terminals/:id",
+			"GET /api/workspaces/:workspace_id/terminals",
+			"GET /api/workspaces/:workspace_id/terminals/:id",
+			"GET /api/workspaces/:workspace_id/terminals/:id/read",
+			"GET /api/workspaces/:workspace_id/terminals/:id/stream",
+			"GET /api/workspaces/:workspace_id/terminals/artifacts/:id",
+			"GET /api/workspaces/:workspace_id/terminals/input-requests",
+			"GET /api/workspaces/:workspace_id/terminals/journal",
+			"GET /api/workspaces/:workspace_id/terminals/recordings/:id",
+			"GET /api/workspaces/:workspace_id/terminals/stream",
 		}
 		sort.Strings(want)
 
@@ -836,6 +854,7 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 					SessionTimeout: "30m",
 					HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 					Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
+					Terminal:       validUDSTerminalSettingsPayload(),
 				},
 			}),
 			assert: func(t *testing.T, recorder *httptest.ResponseRecorder) {
@@ -1187,6 +1206,22 @@ func TestSettingsRoutesUseSharedCoreHandlers(t *testing.T) {
 				tc.assert(t, recorder)
 			}
 		})
+	}
+}
+
+func validUDSTerminalSettingsPayload() contract.SettingsTerminalPayload {
+	terminal := compozyconfig.DefaultTerminalConfig()
+	return contract.SettingsTerminalPayload{
+		DefaultShell:           terminal.DefaultShell,
+		ShellIntegration:       terminal.ShellIntegration,
+		ScrollbackBytes:        terminal.ScrollbackBytes,
+		DetachedTTL:            terminal.DetachedTTL.String(),
+		ExitRetention:          terminal.ExitRetention.String(),
+		Recording:              terminal.Recording,
+		RecordingRetentionDays: terminal.RecordingRetentionDays,
+		MaxPerWorkspace:        terminal.MaxPerWorkspace,
+		MaxPerDaemon:           terminal.MaxPerDaemon,
+		MaxSubscribers:         terminal.MaxSubscribers,
 	}
 }
 

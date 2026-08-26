@@ -17,20 +17,21 @@ import (
 )
 
 type pipeProc struct {
-	reader    *io.PipeReader
-	input     *io.PipeWriter
-	cancel    context.CancelFunc
-	waiter    processWaiter
-	mu        sync.RWMutex
-	command   *exec.Cmd
-	pid       int
-	startedAt time.Time
-	exit      *Exit
-	ready     chan struct{}
-	readyOnce sync.Once
-	startErr  error
-	closeOnce sync.Once
-	closeErr  error
+	reader     *io.PipeReader
+	input      *io.PipeWriter
+	cancel     context.CancelFunc
+	waiter     processWaiter
+	mu         sync.RWMutex
+	command    *exec.Cmd
+	pid        int
+	startedAt  time.Time
+	exit       *Exit
+	ready      chan struct{}
+	readyOnce  sync.Once
+	startErr   error
+	killSignal Signal
+	closeOnce  sync.Once
+	closeErr   error
 }
 
 func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
@@ -136,7 +137,9 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 		if !stopCancellation() {
 			<-cancellationDone
 		}
+		descendantErr := escalatePipeCommand(command)
 		p.mu.Lock()
+		commandExit = reportedPipeSignal(p.killSignal, commandExit)
 		if p.command == command {
 			p.command = nil
 		}
@@ -144,14 +147,19 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 		p.mu.Unlock()
 		if exitErr, ok := waitErr.(*exec.ExitError); ok {
 			if ctx.Err() != nil {
-				return errors.Join(ctx.Err(), cancellationErr)
+				return errors.Join(ctx.Err(), cancellationErr, descendantErr)
+			}
+			if descendantErr != nil {
+				return descendantErr
 			}
 			return interp.ExitStatus(exitErr.ExitCode())
 		}
 		if waitErr != nil {
-			return errors.Join(fmt.Errorf("terminal pipe: wait %q: %w", args[0], waitErr), cancellationErr)
+			return errors.Join(
+				fmt.Errorf("terminal pipe: wait %q: %w", args[0], waitErr), cancellationErr, descendantErr,
+			)
 		}
-		return cancellationErr
+		return errors.Join(cancellationErr, descendantErr)
 	}
 }
 
@@ -184,17 +192,25 @@ func (p *pipeProc) Resize(uint16, uint16) error { return ErrInteractiveUnavailab
 func (p *pipeProc) Wait(ctx context.Context) (Exit, error) { return p.waiter.wait(ctx) }
 
 func (p *pipeProc) Kill(signal Signal) error {
-	p.mu.RLock()
+	p.mu.Lock()
 	command := p.command
-	p.mu.RUnlock()
 	if command == nil {
+		p.mu.Unlock()
 		if signal == SignalKILL || signal == SignalTERM || signal == SignalHUP {
 			p.cancel()
 			return nil
 		}
 		return errors.New("terminal pipe: no running external command")
 	}
+	previousSignal := p.killSignal
+	p.killSignal = signal
+	p.mu.Unlock()
 	if err := signalPipeCommand(command, signal); err != nil {
+		p.mu.Lock()
+		if p.command == command && p.killSignal == signal {
+			p.killSignal = previousSignal
+		}
+		p.mu.Unlock()
 		return fmt.Errorf("terminal pipe: signal: %w", err)
 	}
 	if signal == SignalHUP || signal == SignalTERM {

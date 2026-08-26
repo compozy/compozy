@@ -320,6 +320,9 @@ func isLocalOnlyClientOperation(method string, path string) bool {
 	if hasAPIPathPrefix(normalized, "/api/scheduler") {
 		return true
 	}
+	if strings.HasPrefix(normalized, "/api/workspaces/") && strings.Contains(normalized, "/terminals") {
+		return true
+	}
 	if hasAPIPathPrefix(normalized, "/api/resources") &&
 		(method == http.MethodPut || method == http.MethodPost ||
 			method == http.MethodPatch || method == http.MethodDelete) {

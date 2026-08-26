@@ -25,7 +25,7 @@ func TestTerminalClientStreamShouldDetachWithoutReconnect(t *testing.T) {
 	input := strings.NewReader(string([]byte{terminalDetachByte, terminalDetachByte}))
 	go func() {
 		done <- runTerminalClientStream(
-			context.Background(), client, terminalStreamModeWrite, input, io.Discard,
+			t.Context(), client, terminalStreamModeWrite, input, io.Discard,
 		)
 	}()
 	frame := readTerminalClientTestFrame(t, server)
@@ -47,7 +47,7 @@ func TestTerminalClientStreamShouldTakeOverBeforeWriteAttach(t *testing.T) {
 	client, server := newTerminalClientTestPair(t)
 	done := make(chan error, 1)
 	go func() {
-		done <- runTerminalTakeover(context.Background(), client, true)
+		done <- runTerminalTakeover(t.Context(), client, true)
 	}()
 	writeTerminalServerTestFrame(t, server, terminalwire.Frame{
 		Op: terminalwire.ServerOpAttached, Payload: []byte(`{"seq":0}`),
@@ -115,7 +115,7 @@ func TestTerminalClientStreamShouldAckOnlyWrittenOutput(t *testing.T) {
 	var output bytes.Buffer
 	go func() {
 		done <- runTerminalClientStream(
-			context.Background(), client, terminalStreamModeRead, nil, &output,
+			t.Context(), client, terminalStreamModeRead, nil, &output,
 		)
 	}()
 	payload := bytes.Repeat([]byte("x"), terminalwire.AckGrainBytes)
@@ -170,7 +170,7 @@ func TestTerminalClientStreamShouldPreserveTransientServerClose(t *testing.T) {
 	done := make(chan error, 1)
 	go func() {
 		done <- runTerminalClientStream(
-			context.Background(), client, terminalStreamModeRead, nil, io.Discard,
+			t.Context(), client, terminalStreamModeRead, nil, io.Discard,
 		)
 	}()
 	deadline := time.Now().Add(time.Second)
@@ -214,7 +214,7 @@ func TestTerminalClientStreamShouldAdvanceOnlyWrittenSequence(t *testing.T) {
 			done := make(chan result, 1)
 			go func() {
 				seq, err := runTerminalClientStreamWithInput(
-					context.Background(), client, nil, io.Discard, testCase.initial,
+					t.Context(), client, nil, io.Discard, testCase.initial,
 				)
 				done <- result{seq: seq, err: err}
 			}()

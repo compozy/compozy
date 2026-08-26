@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
@@ -80,10 +81,10 @@ func (c *daemonClient) ReadTerminal(
 ) (terminalpkg.ReadResult, error) {
 	query := make(url.Values)
 	query.Set("view", options.View)
-	setPositiveInt(query, "max_bytes", options.MaxBytes)
-	setPositiveUint64(query, "since_seq", options.SinceSeq)
-	setPositiveInt(query, "from", options.FromLine)
-	setPositiveInt(query, "to", options.ToLine)
+	setTerminalPositiveInt(query, "max_bytes", options.MaxBytes)
+	setTerminalPositiveUint64(query, "since_seq", options.SinceSeq)
+	setTerminalPositiveInt(query, "from", options.FromLine)
+	setTerminalPositiveInt(query, "to", options.ToLine)
 	if options.Grep != "" {
 		query.Set("grep", options.Grep)
 	}
@@ -162,15 +163,15 @@ func (c *daemonClient) QueryTerminalJournal(
 	queryInput TerminalJournalQuery,
 ) (terminalpkg.Page, error) {
 	query := make(url.Values)
-	setString(query, "actor", queryInput.Actor)
-	setString(query, "since", queryInput.Since)
-	setString(query, "terminal_id", queryInput.TerminalID)
-	setString(query, "cursor", queryInput.Cursor)
-	setPositiveInt(query, "limit", queryInput.Limit)
+	setTerminalString(query, "actor", queryInput.Actor)
+	setTerminalString(query, "since", queryInput.Since)
+	setTerminalString(query, "terminal_id", queryInput.TerminalID)
+	setTerminalString(query, "cursor", queryInput.Cursor)
+	setTerminalPositiveInt(query, "limit", queryInput.Limit)
 	if queryInput.Failed {
 		query.Set("failed", "true")
 	}
-	var response terminalpkg.Page
+	var response contract.TerminalJournalResponse
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
@@ -181,7 +182,15 @@ func (c *daemonClient) QueryTerminalJournal(
 	); err != nil {
 		return terminalpkg.Page{}, err
 	}
-	return response, nil
+	entries := make([]terminalpkg.CommandRow, 0, len(response.Entries))
+	for _, row := range response.Entries {
+		entries = append(entries, contract.TerminalCommandRowFromPayload(row))
+	}
+	next := ""
+	if response.Next != nil {
+		next = *response.Next
+	}
+	return terminalpkg.Page{Entries: entries, Next: next}, nil
 }
 
 func (c *daemonClient) ControlTerminalRecording(
@@ -203,19 +212,19 @@ func terminalInputRequestPath(workspace, terminalID, requestID string) string {
 		"/input-requests/" + url.PathEscape(strings.TrimSpace(requestID))
 }
 
-func setString(query url.Values, key, value string) {
+func setTerminalString(query url.Values, key, value string) {
 	if value != "" {
 		query.Set(key, value)
 	}
 }
 
-func setPositiveInt(query url.Values, key string, value int) {
+func setTerminalPositiveInt(query url.Values, key string, value int) {
 	if value > 0 {
 		query.Set(key, strconv.Itoa(value))
 	}
 }
 
-func setPositiveUint64(query url.Values, key string, value uint64) {
+func setTerminalPositiveUint64(query url.Values, key string, value uint64) {
 	if value > 0 {
 		query.Set(key, strconv.FormatUint(value, 10))
 	}

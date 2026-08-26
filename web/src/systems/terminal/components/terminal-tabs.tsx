@@ -1,4 +1,5 @@
 import { ChevronRight, FileText, Plus, ScrollText, X } from "lucide-react";
+import { useRef } from "react";
 
 import {
   Button,
@@ -13,7 +14,7 @@ import { terminalExitCopy } from "../lib/terminal-copy";
 import type { TerminalInfo } from "../types";
 
 /** The journal is one per project and never closes, so it pins to the strip. */
-export const TERMINAL_JOURNAL_TAB = "journal";
+export const TERMINAL_JOURNAL_TAB: unique symbol = Symbol("terminal-journal-tab");
 
 export type TerminalTabId = string | typeof TERMINAL_JOURNAL_TAB;
 
@@ -27,26 +28,13 @@ export interface TerminalTabsProps {
   /** Absent on execute-only platforms — the option does not exist there. */
   onOpenTerminal?: () => void;
   onSelect: (tab: TerminalTabId) => void;
-  onCloseTerminal: (terminalId: string) => void;
+  onCloseTerminal?: (terminalId: string) => void;
+  /** Labels mixed-profile rows with their owner. */
+  showOwner?: boolean;
 }
 
 /** Tabs never shrink past legibility; the surplus collapses behind a caret. */
 const VISIBLE_TAB_LIMIT = 5;
-
-/**
- * Moves focus onto the tab that just became selected.
- *
- * Found by its test id inside the strip that owns it, after the DOM has been
- * updated for the new selection, so the element is focusable by then.
- */
-function focusTab(from: Element, tab: TerminalTabId): void {
-  const strip = from.closest("[data-testid='terminal-tabs']");
-  const id = tab === TERMINAL_JOURNAL_TAB ? "terminal-tab-journal" : `terminal-tab-select-${tab}`;
-  queueMicrotask(() => {
-    const next = strip?.querySelector<HTMLElement>(`[data-testid='${id}']`);
-    next?.focus();
-  });
-}
 
 /**
  * Which tabs are on the strip, and which are behind the caret.
@@ -87,8 +75,17 @@ export function TerminalTabs({
   onOpenTerminal,
   onSelect,
   onCloseTerminal,
+  showOwner = false,
 }: TerminalTabsProps) {
   const { visible, overflow } = splitTabs(terminals, activeTab);
+  const tabRefs = useRef(new Map<TerminalTabId, HTMLButtonElement>());
+  const bindTabRef = (tab: TerminalTabId) => (node: HTMLButtonElement | null) => {
+    if (node) tabRefs.current.set(tab, node);
+    else tabRefs.current.delete(tab);
+  };
+  const focusTab = (tab: TerminalTabId) => {
+    queueMicrotask(() => tabRefs.current.get(tab)?.focus());
+  };
   const atLimit = terminals.length >= limit;
   // Arrow keys move between tabs, as a tablist owes its users; the strip owns
   // the movement because only it knows the order, including the pinned journal.
@@ -104,7 +101,7 @@ export function TerminalTabs({
     event.preventDefault();
     const next = order[(index + step + order.length) % order.length];
     onSelect(next);
-    focusTab(event.currentTarget, next);
+    focusTab(next);
   };
   return (
     <div
@@ -117,18 +114,21 @@ export function TerminalTabs({
         {visible.map(terminal => (
           <TerminalTab
             active={activeTab === terminal.id}
+            buttonRef={bindTabRef(terminal.id)}
             key={terminal.id}
             needsAttention={attentionIds?.has(terminal.id) ?? false}
-            onClose={() => onCloseTerminal(terminal.id)}
+            onClose={onCloseTerminal ? () => onCloseTerminal(terminal.id) : undefined}
             onKeyDown={event => moveSelection(event, terminal.id)}
             onSelect={() => onSelect(terminal.id)}
             terminal={terminal}
+            showOwner={showOwner}
           />
         ))}
         {overflow.length > 0 ? (
           <TerminalTabOverflow
             attentionIds={attentionIds}
             onSelect={onSelect}
+            showOwner={showOwner}
             terminals={overflow}
           />
         ) : null}
@@ -155,6 +155,7 @@ export function TerminalTabs({
             : "text-muted hover:bg-row-hover hover:text-fg"
         )}
         data-testid="terminal-tab-journal"
+        ref={bindTabRef(TERMINAL_JOURNAL_TAB)}
         onClick={() => onSelect(TERMINAL_JOURNAL_TAB)}
         onKeyDown={event => moveSelection(event, TERMINAL_JOURNAL_TAB)}
         role="tab"
@@ -179,17 +180,21 @@ export function TerminalTabs({
 function TerminalTab({
   terminal,
   active,
+  buttonRef,
   needsAttention,
   onSelect,
   onClose,
   onKeyDown,
+  showOwner,
 }: {
   terminal: TerminalInfo;
   active: boolean;
+  buttonRef: (node: HTMLButtonElement | null) => void;
   needsAttention: boolean;
   onSelect: () => void;
-  onClose: () => void;
+  onClose?: () => void;
   onKeyDown: (event: React.KeyboardEvent) => void;
+  showOwner: boolean;
 }) {
   const exit = terminal.exit ? terminalExitCopy(terminal.exit) : null;
   return (
@@ -204,6 +209,7 @@ function TerminalTab({
     >
       <button
         aria-selected={active}
+        ref={buttonRef}
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         data-testid={`terminal-tab-select-${terminal.id}`}
         onClick={onSelect}
@@ -224,7 +230,10 @@ function TerminalTab({
             data-state={terminal.state}
           />
         )}
-        <span className="truncate">{terminal.title}</span>
+        <span className="truncate">
+          {terminal.title}
+          {showOwner ? ` · ${terminal.profile_name}` : ""}
+        </span>
         {needsAttention ? (
           <span
             aria-label="Input requested"
@@ -236,14 +245,16 @@ function TerminalTab({
           <span className="shrink-0 font-mono text-micro text-subtle">{exit.code}</span>
         ) : null}
       </button>
-      <button
-        aria-label={`Close ${terminal.title}`}
-        className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
-        onClick={onClose}
-        type="button"
-      >
-        <X aria-hidden="true" className="size-3" />
-      </button>
+      {onClose ? (
+        <button
+          aria-label={`Close ${terminal.title}`}
+          className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100"
+          onClick={onClose}
+          type="button"
+        >
+          <X aria-hidden="true" className="size-3" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -258,10 +269,12 @@ function TerminalTabOverflow({
   terminals,
   attentionIds,
   onSelect,
+  showOwner,
 }: {
   terminals: readonly TerminalInfo[];
   attentionIds?: ReadonlySet<string>;
   onSelect: (tab: TerminalTabId) => void;
+  showOwner: boolean;
 }) {
   return (
     <DropdownMenu>
@@ -282,6 +295,7 @@ function TerminalTabOverflow({
         {terminals.map(terminal => (
           <DropdownMenuItem key={terminal.id} onClick={() => onSelect(terminal.id)}>
             {terminal.title}
+            {showOwner ? ` · ${terminal.profile_name}` : ""}
             {attentionIds?.has(terminal.id) ? (
               <span
                 aria-label="Input requested"

@@ -55,18 +55,8 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListTerminals(c *gin.Context) {
-	if h == nil || h.Terminal == nil {
-		h.respondTerminalUnavailable(c)
-		return
-	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	service, err := h.Terminal.TerminalFor(scope.ProfileID)
-	if err != nil {
-		h.respondTerminalError(c, err)
+	service, scope, ok := h.terminalAggregateService(c)
+	if !ok {
 		return
 	}
 	items, err := service.List(c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), scope)
@@ -116,6 +106,10 @@ func (h *BaseHandlers) DeleteTerminal(c *gin.Context) {
 	request := closeTerminalRequest{Signal: terminalpkg.SignalHUP}
 	if err := decodeOptionalTerminalJSON(c, &request); err != nil {
 		h.respondTerminalError(c, terminalRequestError(err))
+		return
+	}
+	if !validTerminalSignal(request.Signal) {
+		h.respondTerminalError(c, terminalRequestError(errors.New("signal must be INT, TERM, KILL, or HUP")))
 		return
 	}
 	exit, err := service.Close(

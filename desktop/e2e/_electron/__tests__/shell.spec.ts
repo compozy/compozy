@@ -1071,15 +1071,18 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   await terminalWindow.getByTestId("terminal-empty-open").click();
   const terminalGrid = terminalWindow.getByRole("log");
   await expect(terminalGrid).toBeVisible();
+  await expect(terminalGrid).toHaveAttribute("data-renderer", /^(dom|webgl)$/u);
+  await expect(terminalGrid).toHaveAttribute("data-readonly", "false");
+  const acceleratorModifier = process.platform === "darwin" ? "Meta" : "Control";
   await terminalGrid.click();
-  await product.keyboard.type("printf 'desktop-shell-echo\\n'");
+  await product.keyboard.type("echo desktop-shell-echo");
   await product.keyboard.press("Enter");
   await expect(terminalGrid).toContainText("desktop-shell-echo");
 
-  const pasteCommand = "printf 'desktop-clipboard-paste\\n'";
+  const pasteCommand = "echo desktop-clipboard-paste";
   await product.evaluate(async value => await navigator.clipboard.writeText(value), pasteCommand);
   await terminalGrid.click();
-  await product.keyboard.press(process.platform === "darwin" ? "Meta+V" : "Control+V");
+  await product.keyboard.press(`${acceleratorModifier}+V`);
   await product.keyboard.press("Enter");
   const pastedRow = terminalWindow
     .locator(".xterm-rows > div", { hasText: "desktop-clipboard-paste" })
@@ -1093,7 +1096,7 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
     steps: 8,
   });
   await product.mouse.up();
-  await product.keyboard.press(process.platform === "darwin" ? "Meta+C" : "Control+C");
+  await product.keyboard.press(`${acceleratorModifier}+C`);
   await expect
     .poll(async () => await desktop.app.evaluate(({ clipboard }) => clipboard.readText()))
     .toContain("desktop-clipboard-paste");
@@ -1102,28 +1105,27 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   const initialCellHeight = (await cellRow.boundingBox())?.height;
   if (!initialCellHeight) throw new Error("Terminal cell metrics were unavailable before zoom.");
   const initialGrid = await terminalWindow.getByTestId("terminal-grid-chip").textContent();
-  await product.keyboard.press(process.platform === "darwin" ? "Meta++" : "Control++");
+  await product.keyboard.press(`${acceleratorModifier}++`);
   await expect.poll(async () => (await cellRow.boundingBox())?.height).not.toBe(initialCellHeight);
   await expect
     .poll(async () => await terminalWindow.getByTestId("terminal-grid-chip").textContent())
     .not.toBe(initialGrid);
-  await product.keyboard.press(process.platform === "darwin" ? "Meta+-" : "Control+-");
+  await product.keyboard.press(`${acceleratorModifier}+-`);
 
-  await product.keyboard.press(process.platform === "darwin" ? "Meta+K" : "Control+K");
+  await product.keyboard.press(`${acceleratorModifier}+K`);
   await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   await expect(terminalGrid).toContainText("desktop-shell-echo");
   await product.keyboard.press("Escape");
 
   await terminalWindow.locator(".xterm-helper-textarea").focus();
-  await product.keyboard.type("stty -echo");
-  await product.keyboard.press("Enter");
+  const imePayload = `node -e "process.stdout.write('\\x1b[2J\\x1b[H漢字\\n')"`;
   const cdp = await product.context().newCDPSession(product);
   await cdp.send("Input.imeSetComposition", {
-    text: "printf '漢字'",
-    selectionStart: 11,
-    selectionEnd: 11,
+    text: imePayload,
+    selectionStart: imePayload.length,
+    selectionEnd: imePayload.length,
   });
-  await cdp.send("Input.insertText", { text: "printf '漢字'" });
+  await cdp.send("Input.insertText", { text: imePayload });
   await product.keyboard.press("Enter");
   await expect(terminalGrid).toContainText("漢字");
   const renderedCJK = await terminalWindow.locator(".xterm-rows").innerText();
@@ -1241,47 +1243,77 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
   });
   expect(initialCSPViolations.filter(directive => directive.startsWith("font-src"))).toEqual([]);
   const cspProbe = await product.evaluate(async () => {
-    const directives: string[] = [];
-    const onViolation = (event: SecurityPolicyViolationEvent) => {
-      directives.push(event.violatedDirective);
+    const observeViolations = async (probe: () => Promise<void> | void) => {
+      const directives: string[] = [];
+      const onViolation = (event: SecurityPolicyViolationEvent) => {
+        directives.push(event.violatedDirective);
+      };
+      document.addEventListener("securitypolicyviolation", onViolation);
+      try {
+        await probe();
+        await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+        return directives;
+      } finally {
+        document.removeEventListener("securitypolicyviolation", onViolation);
+      }
     };
-    document.addEventListener("securitypolicyviolation", onViolation);
     Reflect.deleteProperty(globalThis, "__compozyInlineScriptRan");
-    const script = document.createElement("script");
-    script.textContent = "globalThis.__compozyInlineScriptRan = true";
-    document.body.append(script);
+    const inlineScriptDirectives = await observeViolations(() => {
+      const script = document.createElement("script");
+      script.textContent = "globalThis.__compozyInlineScriptRan = true";
+      document.body.append(script);
+      script.remove();
+    });
     const attemptSocket = async (url: string) => {
       await new Promise<void>(resolveAttempt => {
-        const socket = new WebSocket(url, "compozy.terminal.v1");
+        let socket: WebSocket | null = null;
+        let timeout: number | undefined;
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          if (timeout !== undefined) window.clearTimeout(timeout);
+          resolveAttempt();
+        };
+        try {
+          socket = new WebSocket(url, "compozy.terminal.v1");
+        } catch {
+          finish();
+          return;
+        }
+        timeout = window.setTimeout(() => {
+          socket?.close();
+          finish();
+        }, 2_000);
         socket.onopen = () => {
           socket.close();
-          queueMicrotask(resolveAttempt);
+          finish();
         };
-        socket.onerror = () => queueMicrotask(resolveAttempt);
+        socket.onerror = finish;
       });
     };
     const socketProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    await attemptSocket(
-      `${socketProtocol}//${window.location.host}/api/workspaces/csp-probe/terminals/term-probe/stream?mode=read&ticket=invalid`
+    const sameOriginSocketDirectives = await observeViolations(() =>
+      attemptSocket(
+        `${socketProtocol}//${window.location.host}/api/workspaces/csp-probe/terminals/term-probe/stream?mode=read&ticket=invalid`
+      )
     );
-    const sameOriginSocketBlocked = directives.includes("connect-src");
-    directives.length = 0;
-    await attemptSocket(`${socketProtocol}//example.com/compozy-terminal-cross-origin`);
-    const crossOriginSocketBlocked = directives.includes("connect-src");
-    await new Promise(resolveDelay => setTimeout(resolveDelay, 50));
-    document.removeEventListener("securitypolicyviolation", onViolation);
+    const crossOriginSocketDirectives = await observeViolations(() =>
+      attemptSocket(`${socketProtocol}//example.com/compozy-terminal-cross-origin`)
+    );
     return {
-      directives,
+      inlineScriptDirectives,
+      sameOriginSocketDirectives,
+      crossOriginSocketDirectives,
       inlineScriptRan: Reflect.get(globalThis, "__compozyInlineScriptRan") === true,
-      sameOriginSocketBlocked,
-      crossOriginSocketBlocked,
     };
   });
   expect(cspProbe.inlineScriptRan).toBe(false);
-  expect(cspProbe.directives.some(directive => directive.startsWith("script-src"))).toBe(true);
-  expect(cspProbe.directives).toContain("connect-src");
-  expect(cspProbe.sameOriginSocketBlocked).toBe(false);
-  expect(cspProbe.crossOriginSocketBlocked).toBe(true);
+  expect(
+    cspProbe.inlineScriptDirectives.some(directive => directive.startsWith("script-src"))
+  ).toBe(true);
+  expect(cspProbe.sameOriginSocketDirectives).not.toContain("connect-src");
+  expect(cspProbe.crossOriginSocketDirectives).toContain("connect-src");
 
   await desktop.closeShell();
   const productionHome = await mkdtemp(join(tmpdir(), "compozy-electron-security-"));

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
@@ -75,7 +76,11 @@ func terminalRejectedInputBundle(requestID string) outputBundle {
 }
 
 func terminalJournalBundle(page terminalpkg.Page) outputBundle {
-	value := map[string]any{"entries": page.Entries, terminalNextKey: nullableTerminalCursor(page.Next)}
+	entries := make([]contract.TerminalCommandRowPayload, 0, len(page.Entries))
+	for _, row := range page.Entries {
+		entries = append(entries, contract.TerminalCommandRowPayloadFromDomain(row, row.ProfileName))
+	}
+	value := map[string]any{"entries": entries, terminalNextKey: nullableTerminalCursor(page.Next)}
 	return outputBundle{
 		jsonValue: value,
 		json:      terminalHTTPJSON(value),

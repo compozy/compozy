@@ -34,17 +34,17 @@ compozy terminal open [flags]
 
 ## Output Formats
 
-The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+Without `--detach`, this command writes an interactive terminal stream. Add `--detach` before selecting a structured output format.
 
-| Format  | Command result                          |
-| ------- | --------------------------------------- |
-| `human` | Interactive terminal rendering          |
-| `json`  | Machine-readable JSON rendering         |
-| `jsonl` | One JSON record per line when supported |
-| `toon`  | Compact agent-readable rendering        |
+| Format  | Command result                                                |
+| ------- | ------------------------------------------------------------- |
+| `human` | Interactive terminal rendering, or a detached terminal record |
+| `json`  | Detached terminal record                                      |
+| `jsonl` | Detached terminal record                                      |
+| `toon`  | Detached terminal record                                      |
 
 Example:
 
 ```bash
-compozy terminal open -o json
+compozy terminal open --detach -o json
 ```

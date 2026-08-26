@@ -111,6 +111,14 @@ describe("CompozyEventDataRenderer", () => {
     }
   });
 
+  it("Should route an agent-reported terminal event through the reported block", () => {
+    renderWithContext(reportedTerminalEvent);
+
+    expect(
+      screen.getByTestId("session-agent-reported-block-reported-terminal-1")
+    ).toBeInTheDocument();
+  });
+
   it("Should render no terminal chrome for an empty report", () => {
     const { container } = render(
       <SessionAgentReportedBlock

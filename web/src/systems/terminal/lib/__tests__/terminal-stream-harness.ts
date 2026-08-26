@@ -2,7 +2,12 @@ import { vi } from "vitest";
 
 import type { TerminalSocket } from "../../adapters/terminal-socket";
 import type { TerminalStreamSink } from "../terminal-protocol-client";
-import { TERMINAL_SERVER_OP } from "../terminal-wire";
+import {
+  encodeTerminalServerControlFrame,
+  encodeTerminalServerOutputFrame,
+  TERMINAL_SERVER_OP,
+  type TerminalControlOpcode,
+} from "../terminal-wire";
 
 /**
  * A scripted terminal socket and emulator sink.
@@ -58,7 +63,10 @@ export function createFakeSocketFactory(): {
           ) as ArrayBuffer;
           socket.onmessage?.({ data: buffer } as MessageEvent<unknown>);
         },
-        drop: () => socket.onclose?.(new CloseEvent("close")),
+        drop: () => {
+          socket.closed = true;
+          socket.onclose?.(new CloseEvent("close"));
+        },
       };
       sockets.push(socket);
       return socket;
@@ -72,7 +80,7 @@ export interface FakeSink extends TerminalStreamSink {
   resets: number;
   /** Releases the pending parse for the write at `index`. */
   completeWrite(index: number): void;
-  pendingWrites(): number;
+  writeCount(): number;
 }
 
 /** A sink whose parse completion is under the test's control. */
@@ -103,28 +111,17 @@ export function createFakeSink(options: { autoParse?: boolean } = {}): FakeSink 
       sink.dimensions.push(dimensions);
     },
     completeWrite: index => pending[index]?.(),
-    pendingWrites: () => pending.length,
+    writeCount: () => pending.length,
   };
   return sink;
 }
 
-const encoder = new TextEncoder();
-
 export function serverControlFrame(op: number, payload: unknown): Uint8Array {
-  const body = encoder.encode(JSON.stringify(payload));
-  const frame = new Uint8Array(body.byteLength + 1);
-  frame[0] = op;
-  frame.set(body, 1);
-  return frame;
+  return encodeTerminalServerControlFrame(op as TerminalControlOpcode, payload);
 }
 
 export function serverOutputFrame(seq: number, text: string): Uint8Array {
-  const body = encoder.encode(text);
-  const frame = new Uint8Array(body.byteLength + 9);
-  frame[0] = TERMINAL_SERVER_OP.output;
-  new DataView(frame.buffer).setBigUint64(1, BigInt(seq), false);
-  frame.set(body, 9);
-  return frame;
+  return encodeTerminalServerOutputFrame(seq, text);
 }
 
 export function attachedFrame(overrides: Partial<Record<string, unknown>> = {}): Uint8Array {

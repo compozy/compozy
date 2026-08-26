@@ -34,8 +34,16 @@ type echoAwareProc interface {
 	WriteRedacted([]byte) (int, error)
 }
 
-func (s *session) deliverInput(ctx context.Context, actor Actor, input []byte, clientRedact bool) error {
-	return s.deliverInputMode(ctx, actor, input, clientRedact, false)
+func requireEchoAwareProc(proc Proc) (echoAwareProc, error) {
+	echoProc, ok := proc.(echoAwareProc)
+	if !ok {
+		return nil, &Error{
+			Code:    "terminal_not_interactive",
+			Message: "terminal input requests require an echo-aware interactive terminal",
+			Err:     ErrNotInteractive,
+		}
+	}
+	return echoProc, nil
 }
 
 func (s *session) deliverInputMode(
@@ -69,13 +77,20 @@ func (s *session) deliverInputMode(
 	info := s.Info()
 	redacted := clientRedact
 	writer := s.proc.Write
+	if clientRedact {
+		echoProc, err := requireEchoAwareProc(s.proc)
+		if err != nil {
+			return err
+		}
+		writer = echoProc.WriteRedacted
+	}
 	if echoProc, ok := s.proc.(echoAwareProc); ok {
 		echoEnabled, err := echoProc.EchoEnabled()
 		if err != nil {
 			return err
 		}
 		redacted = redacted || !echoEnabled
-		if redacted {
+		if redacted && !clientRedact {
 			writer = echoProc.WriteRedacted
 		}
 	}
@@ -116,18 +131,20 @@ func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult,
 		if err != nil {
 			return nil, fmt.Errorf("terminal: read screen: %w", err)
 		}
-		_, seq := s.ring.Snapshot()
-		return &ReadResult{Content: snapshot.Content, Seq: seq, Busy: snapshot.Busy, Untrusted: true}, nil
+		return &ReadResult{
+			Content: string(modelFacingOutput([]byte(snapshot.Content))),
+			Seq:     snapshot.Seq, Busy: snapshot.Busy, Untrusted: true,
+		}, nil
 	case "tail":
-		return s.readTail(options), nil
+		return s.readTail(options)
 	case "lines":
-		return s.readLines(options), nil
+		return s.readLines(options)
 	default:
 		return nil, &Error{Code: "terminal_read_view_invalid", Message: "terminal read view must be screen, tail, or lines", Err: ErrUnsupported}
 	}
 }
 
-func (s *session) readTail(options ReadOptions) *ReadResult {
+func (s *session) readTail(options ReadOptions) (*ReadResult, error) {
 	var content []byte
 	var seq uint64
 	truncated := false
@@ -139,15 +156,19 @@ func (s *session) readTail(options ReadOptions) *ReadResult {
 		replay := s.ring.ReplayFrom(options.SinceSeq)
 		content, seq, truncated = replay.Payload, replay.Seq, replay.Truncated
 	}
+	content = modelFacingOutput(content)
 	if options.Grep != "" {
-		content = grepOutput(content, options.Grep)
+		var err error
+		content, err = grepOutput(content, options.Grep)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if options.MaxBytes > 0 && len(content) > options.MaxBytes {
-		content = content[len(content)-options.MaxBytes:]
-		content = trimPartialLeadingRune(content)
+		content = boundedTail(content, options.MaxBytes)
 		truncated = true
 	}
-	return &ReadResult{Content: string(content), Seq: seq, Truncated: truncated, Untrusted: true}
+	return &ReadResult{Content: string(content), Seq: seq, Truncated: truncated, Untrusted: true}, nil
 }
 
 func trimPartialLeadingRune(content []byte) []byte {
@@ -161,8 +182,16 @@ func validUTF8LeadingByte(value byte) bool {
 	return value < utf8.RuneSelf || value >= 0xC2 && value <= 0xF4
 }
 
-func (s *session) readLines(options ReadOptions) *ReadResult {
+func boundedTail(content []byte, maxBytes int) []byte {
+	if maxBytes <= 0 || len(content) <= maxBytes {
+		return content
+	}
+	return trimPartialLeadingRune(content[len(content)-maxBytes:])
+}
+
+func (s *session) readLines(options ReadOptions) (*ReadResult, error) {
 	data, seq := s.ring.Snapshot()
+	data = modelFacingOutput(data)
 	lines := strings.Split(string(data), "\n")
 	from := max(options.FromLine, 0)
 	to := options.ToLine
@@ -174,16 +203,18 @@ func (s *session) readLines(options ReadOptions) *ReadResult {
 	}
 	selected := strings.Join(lines[from:to], "\n")
 	if options.Grep != "" {
-		selected = string(grepOutput([]byte(selected), options.Grep))
+		matched, err := grepOutput([]byte(selected), options.Grep)
+		if err != nil {
+			return nil, err
+		}
+		selected = string(matched)
 	}
 	truncated := false
 	if options.MaxBytes > 0 && len(selected) > options.MaxBytes {
-		content := []byte(selected)
-		content = trimPartialLeadingRune(content[len(content)-options.MaxBytes:])
-		selected = string(content)
+		selected = string(boundedTail([]byte(selected), options.MaxBytes))
 		truncated = true
 	}
-	return &ReadResult{Content: selected, Seq: seq, Truncated: truncated, Untrusted: true}
+	return &ReadResult{Content: selected, Seq: seq, Truncated: truncated, Untrusted: true}, nil
 }
 
 func (s *session) Takeover(ctx context.Context, actor Actor, force bool) error {
@@ -354,8 +385,8 @@ func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, 
 	}
 	payload, err := json.Marshal(struct {
 		Lease     LeaseState `json:"lease"`
-		ActorKind ActorKind  `json:"actor_kind"`
-		ActorID   string     `json:"actor_id"`
+		ActorKind ActorKind  `json:"actor_kind,omitempty"`
+		ActorID   string     `json:"actor_id,omitempty"`
 		Reason    string     `json:"reason"`
 	}{Lease: to, ActorKind: actorKind, ActorID: actorID, Reason: reason})
 	if err != nil {
@@ -408,13 +439,6 @@ func (s *session) exitAt() (time.Time, bool) {
 		return time.Time{}, false
 	}
 	return s.exit.At, true
-}
-
-func ignoreExited(err error) error {
-	if errors.Is(err, ErrExited) {
-		return nil
-	}
-	return err
 }
 
 var _ Handle = (*session)(nil)

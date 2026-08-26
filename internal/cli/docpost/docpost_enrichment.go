@@ -37,7 +37,7 @@ func enrichDocument(
 	body = strings.TrimSpace(body)
 
 	var sections []string
-	if section := renderOutputFormatsSection(body, outputProfile); section != "" {
+	if section := renderOutputFormatsSection(body, outputProfile, current.commandName()); section != "" {
 		sections = append(sections, section)
 	}
 	if section := renderSubcommandsSection(current, inputs, targets); section != "" {
@@ -87,7 +87,7 @@ func extractDescription(raw string) string {
 	return ""
 }
 
-func renderOutputFormatsSection(body string, outputProfile OutputProfile) string {
+func renderOutputFormatsSection(body string, outputProfile OutputProfile, commandName string) string {
 	if !strings.Contains(body, "--output string") {
 		return ""
 	}
@@ -99,7 +99,9 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile) string
 	b.WriteString("## Output Formats\n\n")
 	b.WriteString(renderOutputFormatProfile(outputProfile))
 
-	if outputProfile == OutputProfileResult || outputProfile == OutputProfileHumanJSONL {
+	if outputProfile == OutputProfileResult ||
+		outputProfile == OutputProfileHumanJSONL ||
+		outputProfile == OutputProfileTerminalOpen {
 		usage := extractOutputExampleLine(body)
 		if usage == "" {
 			usage = extractUsageLine(body)
@@ -107,9 +109,14 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile) string
 		if usage == "" {
 			return b.String()
 		}
+		if commandName == "compozy terminal quote" {
+			usage += " --lines 1-5"
+		}
 		b.WriteString("\nExample:\n\n```bash\n")
 		if outputProfile == OutputProfileHumanJSONL {
 			b.WriteString(outputExampleCommandWithFormat(usage, "jsonl"))
+		} else if outputProfile == OutputProfileTerminalOpen {
+			b.WriteString(outputExampleCommandWithFormat(usage+" --detach", "json"))
 		} else {
 			b.WriteString(outputExampleCommand(usage))
 		}
@@ -201,6 +208,26 @@ func renderOutputFormatProfile(outputProfile OutputProfile) string {
 				"One JSON event per line",
 				"Not supported",
 			)
+	case OutputProfileTerminalInteractive:
+		return "This command writes an interactive terminal stream. The inherited `-o, --output` and " +
+			"`--json` flags do not serialize attached terminal bytes.\n\n" +
+			renderOutputFormatTable(
+				"Stream output",
+				"Interactive terminal rendering",
+				"Not supported",
+				"Not supported",
+				"Not supported",
+			)
+	case OutputProfileTerminalOpen:
+		return "Without `--detach`, this command writes an interactive terminal stream. Add `--detach` " +
+			"before selecting a structured output format.\n\n" +
+			renderOutputFormatTable(
+				"Command result",
+				"Interactive terminal rendering, or a detached terminal record",
+				"Detached terminal record",
+				"Detached terminal record",
+				"Detached terminal record",
+			)
 	default:
 		return "The root `-o, --output` flag accepts these values. A renderer is supported only when " +
 			"this command writes that result; `jsonl` is for commands that emit one JSON record per line.\n\n" +
@@ -252,6 +279,10 @@ func outputExampleCommandWithFormat(usage, format string) string {
 	usage = strings.TrimSpace(usage)
 	if usage == "" {
 		return ""
+	}
+	beforeCommand, commandArgs, found := strings.Cut(usage, " -- ")
+	if found {
+		return beforeCommand + " -o " + format + " -- " + commandArgs
 	}
 	return usage + " -o " + format
 }

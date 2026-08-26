@@ -106,27 +106,6 @@ func cloneIntPtr(value *int) *int {
 	return &cloned
 }
 
-func watchTerminalShutdown(ctx context.Context, terminalDone <-chan struct{}, onShutdown func()) <-chan struct{} {
-	watcherDone := make(chan struct{})
-	if ctx == nil {
-		close(watcherDone)
-		return watcherDone
-	}
-
-	go func() {
-		defer close(watcherDone)
-		select {
-		case <-ctx.Done():
-			if onShutdown != nil {
-				onShutdown()
-			}
-		case <-terminalDone:
-		}
-	}()
-
-	return watcherDone
-}
-
 func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
 	detached := context.WithoutCancel(ctx)
 	deadline, ok := ctx.Deadline()

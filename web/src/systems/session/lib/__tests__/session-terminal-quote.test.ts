@@ -26,7 +26,7 @@ beforeEach(() => {
 });
 
 describe("session terminal quote", () => {
-  it("Should stage the canonical block for a session", () => {
+  it("Should stage the serialized quote for a session", () => {
     const quote = stageSessionTerminalQuote({
       sessionId: SESSION_ID,
       terminalId: "term-4f21c9a03b7e",
@@ -37,14 +37,12 @@ describe("session terminal quote", () => {
       ],
     });
 
-    expect(quote.text).toBe(
-      [
-        '<terminal_context terminal="term-4f21c9a03b7e" lines="214-215">',
-        "214 | 12:41:04 [vite] Internal server error: Failed to resolve import",
-        "215 | &quot;@compozy/ui/terminal-view&quot; from &quot;src/systems/terminal/terminal-pane.tsx&quot;",
-        "</terminal_context>",
-      ].join("\n")
-    );
+    expect(quote).toMatchObject({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 214,
+      toLine: 215,
+    });
+    expect(sessionStore.getSnapshot().context.drafts[SESSION_ID]).toBe(quote.text);
   });
 
   it("Should remove only the block, keeping the annotation", () => {

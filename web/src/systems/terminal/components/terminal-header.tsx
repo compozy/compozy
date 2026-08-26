@@ -111,16 +111,7 @@ function TerminalHeaderActions({
   onStop,
   onClose,
   onStopRecording,
-}: {
-  isPipe: boolean;
-  lease: TerminalLeaseView;
-  recording?: TerminalRecordingState | null;
-  onTakeControl?: () => void;
-  onReleaseControl?: () => void;
-  onStop?: () => void;
-  onClose?: () => void;
-  onStopRecording?: () => void;
-}) {
+}: TerminalHeaderActionsProps) {
   if (isPipe) {
     return onClose ? (
       <Button
@@ -168,8 +159,7 @@ function TerminalHeaderActions({
         >
           <Disc aria-hidden="true" className="size-3.5 text-danger" />
         </Button>
-      ) : null}
-      {onStop && !lease.canTakeControl ? (
+      ) : onStop && !lease.canTakeControl ? (
         <Button
           aria-label="Stop"
           data-testid="terminal-stop"
@@ -185,3 +175,14 @@ function TerminalHeaderActions({
     </>
   );
 }
+
+type TerminalHeaderActionsProps = Pick<
+  TerminalHeaderProps,
+  | "lease"
+  | "recording"
+  | "onTakeControl"
+  | "onReleaseControl"
+  | "onStop"
+  | "onClose"
+  | "onStopRecording"
+> & { isPipe: boolean };

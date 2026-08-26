@@ -25,11 +25,14 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 	t.Run("Should unblock a parked read within 200ms while the child is alive", func(t *testing.T) {
 		proc := startWindowsTestProc(t, ModePTY, windowsSleepCommand())
 		readDone := make(chan error, 1)
+		readStarted := make(chan struct{})
 		go func() {
+			close(readStarted)
 			buffer := make([]byte, 1)
 			_, err := proc.Reader().Read(buffer)
 			readDone <- err
 		}()
+		<-readStarted
 		select {
 		case err := <-readDone:
 			t.Fatalf("live-child read returned before close: %v", err)
@@ -52,13 +55,15 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 
 	t.Run("Should resize while another goroutine is reading", func(t *testing.T) {
 		proc := startWindowsTestProc(t, ModePTY, windowsSleepCommand())
-		defer stopWindowsTestProc(t, proc)
 		readDone := make(chan error, 1)
+		readStarted := make(chan struct{})
 		go func() {
+			close(readStarted)
 			buffer := make([]byte, 1)
 			_, err := proc.Reader().Read(buffer)
 			readDone <- err
 		}()
+		<-readStarted
 		select {
 		case err := <-readDone:
 			t.Fatalf("live-child read returned before resize: %v", err)
@@ -100,7 +105,7 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 
 	t.Run("Should terminate a grandchild through the owning Job Object", func(t *testing.T) {
 		proc := startWindowsTestProc(t, ModePTY, windowsGrandchildCommand())
-		childPID := readWindowsChildPID(t, proc.Reader())
+		childPID := readWindowsChildPID(t, proc)
 		if err := proc.Kill(SignalKILL); err != nil {
 			t.Fatalf("Kill(KILL) error = %v", err)
 		}
@@ -130,7 +135,7 @@ func TestWindowsPipeRuntime(t *testing.T) { // IT-038
 
 	t.Run("Should terminate a pipe-mode grandchild through the owning Job Object", func(t *testing.T) {
 		proc := startWindowsTestProc(t, ModePipe, windowsGrandchildCommand())
-		childPID := readWindowsChildPID(t, proc.Reader())
+		childPID := readWindowsChildPID(t, proc)
 		if err := proc.Kill(SignalKILL); err != nil {
 			t.Fatalf("Kill(KILL) error = %v", err)
 		}
@@ -152,6 +157,7 @@ func startWindowsTestProc(t *testing.T, mode Mode, argv []string) Proc {
 	if err != nil {
 		t.Fatalf("Start(%v) error = %v", argv, err)
 	}
+	t.Cleanup(func() { stopWindowsTestProc(t, proc) })
 	return proc
 }
 
@@ -164,7 +170,9 @@ func stopWindowsTestProc(t *testing.T, proc Proc) {
 		if killErr := proc.Kill(SignalKILL); killErr != nil {
 			t.Errorf("Kill(KILL) cleanup error = %v", killErr)
 		}
-		if _, waitErr := proc.Wait(context.Background()); waitErr != nil {
+		postKillCtx, postKillCancel := context.WithTimeout(context.Background(), time.Second)
+		defer postKillCancel()
+		if _, waitErr := proc.Wait(postKillCtx); waitErr != nil {
 			t.Errorf("Wait() cleanup error = %v", waitErr)
 		}
 	} else if err != nil {
@@ -194,23 +202,43 @@ func windowsGrandchildCommand() []string {
 	}
 }
 
-func readWindowsChildPID(t *testing.T, reader io.Reader) int {
+func readWindowsChildPID(t *testing.T, proc Proc) int {
 	t.Helper()
-	matcher := regexp.MustCompile(`CHILD_PID=([0-9]+)`)
-	scanner := bufio.NewScanner(reader)
-	for scanner.Scan() {
-		match := matcher.FindStringSubmatch(scanner.Text())
-		if len(match) != 2 {
-			continue
-		}
-		pid, err := strconv.Atoi(match[1])
-		if err != nil {
-			t.Fatalf("parse child PID %q: %v", match[1], err)
-		}
-		return pid
+	type result struct {
+		pid int
+		err error
 	}
-	t.Fatalf("read child PID: %v", scanner.Err())
-	return 0
+	done := make(chan result, 1)
+	go func() {
+		matcher := regexp.MustCompile(`CHILD_PID=([0-9]+)`)
+		scanner := bufio.NewScanner(proc.Reader())
+		for scanner.Scan() {
+			match := matcher.FindStringSubmatch(scanner.Text())
+			if len(match) != 2 {
+				continue
+			}
+			pid, err := strconv.Atoi(match[1])
+			done <- result{pid: pid, err: err}
+			return
+		}
+		done <- result{err: scanner.Err()}
+	}()
+	select {
+	case child := <-done:
+		if child.err != nil || child.pid == 0 {
+			t.Fatalf("read child PID: pid=%d error=%v", child.pid, child.err)
+		}
+		return child.pid
+	case <-time.After(5 * time.Second):
+		if err := proc.Kill(SignalKILL); err != nil {
+			t.Errorf("Kill(KILL) after child PID timeout error = %v", err)
+		}
+		if err := proc.Close(); err != nil {
+			t.Errorf("Close() after child PID timeout error = %v", err)
+		}
+		t.Fatal("timed out waiting for CHILD_PID")
+		return 0
+	}
 }
 
 func assertWindowsProcessExited(t *testing.T, pid int) {

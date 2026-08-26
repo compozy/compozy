@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -22,6 +23,22 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
+
+func defaultSettingsTerminalPayload() contract.SettingsTerminalPayload {
+	terminal := compozyconfig.DefaultTerminalConfig()
+	return contract.SettingsTerminalPayload{
+		DefaultShell:           terminal.DefaultShell,
+		ShellIntegration:       terminal.ShellIntegration,
+		ScrollbackBytes:        terminal.ScrollbackBytes,
+		DetachedTTL:            terminal.DetachedTTL.String(),
+		ExitRetention:          terminal.ExitRetention.String(),
+		Recording:              terminal.Recording,
+		RecordingRetentionDays: terminal.RecordingRetentionDays,
+		MaxPerWorkspace:        terminal.MaxPerWorkspace,
+		MaxPerDaemon:           terminal.MaxPerDaemon,
+		MaxSubscribers:         terminal.MaxSubscribers,
+	}
+}
 
 type stubSessionManager = testutil.StubSessionManager
 type stubObserver = testutil.StubObserver

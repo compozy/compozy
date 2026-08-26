@@ -1,7 +1,12 @@
 import { createStoreLogic } from "@xstate/store";
 
 import type { TerminalStreamStatus } from "../lib/terminal-protocol-client";
-import type { TerminalActor, TerminalExitCause, TerminalLeaseState, TerminalMode } from "../types";
+import type {
+  TerminalActor,
+  TerminalExitNotice,
+  TerminalLeaseState,
+  TerminalMode,
+} from "../types";
 
 /**
  * Client-only terminal state.
@@ -18,12 +23,6 @@ export interface TerminalGapNotice {
   droppedBytes: number;
   fromSeq: number;
   toSeq: number;
-}
-
-export interface TerminalExitNotice {
-  cause: TerminalExitCause;
-  code: number | null;
-  signal: string | null;
 }
 
 export interface TerminalPaneState {
@@ -77,10 +76,9 @@ export interface TerminalStoreState {
 }
 
 type TerminalStoreEvents = {
-  /** Rebinds to a new `(workspace, profile)`; panes from the old one are dropped. */
+  /** Rebinds after any workspace, profile, or aggregate-scope change. */
   scopeBound: { scopeKey: string | null };
   paneOpened: { terminalId: string };
-  paneClosed: { terminalId: string };
   statusChanged: { terminalId: string; status: TerminalStreamStatus };
   attached: {
     terminalId: string;
@@ -140,8 +138,8 @@ export const terminalStoreLogic = createStoreLogic<TerminalStoreState, TerminalS
     panes: {},
   },
   on: {
-    // A profile switch is not a filter: the previous profile's panes leave the
-    // store entirely, so nothing stale can render while the new scope loads.
+    // A scope switch is not a filter: the previous scope's panes leave the store
+    // entirely, so nothing stale can render while the new scope loads.
     scopeBound: (context, event) =>
       context.scopeKey === event.scopeKey ? undefined : { scopeKey: event.scopeKey, panes: {} },
     paneOpened: (context, event) =>
@@ -151,12 +149,6 @@ export const terminalStoreLogic = createStoreLogic<TerminalStoreState, TerminalS
             ...context,
             panes: { ...context.panes, [event.terminalId]: emptyPane(event.terminalId) },
           },
-    paneClosed: (context, event) => {
-      if (!context.panes[event.terminalId]) return undefined;
-      const panes = { ...context.panes };
-      delete panes[event.terminalId];
-      return { ...context, panes };
-    },
     statusChanged: (context, event) =>
       updatePane(context, event.terminalId, pane => ({ ...pane, status: event.status })),
     attached: (context, event) =>
@@ -164,6 +156,11 @@ export const terminalStoreLogic = createStoreLogic<TerminalStoreState, TerminalS
         ...pane,
         status: "connected",
         lease: event.lease,
+        // An attachment begins a new stream pass. The previous pass's OWNER
+        // actor is no longer evidence about this one, even when the terminal id
+        // is the same; the next OWNER frame will name the current controller.
+        controller: null,
+        ownerObserved: false,
         mode: event.mode,
         cols: event.cols,
         rows: event.rows,

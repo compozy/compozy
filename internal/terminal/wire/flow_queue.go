@@ -20,6 +20,7 @@ type queuedFrame struct {
 	frame Frame
 	end   uint64
 	size  int
+	ack   int
 }
 
 type Queue struct {
@@ -89,16 +90,17 @@ func (q *Queue) Enqueue(frame Frame, end uint64) {
 		q.mu.Unlock()
 		return
 	}
-	size := outputBytes(frame)
-	q.items = append(q.items, queuedFrame{frame: cloneFrame(frame), end: end, size: size})
+	size := frameBytes(frame)
+	ack := outputBytes(frame)
+	q.items = append(q.items, queuedFrame{frame: cloneFrame(frame), end: end, size: size, ack: ack})
 	q.queuedBytes += size
-	if q.flow == FlowAck && size > 0 {
-		q.pendingAck += size
+	if q.flow == FlowAck {
+		q.pendingAck += ack
 		if !q.high && q.pendingAck >= AckHighWatermark {
 			q.high = true
 			q.startAckSlowTimerLocked()
 		}
-		if q.pendingAck > AckPendingLimit {
+		if q.pendingAck > AckPendingLimit || q.queuedBytes > AckPendingLimit {
 			demoted = q.demoteLocked()
 		}
 	}
@@ -189,7 +191,7 @@ func (q *Queue) deliver() {
 			q.mu.Lock()
 			q.inflight = nil
 			if q.flow == FlowAck {
-				q.deliveredAck += item.size
+				q.deliveredAck += item.ack
 			}
 			if q.queuedBytes < DropQueueLimit {
 				q.fullSince = time.Time{}
@@ -211,14 +213,14 @@ func (q *Queue) demoteLocked() bool {
 	q.deliveredAck = 0
 	var from, to, dropped uint64
 	for _, item := range q.items {
-		if item.frame.Op != ServerOpOutput {
+		if item.ack == 0 {
 			continue
 		}
 		if dropped == 0 {
 			from = item.frame.Seq
 		}
 		to = item.end
-		dropped += uint64(item.size)
+		dropped += uint64(item.ack)
 	}
 	q.items = nil
 	q.queuedBytes = 0
@@ -242,14 +244,14 @@ func (q *Queue) trimDropQueueLocked() {
 		item := q.items[0]
 		q.items = q.items[1:]
 		q.queuedBytes -= item.size
-		if item.frame.Op != ServerOpOutput {
+		if item.ack == 0 {
 			continue
 		}
 		if dropped == 0 {
 			from = item.frame.Seq
 		}
 		to = item.end
-		dropped += uint64(item.size)
+		dropped += uint64(item.ack)
 	}
 	if dropped > 0 {
 		q.appendGapLocked(from, to, dropped)
@@ -299,7 +301,10 @@ func (q *Queue) appendGapLocked(from, to, dropped uint64) {
 		`{"dropped_bytes":%d,"from_seq":%d,"to_seq":%d}`,
 		dropped, from, to,
 	))
-	q.items = append([]queuedFrame{{frame: Frame{Op: ServerOpGap, Payload: payload}}}, q.items...)
+	frame := Frame{Op: ServerOpGap, Payload: payload}
+	size := frameBytes(frame)
+	q.items = append([]queuedFrame{{frame: frame, size: size}}, q.items...)
+	q.queuedBytes += size
 }
 
 func (q *Queue) notifyLocked() {
@@ -320,6 +325,10 @@ func outputBytes(frame Frame) int {
 		return 0
 	}
 	return len(frame.Payload)
+}
+
+func frameBytes(frame Frame) int {
+	return 1 + 8 + len(frame.Payload)
 }
 
 func cloneFrame(frame Frame) Frame {

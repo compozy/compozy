@@ -10,6 +10,11 @@
 import { z } from "zod";
 
 import type { TerminalInfo } from "../types";
+import {
+  terminalActorKindSchema,
+  terminalLeaseStateSchema,
+  terminalModeSchema,
+} from "./terminal-wire-enums";
 
 export const TERMINAL_CATALOG_EVENTS = [
   "terminal.snapshot",
@@ -22,8 +27,11 @@ export const TERMINAL_CATALOG_EVENTS = [
 
 export type TerminalCatalogEventName = (typeof TERMINAL_CATALOG_EVENTS)[number];
 
-const actorKindSchema = z.enum(["human", "agent", "system"]);
-const leaseSchema = z.enum(["agent_owned", "human_owned", "available"]);
+/** One catalog stream is always owned by exactly one profile. */
+export function terminalCatalogStreamPath(workspaceId: string, profile: string): string {
+  const query = new URLSearchParams({ profile });
+  return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`;
+}
 
 const exitSchema = z
   .object({
@@ -47,10 +55,10 @@ const terminalInfoSchema = z.object({
   title: z.string(),
   shell: z.string(),
   cwd: z.string(),
-  mode: z.enum(["pty", "pipe"]),
+  mode: terminalModeSchema,
   state: z.enum(["running", "exited"]),
-  controller: z.object({ kind: actorKindSchema, id: z.string() }).nullish(),
-  lease: leaseSchema,
+  controller: z.object({ kind: terminalActorKindSchema, id: z.string() }).nullish(),
+  lease: terminalLeaseStateSchema,
   viewers: z.number(),
   bound_run: z.object({ session_id: z.string(), run_id: z.string() }).nullish(),
   capabilities: z.object({ interactive: z.boolean() }),
@@ -62,12 +70,12 @@ const snapshotSchema = z.object({ terminals: z.array(terminalInfoSchema) });
 const createdSchema = z.object({ terminal: terminalInfoSchema });
 const closedSchema = z.object({ terminal_id: z.string(), exit: exitSchema });
 const titleChangedSchema = z.object({ terminal_id: z.string(), title: z.string() });
-const modeChangedSchema = z.object({ terminal_id: z.string(), mode: z.enum(["pty", "pipe"]) });
+const modeChangedSchema = z.object({ terminal_id: z.string(), mode: terminalModeSchema });
 const leaseChangedSchema = z.object({
   terminal_id: z.string(),
-  lease: leaseSchema,
-  actor_kind: actorKindSchema.nullish(),
-  actor_id: z.string().nullish(),
+  lease: terminalLeaseStateSchema,
+  controller_kind: z.union([terminalActorKindSchema, z.literal("")]).nullish(),
+  controller_id: z.string().nullish(),
   reason: z.string().nullish(),
 });
 
@@ -120,8 +128,8 @@ export function parseTerminalCatalogEvent(name: string, raw: unknown): TerminalC
       const parsed = leaseChangedSchema.safeParse(raw);
       if (!parsed.success) return null;
       const controller =
-        parsed.data.actor_kind && parsed.data.actor_id
-          ? { kind: parsed.data.actor_kind, id: parsed.data.actor_id }
+        parsed.data.controller_kind && parsed.data.controller_id
+          ? { kind: parsed.data.controller_kind, id: parsed.data.controller_id }
           : null;
       return {
         name,
@@ -154,21 +162,21 @@ function normalizeTerminal(parsed: z.infer<typeof terminalInfoSchema>): Terminal
  * preserving the server's order.
  */
 export function reconcileTerminalCatalog(
-  current: readonly TerminalInfo[] | undefined,
+  current: TerminalInfo[] | undefined,
   event: TerminalCatalogEvent
 ): TerminalInfo[] {
-  const terminals = current ? [...current] : [];
+  const terminals = current ?? [];
   switch (event.name) {
     case "terminal.snapshot":
       return event.terminals;
     case "terminal.created": {
       const index = terminals.findIndex(terminal => terminal.id === event.terminal.id);
       if (index >= 0) {
-        terminals[index] = event.terminal;
-        return terminals;
+        const next = [...terminals];
+        next[index] = event.terminal;
+        return next;
       }
-      terminals.push(event.terminal);
-      return terminals;
+      return [...terminals, event.terminal];
     }
     case "terminal.closed":
       // An ended terminal stays listed and readable through its exit retention;
@@ -192,6 +200,31 @@ export function reconcileTerminalCatalog(
         controller: event.controller,
       }));
   }
+}
+
+/** Replaces only one owner's rows inside an all-profiles catalog snapshot. */
+export function reconcileTerminalProfileSnapshot(
+  current: TerminalInfo[] | undefined,
+  profile: string,
+  terminals: readonly TerminalInfo[]
+): TerminalInfo[] {
+  const replacement = terminals.filter(terminal => terminal.profile_name === profile);
+  if (!current) return [...replacement];
+
+  const next: TerminalInfo[] = [];
+  let inserted = false;
+  for (const terminal of current) {
+    if (terminal.profile_name !== profile) {
+      next.push(terminal);
+      continue;
+    }
+    if (!inserted) {
+      next.push(...replacement);
+      inserted = true;
+    }
+  }
+  if (!inserted) next.push(...replacement);
+  return next;
 }
 
 function patch(

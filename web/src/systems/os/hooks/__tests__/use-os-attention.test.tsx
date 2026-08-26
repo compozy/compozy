@@ -338,6 +338,7 @@ describe("useOsAttention", () => {
       },
     ];
     const foreign = waitingSession("sess-foreign");
+    foreign.workspace_id = "workspace-foreign";
     foreign.profile_id = "profile-personal";
     foreign.pending_interactions = [
       { ...current.pending_interactions[0]!, interaction_id: "foreign" },

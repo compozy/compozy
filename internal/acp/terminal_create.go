@@ -50,7 +50,7 @@ func newTerminalManager(
 		}
 	}
 	return &terminalManager{
-		ctx: ctx, logger: logger, core: core, ownedCore: ownedCore, coreErr: coreErr, scope: scope,
+		logger: logger, core: core, ownedCore: ownedCore, coreErr: coreErr, scope: scope,
 		terminals: make(map[string]*managedTerminal),
 	}
 }
@@ -84,6 +84,7 @@ func (m *terminalManager) create(
 	handle, err := m.core.OpenPipe(ctx, terminalpkg.PipeRequest{
 		WS: m.scope.workspaceID, Argv: argv, Cwd: cwd, Env: env,
 		Title: strings.Join(argv, " "), Actor: actor,
+		AllowedRoots: append([]string(nil), m.scope.allowedRoots...),
 		Capabilities: terminalpkg.Capabilities{Interactive: false},
 	})
 	if err != nil {

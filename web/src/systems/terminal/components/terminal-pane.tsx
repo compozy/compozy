@@ -106,7 +106,7 @@ export function TerminalPane({
       {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
       <TerminalView
         aria-label={readOnly ? `${terminal.title} — watching` : terminal.title}
-        className="px-3.5 pt-2.5 pb-3 font-mono text-[12.5px] leading-[1.5] tracking-[0.02em]"
+        className="px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
         {...(engineLoader ? { engineLoader } : {})}
         handleRef={handleRef}
         instanceId={instanceId}

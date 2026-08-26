@@ -63,7 +63,7 @@ func (m *terminalManager) release(id string) error {
 		return err
 	}
 	info := managed.handle.Info()
-	if err := m.core.Release(context.Background(), m.scope.workspaceID, m.scope.profileID, info.ID, managed.actor); err != nil && !errors.Is(err, terminalpkg.ErrExited) {
+	if err := m.core.Release(context.Background(), info.WS, info.ProfileID, info.ID, managed.actor); err != nil && !errors.Is(err, terminalpkg.ErrExited) {
 		return err
 	}
 	m.mu.Lock()
@@ -106,9 +106,11 @@ func terminalExitStatus(exit *terminalpkg.Exit) *acpsdk.TerminalExitStatus {
 		return nil
 	}
 	status := &acpsdk.TerminalExitStatus{ExitCode: exit.Code}
-	if exit.Signal != nil && strings.TrimSpace(*exit.Signal) != "" {
+	if exit.Signal != nil {
 		signal := strings.TrimSpace(*exit.Signal)
-		status.Signal = &signal
+		if signal != "" {
+			status.Signal = &signal
+		}
 	}
 	return status
 }

@@ -1,16 +1,12 @@
 "use client";
 
-import { destroyTerminalInstances, type TerminalEngineLoader } from "@compozy/ui";
-import { useEffect, useState } from "react";
+import type { TerminalEngineLoader } from "@compozy/ui";
+import { useState } from "react";
 
-import type { TerminalSocketFactory } from "../adapters/terminal-socket";
+import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
+import { useTerminalScopeCleanup } from "../hooks/use-terminal-scope-cleanup";
 import { useTerminalStore } from "../hooks/use-terminal-store";
-import {
-  isTerminalPaneKey,
-  terminalInstanceKey,
-  terminalInstanceKeyInScope,
-  terminalScopeKey,
-} from "../lib/terminal-scope-key";
+import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest } from "../types";
 import { TerminalEmptyState, TerminalExecuteOnlyState } from "./terminal-empty-states";
 import type { TerminalRecordingState } from "./terminal-header";
@@ -41,13 +37,15 @@ export interface TerminalWindowAppProps {
   exitRetentionMs?: number;
   /** False where the platform cannot host an interactive terminal at all. */
   interactiveAvailable: boolean;
+  /** Aggregate profile reads cannot mutate terminals owned by another profile. */
+  readOnly?: boolean;
   auditBlockedIds?: ReadonlySet<string>;
   recordings?: Readonly<Record<string, TerminalRecordingState>>;
   /** Pipe terminals render captured output rather than a live stream. */
   pipeOutput?: Readonly<Record<string, { lines: readonly string[]; firstLineNumber: number }>>;
   journal: React.ReactNode;
   actions: TerminalWindowActions;
-  socketFactory?: TerminalSocketFactory;
+  socketFactory?: TerminalAttachmentSocketFactory;
   /** Replaces the emulator. Tests and playback harnesses only. */
   engineLoader?: TerminalEngineLoader;
 }
@@ -70,6 +68,7 @@ export function TerminalWindowApp({
   limit,
   exitRetentionMs,
   interactiveAvailable,
+  readOnly = false,
   auditBlockedIds,
   recordings,
   pipeOutput,
@@ -91,31 +90,13 @@ export function TerminalWindowApp({
   const activeTab = selected ?? TERMINAL_NO_TERMINALS;
   const active = terminals.find(terminal => terminal.id === activeTab) ?? null;
   const setActiveTab = setSelectedTab;
-  const atLimit = terminals.length >= limit;
+  const destinationTerminals = terminals.filter(terminal => terminal.profile_name === profile);
+  const atLimit = destinationTerminals.length >= limit;
   const store = useTerminalStore();
-  const scopeKey = terminalScopeKey(workspaceId, profile);
-  // Serialized as JSON rather than joined by a delimiter: a free delimiter is
-  // exactly the collision the length-prefixed keys exist to prevent.
-  const liveKeySignature = JSON.stringify(
-    terminals.map(terminal => terminalInstanceKey(workspaceId, profile, terminal.id))
-  );
+  const activeProfile = active?.profile_name ?? profile;
+  useTerminalScopeCleanup({ workspaceId, profile: activeProfile, terminals, store });
 
-  // A buffer is the only copy of what a viewer already saw, so it survives a tab
-  // switch — but not the terminal itself. When a terminal leaves the catalog, or
-  // the scope changes, its emulator, its WebGL context and its observers go with
-  // it. Panes still on screen keep theirs, and buffers other surfaces own are
-  // never touched.
-  useEffect(() => {
-    const live = new Set(JSON.parse(liveKeySignature) as string[]);
-    store.trigger.scopeBound({ scopeKey });
-    destroyTerminalInstances(key => {
-      if (!isTerminalPaneKey(key)) return false;
-      if (!terminalInstanceKeyInScope(key, scopeKey)) return true;
-      return !live.has(key);
-    });
-  }, [liveKeySignature, scopeKey, store]);
-
-  const openTerminal = actions.onOpenTerminal
+  const openTerminal = actions.onOpenTerminal && !readOnly
     ? () => {
         if (atLimit) {
           setLimitOpen(true);
@@ -139,9 +120,10 @@ export function TerminalWindowApp({
         activeTab={activeTab}
         attentionIds={attentionIds}
         limit={limit}
-        onCloseTerminal={actions.onCloseTerminal}
+        onCloseTerminal={readOnly ? undefined : actions.onCloseTerminal}
         onOpenTerminal={openTerminal}
         onSelect={setActiveTab}
+        showOwner={readOnly}
         terminals={terminals}
       />
       {activeTab === TERMINAL_JOURNAL_TAB ? (
@@ -158,10 +140,11 @@ export function TerminalWindowApp({
           // Keyed by the full scoped identity: the same terminal id under a
           // different profile is a different terminal, and must not inherit the
           // previous one's in-flight confirmation.
-          key={terminalInstanceKey(workspaceId, profile, active.id)}
+          key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
           onViewJournal={() => setActiveTab(TERMINAL_JOURNAL_TAB)}
           pipeOutput={pipeOutput?.[active.id]}
-          profile={profile}
+          profile={activeProfile}
+          readOnly={readOnly}
           recording={recordings?.[active.id] ?? null}
           socketFactory={socketFactory}
           terminal={active}
@@ -169,14 +152,16 @@ export function TerminalWindowApp({
           workspaceId={workspaceId}
         />
       )}
-      <TerminalLimitDialog
-        limit={limit}
-        onCloseTerminal={actions.onCloseTerminal}
-        onOpenChange={setLimitOpen}
-        onOpenSettings={actions.onOpenSettings}
-        open={limitOpen}
-        terminals={terminals}
-      />
+      {!readOnly ? (
+        <TerminalLimitDialog
+          limit={limit}
+          onCloseTerminal={actions.onCloseTerminal}
+          onOpenChange={setLimitOpen}
+          onOpenSettings={actions.onOpenSettings}
+          open={limitOpen}
+          terminals={destinationTerminals}
+        />
+      ) : null}
     </div>
   );
 }

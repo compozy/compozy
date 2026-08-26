@@ -167,7 +167,6 @@ INSERT INTO terminal_commands (
   ?16, ?17, ?18,
   ?19, ?20
 )
-ON CONFLICT(id) DO NOTHING
 `
 
 type InsertTerminalCommandParams struct {
@@ -324,12 +323,14 @@ func (q *Queries) ListExpiredTerminalRecordings(ctx context.Context, expiresAt i
 	return items, nil
 }
 
-const updateTerminalCommandRecording = `-- name: UpdateTerminalCommandRecording :execrows
+const updateTerminalCommandRecording = `-- name: UpdateTerminalCommandRecording :exec
 UPDATE terminal_commands
 SET recording_id = ?1
 WHERE terminal_id = ?2
   AND profile_id = ?3
   AND started_at >= ?4
+  AND (?5 IS NULL OR started_at <= ?5)
+  AND recording_id IS NULL
 `
 
 type UpdateTerminalCommandRecordingParams struct {
@@ -337,17 +338,16 @@ type UpdateTerminalCommandRecordingParams struct {
 	TerminalID         sql.NullString `json:"terminal_id"`
 	ProfileID          string         `json:"profile_id"`
 	RecordingStartedAt int64          `json:"recording_started_at"`
+	RecordingStoppedAt any            `json:"recording_stopped_at"`
 }
 
-func (q *Queries) UpdateTerminalCommandRecording(ctx context.Context, arg UpdateTerminalCommandRecordingParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, updateTerminalCommandRecording,
+func (q *Queries) UpdateTerminalCommandRecording(ctx context.Context, arg UpdateTerminalCommandRecordingParams) error {
+	_, err := q.db.ExecContext(ctx, updateTerminalCommandRecording,
 		arg.RecordingID,
 		arg.TerminalID,
 		arg.ProfileID,
 		arg.RecordingStartedAt,
+		arg.RecordingStoppedAt,
 	)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+	return err
 }

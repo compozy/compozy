@@ -1,12 +1,9 @@
 "use client";
 
-import { ListFilter, ScrollText, X } from "lucide-react";
 import { useState } from "react";
 
 import {
   Button,
-  Empty,
-  ListingToolbar,
   Table,
   TableBody,
   TableHead,
@@ -16,13 +13,12 @@ import {
 
 import type { TerminalJournalEntry, TerminalJournalFilters } from "../types";
 import { TerminalJournalDetail } from "./terminal-journal-detail";
+import { TerminalJournalEmpty } from "./terminal-journal-empty";
 import { TerminalJournalRow } from "./terminal-journal-row";
-
-export interface TerminalJournalFilterChip {
-  key: keyof TerminalJournalFilters;
-  label: string;
-  value: string;
-}
+import {
+  TerminalJournalToolbar,
+  type TerminalJournalFilterChip,
+} from "./terminal-journal-toolbar";
 
 export interface TerminalJournalPanelProps {
   entries: readonly TerminalJournalEntry[];
@@ -68,38 +64,11 @@ export function TerminalJournalPanel({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="terminal-journal">
-      <div className="flex min-h-11.5 flex-none items-center gap-2.5 border-line border-b px-3.5 py-2.25">
-        <ListingToolbar className="min-w-0 flex-1">
-          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-            {filters.map(filter => (
-              <span
-                className="inline-flex items-center gap-1.5 rounded-md bg-badge-fill px-2 py-1 text-eyebrow text-muted"
-                data-testid={`terminal-journal-filter-${filter.key}`}
-                key={filter.key}
-              >
-                <span className="text-subtle">{filter.label}</span>
-                {/* The relation reads as a sentence: "who is Marina". */}
-                <span className="text-faint">is</span>
-                <span className="text-fg">{filter.value}</span>
-                <button
-                  aria-label={`Clear ${filter.label} filter`}
-                  onClick={() => onClearFilter(filter.key)}
-                  type="button"
-                >
-                  <X aria-hidden="true" className="size-2.5" />
-                </button>
-              </span>
-            ))}
-            {onOpenFilters ? (
-              <Button onClick={onOpenFilters} size="sm" type="button" variant="ghost">
-                <ListFilter aria-hidden="true" className="size-3" />
-                Filter
-              </Button>
-            ) : null}
-          </div>
-          <span className="ml-auto text-eyebrow text-subtle">Newest first</span>
-        </ListingToolbar>
-      </div>
+      <TerminalJournalToolbar
+        filters={filters}
+        onClearFilter={onClearFilter}
+        onOpenFilters={onOpenFilters}
+      />
 
       {entries.length === 0 ? (
         <TerminalJournalEmpty
@@ -119,7 +88,7 @@ export function TerminalJournalPanel({
           data-detail={selected ? "" : undefined}
         >
           <div className="min-h-0 overflow-y-auto">
-            <Table className="table-fixed">
+            <Table aria-label="Command journal" className="table-fixed">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-18">When</TableHead>
@@ -188,70 +157,5 @@ export function TerminalJournalPanel({
         </div>
       ) : null}
     </div>
-  );
-}
-
-/**
- * Two empty states, and they are different facts.
- *
- * Nothing has run is not an error. Nothing *matched* counts only the rows
- * already loaded, because the server never reports a total — so the honest
- * offer is to load older rows or loosen the filters.
- */
-function TerminalJournalEmpty({
-  filtered,
-  hasMore,
-  onLoadMore,
-  onClearFilters,
-  onOpenTerminal,
-}: {
-  filtered: boolean;
-  hasMore: boolean;
-  onLoadMore: () => void;
-  onClearFilters: () => void;
-  onOpenTerminal?: () => void;
-}) {
-  if (!filtered) {
-    return (
-      <Empty
-        // Nothing has run because nothing is running: the way out of an empty
-        // journal is a terminal, not a filter.
-        action={
-          onOpenTerminal ? (
-            <Button
-              data-testid="terminal-journal-empty-open"
-              onClick={onOpenTerminal}
-              size="sm"
-              type="button"
-            >
-              Open a terminal
-            </Button>
-          ) : undefined
-        }
-        data-testid="terminal-journal-empty"
-        description="Commands from every terminal in this project land here — who ran them, where, and how they ended."
-        icon={ScrollText}
-        title="Nothing has run here yet"
-      />
-    );
-  }
-  return (
-    <Empty
-      action={
-        <>
-          {hasMore ? (
-            <Button onClick={onLoadMore} size="sm" type="button" variant="outline">
-              Load older rows
-            </Button>
-          ) : null}
-          <Button onClick={onClearFilters} size="sm" type="button" variant="ghost">
-            Clear filters
-          </Button>
-        </>
-      }
-      data-testid="terminal-journal-filtered-empty"
-      description="Older rows load on demand, so a match may still be further back."
-      title="No matches in the rows loaded"
-    />
   );
 }

@@ -94,13 +94,7 @@ exit 0
 		t.Parallel()
 
 		repo := newGateTestRepo(t)
-		configDir := filepath.Join(repo, "internal", "config")
-		if err := os.MkdirAll(configDir, 0o755); err != nil {
-			t.Fatalf("create config directory: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(configDir, "config.go"), []byte("package config\n"), 0o644); err != nil {
-			t.Fatalf("write config change: %v", err)
-		}
+		writeConfigChange(t, repo)
 
 		fakeBin := t.TempDir()
 		callsPath := filepath.Join(t.TempDir(), "gate-calls")
@@ -142,13 +136,7 @@ exit 0
 		t.Parallel()
 
 		repo := newGateTestRepo(t)
-		configDir := filepath.Join(repo, "internal", "config")
-		if err := os.MkdirAll(configDir, 0o755); err != nil {
-			t.Fatalf("create config directory: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(configDir, "config.go"), []byte("package config\n"), 0o644); err != nil {
-			t.Fatalf("write config change: %v", err)
-		}
+		writeConfigChange(t, repo)
 		if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module gate.test\n\ngo 1.26\n"), 0o644); err != nil {
 			t.Fatalf("write module change: %v", err)
 		}
@@ -283,13 +271,7 @@ exit 0
 		t.Parallel()
 
 		repo := newGateTestRepo(t)
-		configDir := filepath.Join(repo, "internal", "config")
-		if err := os.MkdirAll(configDir, 0o755); err != nil {
-			t.Fatalf("create config directory: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(configDir, "config.go"), []byte("package config\n"), 0o644); err != nil {
-			t.Fatalf("write config change: %v", err)
-		}
+		writeConfigChange(t, repo)
 		fakeBin := t.TempDir()
 		writeExecutable(t, fakeBin, "make", "#!/bin/sh\nexit 0\n")
 		writeExecutable(t, fakeBin, "go", "#!/bin/sh\nexit 0\n")
@@ -330,6 +312,18 @@ exit 0
 			t.Fatalf("expected visible capacity wait, got:\n%s", output)
 		}
 	})
+}
+
+func writeConfigChange(t *testing.T, repo string) {
+	t.Helper()
+
+	configDir := filepath.Join(repo, "internal", "config")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatalf("create config directory: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "config.go"), []byte("package config\n"), 0o644); err != nil {
+		t.Fatalf("write config change: %v", err)
+	}
 }
 
 func newGateTestRepo(t *testing.T) string {

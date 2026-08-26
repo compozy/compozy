@@ -37,7 +37,17 @@ export interface TerminalTypingPermission {
   terminalId: string | null;
 }
 
-export type TerminalPermissionDetail = TerminalExecPermission | TerminalTypingPermission;
+export interface TerminalOpenPermission {
+  kind: "open";
+  title: string;
+  cwd: string;
+  shell: string | null;
+}
+
+export type TerminalPermissionDetail =
+  | TerminalExecPermission
+  | TerminalTypingPermission
+  | TerminalOpenPermission;
 
 export function isTerminalPermission(toolName: string): boolean {
   return toolName === EXEC_TOOL || toolName === WRITE_TOOL || toolName === OPEN_TOOL;
@@ -57,7 +67,15 @@ export function terminalPermissionDetail(
   if (toolName === WRITE_TOOL) {
     return { kind: "typing", terminalId: readString(toolInput.terminal_id) };
   }
-  if (toolName !== EXEC_TOOL && toolName !== OPEN_TOOL) return null;
+  if (toolName === OPEN_TOOL) {
+    return {
+      kind: "open",
+      title: readString(toolInput.title) ?? "Terminal",
+      cwd: readString(toolInput.cwd) ?? ".",
+      shell: readString(toolInput.shell),
+    };
+  }
+  if (toolName !== EXEC_TOOL) return null;
   const command = readCommand(toolInput);
   if (command === null) return null;
   return {
@@ -93,8 +111,11 @@ function readCommand(toolInput: Record<string, unknown>): string | null {
  */
 function readRisk(toolInput: Record<string, unknown>): TerminalPermissionRisk {
   const risk = readString(toolInput.risk);
-  if (risk === "irreversible" || risk === "unclassifiable") return risk;
-  return "ordinary";
+  if (risk === "ordinary" || risk === "irreversible" || risk === "unclassifiable") return risk;
+  // Missing or future classifications are not ordinary. Treating them as safe
+  // would re-enable remembered approval precisely when this client cannot read
+  // the daemon's decision.
+  return "unclassifiable";
 }
 
 function readString(value: unknown): string | null {

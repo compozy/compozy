@@ -20,6 +20,7 @@ import {
   useSettingsTopbar,
   SettingsTile,
   SettingsTiles,
+  readTerminalSettings,
 } from "@/systems/settings";
 import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
 import { Button, Sheet, SheetContent, SheetHeader, SheetTitle, Spinner } from "@compozy/ui";
@@ -113,6 +114,7 @@ export function GeneralSettingsPage() {
 
   const { envelope, draft, setDraft, restart, update } = page;
   const runtime = envelope.runtime;
+  const terminalSettings = readTerminalSettings(draft);
 
   return (
     <SettingsPageFrame
@@ -169,17 +171,23 @@ export function GeneralSettingsPage() {
 
       <ToolApprovalGrantsSection />
 
-      <TerminalSettingsSections
-        draft={draft.terminal}
-        setDraft={update =>
-          setDraft(previous => {
-            const current = previous ?? draft;
-            const terminal = typeof update === "function" ? update(current.terminal) : update;
-            return terminal === null ? current : { ...current, terminal };
-          })
-        }
-        validationErrors={validationErrors}
-      />
+      {terminalSettings ? (
+        <TerminalSettingsSections
+          draft={terminalSettings}
+          setDraft={update =>
+            setDraft(previous => {
+              const current = previous ?? draft;
+              const currentTerminal = readTerminalSettings(current);
+              if (!currentTerminal) return current;
+              const terminal =
+                typeof update === "function" ? update(currentTerminal) : update;
+              return terminal === null ? current : { ...current, terminal };
+            })
+          }
+          onValidationError={(key, message) => setValidationError(key)(message)}
+          validationErrors={validationErrors}
+        />
+      ) : null}
 
       <SettingsGroup title="Sessions">
         <SettingRow

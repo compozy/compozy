@@ -68,9 +68,12 @@ export function ToolApprovalGrantsSection() {
           data-testid={`${TEST_ID}-list`}
         >
           {grants.map(grant => {
+            if (grant.tool_id === "compozy__terminal_open") {
+              return <ToolApprovalGrantRow grant={grant} key={grant.id} onRevoke={revoke.open} />;
+            }
             // Terminal permissions are remembered decisions like any other, so
             // they list and revoke here rather than in a second policy surface.
-            // They only read differently: "can type in psql" is not a tool id.
+            // They only read differently: "can type in one exact terminal" is not a tool id.
             const terminalGrant = terminalGrantFromToolGrant(grant);
             if (terminalGrant) {
               return (

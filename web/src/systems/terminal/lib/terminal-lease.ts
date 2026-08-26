@@ -6,10 +6,14 @@
  * that would let the UI claim a state the daemon never granted.
  */
 
-import type { TerminalPaneState } from "../stores/terminal-store";
-import type { TerminalActor, TerminalCapabilities, TerminalMode } from "../types";
+import type {
+  TerminalActor,
+  TerminalCapabilities,
+  TerminalLeaseState,
+  TerminalMode,
+} from "../types";
 
-export type TerminalControlRead = "you" | "someone-else" | "agent" | "nobody";
+export type TerminalControlRead = "you" | "someone-else" | "owner-unknown" | "agent" | "nobody";
 
 export interface TerminalLeaseView {
   read: TerminalControlRead;
@@ -28,7 +32,7 @@ export interface TerminalLeaseView {
 }
 
 export interface TerminalLeaseInput {
-  lease: TerminalPaneState["lease"];
+  lease: TerminalLeaseState;
   controller: TerminalActor | null;
   /** This browser's operator identity, as the daemon names it. */
   viewerId: string | null;
@@ -68,6 +72,17 @@ export function terminalLeaseView(input: TerminalLeaseInput): TerminalLeaseView 
       canType: false,
       canTakeControl: possible,
       // Taking over another person asks first; taking over an agent never does.
+      requiresConfirmation: true,
+      canRelease: false,
+    };
+  }
+  if (input.lease === "human_owned") {
+    return {
+      read: "owner-unknown",
+      label: "Someone is in control",
+      controllerName: null,
+      canType: false,
+      canTakeControl: possible,
       requiresConfirmation: true,
       canRelease: false,
     };

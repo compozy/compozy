@@ -41044,7 +41044,8 @@ export interface operations {
           | "message"
           | "tool"
           | "permission"
-          | "context";
+          | "context"
+          | "terminal";
         /** @description Only return sync-eligible events */
         sync_only?: boolean;
       };
@@ -138940,13 +138941,8 @@ export interface operations {
           "application/json": {
             entries: {
               actor: {
-                /** Format: int64 */
-                generation?: number;
                 id: string;
                 kind: string;
-                profile_id: string;
-                run_id?: string;
-                session_id?: string;
               };
               approval: string;
               argv_digest?: string | null;

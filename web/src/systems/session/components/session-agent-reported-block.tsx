@@ -1,16 +1,13 @@
 "use client";
 
 import {
-  destroyTerminalInstance,
   Pill,
   TerminalView,
-  TerminalWriteAbandonedError,
   type TerminalEngineLoader,
-  type TerminalViewHandle,
 } from "@compozy/ui";
 import { TerminalSquare } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
 
+import { useTerminalReplay } from "@/systems/terminal";
 import type { AgentEventPayload } from "../types";
 
 export interface SessionAgentReportedBlockProps {
@@ -23,19 +20,8 @@ export interface SessionAgentReportedBlockProps {
 export function SessionAgentReportedBlock({ data, engineLoader }: SessionAgentReportedBlockProps) {
   const terminal = data.reported_terminal;
   const output = data.text ?? "";
-  const handleRef = useRef<TerminalViewHandle>(null);
-  const [attached, setAttached] = useState(false);
   const instanceId = reportedTerminalInstanceId(data);
-
-  useEffect(() => () => destroyTerminalInstance(instanceId), [instanceId]);
-  useEffect(() => {
-    if (!attached || output.length === 0) return;
-    handleRef.current?.reset();
-    void handleRef.current?.write(output).catch(cause => {
-      if (cause instanceof TerminalWriteAbandonedError) return;
-      throw cause;
-    });
-  }, [attached, output]);
+  const replay = useTerminalReplay(instanceId, output, output.length > 0);
 
   if (data.origin !== "agent_reported" || !terminal || output.length === 0) return null;
 
@@ -57,11 +43,11 @@ export function SessionAgentReportedBlock({ data, engineLoader }: SessionAgentRe
       <div className="flex max-h-55 flex-col bg-terminal-bg">
         <TerminalView
           aria-label="Command output reported by the agent"
-          className="px-3 py-2 font-mono text-[11.5px] leading-[1.5]"
+          className="px-3 py-2 font-mono text-code-block"
           {...(engineLoader ? { engineLoader } : {})}
-          handleRef={handleRef}
+          handleRef={replay.handleRef}
           instanceId={instanceId}
-          onAttached={() => setAttached(true)}
+          onAttached={replay.onAttached}
           readOnly
           screenReaderMode
         />

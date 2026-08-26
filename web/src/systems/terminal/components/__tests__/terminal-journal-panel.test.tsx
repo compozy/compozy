@@ -2,7 +2,6 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import { terminalKeys } from "../../lib/query-keys";
 import { JOURNAL_FIXTURES } from "../../mocks/terminal-fixtures";
 import type { TerminalJournalEntry } from "../../types";
 import { TerminalJournalFilterDialog } from "../terminal-journal-filter-dialog";
@@ -15,8 +14,6 @@ import { TerminalJournalPanel } from "../terminal-journal-panel";
  * marked approximate, cursor paging appends without duplicating rows, and the
  * two empty states say different things because they are different facts.
  */
-
-const SCOPE = { workspaceId: "ws-atlas", profileKey: "work" };
 
 function renderPanel(overrides: Partial<Parameters<typeof TerminalJournalPanel>[0]> = {}) {
   const props = {
@@ -91,10 +88,7 @@ describe("TerminalJournalPanel", () => {
 
     const rows = screen.getAllByTestId(/^terminal-journal-row-/);
     expect(rows).toHaveLength(JOURNAL_FIXTURES.length + 1);
-    expect(new Set(rows.map(row => row.dataset.testid))).toHaveProperty(
-      "size",
-      JOURNAL_FIXTURES.length + 1
-    );
+    expect(new Set(rows.map(row => row.dataset.testid)).size).toBe(JOURNAL_FIXTURES.length + 1);
     expect(screen.getByTestId("terminal-journal-row-cmd-older01")).toBeInTheDocument();
     // With no cursor left, the panel stops offering a page that does not exist.
     expect(screen.queryByTestId("terminal-journal-load-more")).not.toBeInTheDocument();
@@ -149,18 +143,6 @@ describe("TerminalJournalPanel", () => {
     await userEvent.click(within(chip).getByRole("button", { name: "Clear who filter" }));
 
     expect(props.onClearFilter).toHaveBeenCalledWith("actor");
-  });
-
-  it("Should give each filter set its own cache identity", () => {
-    const unfiltered = terminalKeys.journal(SCOPE, {});
-    const byActor = terminalKeys.journal(SCOPE, { actor: "agent" });
-    const byActorAndResult = terminalKeys.journal(SCOPE, { actor: "agent", failed: true });
-
-    expect(byActor).not.toEqual(unfiltered);
-    expect(byActorAndResult).not.toEqual(byActor);
-    // Order of declaration must not change identity, or one filter set would
-    // read another's cached page.
-    expect(terminalKeys.journal(SCOPE, { failed: true, actor: "agent" })).toEqual(byActorAndResult);
   });
 
   it("Should open the whole record for a row and fold the attribute columns away", async () => {

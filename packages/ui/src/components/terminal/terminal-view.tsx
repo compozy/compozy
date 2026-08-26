@@ -16,7 +16,11 @@ export type { TerminalDimensions, TerminalEngine, TerminalEngineLoader } from ".
 export type { TerminalRendererKind } from "./terminal-renderer";
 export { destroyTerminalInstance, destroyTerminalInstances } from "./terminal-registry";
 
-import { useTerminalPendingQueue, type PendingQueue } from "./use-terminal-pending-queue";
+import {
+  abandonPendingOperations,
+  useTerminalPendingQueue,
+  type PendingQueue,
+} from "./use-terminal-pending-queue";
 
 /**
  * A scrollback range, numbered the way people and the CLI count lines.
@@ -119,6 +123,7 @@ export function TerminalView({
       setRenderer(kind);
       onRendererChange?.(kind);
     },
+    onLoadError: cause => abandonPendingOperations(pending, cause),
     onAttached: instance => {
       // Order is preserved across the boundary: a size applied before the first
       // byte was queued first, so it is applied first here too. `onAttached`
@@ -186,22 +191,34 @@ async function flushPendingOperations(
   instance: TerminalInstance,
   queue: PendingQueue
 ): Promise<void> {
-  while (queue.operations.length > 0) {
-    const next = queue.operations.shift();
-    if (!next) return;
-    if (next.kind === "reset") {
-      instance.terminal.reset();
-      continue;
+  queue.draining = true;
+  try {
+    while (queue.operations.length > 0) {
+      const next = queue.operations.shift();
+      if (!next) return;
+      if (next.kind === "reset") {
+        instance.terminal.reset();
+        continue;
+      }
+      if (next.kind === "resize") {
+        instance.terminal.resize(next.cols, next.rows);
+        continue;
+      }
+      // Awaited one at a time: the caller's promise resolves on the parse, and
+      // a later reset in this same queue must not run before an earlier write
+      // has been drawn. It is tracked as in-flight while it waits, because it
+      // has already left the queue and a view that closes now must still answer
+      // it.
+      try {
+        await trackedWrite(instance, queue, next.data);
+        next.resolve();
+      } catch (cause: unknown) {
+        next.reject(cause);
+        throw cause;
+      }
     }
-    if (next.kind === "resize") {
-      instance.terminal.resize(next.cols, next.rows);
-      continue;
-    }
-    // Awaited one at a time: the caller's promise resolves on the parse, and a
-    // later reset in this same queue must not run before an earlier write has
-    // been drawn. It is tracked as in-flight while it waits, because it has
-    // already left the queue and a view that closes now must still answer it.
-    await trackedWrite(instance, queue, next.data).then(next.resolve, next.reject);
+  } finally {
+    queue.draining = false;
   }
 }
 
@@ -212,7 +229,7 @@ function createHandle(
   return {
     write: data => {
       const instance = instanceRef.current;
-      if (instance) return trackedWrite(instance, pending, data);
+      if (instance && !pending.draining) return trackedWrite(instance, pending, data);
       return new Promise<void>((resolve, reject) => {
         pending.operations.push({ kind: "write", data, resolve, reject });
       });
@@ -220,7 +237,7 @@ function createHandle(
     proposeDimensions: () => instanceRef.current?.fit.proposeDimensions() ?? null,
     applyDimensions: ({ cols, rows }) => {
       const instance = instanceRef.current;
-      if (!instance) {
+      if (!instance || pending.draining) {
         pending.operations.push({ kind: "resize", cols, rows });
         return;
       }
@@ -228,7 +245,7 @@ function createHandle(
     },
     reset: () => {
       const instance = instanceRef.current;
-      if (!instance) {
+      if (!instance || pending.draining) {
         pending.operations.push({ kind: "reset" });
         return;
       }
@@ -241,9 +258,11 @@ function createHandle(
       if (!instance) return null;
       const position = instance.terminal.getSelectionPosition();
       if (!position) return null;
+      const startLine = Math.min(position.start.y, position.end.y) + 1;
+      const endLine = Math.max(position.start.y, position.end.y) + 1;
       return {
-        startLine: position.start.y + 1,
-        endLine: position.end.y + 1,
+        startLine,
+        endLine,
         text: instance.terminal.getSelection(),
       };
     },

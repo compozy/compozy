@@ -16,6 +16,7 @@ import (
 	compozydaemon "github.com/compozy/compozy/internal/daemon"
 	diagnosticspkg "github.com/compozy/compozy/internal/diagnostics"
 	authproviders "github.com/compozy/compozy/internal/providers"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -450,10 +451,14 @@ func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 	// Terminal's public contract requires JSON even for Cobra validation errors,
 	// which do not carry a diagnostic item. Keep every other command's existing
 	// human/JSONL error contract unchanged.
-	if !ok && (requestedOutputFormat(args) != OutputJSON || len(args) == 0 || args[0] != "terminal") {
+	if !ok && (requestedOutputFormat(args) != OutputJSON || len(args) == 0 || args[0] != terminalCommandKey) {
 		return nil, false
 	}
 	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error())}
+	var terminalErr *terminalpkg.Error
+	if errors.As(err, &terminalErr) {
+		payload.Code = terminalErr.Code
+	}
 	if ok {
 		payload.Diagnostic = &item
 	}

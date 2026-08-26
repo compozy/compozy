@@ -16,7 +16,7 @@ import type {
   TerminalOwnerFrame,
   TerminalResizedFrame,
 } from "./terminal-wire-schema";
-import type { TerminalAttachMode, TerminalScopeParams } from "../types";
+import type { TerminalAttachMode, TerminalProfileScopeParams } from "../types";
 
 export type TerminalStreamStatus =
   | "idle"
@@ -42,17 +42,23 @@ export interface TerminalStreamHandlers {
   onTitle?(title: string): void;
   onResized?(frame: TerminalResizedFrame): void;
   onGap?(frame: TerminalGapFrame): void;
+  /** The screen and held tail are continuous again after a reported gap. */
+  onGapCleared?(): void;
   onExit?(frame: TerminalExitFrame): void;
   onStreamError?(error: TerminalErrorFrame): void;
   onClientError?(error: Error): void;
-  /** False while a gap is being replayed; true again after the parse lands. */
+  /**
+   * The local keyboard gate. It opens only after an attached replay or a gap
+   * snapshot has fully parsed, and closes on gaps, exits, disconnects, release,
+   * protocol errors, and teardown.
+   */
   onInputEnabledChange?(enabled: boolean): void;
 }
 
 export interface TerminalProtocolClientOptions {
   workspaceId: string;
   terminalId: string;
-  scope: TerminalScopeParams;
+  scope: TerminalProfileScopeParams;
   mode: TerminalAttachMode;
   sink: TerminalStreamSink;
   handlers?: TerminalStreamHandlers;

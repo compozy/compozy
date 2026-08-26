@@ -1,5 +1,9 @@
 package wire
 
+// Suite: terminal wire codec.
+// Invariant: permanent opcode bytes round-trip and malformed frames are rejected at the protocol boundary.
+// Boundary IN: encoded terminal frames. Boundary OUT: typed frames or protocol errors.
+
 import (
 	"bytes"
 	"encoding/json"
@@ -12,7 +16,18 @@ func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 
 	t.Run("Should round trip every server opcode", func(t *testing.T) {
 		t.Parallel()
-		for opcode := ServerOpOutput; opcode <= ServerOpOwner; opcode++ {
+		for _, fixture := range []struct {
+			opcode byte
+			value  byte
+		}{
+			{ServerOpOutput, 0x01}, {ServerOpAttached, 0x02}, {ServerOpExit, 0x03},
+			{ServerOpError, 0x04}, {ServerOpTitle, 0x05}, {ServerOpResized, 0x06},
+			{ServerOpGap, 0x07}, {ServerOpOwner, 0x08},
+		} {
+			opcode := fixture.opcode
+			if opcode != fixture.value {
+				t.Fatalf("server opcode = 0x%02x, want permanent value 0x%02x", opcode, fixture.value)
+			}
 			frame := Frame{Op: opcode, Payload: json.RawMessage(`{"ok":true}`)}
 			if opcode == ServerOpOutput {
 				frame.Seq, frame.Payload = 41, []byte("hello")
@@ -33,7 +48,17 @@ func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 
 	t.Run("Should round trip every client opcode", func(t *testing.T) {
 		t.Parallel()
-		for opcode := ClientOpInput; opcode <= ClientOpDetach; opcode++ {
+		for _, fixture := range []struct {
+			opcode byte
+			value  byte
+		}{
+			{ClientOpInput, 0x01}, {ClientOpAck, 0x02}, {ClientOpResize, 0x03},
+			{ClientOpSignal, 0x04}, {ClientOpTakeover, 0x05}, {ClientOpDetach, 0x06},
+		} {
+			opcode := fixture.opcode
+			if opcode != fixture.value {
+				t.Fatalf("client opcode = 0x%02x, want permanent value 0x%02x", opcode, fixture.value)
+			}
 			frame := Frame{Op: opcode, Payload: json.RawMessage(`{}`)}
 			switch opcode {
 			case ClientOpInput:
@@ -74,6 +99,30 @@ func TestCodecShouldRejectInvalidFrames(t *testing.T) {
 		encoded := append([]byte{ClientOpInput}, make([]byte, MaxInputBytes+1)...)
 		if _, err := DecodeClient(encoded); !errors.Is(err, ErrInputTooLarge) {
 			t.Fatalf("DecodeClient() error = %v, want ErrInputTooLarge", err)
+		}
+	})
+
+	t.Run("Should reject malformed control and ACK frames", func(t *testing.T) {
+		t.Parallel()
+		for _, testCase := range []struct {
+			name string
+			run  func() error
+		}{
+			{name: "server encode JSON", run: func() error { _, err := EncodeServer(Frame{Op: ServerOpExit, Payload: []byte("{")}); return err }},
+			{name: "server decode JSON", run: func() error { _, err := DecodeServer([]byte{ServerOpExit, '{'}); return err }},
+			{name: "client encode JSON", run: func() error { _, err := EncodeClient(Frame{Op: ClientOpResize, Payload: []byte("{")}); return err }},
+			{name: "client decode JSON", run: func() error { _, err := DecodeClient([]byte{ClientOpResize, '{'}); return err }},
+			{name: "short ACK encode", run: func() error { _, err := EncodeClient(Frame{Op: ClientOpAck, Payload: make([]byte, 3)}); return err }},
+			{name: "long ACK encode", run: func() error { _, err := EncodeClient(Frame{Op: ClientOpAck, Payload: make([]byte, 5)}); return err }},
+			{name: "short ACK decode", run: func() error { _, err := DecodeClient([]byte{ClientOpAck, 0, 0, 0}); return err }},
+			{name: "long ACK decode", run: func() error { _, err := DecodeClient([]byte{ClientOpAck, 0, 0, 0, 0, 0}); return err }},
+		} {
+			t.Run("Should reject "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				if err := testCase.run(); !errors.Is(err, ErrInvalidFrame) {
+					t.Fatalf("error = %v, want ErrInvalidFrame", err)
+				}
+			})
 		}
 	})
 

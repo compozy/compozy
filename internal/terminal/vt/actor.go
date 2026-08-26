@@ -20,6 +20,7 @@ type RingSnapshot func() ([]byte, uint64)
 
 type Snapshot struct {
 	Content string
+	Seq     uint64
 	Busy    bool
 	Ended   bool
 }
@@ -195,10 +196,10 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 	defer close(a.done)
 	for {
 		if a.closing.Load() {
-			a.finishClose(emulator, drainDone)
+			a.finishClose(emulator, drainDone, applied)
 			return
 		}
-		if a.dirty.Load() && !ended {
+		if a.dirty.CompareAndSwap(true, false) && !ended {
 			a.rebuilding.Store(true)
 			var err error
 			emulator, drainDone, applied, err = rebuildEmulator(
@@ -212,7 +213,6 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 			if err != nil {
 				ended = !errors.Is(err, ErrClosed)
 			}
-			a.dirty.Store(false)
 			a.rebuilding.Store(false)
 		}
 		select {
@@ -237,9 +237,9 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 			switch request.kind {
 			case commandScreen:
 				if a.dirty.Load() || a.rebuilding.Load() {
-					request.snapshot <- Snapshot{Busy: true, Ended: ended}
+					request.snapshot <- Snapshot{Seq: applied, Busy: true, Ended: ended}
 				} else {
-					request.snapshot <- Snapshot{Content: screenText(emulator), Ended: ended}
+					request.snapshot <- Snapshot{Content: screenText(emulator), Seq: applied, Ended: ended}
 				}
 			case commandResize:
 				cols, rows = normalizeSize(request.cols, request.rows)
@@ -254,9 +254,9 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 	}
 }
 
-func (a *Actor) finishClose(emulator *charmvt.Emulator, drainDone <-chan error) {
+func (a *Actor) finishClose(emulator *charmvt.Emulator, drainDone <-chan error, applied uint64) {
 	a.closed.Store(true)
-	a.setFinal(Snapshot{Content: screenText(emulator), Ended: true})
+	a.setFinal(Snapshot{Content: screenText(emulator), Seq: applied, Ended: true})
 	a.closeErr = shutdownEmulator(emulator, drainDone)
 }
 

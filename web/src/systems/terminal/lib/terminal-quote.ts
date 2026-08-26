@@ -33,8 +33,9 @@ export interface TerminalQuote {
  * envelope early and put the rest of the output *outside* it, where it reads as
  * something the person said.
  *
- * `&` is replaced first and only once, so an already-escaped entity is not
- * escaped again. The CLI produces the same bytes.
+ * `&` is replaced first in this single pass. Existing entity-looking text is
+ * still literal terminal output, so its ampersand is escaped too. The CLI
+ * produces the same bytes.
  */
 function escapeQuoteText(value: string): string {
   return value

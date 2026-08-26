@@ -10,7 +10,7 @@ import {
   toolApprovalGrantFixtures,
 } from "@/systems/tool-approvals/mocks/fixtures";
 
-import { ToolApprovalGrantsSection } from "@/systems/tool-approvals";
+import { ToolApprovalGrantsSection, type ToolApprovalGrant } from "@/systems/tool-approvals";
 
 const WS = "ws_default";
 const TEST_ID = "settings-page-general-tool-approvals";
@@ -25,7 +25,7 @@ vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
   useActiveWorkspace: () => workspaceMock.value,
 }));
 
-function listHandler(grants: ReadonlyArray<(typeof toolApprovalGrantFixtures)[number]>) {
+function listHandler(grants: ReadonlyArray<ToolApprovalGrant>) {
   return http.get("/api/tool-approval-grants", () =>
     HttpResponse.json({ grants, total: grants.length })
   );
@@ -80,14 +80,27 @@ describe("ToolApprovalGrantsSection", () => {
 
   it("Should revoke a terminal permission through the same confirmation", async () => {
     const typing = terminalToolApprovalGrantFixtures[0]!;
-    stubFetch([listHandler([typing])]);
+    const store = createStatefulMswStore([typing]);
+    let revokedGrantID: string | undefined;
+    stubFetch([
+      http.get("/api/tool-approval-grants", () =>
+        HttpResponse.json({ grants: store.all(), total: store.all().length })
+      ),
+      http.delete("/api/tool-approval-grants/:id", ({ params }) => {
+        revokedGrantID = String(params.id);
+        return store.delete(revokedGrantID)
+          ? new HttpResponse(null, { status: 204 })
+          : HttpResponse.json({ error: "not found" }, { status: 404 });
+      }),
+    ]);
     renderSection();
     await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-list`)).toBeInTheDocument());
 
     fireEvent.click(screen.getByTestId(`terminal-grant-revoke-${typing.id}`));
+    fireEvent.click(await screen.findByTestId(`${TEST_ID}-revoke-confirm`));
 
-    await waitFor(() => expect(screen.getByTestId(`${TEST_ID}-revoke`)).toBeInTheDocument());
-    expect(screen.getByTestId(`${TEST_ID}-revoke-confirm`)).toBeInTheDocument();
+    await waitFor(() => expect(revokedGrantID).toBe(typing.id));
+    expect(screen.queryByTestId(`terminal-grant-row-${typing.id}`)).not.toBeInTheDocument();
   });
 
   it("Should keep a terminal rejection in the generic row, where its copy reads right", async () => {

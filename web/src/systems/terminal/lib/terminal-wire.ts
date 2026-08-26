@@ -165,6 +165,27 @@ export function encodeTerminalDetach(): TerminalFrameBytes {
   return prefix(TERMINAL_CLIENT_OP.detach, encoder.encode("{}"));
 }
 
+/** Builds one daemon control frame for contract fixtures and scripted transports. */
+export function encodeTerminalServerControlFrame(
+  op: TerminalControlOpcode,
+  payload: unknown
+): TerminalFrameBytes {
+  return prefix(op, encoder.encode(JSON.stringify(payload)));
+}
+
+/** Builds one daemon OUTPUT frame with its absolute sequence position. */
+export function encodeTerminalServerOutputFrame(seq: number, text: string): TerminalFrameBytes {
+  if (!Number.isSafeInteger(seq) || seq < 0) {
+    throw new TerminalFrameError("server output sequence must be a non-negative safe integer");
+  }
+  const body = encoder.encode(text);
+  const frame = new Uint8Array(body.byteLength + 9);
+  frame[0] = TERMINAL_SERVER_OP.output;
+  new DataView(frame.buffer).setBigUint64(1, BigInt(seq), false);
+  frame.set(body, 9);
+  return frame;
+}
+
 function prefix(op: number, payload: Uint8Array): TerminalFrameBytes {
   const frame = new Uint8Array(payload.byteLength + 1);
   frame[0] = op;

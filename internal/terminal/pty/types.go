@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 )
 
 var ErrInteractiveUnavailable = errors.New("interactive terminal unavailable")
@@ -31,7 +32,6 @@ type ProcSpec struct {
 	Cols             uint16
 	Rows             uint16
 	Mode             Mode
-	Title            string
 	MarkerNonce      string
 	ShellIntegration bool
 }
@@ -47,6 +47,9 @@ type PTY interface {
 }
 
 type Proc interface {
+	PID() int
+	ProcessGroupID() int
+	StartedAt() time.Time
 	Reader() io.Reader
 	Write(input []byte) (int, error)
 	Resize(cols, rows uint16) error

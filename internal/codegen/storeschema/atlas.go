@@ -162,7 +162,7 @@ func planAtlasStream(
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
-	currentTriggers, err := readMigrationSQLiteTriggers(ctx, descriptor)
+	currentTriggers, err := readMigrationSQLiteTriggers(descriptor)
 	if err != nil {
 		return nil, nil, nil, errors.Join(
 			fmt.Errorf("codegen: inspect %s migration triggers: %w", descriptor.name, err),
@@ -203,16 +203,16 @@ func planAtlasStream(
 		}
 	}
 	restoreSQLiteExpressionIndexStatements(plan, desired)
-	lintStatements := make([]string, 0, len(plan.Changes))
-	for _, change := range plan.Changes {
-		lintStatements = append(lintStatements, change.Cmd)
-	}
 	appendSQLiteTriggerChanges(plan, currentTriggers, desiredSchema.triggers)
 	if len(plan.Changes) == 0 {
 		if closeErr := closeAtlasDatabase(closeDev, descriptor.name); closeErr != nil {
 			return nil, nil, nil, closeErr
 		}
 		return nil, nil, nil, migrate.ErrNoPlan
+	}
+	lintStatements := make([]string, 0, len(plan.Changes))
+	for _, change := range plan.Changes {
+		lintStatements = append(lintStatements, change.Cmd)
 	}
 	return &atlasPlan{migration: plan, changes: changes, lintStatements: lintStatements}, dev, closeDev, nil
 }

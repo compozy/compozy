@@ -134,7 +134,7 @@ func (n *hooksNotifier) DispatchSessionRuntimeRecoveryStarted(
 	if terminals := n.terminalRuntime(); terminals != nil && payload.Generation > 1 {
 		previous := terminalpkg.Actor{
 			Kind: terminalpkg.ActorKindAgent, ID: payload.AgentName, ProfileID: payload.ProfileID,
-			SessionID: payload.SessionID, Generation: payload.Generation - 1,
+			SessionID: payload.SessionID, RunID: payload.TurnID, Generation: payload.Generation - 1,
 		}
 		current := previous
 		current.Generation = payload.Generation

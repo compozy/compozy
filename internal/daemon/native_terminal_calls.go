@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -190,6 +191,7 @@ func (n *daemonNativeTools) terminalClose(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalNativeError(req.ToolID, err)
 	}
+	n.terminalReads.Delete(terminalReadCursorKey(scope, input.TerminalID))
 	return structuredResult(map[string]any{"exit": exit}, "terminal closed")
 }
 
@@ -222,7 +224,7 @@ func (n *daemonNativeTools) terminalRequestInput(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalNativeError(req.ToolID, err)
 	}
-	var input terminalRequestInputInput
+	var input terminalInputRequestInput
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -348,14 +350,8 @@ func (n *daemonNativeTools) terminalWritePoll(
 	terminalID string,
 	handle terminalpkg.Handle,
 ) (toolspkg.ToolResult, error) {
-	key := strings.Join([]string{scope.ProfileID, scope.SessionID, terminalID}, "\x00")
-	var since uint64
-	if value, ok := n.terminalReads.Load(key); ok {
-		stored, valid := value.(uint64)
-		if valid {
-			since = stored
-		}
-	}
+	key := terminalReadCursorKey(scope, terminalID)
+	since := n.terminalReads.Load(key)
 	result, err := handle.Screen(ctx, terminalpkg.ReadOptions{View: "tail", SinceSeq: since})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -369,16 +365,18 @@ func (n *daemonNativeTools) terminalWritePoll(
 
 func (n *daemonNativeTools) terminalToolInfos(ctx context.Context, items []terminalpkg.Info) ([]terminalToolInfo, error) {
 	projected := make([]terminalToolInfo, 0, len(items))
+	profileNames := make(map[string]string)
 	for _, item := range items {
-		profileName := ""
-		if n.deps.Profiles != nil {
+		profileName, resolved := profileNames[item.ProfileID]
+		if !resolved && n.deps.Profiles != nil {
 			name, err := n.deps.Profiles.ProfileName(ctx, item.ProfileID)
 			if err != nil {
 				return nil, err
 			}
 			profileName = name
+			profileNames[item.ProfileID] = name
 		}
-		projected = append(projected, terminalToolInfo{Info: item, ProfileName: profileName})
+		projected = append(projected, contract.TerminalInfoPayloadFromDomain(item, profileName))
 	}
 	return projected, nil
 }

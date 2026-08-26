@@ -1,6 +1,7 @@
 ---
 # Generated from:
 #   packages/ui/src/tokens.css         (runtime)
+#   packages/ui/src/terminal-tokens.css (terminal runtime)
 #   packages/site/app/global.css       (site extensions)
 # by scripts/sync-design-md.mjs.
 # Do not edit by hand. Run make codegen to refresh.
@@ -47,26 +48,6 @@ tokens:
       neutral: "#7a7a80"
       neutral-ink: "#8a8a90"
       neutral-tint: "rgba(150, 150, 155, 0.06)"
-      terminal-bg: "var(--terminal-bg)"
-      terminal-fg: "var(--terminal-fg)"
-      terminal-cursor: "var(--terminal-cursor)"
-      terminal-selection: "var(--terminal-selection)"
-      terminal-ansi-0: "var(--terminal-ansi-0)"
-      terminal-ansi-1: "var(--terminal-ansi-1)"
-      terminal-ansi-2: "var(--terminal-ansi-2)"
-      terminal-ansi-3: "var(--terminal-ansi-3)"
-      terminal-ansi-4: "var(--terminal-ansi-4)"
-      terminal-ansi-5: "var(--terminal-ansi-5)"
-      terminal-ansi-6: "var(--terminal-ansi-6)"
-      terminal-ansi-7: "var(--terminal-ansi-7)"
-      terminal-ansi-8: "var(--terminal-ansi-8)"
-      terminal-ansi-9: "var(--terminal-ansi-9)"
-      terminal-ansi-10: "var(--terminal-ansi-10)"
-      terminal-ansi-11: "var(--terminal-ansi-11)"
-      terminal-ansi-12: "var(--terminal-ansi-12)"
-      terminal-ansi-13: "var(--terminal-ansi-13)"
-      terminal-ansi-14: "var(--terminal-ansi-14)"
-      terminal-ansi-15: "var(--terminal-ansi-15)"
       viz-line: "rgba(255, 255, 255, 0.42)"
       viz-fill: "rgba(255, 255, 255, 0.055)"
       viz-bar: "rgba(255, 255, 255, 0.3)"
@@ -139,6 +120,26 @@ tokens:
       sidebar-ring: "var(--color-line-strong)"
       shell-glass: "var(--shell-glass)"
       shell-glass-pop: "var(--shell-glass-pop)"
+      terminal-bg: "var(--terminal-bg)"
+      terminal-fg: "var(--terminal-fg)"
+      terminal-cursor: "var(--terminal-cursor)"
+      terminal-selection: "var(--terminal-selection)"
+      terminal-ansi-0: "var(--terminal-ansi-0)"
+      terminal-ansi-1: "var(--terminal-ansi-1)"
+      terminal-ansi-2: "var(--terminal-ansi-2)"
+      terminal-ansi-3: "var(--terminal-ansi-3)"
+      terminal-ansi-4: "var(--terminal-ansi-4)"
+      terminal-ansi-5: "var(--terminal-ansi-5)"
+      terminal-ansi-6: "var(--terminal-ansi-6)"
+      terminal-ansi-7: "var(--terminal-ansi-7)"
+      terminal-ansi-8: "var(--terminal-ansi-8)"
+      terminal-ansi-9: "var(--terminal-ansi-9)"
+      terminal-ansi-10: "var(--terminal-ansi-10)"
+      terminal-ansi-11: "var(--terminal-ansi-11)"
+      terminal-ansi-12: "var(--terminal-ansi-12)"
+      terminal-ansi-13: "var(--terminal-ansi-13)"
+      terminal-ansi-14: "var(--terminal-ansi-14)"
+      terminal-ansi-15: "var(--terminal-ansi-15)"
     fonts:
       sans: '"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif'
       mono: '"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace'
@@ -232,6 +233,7 @@ tokens:
       hairline: "0 0 0 1px var(--color-line-soft)"
       hairline-inset: "inset 0 0 0 1px var(--color-line-soft)"
       inset-strong: "inset 0 0 0 1px var(--color-line-strong)"
+      danger-inset: "inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)"
       window: "0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)"
       window-unfocused: "0 18px 50px -22px rgba(0, 0, 0, 0.55)"
       window-head-scrolled: "0 10px 18px -14px rgba(0, 0, 0, 0.55)"
@@ -1026,15 +1028,16 @@ thrash with a stable ring.
 
 <!-- BEGIN:tokens:shadows -->
 
-| Token                       | Value                                                                         | Token                           | Value                                                                         |
-| --------------------------- | ----------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------------------------------------------- |
-| `--shadow-overlay`          | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `--shadow-highlight`            | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                    |
-| `--shadow-focus-ring`       | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          | `--shadow-focus-inset`          | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                    |
-| `--shadow-hairline`         | `0 0 0 1px var(--color-line-soft)`                                            | `--shadow-hairline-inset`       | `inset 0 0 0 1px var(--color-line-soft)`                                      |
-| `--shadow-inset-strong`     | `inset 0 0 0 1px var(--color-line-strong)`                                    | `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` |
-| `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                       | `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                       |
-| `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                        | `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                              |
-| `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`     | `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                      |
+| Token                           | Value                                                                         | Token                       | Value                                                                       |
+| ------------------------------- | ----------------------------------------------------------------------------- | --------------------------- | --------------------------------------------------------------------------- |
+| `--shadow-overlay`              | `0 24px 48px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.045)` | `--shadow-highlight`        | `inset 0 1px 0 rgba(255, 255, 255, 0.035)`                                  |
+| `--shadow-focus-ring`           | `0 0 0 2px rgba(255, 255, 255, 0.5)`                                          | `--shadow-focus-inset`      | `inset 0 0 0 2px rgba(255, 255, 255, 0.5)`                                  |
+| `--shadow-hairline`             | `0 0 0 1px var(--color-line-soft)`                                            | `--shadow-hairline-inset`   | `inset 0 0 0 1px var(--color-line-soft)`                                    |
+| `--shadow-inset-strong`         | `inset 0 0 0 1px var(--color-line-strong)`                                    | `--shadow-danger-inset`     | `inset 0 0 0 1px color-mix(in oklab, var(--color-danger) 30%, transparent)` |
+| `--shadow-window`               | `0 40px 90px -30px rgba(0, 0, 0, 0.7), 0 10px 30px -12px rgba(0, 0, 0, 0.55)` | `--shadow-window-unfocused` | `0 18px 50px -22px rgba(0, 0, 0, 0.55)`                                     |
+| `--shadow-window-head-scrolled` | `0 10px 18px -14px rgba(0, 0, 0, 0.55)`                                       | `--shadow-dock`             | `0 18px 50px -18px rgba(0, 0, 0, 0.6)`                                      |
+| `--shadow-shell-strip`          | `var(--shadow-overlay), var(--shadow-highlight)`                              | `--shadow-shell-plate`      | `inset 0 1px 0 rgba(255, 255, 255, 0.09), 0 4px 14px rgba(0, 0, 0, 0.18)`   |
+| `--shadow-shell-current-halo`   | `0 0 0 2px var(--color-shell-glass-pop)`                                      |                             |                                                                             |
 
 <!-- END:tokens:shadows -->
 

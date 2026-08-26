@@ -53,7 +53,6 @@ export function terminalExitCopy(exit: {
 export function terminalApprovalCopy(approval: TerminalApproval): string {
   switch (approval) {
     case "allowlisted":
-      return "always allowed";
     case "approved_always":
       return "always allowed";
     case "approved_once":

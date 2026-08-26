@@ -36,6 +36,41 @@ func (s *Service) Record(ctx context.Context, workspaceID string, row terminalpk
 	return nil
 }
 
+// RecordQueued persists one command through the bounded retry lane.
+func (s *Service) RecordQueued(
+	ctx context.Context,
+	info terminalpkg.Info,
+	row terminalpkg.CommandRow,
+) error {
+	if err := validateCommandRow(info.WS, row); err != nil {
+		return err
+	}
+	lane, owned := s.ensureLane(info, nil, nil)
+	result := lane.enqueue(row)
+	select {
+	case err := <-result:
+		if owned {
+			return errors.Join(err, s.closeOwnedLane(ctx, info, lane))
+		}
+		return err
+	case <-ctx.Done():
+		if owned {
+			return errors.Join(ctx.Err(), s.closeOwnedLane(ctx, info, lane))
+		}
+		return ctx.Err()
+	}
+}
+
+func (s *Service) closeOwnedLane(ctx context.Context, info terminalpkg.Info, lane *terminalLane) error {
+	key := terminalLaneKey(info)
+	s.mu.Lock()
+	if s.lanes[key] == lane {
+		delete(s.lanes, key)
+	}
+	s.mu.Unlock()
+	return lane.close(ctx)
+}
+
 // LinkRecording persists a recording and links commands captured in its window.
 func (s *Service) LinkRecording(
 	ctx context.Context,

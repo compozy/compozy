@@ -22,6 +22,7 @@ import {
   projectTerminalBadge,
   terminalInputRequestsQuery,
   terminalScope,
+  terminalScopeKey,
 } from "@/systems/terminal";
 import {
   useActiveWorkspace,
@@ -147,13 +148,14 @@ export function useOsAttention(
     loopsPending: loopRequests.pendingCount,
   });
   const terminalBadge =
-    terminalRequests.isError || terminalRequests.data === undefined
+    terminalRequests.isError || terminalRequests.data === undefined || attention.stale
       ? undefined
       : (() => {
-          const profileId =
-            profile.destinationOwner?.id ??
-            terminalRequests.data[0]?.profile_id ??
-            "__unresolved__";
+          // Profile identity comes from the profile catalog, the authority that
+          // bound this read. An input request is optional and cannot identify a
+          // profile when approvals are the only pending terminal work.
+          const profileId = profile.destinationOwner?.id;
+          if (!profileId) return undefined;
           const pendingApprovals: Array<{ profileId: string }> = [];
           for (const session of attention.sessions) {
             if (session.workspace_id !== workspaceId || session.profile_id !== profileId) continue;
@@ -168,7 +170,10 @@ export function useOsAttention(
             }
           }
           return projectTerminalBadge({
-            scopeKey: `${terminalReadScope.key.workspaceId}:${terminalReadScope.key.profileKey}`,
+            scopeKey: terminalScopeKey(
+              terminalReadScope.key.workspaceId,
+              terminalReadScope.key.profileKey
+            ),
             profileId,
             inputRequests: terminalRequests.data,
             pendingApprovals,

@@ -38,10 +38,12 @@ func (s *Service) WriteArtifact(
 	if err != nil {
 		return terminalpkg.SpillRef{}, err
 	}
-	redacted := []byte(redact.String(string(contents)))
-	digest := sha256.Sum256(redacted)
-	digestText := hex.EncodeToString(digest[:])
-	path, created, err := s.writeContained(workspaceID, "terminal-artifacts", digestText+".bin", redacted)
+	path, digestText, retainedBytes, created, err := s.writeRedactedRetainedFile(
+		workspaceID,
+		"terminal-artifacts",
+		".bin",
+		contents,
+	)
 	if err != nil {
 		return terminalpkg.SpillRef{}, err
 	}
@@ -55,7 +57,7 @@ func (s *Service) WriteArtifact(
 	err = db.InsertTerminalArtifact(ctx, workspacedb.TerminalArtifactWrite{
 		ID: id, TerminalID: terminalIDString(terminalID), CommandID: commandID,
 		ProfileID: profileID, Digest: digestText, Path: path,
-		Bytes: int64(len(redacted)), ExpiresAt: expiresAt.UnixMilli(),
+		Bytes: retainedBytes, ExpiresAt: expiresAt.UnixMilli(),
 	})
 	if err != nil {
 		return terminalpkg.SpillRef{}, errors.Join(
@@ -64,7 +66,7 @@ func (s *Service) WriteArtifact(
 		)
 	}
 	return terminalpkg.SpillRef{
-		ArtifactID: id, Path: path, ProfileID: profileID, Bytes: int64(len(redacted)),
+		ArtifactID: id, Path: path, ProfileID: profileID, Bytes: retainedBytes,
 	}, nil
 }
 
@@ -131,12 +133,28 @@ func (s *Service) writeRecordingFile(
 	workspaceID, id string,
 	contents []byte,
 ) (string, string, int64, bool, error) {
+	path, digest, retainedBytes, created, err := s.writeRedactedRetainedFile(
+		workspaceID,
+		"terminal-recordings",
+		".cast",
+		contents,
+	)
+	if err != nil {
+		return "", "", 0, false, fmt.Errorf("terminal journal: write recording %q: %w", id, err)
+	}
+	return path, digest, retainedBytes, created, nil
+}
+
+func (s *Service) writeRedactedRetainedFile(
+	workspaceID, kind, extension string,
+	contents []byte,
+) (string, string, int64, bool, error) {
 	redacted := []byte(redact.String(string(contents)))
 	digest := sha256.Sum256(redacted)
 	digestText := hex.EncodeToString(digest[:])
-	path, created, err := s.writeContained(workspaceID, "terminal-recordings", digestText+".cast", redacted)
+	path, created, err := s.writeContained(workspaceID, kind, digestText+extension, redacted)
 	if err != nil {
-		return "", "", 0, false, fmt.Errorf("terminal journal: write recording %q: %w", id, err)
+		return "", "", 0, false, err
 	}
 	return path, digestText, int64(len(redacted)), created, nil
 }
@@ -204,6 +222,22 @@ func removeCreatedFile(path string, created bool) error {
 		return nil
 	}
 	return removeRetainedFile(path)
+}
+
+func (s *Service) removeWorkspaceFiles(workspaceID string) error {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" || filepath.Base(workspaceID) != workspaceID {
+		return errors.New("terminal journal: canonical workspace id is required for removal")
+	}
+	root := filepath.Join(s.homeDir, "workspaces", workspaceID)
+	var errs []error
+	for _, kind := range []string{"terminal-artifacts", "terminal-recordings"} {
+		path := filepath.Join(root, kind)
+		if err := os.RemoveAll(path); err != nil {
+			errs = append(errs, fmt.Errorf("terminal journal: remove retained workspace files %q: %w", path, err))
+		}
+	}
+	return errors.Join(errs...)
 }
 
 func (s *Service) openContained(workspaceID, kind, storedPath string) (io.ReadCloser, error) {

@@ -1,5 +1,9 @@
 package wire
 
+// Suite: terminal wire flow control.
+// Invariant: ack and drop subscribers remain bounded, independent, and observable under backpressure.
+// Boundary IN: queued output and ACK credit. Boundary OUT: delivered frames, gaps, demotion, and eviction.
+
 import (
 	"context"
 	"encoding/json"
@@ -20,12 +24,12 @@ func TestFlowGroupShouldPauseOnlyWhenEveryAckSubscriberIsHigh(t *testing.T) {
 	t.Cleanup(func() { first.Close(); second.Close() })
 	payload := make([]byte, AckHighWatermark+1)
 	first.Enqueue(Frame{Op: ServerOpOutput, Seq: 0, Payload: payload}, uint64(len(payload)))
-	<-first.Frames()
+	receiveFrame(t, first)
 	if err := group.WaitProducer(context.Background()); err != nil {
 		t.Fatalf("WaitProducer() with one healthy subscriber error = %v", err)
 	}
 	second.Enqueue(Frame{Op: ServerOpOutput, Seq: 0, Payload: payload}, uint64(len(payload)))
-	<-second.Frames()
+	receiveFrame(t, second)
 	unblocked := make(chan error, 1)
 	go func() { unblocked <- group.WaitProducer(context.Background()) }()
 	select {
@@ -99,7 +103,7 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("demotion callback did not run")
 		}
-		frame := <-queue.Frames()
+		frame := receiveFrame(t, queue)
 		if frame.Op != ServerOpGap {
 			t.Fatalf("demotion opcode = 0x%02x, want GAP", frame.Op)
 		}
@@ -122,17 +126,12 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 		t.Cleanup(queue.Close)
 		first := Frame{Op: ServerOpOutput, Seq: 0, Payload: []byte("first")}
 		queue.Enqueue(first, uint64(len(first.Payload)))
-		deadline := time.Now().Add(time.Second)
-		selected := false
-		for !selected && time.Now().Before(deadline) {
+		waitForQueueState(t, func() bool {
 			queue.mu.Lock()
-			selected = queue.inflight != nil
+			selected := queue.inflight != nil
 			queue.mu.Unlock()
-			time.Sleep(time.Millisecond)
-		}
-		if !selected {
-			t.Fatal("delivery worker did not select the first frame")
-		}
+			return selected
+		}, "delivery worker to select the first frame")
 		start := uint64(len(first.Payload))
 		queue.Enqueue(Frame{Op: ServerOpOutput, Seq: start, Payload: make([]byte, DropQueueLimit+1)}, start+DropQueueLimit+1)
 		select {
@@ -155,20 +154,13 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 		if pending := queue.PendingBytes(); pending != AckHighWatermark {
 			t.Fatalf("PendingBytes() after early ACK = %d, want %d", pending, AckHighWatermark)
 		}
-		<-queue.Frames()
-		deadline := time.Now().Add(time.Second)
-		for {
+		receiveFrame(t, queue)
+		waitForQueueState(t, func() bool {
 			queue.mu.Lock()
 			delivered := queue.deliveredAck
 			queue.mu.Unlock()
-			if delivered == AckHighWatermark {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("delivered ACK credit was not recorded")
-			}
-			time.Sleep(time.Millisecond)
-		}
+			return delivered == AckHighWatermark
+		}, "delivered ACK credit to be recorded")
 		queue.Ack(AckHighWatermark)
 		if pending := queue.PendingBytes(); pending != 0 {
 			t.Fatalf("PendingBytes() after delivered ACK = %d, want 0", pending)
@@ -188,7 +180,7 @@ func TestFlowQueueShouldDemoteAHighAckSubscriberAfterTimeout(t *testing.T) {
 	t.Cleanup(queue.Close)
 	payload := make([]byte, AckHighWatermark)
 	queue.Enqueue(Frame{Op: ServerOpOutput, Payload: payload}, uint64(len(payload)))
-	<-queue.Frames()
+	receiveFrame(t, queue)
 	unblocked := make(chan error, 1)
 	go func() { unblocked <- group.WaitProducer(context.Background()) }()
 	select {
@@ -284,7 +276,7 @@ func TestFlowGroupShouldKeepHealthyAckAndDropSubscribersIndependentUnderFlood(t 
 		start := uint64(index * chunkBytes)
 		frame := Frame{Op: ServerOpOutput, Seq: start, Payload: make([]byte, chunkBytes)}
 		healthy.Enqueue(frame, start+chunkBytes)
-		received := <-healthy.Frames()
+		received := receiveFrame(t, healthy)
 		delivered += len(received.Payload)
 		healthy.Ack(len(received.Payload))
 		stalled.Enqueue(frame, start+chunkBytes)
@@ -317,6 +309,35 @@ func TestFlowGroupShouldKeepHealthyAckAndDropSubscribersIndependentUnderFlood(t 
 			case <-deadline:
 				t.Fatalf("drop[%d] emitted no independent GAP", index)
 			}
+		}
+	}
+}
+
+func receiveFrame(t *testing.T, queue *Queue) Frame {
+	t.Helper()
+	select {
+	case frame := <-queue.Frames():
+		return frame
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for queued frame")
+		return Frame{}
+	}
+}
+
+func waitForQueueState(t *testing.T, predicate func() bool, description string) {
+	t.Helper()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		if predicate() {
+			return
+		}
+		select {
+		case <-deadline.C:
+			t.Fatalf("timed out waiting for %s", description)
+		case <-ticker.C:
 		}
 	}
 }

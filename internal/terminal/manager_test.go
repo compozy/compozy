@@ -844,20 +844,9 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		if err := starter.latest().emit(output); err != nil {
 			t.Fatalf("emit output error = %v", err)
 		}
-		deadline := time.Now().Add(time.Second)
-		for {
-			tail, readErr := handle.Screen(context.Background(), ReadOptions{View: "tail"})
-			if readErr != nil {
-				t.Fatalf("Screen(tail) error = %v", readErr)
-			}
-			if strings.Contains(tail.Content, "done") {
-				break
-			}
-			if time.Now().After(deadline) {
-				t.Fatal("filtered output did not reach the terminal tail")
-			}
-			time.Sleep(time.Millisecond)
-		}
+		waitForTerminalTail(t, handle, "filtered output did not reach the terminal tail", func(tail *ReadResult) bool {
+			return strings.Contains(tail.Content, "done")
+		})
 		stopped, err := handle.StopRecording(context.Background(), actor)
 		if err != nil || stopped.ID != started.ID || stopped.Digest == "" || stopped.Bytes == 0 {
 			t.Fatalf("StopRecording() = %#v error=%v", stopped, err)
@@ -882,6 +871,9 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		t.Parallel()
 		called := make(chan struct{})
 		release := make(chan struct{})
+		var releaseOnce sync.Once
+		releaseStorage := func() { releaseOnce.Do(func() { close(release) }) }
+		t.Cleanup(releaseStorage)
 		journal := &fakeRecordingJournal{called: called, release: release}
 		bus := NewEventBus(nil)
 		stoppedEvents := make(chan TerminalEvent, 1)
@@ -916,11 +908,10 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("truncated recording did not enter persistence")
 		}
-		result, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
-		if err != nil || result.Seq != uint64(len(payload)) {
-			t.Fatalf("tail during blocked persistence = %#v error=%v", result, err)
-		}
-		close(release)
+		waitForTerminalTail(t, handle, "terminal output did not drain during blocked persistence", func(tail *ReadResult) bool {
+			return tail.Seq == uint64(len(payload))
+		})
+		releaseStorage()
 		deadline := time.Now().Add(time.Second)
 		for {
 			_, cast := journal.snapshot()
@@ -962,6 +953,29 @@ func receiveRecordingEvent(t *testing.T, events <-chan TerminalEvent) TerminalEv
 	case <-time.After(time.Second):
 		t.Fatal("recording event was not emitted")
 		return TerminalEvent{}
+	}
+}
+
+func waitForTerminalTail(t *testing.T, handle Handle, failure string, ready func(*ReadResult) bool) *ReadResult {
+	t.Helper()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for {
+		tail, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen(tail) error = %v", err)
+		}
+		if ready(tail) {
+			return tail
+		}
+		select {
+		case <-deadline.C:
+			t.Fatal(failure)
+			return nil
+		case <-ticker.C:
+		}
 	}
 }
 
@@ -1280,17 +1294,51 @@ func TestCommandClassificationAndOutputShaping(t *testing.T) {
 	t.Run("Should mark exact head-tail elision and report zero grep matches [UT-044][UT-045]", func(t *testing.T) {
 		t.Parallel()
 		content := []byte(strings.Repeat("x", 128))
-		shaped, truncated := shapeOutput(content, OutputShape{MaxBytes: 64, Strategy: "head_tail"})
+		shaped, truncated, err := shapeOutput(content, OutputShape{MaxBytes: 64, Strategy: "head_tail"})
+		if err != nil {
+			t.Fatalf("shapeOutput() error = %v", err)
+		}
 		if !truncated || !strings.Contains(shaped, "bytes elided") || len(shaped) > 64 {
 			t.Fatalf("shapeOutput() = %q truncated=%v bytes=%d", shaped, truncated, len(shaped))
 		}
-		matched, truncated := shapeOutput([]byte("one\ntwo\nthree"), OutputShape{MaxBytes: 64, Grep: "absent"})
+		matched, truncated, err := shapeOutput([]byte("one\ntwo\nthree"), OutputShape{MaxBytes: 64, Grep: "absent"})
+		if err != nil {
+			t.Fatalf("shapeOutput(grep) error = %v", err)
+		}
 		if truncated || matched != "0 matches of 3 lines" {
 			t.Fatalf("shapeOutput(grep) = %q truncated=%v", matched, truncated)
 		}
-		covered, truncated := shapeOutput([]byte("complete"), OutputShape{MaxBytes: 64, Strategy: "head_tail"})
+		matched, truncated, err = shapeOutput([]byte("INFO\nWARN disk\nERROR net"), OutputShape{MaxBytes: 64, Grep: "^(WARN|ERROR)"})
+		if err != nil {
+			t.Fatalf("shapeOutput(regex) error = %v", err)
+		}
+		if truncated || matched != "WARN disk\nERROR net" {
+			t.Fatalf("shapeOutput(regex) = %q truncated=%v", matched, truncated)
+		}
+		if _, _, err = shapeOutput([]byte("content"), OutputShape{Grep: "["}); err == nil {
+			t.Fatal("shapeOutput(invalid regex) error = nil")
+		}
+		covered, truncated, err := shapeOutput([]byte("complete"), OutputShape{MaxBytes: 64, Strategy: "head_tail"})
+		if err != nil {
+			t.Fatalf("shapeOutput(covered) error = %v", err)
+		}
 		if truncated || covered != "complete" || strings.Contains(covered, "bytes elided") {
 			t.Fatalf("shapeOutput(covered) = %q truncated=%v", covered, truncated)
+		}
+	})
+
+	t.Run("Should bound exec capture while preserving the exact head tail and byte count", func(t *testing.T) {
+		t.Parallel()
+		item := &session{captureOutput: true}
+		input := append(bytes.Repeat([]byte("h"), execCaptureLimit/2), bytes.Repeat([]byte("t"), execCaptureLimit)...)
+		item.appendCaptureLocked(input)
+		captured, truncated, total := item.capturedOutput()
+		if !truncated || len(captured) != execCaptureLimit || total != int64(len(input)) {
+			t.Fatalf("capture bytes/truncated/total = %d/%t/%d, want %d/true/%d", len(captured), truncated, total, execCaptureLimit, len(input))
+		}
+		if !bytes.Equal(captured[:execCaptureLimit/2], bytes.Repeat([]byte("h"), execCaptureLimit/2)) ||
+			!bytes.Equal(captured[execCaptureLimit/2:], bytes.Repeat([]byte("t"), execCaptureLimit/2)) {
+			t.Fatal("capture did not preserve the exact head and tail")
 		}
 	})
 }
@@ -1306,11 +1354,42 @@ func receiveStartedProc(t *testing.T, starter *fakePTY) *fakeProc {
 	}
 }
 
+type noEchoPTY struct{}
+
+func (noEchoPTY) Start(_ context.Context, _ ProcSpec) (Proc, error) {
+	return &noEchoProc{Proc: newFakeProc(3001)}, nil
+}
+
+type noEchoProc struct {
+	Proc
+}
+
 func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 	t.Parallel()
 	agent := Actor{
 		Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a", SessionID: "session-a", RunID: "run-a", Generation: 1,
 	}
+
+	t.Run("Should reject input requests when the PTY cannot guarantee echo suppression", func(t *testing.T) {
+		t.Parallel()
+		manager, _, _ := newTestManager(t, DefaultSettings(), WithPTY(noEchoPTY{}))
+		handle, err := manager.Open(context.Background(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		if _, err := handle.RequestInput(context.Background(), InputRequest{Reason: "password", Redact: true}); !errors.Is(err, ErrNotInteractive) {
+			t.Fatalf("RequestInput(without echo guard) error = %v", err)
+		}
+		pending, err := manager.InputRequests(context.Background(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, "")
+		if err != nil {
+			t.Fatalf("InputRequests() error = %v", err)
+		}
+		if len(pending) != 0 {
+			t.Fatalf("pending input requests = %#v, want none", pending)
+		}
+	})
 
 	t.Run("Should require a fresh typing grant and evaluate it on every agent write [UT-025][IT-028]", func(t *testing.T) {
 		t.Parallel()
@@ -1407,7 +1486,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			errCh <- requestErr
 		}()
 		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
-		if err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("secret\n")}); err != nil {
+		if _, err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("secret\n")}); err != nil {
 			t.Fatalf("AnswerInput() error = %v", err)
 		}
 		outcome := <-outcomeCh
@@ -1489,7 +1568,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		if outcome == nil || outcome.Outcome != "superseded" {
 			t.Fatalf("takeover outcome = %#v", outcome)
 		}
-		if err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("y")}); !errors.Is(err, ErrInputAnswered) {
+		if _, err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("y")}); !errors.Is(err, ErrInputAnswered) {
 			t.Fatalf("AnswerInput(after takeover) error = %v", err)
 		}
 	})

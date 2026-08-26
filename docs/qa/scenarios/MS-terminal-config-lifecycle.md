@@ -16,6 +16,12 @@ last_report:
 overlaps:
 ---
 
-Added for the integrated-terminal config lifecycle. Task 01 establishes the internal contract; the
-public configuration projections activate with task 06. The task loop defers this persona walk to
-its dedicated QA phase.
+Flagged by integrated-terminal tasks 01 and 06. Task 10 owns the real-user walk, evidence, and
+verdict.
+
+Walk:
+
+1. Read global, workspace, and profile `[terminal]` projections and record all ten defaults plus their provenance.
+2. Set each key to a valid value at every allowed scope, apply it sequentially, and open a new terminal after each change to verify next-operation and hot-apply behavior.
+3. Submit one invalid value for every validation path and attempt a profile override that raises `max_per_daemon`; verify the typed refusal and unchanged effective value.
+4. Read structured config and settings projections after every apply; verify precedence, restart truth, and that profile overlays cannot raise the daemon-wide cap.

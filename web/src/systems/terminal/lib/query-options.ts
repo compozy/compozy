@@ -6,9 +6,19 @@ import {
   fetchTerminalJournal,
   fetchTerminalRecording,
   fetchTerminals,
+  readTerminal,
 } from "../adapters/terminal-api";
-import type { TerminalJournalFilters, TerminalScopeKey, TerminalScopeParams } from "../types";
-import { TERMINAL_ALL_PROFILES_KEY, terminalKeys } from "./query-keys";
+import type {
+  TerminalJournalFilters,
+  TerminalProfileScopeParams,
+  TerminalScopeKey,
+  TerminalScopeParams,
+} from "../types";
+import {
+  TERMINAL_ALL_PROFILES_KEY,
+  terminalJournalFiltersWithDefaults,
+  terminalKeys,
+} from "./query-keys";
 
 /**
  * Query definitions for every terminal read.
@@ -21,8 +31,23 @@ import { TERMINAL_ALL_PROFILES_KEY, terminalKeys } from "./query-keys";
 export function terminalScope(
   workspaceId: string,
   profile: string,
+  aggregate?: false
+): TerminalProfileQueryScope;
+export function terminalScope(
+  workspaceId: string,
+  profile: string,
+  aggregate: true
+): TerminalQueryScope;
+export function terminalScope(
+  workspaceId: string,
+  profile: string,
+  aggregate: boolean
+): TerminalQueryScope;
+export function terminalScope(
+  workspaceId: string,
+  profile: string,
   aggregate = false
-): { key: TerminalScopeKey; params: TerminalScopeParams } {
+): TerminalQueryScope {
   return aggregate
     ? {
         key: { workspaceId, profileKey: TERMINAL_ALL_PROFILES_KEY },
@@ -31,10 +56,16 @@ export function terminalScope(
     : { key: { workspaceId, profileKey: profile }, params: { profile } };
 }
 
-export function terminalCatalogQuery(scope: {
+export interface TerminalQueryScope {
   key: TerminalScopeKey;
   params: TerminalScopeParams;
-}) {
+}
+
+export interface TerminalProfileQueryScope extends TerminalQueryScope {
+  params: TerminalProfileScopeParams;
+}
+
+export function terminalCatalogQuery(scope: TerminalQueryScope) {
   return queryOptions({
     queryKey: terminalKeys.catalog(scope.key),
     queryFn: ({ signal }) => fetchTerminals(scope.key.workspaceId, scope.params, signal),
@@ -42,7 +73,7 @@ export function terminalCatalogQuery(scope: {
 }
 
 export function terminalDetailQuery(
-  scope: { key: TerminalScopeKey; params: TerminalScopeParams },
+  scope: TerminalProfileQueryScope,
   terminalId: string
 ) {
   return queryOptions({
@@ -51,10 +82,25 @@ export function terminalDetailQuery(
   });
 }
 
-export function terminalInputRequestsQuery(scope: {
-  key: TerminalScopeKey;
-  params: TerminalScopeParams;
-}) {
+/** Captured output for a pipe terminal, which has no interactive screen. */
+export function terminalPipeOutputQuery(
+  scope: TerminalProfileQueryScope,
+  terminalId: string
+) {
+  return queryOptions({
+    queryKey: terminalKeys.read(scope.key, terminalId, "tail"),
+    queryFn: ({ signal }) =>
+      readTerminal(
+        scope.key.workspaceId,
+        terminalId,
+        { view: "tail", maxBytes: 1 << 20 },
+        scope.params,
+        signal
+      ),
+  });
+}
+
+export function terminalInputRequestsQuery(scope: TerminalQueryScope) {
   return queryOptions({
     queryKey: terminalKeys.inputRequests(scope.key),
     queryFn: ({ signal }) =>
@@ -62,14 +108,11 @@ export function terminalInputRequestsQuery(scope: {
   });
 }
 
-/** The server's page size. Paging is cursor-driven; there is no total. */
-export const TERMINAL_JOURNAL_PAGE_SIZE = 50;
-
 export function terminalJournalQuery(
-  scope: { key: TerminalScopeKey; params: TerminalScopeParams },
+  scope: TerminalQueryScope,
   filters: TerminalJournalFilters
 ) {
-  const withLimit = { ...filters, limit: filters.limit ?? TERMINAL_JOURNAL_PAGE_SIZE };
+  const withLimit = terminalJournalFiltersWithDefaults(filters);
   return infiniteQueryOptions({
     queryKey: terminalKeys.journal(scope.key, withLimit),
     queryFn: ({ pageParam, signal }) =>
@@ -82,7 +125,7 @@ export function terminalJournalQuery(
 }
 
 export function terminalRecordingQuery(
-  scope: { key: TerminalScopeKey; params: TerminalScopeParams },
+  scope: TerminalProfileQueryScope,
   recordingId: string
 ) {
   return queryOptions({

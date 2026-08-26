@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 
@@ -22,15 +23,34 @@ type Pool struct {
 
 	mu      sync.Mutex
 	entries map[string]*DB
+	opening map[string]*workspaceOpening
 	closed  bool
 }
+
+type workspaceOpening struct {
+	done       chan struct{}
+	db         *DB
+	err        error
+	cleanupErr error
+}
+
+type namedWorkspaceOpening struct {
+	workspaceID string
+	opening     *workspaceOpening
+}
+
+var errWorkspacePoolClosed = errors.New("store: workspace database pool is closed")
 
 // NewPool constructs an empty per-workspace database pool.
 func NewPool(resolveRoot RootResolver) (*Pool, error) {
 	if resolveRoot == nil {
 		return nil, errors.New("store: workspace database root resolver is required")
 	}
-	return &Pool{resolveRoot: resolveRoot, entries: make(map[string]*DB)}, nil
+	return &Pool{
+		resolveRoot: resolveRoot,
+		entries:     make(map[string]*DB),
+		opening:     make(map[string]*workspaceOpening),
+	}, nil
 }
 
 // Open returns the shared database for workspaceID, opening it on first use.
@@ -38,18 +58,38 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 	if p == nil {
 		return nil, errors.New("store: workspace database pool is required")
 	}
-	workspaceID = strings.TrimSpace(workspaceID)
-	if workspaceID == "" {
-		return nil, errors.New("store: workspace id is required")
+	workspaceID, err := normalizeWorkspaceID(workspaceID)
+	if err != nil {
+		return nil, err
 	}
 	p.mu.Lock()
-	defer p.mu.Unlock()
 	if p.closed {
-		return nil, errors.New("store: workspace database pool is closed")
+		p.mu.Unlock()
+		return nil, errWorkspacePoolClosed
 	}
 	if existing := p.entries[workspaceID]; existing != nil {
+		p.mu.Unlock()
 		return existing, nil
 	}
+	if opening := p.opening[workspaceID]; opening != nil {
+		p.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, fmt.Errorf("store: wait for workspace database %q: %w", workspaceID, ctx.Err())
+		case <-opening.done:
+			return opening.db, opening.err
+		}
+	}
+	opening := &workspaceOpening{done: make(chan struct{})}
+	p.opening[workspaceID] = opening
+	p.mu.Unlock()
+
+	db, openErr := p.openWorkspace(ctx, workspaceID)
+	p.finishOpening(ctx, workspaceID, opening, db, openErr)
+	return opening.db, opening.err
+}
+
+func (p *Pool) openWorkspace(ctx context.Context, workspaceID string) (*DB, error) {
 	root, err := p.resolveRoot(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve workspace database root %q: %w", workspaceID, err)
@@ -65,8 +105,33 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 			closeErr,
 		)
 	}
-	p.entries[workspaceID] = db
 	return db, nil
+}
+
+func (p *Pool) finishOpening(
+	ctx context.Context,
+	workspaceID string,
+	opening *workspaceOpening,
+	db *DB,
+	openErr error,
+) {
+	p.mu.Lock()
+	if p.closed && openErr == nil {
+		p.mu.Unlock()
+		cleanupErr := db.Close(context.WithoutCancel(ctx))
+		p.mu.Lock()
+		opening.cleanupErr = cleanupErr
+		openErr = errors.Join(errWorkspacePoolClosed, cleanupErr)
+		db = nil
+	}
+	delete(p.opening, workspaceID)
+	if openErr == nil {
+		p.entries[workspaceID] = db
+	}
+	opening.db = db
+	opening.err = openErr
+	close(opening.done)
+	p.mu.Unlock()
 }
 
 // CloseWorkspace closes and forgets one workspace handle.
@@ -74,9 +139,16 @@ func (p *Pool) CloseWorkspace(ctx context.Context, workspaceID string) error {
 	if p == nil {
 		return nil
 	}
+	workspaceID, err := normalizeWorkspaceID(workspaceID)
+	if err != nil {
+		return err
+	}
+	if err := p.waitForWorkspaceOpening(ctx, workspaceID); err != nil {
+		return err
+	}
 	p.mu.Lock()
-	db := p.entries[strings.TrimSpace(workspaceID)]
-	delete(p.entries, strings.TrimSpace(workspaceID))
+	db := p.entries[workspaceID]
+	delete(p.entries, workspaceID)
 	p.mu.Unlock()
 	if db == nil {
 		return nil
@@ -89,7 +161,13 @@ func (p *Pool) RemoveWorkspace(ctx context.Context, workspaceID string) error {
 	if p == nil {
 		return nil
 	}
-	workspaceID = strings.TrimSpace(workspaceID)
+	workspaceID, err := normalizeWorkspaceID(workspaceID)
+	if err != nil {
+		return err
+	}
+	if err := p.waitForWorkspaceOpening(ctx, workspaceID); err != nil {
+		return err
+	}
 	p.mu.Lock()
 	db := p.entries[workspaceID]
 	delete(p.entries, workspaceID)
@@ -120,15 +198,65 @@ func (p *Pool) Close(ctx context.Context) error {
 	}
 	p.closed = true
 	entries := p.entries
+	openings := make([]namedWorkspaceOpening, 0, len(p.opening))
+	for workspaceID, opening := range p.opening {
+		openings = append(openings, namedWorkspaceOpening{workspaceID: workspaceID, opening: opening})
+	}
 	p.entries = make(map[string]*DB)
 	p.mu.Unlock()
 	errs := make([]error, 0, len(entries))
-	for workspaceID, db := range entries {
+	workspaceIDs := make([]string, 0, len(entries))
+	for workspaceID := range entries {
+		workspaceIDs = append(workspaceIDs, workspaceID)
+	}
+	sort.Strings(workspaceIDs)
+	sort.Slice(openings, func(left, right int) bool {
+		return openings[left].workspaceID < openings[right].workspaceID
+	})
+	for _, workspaceID := range workspaceIDs {
+		db := entries[workspaceID]
 		if err := db.Close(ctx); err != nil {
 			errs = append(errs, fmt.Errorf("store: close workspace database %q: %w", workspaceID, err))
 		}
 	}
+	for _, named := range openings {
+		select {
+		case <-ctx.Done():
+			errs = append(errs, fmt.Errorf("store: wait for opening workspace database %q: %w", named.workspaceID, ctx.Err()))
+		case <-named.opening.done:
+			if named.opening.cleanupErr != nil {
+				errs = append(errs, fmt.Errorf(
+					"store: close opening workspace database %q: %w",
+					named.workspaceID,
+					named.opening.cleanupErr,
+				))
+			}
+		}
+	}
 	return errors.Join(errs...)
+}
+
+func (p *Pool) waitForWorkspaceOpening(ctx context.Context, workspaceID string) error {
+	p.mu.Lock()
+	opening := p.opening[workspaceID]
+	p.mu.Unlock()
+	if opening == nil {
+		return nil
+	}
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("store: wait for workspace database %q: %w", workspaceID, ctx.Err())
+	case <-opening.done:
+		return opening.err
+	}
+}
+
+func normalizeWorkspaceID(workspaceID string) (string, error) {
+	workspaceID = strings.TrimSpace(workspaceID)
+	if workspaceID == "" {
+		return "", errors.New("store: workspace id is required")
+	}
+	return workspaceID, nil
 }
 
 func removeSQLiteFiles(path string) error {

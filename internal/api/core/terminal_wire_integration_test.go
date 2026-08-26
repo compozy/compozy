@@ -11,7 +11,6 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -24,9 +23,6 @@ import (
 
 func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 	t.Run("Should complete a real terminal lifecycle over HTTP and WebSocket", func(t *testing.T) {
-		if runtime.GOOS == "windows" {
-			t.Skip("interactive PTY lifecycle requires the Unix adapter")
-		}
 		gin.SetMode(gin.TestMode)
 		manager, err := terminalpkg.NewManager()
 		if err != nil {
@@ -52,7 +48,7 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		t.Cleanup(server.Close)
 
 		created := terminalTestJSONRequest(t, server.Client(), http.MethodPost,
-			server.URL+"/api/workspaces/workspace-a/terminals", `{"shell":"sh","cols":80,"rows":24}`)
+			server.URL+"/api/workspaces/workspace-a/terminals", `{"cols":80,"rows":24}`)
 		var createResponse struct {
 			Terminal struct {
 				ID string `json:"id"`

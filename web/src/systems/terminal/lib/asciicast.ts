@@ -101,15 +101,22 @@ function parseFrame(line: string): AsciicastFrame | null {
   try {
     parsed = JSON.parse(line);
   } catch {
-    return null;
+    throw new AsciicastParseError("A recording event is not readable.");
   }
-  if (!Array.isArray(parsed) || parsed.length < 3) return null;
+  if (!Array.isArray(parsed) || parsed.length < 3) {
+    throw new AsciicastParseError("A recording event is not readable.");
+  }
   const [at, kind, data] = parsed as [unknown, unknown, unknown];
-  if (kind !== "o" || typeof data !== "string") return null;
+  if (kind !== "o") return null;
+  if (typeof data !== "string") {
+    throw new AsciicastParseError("A recording output event is not readable.");
+  }
   // A non-finite or negative offset is not a moment in the capture. Dropping it
   // keeps every remaining frame on a real timeline, which is what `seek` and the
   // transport both depend on.
-  if (typeof at !== "number" || !Number.isFinite(at) || at < 0) return null;
+  if (typeof at !== "number" || !Number.isFinite(at) || at < 0) {
+    throw new AsciicastParseError("A recording event has an invalid timestamp.");
+  }
   return { atMs: Math.round(at * 1000), data };
 }
 
@@ -146,10 +153,15 @@ export class AsciicastPlayback {
     return this.playing;
   }
 
-  play(): void {
-    if (this.playing || this.index >= this.options.cast.frames.length) return;
+  play(): boolean {
+    if (this.playing) return true;
+    if (this.index >= this.options.cast.frames.length) {
+      this.options.onEnded?.();
+      return false;
+    }
     this.playing = true;
     this.scheduleNext();
+    return true;
   }
 
   pause(): void {

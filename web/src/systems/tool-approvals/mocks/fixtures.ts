@@ -86,6 +86,11 @@ export const toolApprovalGrantsResponseFixture: ToolApprovalGrantsListResponse =
   total: toolApprovalGrantFixtures.length,
 };
 
+export const terminalInclusiveToolApprovalGrantsResponseFixture: ToolApprovalGrantsListResponse = {
+  grants: [...terminalToolApprovalGrantFixtures, ...toolApprovalGrantFixtures],
+  total: terminalToolApprovalGrantFixtures.length + toolApprovalGrantFixtures.length,
+};
+
 export const emptyToolApprovalGrantsResponseFixture: ToolApprovalGrantsListResponse = {
   grants: [],
   total: 0,

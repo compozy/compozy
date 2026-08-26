@@ -293,7 +293,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 		SessionTimeout: "bad",
 		HTTP:           contract.SettingsHTTPPayload{Host: "127.0.0.1", Port: 2123},
 		Daemon:         contract.SettingsDaemonPayload{Socket: "/tmp/compozy.sock"},
-	}); err == nil {
+	}, true); err == nil {
 		t.Fatal("generalSettingsFromPayload(invalid timeout) error = nil, want non-nil")
 	}
 
@@ -310,7 +310,7 @@ func TestSettingsPayloadHelpersRejectInvalidInputs(t *testing.T) {
 				MemoryReportInterval: "invalid",
 			},
 		}
-		if _, err := generalSettingsFromPayload(validGeneral); err == nil {
+		if _, err := generalSettingsFromPayload(validGeneral, true); err == nil {
 			t.Fatal("generalSettingsFromPayload(invalid memory report interval) error = nil, want non-nil")
 		}
 	})
@@ -505,7 +505,7 @@ func TestGeneralSettingsPayloadRoundTripPreservesRedactionGate(t *testing.T) {
 					MaxSubscribers:         terminal.MaxSubscribers,
 				},
 			}
-			settings, err := generalSettingsFromPayload(payload)
+			settings, err := generalSettingsFromPayload(payload, true)
 			if err != nil {
 				t.Fatalf("generalSettingsFromPayload() error = %v", err)
 			}

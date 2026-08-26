@@ -1,4 +1,5 @@
-import { act, render } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactElement } from "react";
 import { vi } from "vitest";
 
@@ -15,12 +16,19 @@ import type { TerminalWindowActions } from "../terminal-window-app";
  * projection and every component below the window run for real.
  */
 export function renderTerminalWindow(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(ui, {
-    wrapper: ({ children }) => <TerminalStoreProvider>{children}</TerminalStoreProvider>,
+    wrapper: ({ children }) => (
+      <QueryClientProvider client={queryClient}>
+        <TerminalStoreProvider>{children}</TerminalStoreProvider>
+      </QueryClientProvider>
+    ),
   });
 }
 
-/** A socket that opens and then says nothing — the window still renders. */
+/** A socket that never opens or emits frames — the window still renders. */
 export const silentSocketFactory = () => {
   const socket: TerminalSocket = {
     close: () => undefined,
@@ -49,6 +57,20 @@ export function recordingSocketFactory() {
   const sent: SentTerminalFrame[] = [];
   const sockets: TerminalSocket[] = [];
   const decoder = new TextDecoder();
+  const waitForListening = async (minimumConnections?: number) => {
+    await waitFor(() => {
+      if (
+        (minimumConnections !== undefined && sockets.length < minimumConnections) ||
+        !sockets.some(socket => socket.onmessage !== null)
+      ) {
+        throw new Error(
+          minimumConnections === undefined
+            ? "no socket is listening yet"
+            : `waiting for terminal connection ${minimumConnections}`
+        );
+      }
+    });
+  };
   const factory = () => {
     const socket: TerminalSocket = {
       close: () => undefined,
@@ -76,25 +98,21 @@ export function recordingSocketFactory() {
     sent,
     /** Resolves once the client has opened a socket and can be spoken to. */
     ready: async () => {
-      await vi.waitFor(() => {
-        if (!sockets.some(socket => socket.onmessage !== null)) {
-          throw new Error("no socket is listening yet");
-        }
-      });
+      await waitForListening();
       await act(async () => {
         for (const socket of sockets) socket.onopen?.({} as Event);
+        await Promise.resolve();
       });
     },
     /** Number of passes minted so a reconnect test can wait for a fresh one. */
     connectionCount: () => sockets.length,
     /** Waits for a specific pass count, then opens the newest pass. */
     readyForConnectionCount: async (count: number) => {
-      await vi.waitFor(() => {
-        if (sockets.length < count || sockets.at(-1)?.onmessage === null) {
-          throw new Error(`waiting for terminal connection ${count}`);
-        }
+      await waitForListening(count);
+      await act(async () => {
+        sockets.at(-1)?.onopen?.({} as Event);
+        await Promise.resolve();
       });
-      await act(async () => sockets.at(-1)?.onopen?.({} as Event));
     },
     /** Frames the client sent with this opcode, in order. */
     sentWithOp: (op: number) => sent.filter(frame => frame.op === op),
@@ -108,23 +126,30 @@ export function recordingSocketFactory() {
     deliver: async (op: number, payload: unknown) => {
       // The attachment is created in an effect after a ticket is minted, so a
       // test speaks as soon as someone is listening rather than guessing when.
-      await vi.waitFor(() => {
-        if (!sockets.some(socket => socket.onmessage !== null)) {
-          throw new Error("no socket is listening yet");
-        }
-      });
+      await waitForListening();
       const listening = sockets.filter(socket => socket.onmessage !== null);
       const body = new TextEncoder().encode(JSON.stringify(payload));
       const frame = new Uint8Array(body.byteLength + 1);
       frame[0] = op;
       frame.set(body, 1);
-      for (const socket of listening) {
-        socket.onmessage?.({ data: frame.buffer } as MessageEvent<unknown>);
-      }
+      await act(async () => {
+        for (const socket of listening) {
+          socket.onmessage?.({ data: frame.buffer } as MessageEvent<unknown>);
+        }
+        await Promise.resolve();
+      });
     },
     /** Drops the newest live connection the way the browser would. */
-    drop: () => act(() => sockets.at(-1)?.onclose?.(new CloseEvent("close"))),
-    open: () => act(() => sockets.at(-1)?.onopen?.({} as Event)),
+    drop: () =>
+      act(async () => {
+        sockets.at(-1)?.onclose?.(new CloseEvent("close"));
+        await Promise.resolve();
+      }),
+    open: () =>
+      act(async () => {
+        sockets.at(-1)?.onopen?.({} as Event);
+        await Promise.resolve();
+      }),
   };
 }
 
@@ -184,9 +209,24 @@ export function stubWindowActions(
 /** Keeps the attach path from reaching the network during a render test. */
 export function stubTerminalTicketFetch(): () => void {
   const original = globalThis.fetch;
-  globalThis.fetch = vi.fn(async () =>
-    Response.json({ ticket: "tkt-test", expires_at: "2026-08-25T12:00:30Z" }, { status: 201 })
-  ) as unknown as typeof globalThis.fetch;
+  globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url =
+      typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+    if (url.includes("/read")) {
+      const signal = init?.signal ?? (input instanceof Request ? input.signal : undefined);
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener(
+          "abort",
+          () => reject(new DOMException("The operation was aborted.", "AbortError")),
+          { once: true }
+        );
+      });
+    }
+    return Response.json(
+      { ticket: "tkt-test", expires_at: "2026-08-25T12:00:30Z" },
+      { status: 201 }
+    );
+  }) as unknown as typeof globalThis.fetch;
   return () => {
     globalThis.fetch = original;
   };

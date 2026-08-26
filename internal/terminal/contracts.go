@@ -14,6 +14,10 @@ type ID string
 type Mode string
 type Signal string
 type ActorKind string
+
+// OperatorActorID is the stable human-controller identity used across transports.
+const OperatorActorID = "operator"
+
 type LeaseState string
 type EventKind string
 type InputRequestID string
@@ -288,7 +292,7 @@ type Handle interface {
 	Takeover(ctx context.Context, actor Actor, force bool) error
 	Yield(ctx context.Context, actor Actor) error
 	RequestInput(ctx context.Context, request InputRequest) (*InputOutcome, error)
-	AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) error
+	AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) (*InputOutcome, error)
 	RejectInput(ctx context.Context, actor Actor, id InputRequestID, reason string) error
 	Signal(ctx context.Context, actor Actor, signal Signal) error
 	StartRecording(ctx context.Context, actor Actor) (RecordingRef, error)

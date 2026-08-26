@@ -10,10 +10,14 @@ export {
   rejectTerminalInputRequest,
   signalTerminal,
 } from "./adapters/terminal-api";
-export type { TerminalSocket, TerminalSocketFactory } from "./adapters/terminal-socket";
-
 export { TerminalStoreProvider } from "./contexts/terminal-store-context";
-export { useTerminalAttachment } from "./hooks/use-terminal-attachment";
+export {
+  useTerminalAttachment,
+  type TerminalAttachment,
+  type TerminalAttachmentSocketFactory,
+  type UseTerminalAttachmentOptions,
+} from "./hooks/use-terminal-attachment";
+export { useTerminalReplay } from "./hooks/use-terminal-replay";
 export { useTerminalStore } from "./hooks/use-terminal-store";
 
 export {
@@ -56,15 +60,20 @@ export {
   terminalSelectionLines,
   type TerminalQuote,
 } from "./lib/terminal-quote";
-export { TERMINAL_ALL_PROFILES_KEY, terminalKeys } from "./lib/query-keys";
 export {
+  TERMINAL_ALL_PROFILES_KEY,
   TERMINAL_JOURNAL_PAGE_SIZE,
+  terminalJournalFiltersWithDefaults,
+  terminalKeys,
+} from "./lib/query-keys";
+export {
   terminalCatalogQuery,
   terminalDetailQuery,
   terminalInputRequestsQuery,
   terminalJournalQuery,
   terminalRecordingQuery,
   terminalScope,
+  type TerminalQueryScope,
 } from "./lib/query-options";
 export {
   TerminalProtocolClient,

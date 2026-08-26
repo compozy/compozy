@@ -29,7 +29,7 @@ type CommandClassification struct {
 }
 
 // ClassifyArgv classifies parsed argv without performing an approval or reading state.
-func ClassifyArgv(argv []string, allowlist []ArgvPattern, denylist ...[]ArgvPattern) CommandClassification {
+func ClassifyArgv(argv []string, allowlist []ArgvPattern, denyLists ...[]ArgvPattern) CommandClassification {
 	digest := argvDigest(argv)
 	if len(argv) == 0 || strings.TrimSpace(argv[0]) == "" {
 		return CommandClassification{Verdict: CommandVerdictPrompt, Reason: "empty_argv", Digest: digest}
@@ -40,7 +40,7 @@ func ClassifyArgv(argv []string, allowlist []ArgvPattern, denylist ...[]ArgvPatt
 	if isUnclassifiableArgv(argv) {
 		return CommandClassification{Verdict: CommandVerdictPrompt, Reason: "unclassifiable", Digest: digest}
 	}
-	for _, patterns := range denylist {
+	for _, patterns := range denyLists {
 		for _, pattern := range patterns {
 			if matchArgvPattern(argv, pattern) {
 				return CommandClassification{Verdict: CommandVerdictPrompt, Reason: "denylist", Digest: digest}

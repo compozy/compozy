@@ -81,8 +81,9 @@ func (s *recordingToolEventSink) snapshot() []ToolCallEvent {
 }
 
 type recordingApprovalBridge struct {
-	err   error
-	calls []approvalBridgeCall
+	err           error
+	approvalLabel string
+	calls         []approvalBridgeCall
 }
 
 type approvalBridgeCall struct {
@@ -137,6 +138,9 @@ func (b *recordingApprovalBridge) RequestToolApproval(
 		recorded = cloneToolView(view)
 	}
 	if req != nil {
+		if b.approvalLabel != "" {
+			req.ApprovalLabel = b.approvalLabel
+		}
 		b.calls = append(b.calls, approvalBridgeCall{scope: scope, req: *req, view: recorded})
 	}
 	return b.err
@@ -365,7 +369,7 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 		t.Parallel()
 
 		descriptor := validDispatchDescriptor()
-		bridge := &recordingApprovalBridge{}
+		bridge := &recordingApprovalBridge{approvalLabel: "approved_by_operator"}
 		called := false
 		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
 			descriptor:   descriptor,
@@ -375,8 +379,8 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 				if string(req.Input) != `{"query":"patched"}` {
 					t.Fatalf("provider input = %s, want patched approval input", req.Input)
 				}
-				if !req.ApprovalGranted || req.ApprovalLabel != "approved_once" {
-					t.Fatalf("provider approval = %t/%q, want granted/approved_once", req.ApprovalGranted, req.ApprovalLabel)
+				if !req.ApprovalGranted || req.ApprovalLabel != "approved_by_operator" {
+					t.Fatalf("provider approval = %t/%q, want granted/approved_by_operator", req.ApprovalGranted, req.ApprovalLabel)
 				}
 				return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
 			},

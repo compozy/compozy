@@ -13,18 +13,22 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+// WorkspaceResolver resolves an operator-supplied workspace ID or path.
 type WorkspaceResolver interface {
 	Resolve(ctx context.Context, idOrPath string) (workspacepkg.ResolvedWorkspace, error)
 }
 
+// ProfileWorkspaceResolver resolves a workspace using profile-owned aliases.
 type ProfileWorkspaceResolver interface {
 	ResolveForProfile(ctx context.Context, idOrPath string, profileName string) (workspacepkg.ResolvedWorkspace, error)
 }
 
+// ProfileNameResolver projects a stable profile ID to its display name.
 type ProfileNameResolver interface {
 	ProfileName(ctx context.Context, profileID string) (string, error)
 }
 
+// SettingsProvider returns the effective terminal policy for a workspace and profile.
 type SettingsProvider func(context.Context, string, string) (Settings, error)
 
 type processCheckpoint interface {
@@ -45,8 +49,10 @@ type ExecAuthorizer interface {
 	AuthorizeTerminalExec(context.Context, ExecRequest, CommandClassification) (string, error)
 }
 
+// Option configures one terminal Service dependency.
 type Option func(*Service) error
 
+// WithPTY replaces the platform process starter.
 func WithPTY(starter pty.PTY) Option {
 	return func(service *Service) error {
 		if starter == nil {
@@ -57,6 +63,7 @@ func WithPTY(starter pty.PTY) Option {
 	}
 }
 
+// WithWorkspaceResolver sets the workspace boundary resolver.
 func WithWorkspaceResolver(resolver WorkspaceResolver) Option {
 	return func(service *Service) error {
 		if resolver == nil {
@@ -67,6 +74,7 @@ func WithWorkspaceResolver(resolver WorkspaceResolver) Option {
 	}
 }
 
+// WithProfileNameResolver sets the profile-name projection used in events.
 func WithProfileNameResolver(resolver ProfileNameResolver) Option {
 	return func(service *Service) error {
 		if resolver == nil {
@@ -77,6 +85,7 @@ func WithProfileNameResolver(resolver ProfileNameResolver) Option {
 	}
 }
 
+// WithSettingsProvider sets the effective terminal policy provider.
 func WithSettingsProvider(provider SettingsProvider) Option {
 	return func(service *Service) error {
 		if provider == nil {
@@ -87,6 +96,7 @@ func WithSettingsProvider(provider SettingsProvider) Option {
 	}
 }
 
+// WithProfileGuard sets the profile availability guard.
 func WithProfileGuard(guard ProfileGuard) Option {
 	return func(service *Service) error {
 		if guard == nil {
@@ -97,6 +107,7 @@ func WithProfileGuard(guard ProfileGuard) Option {
 	}
 }
 
+// WithTypingGrantAuthorizer sets the agent input grant authority.
 func WithTypingGrantAuthorizer(authorizer TypingGrantAuthorizer) Option {
 	return func(service *Service) error {
 		if authorizer == nil {
@@ -107,6 +118,7 @@ func WithTypingGrantAuthorizer(authorizer TypingGrantAuthorizer) Option {
 	}
 }
 
+// WithExecAuthorizer sets the command approval authority.
 func WithExecAuthorizer(authorizer ExecAuthorizer) Option {
 	return func(service *Service) error {
 		if authorizer == nil {
@@ -117,6 +129,7 @@ func WithExecAuthorizer(authorizer ExecAuthorizer) Option {
 	}
 }
 
+// WithProcessRegistry registers spawned terminal processes with toolruntime.
 func WithProcessRegistry(registry *toolruntime.Registry) Option {
 	return func(service *Service) error {
 		if registry == nil {
@@ -142,6 +155,7 @@ func withProcessRegister(register processRegister) Option {
 	}
 }
 
+// WithEventBus sets the terminal lifecycle event bus.
 func WithEventBus(bus *EventBus) Option {
 	return func(service *Service) error {
 		if bus == nil {
@@ -152,6 +166,7 @@ func WithEventBus(bus *EventBus) Option {
 	}
 }
 
+// WithJournal sets the terminal audit journal.
 func WithJournal(journal Journal) Option {
 	return func(service *Service) error {
 		if journal == nil {
@@ -162,6 +177,7 @@ func WithJournal(journal Journal) Option {
 	}
 }
 
+// WithMarkerConsumer sets the authenticated shell-marker consumer.
 func WithMarkerConsumer(consumer MarkerConsumer) Option {
 	return func(service *Service) error {
 		if consumer == nil {
@@ -172,6 +188,7 @@ func WithMarkerConsumer(consumer MarkerConsumer) Option {
 	}
 }
 
+// WithLogger sets the structured logger.
 func WithLogger(logger *slog.Logger) Option {
 	return func(service *Service) error {
 		if logger == nil {
@@ -182,6 +199,7 @@ func WithLogger(logger *slog.Logger) Option {
 	}
 }
 
+// WithClock sets the clock used for terminal lifecycle timestamps.
 func WithClock(now func() time.Time) Option {
 	return func(service *Service) error {
 		if now == nil {
@@ -192,6 +210,7 @@ func WithClock(now func() time.Time) Option {
 	}
 }
 
+// WithEntropy sets the cryptographic entropy reader used for identifiers.
 func WithEntropy(entropy io.Reader) Option {
 	return func(service *Service) error {
 		if entropy == nil {

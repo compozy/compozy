@@ -1,22 +1,15 @@
 "use client";
 
-import {
-  Button,
-  destroyTerminalInstance,
-  MonoId,
-  Pill,
-  TerminalView,
-  TerminalWriteAbandonedError,
-  type TerminalEngineLoader,
-  type TerminalViewHandle,
-} from "@compozy/ui";
-import { useEffect, useRef, useState } from "react";
+import { Button, MonoId, Pill, TerminalView, type TerminalEngineLoader } from "@compozy/ui";
 
 import { TerminalSquare } from "lucide-react";
 
-import type { TerminalSocketFactory } from "../adapters/terminal-socket";
 import { TerminalStoreProvider } from "../contexts/terminal-store-context";
-import { useTerminalAttachment } from "../hooks/use-terminal-attachment";
+import {
+  useTerminalAttachment,
+  type TerminalAttachmentSocketFactory,
+} from "../hooks/use-terminal-attachment";
+import { useTerminalReplay } from "../hooks/use-terminal-replay";
 import { terminalExitCopy } from "../lib/terminal-copy";
 import { sessionPreviewInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalLeaseView } from "../lib/terminal-lease";
@@ -56,7 +49,7 @@ export interface SessionTerminalBlockProps {
   /** Absent until the Terminal app is reachable; then it focuses the window. */
   onOpenTerminal?: () => void;
   /** Test seam; the browser socket is the default. */
-  socketFactory?: TerminalSocketFactory;
+  socketFactory?: TerminalAttachmentSocketFactory;
   /** Replaces the emulator. Tests and playback harnesses only. */
   engineLoader?: TerminalEngineLoader;
 }
@@ -94,8 +87,6 @@ function SessionTerminalBlockBody({
   engineLoader,
   onOpenTerminal,
 }: SessionTerminalBlockProps) {
-  const handleRef = useRef<TerminalViewHandle>(null);
-  const [attached, setAttached] = useState(false);
   // Scoped as fully as the caller can name it: the block, the workspace and
   // profile when known, and the terminal. Length-prefixed so no id containing a
   // separator can collide with another.
@@ -107,32 +98,17 @@ function SessionTerminalBlockBody({
   // A run that has not ended is still producing bytes, and this is a view of
   // that terminal rather than a record of it — so while it runs, it streams.
   const live = scope !== undefined && !exit;
-  // A preview is not a terminal: nothing scrolls back to it, and nothing
-  // reattaches to it. Persisting its emulator would keep a WebGL context and a
-  // theme observer alive for every terminal call ever scrolled past.
-  useEffect(() => () => destroyTerminalInstance(instanceId), [instanceId]);
+  const replay = useTerminalReplay(instanceId, preview, !live);
   useTerminalAttachment({
     workspaceId: scope?.workspaceId ?? "",
     terminalId,
     scope: { profile: scope?.profile ?? "" },
     // Watching only. Nothing in a transcript may claim the write lease.
     mode: "read",
-    handleRef,
+    handleRef: replay.handleRef,
     socketFactory,
     enabled: live,
   });
-  useEffect(() => {
-    // The stream paints itself from byte zero; the recorded screen is only for
-    // a run the stream can no longer replay.
-    if (!attached || live) return;
-    handleRef.current?.reset();
-    // Nothing waits on this parse, so a view that closes mid-write rejects into
-    // nobody's hands unless it is caught here.
-    void handleRef.current?.write(preview).catch(cause => {
-      if (cause instanceof TerminalWriteAbandonedError) return;
-      throw cause;
-    });
-  }, [attached, live, preview]);
 
   const outcome = exit ? terminalExitCopy(exit) : null;
 
@@ -163,13 +139,13 @@ function SessionTerminalBlockBody({
       <div className="flex max-h-55 flex-col bg-terminal-bg">
         <TerminalView
           aria-label={live ? `${title} — watching` : `${title} — final screen`}
-          className="px-3 py-2 font-mono text-[11.5px] leading-[1.5]"
+          className="px-3 py-2 font-mono text-code-block"
           {...(engineLoader ? { engineLoader } : {})}
-          handleRef={handleRef}
+          handleRef={replay.handleRef}
           // A distinct identity from the app's pane: the preview is a second
           // view of the same terminal, never a second claim on its buffer.
           instanceId={instanceId}
-          onAttached={() => setAttached(true)}
+          onAttached={replay.onAttached}
           readOnly
           screenReaderMode
         />

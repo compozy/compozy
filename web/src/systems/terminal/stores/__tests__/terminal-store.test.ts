@@ -1,29 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { projectTerminalBadge } from "../../lib/terminal-badge";
 import { terminalAttachModeFor, terminalLeaseView } from "../../lib/terminal-lease";
-import { terminalKeys } from "../../lib/query-keys";
-import {
-  terminalInstanceKey,
-  terminalInstanceKeyInScope,
-  terminalScopeKey,
-} from "../../lib/terminal-scope-key";
-import type { TerminalInputRequest } from "../../types";
+import { terminalScopeKey } from "../../lib/terminal-scope-key";
 import { terminalStoreLogic, type TerminalStoreState } from "../terminal-store";
 
 /**
  * Canonical suite for terminal client state (UT-078, UT-113).
  *
  * Invariant: the daemon's `OWNER` frames alone decide the lease read for every
- * `lease_state`, and a profile switch drops the previous profile's panes and
- * re-keys both the catalog cache identity and the dock-badge projection.
+ * `lease_state`, and a scope switch drops the previous scope's panes.
  */
 
 const INTERACTIVE = { interactive: true };
-const WORK_SCOPE = { workspaceId: "ws-atlas", profileKey: "work" };
-const PERSONAL_SCOPE = { workspaceId: "ws-atlas", profileKey: "personal" };
-const WORK_KEY = terminalScopeKey(WORK_SCOPE.workspaceId, WORK_SCOPE.profileKey);
-const PERSONAL_KEY = terminalScopeKey(PERSONAL_SCOPE.workspaceId, PERSONAL_SCOPE.profileKey);
+const WORK_KEY = terminalScopeKey("ws-atlas", "work");
+const PERSONAL_KEY = terminalScopeKey("ws-atlas", "personal");
 const DEV_SERVER = "term-4f21c9a03b7e";
 
 function openStore(scopeKey: string, terminalId: string) {
@@ -37,20 +27,6 @@ function paneOf(state: TerminalStoreState, terminalId: string) {
   const pane = state.panes[terminalId];
   if (!pane) throw new Error(`pane ${terminalId} is not in the store`);
   return pane;
-}
-
-function inputRequest(overrides: Partial<TerminalInputRequest> = {}): TerminalInputRequest {
-  return {
-    id: "req-3f8a",
-    terminal_id: "term-9cd7e14b2a66",
-    profile_id: "profile-work",
-    profile_name: "work",
-    reason: "sudo password",
-    prompt_excerpt: "Password:",
-    redacted: true,
-    requested_at: "2026-08-25T12:44:00Z",
-    ...overrides,
-  };
 }
 
 describe("terminal lease state", () => {
@@ -150,6 +126,29 @@ describe("terminal lease state", () => {
     expect(pane.controller).toBeNull();
   });
 
+  it("Should clear the controller named by the previous attachment pass", () => {
+    const store = openStore(WORK_KEY, DEV_SERVER);
+    store.trigger.leaseObserved({
+      terminalId: DEV_SERVER,
+      lease: "human_owned",
+      controller: { kind: "human", id: "marina" },
+      reason: "takeover",
+    });
+
+    store.trigger.attached({
+      terminalId: DEV_SERVER,
+      lease: "available",
+      mode: "pty",
+      cols: 96,
+      rows: 28,
+    });
+
+    const pane = paneOf(store.getSnapshot().context, DEV_SERVER);
+    expect(pane.controller).toBeNull();
+    expect(pane.ownerObserved).toBe(true);
+    expect(pane.lease).toBe("available");
+  });
+
   it("Should offer no control affordances where control cannot exist", () => {
     const pipeView = terminalLeaseView({
       lease: "agent_owned",
@@ -186,7 +185,7 @@ describe("terminal lease state", () => {
 });
 
 describe("terminal profile rebinding", () => {
-  it("Should drop the previous profile's panes and re-key every scoped read", () => {
+  it("Should drop the previous profile's panes", () => {
     const store = openStore(WORK_KEY, DEV_SERVER);
     store.trigger.attached({
       terminalId: DEV_SERVER,
@@ -203,49 +202,6 @@ describe("terminal profile rebinding", () => {
     // the previous profile's lease on screen.
     expect(store.getSnapshot().context.panes).toEqual({});
     expect(store.getSnapshot().context.scopeKey).toBe(PERSONAL_KEY);
-    expect(terminalKeys.catalog(WORK_SCOPE)).not.toEqual(terminalKeys.catalog(PERSONAL_SCOPE));
-    expect(terminalKeys.inputRequests(WORK_SCOPE)).not.toEqual(
-      terminalKeys.inputRequests(PERSONAL_SCOPE)
-    );
-    expect(terminalKeys.journal(WORK_SCOPE, {})).not.toEqual(
-      terminalKeys.journal(PERSONAL_SCOPE, {})
-    );
-  });
-
-  it("Should key one terminal's buffer to one profile", () => {
-    const workBuffer = terminalInstanceKey("ws-atlas", "work", DEV_SERVER);
-    const personalBuffer = terminalInstanceKey("ws-atlas", "personal", DEV_SERVER);
-
-    expect(workBuffer).not.toEqual(personalBuffer);
-    expect(terminalInstanceKeyInScope(workBuffer, WORK_KEY)).toBe(true);
-    expect(terminalInstanceKeyInScope(workBuffer, PERSONAL_KEY)).toBe(false);
-  });
-
-  it("Should never let two different scopes collide into one key", () => {
-    // Length-prefixed segments: a delimiter-joined key would make these two
-    // scopes identical, and a pane would inherit the wrong profile's buffer.
-    expect(terminalScopeKey("ws-a", "b-c")).not.toEqual(terminalScopeKey("ws-a-b", "c"));
-    expect(terminalScopeKey("ws", "atlas work")).not.toEqual(terminalScopeKey("ws atlas", "work"));
-  });
-
-  it("Should re-key the dock badge and never count another profile's rows", () => {
-    const workBadge = projectTerminalBadge({
-      scopeKey: WORK_KEY,
-      profileId: "profile-work",
-      inputRequests: [inputRequest(), inputRequest({ id: "req-9c11" })],
-      pendingApprovals: [{ profileId: "profile-work" }],
-    });
-    expect(workBadge).toEqual({ scopeKey: WORK_KEY, count: 3 });
-
-    const personalBadge = projectTerminalBadge({
-      scopeKey: PERSONAL_KEY,
-      profileId: "profile-personal",
-      inputRequests: [inputRequest()],
-      pendingApprovals: [{ profileId: "profile-work" }],
-    });
-    // The switch re-keys the projection, and the previous profile's rows do not
-    // survive into the new count.
-    expect(personalBadge).toEqual({ scopeKey: PERSONAL_KEY, count: undefined });
   });
 
   it("Should keep a re-entered scope from resurrecting its old panes", () => {

@@ -92,6 +92,17 @@ export function clearSessionTerminalQuote(sessionId: string): void {
   });
 }
 
+/** Removes the visual handoff without changing the submitted composer text. */
+export function discardSessionTerminalQuote(sessionId: string): void {
+  sessionTerminalQuoteStore.trigger.removed({ sessionId });
+}
+
+/** Drops a chip when its exact quote block is no longer present in the draft. */
+export function discardSessionTerminalQuoteIfMissing(sessionId: string, draft: string): void {
+  const quote = sessionTerminalQuoteStore.getSnapshot().context.quotes[sessionId];
+  if (quote && !draft.includes(quote.text)) discardSessionTerminalQuote(sessionId);
+}
+
 function readDraft(sessionId: string): string {
   return sessionStore.getSnapshot().context.drafts[sessionId] ?? "";
 }

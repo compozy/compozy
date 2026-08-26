@@ -7,6 +7,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"testing"
 	"time"
 
@@ -83,9 +84,11 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 			At: at, Reason: "operator_close",
 			Exit: &terminalpkg.Exit{Cause: "exited", Code: intPointer(0)},
 			Detail: terminalpkg.EventDetail{
-				Mode: terminalpkg.ModePTY, Cwd: "/workspace", CommandID: "cmd-a", Command: "pwd",
+				Mode: terminalpkg.ModePTY, Cwd: "/workspace", Title: "Build", CommandID: "cmd-a", Command: "pwd",
 				DetectedBy: "marker", ExitCode: intPointer(0), ExitCause: "exited", DurationMS: 12,
-				Approval: "human", RecordingID: "rec-a", Digest: "digest-a", Bytes: 42,
+				Signal: new("TERM"), Approval: "human", RequestID: "request-a", Redacted: true,
+				Length: 7, Outcome: "provided", RecordingID: "rec-a", Digest: "digest-a", Bytes: 42,
+				LeaseFrom: terminalpkg.LeaseAvailable, LeaseTo: terminalpkg.LeaseHumanOwned, Truncated: true,
 				Flow: "drop", Limit: "workspace", Current: 8, Max: 8,
 			},
 		}
@@ -103,9 +106,43 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 				got.payload["session_id"] != "session-a" || got.payload["run_id"] != "run-a" {
 				t.Fatalf("bridge payload for %s = %#v (%s)", testCase.hook, got.payload, got.event)
 			}
+			for key, want := range terminalHookExpectedPayload(testCase.hook) {
+				if value := got.payload[key]; !reflect.DeepEqual(value, want) {
+					t.Fatalf("bridge payload %s[%q] = %#v, want %#v", testCase.hook, key, value, want)
+				}
+			}
 		case <-time.After(time.Second):
 			t.Fatalf("timed out waiting for bridged hook %s", testCase.hook)
 		}
+	}
+}
+
+func terminalHookExpectedPayload(event hookspkg.HookEvent) map[string]any {
+	switch event {
+	case hookspkg.HookTerminalOpened:
+		return map[string]any{"mode": "pty", "cwd": "/workspace", "title": "Build"}
+	case hookspkg.HookTerminalClosed:
+		return map[string]any{"exit": map[string]any{"cause": "exited", "code": float64(0)}, "reason": "closed"}
+	case hookspkg.HookTerminalLeaseChanged:
+		return map[string]any{"from": "available", "to": "human_owned", "reason": "operator_close"}
+	case hookspkg.HookTerminalCommandStarted:
+		return map[string]any{"command_id": "cmd-a", "command": "pwd", "cwd": "/workspace", "detected_by": "marker"}
+	case hookspkg.HookTerminalCommandFinished:
+		return map[string]any{"command_id": "cmd-a", "exit_code": float64(0), "signal": "TERM", "exit_cause": "exited", "duration_ms": float64(12), "detected_by": "marker", "approval": "human"}
+	case hookspkg.HookTerminalInputRequested:
+		return map[string]any{"request_id": "request-a", "reason": "operator_close", "redacted": true}
+	case hookspkg.HookTerminalInputProvided:
+		return map[string]any{"request_id": "request-a", "redacted": true, "length": float64(7), "outcome": "provided"}
+	case hookspkg.HookTerminalRecordingStarted:
+		return map[string]any{"recording_id": "rec-a"}
+	case hookspkg.HookTerminalRecordingStopped:
+		return map[string]any{"recording_id": "rec-a", "digest": "digest-a", "bytes": float64(42), "reason": "operator_close", "truncated": true}
+	case hookspkg.HookTerminalSubscriberEvicted:
+		return map[string]any{"flow": "drop", "reason": "operator_close"}
+	case hookspkg.HookTerminalLimitRejected:
+		return map[string]any{"limit": "workspace", "current": float64(8), "max": float64(8)}
+	default:
+		return nil
 	}
 }
 

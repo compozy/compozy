@@ -1,4 +1,4 @@
-import { Asterisk, Info, SquareTerminal, X } from "lucide-react";
+import { Info, X } from "lucide-react";
 
 import { Button, Eyebrow, MonoId, Pill, PropertyRow, Time } from "@compozy/ui";
 
@@ -11,10 +11,6 @@ import type { TerminalJournalEntry } from "../types";
 
 export interface TerminalJournalDetailProps {
   entry: TerminalJournalEntry;
-  /** The last screen this command left, when the daemon still holds it. */
-  lastOutput?: readonly string[];
-  /** Length only — the characters never left the program. */
-  redactedInputLength?: number;
   onClose: () => void;
   onOpenTerminal?: () => void;
 }
@@ -28,8 +24,6 @@ export interface TerminalJournalDetailProps {
  */
 export function TerminalJournalDetail({
   entry,
-  lastOutput,
-  redactedInputLength,
   onClose,
   onOpenTerminal,
 }: TerminalJournalDetailProps) {
@@ -88,31 +82,6 @@ export function TerminalJournalDetail({
         </PropertyRow>
         <PropertyRow label="Ran under">{entry.profile_name}</PropertyRow>
       </div>
-
-      {lastOutput && lastOutput.length > 0 ? (
-        <div className="flex flex-col gap-1 px-4.5 pb-3.5">
-          <Eyebrow className="flex items-center gap-1.5">
-            <SquareTerminal aria-hidden="true" className="size-3" />
-            Last output
-          </Eyebrow>
-          <div className="rounded-xs bg-terminal-bg px-2.75 py-2.25 font-mono text-form-input leading-relaxed text-terminal-fg">
-            {lastOutput.map(line => (
-              <span className="block break-all whitespace-pre-wrap" key={line}>
-                {line}
-              </span>
-            ))}
-            {redactedInputLength === undefined ? null : (
-              <span
-                className="mt-0.5 inline-flex items-center gap-1.25 rounded-xxs bg-badge-fill px-1.5 font-mono text-micro text-subtle"
-                data-testid="terminal-redacted-marker"
-              >
-                <Asterisk aria-hidden="true" className="size-2.5" />
-                hidden input · {redactedInputLength} characters
-              </span>
-            )}
-          </div>
-        </div>
-      ) : null}
 
       {onOpenTerminal ? (
         <div className="flex gap-1.75 px-4.5 pb-4.5">

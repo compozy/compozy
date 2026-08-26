@@ -58,13 +58,11 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 		terminalpkg.WithTypingGrantAuthorizer(state.terminalPermissions),
 		terminalpkg.WithExecAuthorizer(state.terminalPermissions),
 	)
-	if state.workspaceResolver != nil {
-		options = append(options, terminalpkg.WithWorkspaceResolver(state.workspaceResolver))
-	}
+	options = append(options, terminalpkg.WithWorkspaceResolver(state.workspaceResolver))
 	if state.profiles != nil {
 		options = append(options, terminalpkg.WithProfileNameResolver(state.profiles))
 	}
-	if state.profiles != nil && state.workspaceResolver != nil {
+	if state.profiles != nil {
 		options = append(
 			options,
 			terminalpkg.WithProfileGuard(state.profiles),
@@ -87,11 +85,6 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 	state.terminals = manager
 	if state.notifier != nil {
 		state.notifier.setTerminalRuntime(manager)
-		if state.sessions != nil {
-			state.notifier.AddTaskRunTerminalObserver(&terminalRunLifecycleObserver{
-				terminals: manager, sessions: state.sessions,
-			})
-		}
 	}
 	return nil
 }

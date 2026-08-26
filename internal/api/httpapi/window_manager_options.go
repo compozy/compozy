@@ -27,6 +27,7 @@ func WithWindowManagerProvider(provider core.WindowManagerProvider) Option {
 	}
 }
 
+// WithTerminalProvider injects the per-profile terminal managers.
 func WithTerminalProvider(provider core.TerminalProvider) Option {
 	return func(server *Server) {
 		server.terminal = provider

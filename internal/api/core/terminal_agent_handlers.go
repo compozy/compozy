@@ -143,18 +143,8 @@ func (h *BaseHandlers) SignalTerminal(c *gin.Context) {
 }
 
 func (h *BaseHandlers) ListTerminalInputRequests(c *gin.Context) {
-	if h == nil || h.Terminal == nil {
-		h.respondTerminalUnavailable(c)
-		return
-	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	service, err := h.Terminal.TerminalFor(scope.ProfileID)
-	if err != nil {
-		h.respondTerminalError(c, err)
+	service, scope, ok := h.terminalAggregateService(c)
+	if !ok {
 		return
 	}
 	lister, ok := service.(terminalInputRequestLister)
@@ -190,11 +180,12 @@ func (h *BaseHandlers) AnswerTerminalInputRequest(c *gin.Context) {
 		}
 		redacted = pending.Redacted
 	}
-	if err := handle.AnswerInput(c.Request.Context(), actor, requestID, terminalpkg.InputAnswer{Input: []byte(request.Input)}); err != nil {
+	outcome, err := handle.AnswerInput(c.Request.Context(), actor, requestID, terminalpkg.InputAnswer{Input: []byte(request.Input)})
+	if err != nil {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"delivered_bytes": len(request.Input), "redacted": redacted})
+	c.JSON(http.StatusOK, gin.H{"delivered_bytes": outcome.Length, "redacted": redacted})
 }
 
 func (h *BaseHandlers) RejectTerminalInputRequest(c *gin.Context) {
@@ -224,15 +215,18 @@ func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	var recording terminalpkg.RecordingRef
-	var err error
+	var (
+		recording terminalpkg.RecordingRef
+		state     string
+		err       error
+	)
 	switch request.Action {
 	case "start":
 		recording, err = handle.StartRecording(c.Request.Context(), actor)
-		recording.State = "recording"
+		state = "recording"
 	case "stop":
 		recording, err = handle.StopRecording(c.Request.Context(), actor)
-		recording.State = "saved"
+		state = "saved"
 	default:
 		err = terminalRequestError(errors.New("recording action must be start or stop"))
 	}
@@ -240,22 +234,13 @@ func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
+	recording.State = state
 	c.JSON(http.StatusOK, gin.H{"recording": recording})
 }
 
 func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
-	if h == nil || h.Terminal == nil {
-		h.respondTerminalUnavailable(c)
-		return
-	}
-	scope, err := h.resolveProfileReadScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	service, err := h.Terminal.TerminalFor(scope.ProfileID)
-	if err != nil {
-		h.respondTerminalError(c, err)
+	service, scope, ok := h.terminalAggregateService(c)
+	if !ok {
 		return
 	}
 	limit, err := ParseOptionalInt(c.Query("limit"))
@@ -276,11 +261,20 @@ func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
+	identities, err := h.profileOwnerIdentities(c.Request.Context())
+	if err != nil {
+		h.respondError(c, http.StatusInternalServerError, err)
+		return
+	}
+	entries := make([]contract.TerminalCommandRowPayload, 0, len(page.Entries))
+	for _, row := range page.Entries {
+		entries = append(entries, contract.TerminalCommandRowPayloadFromDomain(row, identities[row.ProfileID].Name))
+	}
 	next := any(nil)
 	if page.Next != "" {
 		next = page.Next
 	}
-	c.JSON(http.StatusOK, gin.H{"entries": page.Entries, "next": next})
+	c.JSON(http.StatusOK, gin.H{"entries": entries, "next": next})
 }
 
 func (h *BaseHandlers) terminalHandle(c *gin.Context, mutation bool, action string) (terminalpkg.Handle, terminalpkg.Actor, bool) {

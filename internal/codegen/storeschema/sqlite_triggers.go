@@ -59,7 +59,7 @@ func inspectSQLiteTriggers(ctx context.Context, db *sql.DB) (_ []sqliteTrigger, 
 	return triggers, nil
 }
 
-func readMigrationSQLiteTriggers(_ context.Context, descriptor stream) ([]sqliteTrigger, error) {
+func readMigrationSQLiteTriggers(descriptor stream) ([]sqliteTrigger, error) {
 	entries, err := os.ReadDir(descriptor.migrationsDir)
 	if err != nil {
 		return nil, fmt.Errorf("read %s migrations for triggers: %w", descriptor.name, err)

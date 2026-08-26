@@ -46,6 +46,18 @@ func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T)
 			t.Fatalf("post-terminator filter result/state = %#v discarding=%v", result, filter.output.discarding)
 		}
 	})
+
+	t.Run("Should neutralize OSC location hyperlinks and DCS only for model output", func(t *testing.T) {
+		t.Parallel()
+		input := []byte("before\x1b]7;file:///tmp\x07middle\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\after\x1bPprivate\x1b\\done")
+		filtered := modelFacingOutput(input)
+		if got, want := string(filtered), "beforemiddlelinkafterdone"; got != want {
+			t.Fatalf("modelFacingOutput() = %q, want %q", got, want)
+		}
+		if got := string(newOSCSecurityFilter("nonce-1", nil).Filter(input).DisplayBytes); got != string(input) {
+			t.Fatalf("human display output = %q, want raw stream", got)
+		}
+	})
 }
 
 func TestOSCSecurityFilterShouldDeliverTypedFactsBeforeDisplayFanout(t *testing.T) {

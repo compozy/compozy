@@ -337,9 +337,9 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 		Exit: &contract.TerminalExitPayload{Cause: "signal", Code: &exitCode, Signal: &exitSignal, At: fixed.Add(time.Minute)},
 	}
 	journalPayload := contract.TerminalJournalResponse{
-		Entries: []terminalpkg.CommandRow{{
+		Entries: []contract.TerminalCommandRowPayload{{
 			ID: "command-a", TerminalID: &terminalID, ProfileID: "profile-work", ProfileName: "work",
-			Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent, ID: "atlas", ProfileID: "profile-work"},
+			Actor:   contract.TerminalCommandActorPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
 			Command: "make gate", Cwd: "/workspace", StartedAt: fixed, ExitCode: &exitCode,
 			ExitCause: "exit", DetectedBy: "marker", Approval: "allowed", OutputBytes: 2048,
 		}},
@@ -486,6 +486,204 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 			t.Fatalf("aggregate mutation error = %#v, want %q field", payload, clientErrorKey)
 		}
 	})
+}
+
+func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
+	const (
+		workspaceID = "workspace /a"
+		terminalID  = "term /a"
+		requestID   = "request /a"
+		profileName = "work profile"
+		basePath    = "/api/workspaces/workspace%20%2Fa/terminals"
+	)
+	testCases := []struct {
+		name     string
+		method   string
+		path     string
+		query    string
+		body     string
+		status   int
+		response string
+		invoke   func(context.Context, *daemonClient) error
+	}{
+		{
+			name:   "Should send terminal exec fields through the concrete HTTP client",
+			method: http.MethodPost, path: basePath + "/exec", query: "profile=work+profile",
+			body:   `{"command":"printf","args":["%s","ok"],"cwd":"sub dir","env":{"MODE":"test"},"yield_ms":250,"visible":true,"output":{"max_bytes":1024,"strategy":"head_tail","grep":"warn"}}`,
+			status: http.StatusOK, response: `{}`,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				_, err := client.ExecTerminal(ctx, workspaceID, TerminalExecRequest{
+					Command: "printf", Args: []string{"%s", "ok"}, Cwd: "sub dir",
+					Env: map[string]string{"MODE": "test"}, YieldMs: 250, Visible: true,
+					Output: terminalpkg.OutputShape{MaxBytes: 1024, Strategy: "head_tail", Grep: "warn"},
+				})
+				return err
+			},
+		},
+		{
+			name:   "Should encode terminal read scope and filters",
+			method: http.MethodGet, path: basePath + "/term%20%2Fa/read",
+			query:  "from=2&grep=fail+%2Fnow&max_bytes=2048&profile=work+profile&since_seq=9&to=4&view=lines",
+			status: http.StatusOK, response: `{}`,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				_, err := client.ReadTerminal(ctx, workspaceID, terminalID, TerminalReadOptions{
+					View: "lines", MaxBytes: 2048, SinceSeq: 9, FromLine: 2, ToLine: 4, Grep: "fail /now",
+				})
+				return err
+			},
+		},
+		{
+			name:   "Should send terminal signal to the escaped resource",
+			method: http.MethodPost, path: basePath + "/term%20%2Fa/signal", query: "profile=work+profile",
+			body: `{"signal":"TERM"}`, status: http.StatusNoContent,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				return client.SignalTerminal(ctx, workspaceID, terminalID, "TERM")
+			},
+		},
+		{
+			name:   "Should list scoped terminal input requests",
+			method: http.MethodGet, path: basePath + "/input-requests",
+			query: "profile=work+profile&terminal_id=term+%2Fa", status: http.StatusOK,
+			response: `{"requests":[]}`,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				_, err := client.ListTerminalInputRequests(ctx, workspaceID, TerminalInputRequestQuery{TerminalID: terminalID})
+				return err
+			},
+		},
+		{
+			name:   "Should answer an escaped terminal input request",
+			method: http.MethodPost, path: basePath + "/term%20%2Fa/input-requests/request%20%2Fa/answer",
+			query: "profile=work+profile", body: `{"input":"yes\n"}`, status: http.StatusOK,
+			response: `{"delivered_bytes":4,"redacted":true}`,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				delivered, redacted, err := client.AnswerTerminalInputRequest(
+					ctx, workspaceID, terminalID, requestID, []byte("yes\n"),
+				)
+				if err == nil && (delivered != 4 || !redacted) {
+					return fmt.Errorf("answer result = %d/%t, want 4/true", delivered, redacted)
+				}
+				return err
+			},
+		},
+		{
+			name:   "Should reject an escaped terminal input request",
+			method: http.MethodPost, path: basePath + "/term%20%2Fa/input-requests/request%20%2Fa/reject",
+			query: "profile=work+profile", body: `{"reason":"unsafe input"}`, status: http.StatusNoContent,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				return client.RejectTerminalInputRequest(ctx, workspaceID, terminalID, requestID, "unsafe input")
+			},
+		},
+		{
+			name:   "Should encode every terminal journal filter",
+			method: http.MethodGet, path: basePath + "/journal",
+			query:  "actor=atlas&cursor=next+page&failed=true&limit=25&profile=work+profile&since=2026-08-25T12%3A00%3A00Z&terminal_id=term+%2Fa",
+			status: http.StatusOK, response: `{"entries":[],"next":"next-a"}`,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				page, err := client.QueryTerminalJournal(ctx, workspaceID, TerminalJournalQuery{
+					Actor: "atlas", Since: "2026-08-25T12:00:00Z", TerminalID: terminalID,
+					Failed: true, Limit: 25, Cursor: "next page",
+				})
+				if err == nil && page.Next != "next-a" {
+					return fmt.Errorf("journal next = %q, want next-a", page.Next)
+				}
+				return err
+			},
+		},
+		{
+			name:   "Should control recording on the escaped terminal",
+			method: http.MethodPost, path: basePath + "/term%20%2Fa/recording", query: "profile=work+profile",
+			body: `{"action":"start"}`, status: http.StatusOK,
+			response: `{"recording":{"id":"recording-a","terminal_id":"term /a","profile_id":"profile-a","digest":"digest-a","started_at":"2026-08-25T12:00:00Z","bytes":0,"expires_at":"2026-09-25T12:00:00Z"}}`,
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				recording, err := client.ControlTerminalRecording(ctx, workspaceID, terminalID, "start")
+				if err == nil && recording.ID != "recording-a" {
+					return fmt.Errorf("recording id = %q, want recording-a", recording.ID)
+				}
+				return err
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			captured := make(chan terminalAgentHTTPRequest, 1)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+				body, err := io.ReadAll(request.Body)
+				if err != nil {
+					captured <- terminalAgentHTTPRequest{err: err}
+					writer.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				captured <- terminalAgentHTTPRequest{
+					method: request.Method, path: request.URL.EscapedPath(),
+					query: request.URL.Query().Encode(), body: string(body),
+				}
+				if testCase.response != "" {
+					writer.Header().Set("Content-Type", "application/json")
+				}
+				writer.WriteHeader(testCase.status)
+				if testCase.response != "" {
+					if _, err := writer.Write([]byte(testCase.response)); err != nil {
+						t.Errorf("write terminal client response error = %v", err)
+					}
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			client, err := NewClient(LocalClientTarget("/tmp/compozy-terminal-agent-boundary.sock"))
+			if err != nil {
+				t.Fatalf("NewClient() error = %v", err)
+			}
+			concrete := client.(*daemonClient)
+			concrete.httpClient.Transport = redirectRoundTripper(server)
+			ctx := context.WithValue(
+				t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: profileName},
+			)
+			if err := testCase.invoke(ctx, concrete); err != nil {
+				t.Fatalf("terminal client invocation error = %v", err)
+			}
+			request := <-captured
+			if request.err != nil {
+				t.Fatalf("capture terminal request error = %v", request.err)
+			}
+			if request.method != testCase.method || request.path != testCase.path || request.query != testCase.query {
+				t.Fatalf(
+					"terminal request = %s %s?%s, want %s %s?%s",
+					request.method, request.path, request.query, testCase.method, testCase.path, testCase.query,
+				)
+			}
+			assertTerminalRequestJSON(t, request.body, testCase.body)
+		})
+	}
+}
+
+type terminalAgentHTTPRequest struct {
+	method string
+	path   string
+	query  string
+	body   string
+	err    error
+}
+
+func assertTerminalRequestJSON(t *testing.T, got, want string) {
+	t.Helper()
+	if want == "" {
+		if got != "" {
+			t.Fatalf("terminal request body = %q, want empty", got)
+		}
+		return
+	}
+	var gotJSON any
+	if err := json.Unmarshal([]byte(got), &gotJSON); err != nil {
+		t.Fatalf("json.Unmarshal(terminal request) error = %v; body=%s", err, got)
+	}
+	var wantJSON any
+	if err := json.Unmarshal([]byte(want), &wantJSON); err != nil {
+		t.Fatalf("json.Unmarshal(wanted terminal request) error = %v; body=%s", err, want)
+	}
+	if !reflect.DeepEqual(gotJSON, wantJSON) {
+		t.Fatalf("terminal request JSON = %#v, want %#v", gotJSON, wantJSON)
+	}
 }
 
 func assertTerminalJSONParity(t *testing.T, stdout string, want any) {

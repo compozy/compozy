@@ -42,6 +42,74 @@ type TerminalInfoPayload struct {
 	Exit         *TerminalExitPayload       `json:"exit,omitempty"`
 }
 
+func TerminalInfoPayloadFromDomain(info terminalpkg.Info, profileName string) TerminalInfoPayload {
+	payload := TerminalInfoPayload{
+		ID: info.ID, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: profileName,
+		Title: info.Title, Shell: info.Shell, Cwd: info.Cwd, Mode: info.Mode, State: info.State,
+		Lease: info.Lease, Viewers: info.Viewers, Capabilities: info.Capabilities, CreatedAt: info.CreatedAt,
+	}
+	if info.Controller != nil {
+		payload.Controller = &TerminalControllerPayload{Kind: info.Controller.Kind, ID: info.Controller.ID}
+	}
+	if info.BoundRun != nil {
+		payload.BoundRun = &TerminalRunPayload{SessionID: info.BoundRun.SessionID, RunID: info.BoundRun.RunID}
+	}
+	if info.Exit != nil {
+		payload.Exit = &TerminalExitPayload{
+			Cause: info.Exit.Cause, Code: info.Exit.Code, Signal: info.Exit.Signal, At: info.Exit.At,
+		}
+	}
+	return payload
+}
+
+type TerminalCommandActorPayload struct {
+	Kind terminalpkg.ActorKind `json:"kind"`
+	ID   string                `json:"id"`
+}
+
+type TerminalCommandRowPayload struct {
+	ID          string                      `json:"command_id"`
+	TerminalID  *terminalpkg.ID             `json:"terminal_id"`
+	ProfileID   string                      `json:"profile_id"`
+	ProfileName string                      `json:"profile_name"`
+	Actor       TerminalCommandActorPayload `json:"actor"`
+	Command     string                      `json:"command"`
+	ArgvDigest  *string                     `json:"argv_digest,omitempty"`
+	Cwd         string                      `json:"cwd"`
+	StartedAt   time.Time                   `json:"started_at"`
+	DurationMs  *int64                      `json:"duration_ms"`
+	ExitCode    *int                        `json:"exit_code"`
+	ExitSignal  *string                     `json:"signal"`
+	ExitCause   string                      `json:"exit_cause"`
+	DetectedBy  string                      `json:"detected_by"`
+	Approval    string                      `json:"approval"`
+	OutputBytes int64                       `json:"output_bytes"`
+	Truncated   bool                        `json:"truncated"`
+	RecordingID *string                     `json:"recording,omitempty"`
+}
+
+func TerminalCommandRowPayloadFromDomain(row terminalpkg.CommandRow, profileName string) TerminalCommandRowPayload {
+	return TerminalCommandRowPayload{
+		ID: row.ID, TerminalID: row.TerminalID, ProfileID: row.ProfileID, ProfileName: profileName,
+		Actor:   TerminalCommandActorPayload{Kind: row.Actor.Kind, ID: row.Actor.ID},
+		Command: row.Command, ArgvDigest: row.ArgvDigest, Cwd: row.Cwd, StartedAt: row.StartedAt,
+		DurationMs: row.DurationMs, ExitCode: row.ExitCode, ExitSignal: row.ExitSignal,
+		ExitCause: row.ExitCause, DetectedBy: row.DetectedBy, Approval: row.Approval,
+		OutputBytes: row.OutputBytes, Truncated: row.Truncated, RecordingID: row.RecordingID,
+	}
+}
+
+func TerminalCommandRowFromPayload(row TerminalCommandRowPayload) terminalpkg.CommandRow {
+	return terminalpkg.CommandRow{
+		ID: row.ID, TerminalID: row.TerminalID, ProfileID: row.ProfileID, ProfileName: row.ProfileName,
+		Actor:   terminalpkg.Actor{Kind: row.Actor.Kind, ID: row.Actor.ID, ProfileID: row.ProfileID},
+		Command: row.Command, ArgvDigest: row.ArgvDigest, Cwd: row.Cwd, StartedAt: row.StartedAt,
+		DurationMs: row.DurationMs, ExitCode: row.ExitCode, ExitSignal: row.ExitSignal,
+		ExitCause: row.ExitCause, DetectedBy: row.DetectedBy, Approval: row.Approval,
+		OutputBytes: row.OutputBytes, Truncated: row.Truncated, RecordingID: row.RecordingID,
+	}
+}
+
 type TerminalCreateRequest struct {
 	Cwd   string `json:"cwd"`
 	Shell string `json:"shell"`
@@ -129,8 +197,8 @@ type TerminalRecordingResponse struct {
 }
 
 type TerminalJournalResponse struct {
-	Entries []terminalpkg.CommandRow `json:"entries"`
-	Next    *string                  `json:"next"`
+	Entries []TerminalCommandRowPayload `json:"entries"`
+	Next    *string                     `json:"next"`
 }
 
 type TerminalCatalogSnapshot struct {

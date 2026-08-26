@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
+	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -61,7 +63,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	cols, rows := normalizedDimensions(request.Cols, request.Rows)
 	spec := ProcSpec{
 		Argv: []string{shell}, Cwd: cwd, Cols: cols, Rows: rows,
-		Mode: terminalpty.ModePTY, Title: request.Title, MarkerNonce: nonce,
+		Mode: terminalpty.ModePTY, MarkerNonce: nonce,
 		ShellIntegration: settings.ShellIntegration,
 	}
 	proc, err := m.pty.Start(ctx, spec)
@@ -81,7 +83,6 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	}
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(m, proc, info, settings, nonce, profileName, cols, rows, strings.TrimSpace(request.Title) != "")
-	m.registerJournalTerminal(item)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
 		cleanupErr := cleanupUnregisteredProcess(proc)
@@ -90,9 +91,9 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	item.processRecord = processRecord
 	key := terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id}
 	if err := m.insert(key, item); err != nil {
-		cleanupErr := cleanupUnregisteredProcess(proc)
-		return nil, errors.Join(err, cleanupErr)
+		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
 	}
+	m.registerJournalTerminal(item)
 	opened := item.Info()
 	m.events.Emit(ctx, TerminalEvent{
 		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
@@ -143,6 +144,8 @@ func (m *Service) reserveAdmission(request OpenRequest, settings Settings) (func
 			workspaceIDs = append(workspaceIDs, string(key.id))
 		}
 	}
+	slices.Sort(workspaceIDs)
+	slices.Sort(daemonIDs)
 	scope := terminalScope{workspaceID: request.WS, profileID: request.Actor.ProfileID}
 	workspaceCount += m.pendingByScope[scope]
 	daemonCount += m.pendingDaemon
@@ -206,6 +209,7 @@ func (m *Service) resolveOpenWorkspace(
 	workspaceID string,
 	cwd string,
 	profileID string,
+	additionalRoots ...string,
 ) (workspacepkg.ResolvedWorkspace, string, string, error) {
 	if m.workspaces == nil {
 		if strings.TrimSpace(cwd) == "" {
@@ -225,6 +229,7 @@ func (m *Service) resolveOpenWorkspace(
 	if canonicalID == "" {
 		canonicalID = workspaceID
 	}
+	resolved.AdditionalDirs = append(resolved.AdditionalDirs, additionalRoots...)
 	validCwd, err := resolveWorkspaceCwd(resolved, cwd)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, "", "", err
@@ -323,6 +328,22 @@ func cleanupUnregisteredProcess(proc Proc) error {
 	closeErr := proc.Close()
 	_, waitErr := proc.Wait(context.Background())
 	return errors.Join(killErr, closeErr, waitErr)
+}
+
+func cleanupRegisteredProcess(
+	ctx context.Context,
+	proc Proc,
+	record processCheckpoint,
+	cause error,
+) error {
+	cleanupErr := cleanupUnregisteredProcess(proc)
+	var completeErr error
+	if record != nil {
+		completeErr = record.Complete(context.WithoutCancel(ctx), toolruntime.ProcessCompletion{
+			Err: cause, Error: "terminal startup rollback",
+		})
+	}
+	return errors.Join(cause, cleanupErr, completeErr)
 }
 
 func validateSettings(settings Settings) error {

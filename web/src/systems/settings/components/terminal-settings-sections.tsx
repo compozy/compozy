@@ -6,6 +6,10 @@ import { SettingRow } from "./setting-row";
 import { SettingsByteField } from "./settings-byte-field";
 import { SettingsGroup } from "./settings-group";
 import { SettingsNumberInput } from "./settings-number-input";
+import type { TerminalSettingsConfig } from "../lib/terminal-settings-types";
+import { validatePositiveDuration } from "../lib/terminal-settings-duration";
+
+export type { TerminalSettingsConfig } from "../lib/terminal-settings-types";
 
 /**
  * The ten `[terminal]` keys, exactly as `config.toml` declares them.
@@ -14,30 +18,19 @@ import { SettingsNumberInput } from "./settings-number-input";
  * with the permissions surfaces where all agent-approval policy lives, and
  * projecting them here would create a second policy editor.
  */
-export interface TerminalSettingsConfig {
-  default_shell: string;
-  shell_integration: boolean;
-  scrollback_bytes: number;
-  detached_ttl: string;
-  exit_retention: string;
-  recording: boolean;
-  recording_retention_days: number;
-  max_per_workspace: number;
-  max_per_daemon: number;
-  max_subscribers: number;
-}
-
 export interface TerminalSettingsSectionsProps {
   draft: TerminalSettingsConfig;
   setDraft: Dispatch<SetStateAction<TerminalSettingsConfig | null>>;
   /** Per-key refusals from config validation, keyed by the TOML key. */
   validationErrors: Record<string, string | null>;
+  onValidationError?: (key: keyof TerminalSettingsConfig, message: string | null) => void;
 }
 
 export function TerminalSettingsSections({
   draft,
   setDraft,
   validationErrors,
+  onValidationError,
 }: TerminalSettingsSectionsProps) {
   const patch = <K extends keyof TerminalSettingsConfig>(
     key: K,
@@ -54,7 +47,11 @@ export function TerminalSettingsSections({
             <Input
               aria-label="Default shell"
               data-testid="settings-terminal-default-shell"
-              onChange={event => patch("default_shell", event.target.value)}
+              onChange={event => {
+                const value = event.target.value;
+                onValidationError?.("default_shell", validateTerminalShell(value));
+                patch("default_shell", value);
+              }}
               placeholder="Your login shell"
               value={draft.default_shell}
             />
@@ -86,7 +83,9 @@ export function TerminalSettingsSections({
             <SettingsByteField
               data-testid="settings-terminal-scrollback"
               label="Scrollback kept per terminal"
+              minBytes={1}
               onChange={value => patch("scrollback_bytes", value)}
+              onValidityChange={message => onValidationError?.("scrollback_bytes", message)}
               value={draft.scrollback_bytes}
             />
           }
@@ -99,7 +98,12 @@ export function TerminalSettingsSections({
             <Input
               aria-label="Reclaim idle terminals after"
               data-testid="settings-terminal-detached-ttl"
-              onChange={event => patch("detached_ttl", event.target.value)}
+              onChange={event => {
+                const value = event.target.value;
+                onValidationError?.("detached_ttl", validatePositiveDuration(value));
+                patch("detached_ttl", value);
+              }}
+              placeholder="e.g. 24h"
               value={draft.detached_ttl}
             />
           }
@@ -113,7 +117,12 @@ export function TerminalSettingsSections({
             <Input
               aria-label="Keep exited terminals readable for"
               data-testid="settings-terminal-exit-retention"
-              onChange={event => patch("exit_retention", event.target.value)}
+              onChange={event => {
+                const value = event.target.value;
+                onValidationError?.("exit_retention", validatePositiveDuration(value));
+                patch("exit_retention", value);
+              }}
+              placeholder="e.g. 15m"
               value={draft.exit_retention}
             />
           }
@@ -143,6 +152,9 @@ export function TerminalSettingsSections({
               aria-label="Keep recordings for, in days"
               data-testid="settings-terminal-recording-retention"
               min={1}
+              onValidityChange={message =>
+                onValidationError?.("recording_retention_days", message)
+              }
               onValueChange={value => patch("recording_retention_days", value)}
               value={draft.recording_retention_days}
             />
@@ -160,6 +172,7 @@ export function TerminalSettingsSections({
               aria-label="Terminals per project"
               data-testid="settings-terminal-max-per-workspace"
               min={1}
+              onValidityChange={message => onValidationError?.("max_per_workspace", message)}
               onValueChange={value => patch("max_per_workspace", value)}
               value={draft.max_per_workspace}
             />
@@ -175,6 +188,7 @@ export function TerminalSettingsSections({
               aria-label="Terminals per installation"
               data-testid="settings-terminal-max-per-daemon"
               min={1}
+              onValidityChange={message => onValidationError?.("max_per_daemon", message)}
               onValueChange={value => patch("max_per_daemon", value)}
               value={draft.max_per_daemon}
             />
@@ -190,6 +204,7 @@ export function TerminalSettingsSections({
               aria-label="Viewers per terminal"
               data-testid="settings-terminal-max-subscribers"
               min={1}
+              onValidityChange={message => onValidationError?.("max_subscribers", message)}
               onValueChange={value => patch("max_subscribers", value)}
               value={draft.max_subscribers}
             />
@@ -201,4 +216,15 @@ export function TerminalSettingsSections({
       </SettingsGroup>
     </>
   );
+}
+
+function validateTerminalShell(value: string): string | null {
+  if (value === "") return null;
+  const trimmed = value.trim();
+  const containsSeparator = value.includes("/") || value.includes("\\");
+  const absolute = value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("\\\\");
+  if (trimmed !== value || value.includes("\0") || (containsSeparator && !absolute)) {
+    return "Enter a command name or an absolute path.";
+  }
+  return null;
 }

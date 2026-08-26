@@ -19,13 +19,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const killGrace = time.Second
-
 type unixProc struct {
 	device      *xpty.UnixPty
 	reader      *os.File
 	command     *exec.Cmd
 	waiter      processWaiter
+	startedAt   time.Time
 	closeOnce   sync.Once
 	closeErr    error
 	shimCleanup func() error
@@ -70,7 +69,7 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 	}
 	proc := &unixProc{
 		device: device, reader: reader, command: command, waiter: newProcessWaiter(),
-		shimCleanup: setup.cleanup,
+		startedAt: time.Now().UTC(), shimCleanup: setup.cleanup,
 	}
 	proc.waiter.start(func() waitResult {
 		err := command.Wait()
@@ -110,6 +109,8 @@ func (p *unixProc) PID() int {
 
 func (p *unixProc) ProcessGroupID() int { return p.PID() }
 
+func (p *unixProc) StartedAt() time.Time { return p.startedAt }
+
 func (p *unixProc) Reader() io.Reader { return p.reader }
 
 func (p *unixProc) Write(input []byte) (int, error) {
@@ -143,10 +144,10 @@ func (p *unixProc) Kill(signal Signal) error {
 	if signal != SignalHUP && signal != SignalTERM {
 		return nil
 	}
-	if err := procutil.WaitForCommandProcessGroupExit(p.command, killGrace); err == nil {
+	if err := procutil.WaitForCommandProcessGroupExit(p.command, processGroupGrace); err == nil {
 		return nil
 	}
-	if err := procutil.KillCommandProcessGroupAndWait(p.command, killGrace); err != nil {
+	if err := procutil.KillCommandProcessGroupAndWait(p.command, processGroupGrace); err != nil {
 		return fmt.Errorf("terminal pty: escalate process group: %w", err)
 	}
 	return nil
@@ -185,7 +186,7 @@ func terminateStartedCommand(command *exec.Cmd) error {
 	if command == nil || command.Process == nil {
 		return nil
 	}
-	killErr := procutil.KillCommandProcessGroupAndWait(command, killGrace)
+	killErr := procutil.KillCommandProcessGroupAndWait(command, processGroupGrace)
 	waitErr := command.Wait()
 	if _, ok := waitErr.(*exec.ExitError); ok {
 		waitErr = nil

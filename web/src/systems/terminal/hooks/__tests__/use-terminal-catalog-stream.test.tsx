@@ -37,6 +37,15 @@ function createFakeSource() {
         listener(event);
       }
     },
+    emitRaw(type: string, data: string) {
+      const event = new MessageEvent(type, { data });
+      for (const listener of listeners.get(type) ?? []) listener(event);
+    },
+    queue(type: string, payload: unknown) {
+      const queued = [...(listeners.get(type) ?? [])];
+      const event = new MessageEvent(type, { data: JSON.stringify(payload) });
+      return () => queued.forEach(listener => listener(event));
+    },
     source: {
       addEventListener: (type: string, listener: EventListener) => {
         const set = listeners.get(type) ?? new Set<EventListener>();
@@ -56,16 +65,16 @@ function createFakeSource() {
   };
 }
 
-function renderStream(initialProfile: string) {
+function renderStream(initialProfile: string, initialWorkspaceId = WORKSPACE) {
   const opened: { url: string; fake: ReturnType<typeof createFakeSource> }[] = [];
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
   const view = renderHook(
-    ({ profileKey }: { profileKey: string }) =>
+    ({ profileKey, workspaceId }: { profileKey: string; workspaceId: string }) =>
       useTerminalCatalogStream({
-        workspaceId: WORKSPACE,
+        workspaceId,
         profileKey,
         eventSourceFactory: (url: string) => {
           const fake = createFakeSource();
@@ -73,13 +82,13 @@ function renderStream(initialProfile: string) {
           return fake.source as unknown as StreamEventSource;
         },
       }),
-    { initialProps: { profileKey: initialProfile }, wrapper }
+    { initialProps: { profileKey: initialProfile, workspaceId: initialWorkspaceId }, wrapper }
   );
   return { ...view, client, opened };
 }
 
 function renderAggregateStream() {
-  const opened: string[] = [];
+  const opened: { url: string; fake: ReturnType<typeof createFakeSource> }[] = [];
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   renderHook(
     () =>
@@ -87,9 +96,11 @@ function renderAggregateStream() {
         workspaceId: WORKSPACE,
         profileKey: "@all",
         allProfiles: true,
+        profiles: ["work", "personal"],
         eventSourceFactory: url => {
-          opened.push(url);
-          return createFakeSource().source as unknown as StreamEventSource;
+          const fake = createFakeSource();
+          opened.push({ url, fake });
+          return fake.source as unknown as StreamEventSource;
         },
       }),
     {
@@ -98,7 +109,7 @@ function renderAggregateStream() {
       ),
     }
   );
-  return opened;
+  return { opened, client };
 }
 
 function catalog(client: QueryClient, profileKey: string): TerminalInfo[] | undefined {
@@ -115,12 +126,33 @@ describe("useTerminalCatalogStream", () => {
     expect(opened[0].fake.listenerCount()).toBeGreaterThan(0);
   });
 
-  it("Should send the aggregate selector without treating the cache key as a profile", () => {
-    const opened = renderAggregateStream();
+  it("Should subscribe every concrete owner without sending the aggregate cache label", () => {
+    const { opened } = renderAggregateStream();
 
-    expect(opened).toHaveLength(1);
-    expect(opened[0]).toContain("all_profiles=true");
-    expect(opened[0]).not.toContain("profile=%40all");
+    expect(opened).toHaveLength(2);
+    expect(opened.map(entry => entry.url)).toEqual([
+      expect.stringContaining("profile=personal"),
+      expect.stringContaining("profile=work"),
+    ]);
+    for (const entry of opened) expect(entry.url).not.toContain("profile=%40all");
+  });
+
+  it("Should replace only the owner covered by an aggregate snapshot", () => {
+    const { opened, client } = renderAggregateStream();
+    const personal = { ...PSQL_TERMINAL, profile_name: "personal", profile_id: "profile-personal" };
+    const personalSource = opened.find(entry => entry.url.includes("profile=personal"));
+    const workSource = opened.find(entry => entry.url.includes("profile=work"));
+    if (!personalSource || !workSource) throw new Error("expected both profile streams");
+
+    workSource.fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    personalSource.fake.emit("terminal.snapshot", { terminals: [personal] });
+    expect(catalog(client, "@all")?.map(terminal => terminal.id)).toEqual([
+      DEV_SERVER_TERMINAL.id,
+      personal.id,
+    ]);
+
+    workSource.fake.emit("terminal.snapshot", { terminals: [] });
+    expect(catalog(client, "@all")?.map(terminal => terminal.id)).toEqual([personal.id]);
   });
 
   it("Should fold a snapshot and its patches into the scope's own cache entry", () => {
@@ -139,7 +171,7 @@ describe("useTerminalCatalogStream", () => {
   it("Should close the previous source and open the next one on a profile switch", () => {
     const { opened, rerender } = renderStream("work");
 
-    rerender({ profileKey: "personal" });
+    rerender({ profileKey: "personal", workspaceId: WORKSPACE });
 
     expect(opened).toHaveLength(2);
     expect(opened[0].fake.closed).toBe(true);
@@ -148,13 +180,24 @@ describe("useTerminalCatalogStream", () => {
     expect(opened[1].fake.closed).toBe(false);
   });
 
+  it("Should close the previous source and open the next one on a workspace switch", () => {
+    const { opened, rerender } = renderStream("work");
+
+    rerender({ profileKey: "work", workspaceId: "ws-other" });
+
+    expect(opened).toHaveLength(2);
+    expect(opened[0].fake.closed).toBe(true);
+    expect(opened[1].url).toContain("/api/workspaces/ws-other/terminals/stream");
+  });
+
   it("Should ignore a late frame from a source that has already been replaced", () => {
     const { opened, client, rerender } = renderStream("work");
     opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
 
-    rerender({ profileKey: "personal" });
-    // The socket is closing, but its last event was already queued.
-    opened[0].fake.emit("terminal.created", { terminal: PSQL_TERMINAL });
+    const deliverQueued = opened[0].fake.queue("terminal.created", { terminal: PSQL_TERMINAL });
+    rerender({ profileKey: "personal", workspaceId: WORKSPACE });
+    // The socket is closed, but its last event was already queued by the browser.
+    deliverQueued();
 
     // Neither cache entry may take it: the new scope never saw it, and the old
     // one is no longer being read.
@@ -169,6 +212,17 @@ describe("useTerminalCatalogStream", () => {
     opened[0].fake.emit("terminal.created", { terminal: { id: "term-broken" } });
 
     expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([DEV_SERVER_TERMINAL.id]);
+  });
+
+  it("Should drop malformed SSE data before it reaches reconciliation", () => {
+    const { opened, client } = renderStream("work");
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+
+    opened[0].fake.emitRaw("terminal.created", "{not-json");
+
+    expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([
+      DEV_SERVER_TERMINAL.id,
+    ]);
   });
 
   it("Should close its source when the surface goes away", () => {

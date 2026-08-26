@@ -5,7 +5,10 @@ import (
 	"errors"
 	"os/exec"
 	"sync"
+	"time"
 )
+
+const processGroupGrace = time.Second
 
 type waitResult struct {
 	exit Exit
@@ -15,7 +18,6 @@ type waitResult struct {
 type processWaiter struct {
 	once   sync.Once
 	done   chan struct{}
-	mu     sync.RWMutex
 	result waitResult
 }
 
@@ -26,10 +28,7 @@ func newProcessWaiter() processWaiter {
 func (w *processWaiter) start(wait func() waitResult) {
 	w.once.Do(func() {
 		go func() {
-			result := wait()
-			w.mu.Lock()
-			w.result = result
-			w.mu.Unlock()
+			w.result = wait()
 			close(w.done)
 		}()
 	})
@@ -40,8 +39,6 @@ func (w *processWaiter) wait(ctx context.Context) (Exit, error) {
 	case <-ctx.Done():
 		return Exit{}, ctx.Err()
 	case <-w.done:
-		w.mu.RLock()
-		defer w.mu.RUnlock()
 		return w.result.exit, w.result.err
 	}
 }
