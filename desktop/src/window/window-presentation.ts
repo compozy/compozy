@@ -1,4 +1,4 @@
-import type { BrowserWindow } from "electron";
+import { app, type BrowserWindow } from "electron";
 
 export type WindowPresentation = "foreground" | "inactive";
 
@@ -8,5 +8,7 @@ export function presentWindow(window: BrowserWindow, presentation: WindowPresent
     return;
   }
   window.show();
+  app.focus({ steal: true });
+  window.moveTop();
   window.focus();
 }

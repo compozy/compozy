@@ -106,8 +106,12 @@ export class ProductWindow {
   focus(): void {
     const window = this.#window;
     if (!window || window.isDestroyed()) return;
-    if (window.isMinimized()) window.restore();
-    presentWindow(window, this.#presentation);
+    if (window.isMinimized()) {
+      window.once("restore", () => presentWindow(window, this.#presentation));
+      window.restore();
+    } else {
+      presentWindow(window, this.#presentation);
+    }
     this.#navigatePending();
   }
 

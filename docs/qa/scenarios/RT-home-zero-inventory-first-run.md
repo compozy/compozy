@@ -6,13 +6,13 @@ persona: Lea
 journey: J-operate-home-dashboard
 expected: When `GET /api/observe/overview` reports no work at all — every counter zero, `has_live_work` false, no pulse bucket, busiest and longest_session absent — Home replaces the seven zones with one heading ("No agent work yet", or "No agent work yet in <workspace>" in a project scope) and exactly three actions that really exist: Start a session (opens the session-create dialog in place), Create a task (`/tasks/new`), Browse the marketplace (`/marketplace/skills`); no zero-filled panels, no subtitle paragraph, and the seven zones return as soon as any counter, live work, or pulse bucket is non-zero.
 entry_points: web `/` (dashboard OS window) on a fresh install or an empty project workspace; `GET /api/observe/overview` (HTTP+UDS)
-qa_status: skipped
-bug_ids: BUG-20260820-global-home-deleted-onboarding
-fix_status: fixed
+qa_status: fail
+bug_ids: BUG-20260820-global-home-deleted-onboarding; BUG-20260826-onboarding-pulse-hides-empty-home
+fix_status: pending
 retest_status: pending
 fix_commits: e520f3fe
-evidence: docs/qa/reports/2026-08-20-ui-normies-retry.md
-last_report: docs/qa/reports/2026-08-20-ui-normies-retry.md
+evidence: docs/qa/evidence/2026-08-26-pr-484-global-desktop/CH-home-zero-inventory-first-start-no-empty-state.png; /Users/pedronauck/dev/qa-labs/compozy-pr-484-global-home-canary-20260826-120414-672594-lab/qa-artifacts/qa/api-overview-first-home.json
+last_report: docs/qa/reports/2026-08-26-pr-484-global-desktop.md
 overlaps: RT-home-dashboard-zones
 ---
 
@@ -37,6 +37,11 @@ by definition a first-run surface and New User is the persona that owns first-ru
 
 2026-08-20 retry: skipped by explicit user instruction after the onboarding defect was fixed and
 scoped checks passed. No behavioral pass is claimed; same-persona retest remains pending.
+
+2026-08-26 walk: failed. A fresh isolated Global first run with no workspace or agent work rendered
+all seven dashboard zones before and after refresh. The public overview read showed no attention,
+runs, tasks, or live work, but two onboarding-created pulse events prevented the zero state.
+Tracked as `BUG-20260826-onboarding-pulse-hides-empty-home`.
 Seven journeys in scope: J-operate-home-dashboard, J-operate-desktop-shell, J-19,
 J-administer-runtime-settings, J-14, J-answer-agent-requests, plus J-start-from-empty-catalogs as
 the adjacent canary. Dimensions 1–4 ride the charters listed below. Deliberate skips, recorded so

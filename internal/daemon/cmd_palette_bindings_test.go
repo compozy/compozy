@@ -19,6 +19,39 @@ var testCmdPaletteProfileLens = cmdpalette.ScopedProfileLens(cmdpalette.DefaultP
 func TestCmdPaletteBindingsResolver(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should resolve the Global desktop partition without a workspace overlay", func(t *testing.T) {
+		t.Parallel()
+
+		global := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{HomeDir: t.TempDir()})
+		global.WindowManager.Shortcuts["session.new"] = windowmanager.ShortcutBinding{"meta+alt+KeyN"}
+		global.CmdPalette.Aliases["session.new"] = "start"
+		resolver := &cmdPaletteBindingsResolver{
+			workspaces: &cmdPaletteWorkspaceResolverStub{err: errors.New("unexpected workspace lookup")},
+			loadGlobal: func() (compozyconfig.Config, error) {
+				return compozyconfig.CloneConfig(&global), nil
+			},
+		}
+
+		bindings, aliases, err := resolver.BindingsForCatalogSnapshot(
+			t.Context(),
+			testCmdPaletteProfileLens,
+			cmdpalette.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+			[]cmdpalette.CommandID{"session.new"},
+			nil,
+		)
+		if err != nil {
+			t.Fatalf("BindingsForCatalogSnapshot() error = %v", err)
+		}
+		if !slices.Equal(bindings["session.new"], []string{"meta+alt+KeyN"}) ||
+			aliases["session.new"] != "start" {
+			t.Fatalf(
+				"Global bindings = %q/%q, want global config without a workspace overlay",
+				bindings["session.new"],
+				aliases["session.new"],
+			)
+		}
+	})
+
 	t.Run("Should reload global bindings aliases and personalization on every read", func(t *testing.T) {
 		t.Parallel()
 

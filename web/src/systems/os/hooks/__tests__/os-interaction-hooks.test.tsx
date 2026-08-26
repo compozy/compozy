@@ -313,6 +313,44 @@ afterEach(() => {
 });
 
 describe("useGlobalShortcutReconciliation", () => {
+  it("Should preserve native registrations while configuration is pending", async () => {
+    const intended: WindowManagerGlobalShortcutMap = {
+      "palette.summon.global": "meta+shift+Space",
+    };
+    const sync = vi.fn().mockResolvedValue([
+      {
+        command_id: "palette.summon.global",
+        intended_chord: "meta+shift+Space",
+        active_chord: "meta+shift+Space",
+        status: "registered",
+      },
+    ]);
+    window.compozyShell = {
+      platform: "darwin",
+      on: vi.fn(() => () => undefined),
+      globalShortcuts: { sync, status: vi.fn() },
+    };
+
+    const { result, rerender } = renderHook(
+      ({ config }: { config: WindowManagerGlobalShortcutMap | undefined }) =>
+        useGlobalShortcutReconciliation(config),
+      {
+        initialProps: {
+          config: undefined as WindowManagerGlobalShortcutMap | undefined,
+        },
+      }
+    );
+
+    expect(sync).not.toHaveBeenCalled();
+    expect(result.current.registrations).toEqual([]);
+
+    rerender({ config: intended });
+    await waitFor(() => expect(result.current.registrations[0]?.status).toBe("registered"));
+    expect(sync).toHaveBeenCalledExactlyOnceWith([
+      { command_id: "palette.summon.global", chord: "meta+shift+Space" },
+    ]);
+  });
+
   it("Should replace stale confirmations with explicit unsupported results after a bridge failure", async () => {
     const initial: WindowManagerGlobalShortcutMap = {
       "palette.summon.global": "meta+shift+Space",

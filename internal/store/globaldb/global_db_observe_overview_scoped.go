@@ -202,7 +202,7 @@ func (g *ObserveRepo) queryEventHourWeekdays(
 	statement, args := store.BuildAndQuery(
 		`SELECT CAST(strftime('%w', timestamp, 'localtime') AS INTEGER),
 			CAST(strftime('%H', timestamp, 'localtime') AS INTEGER), COUNT(1)
-		FROM event_summaries WHERE timestamp >= ?`,
+		FROM event_summaries WHERE timestamp >= ? AND session_id <> ''`,
 		` GROUP BY 1, 2 ORDER BY 1, 2`,
 		store.ReadScopeClause("profile_id", query.ReadScope),
 		store.StringClause("workspace_id", strings.TrimSpace(query.WorkspaceID)),

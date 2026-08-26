@@ -52,6 +52,9 @@ func (r windowManagerWorkspaceConfigResolver) ResolveWindowManagerConfig(
 	workspaceID windowmanager.WorkspaceID,
 	defaults windowmanager.Config,
 ) (windowmanager.Config, error) {
+	if workspaceID == windowmanager.GlobalDesktopWorkspaceID {
+		return defaults, nil
+	}
 	if r.resolver == nil {
 		return windowmanager.Config{}, errors.New("daemon: workspace config resolver is unavailable")
 	}
@@ -108,6 +111,9 @@ func (r *windowManagerStoreWorkspaceResolver) ResolveWorkspace(
 ) (clientstate.WorkspaceGeneration, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if workspaceID == clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID) {
+		return r.resolveGenerationLocked(workspaceID)
+	}
 	workspace, err := r.resolver.Get(ctx, string(workspaceID))
 	if err != nil {
 		if ctxErr := ctx.Err(); ctxErr != nil {
@@ -134,6 +140,12 @@ func (r *windowManagerStoreWorkspaceResolver) ResolveWorkspace(
 			clientstate.ErrWorkspaceNotFound,
 		)
 	}
+	return r.resolveGenerationLocked(workspaceID)
+}
+
+func (r *windowManagerStoreWorkspaceResolver) resolveGenerationLocked(
+	workspaceID clientstate.WorkspaceID,
+) (clientstate.WorkspaceGeneration, error) {
 	record := r.records[workspaceID]
 	if record.deleting {
 		return "", clientstate.ErrWorkspaceNotFound

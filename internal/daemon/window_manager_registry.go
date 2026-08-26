@@ -280,9 +280,16 @@ func (r *windowManagerRegistry) desktopPartitions(
 	if err != nil {
 		return nil, fmt.Errorf("daemon: list workspaces for desktop partitions: %w", err)
 	}
-	partitions := make([]windowManagerDesktopPartition, 0, len(workspaces))
+	workspaceIDs := make([]clientstate.WorkspaceID, 0, len(workspaces)+1)
+	workspaceIDs = append(
+		workspaceIDs,
+		clientstate.WorkspaceID(windowmanager.GlobalDesktopWorkspaceID),
+	)
 	for index := range workspaces {
-		workspaceID := clientstate.WorkspaceID(workspaces[index].ID)
+		workspaceIDs = append(workspaceIDs, clientstate.WorkspaceID(workspaces[index].ID))
+	}
+	partitions := make([]windowManagerDesktopPartition, 0, len(workspaceIDs))
+	for _, workspaceID := range workspaceIDs {
 		entries, err := r.engine.List(ctx, workspaceID, windowManagerStateDomain)
 		if errors.Is(err, clientstate.ErrWorkspaceNotFound) {
 			continue

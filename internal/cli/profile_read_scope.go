@@ -104,6 +104,9 @@ func prepareProfileReadSelection(
 	if handled, err := prepareAgentProfileSelection(cmd, deps); handled || err != nil {
 		return err
 	}
+	if handled, err := prepareRemoteGatewayProfileSelection(cmd, deps, workspaces); handled || err != nil {
+		return err
+	}
 	if profiles == nil {
 		flag, err := commandProfileFlag(cmd)
 		if err != nil {
@@ -128,6 +131,36 @@ func prepareProfileReadSelection(
 	}
 	recordProfileReadSelection(cmd, profileReadSelection{Profile: resolution.Profile.Name})
 	return nil
+}
+
+func prepareRemoteGatewayProfileSelection(
+	cmd *cobra.Command,
+	deps commandDeps,
+	client workspaceLookupClient,
+) (bool, error) {
+	remote, ok := client.(*daemonClient)
+	if !ok || !remote.target.isRemoteGateway() {
+		return false, nil
+	}
+	name, err := requestedProfileName(cmd)
+	if err != nil {
+		return true, err
+	}
+	source := profileResolutionFlag
+	if strings.TrimSpace(name) == "" {
+		name = strings.TrimSpace(deps.getenv(profileEnvName))
+		source = profileResolutionEnv
+	}
+	if strings.TrimSpace(name) == "" {
+		return true, nil
+	}
+	resolution := profileResolution{
+		Profile: contract.Profile{Name: name},
+		Source:  source,
+	}
+	recordProfileResolution(cmd, resolution)
+	recordProfileReadSelection(cmd, profileReadSelection{Profile: name})
+	return true, nil
 }
 
 func prepareAgentProfileSelection(cmd *cobra.Command, deps commandDeps) (bool, error) {

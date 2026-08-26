@@ -14,6 +14,11 @@ const (
 )
 
 type WorkspaceID string
+
+// GlobalDesktopWorkspaceID is the reserved profile-owned desktop partition used
+// when the operator has no project workspace. It never grants workspace data scope.
+const GlobalDesktopWorkspaceID WorkspaceID = "global"
+
 type DesktopID string
 type WindowID string
 type NodeID string

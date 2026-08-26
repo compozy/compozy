@@ -31,11 +31,11 @@ export function useGlobalShortcutReconciliation(
 ): GlobalShortcutReconciliation {
   const bridge = desktopShellBridge();
   const bindings = intendedBindings(intended);
-  const bindingKey = JSON.stringify(bindings);
+  const bindingKey = intended === undefined ? null : JSON.stringify(bindings);
   const [state, setState] = useState<ReconciliationState>({ bindingKey: "", registrations: [] });
 
   useEffect(() => {
-    if (bridge === null) return undefined;
+    if (bridge === null || bindingKey === null) return undefined;
     const currentBindings = JSON.parse(bindingKey) as GlobalShortcutBindingWire[];
     let cancelled = false;
     void bridge.globalShortcuts.sync(currentBindings).then(
@@ -64,6 +64,9 @@ export function useGlobalShortcutReconciliation(
   }, [bindingKey, bridge]);
 
   return {
-    registrations: bridge !== null && state.bindingKey === bindingKey ? state.registrations : [],
+    registrations:
+      bridge !== null && bindingKey !== null && state.bindingKey === bindingKey
+        ? state.registrations
+        : [],
   };
 }

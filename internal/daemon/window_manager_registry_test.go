@@ -264,6 +264,13 @@ func TestWindowManagerRegistry(t *testing.T) {
 				t.Fatalf("For(%s) error = %v", profileID, err)
 			}
 			executeDaemonDesktopCreate(t, manager, workspaceID, "desktop-second", "Second")
+			executeDaemonDesktopCreate(
+				t,
+				manager,
+				windowmanager.GlobalDesktopWorkspaceID,
+				"desktop-global",
+				"Global",
+			)
 		}
 
 		if err := fixture.registry.PurgeDesktopPartitions(ctx, doomed); err != nil {
@@ -279,8 +286,8 @@ func TestWindowManagerRegistry(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CountDesktopPartitions(survivor) error = %v", err)
 		}
-		if survivorCount != 1 {
-			t.Fatalf("CountDesktopPartitions(survivor) = %d, want 1", survivorCount)
+		if survivorCount != 2 {
+			t.Fatalf("CountDesktopPartitions(survivor) = %d, want 2", survivorCount)
 		}
 	})
 

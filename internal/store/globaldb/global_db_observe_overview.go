@@ -136,7 +136,7 @@ func (g *ObserveRepo) CountTasksClosedByDay(
 	return g.queryTaskClosedDays(ctx, query)
 }
 
-// CountEventsByHourWeekday returns hour-by-weekday event counts inside the window.
+// CountEventsByHourWeekday returns hour-by-weekday session event counts inside the window.
 func (g *ObserveRepo) CountEventsByHourWeekday(
 	ctx context.Context,
 	query store.OverviewSinceQuery,

@@ -41,7 +41,11 @@ export { contractHomePath } from "./lib/display-path";
 export { copyWorktreePath } from "./lib/copy-worktree-path";
 export { isOperatorHomeWorkspace, partitionProjectWorkspaces } from "./lib/project-workspaces";
 export type { ProjectWorkspacePartition, WorkspaceHomeCandidate } from "./lib/project-workspaces";
-export { resolveActiveWorkspace, workspaceMonogram } from "./lib/active-workspace";
+export {
+  GLOBAL_DESKTOP_WORKSPACE_ID,
+  resolveActiveWorkspace,
+  workspaceMonogram,
+} from "./lib/active-workspace";
 export type { ActiveWorkspaceResolution, WorkspaceChipIdentity } from "./lib/active-workspace";
 export { toWorkspaceCommandSelectOptions } from "./lib/workspace-command-select-options";
 export type { WorkspaceScopeMode } from "./lib/workspace-scope-mode";
