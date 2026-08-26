@@ -68,7 +68,7 @@ func (s *callSurfaceService) ensureOperatorCallerSession(
 			if info.State != session.StateStopped {
 				return fmt.Errorf("daemon: operator caller %q is still draining", sessionID)
 			}
-			if reopenErr := s.Service.ReopenOperatorCaller(ctx, sessionID); reopenErr != nil {
+			if reopenErr := s.ReopenOperatorCaller(ctx, sessionID); reopenErr != nil {
 				return fmt.Errorf("daemon: reopen operator caller %q: %w", sessionID, reopenErr)
 			}
 		}

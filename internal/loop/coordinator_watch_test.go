@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/contracts"
 	"io"
 	"log/slog"
 	"slices"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/loop/dsl"

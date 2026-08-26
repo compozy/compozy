@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"slices"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"

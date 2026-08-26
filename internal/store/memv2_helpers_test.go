@@ -22,6 +22,9 @@ func TestSessionFailureHelpers(t *testing.T) {
 		if normalized.Summary != "prompt stream closed" {
 			t.Fatalf("Normalize().Summary = %q, want prompt stream closed", normalized.Summary)
 		}
+		if normalized.ReasonCode != FailureReasonPromptStreamIncomplete {
+			t.Fatalf("Normalize().ReasonCode = %q, want %q", normalized.ReasonCode, FailureReasonPromptStreamIncomplete)
+		}
 		if normalized.CrashBundlePath != "/tmp/compozy-crash" {
 			t.Fatalf("Normalize().CrashBundlePath = %q, want /tmp/compozy-crash", normalized.CrashBundlePath)
 		}
@@ -60,10 +63,12 @@ func TestSessionFailureHelpers(t *testing.T) {
 		}).Validate(); err == nil {
 			t.Fatal("Validate(invalid reason code) error = nil, want validation error")
 		}
-		if err := (SessionFailure{
-			Kind: FailureTimeout, ReasonCode: FailureReasonPromptStreamIncomplete,
-		}).Validate(); err == nil {
-			t.Fatal("Validate(incompatible reason code) error = nil, want validation error")
+		for _, kind := range []FailureKind{FailurePrompt, FailureTimeout} {
+			if err := (SessionFailure{
+				Kind: kind, ReasonCode: FailureReasonPromptStreamIncomplete,
+			}).Validate(); err == nil {
+				t.Fatalf("Validate(incompatible %s reason code) error = nil, want validation error", kind)
+			}
 		}
 		if !(SessionFailure{}).IsZero() {
 			t.Fatal("IsZero(empty) = false, want true")

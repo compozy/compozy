@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,6 +14,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	hookspkg "github.com/compozy/compozy/internal/hooks"

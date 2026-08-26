@@ -27,7 +27,11 @@ func RenderCompletionWake(call CallRecord, payload []byte) string {
 		}
 		return fmt.Sprintf(
 			"Call completed: %s (%s) → %s.\nResult preview (%s):\n<untrusted-call-result>\n%s\n</untrusted-call-result>\nFetch the full result with compozy__call_result.",
-			agent, call.CallID, call.State, resultSummary, preview,
+			agent,
+			call.CallID,
+			call.State,
+			resultSummary,
+			preview,
 		)
 	}
 	reason := strings.TrimSpace(call.FailureDetail)
@@ -44,6 +48,9 @@ func RenderCompletionWake(call CallRecord, payload []byte) string {
 	}
 	return fmt.Sprintf(
 		"Call failed: %s (%s) → %s.\nReason: %s.\nInspect with compozy__call_result (attempts and errors are recorded).",
-		agent, call.CallID, call.State, strings.TrimSuffix(reason, "."),
+		agent,
+		call.CallID,
+		call.State,
+		strings.TrimSuffix(reason, "."),
 	)
 }

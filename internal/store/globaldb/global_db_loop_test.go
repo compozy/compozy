@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -20,6 +19,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/diagnostics"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -1844,9 +1845,16 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 			t.Fatalf("insert no-output amendment cell error = %v", err)
 		}
 		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
-			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 1, NodeID: "repair",
-			Payload: json.RawMessage(`{"value":"repair"}`), Schema: json.RawMessage(`{"type":"object","additionalProperties":true}`),
-			Actor: operatorActorContextForTest("operator:no-output"), RequestedAt: now.Add(time.Minute),
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Generation:  1,
+			NodeID:      "repair",
+			Payload: json.RawMessage(
+				`{"value":"repair"}`,
+			),
+			Schema:      json.RawMessage(`{"type":"object","additionalProperties":true}`),
+			Actor:       operatorActorContextForTest("operator:no-output"),
+			RequestedAt: now.Add(time.Minute),
 		})
 		if !errors.Is(err, looppkg.ErrAmendNoOutput) {
 			t.Fatalf("AmendNodeOutput(no output) error = %v, want ErrAmendNoOutput", err)
@@ -1884,9 +1892,16 @@ func TestGlobalDBLoopAmendmentsShouldPreserveRecordedOutputs(t *testing.T) {
 		}
 
 		_, err = globalDB.AmendNodeOutput(ctx, looppkg.AmendInput{
-			WorkspaceID: run.WorkspaceID, RunID: run.ID, Generation: 2, NodeID: "repair",
-			Payload: json.RawMessage(`{"value":"amended"}`), Schema: json.RawMessage(`{"type":"object","additionalProperties":true}`),
-			Actor: operatorActorContextForTest("operator:one"), RequestedAt: now.Add(time.Minute),
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Generation:  2,
+			NodeID:      "repair",
+			Payload: json.RawMessage(
+				`{"value":"amended"}`,
+			),
+			Schema:      json.RawMessage(`{"type":"object","additionalProperties":true}`),
+			Actor:       operatorActorContextForTest("operator:one"),
+			RequestedAt: now.Add(time.Minute),
 		})
 		if !errors.Is(err, looppkg.ErrAmendNotParked) {
 			t.Fatalf("AmendNodeOutput(cross-generation pause) error = %v, want ErrAmendNotParked", err)

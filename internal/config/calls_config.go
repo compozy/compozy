@@ -112,7 +112,10 @@ func (c CallsResultsConfig) normalizedPolicy() (contracts.CallsResultsConfig, er
 	}
 	mode := contracts.OverflowMode(strings.TrimSpace(c.Overflow))
 	if mode != contracts.OverflowStore && mode != contracts.OverflowReject {
-		return contracts.CallsResultsConfig{}, fmt.Errorf(`calls.results.overflow must be "store" or "reject": %q`, c.Overflow)
+		return contracts.CallsResultsConfig{}, fmt.Errorf(
+			`calls.results.overflow must be "store" or "reject": %q`,
+			c.Overflow,
+		)
 	}
 	return contracts.CallsResultsConfig{
 		DefaultBudget: contracts.ByteBudget{MaxBytes: defaultBytes, Overflow: mode},

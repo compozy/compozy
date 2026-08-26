@@ -442,7 +442,10 @@ func TestMockAgentKeepsHostedMCPBindingWithSession(t *testing.T) {
 			Env: []acpsdk.EnvVariable{{Name: "TOKEN", Value: "value"}},
 		}}
 		agent := &mockAgent{sessions: make(map[string]*sessionState), configTemplate: nil}
-		created, err := agent.NewSession(context.Background(), acpsdk.NewSessionRequest{McpServers: []acpsdk.McpServer{server}})
+		created, err := agent.NewSession(
+			context.Background(),
+			acpsdk.NewSessionRequest{McpServers: []acpsdk.McpServer{server}},
+		)
 		if err != nil {
 			t.Fatalf("NewSession() error = %v", err)
 		}

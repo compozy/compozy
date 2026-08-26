@@ -287,7 +287,12 @@ func (h *BaseHandlers) CallsCancel(c *gin.Context) {
 			return
 		}
 	}
-	record, err := h.Calls.Cancel(context.WithoutCancel(c.Request.Context()), callID, req.Reason, h.callsOperatorActor())
+	record, err := h.Calls.Cancel(
+		context.WithoutCancel(c.Request.Context()),
+		callID,
+		req.Reason,
+		h.callsOperatorActor(),
+	)
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -345,7 +350,7 @@ func (h *BaseHandlers) callsReadScope(c *gin.Context) (store.ReadScope, bool) {
 		h.respondProfileReadScopeError(c, err)
 		return store.ReadScope{}, false
 	}
-	return store.ReadScope{ProfileID: scope.ProfileID, AllProfiles: scope.AllProfiles}, true
+	return store.ReadScope(scope), true
 }
 
 func (h *BaseHandlers) resolvedCallReadQuery(c *gin.Context) (callspkg.CallReadQuery, bool) {

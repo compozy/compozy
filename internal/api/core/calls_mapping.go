@@ -117,7 +117,10 @@ func boundedCallTextPreview(value string, maxBytes int) string {
 	return preview
 }
 
-func (h *BaseHandlers) callCreatePayload(ctx context.Context, record callspkg.CallRecord) (contract.CallCreatePayload, error) {
+func (h *BaseHandlers) callCreatePayload(
+	ctx context.Context,
+	record callspkg.CallRecord,
+) (contract.CallCreatePayload, error) {
 	payload := contract.CallCreatePayload{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		State: string(record.State), Replayed: record.Replayed,

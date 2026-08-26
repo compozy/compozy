@@ -39,7 +39,6 @@ func TestCallCreateCommand(t *testing.T) {
 			"--workspace-paths", "/repo", "--network-channels", "engineering",
 		}
 		for _, format := range []string{"human", "json", "jsonl", "toon"} {
-			format := format
 			t.Run("Should render call creation as "+format, func(t *testing.T) {
 				stdout, stderr, err := executeRootCommand(t, deps, append(args, "-o", format)...)
 				if err != nil || stderr != "" {
@@ -154,7 +153,6 @@ func TestCallReadCommands(t *testing.T) {
 			{name: "Should cancel a call", args: []string{"call", "cancel", "call-1", "--reason", "done", "-o", "jsonl"}, want: `"state":"canceled"`},
 			{name: "Should publish a call", args: []string{"call", "publish", "call-1", "--channel", "reviews", "--thread", "thread-1", "-o", "toon"}, want: "network-1"},
 		} {
-			test := test
 			t.Run(test.name, func(t *testing.T) {
 				stdout, stderr, err := executeRootCommand(t, deps, test.args...)
 				if err != nil || stderr != "" || !strings.Contains(stdout, test.want) {

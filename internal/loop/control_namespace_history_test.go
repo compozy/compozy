@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/contracts"
 	"math"
 	"reflect"
 	"testing"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/dsl/refs"

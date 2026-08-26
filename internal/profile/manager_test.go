@@ -133,7 +133,8 @@ func TestManagerProfileLifecycle(t *testing.T) {
 		if record.State != callspkg.StateQueued || record.ActivationRunID == "" {
 			t.Fatalf("calls.Create() = %#v", record)
 		}
-		if _, err := database.DB().ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, parentID); err != nil {
+		if _, err := database.DB().
+			ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, parentID); err != nil {
 			t.Fatalf("stop parent session fixture error = %v", err)
 		}
 		tasks, err := taskpkg.NewManager(taskpkg.WithStore(database), taskpkg.WithGovernedRootActiveRunCap(32))
@@ -145,33 +146,36 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			Origin:    taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.activation"},
 			Authority: taskpkg.Authority{Read: true, Write: true},
 		}
-		t.Run("Should freeze a queued activation and refuse deletion while call-owned work remains", func(t *testing.T) {
-			archivePlan, err := manager.PrepareArchive(ctx, created.Name)
-			if err != nil {
-				t.Fatalf("PrepareArchive() error = %v", err)
-			}
-			if archivePlan.QueuedRunsToFreeze != 1 || archivePlan.LeasedRuns != 0 {
-				t.Fatalf("PrepareArchive() = %#v, want one queued activation", archivePlan)
-			}
-			if _, err := manager.Archive(ctx, created.Name, archivePlan.Revision); err != nil {
-				t.Fatalf("Archive() error = %v", err)
-			}
-			if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
-				RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
-			}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
-				t.Fatalf("ClaimNextRun(archived) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
-			}
-			deletePlan, err := manager.PrepareDelete(ctx, created.Name)
-			if err != nil {
-				t.Fatalf("PrepareDelete() error = %v", err)
-			}
-			if _, err := manager.Delete(ctx, created.Name, deletePlan.Revision); !errors.Is(err, ErrOwnsWork) {
-				t.Fatalf("Delete(call owner) error = %v, want %v", err, ErrOwnsWork)
-			}
-			if _, err := manager.Unarchive(ctx, created.Name); err != nil {
-				t.Fatalf("Unarchive() error = %v", err)
-			}
-		})
+		t.Run(
+			"Should freeze a queued activation and refuse deletion while call-owned work remains",
+			func(t *testing.T) {
+				archivePlan, err := manager.PrepareArchive(ctx, created.Name)
+				if err != nil {
+					t.Fatalf("PrepareArchive() error = %v", err)
+				}
+				if archivePlan.QueuedRunsToFreeze != 1 || archivePlan.LeasedRuns != 0 {
+					t.Fatalf("PrepareArchive() = %#v, want one queued activation", archivePlan)
+				}
+				if _, err := manager.Archive(ctx, created.Name, archivePlan.Revision); err != nil {
+					t.Fatalf("Archive() error = %v", err)
+				}
+				if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{
+					RunID: record.ActivationRunID, RunKind: taskpkg.RunKindCallActivation, Scope: taskpkg.ScopeGlobal,
+				}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
+					t.Fatalf("ClaimNextRun(archived) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
+				}
+				deletePlan, err := manager.PrepareDelete(ctx, created.Name)
+				if err != nil {
+					t.Fatalf("PrepareDelete() error = %v", err)
+				}
+				if _, err := manager.Delete(ctx, created.Name, deletePlan.Revision); !errors.Is(err, ErrOwnsWork) {
+					t.Fatalf("Delete(call owner) error = %v, want %v", err, ErrOwnsWork)
+				}
+				if _, err := manager.Unarchive(ctx, created.Name); err != nil {
+					t.Fatalf("Unarchive() error = %v", err)
+				}
+			},
+		)
 
 		t.Run("Should refuse archive while a call activation is leased", func(t *testing.T) {
 			if _, err := tasks.ClaimNextRun(ctx, taskpkg.ClaimCriteria{

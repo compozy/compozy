@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/store"

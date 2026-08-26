@@ -3,8 +3,9 @@ package loop
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )

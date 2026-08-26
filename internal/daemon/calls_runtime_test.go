@@ -60,7 +60,6 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 			t.Fatalf("SendPrompt() synthetic metadata = %#v, want call request identity", manager.sent.Synthetic)
 		}
 	})
-
 }
 
 func TestDaemonCallSessionInvokerReviveMetadata(t *testing.T) {

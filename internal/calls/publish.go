@@ -26,9 +26,17 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	// The daemon is the sole writer. Serializing check/post/record prevents duplicate bridge calls.
 	s.publishMu.Lock()
 	defer s.publishMu.Unlock()
-	if existing, getErr := publicationStore.GetPublication(ctx, input.CallID, input.Channel, input.ThreadID); getErr == nil {
+	if existing, getErr := publicationStore.GetPublication(
+		ctx,
+		input.CallID,
+		input.Channel,
+		input.ThreadID,
+	); getErr == nil {
 		return PublishReceipt{NetworkMessageID: existing.NetworkMessageID, Published: false}, nil
-	} else if !errors.Is(getErr, ErrPublicationNotFound) {
+	} else if !errors.Is(
+		getErr,
+		ErrPublicationNotFound,
+	) {
 		return PublishReceipt{}, getErr
 	}
 
@@ -148,7 +156,8 @@ func normalizePublishInput(input PublishInput) PublishInput {
 }
 
 func validatePublishInput(input PublishInput) error {
-	if input.ProfileID == "" || input.CallID == "" || input.Channel == "" || input.Actor.Kind == "" || input.Actor.ID == "" {
+	if input.ProfileID == "" || input.CallID == "" || input.Channel == "" || input.Actor.Kind == "" ||
+		input.Actor.ID == "" {
 		return newError(CodeValidation, "profile_id, call_id, channel, and actor are required", nil)
 	}
 	if input.Scope == ScopeWorkspace && input.WorkspaceID == "" {

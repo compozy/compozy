@@ -3,12 +3,13 @@ package speccycle
 import (
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/frontmatter"
 	looppkg "github.com/compozy/compozy/internal/loop"

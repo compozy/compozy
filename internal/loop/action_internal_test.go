@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -604,7 +605,6 @@ func TestActionContractAdaptersShouldPreserveParity(t *testing.T) {
 				payload: json.RawMessage(`{"answer":`), valid: false, wantDetail: "wait payload must be valid JSON"},
 		}
 		for _, fixture := range fixtures {
-			fixture := fixture
 			t.Run("Should preserve "+fixture.name, func(t *testing.T) {
 				t.Parallel()
 				before := append(json.RawMessage(nil), fixture.payload...)
@@ -671,7 +671,7 @@ func TestDeclaredOutputResolverShouldServeLintReviewAndAmendment(t *testing.T) {
 		if err != nil {
 			t.Fatalf("json.Marshal(amendment schema) error = %v", err)
 		}
-		if string(lintRaw) != string(amendmentRaw) || string(lintRaw) != string(reviewSchema) {
+		if !bytes.Equal(lintRaw, amendmentRaw) || string(lintRaw) != string(reviewSchema) {
 			t.Fatalf("schema mismatch: lint=%s amendment=%s review=%s", lintRaw, amendmentRaw, reviewSchema)
 		}
 	})

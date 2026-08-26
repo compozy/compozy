@@ -55,7 +55,11 @@ func TestHostedCallRoster(t *testing.T) {
 		for _, line := range lines[1 : len(lines)-1] {
 			description := strings.TrimPrefix(line[strings.Index(line, " — ")+len(" — "):], " ")
 			if utf8.RuneCountInString(description) > callRosterDescriptionMax {
-				t.Fatalf("roster description length = %d, want <= %d", utf8.RuneCountInString(description), callRosterDescriptionMax)
+				t.Fatalf(
+					"roster description length = %d, want <= %d",
+					utf8.RuneCountInString(description),
+					callRosterDescriptionMax,
+				)
 			}
 		}
 	})
@@ -70,7 +74,9 @@ func TestHostedCallRoster(t *testing.T) {
 				t.Fatalf("renderCallRoster() = %q, want escaped %q", roster, escaped)
 			}
 		}
-		if got, want := renderCallRoster(nil), "No agents are available. Create one with `compozy agent create`."; got != want {
+		if got, want := renderCallRoster(
+			nil,
+		), "No agents are available. Create one with `compozy agent create`."; got != want {
 			t.Fatalf("renderCallRoster(nil) = %q, want %q", got, want)
 		}
 	})

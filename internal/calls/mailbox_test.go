@@ -108,7 +108,11 @@ func TestMailboxContracts(t *testing.T) {
 		rendered := RenderPeerMessage(message, 128)
 		if len([]byte(rendered)) > 128 || !strings.HasSuffix(rendered, "\n</untrusted-agent-message>") ||
 			!strings.Contains(rendered, "\n<untrusted-agent-message>\n") {
-			t.Fatalf("RenderPeerMessage() = %q (%d bytes), want a closed bounded frame", rendered, len([]byte(rendered)))
+			t.Fatalf(
+				"RenderPeerMessage() = %q (%d bytes), want a closed bounded frame",
+				rendered,
+				len([]byte(rendered)),
+			)
 		}
 	})
 
@@ -154,5 +158,4 @@ func TestMailboxContracts(t *testing.T) {
 			t.Fatalf("SendMessage(parent) = %#v, want resolved parent and call", message)
 		}
 	})
-
 }

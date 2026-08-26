@@ -252,7 +252,12 @@ func (h *BaseHandlers) StopSession(c *gin.Context) {
 			h.respondCallsError(c, drainErr)
 			return
 		}
-		if err := h.Sessions.StopWithCause(operationCtx, sessionID, session.CauseUserRequested, request.Reason); err != nil &&
+		if err := h.Sessions.StopWithCause(
+			operationCtx,
+			sessionID,
+			session.CauseUserRequested,
+			request.Reason,
+		); err != nil &&
 			!errors.Is(err, session.ErrSessionNotFound) {
 			h.respondError(c, StatusForSessionError(err), err)
 			return

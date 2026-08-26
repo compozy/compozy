@@ -202,7 +202,11 @@ func TestCallsHandlers(t *testing.T) {
 			},
 			create: func(_ context.Context, input callspkg.CreateInput) (callspkg.CallRecord, error) {
 				captured = input
-				return callspkg.CallRecord{CallID: "call-1", ChildSessionID: "child-1", State: callspkg.StateQueued}, nil
+				return callspkg.CallRecord{
+					CallID:         "call-1",
+					ChildSessionID: "child-1",
+					State:          callspkg.StateQueued,
+				}, nil
 			},
 		}
 		response := performCallsRequest(t, newCallsHandlerRouter(service), http.MethodPost, "/calls", `{
@@ -245,7 +249,8 @@ func TestCallsHandlers(t *testing.T) {
 		if err := json.Unmarshal(deadline.Body.Bytes(), &deadlineError); err != nil {
 			t.Fatalf("decode deadline error: %v", err)
 		}
-		if deadline.Code != http.StatusUnprocessableEntity || deadlineError.Code != string(callspkg.CodeDeadlineInvalid) {
+		if deadline.Code != http.StatusUnprocessableEntity ||
+			deadlineError.Code != string(callspkg.CodeDeadlineInvalid) {
 			t.Fatalf("invalid deadline response = %d %s", deadline.Code, deadline.Body.String())
 		}
 		unknown := performCallsRequest(t, router, http.MethodPost, "/calls", `{
@@ -328,7 +333,8 @@ func TestCallsHandlers(t *testing.T) {
 		service := callsServiceStub{
 			list: func(_ context.Context, query callspkg.CallListQuery) (callspkg.CallPage, error) {
 				if query.Cursor != "after-0" || query.Limit != 7 || query.ReadScope.ProfileID != store.DefaultProfileID ||
-					!query.Attention || query.ChildSessionID != "child-1" || query.RootSessionID != "root-1" ||
+					!query.Attention || query.ChildSessionID != "child-1" ||
+					query.RootSessionID != "root-1" ||
 					query.Agent != "reviewer" {
 					t.Fatalf("List query = %#v", query)
 				}
@@ -388,7 +394,9 @@ func TestCallsHandlers(t *testing.T) {
 
 		t.Run("Should preserve the counted list projection", func(t *testing.T) {
 			response := performCallsRequest(
-				t, router, http.MethodGet,
+				t,
+				router,
+				http.MethodGet,
 				"/calls?cursor=after-0&limit=7&attention=true&child_session_id=child-1&root_session_id=root-1&agent=reviewer",
 				"",
 			)
@@ -445,7 +453,11 @@ func TestCallsHandlers(t *testing.T) {
 			}
 			supersededResponse := performCallsRequest(t, router, http.MethodGet, "/calls/call-1/superseded", "")
 			if supersededResponse.Code != http.StatusOK {
-				t.Fatalf("GET superseded status = %d, body = %s", supersededResponse.Code, supersededResponse.Body.String())
+				t.Fatalf(
+					"GET superseded status = %d, body = %s",
+					supersededResponse.Code,
+					supersededResponse.Body.String(),
+				)
 			}
 			var superseded contract.CallSupersededResponse
 			if err := json.Unmarshal(supersededResponse.Body.Bytes(), &superseded); err != nil {
@@ -531,7 +543,10 @@ func TestCallsHandlers(t *testing.T) {
 			},
 			message: func(_ context.Context, _ callspkg.CallScope, id string) (callspkg.MessageRecord, error) {
 				if id == "missing" {
-					return callspkg.MessageRecord{}, &callspkg.Error{Code: callspkg.CodeMessageNotFound, Message: "missing"}
+					return callspkg.MessageRecord{}, &callspkg.Error{
+						Code:    callspkg.CodeMessageNotFound,
+						Message: "missing",
+					}
 				}
 				return message, nil
 			},
@@ -553,7 +568,8 @@ func TestCallsHandlers(t *testing.T) {
 			t.Fatalf("message get response = %d %s", get.Code, get.Body.String())
 		}
 		missing := performCallsRequest(t, router, http.MethodGet, "/messages/missing", "")
-		if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"code":"message_not_found"`) {
+		if missing.Code != http.StatusNotFound ||
+			!strings.Contains(missing.Body.String(), `"code":"message_not_found"`) {
 			t.Fatalf("message error response = %d %s", missing.Code, missing.Body.String())
 		}
 	})

@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/store"

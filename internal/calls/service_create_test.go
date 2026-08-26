@@ -23,7 +23,9 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		t.Parallel()
 		service, database, claimer, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		prompt := strings.Repeat("review carefully; ", 4096) + "  "
-		expect := json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`)
+		expect := json.RawMessage(
+			`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+		)
 		runtime := RuntimeSpec{Provider: "anthropic", Model: "opus", ReasoningEffort: "high", Speed: speed.SpeedFast}
 		record, err := service.Create(context.Background(), validCreateInput(prompt, expect, &runtime))
 		if err != nil {
@@ -37,7 +39,11 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			if len(suffix) > 8 {
 				suffix = suffix[len(suffix)-8:]
 			}
-			t.Fatalf("prompt changed during admission: got length %d and %q suffix, want byte-exact payload", len(got), suffix)
+			t.Fatalf(
+				"prompt changed during admission: got length %d and %q suffix, want byte-exact payload",
+				len(got),
+				suffix,
+			)
 		}
 		if record.IdleTTL != time.Hour || record.Runtime != runtime {
 			t.Fatalf("record snapshots = ttl %s runtime %#v", record.IdleTTL, record.Runtime)
@@ -163,8 +169,14 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
-		if record.State != StateQueued || database.calls[record.CallID].State != StateQueued || len(invoker.spawns) != 0 {
-			t.Fatalf("Create() = %#v stored=%#v spawns=%d, want one durable queued call", record, database.calls[record.CallID], len(invoker.spawns))
+		if record.State != StateQueued || database.calls[record.CallID].State != StateQueued ||
+			len(invoker.spawns) != 0 {
+			t.Fatalf(
+				"Create() = %#v stored=%#v spawns=%d, want one durable queued call",
+				record,
+				database.calls[record.CallID],
+				len(invoker.spawns),
+			)
 		}
 	})
 
@@ -239,21 +251,64 @@ func TestServiceCreateRejectsBeforeAdmission(t *testing.T) {
 		wantAvailable []AgentRosterEntry
 		wantWidening  []string
 	}{
-		{name: "Should reject a blank prompt", input: validCreateInput(" \n\t ", nil, nil), target: validAgentTarget(), code: CodePromptRequired},
-		{name: "Should return the current roster for an unknown agent", input: validCreateInput("work", nil, nil), target: TargetContext{ProfileID: "default", WorkspaceID: "ws-1", Allowed: true}, roster: []AgentRosterEntry{{Name: "coder", Description: "Writes code"}}, code: CodeAgentUnknown, wantAvailable: []AgentRosterEntry{{Name: "coder", Description: "Writes code"}}},
-		{name: "Should reject the live child wall", input: validCreateInput("work", nil, nil), target: withTarget(validAgentTarget(), func(value *TargetContext) { value.LiveChildren = 5 }), code: CodeChildrenCap},
-		{name: "Should reject widening atoms exactly", input: withInput(validCreateInput("work", nil, nil), func(value *CreateInput) {
-			value.Narrow.Skills = []string{"admin"}
-			value.Narrow.Tools = []string{"shell"}
-		}), target: validAgentTarget(), code: CodeWideningRejected, wantWidening: []string{"skills:admin", "tools:shell"}},
-		{name: "Should reject a cross workspace target", input: validCreateInput("work", nil, nil), target: withTarget(validAgentTarget(), func(value *TargetContext) { value.WorkspaceID = "ws-2" }), code: CodeWorkspaceDenied},
-		{name: "Should reject a target outside lineage", input: validCreateInput("work", nil, nil), target: withTarget(validAgentTarget(), func(value *TargetContext) { value.Allowed = false }), code: CodeTargetDenied},
-		{name: "Should reject a depth beyond the durable wall", input: validCreateInput("work", nil, nil), target: withTarget(validAgentTarget(), func(value *TargetContext) { value.Depth = 4 }), code: CodeDepthExceeded},
+		{
+			name:   "Should reject a blank prompt",
+			input:  validCreateInput(" \n\t ", nil, nil),
+			target: validAgentTarget(),
+			code:   CodePromptRequired,
+		},
+		{
+			name:          "Should return the current roster for an unknown agent",
+			input:         validCreateInput("work", nil, nil),
+			target:        TargetContext{ProfileID: "default", WorkspaceID: "ws-1", Allowed: true},
+			roster:        []AgentRosterEntry{{Name: "coder", Description: "Writes code"}},
+			code:          CodeAgentUnknown,
+			wantAvailable: []AgentRosterEntry{{Name: "coder", Description: "Writes code"}},
+		},
+		{
+			name:   "Should reject the live child wall",
+			input:  validCreateInput("work", nil, nil),
+			target: withTarget(validAgentTarget(), func(value *TargetContext) { value.LiveChildren = 5 }),
+			code:   CodeChildrenCap,
+		},
+		{
+			name: "Should reject widening atoms exactly",
+			input: withInput(validCreateInput("work", nil, nil), func(value *CreateInput) {
+				value.Narrow.Skills = []string{"admin"}
+				value.Narrow.Tools = []string{"shell"}
+			}),
+			target:       validAgentTarget(),
+			code:         CodeWideningRejected,
+			wantWidening: []string{"skills:admin", "tools:shell"},
+		},
+		{
+			name:   "Should reject a cross workspace target",
+			input:  validCreateInput("work", nil, nil),
+			target: withTarget(validAgentTarget(), func(value *TargetContext) { value.WorkspaceID = "ws-2" }),
+			code:   CodeWorkspaceDenied,
+		},
+		{
+			name:   "Should reject a target outside lineage",
+			input:  validCreateInput("work", nil, nil),
+			target: withTarget(validAgentTarget(), func(value *TargetContext) { value.Allowed = false }),
+			code:   CodeTargetDenied,
+		},
+		{
+			name:   "Should reject a depth beyond the durable wall",
+			input:  validCreateInput("work", nil, nil),
+			target: withTarget(validAgentTarget(), func(value *TargetContext) { value.Depth = 4 }),
+			code:   CodeDepthExceeded,
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			service, database, _, invoker := newCallServiceHarnessWithRoster(t, config.DefaultCallsConfig(), tc.target, tc.roster)
+			service, database, _, invoker := newCallServiceHarnessWithRoster(
+				t,
+				config.DefaultCallsConfig(),
+				tc.target,
+				tc.roster,
+			)
 			_, err := service.Create(context.Background(), tc.input)
 			if !IsCode(err, tc.code) {
 				t.Fatalf("Create() error = %v, want %s", err, tc.code)
@@ -262,11 +317,16 @@ func TestServiceCreateRejectsBeforeAdmission(t *testing.T) {
 			if !errors.As(err, &callErr) {
 				t.Fatalf("Create() error type = %T, want *calls.Error", err)
 			}
-			if !reflect.DeepEqual(callErr.Available, tc.wantAvailable) || !reflect.DeepEqual(callErr.Widening, tc.wantWidening) {
+			if !reflect.DeepEqual(callErr.Available, tc.wantAvailable) ||
+				!reflect.DeepEqual(callErr.Widening, tc.wantWidening) {
 				t.Fatalf("Create() structured error = %#v", callErr)
 			}
 			if len(database.calls) != 0 || len(invoker.spawns) != 0 {
-				t.Fatalf("rejected create wrote %d calls and spawned %d children", len(database.calls), len(invoker.spawns))
+				t.Fatalf(
+					"rejected create wrote %d calls and spawned %d children",
+					len(database.calls),
+					len(invoker.spawns),
+				)
 			}
 		})
 	}
@@ -279,7 +339,11 @@ func TestServiceCreateRejectsBeforeAdmission(t *testing.T) {
 			t.Fatalf("Create() error = %v, want %s", err, CodeExpectInvalid)
 		}
 		if len(database.calls) != 0 || len(invoker.spawns) != 0 {
-			t.Fatalf("invalid contract wrote %d calls and spawned %d children", len(database.calls), len(invoker.spawns))
+			t.Fatalf(
+				"invalid contract wrote %d calls and spawned %d children",
+				len(database.calls),
+				len(invoker.spawns),
+			)
 		}
 	})
 
@@ -349,7 +413,11 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		if _, err := service.CreateBatch(context.Background(), nil); !IsCode(err, CodeBatchEmpty) {
 			t.Fatalf("CreateBatch(empty) error = %v", err)
 		}
-		items := []CreateInput{validCreateInput("1", nil, nil), validCreateInput("2", nil, nil), validCreateInput("3", nil, nil)}
+		items := []CreateInput{
+			validCreateInput("1", nil, nil),
+			validCreateInput("2", nil, nil),
+			validCreateInput("3", nil, nil),
+		}
 		if _, err := service.CreateBatch(context.Background(), items); !IsCode(err, CodeBatchOverCap) {
 			t.Fatalf("CreateBatch(over cap) error = %v", err)
 		}
@@ -371,7 +439,11 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 			return target, []AgentRosterEntry{{Name: "reviewer", Description: "Reviews work"}}, nil
 		})
 		service, database, _, invoker := newCallServiceForDirectory(t, config.DefaultCallsConfig(), directory)
-		inputs := []CreateInput{validCreateInput("one", nil, nil), validCreateInput("two", nil, nil), validCreateInput("three", nil, nil)}
+		inputs := []CreateInput{
+			validCreateInput("one", nil, nil),
+			validCreateInput("two", nil, nil),
+			validCreateInput("three", nil, nil),
+		}
 		for index := range inputs {
 			inputs[index].IdempotencyKey = inputs[index].Prompt
 		}
@@ -387,40 +459,48 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject items after the per-parent child wall while preserving earlier admissions", func(t *testing.T) {
-		t.Parallel()
-		cfg := config.DefaultCallsConfig()
-		cfg.MaxChildren = 2
-		var mu sync.Mutex
-		liveChildren := 0
-		directory := routedCallDirectory(func(
-			_ context.Context,
-			_ CreateInput,
-		) (TargetContext, []AgentRosterEntry, error) {
-			mu.Lock()
-			defer mu.Unlock()
-			target := validAgentTarget()
-			target.LiveChildren = liveChildren
-			liveChildren++
-			return target, []AgentRosterEntry{{Name: "reviewer"}}, nil
-		})
-		service, database, _, invoker := newCallServiceForDirectory(t, cfg, directory)
-		inputs := []CreateInput{validCreateInput("one", nil, nil), validCreateInput("two", nil, nil), validCreateInput("three", nil, nil), validCreateInput("four", nil, nil)}
-		for index := range inputs {
-			inputs[index].IdempotencyKey = inputs[index].Prompt
-		}
-		outcomes, err := service.CreateBatch(context.Background(), inputs)
-		if err != nil {
-			t.Fatalf("CreateBatch() error = %v", err)
-		}
-		if outcomes[0].Call == nil || outcomes[1].Call == nil ||
-			!IsCode(outcomes[2].Error, CodeChildrenCap) || !IsCode(outcomes[3].Error, CodeChildrenCap) {
-			t.Fatalf("CreateBatch() outcomes = %#v", outcomes)
-		}
-		if len(database.calls) != 2 || len(invoker.spawns) != 2 {
-			t.Fatalf("child-wall side effects = calls %d spawns %d", len(database.calls), len(invoker.spawns))
-		}
-	})
+	t.Run(
+		"Should reject items after the per-parent child wall while preserving earlier admissions",
+		func(t *testing.T) {
+			t.Parallel()
+			cfg := config.DefaultCallsConfig()
+			cfg.MaxChildren = 2
+			var mu sync.Mutex
+			liveChildren := 0
+			directory := routedCallDirectory(func(
+				_ context.Context,
+				_ CreateInput,
+			) (TargetContext, []AgentRosterEntry, error) {
+				mu.Lock()
+				defer mu.Unlock()
+				target := validAgentTarget()
+				target.LiveChildren = liveChildren
+				liveChildren++
+				return target, []AgentRosterEntry{{Name: "reviewer"}}, nil
+			})
+			service, database, _, invoker := newCallServiceForDirectory(t, cfg, directory)
+			inputs := []CreateInput{
+				validCreateInput("one", nil, nil),
+				validCreateInput("two", nil, nil),
+				validCreateInput("three", nil, nil),
+				validCreateInput("four", nil, nil),
+			}
+			for index := range inputs {
+				inputs[index].IdempotencyKey = inputs[index].Prompt
+			}
+			outcomes, err := service.CreateBatch(context.Background(), inputs)
+			if err != nil {
+				t.Fatalf("CreateBatch() error = %v", err)
+			}
+			if outcomes[0].Call == nil || outcomes[1].Call == nil ||
+				!IsCode(outcomes[2].Error, CodeChildrenCap) || !IsCode(outcomes[3].Error, CodeChildrenCap) {
+				t.Fatalf("CreateBatch() outcomes = %#v", outcomes)
+			}
+			if len(database.calls) != 2 || len(invoker.spawns) != 2 {
+				t.Fatalf("child-wall side effects = calls %d spawns %d", len(database.calls), len(invoker.spawns))
+			}
+		},
+	)
 
 	t.Run("Should reject an 800-item batch on the validation-only path", func(t *testing.T) {
 		t.Parallel()
@@ -488,7 +568,8 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 			}
 			if state.code == CodeTargetExpired {
 				var callErr *Error
-				if !errors.As(err, &callErr) || callErr.ExpiredAt == "" || callErr.Suggestion != "call the agent fresh" {
+				if !errors.As(err, &callErr) || callErr.ExpiredAt == "" ||
+					callErr.Suggestion != "call the agent fresh" {
 					t.Fatalf("Create(expired) error = %#v, want timestamp and fresh-call suggestion", err)
 				}
 			}

@@ -89,7 +89,7 @@ func (i *daemonCallSessionInvoker) Revive(ctx context.Context, sessionID, prompt
 		ChildSessionID: sessionID, Reason: "call_follow_up",
 	}
 	var err error
-	for attempt := 0; attempt < 2; attempt++ {
+	for range 2 {
 		if _, err = i.sessions.Resume(ctx, sessionID); err != nil {
 			return fmt.Errorf("daemon: resume call session %q: %w", sessionID, err)
 		}
@@ -186,7 +186,10 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 		case store.SessionInputQueueStatusSent:
 			return callspkg.DeliveryOutcome{State: callspkg.DeliveryStateInjected, Reason: queued.Status}, nil
 		default:
-			return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: unsupported queued call delivery state %q", queued.Status)
+			return callspkg.DeliveryOutcome{}, fmt.Errorf(
+				"daemon: unsupported queued call delivery state %q",
+				queued.Status,
+			)
 		}
 	}
 	state := callspkg.DeliveryStateInjected

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strings"
 	"time"
 
@@ -186,14 +187,14 @@ func (r *callRuntime) finalCallTurn(ctx context.Context, sessionID string) (stri
 	}
 	callInput := -1
 	callID := ""
-	for index := len(page.Entries) - 1; index >= 0; index-- {
+	for index, v := range slices.Backward(page.Entries) {
 		var metadata struct {
 			Synthetic *struct {
 				CallID string `json:"call_id"`
 			} `json:"synthetic"`
 		}
-		if len(page.Entries[index].Message.Metadata) == 0 ||
-			json.Unmarshal(page.Entries[index].Message.Metadata, &metadata) != nil || metadata.Synthetic == nil {
+		if len(v.Message.Metadata) == 0 ||
+			json.Unmarshal(v.Message.Metadata, &metadata) != nil || metadata.Synthetic == nil {
 			continue
 		}
 		if candidate := strings.TrimSpace(metadata.Synthetic.CallID); candidate != "" {

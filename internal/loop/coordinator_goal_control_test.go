@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/contracts"
 	"testing"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"

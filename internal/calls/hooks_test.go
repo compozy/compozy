@@ -199,7 +199,12 @@ func TestCallHookTransitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(cancel) error = %v", err)
 		}
-		if _, err := service.Cancel(context.Background(), cancelRecord.CallID, "operator canceled", cancelRecord.Actor); err != nil {
+		if _, err := service.Cancel(
+			context.Background(),
+			cancelRecord.CallID,
+			"operator canceled",
+			cancelRecord.Actor,
+		); err != nil {
 			t.Fatalf("Cancel() error = %v", err)
 		}
 

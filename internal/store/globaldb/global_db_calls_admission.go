@@ -57,7 +57,13 @@ func (g *CallRepo) AdmitCall(
 			return err
 		}
 		if admission.Activation != nil {
-			if err := insertCallActivation(ctx, exec, g.tasks, *admission.Activation, admission.Record.CreatedAt); err != nil {
+			if err := insertCallActivation(
+				ctx,
+				exec,
+				g.tasks,
+				*admission.Activation,
+				admission.Record.CreatedAt,
+			); err != nil {
 				return err
 			}
 			if admission.Activation.Kind == callspkg.ActivationKindRevive {
@@ -146,7 +152,10 @@ func validateGovernedRootFence(
 		return &callspkg.Error{Code: callspkg.CodeTargetDenied, Message: "governed root belongs to another profile"}
 	}
 	if record.Scope == callspkg.ScopeWorkspace && workspaceID != record.WorkspaceID {
-		return &callspkg.Error{Code: callspkg.CodeWorkspaceDenied, Message: "governed root belongs to another workspace"}
+		return &callspkg.Error{
+			Code:    callspkg.CodeWorkspaceDenied,
+			Message: "governed root belongs to another workspace",
+		}
 	}
 	if drainingAt.Valid {
 		return &callspkg.Error{Code: callspkg.CodeParentTerminal, Message: "governed root is draining"}

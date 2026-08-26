@@ -50,7 +50,10 @@ func (h *BaseHandlers) createCallInputs(
 	if req.TasksPresent || len(req.Tasks) > 0 {
 		items, batch = req.Tasks, true
 		if hasInlineCallItem(req.CreateCallItemRequest) {
-			return nil, false, callRequestError(callspkg.CodeValidation, "tasks cannot be combined with inline call fields")
+			return nil, false, callRequestError(
+				callspkg.CodeValidation,
+				"tasks cannot be combined with inline call fields",
+			)
 		}
 	}
 	inputs := make([]callspkg.CreateInput, 0, len(items))
@@ -85,13 +88,19 @@ func (h *BaseHandlers) createCallInput(
 	}
 	if item.IdleTTLSeconds != nil {
 		if *item.IdleTTLSeconds <= 0 {
-			return callspkg.CreateInput{}, callRequestError(callspkg.CodeValidation, "idle_ttl_seconds must be positive")
+			return callspkg.CreateInput{}, callRequestError(
+				callspkg.CodeValidation,
+				"idle_ttl_seconds must be positive",
+			)
 		}
 		input.IdleTTL = time.Duration(*item.IdleTTLSeconds) * time.Second
 	}
 	if item.DeadlineSeconds != nil {
 		if *item.DeadlineSeconds <= 0 {
-			return callspkg.CreateInput{}, callRequestError(callspkg.CodeDeadlineInvalid, "deadline_seconds must be positive")
+			return callspkg.CreateInput{}, callRequestError(
+				callspkg.CodeDeadlineInvalid,
+				"deadline_seconds must be positive",
+			)
 		}
 		deadline := h.nowUTC().Add(time.Duration(*item.DeadlineSeconds) * time.Second)
 		input.Deadline = &deadline
@@ -103,7 +112,10 @@ func (h *BaseHandlers) createCallInput(
 		}
 		budget, err := config.ParseByteSize(budgetRaw)
 		if err != nil {
-			return callspkg.CreateInput{}, callRequestError(callspkg.CodeValidation, fmt.Sprintf("invalid result_budget: %v", err))
+			return callspkg.CreateInput{}, callRequestError(
+				callspkg.CodeValidation,
+				fmt.Sprintf("invalid result_budget: %v", err),
+			)
 		}
 		overflow := contracts.OverflowMode(strings.TrimSpace(item.ResultOverflow))
 		if overflow == "" {
@@ -144,7 +156,7 @@ func callRequestError(code callspkg.ErrorCode, message string) error {
 func parseCallStates(values []string) []callspkg.State {
 	states := make([]callspkg.State, 0, len(values))
 	for _, raw := range values {
-		for _, value := range strings.Split(raw, ",") {
+		for value := range strings.SplitSeq(raw, ",") {
 			value = strings.TrimSpace(value)
 			if value == "" {
 				continue

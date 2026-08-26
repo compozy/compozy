@@ -82,10 +82,15 @@ func TestAcpmockBehaviorContracts(t *testing.T) {
 		}{
 			{name: "empty input", raw: "", want: "acpmock: step.raw_input is required"},
 			{
-				name: "array input", raw: `[]`,
+				name: "array input",
+				raw:  `[]`,
 				want: "acpmock: step.raw_input must be a JSON object: json: cannot unmarshal array into Go value of type map[string]interface {}",
 			},
-			{name: "invalid JSON", raw: `{`, want: "acpmock: step.raw_input must be a JSON object: unexpected end of JSON input"},
+			{
+				name: "invalid JSON",
+				raw:  `{`,
+				want: "acpmock: step.raw_input must be a JSON object: unexpected end of JSON input",
+			},
 		}
 		for _, kindCase := range kinds {
 			t.Run("Should accept "+kindCase.name+" input", func(t *testing.T) {
@@ -98,7 +103,13 @@ func TestAcpmockBehaviorContracts(t *testing.T) {
 				t.Run("Should reject "+kindCase.name+" "+inputCase.name, func(t *testing.T) {
 					invalid := Step{Kind: kindCase.kind, RawInput: []byte(inputCase.raw)}
 					if err := invalid.Validate("step"); err == nil || err.Error() != inputCase.want {
-						t.Fatalf("Step.Validate(%s, %q) error = %v, want %q", kindCase.kind, inputCase.raw, err, inputCase.want)
+						t.Fatalf(
+							"Step.Validate(%s, %q) error = %v, want %q",
+							kindCase.kind,
+							inputCase.raw,
+							err,
+							inputCase.want,
+						)
 					}
 				})
 			}

@@ -57,7 +57,7 @@ func TestDeliverPromptEventStream(t *testing.T) {
 }
 
 func TestPromptStreamEncoderStart(t *testing.T) {
-	t.Run("ShouldEmitAcceptedTurnIDImmediately", func(t *testing.T) {
+	t.Run("Should emit accepted turn ID immediately", func(t *testing.T) {
 		t.Parallel()
 
 		writer := &bufferFlusher{}
@@ -74,7 +74,7 @@ func TestPromptStreamEncoderStart(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldRejectEmptyAcceptedTurnID", func(t *testing.T) {
+	t.Run("Should reject an empty accepted turn ID", func(t *testing.T) {
 		t.Parallel()
 
 		writer := &bufferFlusher{}
@@ -89,7 +89,7 @@ func TestPromptStreamEncoderStart(t *testing.T) {
 }
 
 func TestPromptStreamEncoderPermissionDataPartIdentity(t *testing.T) {
-	t.Run("ShouldReuseRequestIDForPendingAndFinalPermissionParts", func(t *testing.T) {
+	t.Run("Should reuse the request ID for pending and final permission parts", func(t *testing.T) {
 		t.Parallel()
 
 		writer := &bufferFlusher{}
@@ -365,7 +365,7 @@ func TestPromptStreamEncoderToolNameResolution(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldPreferMetaToolNameOverDescriptiveTitle", func(t *testing.T) {
+	t.Run("Should prefer the metadata tool name over a descriptive title", func(t *testing.T) {
 		t.Parallel()
 
 		writer := &bufferFlusher{}
@@ -393,7 +393,7 @@ func TestPromptStreamEncoderToolNameResolution(t *testing.T) {
 		}
 	})
 
-	t.Run("ShouldFallBackToTitleWhenNoCanonicalToolName", func(t *testing.T) {
+	t.Run("Should fall back to the title when no canonical tool name exists", func(t *testing.T) {
 		t.Parallel()
 
 		writer := &bufferFlusher{}

@@ -80,7 +80,8 @@ func (g *CallRepo) ResolveOperatorCaller(
 			Scan(&profileID, &workspaceID, &state); err != nil {
 			return fmt.Errorf("store: inspect operator caller candidate %q: %w", candidate.SessionID, err)
 		}
-		if profileID != candidate.ProfileID || candidate.Scope == callspkg.ScopeWorkspace && workspaceID != candidate.WorkspaceID {
+		if profileID != candidate.ProfileID ||
+			candidate.Scope == callspkg.ScopeWorkspace && workspaceID != candidate.WorkspaceID {
 			return fmt.Errorf("store: operator caller candidate owner does not match requested scope")
 		}
 		if state == "stopped" {

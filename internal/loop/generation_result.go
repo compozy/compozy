@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
+	"slices"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 )
 
 // GenerationResultKind identifies how a generation result participates in control flow and templates.
@@ -189,12 +191,7 @@ func generationOutputHasKind(output GenerationOutput, kinds ...GenerationResultK
 	if actual == "" {
 		return false
 	}
-	for _, kind := range kinds {
-		if actual == kind {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(kinds, actual)
 }
 
 func generationOutputRepresentsAbsentValue(output GenerationOutput) bool {

@@ -303,7 +303,10 @@ func normalizeCallStates(values []callspkg.State) ([]string, error) {
 			continue
 		}
 		if state != callspkg.StateQueued && state != callspkg.StateRunning && !state.Terminal() {
-			return nil, &callspkg.Error{Code: callspkg.CodeValidation, Message: fmt.Sprintf("unknown call state %q", state)}
+			return nil, &callspkg.Error{
+				Code:    callspkg.CodeValidation,
+				Message: fmt.Sprintf("unknown call state %q", state),
+			}
 		}
 		if _, exists := seen[string(state)]; exists {
 			continue

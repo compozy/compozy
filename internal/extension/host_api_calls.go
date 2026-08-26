@@ -144,7 +144,9 @@ func (h *HostAPIHandler) hostAPICallsReadQuery(
 	}
 	if bound {
 		if workspaceID != "" && workspaceID != boundWorkspaceID {
-			return nil, callspkg.CallReadQuery{}, invalidParamsRPCError(errors.New("workspace_id differs from the extension workspace"))
+			return nil, callspkg.CallReadQuery{}, invalidParamsRPCError(
+				errors.New("workspace_id differs from the extension workspace"),
+			)
 		}
 		workspaceID = boundWorkspaceID
 	}

@@ -280,7 +280,11 @@ func TestRegistryCompiledCache(t *testing.T) {
 			if pinErr != nil {
 				t.Fatalf("Pin(%d) error = %v", index, pinErr)
 			}
-			if _, validateErr := registry.Validate(ctx, contract.Digest, json.RawMessage(fmt.Sprintf(`{"field_%d":"ok"}`, index))); validateErr != nil {
+			if _, validateErr := registry.Validate(
+				ctx,
+				contract.Digest,
+				json.RawMessage(fmt.Sprintf(`{"field_%d":"ok"}`, index)),
+			); validateErr != nil {
 				t.Fatalf("Validate(%d) error = %v", index, validateErr)
 			}
 		}

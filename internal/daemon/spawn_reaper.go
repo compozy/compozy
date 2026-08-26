@@ -204,7 +204,10 @@ func (r *spawnReaper) Sweep(ctx context.Context) (spawnReaperReport, error) {
 		if r.callLifecycle != nil {
 			allowed, protectErr := r.callLifecycle.FenceReapSession(ctx, info.ID)
 			if protectErr != nil {
-				errs = append(errs, fmt.Errorf("daemon: inspect call reaper protection for %q: %w", info.ID, protectErr))
+				errs = append(
+					errs,
+					fmt.Errorf("daemon: inspect call reaper protection for %q: %w", info.ID, protectErr),
+				)
 				continue
 			}
 			if !allowed {

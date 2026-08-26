@@ -28,14 +28,29 @@ func (g *CallRepo) BindActivationChild(
 		return callspkg.CallRecord{}, err
 	}
 	err = g.tasks.withTaskImmediateTransaction(ctx, "bind call activation child", func(exec taskSQLExecutor) error {
-		if err := finishActivationRun(ctx, exec, binding.RunID, binding.ClaimToken, "completed", "", binding.ActivatedAt); err != nil {
+		if err := finishActivationRun(
+			ctx,
+			exec,
+			binding.RunID,
+			binding.ClaimToken,
+			"completed",
+			"",
+			binding.ActivatedAt,
+		); err != nil {
 			return err
 		}
-		result, err := exec.ExecContext(ctx, `UPDATE calls
+		result, err := exec.ExecContext(
+			ctx,
+			`UPDATE calls
 			SET child_session_id = ?, state = 'running', started_at = COALESCE(started_at, ?), updated_at = ?
 			WHERE call_id = ? AND activation_run_id = ? AND state = 'running'`,
-			strings.TrimSpace(binding.ChildID), store.FormatTimestamp(binding.ActivatedAt),
-			store.FormatTimestamp(binding.ActivatedAt), strings.TrimSpace(binding.CallID), strings.TrimSpace(binding.RunID),
+			strings.TrimSpace(binding.ChildID),
+			store.FormatTimestamp(binding.ActivatedAt),
+			store.FormatTimestamp(
+				binding.ActivatedAt,
+			),
+			strings.TrimSpace(binding.CallID),
+			strings.TrimSpace(binding.RunID),
 		)
 		if err != nil {
 			return fmt.Errorf("store: bind child to call %q: %w", binding.CallID, err)
@@ -137,10 +152,16 @@ func (g *CallRepo) RecordRepair(
 		return callspkg.CallRecord{}, err
 	}
 	err = g.tasks.withTaskImmediateTransaction(ctx, "record call repair", func(exec taskSQLExecutor) error {
-		result, updateErr := exec.ExecContext(ctx, `UPDATE calls SET repair_attempts = 1,
+		result, updateErr := exec.ExecContext(
+			ctx,
+			`UPDATE calls SET repair_attempts = 1,
 			first_issue_text = ?, updated_at = ?
 			WHERE call_id = ? AND state = 'running' AND repair_attempts = 0`,
-			boundedIssueText(mutation.IssueText), store.FormatTimestamp(mutation.At), strings.TrimSpace(mutation.CallID),
+			boundedIssueText(
+				mutation.IssueText,
+			),
+			store.FormatTimestamp(mutation.At),
+			strings.TrimSpace(mutation.CallID),
 		)
 		if updateErr != nil {
 			return fmt.Errorf("store: record repair for call %q: %w", mutation.CallID, updateErr)
@@ -212,7 +233,14 @@ func (g *CallRepo) SettleCall(
 			return &callspkg.Error{Code: callspkg.CodeAlreadySettled, Message: fmt.Sprintf("call is %s", current.State)}
 		}
 		if len(mutation.Result) > 0 {
-			if err := putCallPayload(ctx, exec, current.WorkspaceID, mutation.ResultRef, mutation.Result, mutation.SettledAt); err != nil {
+			if err := putCallPayload(
+				ctx,
+				exec,
+				current.WorkspaceID,
+				mutation.ResultRef,
+				mutation.Result,
+				mutation.SettledAt,
+			); err != nil {
 				return err
 			}
 		}
@@ -288,7 +316,10 @@ func requireOneCallRow(result sql.Result, callID string, action string) error {
 		return fmt.Errorf("store: inspect call %q %s: %w", callID, action, err)
 	}
 	if affected != 1 {
-		return &callspkg.Error{Code: callspkg.CodeAlreadySettled, Message: fmt.Sprintf("call %q %s was fenced", callID, action)}
+		return &callspkg.Error{
+			Code:    callspkg.CodeAlreadySettled,
+			Message: fmt.Sprintf("call %q %s was fenced", callID, action),
+		}
 	}
 	return nil
 }

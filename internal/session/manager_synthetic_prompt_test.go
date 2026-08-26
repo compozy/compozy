@@ -171,7 +171,11 @@ func TestSendPromptDurablyAdmitsSyntheticDeliveryMetadata(t *testing.T) {
 			t.Fatalf("SendPrompt(synthetic replay) error = %v", err)
 		}
 		if !replayed.Replayed || len(h.driver.promptCalls) != 1 {
-			t.Fatalf("SendPrompt(synthetic replay) = %#v calls=%d, want stable replay", replayed, len(h.driver.promptCalls))
+			t.Fatalf(
+				"SendPrompt(synthetic replay) = %#v calls=%d, want stable replay",
+				replayed,
+				len(h.driver.promptCalls),
+			)
 		}
 
 		releaseOnce.Do(func() { close(releaseActive) })

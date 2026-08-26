@@ -50,7 +50,14 @@ func (c *daemonClient) CreateCall(
 	request contract.CreateCallRequest,
 ) (contract.CallCreatePayload, error) {
 	var response contract.CallCreatePayload
-	err := c.doJSON(ctx, http.MethodPost, callsClientPath(workspaceID), profileQueryValues(ctx, nil), request, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		callsClientPath(workspaceID),
+		profileQueryValues(ctx, nil),
+		request,
+		&response,
+	)
 	return response, err
 }
 
@@ -65,13 +72,27 @@ func (c *daemonClient) ListCalls(ctx context.Context, query callListQuery) (cont
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	var response contract.CallsResponse
-	err := c.doJSON(ctx, http.MethodGet, callsClientPath(query.WorkspaceID), profileQueryValues(ctx, values), nil, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		callsClientPath(query.WorkspaceID),
+		profileQueryValues(ctx, values),
+		nil,
+		&response,
+	)
 	return response, err
 }
 
 func (c *daemonClient) GetCall(ctx context.Context, workspaceID, callID string) (contract.CallPayload, error) {
 	var response contract.CallPayload
-	err := c.doJSON(ctx, http.MethodGet, callClientPath(workspaceID, callID), profileQueryValues(ctx, nil), nil, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		callClientPath(workspaceID, callID),
+		profileQueryValues(ctx, nil),
+		nil,
+		&response,
+	)
 	return response, err
 }
 
@@ -80,7 +101,14 @@ func (c *daemonClient) GetCallResult(
 	workspaceID, callID string,
 ) (contract.CallResultResponse, error) {
 	var response contract.CallResultResponse
-	err := c.doJSON(ctx, http.MethodGet, callClientPath(workspaceID, callID)+"/result", profileQueryValues(ctx, nil), nil, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		callClientPath(workspaceID, callID)+"/result",
+		profileQueryValues(ctx, nil),
+		nil,
+		&response,
+	)
 	return response, err
 }
 
@@ -108,7 +136,14 @@ func (c *daemonClient) CancelCall(
 	request contract.CancelCallRequest,
 ) (contract.CancelCallResponse, error) {
 	var response contract.CancelCallResponse
-	err := c.doJSON(ctx, http.MethodPost, callClientPath(workspaceID, callID)+"/cancel", profileQueryValues(ctx, nil), request, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		callClientPath(workspaceID, callID)+"/cancel",
+		profileQueryValues(ctx, nil),
+		request,
+		&response,
+	)
 	return response, err
 }
 
@@ -118,7 +153,14 @@ func (c *daemonClient) SendCallMessage(
 	request contract.SendCallMessageRequest,
 ) (contract.SendCallMessageResponse, error) {
 	var response contract.SendCallMessageResponse
-	err := c.doJSON(ctx, http.MethodPost, messagesClientPath(workspaceID), profileQueryValues(ctx, nil), request, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		messagesClientPath(workspaceID),
+		profileQueryValues(ctx, nil),
+		request,
+		&response,
+	)
 	return response, err
 }
 
@@ -133,7 +175,14 @@ func (c *daemonClient) ListCallMessages(
 		values.Set("limit", strconv.Itoa(query.Limit))
 	}
 	var response contract.CallMessagesResponse
-	err := c.doJSON(ctx, http.MethodGet, messagesClientPath(query.WorkspaceID), profileQueryValues(ctx, values), nil, &response)
+	err := c.doJSON(
+		ctx,
+		http.MethodGet,
+		messagesClientPath(query.WorkspaceID),
+		profileQueryValues(ctx, values),
+		nil,
+		&response,
+	)
 	return response, err
 }
 

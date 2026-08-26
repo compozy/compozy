@@ -23,7 +23,10 @@ func RedactPreservingContract(contract Contract, payload json.RawMessage) (json.
 		return nil, nil, newError(
 			CodeRedactionConflict,
 			FaultChild,
-			fmt.Sprintf("result contains secret-shaped field %s; return a *_hash field or a non-secret reference instead", path),
+			fmt.Sprintf(
+				"result contains secret-shaped field %s; return a *_hash field or a non-secret reference instead",
+				path,
+			),
 			nil,
 		)
 	}
@@ -188,7 +191,12 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 		if definitions, ok := schema[keyword].(map[string]any); ok {
 			for name, child := range definitions {
 				if childSchema, ok := child.(map[string]any); ok {
-					if err := walkSecretFieldAuthorship(root, childSchema, fieldPath(path, name), visiting); err != nil {
+					if err := walkSecretFieldAuthorship(
+						root,
+						childSchema,
+						fieldPath(path, name),
+						visiting,
+					); err != nil {
 						return err
 					}
 				}
@@ -200,7 +208,7 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 
 func resolveLocalSchemaRef(root map[string]any, reference string) (map[string]any, bool) {
 	var current any = root
-	for _, token := range strings.Split(strings.TrimPrefix(reference, "#/"), "/") {
+	for token := range strings.SplitSeq(strings.TrimPrefix(reference, "#/"), "/") {
 		object, ok := current.(map[string]any)
 		if !ok {
 			return nil, false

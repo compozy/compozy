@@ -124,12 +124,28 @@ func createTaskProjection(
 		return taskpkg.CreateTask{}, err
 	}
 	return taskpkg.CreateTask{
-		ID: fields.ID, ProfileID: profileID, Identifier: fields.Identifier,
-		Scope: scope, WorkspaceID: workspaceID, Title: fields.Title, Description: fields.Description,
-		Priority: fields.Priority, MaxAttempts: fields.MaxAttempts, AutoEnqueueOnReady: fields.AutoEnqueueOnReady,
-		Draft: fields.Draft, ApprovalPolicy: fields.ApprovalPolicy, Owner: fields.Owner,
-		WakeCreator: cloneBoolPtr(fields.WakeCreator), Expect: cloneRawMessage(fields.Expect), ResultBudget: resultBudget,
-		NetworkParticipation: participation.CloneRequest(fields.NetworkParticipation), Metadata: cloneRawMessage(fields.Metadata),
+		ID:                 fields.ID,
+		ProfileID:          profileID,
+		Identifier:         fields.Identifier,
+		Scope:              scope,
+		WorkspaceID:        workspaceID,
+		Title:              fields.Title,
+		Description:        fields.Description,
+		Priority:           fields.Priority,
+		MaxAttempts:        fields.MaxAttempts,
+		AutoEnqueueOnReady: fields.AutoEnqueueOnReady,
+		Draft:              fields.Draft,
+		ApprovalPolicy:     fields.ApprovalPolicy,
+		Owner:              fields.Owner,
+		WakeCreator: cloneBoolPtr(
+			fields.WakeCreator,
+		),
+		Expect:       cloneRawMessage(fields.Expect),
+		ResultBudget: resultBudget,
+		NetworkParticipation: participation.CloneRequest(
+			fields.NetworkParticipation,
+		),
+		Metadata: cloneRawMessage(fields.Metadata),
 	}, nil
 }
 

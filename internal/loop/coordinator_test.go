@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/contracts"
 	"io"
 	"log/slog"
 	"reflect"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/deadentity"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
@@ -1194,7 +1195,10 @@ func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
 		t.Fatalf("evaluateGateNode() error = %v", err)
 	}
 	if terminal != nil || result.Status != generationOutputSucceeded ||
-		!generationOutputHasKind(outputs[2], GenerationResultRouteNotTaken) || outputs[3].Status != generationOutputPending ||
+		!generationOutputHasKind(
+			outputs[2],
+			GenerationResultRouteNotTaken,
+		) || outputs[3].Status != generationOutputPending ||
 		len(collector.routeDecisions) != 1 || collector.routeDecisions[0].Target != "repair" {
 		t.Fatalf(
 			"gate result = %#v outputs=%#v decisions=%#v terminal=%#v",
@@ -1241,7 +1245,10 @@ func TestGateRoutePlannerShouldSelectAndRecordTarget(t *testing.T) {
 		)
 		mapped := generationOutputMap(laneOutputs)
 		if mapped[generationOutputKey{nodeID: "publish", itemIndex: 0}].Status != generationOutputPending ||
-			!generationOutputHasKind(mapped[generationOutputKey{nodeID: "publish", itemIndex: 1}], GenerationResultRouteNotTaken) ||
+			!generationOutputHasKind(
+				mapped[generationOutputKey{nodeID: "publish", itemIndex: 1}],
+				GenerationResultRouteNotTaken,
+			) ||
 			mapped[generationOutputKey{nodeID: "repair", itemIndex: 1}].Status != generationOutputPending {
 			t.Fatalf("lane route outputs = %#v", laneOutputs)
 		}

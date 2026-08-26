@@ -89,7 +89,11 @@ func TestServicePublish(t *testing.T) {
 		before := store.calls["call-publish"]
 		_, err := service.Publish(context.Background(), validPublishInput())
 		if !IsCode(err, CodePublishNoParticipation) || store.calls["call-publish"] != before {
-			t.Fatalf("Publish(no participation) error = %v; call changed=%t", err, store.calls["call-publish"] != before)
+			t.Fatalf(
+				"Publish(no participation) error = %v; call changed=%t",
+				err,
+				store.calls["call-publish"] != before,
+			)
 		}
 	})
 }

@@ -72,7 +72,11 @@ func (g *CallRepo) LoadActivation(
 		&activation.Runtime.ReasoningEffort, &activation.Runtime.Speed,
 	)
 	if err != nil {
-		return callspkg.CallRecord{}, callspkg.ActivationSpec{}, nil, callspkg.PermissionAtoms{}, fmt.Errorf("store: load call activation %q: %w", id, err)
+		return callspkg.CallRecord{}, callspkg.ActivationSpec{}, nil, callspkg.PermissionAtoms{}, fmt.Errorf(
+			"store: load call activation %q: %w",
+			id,
+			err,
+		)
 	}
 	activation.IdleTTL = time.Duration(idleSeconds) * time.Second
 	prompt, err := g.loadVerifiedCallPayload(ctx, record.WorkspaceID, record.PromptRef)
@@ -100,7 +104,11 @@ func (g *CallRepo) loadCallPermissionAtoms(
 	ctx context.Context,
 	callID string,
 ) (result callspkg.PermissionAtoms, err error) {
-	rows, err := g.db.QueryContext(ctx, `SELECT atom FROM call_permission_atoms WHERE call_id = ? ORDER BY atom`, callID)
+	rows, err := g.db.QueryContext(
+		ctx,
+		`SELECT atom FROM call_permission_atoms WHERE call_id = ? ORDER BY atom`,
+		callID,
+	)
 	if err != nil {
 		return callspkg.PermissionAtoms{}, fmt.Errorf("store: list call permissions: %w", err)
 	}

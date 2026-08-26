@@ -58,11 +58,20 @@ func (s *Service) invokeClaimedActivation(
 			failureCode = string(callErr.Code)
 		}
 		failed, settleErr := s.store.FailActivation(ctx, ActivationFailure{
-			CallID: record.CallID, RunID: activation.RunID, ClaimToken: claim.ClaimToken,
-			Code: failureCode, Detail: sanitizeDiagnostic(invokeErr.Error(), "activation failed"), FailedAt: s.now().UTC(),
+			CallID:     record.CallID,
+			RunID:      activation.RunID,
+			ClaimToken: claim.ClaimToken,
+			Code:       failureCode,
+			Detail:     sanitizeDiagnostic(invokeErr.Error(), "activation failed"),
+			FailedAt:   s.now().UTC(),
 		})
 		if settleErr != nil {
-			if latest, handled, raceErr := s.resolveActivationSettlementRace(ctx, record.CallID, settleErr, nil); handled {
+			if latest, handled, raceErr := s.resolveActivationSettlementRace(
+				ctx,
+				record.CallID,
+				settleErr,
+				nil,
+			); handled {
 				return latest, raceErr
 			}
 			releaseErr := s.releaseActivationClaim(ctx, claim, "activation settlement failed")
@@ -157,7 +166,12 @@ func (s *Service) RecoverCallRuntime(ctx context.Context) error {
 		return err
 	}
 	for _, rootID := range drainRoots {
-		if _, err := s.DrainSubtree(ctx, rootID, Actor{Kind: "daemon", ID: "calls.recovery"}, "resume interrupted drain"); err != nil {
+		if _, err := s.DrainSubtree(
+			ctx,
+			rootID,
+			Actor{Kind: "daemon", ID: "calls.recovery"},
+			"resume interrupted drain",
+		); err != nil {
 			return err
 		}
 	}

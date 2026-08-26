@@ -66,7 +66,12 @@ func newCallServiceHarness(
 	target TargetContext,
 ) (*Service, *memoryCallStore, *fakeActivationClaimer, *fakeSessionInvoker) {
 	t.Helper()
-	return newCallServiceHarnessWithRoster(t, cfg, target, []AgentRosterEntry{{Name: "reviewer", Description: "Reviews work"}})
+	return newCallServiceHarnessWithRoster(
+		t,
+		cfg,
+		target,
+		[]AgentRosterEntry{{Name: "reviewer", Description: "Reviews work"}},
+	)
 }
 
 func newCallServiceHarnessWithRoster(
@@ -159,7 +164,9 @@ func (s *memoryCallStore) AdmitCall(_ context.Context, admission Admission) (Adm
 	if admission.Contract != nil {
 		s.contracts[admission.Contract.Digest] = *admission.Contract
 	}
-	s.payloads[callPayloadKey(admission.Record.WorkspaceID, admission.Record.PromptRef)] = append([]byte(nil), admission.Prompt...)
+	s.payloads[callPayloadKey(admission.Record.WorkspaceID, admission.Record.PromptRef)] = append(
+		[]byte(nil),
+		admission.Prompt...)
 	s.calls[admission.Record.CallID] = admission.Record
 	s.admissions = append(s.admissions, admission)
 	return AdmissionResult{Record: admission.Record}, nil
@@ -169,7 +176,8 @@ func (s *memoryCallStore) GetCall(_ context.Context, scope CallScope, callID str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, ok := s.calls[callID]
-	if !ok || record.ProfileID != scope.ProfileID || record.Scope != scope.Scope || record.WorkspaceID != scope.WorkspaceID {
+	if !ok || record.ProfileID != scope.ProfileID || record.Scope != scope.Scope ||
+		record.WorkspaceID != scope.WorkspaceID {
 		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
 	}
 	return record, nil
@@ -342,7 +350,9 @@ func (s *memoryCallStore) SettleCall(_ context.Context, mutation SettlementMutat
 	}
 	if len(mutation.Superseded) > 0 {
 		record.SupersededRef = mutation.SupersededRef
-		s.payloads[callPayloadKey(record.WorkspaceID, mutation.SupersededRef)] = append([]byte(nil), mutation.Superseded...)
+		s.payloads[callPayloadKey(record.WorkspaceID, mutation.SupersededRef)] = append(
+			[]byte(nil),
+			mutation.Superseded...)
 		s.calls[mutation.CallID] = record
 		return record, nil
 	}
@@ -387,7 +397,8 @@ func (s *memoryCallStore) ListDueCalls(_ context.Context, now time.Time, limit i
 	}
 	result := make([]CallRecord, 0, min(limit, len(s.due)))
 	for _, record := range s.due {
-		if (record.State == StateQueued || record.State == StateRunning) && !record.DeadlineAt.IsZero() && !record.DeadlineAt.After(now) {
+		if (record.State == StateQueued || record.State == StateRunning) && !record.DeadlineAt.IsZero() &&
+			!record.DeadlineAt.After(now) {
 			result = append(result, record)
 		}
 	}
@@ -428,7 +439,10 @@ func (s *memoryCallStore) ListQueuedActivationRunIDs(context.Context, int) ([]st
 	return nil, nil
 }
 
-func (s *memoryCallStore) LoadActivation(context.Context, string) (CallRecord, ActivationSpec, []byte, PermissionAtoms, error) {
+func (s *memoryCallStore) LoadActivation(
+	context.Context,
+	string,
+) (CallRecord, ActivationSpec, []byte, PermissionAtoms, error) {
 	return CallRecord{}, ActivationSpec{}, nil, PermissionAtoms{}, errors.New("activation is not configured")
 }
 
@@ -436,7 +450,10 @@ func (s *memoryCallStore) ReconcileActivations(context.Context, time.Time) ([]st
 	return nil, nil
 }
 
-func (s *memoryCallStore) ResolveOperatorCaller(_ context.Context, candidate OperatorCallerBinding) (OperatorCallerBinding, error) {
+func (s *memoryCallStore) ResolveOperatorCaller(
+	_ context.Context,
+	candidate OperatorCallerBinding,
+) (OperatorCallerBinding, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	key := candidate.ProfileID + "\x00" + string(candidate.Scope) + "\x00" + candidate.WorkspaceID
@@ -479,7 +496,10 @@ func (d routedCallDirectory) ResolveCallTarget(
 	return d(ctx, input)
 }
 
-func (d staticCallDirectory) ResolveCallTarget(context.Context, CreateInput) (TargetContext, []AgentRosterEntry, error) {
+func (d staticCallDirectory) ResolveCallTarget(
+	context.Context,
+	CreateInput,
+) (TargetContext, []AgentRosterEntry, error) {
 	return d.target, append([]AgentRosterEntry(nil), d.roster...), d.err
 }
 
@@ -491,7 +511,11 @@ type fakeActivationClaimer struct {
 	store    *memoryCallStore
 }
 
-func (c *fakeActivationClaimer) ClaimNextRun(_ context.Context, criteria task.ClaimCriteria, _ task.ActorContext) (*task.ClaimResult, error) {
+func (c *fakeActivationClaimer) ClaimNextRun(
+	_ context.Context,
+	criteria task.ClaimCriteria,
+	_ task.ActorContext,
+) (*task.ClaimResult, error) {
 	c.mu.Lock()
 	c.criteria = append(c.criteria, criteria)
 	c.mu.Unlock()
@@ -510,7 +534,11 @@ func (c *fakeActivationClaimer) ClaimNextRun(_ context.Context, criteria task.Cl
 		c.store.mu.Unlock()
 	}
 	return &task.ClaimResult{
-		Run:        task.Run{ID: criteria.RunID, RunKind: task.RunKindCallActivation, WorkspaceID: criteria.WorkspaceID},
+		Run: task.Run{
+			ID:          criteria.RunID,
+			RunKind:     task.RunKindCallActivation,
+			WorkspaceID: criteria.WorkspaceID,
+		},
 		ClaimToken: "claim-token",
 	}, nil
 }
@@ -534,7 +562,11 @@ type fakeActivationCanceler struct {
 	err     error
 }
 
-func (c *fakeActivationCanceler) CancelActivationRun(_ context.Context, runID string, reason string) (CancelOutcome, error) {
+func (c *fakeActivationCanceler) CancelActivationRun(
+	_ context.Context,
+	runID string,
+	reason string,
+) (CancelOutcome, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.runIDs = append(c.runIDs, runID)

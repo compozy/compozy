@@ -125,7 +125,6 @@ func (c *lintContext) resolveDeclaredSchema(node dsl.Node) (refs.Schema, bool, e
 	schema, ok, err := resolveDeclaredOutputSchema(c.def, c.linter.tools, node)
 	c.declaredSchemas[node.ID] = declaredSchemaCacheEntry{schema: schema, ok: ok, err: err}
 	return schema, ok, err
-
 }
 
 func (c *lintContext) declaredSchema(node dsl.Node) (refs.Schema, bool) {

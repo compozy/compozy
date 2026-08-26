@@ -21,7 +21,10 @@ func (h *BaseHandlers) CallMessagesCreate(c *gin.Context) {
 		return
 	}
 	if strings.TrimSpace(req.To.Agent) != "" || strings.TrimSpace(req.To.SessionID) == "" {
-		h.respondCallsError(c, callRequestError(callspkg.CodeValidation, "message target must contain exactly one session_id"))
+		h.respondCallsError(
+			c,
+			callRequestError(callspkg.CodeValidation, "message target must contain exactly one session_id"),
+		)
 		return
 	}
 	selection, err := h.resolveProfileMutationSelection(c)

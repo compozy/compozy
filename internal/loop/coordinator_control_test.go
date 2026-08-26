@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/contracts"
 	"io"
 	"log/slog"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/loop/gate"
@@ -857,7 +858,8 @@ func TestCoordinatorRunnerShouldDriveFanOutAndCollectControls(t *testing.T) {
 		if load.Status != generationOutputFailed {
 			t.Fatalf("load status = %q, want %q", load.Status, generationOutputFailed)
 		}
-		if contracts.OutputRefLooksContentAddressed(load.OutputRef) || !strings.Contains(load.OutputRef, "declared failure") {
+		if contracts.OutputRefLooksContentAddressed(load.OutputRef) ||
+			!strings.Contains(load.OutputRef, "declared failure") {
 			t.Fatalf("load output_ref = %q, want classified inline failure", load.OutputRef)
 		}
 	})

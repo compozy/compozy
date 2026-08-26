@@ -48,7 +48,8 @@ func validateRunIdentity(r Run) error {
 	}
 	wakeID, targetSessionID, ownerKey := r.NetworkWakeCorrelation()
 	kind := normalizeRunKindOrDefault(r.RunKind)
-	if kind == RunKindNetworkWake {
+	switch kind {
+	case RunKindNetworkWake:
 		if strings.TrimSpace(r.TaskID) != "" {
 			return fmt.Errorf("%w: task_run.task_id must be empty for network_wake runs", ErrValidation)
 		}
@@ -63,14 +64,15 @@ func validateRunIdentity(r Run) error {
 				ErrValidation,
 			)
 		}
-	} else if kind == RunKindCallActivation {
+	case RunKindCallActivation:
 		if strings.TrimSpace(r.TaskID) != "" {
 			return fmt.Errorf("%w: task_run.task_id must be empty for call_activation runs", ErrValidation)
 		}
-		if strings.TrimSpace(wakeID) != "" || strings.TrimSpace(targetSessionID) != "" || strings.TrimSpace(ownerKey) != "" {
+		if strings.TrimSpace(wakeID) != "" || strings.TrimSpace(targetSessionID) != "" ||
+			strings.TrimSpace(ownerKey) != "" {
 			return fmt.Errorf("%w: call_activation runs cannot carry network wake correlation", ErrValidation)
 		}
-	} else {
+	default:
 		if strings.TrimSpace(r.TaskID) == "" {
 			return fmt.Errorf("%w: task_run.task_id is required", ErrValidation)
 		}

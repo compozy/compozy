@@ -5418,21 +5418,23 @@ func TestBoundedWaitClientsUseRequestedDeadline(t *testing.T) {
 					t.Fatal("bounded wait used the default timeout-bound client")
 					return nil, nil
 				})},
-				streamClient: &http.Client{Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
-					if request.URL.Path != tc.wantPath {
-						t.Fatalf("bounded wait path = %q, want %q", request.URL.Path, tc.wantPath)
-					}
-					deadline, ok := request.Context().Deadline()
-					if !ok {
-						t.Fatal("bounded wait request has no context deadline")
-					}
-					remaining := time.Until(deadline)
-					want := tc.wantBound + longPollResponseGrace
-					if remaining < want-time.Second || remaining > want+time.Second {
-						t.Fatalf("bounded wait deadline = %v, want about %v", remaining, want)
-					}
-					return newHTTPResponse(http.StatusOK, `{}`), nil
-				})},
+				streamClient: &http.Client{
+					Transport: roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+						if request.URL.Path != tc.wantPath {
+							t.Fatalf("bounded wait path = %q, want %q", request.URL.Path, tc.wantPath)
+						}
+						deadline, ok := request.Context().Deadline()
+						if !ok {
+							t.Fatal("bounded wait request has no context deadline")
+						}
+						remaining := time.Until(deadline)
+						want := tc.wantBound + longPollResponseGrace
+						if remaining < want-time.Second || remaining > want+time.Second {
+							t.Fatalf("bounded wait deadline = %v, want about %v", remaining, want)
+						}
+						return newHTTPResponse(http.StatusOK, `{}`), nil
+					}),
+				},
 			}
 			if err := tc.invokeWait(client, tc.wait); err != nil {
 				t.Fatalf("bounded wait error = %v", err)

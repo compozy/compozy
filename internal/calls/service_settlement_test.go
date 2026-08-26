@@ -210,10 +210,10 @@ type settlementCancelingInvoker struct {
 }
 
 func (i *settlementCancelingInvoker) StopManaged(ctx context.Context, sessionID string, reason string) error {
-	i.fakeSessionInvoker.mu.Lock()
-	i.fakeSessionInvoker.stops = append(i.fakeSessionInvoker.stops, sessionID)
-	i.fakeSessionInvoker.stopReasons = append(i.fakeSessionInvoker.stopReasons, reason)
-	i.fakeSessionInvoker.mu.Unlock()
+	i.mu.Lock()
+	i.stops = append(i.stops, sessionID)
+	i.stopReasons = append(i.stopReasons, reason)
+	i.mu.Unlock()
 	i.cancelRequest()
 	return ctx.Err()
 }
@@ -275,7 +275,11 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		t.Parallel()
 		for _, strict := range []bool{false, true} {
 			service, _, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
-			input := validCreateInput("work", json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}}}`), nil)
+			input := validCreateInput(
+				"work",
+				json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}}}`),
+				nil,
+			)
 			input.Strict = strict
 			record, err := service.Create(context.Background(), input)
 			if err != nil {
@@ -410,7 +414,11 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		}
 		if strings.Contains(canceled.FailureDetail, "secret-value") || len(invoker.stopReasons) != 1 ||
 			strings.Contains(invoker.stopReasons[0], "secret-value") {
-			t.Fatalf("Cancel() detail=%q stop reasons=%q, want sanitized diagnostics", canceled.FailureDetail, invoker.stopReasons)
+			t.Fatalf(
+				"Cancel() detail=%q stop reasons=%q, want sanitized diagnostics",
+				canceled.FailureDetail,
+				invoker.stopReasons,
+			)
 		}
 	})
 
@@ -423,7 +431,15 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		}
 		fenceErr := errors.New("activation fence unavailable")
 		service.canceler.(*fakeActivationCanceler).err = fenceErr
-		if _, err := service.Cancel(context.Background(), record.CallID, "stop", record.Actor); !errors.Is(err, fenceErr) {
+		if _, err := service.Cancel(
+			context.Background(),
+			record.CallID,
+			"stop",
+			record.Actor,
+		); !errors.Is(
+			err,
+			fenceErr,
+		) {
 			t.Fatalf("Cancel() error = %v, want %v", err, fenceErr)
 		}
 		if got := database.calls[record.CallID].State; got != StateRunning || len(invoker.stops) != 0 {
@@ -440,7 +456,15 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		}
 		stopErr := errors.New("child stop failed")
 		invoker.stopErr = stopErr
-		if _, err := service.Cancel(context.Background(), record.CallID, "stop", record.Actor); !errors.Is(err, stopErr) {
+		if _, err := service.Cancel(
+			context.Background(),
+			record.CallID,
+			"stop",
+			record.Actor,
+		); !errors.Is(
+			err,
+			stopErr,
+		) {
 			t.Fatalf("Cancel() error = %v, want %v", err, stopErr)
 		}
 		if got := database.calls[record.CallID].State; got != StateRunning || len(invoker.stops) != 1 {
@@ -464,7 +488,8 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Cancel() error = %v", err)
 		}
-		if canceled.State != StateCanceled || len(invoker.spawns) != 0 || database.calls[record.CallID].State != StateCanceled {
+		if canceled.State != StateCanceled || len(invoker.spawns) != 0 ||
+			database.calls[record.CallID].State != StateCanceled {
 			t.Fatalf("Cancel(queued) = %#v spawns=%d", canceled, len(invoker.spawns))
 		}
 	})
@@ -612,7 +637,12 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 			t.Fatalf("SweepDeadlines() error = %v", err)
 		}
 		if len(report.TimedOut) != 1 || database.calls[record.CallID].State != StateTimeout || len(invoker.stops) != 1 {
-			t.Fatalf("SweepDeadlines() = %#v state=%s stops=%#v", report, database.calls[record.CallID].State, invoker.stops)
+			t.Fatalf(
+				"SweepDeadlines() = %#v state=%s stops=%#v",
+				report,
+				database.calls[record.CallID].State,
+				invoker.stops,
+			)
 		}
 	})
 
@@ -667,14 +697,21 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		database.calls[second.CallID] = second
 		database.subtree = []CallRecord{first, second}
 		database.preservedResults = 1
-		report, err := service.DrainSubtree(context.Background(), "root-1", Actor{Kind: "daemon", ID: "recovery"}, "parent terminal")
+		report, err := service.DrainSubtree(
+			context.Background(),
+			"root-1",
+			Actor{Kind: "daemon", ID: "recovery"},
+			"parent terminal",
+		)
 		if err != nil {
 			t.Fatalf("DrainSubtree() error = %v", err)
 		}
-		if len(report.CanceledCalls) != 2 || len(report.Stopped) != 1 || report.PreservedResults != 1 || len(invoker.stops) != 1 {
+		if len(report.CanceledCalls) != 2 || len(report.Stopped) != 1 || report.PreservedResults != 1 ||
+			len(invoker.stops) != 1 {
 			t.Fatalf("DrainSubtree() = %#v stops=%#v", report, invoker.stops)
 		}
-		if len(database.operations) < 2 || database.operations[0] != "fence:root-1" || database.operations[1] != "list:root-1" {
+		if len(database.operations) < 2 || database.operations[0] != "fence:root-1" ||
+			database.operations[1] != "list:root-1" {
 			t.Fatalf("drain operations = %#v, want fence before subtree list", database.operations)
 		}
 	})
@@ -684,7 +721,7 @@ func TestServiceReturnRacingDeadlinePreservesLateEvidence(t *testing.T) {
 	t.Run("Should preserve the losing return as late evidence", func(t *testing.T) {
 		t.Parallel()
 
-		for iteration := 0; iteration < 50; iteration++ {
+		for iteration := range 50 {
 			service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 			record := createContractedCall(t, service)
 			record.DeadlineAt = time.Date(2026, 8, 25, 1, 0, 0, 0, time.UTC)
@@ -729,7 +766,9 @@ func TestServiceReturnRacingDeadlinePreservesLateEvidence(t *testing.T) {
 
 func createContractedCall(t *testing.T, service *Service) CallRecord {
 	t.Helper()
-	expect := json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`)
+	expect := json.RawMessage(
+		`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+	)
 	record, err := service.Create(context.Background(), validCreateInput("work", expect, nil))
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)

@@ -105,7 +105,11 @@ func TestManagerDispatchSpawnWake(t *testing.T) {
 			t.Fatalf("wake detail = %q, want pending interaction title", events[0].Detail)
 		}
 		if events[0].WakeEventID != events[1].WakeEventID {
-			t.Fatalf("wake ids = %q and %q, want one stable downstream dedupe key", events[0].WakeEventID, events[1].WakeEventID)
+			t.Fatalf(
+				"wake ids = %q and %q, want one stable downstream dedupe key",
+				events[0].WakeEventID,
+				events[1].WakeEventID,
+			)
 		}
 	})
 

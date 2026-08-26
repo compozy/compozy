@@ -5,8 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 )

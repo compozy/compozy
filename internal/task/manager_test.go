@@ -8709,7 +8709,15 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 			t.Fatalf("StartRun(second) error = %v", err)
 		}
 		invalidResult := RunResult{Value: json.RawMessage(`{"changed":true}`)}
-		if _, err := manager.CompleteRun(context.Background(), secondRunning.ID, invalidResult, actor); !errors.Is(err, ErrValidation) {
+		if _, err := manager.CompleteRun(
+			context.Background(),
+			secondRunning.ID,
+			invalidResult,
+			actor,
+		); !errors.Is(
+			err,
+			ErrValidation,
+		) {
 			t.Fatalf("CompleteRun(second first rejection) error = %v, want %v", err, ErrValidation)
 		}
 		failed, err := manager.CompleteRun(context.Background(), secondRunning.ID, invalidResult, actor)
@@ -8717,7 +8725,7 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 			t.Fatalf("CompleteRun(second rejection) error = %v, want %v", err, ErrResultInvalid)
 		}
 		if failed == nil || failed.Status.Normalize() != TaskRunStatusFailed ||
-			!strings.Contains(failed.Error, resultContractInvalidCode) {
+			!strings.Contains(failed.Error, ResultContractInvalidCode) {
 			t.Fatalf("failed run = %#v, want typed invalid-result outcome", failed)
 		}
 		secondRepairEvents, err := store.ListTaskEvents(context.Background(), EventQuery{

@@ -590,6 +590,61 @@ func TestGatewayClientStreamsReportStableInterruption(t *testing.T) {
 			t.Fatalf("StreamPromptSession() error = %v, want incomplete stream classification", err)
 		}
 	})
+
+	t.Run("Should preserve a structured terminal incomplete reason beneath a gateway interruption", func(t *testing.T) {
+		t.Parallel()
+
+		target, err := GatewayClientTarget("remote", "gateway.example", 443, testGatewayCredential('r'))
+		if err != nil {
+			t.Fatalf("GatewayClientTarget() error = %v", err)
+		}
+		body := strings.Join([]string{
+			`data: {"type":"start","messageId":"turn-1"}`,
+			"",
+			`data: {"type":"error","errorText":"acp prompt stream ended before a terminal event","failure":{"kind":"transport_failure","reason_code":"prompt_stream_incomplete","summary":"acp prompt stream ended before a terminal event"}}`,
+			"",
+			`data: {"type":"finish","finishReason":"stop"}`,
+			"",
+			"data: [DONE]",
+			"",
+		}, "\n")
+		transport := roundTripperFunc(func(request *http.Request) (*http.Response, error) {
+			switch {
+			case request.Method == http.MethodGet && request.URL.Path == "/api/sessions/sess-1":
+				return newHTTPResponse(
+					http.StatusOK,
+					`{"session":{"id":"sess-1","workspace_id":"ws-1","state":"active","created_at":"2026-08-25T12:00:00Z","updated_at":"2026-08-25T12:00:00Z"}}`,
+				), nil
+			case request.Method == http.MethodPost && request.URL.Path == "/api/gateway/stream-tickets":
+				return newHTTPResponse(http.StatusCreated, `{"ticket":"ticket-1"}`), nil
+			case request.Method == http.MethodPost &&
+				request.URL.Path == "/api/workspaces/ws-1/sessions/sess-1/prompt":
+				response := newHTTPResponse(http.StatusOK, body)
+				response.Header.Set("Content-Type", "text/event-stream")
+				response.Request = request
+				return response, nil
+			default:
+				t.Fatalf("unexpected request = %s %s", request.Method, request.URL.Path)
+				return nil, errors.New("unexpected request")
+			}
+		})
+		client := &daemonClient{
+			target:       target,
+			httpClient:   &http.Client{Transport: transport},
+			streamClient: &http.Client{Transport: transport},
+		}
+
+		err = client.StreamPromptSession(
+			t.Context(),
+			"sess-1",
+			SessionPromptRequest{Message: "continue"},
+			func(SSEEvent) error { return nil },
+		)
+		assertGatewayClientErrorCode(t, err, gatewayStreamInterruptedCode)
+		if !errors.Is(err, errSessionPromptStreamIncomplete) {
+			t.Fatalf("StreamPromptSession() error = %v, want incomplete stream classification", err)
+		}
+	})
 }
 
 func exerciseGatewayClientStreamInterruption(t *testing.T) {

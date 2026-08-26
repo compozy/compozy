@@ -282,7 +282,6 @@ func TestDocumentDescribesAgentNameRequestConstraints(t *testing.T) {
 			propertySchema(t, duplicateAgent, "name"),
 			compozyconfig.AgentNamePattern,
 		)
-
 	})
 
 	t.Run("Should describe empty-or-canonical reference fields without changing requiredness", func(t *testing.T) {

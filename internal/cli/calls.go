@@ -89,11 +89,20 @@ func withCallCommandExit(err error) error {
 
 func (flags *callCreateFlags) request(target, prompt string) (contract.CreateCallRequest, error) {
 	item := contract.CreateCallItemRequest{
-		Prompt: prompt, Strict: flags.strict, ResultBudget: strings.TrimSpace(flags.resultBudget),
-		ResultOverflow: strings.TrimSpace(flags.resultOverflow), IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
+		Prompt:       prompt,
+		Strict:       flags.strict,
+		ResultBudget: strings.TrimSpace(flags.resultBudget),
+		ResultOverflow: strings.TrimSpace(
+			flags.resultOverflow,
+		),
+		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
 		Narrow: contract.CallPermissionNarrowingRequest{
-			Tools: cleanCallValues(flags.tools), Skills: cleanCallValues(flags.skills),
-			WorkspacePaths: cleanCallValues(flags.workspacePaths), NetworkChannels: cleanCallValues(flags.networkChannels),
+			Tools:  cleanCallValues(flags.tools),
+			Skills: cleanCallValues(flags.skills),
+			WorkspacePaths: cleanCallValues(
+				flags.workspacePaths,
+			),
+			NetworkChannels: cleanCallValues(flags.networkChannels),
 		},
 	}
 	target = strings.TrimSpace(target)
@@ -142,8 +151,8 @@ func readCallExpect(raw string) (json.RawMessage, error) {
 		return nil, nil
 	}
 	bytes := []byte(raw)
-	if strings.HasPrefix(raw, "@") {
-		path := strings.TrimSpace(strings.TrimPrefix(raw, "@"))
+	if after, ok := strings.CutPrefix(raw, "@"); ok {
+		path := strings.TrimSpace(after)
 		if path == "" {
 			return nil, errors.New("cli: --expect @file path is required")
 		}

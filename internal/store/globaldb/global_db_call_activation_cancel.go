@@ -49,7 +49,9 @@ func (g *TaskRunRepo) CancelCallActivationRun(
 				return fmt.Errorf("store: inspect canceled call activation run %q: %w", runID, err)
 			}
 			outcome.Won = affected == 1
-		case taskpkg.TaskRunStatusClaimed.String(), taskpkg.TaskRunStatusStarting.String(), taskpkg.TaskRunStatusRunning.String():
+		case taskpkg.TaskRunStatusClaimed.String(),
+			taskpkg.TaskRunStatusStarting.String(),
+			taskpkg.TaskRunStatusRunning.String():
 			outcome.Claimed = true
 			result, err := exec.ExecContext(ctx, `UPDATE task_runs SET status = 'canceled', error = ?,
 				ended_at = ?, claim_token = NULL, claim_token_hash = NULL, lease_until = NULL,

@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/task"

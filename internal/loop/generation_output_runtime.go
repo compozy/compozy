@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/compozy/compozy/internal/contracts"
 	"strings"
+
+	"github.com/compozy/compozy/internal/contracts"
 )
 
 // GenerationOutputPayloadKey identifies the exact cell that owns an externalized payload.

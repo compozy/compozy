@@ -206,10 +206,18 @@ func validateTargetContext(
 		return newError(CodeTargetDenied, "target is outside the caller lineage", nil)
 	}
 	if in.Target.Agent != "" && target.Depth > limits.maxDepth {
-		return newError(CodeDepthExceeded, fmt.Sprintf("call depth %d exceeds maximum %d", target.Depth, limits.maxDepth), nil)
+		return newError(
+			CodeDepthExceeded,
+			fmt.Sprintf("call depth %d exceeds maximum %d", target.Depth, limits.maxDepth),
+			nil,
+		)
 	}
 	if in.Target.Agent != "" && target.LiveChildren >= limits.maxChildren {
-		return newError(CodeChildrenCap, fmt.Sprintf("parent has %d live children; maximum is %d", target.LiveChildren, limits.maxChildren), nil)
+		return newError(
+			CodeChildrenCap,
+			fmt.Sprintf("parent has %d live children; maximum is %d", target.LiveChildren, limits.maxChildren),
+			nil,
+		)
 	}
 	if in.Target.SessionID != "" {
 		switch TargetState(strings.TrimSpace(string(target.State))) {
@@ -370,7 +378,11 @@ func DecodePermissionAtoms(encoded []string) (PermissionAtoms, error) {
 
 func (s *Service) activationFor(record CallRecord, target TargetContext) (*ActivationSpec, *Delivery, error) {
 	if record.AgentName == "" && TargetState(strings.TrimSpace(string(target.State))) == TargetStateActive {
-		return nil, &Delivery{CallID: record.CallID, RecipientSessionID: record.ChildSessionID, Kind: DeliveryKindMessage}, nil
+		return nil, &Delivery{
+			CallID:             record.CallID,
+			RecipientSessionID: record.ChildSessionID,
+			Kind:               DeliveryKindMessage,
+		}, nil
 	}
 	runID, err := s.newID("run")
 	if err != nil {

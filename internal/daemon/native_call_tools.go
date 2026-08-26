@@ -438,7 +438,10 @@ type coreCallsService interface {
 }
 
 func nativeCallsScope(scope toolspkg.Scope) callspkg.CallScope {
-	result := callspkg.CallScope{ProfileID: strings.TrimSpace(scope.ProfileID), WorkspaceID: strings.TrimSpace(scope.WorkspaceID)}
+	result := callspkg.CallScope{
+		ProfileID:   strings.TrimSpace(scope.ProfileID),
+		WorkspaceID: strings.TrimSpace(scope.WorkspaceID),
+	}
 	if result.WorkspaceID == "" {
 		result.Scope = callspkg.ScopeGlobal
 	} else {

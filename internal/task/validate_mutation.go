@@ -86,7 +86,12 @@ func (p Patch) Validate(path string) error {
 		)
 	}
 	if p.Expect == nil && p.ResultBudget != nil {
-		return fmt.Errorf("%w: %s requires %s", ErrValidation, nestedPath(path, "result_budget"), nestedPath(path, "expect"))
+		return fmt.Errorf(
+			"%w: %s requires %s",
+			ErrValidation,
+			nestedPath(path, "result_budget"),
+			nestedPath(path, "expect"),
+		)
 	}
 	if p.Expect != nil {
 		if err := validateTaskExpectationInput(
