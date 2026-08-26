@@ -103,6 +103,7 @@ describe("runtime helpers", () => {
           expect(options).toMatchObject({
             cwd: "/tmp/repo",
             env: { COMPOZY_HOME: "/tmp/compozy-home", HOME: "/tmp/operator-home" },
+            timeout: 90_000,
           });
           return { stderr: "", stdout: "{}" };
         },

@@ -394,6 +394,7 @@ function desktopFixture(
   return {
     activeDesktopId: "desktop:alpha",
     client: null,
+    clientAttachmentToken: null,
     connectionStatus: "connected",
     desktopBounds: null,
     desktops: DESKTOPS,

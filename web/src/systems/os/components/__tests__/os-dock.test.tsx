@@ -125,6 +125,7 @@ function desktopState(
   return {
     snapshot: SNAPSHOT,
     windowManagerConfig: CONFIG,
+    clientAttachmentToken: null,
     client: {
       workspaceId: "workspace:test",
       clientId: "client:web",

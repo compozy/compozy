@@ -6,13 +6,13 @@ persona: Ada
 journey: J-switch-profile-terminal-scope
 expected: Every structured terminal surface resolves exactly one profile scope or an explicitly labelled all-profiles read; asking for both, asking for the aggregate on a change, contradicting a session's own profile, or calling with no project at all is each refused with its own reason, and an unresolvable scope returns nothing rather than everything.
 entry_points: compozy terminal list|journal|input-requests --profile and --all-profiles; compozy terminal get|attach|quote --profile; compozy terminal open|exec|kill|signal|respond|record; HTTP and UDS terminal routes with profile= and all_profiles=; terminal catalog stream; native terminal tools in a session with no project
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260826-terminal-attach-profile-scope
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: ET-terminal-profile-segmentation; ET-profile-selection-precedence
 ---
 

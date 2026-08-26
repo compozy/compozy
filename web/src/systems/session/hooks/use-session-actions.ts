@@ -162,7 +162,7 @@ export function useDeleteSession(
       queryClient.removeQueries({ queryKey: sessionKeys.byIdRoot(id) });
       options.onDeleteSuccess?.();
 
-      return invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
+      void invalidateWorkspaceSessionCatalog(queryClient, successWorkspaceId);
     },
     onSettled: (_data, _error, id) => {
       sessionStore.trigger.sessionLiveTailResumed({ sessionId: id });

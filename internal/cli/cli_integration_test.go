@@ -311,12 +311,76 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 			}
 		})
 	}
+	t.Run("Should preserve the input-request code for a structured local failure", func(t *testing.T) {
+		wasAllProfiles := client.inputAllProfiles
+		client.noInputRequests = true
+		exitCode, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"terminal",
+			"respond",
+			"--workspace",
+			"workspace-a",
+			"-o",
+			"json",
+			"term-a",
+		)
+		client.noInputRequests = false
+		client.inputAllProfiles = wasAllProfiles
+		if exitCode != 1 || stdout != "" {
+			t.Fatalf("missing input request exit/stdout = %d/%q, want 1/empty", exitCode, stdout)
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(missing input request) error = %v; stderr=%s", err, stderr)
+		}
+		if payload.Code != "input_request_not_found" {
+			t.Fatalf("missing input request code = %q", payload.Code)
+		}
+	})
 	if client.exec.Workspace != "workspace-a" || client.exec.Request.YieldMs != 250 ||
 		client.signal != "TERM" || !client.inputAllProfiles || !client.journalAllProfiles ||
 		client.journal.Limit != 25 || client.rejected != "input-a" || client.recordAction != "start" ||
 		client.readOptions.FromLine != 0 || client.readOptions.ToLine != 2 {
 		t.Fatalf("terminal command calls = %#v", client)
 	}
+}
+
+func TestTerminalAttachCommand(t *testing.T) {
+	t.Parallel()
+	t.Run("Should report the exited terminal code and cause before opening a stream", func(t *testing.T) {
+		t.Parallel()
+		signal := "HUP"
+		client := &terminalAgentCommandClient{
+			DaemonClient: newDefaultProfileTestClient(&stubClient{}),
+			terminal: TerminalRecord{
+				ID:    "term-ended",
+				State: "exited",
+				Exit:  &TerminalExitRecord{Cause: "signaled", Signal: &signal},
+			},
+		}
+		deps := newTestDeps(t, client)
+		exitCode, _, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"terminal",
+			"attach",
+			"term-ended",
+			"--workspace",
+			"workspace-a",
+		)
+		if exitCode != apiStatusExitCode(http.StatusConflict) {
+			t.Fatalf("exit code = %d, want conflict exit code", exitCode)
+		}
+		for _, fragment := range []string{"terminal_exited", "term-ended", "signaled HUP"} {
+			if !strings.Contains(stderr, fragment) {
+				t.Fatalf("stderr = %q, want %q", stderr, fragment)
+			}
+		}
+		if client.attaches != 0 {
+			t.Fatalf("AttachTerminal() calls = %d, want zero", client.attaches)
+		}
+	})
 }
 
 func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { // IT-020
@@ -707,7 +771,9 @@ func assertTerminalJSONParity(t *testing.T, stdout string, want any) {
 
 type terminalAgentCommandClient struct {
 	DaemonClient
-	exec struct {
+	terminal TerminalRecord
+	attaches int
+	exec     struct {
 		Workspace string
 		Request   TerminalExecRequest
 	}
@@ -718,6 +784,7 @@ type terminalAgentCommandClient struct {
 	readOptions        TerminalReadOptions
 	rejected           string
 	recordAction       string
+	noInputRequests    bool
 }
 
 func (*terminalAgentCommandClient) CreateTerminal(context.Context, string, TerminalCreateRequest) (TerminalRecord, error) {
@@ -726,13 +793,14 @@ func (*terminalAgentCommandClient) CreateTerminal(context.Context, string, Termi
 func (*terminalAgentCommandClient) ListTerminals(context.Context, string) ([]TerminalRecord, error) {
 	return nil, nil
 }
-func (*terminalAgentCommandClient) GetTerminal(context.Context, string, string) (TerminalRecord, error) {
-	return TerminalRecord{}, nil
+func (c *terminalAgentCommandClient) GetTerminal(context.Context, string, string) (TerminalRecord, error) {
+	return c.terminal, nil
 }
 func (*terminalAgentCommandClient) DeleteTerminal(context.Context, string, string, string) (TerminalExitRecord, error) {
 	return TerminalExitRecord{}, nil
 }
-func (*terminalAgentCommandClient) AttachTerminal(context.Context, string, string, TerminalAttachOptions, io.Reader, io.Writer) error {
+func (c *terminalAgentCommandClient) AttachTerminal(context.Context, string, string, TerminalAttachOptions, io.Reader, io.Writer) error {
+	c.attaches++
 	return nil
 }
 func (c *terminalAgentCommandClient) ExecTerminal(
@@ -763,6 +831,9 @@ func (c *terminalAgentCommandClient) ListTerminalInputRequests(
 ) ([]terminalpkg.PendingInputRequest, error) {
 	selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection)
 	c.inputAllProfiles = ok && selection.AllProfiles
+	if c.noInputRequests {
+		return nil, nil
+	}
 	return []terminalpkg.PendingInputRequest{{ID: "input-a", TerminalID: "term-a"}}, nil
 }
 func (*terminalAgentCommandClient) AnswerTerminalInputRequest(

@@ -1,5 +1,5 @@
 import { ChevronRight, FileText, Plus, ScrollText, X } from "lucide-react";
-import { useRef } from "react";
+import { useEffect, useId, useState } from "react";
 
 import {
   Button,
@@ -12,11 +12,7 @@ import {
 
 import { terminalExitCopy } from "../lib/terminal-copy";
 import type { TerminalInfo } from "../types";
-
-/** The journal is one per project and never closes, so it pins to the strip. */
-export const TERMINAL_JOURNAL_TAB: unique symbol = Symbol("terminal-journal-tab");
-
-export type TerminalTabId = string | typeof TERMINAL_JOURNAL_TAB;
+import { TERMINAL_JOURNAL_TAB, type TerminalTabId } from "./terminal-tab-id";
 
 export interface TerminalTabsProps {
   terminals: readonly TerminalInfo[];
@@ -35,6 +31,10 @@ export interface TerminalTabsProps {
 
 /** Tabs never shrink past legibility; the surplus collapses behind a caret. */
 const VISIBLE_TAB_LIMIT = 5;
+
+function terminalTabDomId(tabListId: string, tab: TerminalTabId): string {
+  return `${tabListId}-${tab === TERMINAL_JOURNAL_TAB ? "journal" : tab}`;
+}
 
 /**
  * Which tabs are on the strip, and which are behind the caret.
@@ -78,14 +78,12 @@ export function TerminalTabs({
   showOwner = false,
 }: TerminalTabsProps) {
   const { visible, overflow } = splitTabs(terminals, activeTab);
-  const tabRefs = useRef(new Map<TerminalTabId, HTMLButtonElement>());
-  const bindTabRef = (tab: TerminalTabId) => (node: HTMLButtonElement | null) => {
-    if (node) tabRefs.current.set(tab, node);
-    else tabRefs.current.delete(tab);
-  };
-  const focusTab = (tab: TerminalTabId) => {
-    queueMicrotask(() => tabRefs.current.get(tab)?.focus());
-  };
+  const tabListId = useId();
+  const [focusRequest, setFocusRequest] = useState<{ tab: TerminalTabId } | null>(null);
+  useEffect(() => {
+    if (focusRequest === null) return;
+    document.getElementById(terminalTabDomId(tabListId, focusRequest.tab))?.focus();
+  }, [focusRequest, tabListId]);
   const atLimit = terminals.length >= limit;
   // Arrow keys move between tabs, as a tablist owes its users; the strip owns
   // the movement because only it knows the order, including the pinned journal.
@@ -101,7 +99,7 @@ export function TerminalTabs({
     event.preventDefault();
     const next = order[(index + step + order.length) % order.length];
     onSelect(next);
-    focusTab(next);
+    setFocusRequest({ tab: next });
   };
   return (
     <div
@@ -114,7 +112,7 @@ export function TerminalTabs({
         {visible.map(terminal => (
           <TerminalTab
             active={activeTab === terminal.id}
-            buttonRef={bindTabRef(terminal.id)}
+            buttonId={terminalTabDomId(tabListId, terminal.id)}
             key={terminal.id}
             needsAttention={attentionIds?.has(terminal.id) ?? false}
             onClose={onCloseTerminal ? () => onCloseTerminal(terminal.id) : undefined}
@@ -155,7 +153,7 @@ export function TerminalTabs({
             : "text-muted hover:bg-row-hover hover:text-fg"
         )}
         data-testid="terminal-tab-journal"
-        ref={bindTabRef(TERMINAL_JOURNAL_TAB)}
+        id={terminalTabDomId(tabListId, TERMINAL_JOURNAL_TAB)}
         onClick={() => onSelect(TERMINAL_JOURNAL_TAB)}
         onKeyDown={event => moveSelection(event, TERMINAL_JOURNAL_TAB)}
         role="tab"
@@ -180,7 +178,7 @@ export function TerminalTabs({
 function TerminalTab({
   terminal,
   active,
-  buttonRef,
+  buttonId,
   needsAttention,
   onSelect,
   onClose,
@@ -189,7 +187,7 @@ function TerminalTab({
 }: {
   terminal: TerminalInfo;
   active: boolean;
-  buttonRef: (node: HTMLButtonElement | null) => void;
+  buttonId: string;
   needsAttention: boolean;
   onSelect: () => void;
   onClose?: () => void;
@@ -209,9 +207,9 @@ function TerminalTab({
     >
       <button
         aria-selected={active}
-        ref={buttonRef}
         className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
         data-testid={`terminal-tab-select-${terminal.id}`}
+        id={buttonId}
         onClick={onSelect}
         onKeyDown={onKeyDown}
         role="tab"

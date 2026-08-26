@@ -6,13 +6,13 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: A project starts with an honest empty state; opening two terminals creates distinct tabs, switching and reloading preserves both, and closing the window does not end a running terminal that can be reattached later.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps:
 ---
 

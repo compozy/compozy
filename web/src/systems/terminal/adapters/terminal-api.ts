@@ -25,6 +25,7 @@ import type {
   TerminalProfileScopeParams,
   TerminalScopeParams,
   TerminalSignal,
+  TerminalViewerIdentity,
 } from "../types";
 
 /**
@@ -177,13 +178,19 @@ export async function mintTerminalAttachTicket(
   terminalId: string,
   mode: TerminalAttachMode,
   scope: TerminalProfileScopeParams,
+  viewer?: TerminalViewerIdentity | null,
   signal?: AbortSignal
 ): Promise<TerminalAttachTicket> {
   const url = terminalURL(workspaceId, terminalId, "/attach-ticket");
   return terminalRequest<TerminalAttachTicket>(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     "Failed to open a connection pass",
-    { method: "POST", body: JSON.stringify({ mode }), signal }
+    {
+      method: "POST",
+      body: JSON.stringify({ mode, ...(viewer ? { client_id: viewer.id } : {}) }),
+      headers: viewer ? { "X-Compozy-Client-Token": viewer.attachmentToken } : undefined,
+      signal,
+    }
   );
 }
 

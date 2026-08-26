@@ -522,6 +522,36 @@ describe("session actions", () => {
     ).toBeUndefined();
   });
 
+  it("useDeleteSession resolves before catalog reconciliation settles", async () => {
+    vi.mocked(deleteSession).mockResolvedValue(undefined);
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    let releaseInvalidation!: () => void;
+    const invalidation = new Promise<void>(resolve => {
+      releaseInvalidation = resolve;
+    });
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries").mockReturnValue(invalidation);
+    const { result } = renderHook(() => useDeleteSession(), {
+      wrapper: createWrapper(queryClient),
+    });
+
+    let settled = false;
+    let mutation!: Promise<void>;
+    act(() => {
+      mutation = result.current.mutateAsync(createdSession.id).then(() => {
+        settled = true;
+      });
+    });
+
+    await waitFor(() => expect(invalidateSpy).toHaveBeenCalled());
+    await waitFor(() => expect(settled).toBe(true));
+    releaseInvalidation();
+    await act(async () => {
+      await mutation;
+    });
+  });
+
   it("useResumeSession keeps the live tail suspended through state reconciliation", async () => {
     vi.mocked(resumeSession).mockImplementation(async () => {
       expect(sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]).toBe(1);

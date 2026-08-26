@@ -310,6 +310,8 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 		return s.handle.Takeover(ctx, s.actor, payload.Force)
 	case terminalwire.ClientOpDetach:
 		return errTerminalDetached
+	case terminalwire.ClientOpRelease:
+		return s.handle.Yield(ctx, s.actor)
 	default:
 		return terminalwire.ErrUnknownOpcode
 	}

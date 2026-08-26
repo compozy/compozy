@@ -11,6 +11,7 @@ import type {
   NormalizedRect,
   WindowPlacement,
   WindowManagerClientView,
+  WindowManagerRegisteredClientView,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
   WindowManagerSnapshot,
@@ -145,6 +146,8 @@ export interface OsDesktopRuntimeStore {
   snapshot: WindowManagerSnapshot | null;
   windowManagerConfig: WindowManagerConfig | null;
   client: WindowManagerClientView | null;
+  /** Registration proof retained locally; never projected by daemon streams. */
+  clientAttachmentToken: string | null;
   desktops: readonly LayoutDesktop[];
   projections: Readonly<Record<DesktopId, LayoutProjection>>;
   frames: Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>>;
@@ -172,7 +175,7 @@ export interface OsDesktopRuntime {
 export interface WindowManagerController extends OsDesktopRuntime {
   bind(binding: { workspaceId: string; clientId: string }): void;
   unbind(): void;
-  setClient(client: WindowManagerClientView | null): void;
+  setClient(client: WindowManagerClientView | WindowManagerRegisteredClientView | null): void;
   setConnectionStatus(status: WindowManagerConnectionStatus): void;
   setLoadError(error: Error | null): void;
   openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { TerminalInfo } from "../types";
+import type { TerminalInfo, TerminalViewerIdentity } from "../types";
 import type { TerminalWindowActions } from "../components/terminal-window-actions";
 import type { TerminalAttachmentSocketFactory } from "./use-terminal-attachment";
 import {
@@ -15,6 +15,7 @@ export interface UseTerminalWindowBodyControllerOptions {
   workspaceId: string;
   profile: string;
   viewerId: string | null;
+  viewer?: TerminalViewerIdentity | null;
   readOnly: boolean;
   socketFactory?: TerminalAttachmentSocketFactory;
   actions: TerminalWindowActions;
@@ -37,6 +38,7 @@ export function useTerminalWindowBodyController({
   workspaceId,
   profile,
   viewerId,
+  viewer,
   readOnly,
   socketFactory,
   actions,
@@ -48,6 +50,7 @@ export function useTerminalWindowBodyController({
     workspaceId,
     profile,
     viewerId,
+    viewer,
     socketFactory,
     readOnly,
   });

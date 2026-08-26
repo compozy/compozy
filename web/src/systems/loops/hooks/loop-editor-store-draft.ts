@@ -1,7 +1,8 @@
 import { editorEdgeId, type EditorEdge, type EditorNode, type RawLoopNode } from "../lib/codec";
+import { setNodeFields } from "../lib/loop-editor-draft";
 import type { PaletteItem } from "../lib/loop-palette";
 import { uniqueNodeId } from "../lib/loop-palette";
-import { removeRouteTargets } from "../lib/loop-editor-route-edges";
+import { reconcileRouteEdges, removeRouteTargets } from "../lib/loop-editor-route-edges";
 
 import {
   createLoopEditorState,
@@ -202,6 +203,21 @@ export const loopEditorDraftTransitions = {
     structuralRevision: current.structuralRevision + 1,
     validationGeneration: current.validationGeneration + 1,
   }),
+  nodeFieldsEdited: (current: LoopEditorState, event: LoopEditorEvents["nodeFieldsEdited"]) => {
+    const nodes = setNodeFields(current.nodes, event.nodeId, event.edits);
+    return {
+      ...current,
+      edges: reconcileRouteEdges(nodes, current.edges, event.nodeId),
+      nodes,
+      isDirty: true,
+      publishError: null,
+      publishFailureKind: null,
+      publishRejectedIssues: [],
+      publishRejectedDockStale: false,
+      structuralRevision: current.structuralRevision + 1,
+      validationGeneration: current.validationGeneration + 1,
+    };
+  },
   nodeRenamed: (current: LoopEditorState, event: LoopEditorEvents["nodeRenamed"]) => ({
     ...current,
     edges: event.edges,

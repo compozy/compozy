@@ -6,13 +6,13 @@ persona: Dora
 journey: J-supervise-agent-terminal
 expected: Every supported terminal transition emits exactly one asynchronous terminal hook carrying the terminal, workspace, profile, actor, run, and command fields owned by that event, while unrelated or reported-only output emits none.
 entry_points: terminal.opened; terminal.closed; terminal.lease_changed; terminal.command_started; terminal.command_finished; terminal.input_requested; terminal.input_provided; terminal.recording_started; terminal.recording_stopped; terminal.subscriber_evicted; terminal.limit_rejected
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: ET-agent-reported-terminal; ET-terminal-agent-handoff-input
 ---
 

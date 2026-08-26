@@ -6,13 +6,13 @@ persona: Rafa
 journey: J-audit-terminal-work
 expected: When the command record cannot be written, the terminal stops accepting new input and new commands with a stated audit reason while existing output stays readable and watchable, and normal operation resumes by itself once the pending records land — no command ever runs unrecorded.
 entry_points: Terminal app while the record store is failing; compozy terminal exec; compozy terminal respond; compozy terminal journal; terminal input answer route; global, workspace, and profile config.toml shell_integration
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: ET-terminal-journal-recording; ET-terminal-redaction-boundaries
 ---
 

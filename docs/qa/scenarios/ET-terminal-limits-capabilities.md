@@ -6,13 +6,13 @@ persona: Dora
 journey: J-administer-terminal-capacity
 expected: Workspace and viewer caps identify the blocking limit and recovery action, while a sandbox workspace exposes execute-only output without interactive controls or claims.
 entry_points: Terminal app; Settings terminal section; sandbox workspace; structured terminal surfaces
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: MS-terminal-config-lifecycle
 ---
 

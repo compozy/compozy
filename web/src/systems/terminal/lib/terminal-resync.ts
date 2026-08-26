@@ -58,10 +58,8 @@ export class TerminalResync {
    * would hand that connection's replay to a buffer this pass is about to
    * discard, and the screen would stay frozen.
    */
-  async idle(): Promise<void> {
-    while (this.task) {
-      await this.task;
-    }
+  idle(): Promise<void> {
+    return this.task ?? Promise.resolve();
   }
 
   /** Runs a catch-up pass, or folds into the one already running. */
@@ -88,17 +86,7 @@ export class TerminalResync {
     // say about the one that replaces it.
     const epoch = this.port.currentEpoch();
     try {
-      do {
-        this.queued = false;
-        await this.rebuild(epoch);
-        if (this.port.isStopped() || epoch !== this.port.currentEpoch()) {
-          // The held tail belongs to a connection that no longer exists, and
-          // none of it was drawn. Dropping it is safe precisely because the
-          // resume point never advanced past it.
-          this.port.gapBuffer.drop();
-          return;
-        }
-      } while (this.queued);
+      if (!(await this.rebuildQueued(epoch))) return;
       this.port.setStatus("connected");
       this.port.setInputEnabled(this.port.mayWrite());
       this.port.onRecovered();
@@ -114,6 +102,18 @@ export class TerminalResync {
     } finally {
       this.running = false;
     }
+  }
+
+  private async rebuildQueued(epoch: number): Promise<boolean> {
+    this.queued = false;
+    await this.rebuild(epoch);
+    if (this.port.isStopped() || epoch !== this.port.currentEpoch()) {
+      // The held tail belongs to a connection that no longer exists, and none
+      // of it was drawn. The committed resume point still precedes that tail.
+      this.port.gapBuffer.drop();
+      return false;
+    }
+    return this.queued ? this.rebuildQueued(epoch) : true;
   }
 
   private async rebuild(epoch: number): Promise<void> {

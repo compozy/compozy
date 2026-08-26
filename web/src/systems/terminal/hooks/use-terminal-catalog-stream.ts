@@ -34,6 +34,15 @@ function defaultEventSourceFactory(url: string): StreamEventSource {
   return createStreamEventSource(url);
 }
 
+function normalizeTerminalProfiles(profiles: readonly string[]): string[] {
+  const normalized = new Set<string>();
+  for (const profile of profiles) {
+    const value = profile.trim();
+    if (value !== "") normalized.add(value);
+  }
+  return [...normalized].sort();
+}
+
 /**
  * Opens one catalog stream for one scope.
  *
@@ -128,9 +137,7 @@ export function useTerminalCatalogStream({
   eventSourceFactory,
 }: UseTerminalCatalogStreamOptions): void {
   const queryClient = useQueryClient();
-  const streamProfiles = allProfiles
-    ? [...new Set(profiles.map(value => value.trim()).filter(Boolean))].sort()
-    : [profileKey];
+  const streamProfiles = allProfiles ? normalizeTerminalProfiles(profiles) : [profileKey];
   const streamProfileSignature = JSON.stringify(streamProfiles);
   const canConnect =
     enabled &&

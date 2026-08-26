@@ -8,6 +8,7 @@ import { terminalLeaseView, type TerminalLeaseView } from "../lib/terminal-lease
 import { terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalPaneState } from "../stores/terminal-store";
 import type { TerminalInfo } from "../types";
+import type { TerminalViewerIdentity } from "../types";
 import {
   useTerminalAttachment,
   type TerminalAttachment,
@@ -20,6 +21,7 @@ export interface UseTerminalWindowConnectionOptions {
   workspaceId: string;
   profile: string;
   viewerId: string | null;
+  viewer?: TerminalViewerIdentity | null;
   readOnly?: boolean;
   socketFactory?: TerminalAttachmentSocketFactory;
 }
@@ -76,6 +78,7 @@ export function useTerminalWindowConnection({
   workspaceId,
   profile,
   viewerId,
+  viewer,
   socketFactory,
   readOnly = false,
 }: UseTerminalWindowConnectionOptions): TerminalWindowConnection {
@@ -115,6 +118,7 @@ export function useTerminalWindowConnection({
     terminalId: terminal.id,
     scope: { profile },
     mode: !readOnly && lease.canType && !releasing ? "write" : "read",
+    viewer,
     handleRef,
     socketFactory,
     restartKey,

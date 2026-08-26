@@ -435,6 +435,46 @@ describe("session timeline derivation", () => {
     expect(permissionRow.part.name).toBe("data-compozy-permission");
   });
 
+  it("Should keep agent-reported terminal evidence outside a settled turn fold", () => {
+    const rows = deriveSessionRows(
+      [
+        tool(1, { turnId: "turn-reported-terminal", timestamp: "2026-08-26T12:00:00Z" }),
+        {
+          kind: "data",
+          id: "reported-terminal-1",
+          name: "data-compozy-event",
+          data: {
+            type: "terminal_output",
+            origin: "agent_reported",
+            text: "12 tests passed\n",
+            reported_terminal: { id: "reported-terminal-1", total_bytes: 16 },
+          },
+          turnId: "turn-reported-terminal",
+          timestamp: "2026-08-26T12:00:04Z",
+          state: "done",
+        },
+        text(
+          "terminal-reported",
+          "The terminal report is complete.",
+          "turn-reported-terminal",
+          "2026-08-26T12:00:05Z"
+        ),
+      ],
+      { foldSettledTurns: true }
+    );
+
+    expect(rows.map(row => row.kind)).toEqual(["turn-fold", "data", "text"]);
+    const [foldRow, reportedRow] = rows;
+    if (foldRow?.kind !== "turn-fold" || reportedRow?.kind !== "data") {
+      throw new Error("expected a fold followed by persistent agent terminal evidence");
+    }
+    expect(foldRow.rows.map(row => row.kind)).toEqual(["work"]);
+    expect(reportedRow.part.data).toMatchObject({
+      origin: "agent_reported",
+      reported_terminal: { id: "reported-terminal-1" },
+    });
+  });
+
   it("Should keep every text segment visible when a permission splits the response", () => {
     const rows = deriveSessionRows(
       [

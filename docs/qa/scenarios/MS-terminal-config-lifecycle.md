@@ -6,13 +6,13 @@ persona: Dora
 journey: J-administer-runtime-settings
 expected: Every `[terminal]` value defaults, validates, layers, and applies to the next terminal operation as documented, while a profile cannot raise the daemon-wide terminal cap.
 entry_points: global, workspace, and profile config.toml [terminal]; structured configuration surfaces after public activation
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
+qa_status: pass
+bug_ids: BUG-20260826-terminal-config-set-unsupported
+fix_status: fixed
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps:
 ---
 

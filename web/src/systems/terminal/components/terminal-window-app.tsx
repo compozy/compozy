@@ -11,7 +11,8 @@ import type { TerminalInfo, TerminalInputRequest } from "../types";
 import { TerminalEmptyState, TerminalExecuteOnlyState } from "./terminal-empty-states";
 import type { TerminalRecordingState } from "./terminal-header";
 import { TerminalLimitDialog } from "./terminal-limit-dialog";
-import { TERMINAL_JOURNAL_TAB, TerminalTabs, type TerminalTabId } from "./terminal-tabs";
+import { TERMINAL_JOURNAL_TAB, type TerminalTabId } from "./terminal-tab-id";
+import { TerminalTabs } from "./terminal-tabs";
 import type { TerminalWindowActions } from "./terminal-window-actions";
 import { TerminalWindowBody } from "./terminal-window-body";
 
@@ -29,6 +30,8 @@ export interface TerminalWindowAppProps {
   profile: string;
   /** This browser's operator identity, exactly as the daemon names it. */
   viewerId: string | null;
+  /** Token proving this browser owns `viewerId`. */
+  viewerToken?: string | null;
   terminals: readonly TerminalInfo[];
   inputRequests: readonly TerminalInputRequest[];
   /** The per-project cap, from `[terminal].max_per_workspace`. */
@@ -44,6 +47,8 @@ export interface TerminalWindowAppProps {
   /** Pipe terminals render captured output rather than a live stream. */
   pipeOutput?: Readonly<Record<string, { lines: readonly string[]; firstLineNumber: number }>>;
   journal: React.ReactNode;
+  /** Refreshes the journal when the operator reveals it. */
+  onViewJournal?: () => void;
   actions: TerminalWindowActions;
   socketFactory?: TerminalAttachmentSocketFactory;
   /** Replaces the emulator. Tests and playback harnesses only. */
@@ -63,6 +68,7 @@ export function TerminalWindowApp({
   workspaceId,
   profile,
   viewerId,
+  viewerToken,
   terminals,
   inputRequests,
   limit,
@@ -73,6 +79,7 @@ export function TerminalWindowApp({
   recordings,
   pipeOutput,
   journal,
+  onViewJournal,
   actions,
   socketFactory,
   engineLoader,
@@ -89,22 +96,26 @@ export function TerminalWindowApp({
       : (terminals[0]?.id ?? null);
   const activeTab = selected ?? TERMINAL_NO_TERMINALS;
   const active = terminals.find(terminal => terminal.id === activeTab) ?? null;
-  const setActiveTab = setSelectedTab;
+  const setActiveTab = (tab: TerminalTabId) => {
+    if (tab === TERMINAL_JOURNAL_TAB) onViewJournal?.();
+    setSelectedTab(tab);
+  };
   const destinationTerminals = terminals.filter(terminal => terminal.profile_name === profile);
   const atLimit = destinationTerminals.length >= limit;
   const store = useTerminalStore();
   const activeProfile = active?.profile_name ?? profile;
   useTerminalScopeCleanup({ workspaceId, profile: activeProfile, terminals, store });
 
-  const openTerminal = actions.onOpenTerminal && !readOnly
-    ? () => {
-        if (atLimit) {
-          setLimitOpen(true);
-          return;
+  const openTerminal =
+    actions.onOpenTerminal && !readOnly
+      ? () => {
+          if (atLimit) {
+            setLimitOpen(true);
+            return;
+          }
+          actions.onOpenTerminal?.();
         }
-        actions.onOpenTerminal?.();
-      }
-    : undefined;
+      : undefined;
 
   if (!interactiveAvailable) {
     return (
@@ -149,6 +160,7 @@ export function TerminalWindowApp({
           socketFactory={socketFactory}
           terminal={active}
           viewerId={viewerId}
+          viewerToken={viewerToken}
           workspaceId={workspaceId}
         />
       )}

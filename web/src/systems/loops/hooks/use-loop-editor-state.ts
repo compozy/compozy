@@ -1,6 +1,7 @@
 import { useSelector, useStore } from "@xstate/store-react";
 
 import type { EditorEdge, EditorNode } from "../lib/codec";
+import type { NodeFieldEdit } from "../lib/loop-editor-draft";
 import type { PaletteItem } from "../lib/loop-palette";
 import type { LoopDefinition, LoopDetail, ValidateLoopResult } from "../types";
 import {
@@ -56,6 +57,8 @@ export function useLoopEditorState() {
       store.trigger.contractFieldChanged({ definition }),
     changeNodeField: (nodes: EditorNode[], edges?: EditorEdge[]) =>
       store.trigger.nodeFieldChanged({ nodes, edges }),
+    editNodeFields: (nodeId: string, edits: NodeFieldEdit[]) =>
+      store.trigger.nodeFieldsEdited({ nodeId, edits }),
     connectNodes: (edges: EditorEdge[]) => store.trigger.connectionCreated({ edges }),
     initialize: (
       definition: LoopDefinition,

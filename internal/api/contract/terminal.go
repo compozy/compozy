@@ -123,7 +123,8 @@ type TerminalCloseRequest struct {
 }
 
 type TerminalAttachTicketRequest struct {
-	Mode string `json:"mode"`
+	Mode     string `json:"mode"`
+	ClientID string `json:"client_id"`
 }
 
 type TerminalExecRequest struct {

@@ -13,6 +13,7 @@ import {
   terminalExitFrameSchema,
   terminalGapFrameSchema,
   terminalOwnerFrameSchema,
+  terminalPresenceFrameSchema,
   terminalResizedFrameSchema,
   terminalTitleFrameSchema,
   type TerminalAttachedFrame,
@@ -20,6 +21,7 @@ import {
   type TerminalExitFrame,
   type TerminalGapFrame,
   type TerminalOwnerFrame,
+  type TerminalPresenceFrame,
   type TerminalResizedFrame,
 } from "./terminal-wire-schema";
 import { TERMINAL_SERVER_OP } from "./terminal-wire";
@@ -28,6 +30,7 @@ import { TERMINAL_SERVER_OP } from "./terminal-wire";
 export interface TerminalControlFrameHandlers {
   onAttached: (frame: TerminalAttachedFrame) => void;
   onOwner: (frame: TerminalOwnerFrame) => void;
+  onPresence: (frame: TerminalPresenceFrame) => void;
   onTitle: (title: string) => void;
   onResized: (frame: TerminalResizedFrame) => void;
   onGap: (frame: TerminalGapFrame) => void;
@@ -47,6 +50,9 @@ export function dispatchTerminalControlFrame(
       return;
     case TERMINAL_SERVER_OP.owner:
       handlers.onOwner(terminalOwnerFrameSchema.parse(payload));
+      return;
+    case TERMINAL_SERVER_OP.presence:
+      handlers.onPresence(terminalPresenceFrameSchema.parse(payload));
       return;
     case TERMINAL_SERVER_OP.title:
       handlers.onTitle(terminalTitleFrameSchema.parse(payload).title);

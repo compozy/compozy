@@ -14,9 +14,14 @@ import type {
   TerminalExitFrame,
   TerminalGapFrame,
   TerminalOwnerFrame,
+  TerminalPresenceFrame,
   TerminalResizedFrame,
 } from "./terminal-wire-schema";
-import type { TerminalAttachMode, TerminalProfileScopeParams } from "../types";
+import type {
+  TerminalAttachMode,
+  TerminalProfileScopeParams,
+  TerminalViewerIdentity,
+} from "../types";
 
 export type TerminalStreamStatus =
   | "idle"
@@ -39,6 +44,7 @@ export interface TerminalStreamHandlers {
   onAttached?(frame: TerminalAttachedFrame): void;
   /** The daemon's word on who holds the lease. The only source there is. */
   onLease?(frame: TerminalOwnerFrame): void;
+  onPresence?(frame: TerminalPresenceFrame): void;
   onTitle?(title: string): void;
   onResized?(frame: TerminalResizedFrame): void;
   onGap?(frame: TerminalGapFrame): void;
@@ -60,6 +66,7 @@ export interface TerminalProtocolClientOptions {
   terminalId: string;
   scope: TerminalProfileScopeParams;
   mode: TerminalAttachMode;
+  viewer?: TerminalViewerIdentity | null;
   sink: TerminalStreamSink;
   handlers?: TerminalStreamHandlers;
   socketFactory?: TerminalSocketFactory;

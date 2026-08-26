@@ -51,8 +51,9 @@ export function usePermissionDock({
     permission,
     onResolved,
   });
+  const blockedDecisionSet = new Set(blockedDecisions);
   const decisionOptions = permissionDecisionOptions(permission).filter(
-    decision => !blockedDecisions.includes(decision)
+    decision => !blockedDecisionSet.has(decision)
   );
 
   const handleDecisionKey = useEffectEvent((event: KeyboardEvent) => {

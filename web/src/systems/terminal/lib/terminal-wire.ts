@@ -18,6 +18,7 @@ export const TERMINAL_SERVER_OP = {
   resized: 0x06,
   gap: 0x07,
   owner: 0x08,
+  presence: 0x09,
 } as const;
 
 export const TERMINAL_CLIENT_OP = {
@@ -27,6 +28,7 @@ export const TERMINAL_CLIENT_OP = {
   signal: 0x04,
   takeover: 0x05,
   detach: 0x06,
+  release: 0x07,
 } as const;
 
 /** 64 KiB per input frame; the daemon rejects anything larger. */
@@ -102,7 +104,7 @@ function parseControlPayload(bytes: Uint8Array): unknown {
 }
 
 function isControlOpcode(op: number): op is TerminalControlOpcode {
-  return op > TERMINAL_SERVER_OP.output && op <= TERMINAL_SERVER_OP.owner;
+  return op > TERMINAL_SERVER_OP.output && op <= TERMINAL_SERVER_OP.presence;
 }
 
 export function encodeTerminalInput(data: string): TerminalFrameBytes {
@@ -163,6 +165,10 @@ export function encodeTerminalTakeover(force: boolean): TerminalFrameBytes {
 
 export function encodeTerminalDetach(): TerminalFrameBytes {
   return prefix(TERMINAL_CLIENT_OP.detach, encoder.encode("{}"));
+}
+
+export function encodeTerminalRelease(): TerminalFrameBytes {
+  return prefix(TERMINAL_CLIENT_OP.release, encoder.encode("{}"));
 }
 
 /** Builds one daemon control frame for contract fixtures and scripted transports. */

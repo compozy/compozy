@@ -14,6 +14,7 @@ import {
 import type {
   PixelRect,
   WindowManagerClientView,
+  WindowManagerRegisteredClientView,
   WindowManagerCommandInput,
   WindowManagerConfig,
   WindowManagerConnectionStatus,
@@ -53,6 +54,7 @@ export abstract class WindowManagerRuntimeCore {
   protected readonly queryClient: QueryClient;
   protected binding: WindowManagerRuntimeBinding | null = null;
   protected client: WindowManagerClientView | null = null;
+  protected clientAttachmentToken: string | null = null;
   protected wallpaper: OsWallpaper = "ember";
   protected reduceMotion = false;
   protected dockMagnify = true;
@@ -167,6 +169,7 @@ export abstract class WindowManagerRuntimeCore {
     this.snapshotRefresher.reset();
     this.binding = { ...binding };
     this.client = null;
+    this.clientAttachmentToken = null;
     this.loadError = null;
     windowManagerStore.trigger.bindingBound({ binding });
     this.publish();
@@ -176,15 +179,17 @@ export abstract class WindowManagerRuntimeCore {
     this.snapshotRefresher.reset();
     this.binding = null;
     this.client = null;
+    this.clientAttachmentToken = null;
     this.loadError = null;
     windowManagerStore.trigger.bindingUnbound();
     this.publish();
   }
 
-  setClient(client: WindowManagerClientView | null): void {
+  setClient(client: WindowManagerClientView | WindowManagerRegisteredClientView | null): void {
     if (client === null) {
-      if (this.client === null) return;
+      if (this.client === null && this.clientAttachmentToken === null) return;
       this.client = null;
+      this.clientAttachmentToken = null;
       this.publish();
       return;
     }
@@ -192,9 +197,16 @@ export abstract class WindowManagerRuntimeCore {
     if (
       binding === null ||
       client.workspaceId !== binding.workspaceId ||
-      client.clientId !== binding.clientId ||
-      (this.client !== null && client.presentationRevision <= this.client.presentationRevision)
+      client.clientId !== binding.clientId
     ) {
+      return;
+    }
+    const previousToken = this.clientAttachmentToken;
+    if ("attachmentToken" in client) {
+      this.clientAttachmentToken = client.attachmentToken;
+    }
+    if (this.client !== null && client.presentationRevision <= this.client.presentationRevision) {
+      if (previousToken !== this.clientAttachmentToken) this.publish();
       return;
     }
     const previous = this.client;

@@ -242,6 +242,14 @@ func renderHumanExecutionError(err error) (string, bool) {
 	if rendered, ok := renderProfileExecutionError(err); ok {
 		return rendered, true
 	}
+	var terminalErr *terminalpkg.Error
+	if errors.As(err, &terminalErr) && strings.TrimSpace(terminalErr.Code) != "" {
+		message := strings.TrimSpace(terminalErr.Error())
+		if message == "" || message == terminalErr.Code {
+			return "error: " + terminalErr.Code, true
+		}
+		return "error: " + terminalErr.Code + " — " + message, true
+	}
 	item, ok := diagnosticspkg.ItemFromError(err)
 	if !ok {
 		return "", false
@@ -309,6 +317,12 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 		errorPayload() contract.ErrorPayload
 	}](err); ok {
 		return marshalDaemonAPIExecutionError(args, apiErr.errorPayload())
+	}
+	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok {
+		return marshalDaemonAPIExecutionError(args, contract.ErrorPayload{
+			Error: terminalErr.Error(),
+			Code:  terminalErr.Code,
+		})
 	}
 	if !isStructuredAgentCommandError(err) {
 		return marshalDiagnosticExecutionError(args, err)

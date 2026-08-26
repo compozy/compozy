@@ -53,8 +53,10 @@ function permissionToolInput(raw: Record<string, unknown> | undefined): Record<s
 
 export function toPermissionRequest(data: CompozyPermissionData): PermissionRequest {
   const raw = data.raw;
+  const toolId = typeof raw?.tool_id === "string" ? raw.tool_id.trim() : "";
   return {
     requestId: data.request_id,
+    ...(toolId ? { toolId } : {}),
     toolName: data.title ?? "unknown",
     toolInput: permissionToolInput(raw),
     action: data.action ?? "",

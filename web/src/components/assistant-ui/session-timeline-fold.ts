@@ -6,6 +6,7 @@
 
 import { formatDuration } from "@compozy/ui";
 
+import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import {
   type DeriveSessionRowsOptions,
@@ -133,11 +134,17 @@ function foldTurnGroup(
   return visibleRows;
 }
 
-// Text and permission rows remain operator-visible after a turn settles; they
-// are transcript content and audit surfaces, not transient reasoning or tool work.
+// Text, permission, and agent-reported terminal rows remain operator-visible
+// after a turn settles; they are transcript content and audit surfaces, not
+// transient reasoning or tool work.
 function isPersistentTurnRow(row: SessionRow): boolean {
   return (
-    row.kind === "text" || (row.kind === "data" && row.part.name === "data-compozy-permission")
+    row.kind === "text" ||
+    (row.kind === "data" &&
+      (row.part.name === "data-compozy-permission" ||
+        (row.part.name === "data-compozy-event" &&
+          isAgentEventPayload(row.part.data) &&
+          row.part.data.origin === "agent_reported")))
   );
 }
 

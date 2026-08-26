@@ -15,7 +15,12 @@ import {
   teardownHostedMcp,
   type HostedMcpConnection,
 } from "../fixtures/hosted-mcp";
-import { openAppWindow, sessionWindow } from "../fixtures/os-navigation";
+import {
+  ensureAppWindow,
+  openAppWindow,
+  sessionWindow,
+  windowFrame,
+} from "../fixtures/os-navigation";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { profilesOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
@@ -68,7 +73,13 @@ function readToolResult<T>(result: Awaited<ReturnType<Client["callTool"]>>): T {
   if (structured && typeof structured === "object") return structured as T;
   for (const block of Array.isArray(result.content) ? result.content : []) {
     if (block.type === "text" && typeof block.text === "string") {
-      return JSON.parse(block.text) as T;
+      try {
+        return JSON.parse(block.text) as T;
+      } catch (error) {
+        throw new Error(`Terminal tool call returned non-JSON text: ${block.text}`, {
+          cause: error,
+        });
+      }
     }
   }
   throw new Error("Terminal tool call returned no structured content.");
@@ -77,6 +88,7 @@ function readToolResult<T>(result: Awaited<ReturnType<Client["callTool"]>>): T {
 async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promise<AgentHarness> {
   assertLaunchRuntime(runtime);
   await completeOnboardingIfPrompted(appPage);
+  await ensureProjectWorkspace(appPage, runtime);
   const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
   const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
     method: "POST",
@@ -100,10 +112,15 @@ async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promis
   return { client: connection.client, connection, sessionId, sessionUI, sessionWin, workspace };
 }
 
-async function approveOnce(sessionUI: ReturnType<typeof sessionWindowSelectors>): Promise<void> {
-  await expect(sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-  await sessionUI.permissionAllowOnce.click();
-  await expect(sessionUI.permissionPrompt).toBeHidden();
+async function approveOnce(harness: AgentHarness, appPage: Page): Promise<void> {
+  await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
+  const frame = windowFrame(harness.sessionWin);
+  if ((await frame.getAttribute("data-focused")) === null) {
+    await appPage.getByRole("button", { name: "Sessions", exact: true }).click();
+  }
+  await expect(frame).toHaveAttribute("data-focused", "");
+  await harness.sessionUI.permissionAllowOnce.click();
+  await expect(harness.sessionUI.permissionPrompt).toBeHidden();
 }
 
 async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<void> {
@@ -123,19 +140,64 @@ async function stopHoldingTurn(harness: AgentHarness, appPage: Page): Promise<vo
   await appPage.keyboard.press("Escape");
 }
 
-async function selectTerminalOutput(page: Page, window: Locator): Promise<void> {
-  const rows = window.locator(".xterm-rows > div");
-  const first = rows.filter({ hasText: "quote-alpha" }).first();
-  const second = rows.filter({ hasText: "quote-beta" }).first();
-  await expect(first).toBeVisible({ timeout: 20_000 });
-  await expect(second).toBeVisible();
-  const from = await first.boundingBox();
-  const to = await second.boundingBox();
-  if (!from || !to) throw new Error("Terminal quote rows have no layout box.");
-  await page.mouse.move(from.x + 4, from.y + from.height / 2);
+async function selectTerminalOutput(
+  page: Page,
+  window: Locator,
+  screenContent: string
+): Promise<void> {
+  const lines = screenContent.split(/\r?\n/u);
+  const firstRow = lines.findIndex(line => line.includes("quote-alpha"));
+  const secondRow = lines.findIndex(line => line.includes("quote-beta"));
+  if (firstRow < 0 || secondRow < 0) throw new Error("Terminal quote rows are absent from screen.");
+  const firstColumn = lines[firstRow]!.indexOf("quote-alpha");
+  const secondColumn = lines[secondRow]!.indexOf("quote-beta") + "quote-beta".length;
+  const grid = await window.getByTestId("terminal-grid-chip").innerText();
+  const dimensions = /^(\d+)×(\d+)$/u.exec(grid.trim());
+  if (!dimensions) throw new Error(`Unexpected terminal grid dimensions: ${grid}`);
+  const columns = Number(dimensions[1]);
+  const rows = Number(dimensions[2]);
+  const screen = window.locator(".xterm-screen");
+  await expect(screen).toBeVisible({ timeout: 20_000 });
+  const box = await screen.boundingBox();
+  if (!box) throw new Error("Terminal screen has no layout box.");
+  const cellWidth = box.width / columns;
+  const cellHeight = box.height / rows;
+  await page.mouse.move(
+    box.x + (firstColumn + 0.5) * cellWidth,
+    box.y + (firstRow + 0.5) * cellHeight
+  );
   await page.mouse.down();
-  await page.mouse.move(to.x + Math.max(24, to.width / 2), to.y + to.height / 2, { steps: 8 });
+  await page.mouse.move(
+    box.x + (secondColumn + 0.5) * cellWidth,
+    box.y + (secondRow + 0.5) * cellHeight,
+    { steps: 8 }
+  );
   await page.mouse.up();
+}
+
+async function takeTerminalControl(window: Locator): Promise<void> {
+  await expect(async () => {
+    const log = window.locator('[role="log"]:visible').last();
+    if ((await log.getAttribute("data-readonly")) === "true") {
+      const takeControl = window.getByTestId("terminal-take-control").last();
+      await expect(takeControl).toBeVisible();
+      await takeControl.click();
+    }
+    await expect(log).not.toHaveAttribute("data-readonly", "true");
+  }).toPass({ timeout: 20_000 });
+}
+
+async function ensureTerminalWindow(page: Page): Promise<Locator> {
+  const terminalWindow = await ensureAppWindow(page, "Terminal", "terminal");
+  const frame = windowFrame(terminalWindow);
+  if ((await frame.getAttribute("data-focused")) === null) {
+    await expect(page.getByText("Layout reconnecting", { exact: true })).toBeHidden({
+      timeout: 20_000,
+    });
+    await page.getByRole("button", { name: "Terminal", exact: true }).click();
+    await expect(frame).toHaveAttribute("data-focused", "");
+  }
+  return terminalWindow;
 }
 
 async function openAgentTerminal(
@@ -148,7 +210,7 @@ async function openAgentTerminal(
     arguments: { title, ...extra },
     _meta: { toolCallId: `e2e-open-${title}` },
   });
-  await approveOnce(harness.sessionUI);
+  await approveOnce(harness, harness.sessionWin.page());
   const result = await pending;
   expect(result.isError).toBeFalsy();
   return readToolResult<TerminalToolResult>(result).terminal_id;
@@ -240,8 +302,9 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     });
     activeCall = pending;
     await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-    await expect(harness.sessionWin.getByTestId("terminal-approval-command")).toContainText(
-      command
+    const exactApproval = String.raw`/bin/sh -c 'printf '\''agent-live-1\n'\''; sleep 2; printf '\''agent-live-2\n'\'''`;
+    await expect(harness.sessionWin.getByTestId("terminal-approval-command")).toHaveText(
+      exactApproval
     );
 
     await harness.sessionWin.getByRole("button", { name: "Close window" }).click();
@@ -252,7 +315,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${harness.sessionId}`), {
       waitUntil: "domcontentloaded",
     });
-    await approveOnce(harness.sessionUI);
+    await approveOnce(harness, appPage);
 
     const callResult = await pending;
     activeCall = undefined;
@@ -262,7 +325,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const terminalId = execution.terminal_id;
 
     await ensureProjectWorkspace(appPage, runtime);
-    const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
     await expect(terminalWindow.getByTestId(`terminal-tab-${terminalId}`)).toBeVisible();
     await expect
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
@@ -372,7 +435,7 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
     await chmod(promptShell, 0o700);
     const terminalId = await openAgentTerminal(harness, "hidden-input", { shell: promptShell });
     await ensureProjectWorkspace(appPage, runtime);
-    const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
 
     const pending = harness.client.callTool({
       name: "compozy__terminal_request_input",
@@ -385,7 +448,8 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
       _meta: { toolCallId: "e2e-terminal-hidden-input" },
     });
     activeCall = pending;
-    await approveOnce(harness.sessionUI);
+    await approveOnce(harness, appPage);
+    terminalWindow = await ensureTerminalWindow(appPage);
     const card = terminalWindow.locator('[data-testid^="terminal-input-request-"]').first();
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(card).toContainText("Password:");
@@ -405,8 +469,6 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
       secret
     );
 
-    await terminalWindow.getByTestId("terminal-take-control").click();
-    await expect(terminalWindow.getByTestId("terminal-release-control")).toBeVisible();
     const rejectedCall = harness.client.callTool({
       name: "compozy__terminal_request_input",
       arguments: {
@@ -418,7 +480,8 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
       _meta: { toolCallId: "e2e-terminal-reject-input" },
     });
     activeCall = rejectedCall;
-    await approveOnce(harness.sessionUI);
+    await approveOnce(harness, appPage);
+    terminalWindow = await ensureTerminalWindow(appPage);
     const rejectCard = terminalWindow.locator('[data-testid^="terminal-input-request-"]').first();
     await expect(rejectCard).toContainText("Continue?");
     await rejectCard.getByRole("button", { name: "Decline" }).click();
@@ -503,25 +566,24 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
       .toContain("quote-beta");
 
-    await selectTerminalOutput(appPage, terminalWindow);
+    const quoteScreen = await terminalScreen(runtime, harness.workspace.id, terminalId);
+    await selectTerminalOutput(appPage, terminalWindow, quoteScreen.content);
     const actions = terminalWindow.getByTestId("terminal-selection-actions");
     await expect(actions).toBeVisible();
     await actions.getByRole("button", { name: "Send to conversation" }).click();
     await expect(harness.sessionWin).toBeVisible();
-    await expect(harness.sessionUI.composerTextarea).toHaveValue(
+    await expect(harness.sessionUI.composerTextarea).toContainText(
       new RegExp(`<terminal_context terminal="${terminalId}"`, "u")
     );
-    await expect(harness.sessionUI.composerTextarea).toHaveValue(/quote-alpha/u);
-    await expect(harness.sessionUI.composerTextarea).toHaveValue(/quote-beta/u);
+    await expect(harness.sessionUI.composerTextarea).toContainText(/quote-alpha/u);
+    await expect(harness.sessionUI.composerTextarea).toContainText(/quote-beta/u);
     await harness.sessionUI.composerTextarea.press("Enter");
     await expect(harness.sessionWin).toContainText("I received the sourced terminal excerpt.", {
       timeout: 20_000,
     });
 
     await harness.sessionWin.getByRole("button", { name: "Close window" }).click();
-    await terminalWindow.getByRole("log").click();
-    await appPage.keyboard.press("Escape");
-    await selectTerminalOutput(appPage, terminalWindow);
+    await expect(harness.sessionWin).toBeHidden();
     const fallback = terminalWindow.getByTestId("terminal-selection-actions-no-session");
     await expect(fallback.getByRole("button", { name: "Choose a session…" })).toBeVisible();
     await expect(fallback.getByRole("button", { name: "Copy" })).toBeVisible();
@@ -542,23 +604,40 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
       name: "compozy__terminal_exec",
       arguments: {
         command: "/bin/sh",
-        args: ["-c", "printf 'profile-default-row\\n'; sleep 90"],
+        args: ["-c", "printf 'profile-default-row\\n'; sleep 1"],
         visible: true,
         yield_ms: 250,
       },
       _meta: { toolCallId: "e2e-profile-default-exec" },
     });
     activeCall = executionCall;
-    await approveOnce(harness.sessionUI);
+    await approveOnce(harness, appPage);
     const execution = readToolResult<TerminalToolResult>(await executionCall);
     activeCall = undefined;
     expect(execution).toMatchObject({ still_running: true });
     const defaultTerminalId = execution.terminal_id;
+    await expect
+      .poll(
+        async () => (await terminalScreen(runtime, harness.workspace.id, defaultTerminalId)).content
+      )
+      .toContain("profile-default-row");
+    await expect
+      .poll(async () => {
+        const journal = await runtime.requestJSON<{
+          entries: Array<{ terminal_id: string | null }>;
+        }>(
+          `/api/workspaces/${encodeURIComponent(harness.workspace.id)}/terminals/journal?profile=default`
+        );
+        return journal.entries.some(entry => entry.terminal_id === defaultTerminalId);
+      })
+      .toBe(true);
+
+    const inputTerminalId = await openAgentTerminal(harness, "profile-default-input");
 
     const inputCall = harness.client.callTool({
       name: "compozy__terminal_request_input",
       arguments: {
-        terminal_id: defaultTerminalId,
+        terminal_id: inputTerminalId,
         reason: "profile-scoped confirmation",
         prompt_excerpt: "Default profile input:",
         redact: false,
@@ -566,14 +645,14 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
       _meta: { toolCallId: "e2e-profile-default-input" },
     });
     activeCall = inputCall;
-    await approveOnce(harness.sessionUI);
+    await approveOnce(harness, appPage);
 
     await ensureProjectWorkspace(appPage, runtime);
-    const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
     const terminalLauncher = appPage.locator('[data-slot="os-dock-item"][data-app="terminal"]');
-    await expect(terminalWindow.getByTestId(`terminal-tab-${defaultTerminalId}`)).toBeVisible();
+    await expect(terminalWindow.getByTestId(`terminal-tab-${inputTerminalId}`)).toBeVisible();
     await expect(
-      terminalWindow.getByTestId(`terminal-tab-attention-${defaultTerminalId}`)
+      terminalWindow.getByTestId(`terminal-tab-attention-${inputTerminalId}`)
     ).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
 
@@ -587,6 +666,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.createConfirm.click();
     expect((await createdProfile).ok()).toBe(true);
     await expect(profiles.switcher).toContainText("terminal-b");
+    terminalWindow = await ensureTerminalWindow(appPage);
     await expect(terminalWindow.getByTestId(`terminal-tab-${defaultTerminalId}`)).toHaveCount(0);
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveCount(0);
 
@@ -598,6 +678,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
       ""
     );
     if (!profileBTerminalId) throw new Error("terminal-b did not expose its terminal id.");
+    await takeTerminalControl(terminalWindow);
     await terminalWindow.getByRole("log").click();
     await appPage.keyboard.type("printf 'profile-terminal-b-row\\n'");
     await appPage.keyboard.press("Enter");
@@ -619,9 +700,10 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcher.click();
     await profiles.switcherOption("default").click();
     await expect(profiles.switcher).toContainText("default");
-    await expect(terminalWindow.getByTestId(`terminal-tab-${defaultTerminalId}`)).toBeVisible();
+    terminalWindow = await ensureTerminalWindow(appPage);
+    await expect(terminalWindow.getByTestId(`terminal-tab-${inputTerminalId}`)).toBeVisible();
     await expect(
-      terminalWindow.getByTestId(`terminal-tab-attention-${defaultTerminalId}`)
+      terminalWindow.getByTestId(`terminal-tab-attention-${inputTerminalId}`)
     ).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
     expect(
@@ -631,17 +713,20 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcher.click();
     await profiles.switcherAll.click();
     await expect(profiles.switcher).toContainText("All profiles");
+    terminalWindow = await ensureTerminalWindow(appPage);
     await expect(terminalWindow.getByTestId("terminal-tab-journal")).toBeVisible();
     await terminalWindow.getByTestId("terminal-tab-journal").click();
     const aggregateJournal = terminalWindow.getByTestId("terminal-journal");
     await expect(aggregateJournal).toContainText("profile-default-row");
     await expect(aggregateJournal).toContainText("profile-terminal-b-row");
     const ownerTags = aggregateJournal.getByTestId(/^terminal-journal-owner-/);
-    await expect(ownerTags.filter({ hasText: "default" })).toBeVisible();
-    await expect(ownerTags.filter({ hasText: "terminal-b" })).toBeVisible();
+    await expect(ownerTags.filter({ hasText: "default" }).first()).toBeVisible();
+    await expect(ownerTags.filter({ hasText: "terminal-b" }).first()).toBeVisible();
 
     await profiles.switcher.click();
     await profiles.switcherOption("default").click();
+    terminalWindow = await ensureTerminalWindow(appPage);
+    await terminalWindow.getByTestId(`terminal-tab-select-${inputTerminalId}`).click();
     const inputCard = terminalWindow.locator('[data-testid^="terminal-input-request-"]').first();
     await expect(inputCard).toBeVisible();
     await inputCard.getByRole("button", { name: "Decline" }).click();

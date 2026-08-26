@@ -6,13 +6,13 @@ persona: Dora
 journey: J-operate-terminal-windows
 expected: A local Windows workspace exposes the same interactive terminal controls and lifecycle as macOS and Linux, while a sandbox workspace remains execute-only.
 entry_points: Terminal app; terminal CLI; local Windows workspace; sandbox workspace
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked-verify
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: ET-terminal-limits-capabilities
 ---
 

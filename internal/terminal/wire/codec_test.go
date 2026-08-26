@@ -22,7 +22,7 @@ func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 		}{
 			{ServerOpOutput, 0x01}, {ServerOpAttached, 0x02}, {ServerOpExit, 0x03},
 			{ServerOpError, 0x04}, {ServerOpTitle, 0x05}, {ServerOpResized, 0x06},
-			{ServerOpGap, 0x07}, {ServerOpOwner, 0x08},
+			{ServerOpGap, 0x07}, {ServerOpOwner, 0x08}, {ServerOpPresence, 0x09},
 		} {
 			opcode := fixture.opcode
 			if opcode != fixture.value {
@@ -54,6 +54,7 @@ func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 		}{
 			{ClientOpInput, 0x01}, {ClientOpAck, 0x02}, {ClientOpResize, 0x03},
 			{ClientOpSignal, 0x04}, {ClientOpTakeover, 0x05}, {ClientOpDetach, 0x06},
+			{ClientOpRelease, 0x07},
 		} {
 			opcode := fixture.opcode
 			if opcode != fixture.value {

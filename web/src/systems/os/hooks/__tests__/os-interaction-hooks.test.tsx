@@ -194,6 +194,7 @@ function createShell({ live = true, authoritative = true, withPeer = true } = {}
   const state: OsDesktopRuntimeStore = {
     snapshot: authoritative ? SNAPSHOT : null,
     windowManagerConfig: authoritative ? CONFIG : null,
+    clientAttachmentToken: null,
     client: authoritative
       ? {
           workspaceId: "workspace:test",

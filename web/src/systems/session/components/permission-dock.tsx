@@ -38,7 +38,10 @@ export function PermissionDock({
     useRejectMenuElements();
   // The runtime classification governs both the visible actions and keyboard
   // shortcuts. A hidden remembered decision must not remain reachable by key.
-  const terminalDetail = terminalPermissionDetail(permission.toolName, permission.toolInput);
+  const terminalDetail = terminalPermissionDetail(
+    permission.toolId ?? permission.toolName,
+    permission.toolInput
+  );
   const blockedDecisions =
     terminalDetail?.kind === "exec" && terminalDetail.risk !== "ordinary"
       ? (["allow-always"] as const)

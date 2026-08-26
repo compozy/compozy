@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	cryptorand "crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,13 +27,6 @@ type terminalServerRead struct {
 	err   error
 }
 
-type terminalClientPermanentError struct {
-	err error
-}
-
-func (e *terminalClientPermanentError) Error() string { return e.err.Error() }
-func (e *terminalClientPermanentError) Unwrap() error { return e.err }
-
 func (c *daemonClient) AttachTerminal(
 	ctx context.Context,
 	workspace, id string,
@@ -49,7 +41,7 @@ func (c *daemonClient) AttachTerminal(
 		options.Takeover = false
 	}
 	var inputReads <-chan terminalInputRead
-	if options.Mode == terminalStreamModeWrite && input != nil {
+	if input != nil {
 		inputReads = terminalInputReads(ctx, input)
 	}
 	for attempt := 0; ; attempt++ {
@@ -81,7 +73,7 @@ func (c *daemonClient) takeoverTerminal(
 		}
 	}
 	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, TerminalAttachOptions{
+	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, TerminalAttachOptions{
 		Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop,
 	})
 	if err != nil {
@@ -166,7 +158,7 @@ func (c *daemonClient) attachTerminalOnce(
 		}
 	}
 	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, options)
+	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, options)
 	if err != nil {
 		return options.AfterSeq, err
 	}
@@ -186,7 +178,14 @@ func (c *daemonClient) attachTerminalOnce(
 			returnErr = errors.Join(returnErr, fmt.Errorf("cli: close terminal stream: %w", closeErr))
 		}
 	}()
-	return runTerminalClientStreamWithInput(ctx, conn, inputReads, output, options.AfterSeq)
+	return runTerminalClientStreamWithInput(
+		ctx,
+		conn,
+		inputReads,
+		output,
+		options.AfterSeq,
+		options.Mode == terminalStreamModeWrite,
+	)
 }
 
 func (c *daemonClient) mintTerminalTicket(ctx context.Context, workspace, id, mode string) (string, error) {
@@ -211,6 +210,7 @@ func (c *daemonClient) mintTerminalTicket(ctx context.Context, workspace, id, mo
 }
 
 func (c *daemonClient) terminalStreamTarget(
+	ctx context.Context,
 	workspace, id, ticket string,
 	options TerminalAttachOptions,
 ) (string, http.Header, error) {
@@ -219,6 +219,7 @@ func (c *daemonClient) terminalStreamTarget(
 		return "", nil, terminalPermanentError(err)
 	}
 	query := url.Values{terminalModeKey: {options.Mode}, "flow": {options.Flow}}
+	query = profileQueryValues(ctx, query)
 	if ticket != "" {
 		query.Set("ticket", ticket)
 	}
@@ -254,10 +255,17 @@ func runTerminalClientStream(
 	output io.Writer,
 ) error {
 	var inputReads <-chan terminalInputRead
-	if mode == terminalStreamModeWrite && input != nil {
+	if input != nil {
 		inputReads = terminalInputReads(ctx, input)
 	}
-	_, err := runTerminalClientStreamWithInput(ctx, conn, inputReads, output, 0)
+	_, err := runTerminalClientStreamWithInput(
+		ctx,
+		conn,
+		inputReads,
+		output,
+		0,
+		mode == terminalStreamModeWrite,
+	)
 	return err
 }
 
@@ -267,13 +275,16 @@ func runTerminalClientStreamWithInput(
 	inputReads <-chan terminalInputRead,
 	output io.Writer,
 	afterSeq uint64,
+	forwardInput bool,
 ) (resultSeq uint64, returnErr error) {
 	streamCtx, cancel := context.WithCancel(ctx)
 	var writes sync.Mutex
 	inputDone := make(chan error, 1)
 	inputFinished := false
 	if inputReads != nil {
-		go func() { inputDone <- copyTerminalInput(streamCtx, conn, &writes, inputReads) }()
+		go func() {
+			inputDone <- copyTerminalInput(streamCtx, conn, &writes, inputReads, forwardInput)
+		}()
 	} else {
 		inputDone = nil
 	}
@@ -348,150 +359,4 @@ func (c *daemonClient) terminalWebSocketDialer() websocket.Dialer {
 		}
 	}
 	return dialer
-}
-
-func readTerminalServerFrame(conn *websocket.Conn) (terminalwire.Frame, error) {
-	messageType, encoded, err := conn.ReadMessage()
-	if err != nil {
-		return terminalwire.Frame{}, err
-	}
-	if messageType != websocket.BinaryMessage {
-		return terminalwire.Frame{}, terminalPermanentError(errors.New("cli: terminal server sent a non-binary frame"))
-	}
-	frame, err := terminalwire.DecodeServer(encoded)
-	if err != nil {
-		return terminalwire.Frame{}, terminalPermanentError(err)
-	}
-	return frame, nil
-}
-
-func handleTerminalServerFrame(
-	conn *websocket.Conn,
-	writes *sync.Mutex,
-	output io.Writer,
-	frame terminalwire.Frame,
-	ackPending *int,
-	afterSeq *uint64,
-	attachedSeq *uint64,
-) (bool, error) {
-	switch frame.Op {
-	case terminalwire.ServerOpOutput:
-		written := len(frame.Payload)
-		if output != nil {
-			var err error
-			written, err = output.Write(frame.Payload)
-			if err != nil {
-				return false, terminalPermanentError(fmt.Errorf("cli: write terminal output: %w", err))
-			}
-			if written != len(frame.Payload) {
-				return false, terminalPermanentError(fmt.Errorf("cli: write terminal output: %w", io.ErrShortWrite))
-			}
-		}
-		*ackPending += written
-		for *ackPending >= terminalwire.AckGrainBytes {
-			if err := writeTerminalClientFrame(
-				conn,
-				writes,
-				terminalwire.NewACK(terminalwire.AckGrainBytes),
-			); err != nil {
-				return false, err
-			}
-			*ackPending -= terminalwire.AckGrainBytes
-		}
-		if *attachedSeq > 0 {
-			*afterSeq = max(*afterSeq, *attachedSeq)
-			*attachedSeq = 0
-		} else {
-			*afterSeq = max(*afterSeq, frame.Seq+uint64(written))
-		}
-	case terminalwire.ServerOpAttached:
-		var payload struct {
-			Seq uint64 `json:"seq"`
-		}
-		if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-			return false, terminalPermanentError(fmt.Errorf("cli: decode ATTACHED frame: %w", err))
-		}
-		if payload.Seq > *afterSeq {
-			*attachedSeq = payload.Seq
-		}
-	case terminalwire.ServerOpGap:
-		var payload struct {
-			ToSeq uint64 `json:"to_seq"`
-		}
-		if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-			return false, terminalPermanentError(fmt.Errorf("cli: decode GAP frame: %w", err))
-		}
-		*afterSeq = max(*afterSeq, payload.ToSeq)
-	case terminalwire.ServerOpExit:
-		return true, nil
-	case terminalwire.ServerOpError:
-		return false, terminalPermanentError(fmt.Errorf("cli: terminal stream error: %s", frame.Payload))
-	}
-	return false, nil
-}
-
-func writeTerminalClientFrame(conn *websocket.Conn, writes *sync.Mutex, frame terminalwire.Frame) error {
-	encoded, err := terminalwire.EncodeClient(frame)
-	if err != nil {
-		return terminalPermanentError(err)
-	}
-	writes.Lock()
-	defer writes.Unlock()
-	if err := conn.WriteMessage(websocket.BinaryMessage, encoded); err != nil {
-		return fmt.Errorf("cli: write terminal frame: %w", err)
-	}
-	return nil
-}
-
-func terminalReconnectDelay(attempt int) time.Duration {
-	base := 500 * time.Millisecond * time.Duration(1<<min(attempt, 4))
-	base = min(base, 8*time.Second)
-	var random [1]byte
-	if _, err := cryptorand.Read(random[:]); err != nil {
-		return base
-	}
-	return base + time.Duration(random[0])*time.Millisecond
-}
-
-func terminalPermanentError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return &terminalClientPermanentError{err: err}
-}
-
-func terminalReconnectableError(err error) bool {
-	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-		return false
-	}
-	var permanent *terminalClientPermanentError
-	if errors.As(err, &permanent) {
-		return false
-	}
-	var profileErr *profileCommandError
-	if errors.As(err, &profileErr) {
-		return false
-	}
-	var apiErr *daemonAPIError
-	if errors.As(err, &apiErr) {
-		return apiErr.statusCode >= http.StatusInternalServerError
-	}
-	var gatewayErr *gatewayClientError
-	if errors.As(err, &gatewayErr) {
-		return true
-	}
-	var closeErr *websocket.CloseError
-	if errors.As(err, &closeErr) {
-		switch closeErr.Code {
-		case websocket.CloseGoingAway,
-			websocket.CloseAbnormalClosure,
-			websocket.CloseInternalServerErr,
-			websocket.CloseServiceRestart,
-			websocket.CloseTryAgainLater:
-			return true
-		default:
-			return false
-		}
-	}
-	return true
 }

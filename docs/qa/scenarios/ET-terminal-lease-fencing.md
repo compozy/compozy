@@ -6,13 +6,13 @@ persona: Marina
 journey: J-supervise-agent-terminal
 expected: A terminal has exactly one writer at every instant; a human takeover lands atomically and the agent is told rather than starved; a non-controller write is refused instead of queued for a later prompt; and a stale agent from before a run end or runtime restart changes nothing at all.
 entry_points: Terminal app header take-control and release; compozy terminal attach --control and --force; compozy__terminal_claim; compozy__terminal_write; compozy__terminal_yield; terminal lease events
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: ET-terminal-agent-handoff-input; ET-terminal-hook-events
 ---
 

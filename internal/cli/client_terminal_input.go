@@ -53,6 +53,7 @@ func copyTerminalInput(
 	conn *websocket.Conn,
 	writes *sync.Mutex,
 	reads <-chan terminalInputRead,
+	forwardInput bool,
 ) error {
 	var timer *time.Timer
 	var timeout <-chan time.Time
@@ -84,18 +85,22 @@ func copyTerminalInput(
 					continue
 				}
 				if pendingDetach {
-					payload = append(payload, terminalDetachByte)
+					if forwardInput {
+						payload = append(payload, terminalDetachByte)
+					}
 					pendingDetach = false
 					stopTerminalDetachTimer(timer)
 					timeout = nil
 				}
-				payload = append(payload, value)
+				if forwardInput {
+					payload = append(payload, value)
+				}
 			}
 			if err := writeTerminalInputFrame(conn, writes, payload); err != nil {
 				return err
 			}
 			if read.err != nil {
-				if pendingDetach {
+				if pendingDetach && forwardInput {
 					if err := writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte}); err != nil {
 						return err
 					}
@@ -111,8 +116,10 @@ func copyTerminalInput(
 		case <-timeout:
 			pendingDetach = false
 			timeout = nil
-			if err := writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte}); err != nil {
-				return err
+			if forwardInput {
+				if err := writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte}); err != nil {
+					return err
+				}
 			}
 		case <-ctx.Done():
 			return ctx.Err()

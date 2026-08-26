@@ -136,20 +136,23 @@ export class WindowManagerRuntime extends WindowManagerSnapRuntime implements Os
   protected buildView(): OsDesktopRuntimeStore {
     const { seamPreview, connectionStatus, workArea, routeIntents } =
       windowManagerStore.getSnapshot().context;
-    return buildOsDesktopRuntimeView({
-      snapshot: this.snapshot(),
-      globalConfig: this.config(),
-      client: this.client,
-      workArea: this.workArea(),
-      workAreaOrigin: workArea?.origin ?? { x: 0, y: 0 },
-      seamPreview,
-      routeIntents,
-      connectionStatus,
-      loadError: this.currentLoadError(),
-      wallpaper: this.wallpaper,
-      reduceMotion: this.reduceMotion,
-      dockMagnify: this.dockMagnify,
-    });
+    return {
+      ...buildOsDesktopRuntimeView({
+        snapshot: this.snapshot(),
+        globalConfig: this.config(),
+        client: this.client,
+        workArea: this.workArea(),
+        workAreaOrigin: workArea?.origin ?? { x: 0, y: 0 },
+        seamPreview,
+        routeIntents,
+        connectionStatus,
+        loadError: this.currentLoadError(),
+        wallpaper: this.wallpaper,
+        reduceMotion: this.reduceMotion,
+        dockMagnify: this.dockMagnify,
+      }),
+      clientAttachmentToken: this.clientAttachmentToken,
+    };
   }
 
   openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome =>

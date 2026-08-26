@@ -71,6 +71,11 @@ export interface TerminalAttachTicket {
   expires_at: string;
 }
 
+export interface TerminalViewerIdentity {
+  id: string;
+  attachmentToken: string;
+}
+
 export type TerminalAttachMode = "read" | "write";
 
 /** Watchers drop frames they cannot keep up with; writers return credit. */

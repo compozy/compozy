@@ -111,7 +111,7 @@ describe("TerminalInputRequestCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("y");
   });
 
-  it("Should offer a watcher one gesture that takes control and sends", () => {
+  it("Should let a watcher answer with takeover or decline without taking control", () => {
     render(
       <TerminalInputRequestCard
         canAnswerDirectly={false}
@@ -124,10 +124,9 @@ describe("TerminalInputRequestCard", () => {
     expect(
       screen.getByTestId(`terminal-input-request-send-${PASSWORD_REQUEST.id}`)
     ).toHaveTextContent("Take control & send");
-    // Declining needs the keyboard too, so a watcher is not offered it in place.
     expect(
-      screen.queryByTestId(`terminal-input-request-decline-${PASSWORD_REQUEST.id}`)
-    ).not.toBeInTheDocument();
+      screen.getByTestId(`terminal-input-request-decline-${PASSWORD_REQUEST.id}`)
+    ).toHaveTextContent("Decline");
   });
 
   it("Should let the controller decline without answering", async () => {

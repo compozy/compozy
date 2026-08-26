@@ -6,13 +6,13 @@ persona: Marina
 journey: J-use-terminal-desktop
 expected: The packaged desktop admits only its same-origin terminal socket and preserves native clipboard, accelerator resolution, zoom refit, CJK input, alternate-screen rendering, resize reflow, watcher equality, and primary-screen restoration.
 entry_points: packaged desktop Terminal app; native Edit menu; desktop zoom controls
-qa_status: untested
+qa_status: blocked-verify
 bug_ids:
 fix_status:
-retest_status:
+retest_status: blocked-verify
 fix_commits:
-evidence:
-last_report:
+evidence: docs/qa/reports/2026-08-26-integrated-terminal.md
+last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
 overlaps: APP-desktop-native-edit-shortcuts; APP-desktop-page-zoom
 ---
 

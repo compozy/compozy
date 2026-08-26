@@ -9,13 +9,18 @@
 import { mintTerminalAttachTicket, terminalStreamPath } from "../adapters/terminal-api";
 import { createTerminalSocket, type TerminalSocketFactory } from "../adapters/terminal-socket";
 import type { TerminalSocket } from "../adapters/terminal-socket";
-import type { TerminalAttachMode, TerminalProfileScopeParams } from "../types";
+import type {
+  TerminalAttachMode,
+  TerminalProfileScopeParams,
+  TerminalViewerIdentity,
+} from "../types";
 
 export interface OpenTerminalStreamOptions {
   workspaceId: string;
   terminalId: string;
   scope: TerminalProfileScopeParams;
   mode: TerminalAttachMode;
+  viewer?: TerminalViewerIdentity | null;
   /** Watchers drop what they cannot keep up with; writers return credit. */
   flow: "drop" | "ack";
   /** Resume point: the last byte this viewer actually saw, or none. */
@@ -40,6 +45,7 @@ export async function openTerminalStream(
     options.terminalId,
     options.mode,
     options.scope,
+    options.viewer,
     options.signal
   );
   const path = terminalStreamPath(options.workspaceId, options.terminalId, {

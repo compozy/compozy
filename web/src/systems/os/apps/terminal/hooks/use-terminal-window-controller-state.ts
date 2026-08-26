@@ -47,6 +47,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   const settings = useSettingsGeneral();
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? DEFAULT_ROUTE);
   const viewerId = useDesktop(state => state.client?.clientId ?? null);
+  const viewerToken = useDesktop(state => state.clientAttachmentToken);
   const workspaceId = workspace.runtimeWorkspaceId ?? "";
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
@@ -190,6 +191,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     stop,
     stopRecording,
     viewerId,
+    viewerToken,
     workspace,
     workspaceId,
   };

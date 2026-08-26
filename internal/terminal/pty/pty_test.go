@@ -25,6 +25,53 @@ import (
 )
 
 func TestUnixPTYHardening(t *testing.T) {
+	t.Run("Should distinguish visible shell editing from hidden input [UT-092]", func(t *testing.T) {
+		proc := startTestProc(t, ProcSpec{Argv: []string{"/bin/sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24})
+		defer stopTestProc(t, proc)
+		unixProcess := proc.(*unixProc)
+
+		inputVisible, err := unixProcess.InputVisible()
+		if err != nil {
+			t.Fatalf("InputVisible() error = %v", err)
+		}
+		if !inputVisible {
+			t.Fatal("InputVisible() = false with terminal echo enabled")
+		}
+
+		prior, err := unixProcess.readTermios()
+		if err != nil {
+			t.Fatalf("readTermios() error = %v", err)
+		}
+		hidden := *prior
+		hidden.Lflag &^= unix.ECHO
+		if err := unixProcess.writeTermios(&hidden, "disable"); err != nil {
+			t.Fatalf("writeTermios(hidden) error = %v", err)
+		}
+		inputVisible, err = unixProcess.InputVisible()
+		if err != nil {
+			t.Fatalf("InputVisible() with hidden canonical input error = %v", err)
+		}
+		if inputVisible {
+			t.Fatal("InputVisible() = true with canonical echo disabled")
+		}
+
+		lineEditor := hidden
+		lineEditor.Lflag &^= unix.ICANON
+		if err := unixProcess.writeTermios(&lineEditor, "enter line editor mode"); err != nil {
+			t.Fatalf("writeTermios(line editor) error = %v", err)
+		}
+		inputVisible, err = unixProcess.InputVisible()
+		if err != nil {
+			t.Fatalf("InputVisible() in line editor mode error = %v", err)
+		}
+		if !inputVisible {
+			t.Fatal("InputVisible() = false for foreground shell line editing")
+		}
+		if err := unixProcess.restoreTermios(prior); err != nil {
+			t.Fatalf("restoreTermios() error = %v", err)
+		}
+	})
+
 	t.Run("Should keep the hardened reader pollable before terminal control [UT-002]", func(t *testing.T) {
 		proc := startTestProc(t, ProcSpec{Argv: []string{"sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24})
 		defer stopTestProc(t, proc)

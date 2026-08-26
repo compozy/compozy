@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,7 @@ import (
 
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/gorilla/websocket"
+	"golang.org/x/term"
 )
 
 func TestTerminalClientStreamShouldDetachWithoutReconnect(t *testing.T) {
@@ -40,6 +42,33 @@ func TestTerminalClientStreamShouldDetachWithoutReconnect(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("client did not finish after the detach chord")
 	}
+}
+
+func TestTerminalClientReadStream(t *testing.T) {
+	t.Parallel()
+	t.Run("Should detach without forwarding watched input", func(t *testing.T) {
+		t.Parallel()
+		client, server := newTerminalClientTestPair(t)
+		done := make(chan error, 1)
+		input := strings.NewReader("ignored" + string([]byte{terminalDetachByte, terminalDetachByte}))
+		go func() {
+			done <- runTerminalClientStream(
+				t.Context(), client, terminalStreamModeRead, input, io.Discard,
+			)
+		}()
+		frame := readTerminalClientTestFrame(t, server)
+		if frame.Op != terminalwire.ClientOpDetach {
+			t.Fatalf("opcode = %d, want DETACH without INPUT", frame.Op)
+		}
+		select {
+		case err := <-done:
+			if err != nil {
+				t.Fatalf("runTerminalClientStream() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("read client did not finish after the detach chord")
+		}
+	})
 }
 
 func TestTerminalClientStreamShouldTakeOverBeforeWriteAttach(t *testing.T) {
@@ -72,6 +101,66 @@ func TestTerminalClientStreamShouldTakeOverBeforeWriteAttach(t *testing.T) {
 	}
 }
 
+func TestTerminalClientStreamTargetShouldCarryProfileScope(t *testing.T) {
+	t.Parallel()
+	client, err := NewClient(LocalClientTarget("/tmp/compozy-terminal-profile-stream.sock"))
+	if err != nil {
+		t.Fatalf("NewClient() error = %v", err)
+	}
+	ctx := context.WithValue(
+		t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: "work profile"},
+	)
+	target, _, err := client.(*daemonClient).terminalStreamTarget(
+		ctx,
+		"workspace /a",
+		"term /a",
+		"",
+		TerminalAttachOptions{Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck},
+	)
+	if err != nil {
+		t.Fatalf("terminalStreamTarget() error = %v", err)
+	}
+	parsed, err := url.Parse(target)
+	if err != nil {
+		t.Fatalf("url.Parse(%q) error = %v", target, err)
+	}
+	if got := parsed.Query().Get(profileFlagName); got != "work profile" {
+		t.Fatalf("terminal stream profile = %q, want work profile", got)
+	}
+}
+
+func TestTerminalRawInputShouldRestoreTheLocalTerminal(t *testing.T) {
+	t.Parallel()
+	runErr := errors.New("stream ended")
+	makeRawCalls := 0
+	restoreCalls := 0
+	input := terminalFDTestReader{Reader: strings.NewReader(""), fd: 42}
+	operations := terminalModeOperations{
+		isTerminal: func(fd int) bool { return fd == 42 },
+		makeRaw: func(fd int) (*term.State, error) {
+			makeRawCalls++
+			if fd != 42 {
+				t.Fatalf("makeRaw fd = %d, want 42", fd)
+			}
+			return new(term.State), nil
+		},
+		restore: func(fd int, state *term.State) error {
+			restoreCalls++
+			if fd != 42 || state == nil {
+				t.Fatalf("restore = %d/%v, want 42/non-nil", fd, state)
+			}
+			return nil
+		},
+	}
+	err := withTerminalRawInputMode(input, operations, func() error { return runErr })
+	if !errors.Is(err, runErr) {
+		t.Fatalf("withTerminalRawInputMode() error = %v, want %v", err, runErr)
+	}
+	if makeRawCalls != 1 || restoreCalls != 1 {
+		t.Fatalf("terminal mode calls = make %d/restore %d, want 1/1", makeRawCalls, restoreCalls)
+	}
+}
+
 func TestTerminalClientInputShouldPassSingleDetachByteAfterTimeout(t *testing.T) {
 	t.Parallel()
 	client, server := newTerminalClientTestPair(t)
@@ -80,7 +169,9 @@ func TestTerminalClientInputShouldPassSingleDetachByteAfterTimeout(t *testing.T)
 	t.Cleanup(cancel)
 	done := make(chan error, 1)
 	var writes sync.Mutex
-	go func() { done <- copyTerminalInput(ctx, client, &writes, terminalInputReads(ctx, reader)) }()
+	go func() {
+		done <- copyTerminalInput(ctx, client, &writes, terminalInputReads(ctx, reader), true)
+	}()
 	started := time.Now()
 	if _, err := writer.Write([]byte{terminalDetachByte}); err != nil {
 		t.Fatalf("write input pipe: %v", err)
@@ -214,7 +305,7 @@ func TestTerminalClientStreamShouldAdvanceOnlyWrittenSequence(t *testing.T) {
 			done := make(chan result, 1)
 			go func() {
 				seq, err := runTerminalClientStreamWithInput(
-					t.Context(), client, nil, io.Discard, testCase.initial,
+					t.Context(), client, nil, io.Discard, testCase.initial, false,
 				)
 				done <- result{seq: seq, err: err}
 			}()
@@ -257,7 +348,7 @@ func TestTerminalClientInputShouldSurviveConnectionReplacement(t *testing.T) {
 	firstClient, firstServer := newTerminalClientTestPair(t)
 	firstDone := make(chan error, 1)
 	go func() {
-		_, err := runTerminalClientStreamWithInput(ctx, firstClient, inputReads, io.Discard, 0)
+		_, err := runTerminalClientStreamWithInput(ctx, firstClient, inputReads, io.Discard, 0, true)
 		firstDone <- err
 	}()
 	if err := firstServer.WriteControl(
@@ -274,7 +365,7 @@ func TestTerminalClientInputShouldSurviveConnectionReplacement(t *testing.T) {
 	secondClient, secondServer := newTerminalClientTestPair(t)
 	secondDone := make(chan error, 1)
 	go func() {
-		_, err := runTerminalClientStreamWithInput(ctx, secondClient, inputReads, io.Discard, 0)
+		_, err := runTerminalClientStreamWithInput(ctx, secondClient, inputReads, io.Discard, 0, true)
 		secondDone <- err
 	}()
 	if _, err := writer.Write([]byte("continued")); err != nil {
@@ -304,6 +395,13 @@ type terminalClientTestUpgrade struct {
 	conn *websocket.Conn
 	err  error
 }
+
+type terminalFDTestReader struct {
+	io.Reader
+	fd uintptr
+}
+
+func (r terminalFDTestReader) Fd() uintptr { return r.fd }
 
 func newTerminalClientTestPair(t *testing.T) (*websocket.Conn, *websocket.Conn) {
 	t.Helper()

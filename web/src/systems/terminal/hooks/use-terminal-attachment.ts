@@ -7,7 +7,12 @@ import { TerminalProtocolClient, type TerminalStreamSink } from "../lib/terminal
 import { terminalScopeKey } from "../lib/terminal-scope-key";
 import type { TerminalOwnerFrame } from "../lib/terminal-wire-schema";
 import type { TerminalSocketFactory } from "../adapters/terminal-socket";
-import type { TerminalActor, TerminalAttachMode, TerminalSignal } from "../types";
+import type {
+  TerminalActor,
+  TerminalAttachMode,
+  TerminalSignal,
+  TerminalViewerIdentity,
+} from "../types";
 import { useTerminalStore } from "./use-terminal-store";
 
 /** Socket injection owned by the attachment boundary, for tests and scripted stories. */
@@ -18,6 +23,7 @@ export interface UseTerminalAttachmentOptions {
   terminalId: string;
   scope: { profile: string };
   mode: TerminalAttachMode;
+  viewer?: TerminalViewerIdentity | null;
   /** The emulator this connection paints into. */
   handleRef: React.RefObject<TerminalViewHandle | null>;
   /** Test seam; the browser socket is the default. */
@@ -83,6 +89,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
       terminalId,
       scope: { profile },
       mode,
+      viewer: options.viewer,
       sink: buildSink(),
       socketFactory,
       handlers: {
@@ -102,6 +109,8 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
             controller: controllerOf(frame),
             reason: frame.reason ?? null,
           }),
+        onPresence: frame =>
+          store.trigger.presenceObserved({ terminalId, viewers: frame.viewers }),
         onResized: frame =>
           store.trigger.resized({ terminalId, cols: frame.cols, rows: frame.rows }),
         onGap: frame =>
@@ -139,7 +148,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
     };
     // Effect events are deliberately absent: they are stable by contract, and
     // listing one would tie the connection's lifetime to a render.
-  }, [enabled, mode, profile, restartKey, socketFactory, store, terminalId, workspaceId]);
+  }, [enabled, mode, options.viewer, profile, restartKey, socketFactory, store, terminalId, workspaceId]);
 
   return {
     sendInput: data => clientRef.current?.sendInput(data),

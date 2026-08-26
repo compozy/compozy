@@ -12,6 +12,7 @@ import {
   encodeTerminalDetach,
   encodeTerminalInputFrames,
   encodeTerminalResize,
+  encodeTerminalRelease,
   encodeTerminalSignal,
   encodeTerminalTakeover,
   type TerminalFrameBytes,
@@ -88,18 +89,16 @@ export class TerminalCommandSender {
   }
 
   /** Claims the write lease. `force` skips the human-vs-human confirmation. */
-  takeover(force: boolean): void {
-    this.send(encodeTerminalTakeover(force), "The terminal could not ask for control.");
+  takeover(force: boolean): boolean {
+    return this.send(encodeTerminalTakeover(force), "The terminal could not ask for control.");
   }
 
-  /**
-   * Gives the write lease back.
-   *
-   * Nothing changes on screen here: the daemon answers with an `OWNER` frame,
-   * and that frame is what the UI reads. Marked sent only once the frame is
-   * genuinely on the wire, so a failed send leaves the polite detach for
-   * teardown to attempt rather than swallowing it.
-   */
+  /** Explicitly returns control; unlike DETACH, this is a lease transition. */
+  release(message: string): boolean {
+    return this.send(encodeTerminalRelease(), message);
+  }
+
+  /** Politely closes this attachment without changing the lease directly. */
   detach(message: string): void {
     if (this.detached) return;
     if (!this.send(encodeTerminalDetach(), message)) return;

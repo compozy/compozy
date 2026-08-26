@@ -40,8 +40,12 @@ export type {
   TerminalStreamStatus,
 } from "./terminal-protocol-contract";
 
+type TerminalLeaseRequest = { kind: "takeover"; force: boolean } | { kind: "release" };
+
 export class TerminalProtocolClient {
   private socket: TerminalSocket | null = null;
+  private socketOpen = false;
+  private pendingLeaseRequest: TerminalLeaseRequest | null = null;
   /**
    * Which connection is current.
    *
@@ -138,6 +142,8 @@ export class TerminalProtocolClient {
     this.abort.abort();
     const socket = this.socket;
     this.socket = null;
+    this.socketOpen = false;
+    this.pendingLeaseRequest = null;
     if (socket) {
       // Exactly one DETACH per attachment. Releasing control already sent it,
       // and a second would detach a lease this client no longer holds.
@@ -164,12 +170,26 @@ export class TerminalProtocolClient {
 
   /** Claims the write lease. `force` skips the human-vs-human confirmation. */
   requestTakeover(force: boolean): void {
-    this.sender.takeover(force);
+    if (this.stopped) return;
+    this.pendingLeaseRequest = { kind: "takeover", force };
+    this.flushLeaseRequest();
   }
 
   /** Gives the write lease back and waits for the daemon's `OWNER` frame. */
   releaseControl(): void {
-    this.sender.detach("The terminal could not release control.");
+    if (this.stopped) return;
+    this.pendingLeaseRequest = { kind: "release" };
+    this.flushLeaseRequest();
+  }
+
+  private flushLeaseRequest(): void {
+    const request = this.pendingLeaseRequest;
+    if (!request || !this.socketOpen) return;
+    const sent =
+      request.kind === "takeover"
+        ? this.sender.takeover(request.force)
+        : this.sender.release("The terminal could not release control.");
+    if (sent && this.pendingLeaseRequest === request) this.pendingLeaseRequest = null;
   }
 
   private setStatus(status: TerminalStreamStatus): void {
@@ -208,6 +228,7 @@ export class TerminalProtocolClient {
         terminalId: this.options.terminalId,
         scope: this.options.scope,
         mode: this.options.mode,
+        viewer: this.options.viewer,
         flow: this.flow,
         afterSeq: this.committedSeq > 0 ? this.committedSeq : undefined,
         proposed: this.sender.proposed,
@@ -225,13 +246,20 @@ export class TerminalProtocolClient {
       return;
     }
     this.socket = socket;
+    this.socketOpen = false;
     this.connectionEpoch += 1;
-    socket.onopen = () => this.setStatus("connected");
+    socket.onopen = () => {
+      if (this.socket !== socket) return;
+      this.socketOpen = true;
+      this.setStatus("connected");
+      this.flushLeaseRequest();
+    };
     socket.onmessage = event => this.handleMessage(event);
     socket.onerror = () => this.setStatus("reconnecting");
     socket.onclose = () => {
       if (this.stopped || this.socket !== socket) return;
       this.socket = null;
+      this.socketOpen = false;
       // Anything still in flight belongs to a connection that no longer exists.
       this.connectionEpoch += 1;
       this.setInputEnabled(false);
@@ -336,6 +364,7 @@ export class TerminalProtocolClient {
   private reconnectFromCommitted(): void {
     const socket = this.socket;
     this.socket = null;
+    this.socketOpen = false;
     this.connectionEpoch += 1;
     this.setInputEnabled(false);
     if (socket) {
@@ -357,6 +386,7 @@ export class TerminalProtocolClient {
       dispatchTerminalControlFrame(op, payload, {
         onAttached: frame => this.applyAttached(frame),
         onOwner: frame => handlers?.onLease?.(frame),
+        onPresence: frame => handlers?.onPresence?.(frame),
         onTitle: title => handlers?.onTitle?.(title),
         onResized: frame => this.applyResized(frame),
         onGap: frame => void this.resynchronize(frame),

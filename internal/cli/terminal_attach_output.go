@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/http"
 	"path/filepath"
 	"strings"
 
@@ -13,6 +14,26 @@ import (
 )
 
 const terminalCLIActorID = terminalpkg.OperatorActorID
+
+func terminalExitedAttachError(terminal TerminalRecord) error {
+	detail := "cause unknown"
+	if terminal.Exit != nil {
+		switch {
+		case terminal.Exit.Signal != nil && strings.TrimSpace(*terminal.Exit.Signal) != "":
+			detail = "signaled " + strings.TrimSpace(*terminal.Exit.Signal)
+		case terminal.Exit.Code != nil:
+			detail = fmt.Sprintf("exited %d", *terminal.Exit.Code)
+		case strings.TrimSpace(terminal.Exit.Cause) != "":
+			detail = strings.TrimSpace(terminal.Exit.Cause)
+		}
+	}
+	err := &terminalpkg.Error{
+		Code:    "terminal_exited",
+		Message: fmt.Sprintf("%s already exited (%s)", terminal.ID, detail),
+		Err:     terminalpkg.ErrExited,
+	}
+	return withCommandExitCode(apiStatusExitCode(http.StatusConflict), err)
+}
 
 func writeTerminalOpenAttachBanner(output io.Writer, terminal TerminalRecord) error {
 	_, err := fmt.Fprintf(

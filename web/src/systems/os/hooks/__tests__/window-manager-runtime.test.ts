@@ -744,6 +744,33 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should retain the local attachment token across tokenless stream updates", () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    const view = {
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      profileId: "marketing",
+      clientId: "client:web",
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    };
+
+    runtime.setClient({ ...view, presentationRevision: 1 });
+    runtime.setClient({ ...view, presentationRevision: 1, attachmentToken: "attachment-token" });
+    runtime.setClient({ ...view, presentationRevision: 2 });
+
+    expect(runtime.getState().clientAttachmentToken).toBe("attachment-token");
+    runtime.setClient(null);
+    expect(runtime.getState().clientAttachmentToken).toBeNull();
+    runtime.stop();
+  });
+
   it("[UT-040] Should open a distinct opaque Tasks instance when the caller explicitly requests one", async () => {
     const existingId = "w-existing-tasks-instance";
     const snapshot: WindowManagerSnapshot = {

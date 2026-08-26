@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { destroyTerminalInstances } from "@compozy/ui";
 
@@ -366,11 +366,13 @@ describe("TerminalWindowApp — S1 states", () => {
   });
 
   it("Should open the journal from its pinned tab", async () => {
-    renderWindow();
+    const onViewJournal = vi.fn();
+    renderWindow({ onViewJournal });
 
     await userEvent.click(screen.getByTestId("terminal-tab-journal"));
 
     expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+    expect(onViewJournal).toHaveBeenCalledOnce();
   });
 });
 
@@ -379,6 +381,7 @@ describe("TerminalWindowApp — contention", () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [PSQL_TERMINAL] });
 
+    await socket.ready();
     await userEvent.click(screen.getByTestId("terminal-take-control"));
 
     // Exactly one TAKEOVER, unforced: displacing an agent never asks.
@@ -392,12 +395,13 @@ describe("TerminalWindowApp — contention", () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [CONTESTED_TERMINAL] });
 
+    await socket.ready();
     await userEvent.click(screen.getByTestId("terminal-take-control"));
 
     // Nothing reaches the wire until the confirmation lands.
     expect(socket.sentWithOp(TERMINAL_CLIENT_OP.takeover)).toEqual([]);
     const dialog = await screen.findByTestId("terminal-takeover-dialog");
-    expect(dialog).toHaveTextContent("Take control from marina?");
+    expect(dialog).toHaveTextContent("Take control from operator?");
     expect(dialog).toHaveTextContent(CONTESTED_TERMINAL.title);
 
     await userEvent.click(screen.getByTestId("terminal-takeover-confirm"));
@@ -436,15 +440,16 @@ describe("TerminalWindowApp — contention", () => {
     expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
   });
 
-  it("Should give control back by detaching rather than by claiming locally", async () => {
+  it("Should give control back explicitly rather than by claiming locally", async () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
 
+    await socket.ready();
     const release = await screen.findByTestId("terminal-release-control");
     await userEvent.click(release);
 
-    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.detach)).toEqual([
-      { op: TERMINAL_CLIENT_OP.detach, payload: {} },
+    expect(socket.sentWithOp(TERMINAL_CLIENT_OP.release)).toEqual([
+      { op: TERMINAL_CLIENT_OP.release, payload: {} },
     ]);
     // The chip does not move until the daemon says the lease moved.
     expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument();

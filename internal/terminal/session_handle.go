@@ -29,13 +29,13 @@ func (s *session) Write(ctx context.Context, actor Actor, input []byte) error {
 	return s.deliverInputMode(ctx, actor, input, false, false)
 }
 
-type echoAwareProc interface {
-	EchoEnabled() (bool, error)
+type inputVisibilityProc interface {
+	InputVisible() (bool, error)
 	WriteRedacted([]byte) (int, error)
 }
 
-func requireEchoAwareProc(proc Proc) (echoAwareProc, error) {
-	echoProc, ok := proc.(echoAwareProc)
+func requireInputVisibilityProc(proc Proc) (inputVisibilityProc, error) {
+	visibilityProc, ok := proc.(inputVisibilityProc)
 	if !ok {
 		return nil, &Error{
 			Code:    "terminal_not_interactive",
@@ -43,7 +43,7 @@ func requireEchoAwareProc(proc Proc) (echoAwareProc, error) {
 			Err:     ErrNotInteractive,
 		}
 	}
-	return echoProc, nil
+	return visibilityProc, nil
 }
 
 func (s *session) deliverInputMode(
@@ -78,20 +78,20 @@ func (s *session) deliverInputMode(
 	redacted := clientRedact
 	writer := s.proc.Write
 	if clientRedact {
-		echoProc, err := requireEchoAwareProc(s.proc)
+		visibilityProc, err := requireInputVisibilityProc(s.proc)
 		if err != nil {
 			return err
 		}
-		writer = echoProc.WriteRedacted
+		writer = visibilityProc.WriteRedacted
 	}
-	if echoProc, ok := s.proc.(echoAwareProc); ok {
-		echoEnabled, err := echoProc.EchoEnabled()
+	if visibilityProc, ok := s.proc.(inputVisibilityProc); ok {
+		inputVisible, err := visibilityProc.InputVisible()
 		if err != nil {
 			return err
 		}
-		redacted = redacted || !echoEnabled
+		redacted = redacted || !inputVisible
 		if redacted && !clientRedact {
-			writer = echoProc.WriteRedacted
+			writer = visibilityProc.WriteRedacted
 		}
 	}
 	auditInput := filtered

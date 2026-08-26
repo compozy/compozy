@@ -61,6 +61,10 @@ export const terminalGapFrameSchema = z.object({
   dropped_bytes: z.number().int().positive(),
 });
 
+export const terminalPresenceFrameSchema = z.object({
+  viewers: z.number().int().nonnegative(),
+});
+
 /** The only authority on who holds the write lease. */
 export const terminalOwnerFrameSchema = z.discriminatedUnion("lease", [
   z.object({
@@ -89,4 +93,5 @@ export type TerminalErrorFrame = z.infer<typeof terminalErrorFrameSchema>;
 export type TerminalTitleFrame = z.infer<typeof terminalTitleFrameSchema>;
 export type TerminalResizedFrame = z.infer<typeof terminalResizedFrameSchema>;
 export type TerminalGapFrame = z.infer<typeof terminalGapFrameSchema>;
+export type TerminalPresenceFrame = z.infer<typeof terminalPresenceFrameSchema>;
 export type TerminalOwnerFrame = z.infer<typeof terminalOwnerFrameSchema>;

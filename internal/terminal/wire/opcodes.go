@@ -22,6 +22,7 @@ const (
 	ServerOpResized  byte = 0x06
 	ServerOpGap      byte = 0x07
 	ServerOpOwner    byte = 0x08
+	ServerOpPresence byte = 0x09
 )
 
 const (
@@ -31,6 +32,7 @@ const (
 	ClientOpSignal   byte = 0x04
 	ClientOpTakeover byte = 0x05
 	ClientOpDetach   byte = 0x06
+	ClientOpRelease  byte = 0x07
 )
 
 const (
@@ -57,9 +59,9 @@ type Frame struct {
 func ValidOpcode(direction Direction, opcode byte) bool {
 	switch direction {
 	case ServerToClient:
-		return opcode >= ServerOpOutput && opcode <= ServerOpOwner
+		return opcode >= ServerOpOutput && opcode <= ServerOpPresence
 	case ClientToServer:
-		return opcode >= ClientOpInput && opcode <= ClientOpDetach
+		return opcode >= ClientOpInput && opcode <= ClientOpRelease
 	default:
 		return false
 	}

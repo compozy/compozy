@@ -232,6 +232,7 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     snapshot,
     windowManagerConfig: config,
     client,
+    clientAttachmentToken: null,
     desktops: snapshot?.desktops ?? [],
     projections,
     frames,

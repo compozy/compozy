@@ -1041,12 +1041,12 @@ func (r *fakeWorkspaceResolver) ResolveForProfile(
 	idOrPath string,
 	profileName string,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	profileName = strings.TrimSpace(profileName)
+	trimmedProfile := strings.TrimSpace(profileName)
 	r.mu.Lock()
-	r.profileResolveNames = append(r.profileResolveNames, profileName)
-	if resolved, ok := r.byProfile[profileName]; ok {
+	r.profileResolveNames = append(r.profileResolveNames, trimmedProfile)
+	if resolved, ok := r.byProfile[trimmedProfile]; ok {
 		r.mu.Unlock()
-		resolved.ProfileName = profileName
+		resolved.ProfileName = trimmedProfile
 		return cloneResolvedWorkspaceForTests(&resolved), nil
 	}
 	r.mu.Unlock()
@@ -1055,7 +1055,7 @@ func (r *fakeWorkspaceResolver) ResolveForProfile(
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
-	resolved.ProfileName = profileName
+	resolved.ProfileName = trimmedProfile
 	return resolved, nil
 }
 

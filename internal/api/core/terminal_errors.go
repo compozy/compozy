@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
 )
 
@@ -26,6 +28,13 @@ func (h *BaseHandlers) respondTerminalError(c *gin.Context, err error) {
 	status, code := terminalErrorStatusCode(err)
 	payload := ErrorPayloadForStatus(status, err, h.MaskInternalErrors)
 	payload.Code = code
+	var typed *terminalpkg.Error
+	if errors.As(err, &typed) && typed.Max > 0 {
+		payload.Details = map[string]string{
+			"current": strconv.Itoa(typed.Current),
+			"max":     strconv.Itoa(typed.Max),
+		}
+	}
 	c.AbortWithStatusJSON(status, payload)
 }
 
@@ -46,6 +55,8 @@ func terminalErrorStatusCode(err error) (int, string) {
 		return http.StatusForbidden, "ticket_expired"
 	case errors.Is(err, errTerminalTicketInvalid):
 		return http.StatusForbidden, "ticket_invalid"
+	case errors.Is(err, windowmanager.ErrClientUnauthorized):
+		return http.StatusForbidden, "terminal_client_unauthorized"
 	}
 	var typed *terminalpkg.Error
 	if errors.As(err, &typed) {

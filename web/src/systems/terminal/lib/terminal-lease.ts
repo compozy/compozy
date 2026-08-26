@@ -13,6 +13,8 @@ import type {
   TerminalMode,
 } from "../types";
 
+const ANONYMOUS_OPERATOR_ID = "operator";
+
 export type TerminalControlRead = "you" | "someone-else" | "owner-unknown" | "agent" | "nobody";
 
 export interface TerminalLeaseView {
@@ -67,12 +69,14 @@ export function terminalLeaseView(input: TerminalLeaseInput): TerminalLeaseView 
     }
     return {
       read: "someone-else",
-      label: `${controller.id} is in control`,
-      controllerName: controller.id,
+      label: "operator is in control",
+      controllerName: "operator",
       canType: false,
       canTakeControl: possible,
       // Taking over another person asks first; taking over an agent never does.
-      requiresConfirmation: true,
+      // `operator` is the same local person before a browser registration
+      // refines that identity. Only another concrete browser/person confirms.
+      requiresConfirmation: controller.id !== ANONYMOUS_OPERATOR_ID,
       canRelease: false,
     };
   }

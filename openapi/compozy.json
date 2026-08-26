@@ -352209,11 +352209,15 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
                   "mode": {
                     "type": "string"
                   }
                 },
                 "required": [
+                  "client_id",
                   "mode"
                 ],
                 "type": "object"

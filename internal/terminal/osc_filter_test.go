@@ -117,6 +117,7 @@ func TestOSCSecurityFilterShouldStripClipboardBeforeSequenceAccounting(t *testin
 		}
 	})
 	<-sub.Frames()
+	assertPresenceFrame(t, receiveSubscriptionFrame(t, sub), 1)
 	input := []byte("before\x1b]52;c;c2VjcmV0\x07after")
 	if err := starter.latest().emit(input); err != nil {
 		t.Fatalf("emit() error = %v", err)

@@ -6,7 +6,7 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A fresh runtime discovers the bundled skill only as `compozy`; every read plane agrees, the router serves the desktop reference and teaches app commands, ownership, updates, diagnostics, and recovery without a duplicate catalog entry.
 entry_points: bundled skills/compozy/SKILL.md; GET /api/skills; compozy skill list|inspect|view -o json; compozy__skill_list|view; Web /skills
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260825-skill-source-agent-write-doc-mismatch
 fix_status: fixed
 retest_status: pass

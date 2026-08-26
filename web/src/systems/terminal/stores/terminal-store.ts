@@ -54,6 +54,7 @@ export interface TerminalPaneState {
   mode: TerminalMode | null;
   cols: number | null;
   rows: number | null;
+  viewers: number | null;
   /** Local input gate. Closed while a gap replay is in flight. */
   inputEnabled: boolean;
   gap: TerminalGapNotice | null;
@@ -93,6 +94,7 @@ type TerminalStoreEvents = {
     controller: TerminalActor | null;
     reason: string | null;
   };
+  presenceObserved: { terminalId: string; viewers: number };
   inputEnabledChanged: { terminalId: string; enabled: boolean };
   resized: { terminalId: string; cols: number; rows: number };
   gapObserved: { terminalId: string; gap: TerminalGapNotice };
@@ -114,6 +116,7 @@ function emptyPane(terminalId: string): TerminalPaneState {
     mode: null,
     cols: null,
     rows: null,
+    viewers: null,
     inputEnabled: false,
     gap: null,
     exit: null,
@@ -160,7 +163,9 @@ export const terminalStoreLogic = createStoreLogic<TerminalStoreState, TerminalS
         // actor is no longer evidence about this one, even when the terminal id
         // is the same; the next OWNER frame will name the current controller.
         controller: null,
-        ownerObserved: false,
+        // `available` names nobody by definition. Other leases still need an
+        // OWNER frame before this pass knows which person or agent holds them.
+        ownerObserved: event.lease === "available",
         mode: event.mode,
         cols: event.cols,
         rows: event.rows,
@@ -179,6 +184,8 @@ export const terminalStoreLogic = createStoreLogic<TerminalStoreState, TerminalS
         leaseKnown: true,
         leaseReason: event.reason,
       })),
+    presenceObserved: (context, event) =>
+      updatePane(context, event.terminalId, pane => ({ ...pane, viewers: event.viewers })),
     inputEnabledChanged: (context, event) =>
       updatePane(context, event.terminalId, pane => ({ ...pane, inputEnabled: event.enabled })),
     resized: (context, event) =>

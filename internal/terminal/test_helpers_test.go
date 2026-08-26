@@ -83,7 +83,7 @@ func (p *fakeProc) Write(input []byte) (int, error) {
 	return p.input.Write(input)
 }
 
-func (p *fakeProc) EchoEnabled() (bool, error) {
+func (p *fakeProc) InputVisible() (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	return p.echoEnabled, nil

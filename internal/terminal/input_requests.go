@@ -46,16 +46,16 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 		return nil, err
 	}
 	info := s.Info()
-	echoProc, err := requireEchoAwareProc(s.proc)
+	visibilityProc, err := requireInputVisibilityProc(s.proc)
 	if err != nil {
 		return nil, err
 	}
 	redacted := request.Redact
-	echoEnabled, err := echoProc.EchoEnabled()
+	inputVisible, err := visibilityProc.InputVisible()
 	if err != nil {
 		return nil, err
 	}
-	redacted = redacted || !echoEnabled
+	redacted = redacted || !inputVisible
 	var pending *pendingInput
 	var requester Actor
 	err = s.lease.withAgentController(func(controller Actor) error {
@@ -90,7 +90,11 @@ func (s *session) AnswerInput(ctx context.Context, actor Actor, id InputRequestI
 		return nil, err
 	}
 	filtered := s.filter.FilterInput(answer.Input)
-	if err := s.deliverInputMode(ctx, actor, answer.Input, pending.projection.Redacted, true); err != nil {
+	delivery := slices.Clone(answer.Input)
+	if len(delivery) == 0 || (delivery[len(delivery)-1] != '\n' && delivery[len(delivery)-1] != '\r') {
+		delivery = append(delivery, '\n')
+	}
+	if err := s.deliverInputMode(ctx, actor, delivery, pending.projection.Redacted, true); err != nil {
 		s.manager.inputs.release(id)
 		return nil, err
 	}

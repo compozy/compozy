@@ -39,6 +39,10 @@ type exitFramePayload struct {
 	Seq      uint64  `json:"seq"`
 }
 
+type presenceFramePayload struct {
+	Viewers int `json:"viewers"`
+}
+
 func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription, error) {
 	if err := s.authorizeProfile(options.Actor); err != nil {
 		return nil, err
@@ -95,6 +99,7 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 		return nil, errors.Join(err, closeErr)
 	}
 	s.mu.Unlock()
+	s.broadcastPresence()
 	if options.Cols > 0 && options.Rows > 0 && mode == "write" {
 		if err := subscriber.Resize(options.Cols, options.Rows); err != nil {
 			closeErr := subscriber.Close()
@@ -233,6 +238,7 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 	s.cols, s.rows = cols, rows
 	s.mu.Unlock()
 	s.flow.Remove(subscriber.queue)
+	s.broadcastPresence()
 	if subscriber.leaseToken != 0 {
 		s.lease.detachWriter(subscriber.leaseToken)
 	}
@@ -240,6 +246,23 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 		if err := s.applyResize(cols, rows); err != nil {
 			s.manager.logger.Warn("terminal: resize after subscriber departure", "terminal_id", s.Info().ID, "error", err)
 		}
+	}
+}
+
+func (s *session) broadcastPresence() {
+	s.mu.RLock()
+	payload, err := json.Marshal(presenceFramePayload{Viewers: len(s.subscribers)})
+	subscribers := make([]*subscription, 0, len(s.subscribers))
+	for _, subscriber := range s.subscribers {
+		subscribers = append(subscribers, subscriber)
+	}
+	s.mu.RUnlock()
+	if err != nil {
+		s.manager.logger.Warn("terminal: encode presence frame", "terminal_id", s.Info().ID, "error", err)
+		return
+	}
+	for _, subscriber := range subscribers {
+		subscriber.deliver(Frame{Op: terminalwire.ServerOpPresence, Payload: payload}, 0)
 	}
 }
 

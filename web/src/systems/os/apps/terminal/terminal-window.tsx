@@ -18,6 +18,7 @@ import {
 } from "@/systems/terminal";
 
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
+import { useDesktop } from "../../hooks/use-desktop";
 import { matchTerminalInstance } from "../../lib/app-catalog";
 import { useTerminalWindowControllerState } from "./hooks/use-terminal-window-controller-state";
 
@@ -60,6 +61,14 @@ export function TerminalWindow({ windowId }: { windowId: string }) {
 
 function TerminalWindowController({ windowId }: { windowId: string }) {
   const sessionCreate = useSessionCreateActions();
+  const activeSessionWindowId = useDesktop(state => mostRecentSession(state, windowId)?.id ?? null);
+  const activeSessionId = useDesktop(
+    state => mostRecentSession(state, windowId)?.sessionId ?? null
+  );
+  const activeSession =
+    activeSessionWindowId && activeSessionId
+      ? { id: activeSessionWindowId, sessionId: activeSessionId }
+      : null;
   const {
     answer,
     catalog,
@@ -83,6 +92,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     stop,
     stopRecording,
     viewerId,
+    viewerToken,
     workspace,
     workspaceId,
   } = useTerminalWindowControllerState(windowId);
@@ -90,10 +100,10 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   if (workspaceId === "") {
     return <Empty icon={FolderOpen} title="Choose a project to use Terminal" />;
   }
-  if (catalog.isPending || inputRequests.isPending || journal.isPending) {
+  if (catalog.isPending || inputRequests.isPending) {
     return <Spinner className="m-auto size-5 text-subtle" />;
   }
-  const error = catalog.error ?? inputRequests.error ?? journal.error;
+  const error = catalog.error ?? inputRequests.error;
   if (error) {
     const retry = catalog.error
       ? catalog.refetch
@@ -103,12 +113,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     return (
       <Empty
         action={
-          <Button
-            onClick={() => void retry()}
-            size="sm"
-            type="button"
-            variant="outline"
-          >
+          <Button onClick={() => void retry()} size="sm" type="button" variant="outline">
             Retry
           </Button>
         }
@@ -152,7 +157,6 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     );
   }
   const terminals = orderedTerminals(catalog.data ?? [], requestedId);
-  const activeSession = mostRecentSession(manager.getState(), windowId);
   const terminalSettings = settings.data?.config.terminal;
   const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
   const journalEntries = journal.data?.pages.flatMap(page => page.entries) ?? [];
@@ -189,6 +193,18 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         title={replay.title}
       />
     )
+  ) : journal.isPending ? (
+    <Spinner className="m-auto size-5 text-subtle" />
+  ) : journal.error ? (
+    <Empty
+      action={
+        <Button onClick={() => void journal.refetch()} size="sm" type="button" variant="outline">
+          Retry
+        </Button>
+      }
+      icon={AlertCircle}
+      title={journal.error instanceof Error ? journal.error.message : "Failed to load the journal"}
+    />
   ) : (
     <TerminalJournalPanel
       entries={journalEntries}
@@ -277,10 +293,12 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         interactiveAvailable={interactiveAvailable}
         journal={journalContent}
         limit={terminalSettings?.max_per_workspace ?? 8}
+        onViewJournal={() => void journal.refetch()}
         profile={profile.destination}
         readOnly={profile.aggregate}
         terminals={terminals}
         viewerId={viewerId}
+        viewerToken={viewerToken}
         workspaceId={workspaceId}
       />
       {filtersOpen ? (

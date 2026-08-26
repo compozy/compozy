@@ -310,7 +310,6 @@ export function useSessionPageControls(
     if (controlsBusy || !userControllable) {
       return;
     }
-
     deleteMutation.mutate(sessionId, {
       onError: error => {
         console.error("Failed to delete session", error);

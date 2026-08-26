@@ -139534,6 +139534,7 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          client_id: string;
           mode: string;
         };
       };

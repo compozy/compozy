@@ -72,6 +72,33 @@ func TestLeaseMachineContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should refine the provisional operator identity without confirmation [UT-018]", func(t *testing.T) {
+		t.Parallel()
+		operator := Actor{Kind: ActorKindHuman, ID: OperatorActorID, ProfileID: "profile-a"}
+		transitions := make(chan string, 1)
+		lease := newLeaseMachine(operator, io.Discard, time.Second, func(_ LeaseState, _ LeaseState, _ string, _ Actor, controller *Actor) {
+			if controller != nil {
+				transitions <- controller.ID
+			}
+		})
+
+		if err := lease.takeover(humanA, false); err != nil {
+			t.Fatalf("takeover() error = %v", err)
+		}
+		state, controller := lease.snapshot()
+		if state != LeaseHumanOwned || controller == nil || !sameActor(*controller, humanA) {
+			t.Fatalf("lease = %s %#v, want refined human identity", state, controller)
+		}
+		select {
+		case got := <-transitions:
+			if got != humanA.ID {
+				t.Fatalf("transition controller = %q, want %q", got, humanA.ID)
+			}
+		default:
+			t.Fatal("identity refinement did not emit an ownership transition")
+		}
+	})
+
 	t.Run("Should require confirmation before displacing another human [UT-018][UT-118]", func(t *testing.T) {
 		t.Parallel()
 		lease := newLeaseMachine(humanA, io.Discard, time.Second, nil)
@@ -193,6 +220,46 @@ func TestLeaseMachineContract(t *testing.T) {
 		state, _ := lease.snapshot()
 		if gotTransitions != 1 || state != LeaseHumanOwned {
 			t.Fatalf("transitions=%d state=%s, want one and human_owned", gotTransitions, state)
+		}
+	})
+
+	t.Run("Should return an active displaced agent only on explicit human release [UT-023]", func(t *testing.T) {
+		t.Parallel()
+		transitions := make(chan LeaseState, 2)
+		lease := newLeaseMachine(agent, io.Discard, time.Second, func(_ LeaseState, to LeaseState, _ string, _ Actor, _ *Actor) {
+			transitions <- to
+		})
+		human := Actor{Kind: ActorKindHuman, ID: "client:web", ProfileID: agent.ProfileID}
+		if err := lease.takeover(human, false); err != nil {
+			t.Fatalf("takeover error = %v", err)
+		}
+		<-transitions
+		if err := lease.yield(human); err != nil {
+			t.Fatalf("release error = %v", err)
+		}
+		state, controller := lease.snapshot()
+		if state != LeaseAgentOwned || controller == nil || !sameActor(*controller, agent) {
+			t.Fatalf("lease after release = %s %#v, want active agent", state, controller)
+		}
+		if got := <-transitions; got != LeaseAgentOwned {
+			t.Fatalf("release transition = %s, want agent_owned", got)
+		}
+	})
+
+	t.Run("Should keep human control when the displaced agent has ended [UT-023]", func(t *testing.T) {
+		t.Parallel()
+		lease := newLeaseMachine(agent, io.Discard, time.Second, nil)
+		human := Actor{Kind: ActorKindHuman, ID: "client:web", ProfileID: agent.ProfileID}
+		if err := lease.takeover(human, false); err != nil {
+			t.Fatalf("takeover error = %v", err)
+		}
+		lease.runEnded(agent, "run_ended")
+		if err := lease.yield(human); err != nil {
+			t.Fatalf("release error = %v", err)
+		}
+		state, controller := lease.snapshot()
+		if state != LeaseHumanOwned || controller == nil || !sameActor(*controller, human) {
+			t.Fatalf("lease after ended-agent release = %s %#v, want human", state, controller)
 		}
 	})
 

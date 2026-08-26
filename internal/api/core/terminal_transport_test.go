@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -13,9 +14,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
 )
@@ -104,6 +107,60 @@ func TestTerminalTicketStoreShouldInvalidateOnTerminalEnd(t *testing.T) {
 				t.Fatalf("Consume(after %s) error = %v", reason, err)
 			}
 		}
+	}
+}
+
+func TestTerminalAttachTicketShouldBindAuthorizedBrowserIdentity(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	manager := &terminalWindowManagerServiceStub{}
+	provider := &terminalProviderStub{manager: terminalManagerStub{
+		info: &terminalpkg.Info{ID: "term-a", WS: "workspace-a", ProfileID: store.DefaultProfileID},
+	}}
+	handlers := NewBaseHandlers(&BaseHandlerConfig{
+		TransportName: "httpapi",
+		Terminal:      provider,
+		WindowManager: &terminalWindowManagerProviderStub{service: manager},
+	})
+	router := gin.New()
+	router.POST("/api/workspaces/:workspace_id/terminals/:id/attach-ticket", handlers.MintTerminalAttachTicket)
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
+		strings.NewReader(`{"mode":"read","client_id":"client:web"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(terminalClientAttachmentHeader, "attachment-token")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want 201; body=%s", response.Code, response.Body.String())
+	}
+	var payload contract.TerminalAttachTicketResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode ticket response: %v", err)
+	}
+	ticket, err := handlers.terminalTickets.ConsumeStream(payload.Ticket, "workspace-a", "term-a", "read")
+	if err != nil {
+		t.Fatalf("ConsumeStream() error = %v", err)
+	}
+	if ticket.Actor.ID != "client:web" || manager.clientID != "client:web" || manager.token != "attachment-token" {
+		t.Fatalf("browser identity = actor:%q authorized:%q token:%q", ticket.Actor.ID, manager.clientID, manager.token)
+	}
+
+	manager.err = windowmanager.ErrClientUnauthorized
+	denied := httptest.NewRecorder()
+	request = httptest.NewRequest(
+		http.MethodPost,
+		"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
+		strings.NewReader(`{"mode":"read","client_id":"client:forged"}`),
+	)
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set(terminalClientAttachmentHeader, "forged-token")
+	router.ServeHTTP(denied, request)
+	if denied.Code != http.StatusForbidden || !strings.Contains(denied.Body.String(), `"code":"terminal_client_unauthorized"`) {
+		t.Fatalf("denied status/body = %d/%s", denied.Code, denied.Body.String())
 	}
 }
 
@@ -201,6 +258,14 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 		router.ServeHTTP(response, request)
 		if response.Code != http.StatusConflict || len(handlers.terminalTickets.tickets) != 0 {
 			t.Fatalf("mint status/tickets = %d/%d, want 409/0; body=%s", response.Code, len(handlers.terminalTickets.tickets), response.Body.String())
+		}
+		var payload contract.ErrorPayload
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode subscriber limit response: %v", err)
+		}
+		if payload.Code != "subscriber_limit_reached" || payload.Error != "terminal subscriber limit reached" ||
+			!reflect.DeepEqual(payload.Details, map[string]string{"current": "1", "max": "1"}) {
+			t.Fatalf("subscriber limit payload = %#v", payload)
 		}
 	})
 }
@@ -542,6 +607,33 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 type terminalProviderStub struct {
 	manager   terminalpkg.Manager
 	observers []func(context.Context, terminalpkg.TerminalEvent)
+}
+
+type terminalWindowManagerProviderStub struct {
+	WindowManagerProvider
+	service WindowManagerService
+}
+
+func (p *terminalWindowManagerProviderStub) WindowManagerFor(string) (WindowManagerService, error) {
+	return p.service, nil
+}
+
+type terminalWindowManagerServiceStub struct {
+	WindowManagerService
+	clientID string
+	token    string
+	err      error
+}
+
+func (s *terminalWindowManagerServiceStub) AuthorizeClient(
+	_ context.Context,
+	_ windowmanager.WorkspaceID,
+	clientID windowmanager.ClientID,
+	token string,
+) error {
+	s.clientID = string(clientID)
+	s.token = token
+	return s.err
 }
 
 func (p *terminalProviderStub) TerminalFor(string) (terminalpkg.Manager, error) {

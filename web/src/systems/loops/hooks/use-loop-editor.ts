@@ -33,7 +33,6 @@ import {
 import {
   isNodeIdPath,
   renameNodeId,
-  setNodeFields,
   type NodeFieldEdit,
 } from "../lib/loop-editor-draft";
 import type { LoopLintState } from "../lib/loop-editor-lint";
@@ -167,6 +166,7 @@ export function useLoopEditor(
     applyLayout,
     changeContract: changeEditorContract,
     changeNodeField,
+    editNodeFields,
     connectNodes,
     renameNode,
     requestPositionsSave,
@@ -350,8 +350,7 @@ export function useLoopEditor(
   const changeFields = (edits: NodeFieldEdit[]) => {
     const targetId = selectedNodeId;
     if (!definitionEditable || !targetId || edits.length === 0) return;
-    const nextNodes = setNodeFields(nodes, targetId, edits);
-    changeNodeField(nextNodes, reconcileRouteEdges(nextNodes, edges, targetId));
+    editNodeFields(targetId, edits);
   };
 
   const changeField = (path: FieldPath, value: unknown) => {

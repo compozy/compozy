@@ -131,17 +131,15 @@ export function TerminalInputRequestCard({
         <Button data-testid={`terminal-input-request-send-${request.id}`} size="sm" type="submit">
           {canAnswerDirectly ? "Send" : "Take control & send"}
         </Button>
-        {canAnswerDirectly ? (
-          <Button
-            data-testid={`terminal-input-request-decline-${request.id}`}
-            onClick={onReject}
-            size="sm"
-            type="button"
-            variant="ghost"
-          >
-            Decline
-          </Button>
-        ) : null}
+        <Button
+          data-testid={`terminal-input-request-decline-${request.id}`}
+          onClick={onReject}
+          size="sm"
+          type="button"
+          variant="ghost"
+        >
+          Decline
+        </Button>
       </div>
     </form>
   );

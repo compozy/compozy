@@ -309,11 +309,15 @@ func resolveTerminalRequestID(
 		return "", err
 	}
 	if len(requests) != 1 {
-		return "", fmt.Errorf(
-			"input_request_not_found — expected one pending request on %s, found %d",
-			terminalID,
-			len(requests),
-		)
+		return "", &terminalpkg.Error{
+			Code: "input_request_not_found",
+			Message: fmt.Sprintf(
+				"expected one pending request on %s, found %d",
+				terminalID,
+				len(requests),
+			),
+			Err: terminalpkg.ErrInputNotFound,
+		}
 	}
 	return string(requests[0].ID), nil
 }

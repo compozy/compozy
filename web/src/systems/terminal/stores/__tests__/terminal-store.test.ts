@@ -70,9 +70,18 @@ describe("terminal lease state", () => {
       capabilities: INTERACTIVE,
     });
     expect(otherView.read).toBe("someone-else");
-    expect(otherView.label).toBe("marina is in control");
+    expect(otherView.label).toBe("operator is in control");
     expect(otherView.requiresConfirmation).toBe(true);
     expect(otherView.canType).toBe(false);
+
+    const anonymousOperatorView = terminalLeaseView({
+      lease: "human_owned",
+      controller: { kind: "human", id: "operator" },
+      viewerId: "client:web",
+      mode: "pty",
+      capabilities: INTERACTIVE,
+    });
+    expect(anonymousOperatorView.requiresConfirmation).toBe(false);
 
     store.trigger.leaseObserved({
       terminalId: DEV_SERVER,
@@ -147,6 +156,12 @@ describe("terminal lease state", () => {
     expect(pane.controller).toBeNull();
     expect(pane.ownerObserved).toBe(true);
     expect(pane.lease).toBe("available");
+  });
+
+  it("Should project daemon presence without deriving it from local panes", () => {
+    const store = openStore(WORK_KEY, DEV_SERVER);
+    store.trigger.presenceObserved({ terminalId: DEV_SERVER, viewers: 2 });
+    expect(paneOf(store.getSnapshot().context, DEV_SERVER).viewers).toBe(2);
   });
 
   it("Should offer no control affordances where control cannot exist", () => {

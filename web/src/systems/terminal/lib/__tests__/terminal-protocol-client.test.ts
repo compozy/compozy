@@ -48,6 +48,7 @@ function buildClient(
   const statuses: string[] = [];
   const inputEnabled: boolean[] = [];
   const leases: unknown[] = [];
+  const presence: number[] = [];
   const gapsCleared: number[] = [];
   const exits: unknown[] = [];
   const streamErrors: unknown[] = [];
@@ -67,6 +68,7 @@ function buildClient(
       onStatus: status => statuses.push(status),
       onInputEnabledChange: enabled => inputEnabled.push(enabled),
       onLease: frame => leases.push(frame),
+      onPresence: frame => presence.push(frame.viewers),
       onGapCleared: () => gapsCleared.push(1),
       onExit: frame => exits.push(frame),
       onStreamError: error => streamErrors.push(error),
@@ -80,6 +82,7 @@ function buildClient(
     statuses,
     inputEnabled,
     leases,
+    presence,
     gapsCleared,
     exits,
     streamErrors,
@@ -373,6 +376,49 @@ describe("TerminalProtocolClient", () => {
     ]);
     client.stop();
   });
+
+  it("Should report daemon presence frames", async () => {
+    const { client, sockets, presence } = buildClient();
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    const socket = sockets.last();
+    socket.open();
+    socket.deliver(attachedFrame());
+    socket.deliver(serverControlFrame(TERMINAL_SERVER_OP.presence, { viewers: 2 }));
+
+    expect(presence).toEqual([2]);
+    client.stop();
+  });
+
+  it.each([
+    {
+      action: "takeover",
+      opcode: TERMINAL_CLIENT_OP.takeover,
+      request: (client: TerminalProtocolClient) => client.requestTakeover(false),
+    },
+    {
+      action: "release",
+      opcode: TERMINAL_CLIENT_OP.release,
+      request: (client: TerminalProtocolClient) => client.releaseControl(),
+    },
+  ])(
+    "Should preserve a $action request until the connection opens",
+    async ({ opcode, request }) => {
+      const { client, sockets } = buildClient({ mode: "read" });
+      client.start();
+      await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+      const socket = sockets.last();
+
+      request(client);
+      expect(sentOpcodes(socket)).not.toContain(opcode);
+
+      socket.open();
+      await vi.waitFor(() =>
+        expect(sentOpcodes(socket).filter(sent => sent === opcode)).toHaveLength(1)
+      );
+      client.stop();
+    }
+  );
 
   it("Should apply only the authoritative size, never its own proposal", async () => {
     const { client, sockets, sink } = buildClient({});

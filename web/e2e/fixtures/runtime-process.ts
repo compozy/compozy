@@ -2,7 +2,7 @@ import { execFile, type ChildProcessWithoutNullStreams } from "node:child_proces
 import process from "node:process";
 import { promisify } from "node:util";
 
-const DAEMON_STOP_TIMEOUT_MS = 20_000;
+const DAEMON_STOP_TIMEOUT_MS = 90_000;
 const PROCESS_CLOSE_TIMEOUT_MS = 10_000;
 const PROCESS_KILL_TIMEOUT_MS = 5_000;
 

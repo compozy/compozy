@@ -101,10 +101,17 @@ describe("terminal REST requests", () => {
 
   it("Should encode attach and bounded-read parameters", async () => {
     respond({ ticket: "tkt-1", expires_at: "2026-08-25T12:00:30Z" });
-    await mintTerminalAttachTicket(WORKSPACE_ID, TERMINAL_ID, "write", PROFILE);
+    await mintTerminalAttachTicket(WORKSPACE_ID, TERMINAL_ID, "write", PROFILE, {
+      id: "client:web",
+      attachmentToken: "attachment-token",
+    });
     expect(lastRequest()).toMatchObject({
       url: expect.stringContaining("/attach-ticket?profile=work+profile"),
-      init: expect.objectContaining({ method: "POST", body: JSON.stringify({ mode: "write" }) }),
+      init: expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ mode: "write", client_id: "client:web" }),
+        headers: expect.objectContaining({ "X-Compozy-Client-Token": "attachment-token" }),
+      }),
     });
 
     respond({ content: "ok", seq: 12, truncated: false, busy: false, untrusted: true });

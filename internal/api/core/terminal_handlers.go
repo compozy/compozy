@@ -142,6 +142,11 @@ func (h *BaseHandlers) MintTerminalAttachTicket(c *gin.Context) {
 		h.respondTerminalError(c, &terminalpkg.Error{Code: "terminal_attach_mode_invalid", Message: "terminal attach mode must be read or write", Err: terminalpkg.ErrUnsupported})
 		return
 	}
+	actor, err := h.bindTerminalHumanClient(c, workspaceID, profileID, request.ClientID, actor)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
 	info, err := service.Get(c.Request.Context(), workspaceID, profileID, terminalID)
 	if err != nil {
 		h.respondTerminalError(c, err)

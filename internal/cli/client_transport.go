@@ -33,7 +33,28 @@ func (c *daemonClient) doJSON(
 	requestBody any,
 	responseBody any,
 ) (err error) {
-	response, err := c.doRequest(ctx, method, path, query, requestBody)
+	return c.doJSONWithClient(ctx, method, path, query, requestBody, responseBody, c.httpClient)
+}
+
+func (c *daemonClient) doJSONWithClient(
+	ctx context.Context,
+	method string,
+	path string,
+	query url.Values,
+	requestBody any,
+	responseBody any,
+	client *http.Client,
+) (err error) {
+	response, err := c.doRequestWithCredentialsAndClient(
+		ctx,
+		method,
+		path,
+		query,
+		requestBody,
+		"",
+		agentidentity.Credentials{},
+		client,
+	)
 	if err != nil {
 		return err
 	}
@@ -177,7 +198,7 @@ func (c *daemonClient) doRequestWithCredentials(
 	)
 }
 
-// doRequestWithCredentialsAndClient lets SSE streams opt out of the JSON request timeout.
+// doRequestWithCredentialsAndClient lets long-lived requests opt out of the JSON request timeout.
 func (c *daemonClient) doRequestWithCredentialsAndClient(
 	ctx context.Context,
 	method string,

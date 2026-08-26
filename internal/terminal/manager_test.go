@@ -410,7 +410,7 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		receiveStartedProc(t, starter)
 		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 		subscriptions := make([]Subscription, 0, 2)
-		for range 2 {
+		for index := range 2 {
 			subscriber, attachErr := handle.Attach(context.Background(), AttachOptions{
 				Mode: "read", Flow: "drop", Actor: human,
 			})
@@ -423,8 +423,10 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 				}
 			})
 			assertAttachedFrame(t, receiveSubscriptionFrame(t, subscriber), 0, false)
+			assertPresenceFrame(t, receiveSubscriptionFrame(t, subscriber), index+1)
 			subscriptions = append(subscriptions, subscriber)
 		}
+		assertPresenceFrame(t, receiveSubscriptionFrame(t, subscriptions[0]), 2)
 
 		if err := handle.Takeover(context.Background(), human, true); err != nil {
 			t.Fatalf("Takeover() error = %v", err)
@@ -556,6 +558,20 @@ func receiveSubscriptionFrame(t *testing.T, subscription Subscription) Frame {
 	case <-time.After(time.Second):
 		t.Fatal("subscription frame timed out")
 		return Frame{}
+	}
+}
+
+func assertPresenceFrame(t *testing.T, frame Frame, viewers int) {
+	t.Helper()
+	if frame.Op != terminalwire.ServerOpPresence {
+		t.Fatalf("presence opcode = 0x%02x, want PRESENCE", frame.Op)
+	}
+	var payload presenceFramePayload
+	if err := json.Unmarshal(frame.Payload, &payload); err != nil {
+		t.Fatalf("decode PRESENCE: %v", err)
+	}
+	if payload.Viewers != viewers {
+		t.Fatalf("PRESENCE viewers = %d, want %d", payload.Viewers, viewers)
 	}
 }
 
@@ -1526,14 +1542,14 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			errCh <- requestErr
 		}()
 		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
-		if _, err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("secret\n")}); err != nil {
+		if _, err := handle.AnswerInput(context.Background(), human, pending[0].ID, InputAnswer{Input: []byte("secret")}); err != nil {
 			t.Fatalf("AnswerInput() error = %v", err)
 		}
 		outcome := <-outcomeCh
 		if err := <-errCh; err != nil {
 			t.Fatalf("RequestInput() error = %v", err)
 		}
-		if outcome.Outcome != "answered" || !outcome.Redacted || outcome.Length != len("secret\n") {
+		if outcome.Outcome != "answered" || !outcome.Redacted || outcome.Length != len("secret") {
 			t.Fatalf("input outcome = %#v", outcome)
 		}
 		if proc.inputString() != "secret\n" || proc.redactedWrites.Load() != 1 {

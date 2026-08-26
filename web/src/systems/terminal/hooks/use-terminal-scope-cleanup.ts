@@ -24,9 +24,11 @@ export function useTerminalScopeCleanup({
 }) {
   const scopeKey = terminalScopeKey(workspaceId, profile);
   const liveKeySignature = JSON.stringify(
-    terminals
-      .filter(terminal => terminal.profile_name === profile)
-      .map(terminal => terminalInstanceKey(workspaceId, profile, terminal.id))
+    terminals.flatMap(terminal =>
+      terminal.profile_name === profile
+        ? [terminalInstanceKey(workspaceId, profile, terminal.id)]
+        : []
+    )
   );
 
   useEffect(() => {

@@ -34,6 +34,7 @@ type leaseMachine struct {
 	nextAttach   uint64
 	timer        *time.Timer
 	recoverable  *Actor
+	displaced    *Actor
 	onTransition leaseTransition
 }
 
@@ -183,12 +184,19 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 		m.mu.Unlock()
 		return &Error{Code: "write_owner_held", Message: "agents cannot displace the current controller", Controller: controller, Err: ErrWriteOwnerHeld}
 	}
-	if m.controller != nil && m.controller.Kind == ActorKindHuman && !force {
+	refinesOperator := m.controller != nil && m.controller.Kind == ActorKindHuman &&
+		m.controller.ID == OperatorActorID && m.controller.ProfileID == actor.ProfileID
+	if m.controller != nil && m.controller.Kind == ActorKindHuman && !force && !refinesOperator {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
 		return &Error{Code: "write_owner_held", Message: "another human controls the terminal", Controller: controller, Err: ErrWriteOwnerHeld}
 	}
 	from := m.state
+	if m.controller != nil && m.controller.Kind == ActorKindAgent {
+		m.displaced = cloneActor(m.controller)
+	} else {
+		m.displaced = nil
+	}
 	m.controller = cloneActor(&actor)
 	m.fallback = actor
 	m.recoverable = nil
@@ -207,7 +215,19 @@ func (m *leaseMachine) yield(actor Actor) error {
 		return err
 	}
 	if actor.Kind == ActorKindHuman {
+		if m.displaced == nil {
+			m.mu.Unlock()
+			return nil
+		}
+		returned := *m.displaced
+		from := m.state
+		m.controller = cloneActor(&returned)
+		m.state = LeaseAgentOwned
+		m.displaced = nil
+		m.generation++
+		m.cancelGraceLocked()
 		m.mu.Unlock()
+		m.emit(from, LeaseAgentOwned, "claim", returned)
 		return nil
 	}
 	from := m.state
@@ -223,6 +243,11 @@ func (m *leaseMachine) yield(actor Actor) error {
 
 func (m *leaseMachine) runEnded(actor Actor, reason string) {
 	m.mu.Lock()
+	if m.displaced != nil && sameActor(actor, *m.displaced) {
+		m.displaced = nil
+		m.mu.Unlock()
+		return
+	}
 	if m.controller == nil || m.controller.Kind != ActorKindAgent || !sameActor(actor, *m.controller) {
 		m.mu.Unlock()
 		return
@@ -376,7 +401,7 @@ func (m *leaseMachine) emitWithController(
 	actor Actor,
 	controller *Actor,
 ) {
-	if m.onTransition != nil && from != to {
+	if m.onTransition != nil {
 		m.onTransition(from, to, reason, actor, cloneActor(controller))
 	}
 }

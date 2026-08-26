@@ -131,10 +131,11 @@ describe("SessionDecisionDock", () => {
     renderDock({
       messages: [
         permissionMessage("req-terminal", {
-          title: "compozy__terminal_exec",
+          title: "Terminal Exec",
           action: "execute",
           resource: "bun add @xterm/xterm",
           raw: {
+            tool_id: "compozy__terminal_exec",
             tool_input: {
               command: "bun",
               args: ["add", "@xterm/xterm"],
@@ -149,6 +150,7 @@ describe("SessionDecisionDock", () => {
     expect(screen.getByTestId("terminal-approval-command")).toHaveTextContent(
       "bun add @xterm/xterm"
     );
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent("Terminal Exec");
     expect(screen.getByText("~/dev/atlas-api")).toBeInTheDocument();
     // The terminal detail replaces the generic subject line rather than sitting
     // beside it — one statement of what would run, not two.

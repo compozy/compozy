@@ -37,9 +37,11 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 			if err := writeTerminalOpenAttachBanner(cmd.OutOrStdout(), terminal); err != nil {
 				return err
 			}
-			if err := client.AttachTerminal(cmd.Context(), workspaceID, terminal.ID, TerminalAttachOptions{
-				Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck, Cols: cols, Rows: rows,
-			}, cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
+			if err := withTerminalRawInput(cmd.InOrStdin(), func() error {
+				return client.AttachTerminal(cmd.Context(), workspaceID, terminal.ID, TerminalAttachOptions{
+					Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck, Cols: cols, Rows: rows,
+				}, cmd.InOrStdin(), cmd.OutOrStdout())
+			}); err != nil {
 				return err
 			}
 			return writeTerminalDetachNotice(cmd.Context(), cmd.OutOrStdout(), client, workspaceID, terminal.ID)
@@ -120,6 +122,9 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if terminal.State != terminalStateRunning {
+				return terminalExitedAttachError(terminal)
+			}
 			mode, flow := terminalStreamModeRead, terminalStreamFlowDrop
 			takeover := false
 			if control {
@@ -142,10 +147,12 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 			if err := writeTerminalAttachBanner(cmd.OutOrStdout(), terminal, control); err != nil {
 				return err
 			}
-			if err := client.AttachTerminal(cmd.Context(), workspaceID, args[0], TerminalAttachOptions{
-				Mode: mode, Flow: flow, AfterSeq: afterSeq, Cols: cols, Rows: rows,
-				Takeover: takeover, Force: force,
-			}, cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
+			if err := withTerminalRawInput(cmd.InOrStdin(), func() error {
+				return client.AttachTerminal(cmd.Context(), workspaceID, args[0], TerminalAttachOptions{
+					Mode: mode, Flow: flow, AfterSeq: afterSeq, Cols: cols, Rows: rows,
+					Takeover: takeover, Force: force,
+				}, cmd.InOrStdin(), cmd.OutOrStdout())
+			}); err != nil {
 				return err
 			}
 			return writeTerminalDetachNotice(cmd.Context(), cmd.OutOrStdout(), client, workspaceID, args[0])

@@ -20,6 +20,7 @@ import type { TerminalWindowActions } from "./terminal-window-actions";
 export interface TerminalWindowBodyProps {
   terminal: TerminalInfo;
   viewerId: string | null;
+  viewerToken?: string | null;
   workspaceId: string;
   profile: string;
   readOnly?: boolean;
@@ -54,6 +55,7 @@ export function TerminalWindowBody(props: TerminalWindowBodyProps) {
 function TerminalInteractiveWindowBody({
   terminal,
   viewerId,
+  viewerToken,
   workspaceId,
   profile,
   readOnly = false,
@@ -71,6 +73,8 @@ function TerminalInteractiveWindowBody({
     workspaceId,
     profile,
     viewerId,
+    viewer:
+      viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null,
     socketFactory,
     readOnly,
     actions,
@@ -88,7 +92,7 @@ function TerminalInteractiveWindowBody({
         onStopRecording={controller.stopRecording}
         onTakeControl={controller.takeControl}
         recording={recording}
-        terminal={terminal}
+        terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
       />
       <TerminalPane
         attachment={attachment}
