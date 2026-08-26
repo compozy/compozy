@@ -12,9 +12,9 @@
                     },
                     {
                         "type": "command",
-                        "command": "bash \"scripts/hooks/go-edit-lint.sh\"",
+                        "command": "bash \"scripts/hooks/edit-lint.sh\"",
                         "timeout": 45,
-                        "statusMessage": "golangci fast tier"
+                        "statusMessage": "edit-time fmt + fast lint"
                     }
                 ]
             }
