@@ -128,8 +128,3 @@ export function destroyTerminalInstances(predicate: (key: string) => boolean): v
     if (predicate(key)) destroyTerminalInstance(key);
   }
 }
-
-/** The renderer currently painting this instance. */
-export function terminalRendererKind(key: string): TerminalRendererKind | undefined {
-  return instances.get(key)?.renderer.kind;
-}

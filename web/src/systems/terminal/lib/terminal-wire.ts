@@ -107,14 +107,6 @@ function isControlOpcode(op: number): op is TerminalControlOpcode {
   return op > TERMINAL_SERVER_OP.output && op <= TERMINAL_SERVER_OP.presence;
 }
 
-export function encodeTerminalInput(data: string): TerminalFrameBytes {
-  const payload = encoder.encode(data);
-  if (payload.byteLength > TERMINAL_MAX_INPUT_BYTES) {
-    throw new TerminalFrameError("input frame exceeds 64 KiB");
-  }
-  return prefix(TERMINAL_CLIENT_OP.input, payload);
-}
-
 /**
  * Splits input into frames the daemon will accept, without breaking a character.
  *
