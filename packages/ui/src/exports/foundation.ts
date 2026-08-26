@@ -97,12 +97,13 @@ export {
   StepperSeparator,
   StepperTitle,
   StepperTrigger,
+  useStepItem,
+  useStepper,
   type StepperContentProps,
   type StepperItemProps,
   type StepperProps,
   type StepperTriggerProps,
 } from "../components/reui/stepper";
-export { useStepItem, useStepper } from "../components/reui/hooks/use-stepper";
 export { Tree, TreeDragLine, TreeItem, TreeItemLabel } from "../components/reui/tree";
 export type {
   TreeDragLineProps,

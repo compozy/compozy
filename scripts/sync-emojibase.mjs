@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 // Mirrors the Emojibase JSON the identity emoji picker fetches into web/public,
 // so Vite serves it natively in dev and build with no CDN and no copy plugin.
-// The mirrored files must match the emojibase-data release pinned in bun.lock.
+// The mirror must carry the same DATA as the emojibase-data release pinned in
+// bun.lock; comparison is semantic because the repo formatter owns the bytes.
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -17,11 +18,11 @@ const files = [
   },
 ];
 
-let drifted = [];
+const drifted = [];
 for (const file of files) {
   const next = readFileSync(resolve(file.source), "utf8");
   const outputPath = join(root, file.output);
-  if (readCurrent(outputPath) === next) continue;
+  if (sameData(readCurrent(outputPath), next)) continue;
   drifted.push(file.output);
   if (args.has("--write")) {
     mkdirSync(dirname(outputPath), { recursive: true });
@@ -36,6 +37,15 @@ process.stdout.write(
     "Run make codegen or scripts/sync-emojibase.mjs --write.\n"
 );
 if (args.has("--check")) process.exit(1);
+
+function sameData(current, next) {
+  if (current === "") return false;
+  try {
+    return JSON.stringify(JSON.parse(current)) === JSON.stringify(JSON.parse(next));
+  } catch {
+    return false;
+  }
+}
 
 function readCurrent(path) {
   try {

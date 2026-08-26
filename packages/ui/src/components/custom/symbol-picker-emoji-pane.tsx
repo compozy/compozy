@@ -53,12 +53,12 @@ export function SymbolPickerEmojiPane({
           aria-label={labels.skinTone}
           data-slot="symbol-picker-skin-tone"
           className={cn(
-            "grid size-(--height-search) shrink-0 cursor-pointer place-items-center rounded-md",
+            "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md",
             "text-small-body outline-none hover:bg-row-hover focus-visible:shadow-focus-ring"
           )}
         />
       </div>
-      <EmojiPicker.Viewport className="h-(--height-symbol-picker-grid) rounded-md outline-none">
+      <EmojiPicker.Viewport className="h-symbol-picker-grid rounded-md outline-none">
         <EmojiPicker.Loading
           aria-label={labels.loadingEmojis}
           className="grid h-full place-items-center"
