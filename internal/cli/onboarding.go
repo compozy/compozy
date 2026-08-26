@@ -90,7 +90,7 @@ func onboardingBundle(status contract.OnboardingStatusPayload) outputBundle {
 		jsonValue: status,
 		human: func() (string, error) {
 			return renderHumanSection("Onboarding", []keyValue{
-				{Label: "Completed", Value: strconv.FormatBool(status.Completed)},
+				{Label: cliCompletedValue, Value: strconv.FormatBool(status.Completed)},
 				{Label: onboardingCompletedAtLbl, Value: stringOrDash(status.CompletedAt)},
 			}), nil
 		},

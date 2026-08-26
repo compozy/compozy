@@ -190,7 +190,7 @@ func providerModelListBundle(record ProviderModelListRecord) outputBundle {
 			"Available",
 			authoredContextStateValue,
 			outputStaleValue,
-			"Sources",
+			cliSourcesValue,
 			"Refreshed",
 		},
 		"provider_models",

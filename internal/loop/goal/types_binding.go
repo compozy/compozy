@@ -102,6 +102,7 @@ type PrepareBindingAttemptRequest struct {
 type AllocateBindingAttemptRequest struct {
 	Key                            BindingKey
 	CheckpointKey                  TurnKey
+	TargetBindingEpoch             int64
 	ExpectedControlEpoch           int64
 	ExpectedCheckpointPhase        string
 	ExpectedTaskRunID              string
@@ -118,7 +119,7 @@ type AllocateBindingAttemptRequest struct {
 
 // BindingAttemptAllocator reserves Goal-owned epochs under the checkpoint ownership fence.
 type BindingAttemptAllocator interface {
-	AllocateSessionBindingAttempt(context.Context, AllocateBindingAttemptRequest) (SessionBinding, error)
+	AllocateSessionBindingAttempt(context.Context, *AllocateBindingAttemptRequest) (SessionBinding, error)
 }
 
 // AdvanceBindingCreationFailureRequest atomically consumes one Goal-owned creation attempt.

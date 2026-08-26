@@ -25,7 +25,7 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 			{Label: cliGenerationValue, Value: strconv.FormatInt(response.Run.Generation, 10)},
 			{Label: "Best Generation", Value: formatOptionalInt64(response.Run.BestGeneration)},
 			{Label: "Best Score", Value: formatOptionalFloat64(response.Run.BestScore)},
-			{Label: "Completed", Value: stringOrDash(formatOptionalTime(response.Run.CompletedAt))},
+			{Label: cliCompletedValue, Value: stringOrDash(formatOptionalTime(response.Run.CompletedAt))},
 		})
 		rows := make([][]string, 0, len(response.Generations))
 		for _, generation := range response.Generations {
@@ -45,7 +45,7 @@ func loopStatusOutputBundle(response *contract.LoopRunResponse) outputBundle {
 		effective := renderHumanSection("Effective config", []keyValue{
 			{Label: "Iteration cap", Value: strconv.Itoa(response.EffectiveConfig.IterationCap)},
 			{Label: "Reattempt strategy", Value: string(response.EffectiveConfig.ReattemptStrategy)},
-			{Label: "Sources", Value: formatLoopConfigSources(response.EffectiveConfig.Sources)},
+			{Label: cliSourcesValue, Value: formatLoopConfigSources(response.EffectiveConfig.Sources)},
 		})
 		return renderHumanBlocks(run, effective, generations), nil
 	}

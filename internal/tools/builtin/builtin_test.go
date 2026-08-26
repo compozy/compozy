@@ -744,6 +744,7 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertNativeOutputSchemaAccepts(t, status, `{
 			"run":{"id":"run-1","completion_state":"partial","best_generation":2,"best_score":0.91},
 			"materialized_contract":{"goal":"Ship weather-app","definition_of_done":"All tasks complete"},
+			"effective_config":{"sources":{"reattempt_strategy":"run"}},
 			"node_controls":[],
 			"waits":[],
 			"requests":[],

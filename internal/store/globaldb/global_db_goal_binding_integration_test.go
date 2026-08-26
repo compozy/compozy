@@ -152,7 +152,7 @@ func TestGoalSessionCreationIdentityIntegration(t *testing.T) {
 func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should atomically allocate the next epoch for a later Goal generation", func(t *testing.T) {
+	t.Run("Should atomically rotate an active same-profile binding to the target epoch", func(t *testing.T) {
 		t.Parallel()
 
 		const (
@@ -164,19 +164,46 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		ctx := testutil.Context(t)
 		now := time.Date(2026, 8, 26, 14, 0, 0, 0, time.UTC)
 		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
-		seedActiveGoalBindingForTest(
-			t, globalDB, loopRunID, workspaceID, handle, 1, "session-binding-allocate-1", now,
-		)
-		if _, err := globalDB.db.ExecContext(
-			ctx,
-			`UPDATE loop_session_bindings SET state = 'closed', closed_at = ?
-			 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1`,
-			store.FormatTimestamp(now.Add(time.Second)),
-			loopRunID,
-			handle,
-		); err != nil {
-			t.Fatalf("close prior Goal binding error = %v", err)
+		profile := store.SessionCreationProfile{
+			Version: store.SessionCreationProfileVersion, AgentName: "codex", Provider: "native",
+			ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, CWD: "/tmp",
+			SandboxMode: store.SessionCreationSandboxNone,
 		}
+		profileRef, err := profile.Ref()
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.Ref() error = %v", err)
+		}
+		policyDigest, err := profile.PolicySpecDigest()
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.PolicySpecDigest() error = %v", err)
+		}
+		creationOptions := store.SessionCreationOptions{
+			NetworkOwnerKey:      "loop_run:" + loopRunID,
+			NetworkParticipation: participation.LocalSpec(),
+			SessionType:          "loop-goal",
+		}
+		priorOptions := creationOptions
+		priorOptions.SessionID = "session-binding-allocate-1"
+		priorCreationDigest, err := profile.CreationDigest(priorOptions)
+		if err != nil {
+			t.Fatalf("SessionCreationProfile.CreationDigest() error = %v", err)
+		}
+		seedActiveGoalBindingWithIdentityForTest(
+			t,
+			globalDB,
+			loopRunID,
+			workspaceID,
+			handle,
+			1,
+			priorOptions.SessionID,
+			goal.BindingOwnershipRunOwned,
+			store.SessionCreationIdentity{
+				CreationProfileRef: profileRef,
+				PolicySpecDigest:   policyDigest,
+				CreationDigest:     priorCreationDigest,
+			},
+			now,
+		)
 		if _, err := globalDB.db.ExecContext(
 			ctx,
 			`UPDATE loop_runs SET generation = 2 WHERE id = ? AND workspace_id = ?`,
@@ -198,22 +225,13 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		}}); err != nil {
 			t.Fatalf("CreateCheckpoint() error = %v", err)
 		}
-		profile := store.SessionCreationProfile{
-			Version: store.SessionCreationProfileVersion, AgentName: "codex", Provider: "native",
-			ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, CWD: "/tmp",
-			SandboxMode: store.SessionCreationSandboxNone,
-		}
 		request := goal.AllocateBindingAttemptRequest{
 			Key:           goal.BindingKey{WorkspaceID: workspaceID, LoopRunID: loopRunID, Handle: handle},
 			CheckpointKey: checkpointKey, ExpectedControlEpoch: 1, ExpectedCheckpointPhase: "idle",
-			ExpectedTaskRunID: "task-goal-binding-allocate", IdentityHandle: handle,
+			TargetBindingEpoch: 2, ExpectedTaskRunID: "task-goal-binding-allocate", IdentityHandle: handle,
 			CreationProfile: profile,
-			CreationOptions: store.SessionCreationOptions{
-				NetworkOwnerKey:      "loop_run:" + loopRunID,
-				NetworkParticipation: participation.LocalSpec(),
-				SessionType:          "loop-goal",
-			},
-			CreatedAt: now.Add(3 * time.Second),
+			CreationOptions: creationOptions,
+			CreatedAt:       now.Add(3 * time.Second),
 		}
 
 		const contenders = 8
@@ -224,7 +242,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		for range contenders {
 			go func() {
 				defer wait.Done()
-				binding, err := globalDB.AllocateSessionBindingAttempt(testutil.Context(t), request)
+				binding, err := globalDB.AllocateSessionBindingAttempt(testutil.Context(t), &request)
 				if err != nil {
 					errorsCh <- err
 					return
@@ -255,7 +273,38 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			t.Fatalf("count Goal bindings error = %v", err)
 		}
 		if bindingCount != 2 {
-			t.Fatalf("binding count = %d, want closed epoch 1 and creating epoch 2", bindingCount)
+			t.Fatalf("binding count = %d, want active epoch 1 and creating epoch 2", bindingCount)
+		}
+		creating, err := globalDB.GetSessionBindingAttempt(ctx, request.Key, request.TargetBindingEpoch)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(rotation) error = %v", err)
+		}
+		registerGoalSessionIdentityForTest(
+			t,
+			globalDB,
+			goalSessionInfoForTest(creating.SessionID, workspaceID, now.Add(4*time.Second)),
+			store.SessionCreationIdentity{
+				CreationProfileRef: creating.CreationProfileRef,
+				PolicySpecDigest:   creating.PolicySpecDigest,
+				CreationDigest:     creating.CreationDigest,
+			},
+		)
+		activated, stopped, err := globalDB.FinalizeSessionBindingCreation(ctx, goal.ActivateBindingRequest{
+			Key: request.Key, CheckpointKey: &checkpointKey, ExpectedBindingEpoch: request.TargetBindingEpoch,
+			ExpectedControlEpoch: request.ExpectedControlEpoch, ActivatedAt: now.Add(5 * time.Second),
+		})
+		if err != nil || stopped {
+			t.Fatalf("FinalizeSessionBindingCreation(rotation) = %#v/%t, %v", activated, stopped, err)
+		}
+		if activated.BindingEpoch != request.TargetBindingEpoch || activated.State != goal.BindingStateActive {
+			t.Fatalf("activated rotation = %#v, want active epoch %d", activated, request.TargetBindingEpoch)
+		}
+		prior, err := globalDB.GetSessionBindingAttempt(ctx, request.Key, 1)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt(prior) error = %v", err)
+		}
+		if prior.State != goal.BindingStateReseeded {
+			t.Fatalf("prior binding state = %q, want %q", prior.State, goal.BindingStateReseeded)
 		}
 	})
 
@@ -2099,18 +2148,43 @@ func seedActiveGoalBindingWithOwnershipForTest(
 ) {
 	t.Helper()
 
-	profileRef := "profile:" + runID
-	policyDigest := "policy:" + runID
-	creationDigest := "creation:" + runID
+	seedActiveGoalBindingWithIdentityForTest(
+		t,
+		globalDB,
+		runID,
+		workspaceID,
+		handle,
+		bindingEpoch,
+		sessionID,
+		ownership,
+		store.SessionCreationIdentity{
+			CreationProfileRef: "profile:" + runID,
+			PolicySpecDigest:   "policy:" + runID,
+			CreationDigest:     "creation:" + runID,
+		},
+		now,
+	)
+}
+
+func seedActiveGoalBindingWithIdentityForTest(
+	t *testing.T,
+	globalDB *GlobalDB,
+	runID string,
+	workspaceID string,
+	handle string,
+	bindingEpoch int64,
+	sessionID string,
+	ownership goal.BindingOwnership,
+	identity store.SessionCreationIdentity,
+	now time.Time,
+) {
+	t.Helper()
+
 	registerGoalSessionIdentityForTest(
 		t,
 		globalDB,
 		goalSessionInfoForTest(sessionID, workspaceID, now),
-		store.SessionCreationIdentity{
-			CreationProfileRef: profileRef,
-			PolicySpecDigest:   policyDigest,
-			CreationDigest:     creationDigest,
-		},
+		identity,
 	)
 	if _, err := globalDB.db.ExecContext(
 		testutil.Context(t),
@@ -2125,9 +2199,9 @@ func seedActiveGoalBindingWithOwnershipForTest(
 		"binding-attempt:"+runID+":"+handle,
 		sessionID,
 		workspaceID,
-		profileRef,
-		policyDigest,
-		creationDigest,
+		identity.CreationProfileRef,
+		identity.PolicySpecDigest,
+		identity.CreationDigest,
 		ownership,
 		store.FormatTimestamp(now),
 		store.FormatTimestamp(now),

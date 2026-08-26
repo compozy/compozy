@@ -228,7 +228,6 @@ type Run struct {
 	DefinitionDigest      string
 	DefinitionSnapshot    json.RawMessage
 	ActiveGateID          NodeID
-	ActiveHumanCriteria   *json.RawMessage
 	BudgetApprovalSeq     int
 	StartMetadata         map[string]any
 	IterationCap          int

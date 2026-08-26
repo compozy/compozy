@@ -1,6 +1,7 @@
 package loop
 
 import (
+	"encoding/json"
 	"slices"
 
 	"github.com/compozy/compozy/internal/network/participation"
@@ -8,11 +9,12 @@ import (
 
 // RunStartState keeps infrequently used projections off the hot Run value.
 type RunStartState struct {
-	NetworkSpec participation.Spec `json:"network_spec"`
-	Admission   *RunAdmission      `json:"-"`
-	completion  CompletionState
-	forkedFrom  *ForkRef
-	forks       []ForkRef
+	NetworkSpec         participation.Spec `json:"network_spec"`
+	Admission           *RunAdmission      `json:"-"`
+	activeHumanCriteria *json.RawMessage
+	completion          CompletionState
+	forkedFrom          *ForkRef
+	forks               []ForkRef
 }
 
 // NetworkSpecSnapshot returns the immutable snapshot, defaulting uninitialized in-memory runs to Local.

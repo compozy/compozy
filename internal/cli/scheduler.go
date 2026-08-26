@@ -26,7 +26,6 @@ const (
 	schedulerPausedTaskValue  = "Paused Tasks"
 	schedulerStarvedRunValue  = "Starved Runs"
 	schedulerNeedsAttnValue   = "Needs Attention Runs"
-	schedulerCompletedValue   = "Completed"
 	schedulerTimedOutValue    = "Timed Out"
 	schedulerRemainingValue   = "Remaining Claims"
 	defaultSchedulerDrainFlag = "60s"
@@ -239,7 +238,7 @@ func schedulerDrainBundle(record SchedulerDrainRecord) outputBundle {
 		jsonValue: record,
 		human: func() (string, error) {
 			return renderHumanSection("Scheduler Drain", []keyValue{
-				{Label: schedulerCompletedValue, Value: strconv.FormatBool(record.Completed)},
+				{Label: cliCompletedValue, Value: strconv.FormatBool(record.Completed)},
 				{Label: schedulerTimedOutValue, Value: strconv.FormatBool(record.TimedOut)},
 				{Label: schedulerRemainingValue, Value: strconv.Itoa(record.RemainingClaims)},
 				{Label: "Started", Value: stringOrDash(formatTime(record.StartedAt))},

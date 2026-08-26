@@ -47,9 +47,10 @@ func (b *loopActionSessionBinder) prepareRunOwnedBinding(
 		}
 		prepared, err := b.bindingAllocator.AllocateSessionBindingAttempt(
 			ctx,
-			goalpkg.AllocateBindingAttemptRequest{
+			&goalpkg.AllocateBindingAttemptRequest{
 				Key:                            key,
 				CheckpointKey:                  bindingCheckpointKey(req),
+				TargetBindingEpoch:             req.TargetBindingEpoch,
 				ExpectedControlEpoch:           req.ExpectedControlEpoch,
 				ExpectedCheckpointPhase:        req.ExpectedCheckpointPhase,
 				ExpectedTaskRunID:              req.ExpectedTaskRunID,

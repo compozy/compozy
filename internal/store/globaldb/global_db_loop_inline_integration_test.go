@@ -699,7 +699,7 @@ func inlineGoalRunForTest(
 	if err != nil {
 		t.Fatalf("DeriveHumanActorContext(start) error = %v", err)
 	}
-	return looppkg.Run{
+	run := looppkg.Run{
 		ID: looppkg.RunID(runID), WorkspaceID: workspaceID,
 		LoopName: looppkg.InlineGoalLoopName, Status: looppkg.StatusRunning,
 		ReattemptStrategy: looppkg.ReattemptFailedOnly,
@@ -707,11 +707,13 @@ func inlineGoalRunForTest(
 		StartedBy: actor.Actor, StartedOrigin: actor.Origin,
 		DefinitionVersion: resolved.DefinitionVersion,
 		DefinitionDigest:  digest, DefinitionSnapshot: snapshot,
-		ActiveHumanCriteria: new(json.RawMessage(`[]`)), StartMetadata: map[string]any{},
-		IterationCap: effective.IterationCap, BudgetOnExceeded: effective.BudgetOnExceeded,
+		StartMetadata: map[string]any{},
+		IterationCap:  effective.IterationCap, BudgetOnExceeded: effective.BudgetOnExceeded,
 		ProfileID:             store.DefaultProfileID,
 		GoalContextNudgeRatio: 0.8, Origin: &origin, Inputs: map[string]any{},
 	}
+	run.SetActiveHumanCriteria(json.RawMessage(`[]`))
+	return run
 }
 
 func requireInlineGoalReason(t *testing.T, err error, want looppkg.ReasonCode) {

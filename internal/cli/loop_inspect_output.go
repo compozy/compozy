@@ -30,7 +30,7 @@ func loopInspectOutputBundle(response *contract.LoopResponse) outputBundle {
 				},
 				{Label: "Iteration cap", Value: strconv.Itoa(effective.IterationCap)},
 				{Label: "Reattempt strategy", Value: string(effective.ReattemptStrategy)},
-				{Label: "Sources", Value: formatLoopConfigSources(effective.Sources)},
+				{Label: cliSourcesValue, Value: formatLoopConfigSources(effective.Sources)},
 			}))
 		}
 		if lifecycle := response.Loop.EffectiveLifecycle; lifecycle != nil {
@@ -43,7 +43,7 @@ func loopInspectOutputBundle(response *contract.LoopResponse) outputBundle {
 				{Label: "Wait admissions", Value: strconv.Itoa(lifecycle.WaitAdmissionAttempts)},
 				{Label: "Wait retry interval", Value: lifecycle.WaitAdmissionInterval},
 				{Label: "Admission horizon", Value: lifecycle.AdmissionHorizon},
-				{Label: "Sources", Value: formatLoopLifecycleSources(lifecycle.Sources)},
+				{Label: cliSourcesValue, Value: formatLoopLifecycleSources(lifecycle.Sources)},
 			}))
 		}
 		return renderHumanBlocks(blocks...), nil

@@ -15,22 +15,22 @@ import (
 // AllocateSessionBindingAttempt atomically selects and persists the next Goal-owned binding epoch.
 func (g *GoalRepo) AllocateSessionBindingAttempt(
 	ctx context.Context,
-	req goal.AllocateBindingAttemptRequest,
+	req *goal.AllocateBindingAttemptRequest,
 ) (goal.SessionBinding, error) {
 	if err := g.checkReady(ctx, "allocate goal session binding attempt"); err != nil {
 		return goal.SessionBinding{}, err
 	}
-	normalized, err := normalizeAllocateBindingRequest(req, g.now())
-	if err != nil {
+	normalized := *req
+	if err := normalizeAllocateBindingRequest(&normalized, g.now()); err != nil {
 		return goal.SessionBinding{}, err
 	}
 	var prepared goal.SessionBinding
-	err = g.withTaskImmediateTransaction(
+	err := g.withTaskImmediateTransaction(
 		ctx,
 		"allocate goal session binding attempt",
 		func(exec taskSQLExecutor) error {
 			var allocateErr error
-			prepared, allocateErr = allocateSessionBindingAttemptWithExecutor(ctx, exec, normalized)
+			prepared, allocateErr = allocateSessionBindingAttemptWithExecutor(ctx, exec, &normalized)
 			return allocateErr
 		},
 	)
@@ -41,14 +41,14 @@ func (g *GoalRepo) AllocateSessionBindingAttempt(
 }
 
 func normalizeAllocateBindingRequest(
-	req goal.AllocateBindingAttemptRequest,
+	req *goal.AllocateBindingAttemptRequest,
 	now time.Time,
-) (goal.AllocateBindingAttemptRequest, error) {
+) error {
 	if err := req.Key.Validate(); err != nil {
-		return goal.AllocateBindingAttemptRequest{}, err
+		return err
 	}
 	if err := req.CheckpointKey.Validate(); err != nil {
-		return goal.AllocateBindingAttemptRequest{}, err
+		return err
 	}
 	req.ExpectedCheckpointPhase = strings.TrimSpace(req.ExpectedCheckpointPhase)
 	req.ExpectedTaskRunID = strings.TrimSpace(req.ExpectedTaskRunID)
@@ -60,20 +60,20 @@ func normalizeAllocateBindingRequest(
 	req.CreationProfile = store.NormalizeSessionCreationProfile(req.CreationProfile)
 	req.CreationOptions.SessionID = strings.TrimSpace(req.CreationOptions.SessionID)
 	if err := validateAllocateBindingRequest(req); err != nil {
-		return goal.AllocateBindingAttemptRequest{}, err
+		return err
 	}
 	if req.CreatedAt.IsZero() {
 		req.CreatedAt = now
 	}
-	return req, nil
+	return nil
 }
 
-func validateAllocateBindingRequest(req goal.AllocateBindingAttemptRequest) error {
+func validateAllocateBindingRequest(req *goal.AllocateBindingAttemptRequest) error {
 	checkpointBindingEmpty := req.ExpectedCheckpointBindingEpoch == 0 &&
 		req.ExpectedCheckpointSessionID == "" && req.ExpectedCheckpointHandle == ""
 	checkpointBindingComplete := req.ExpectedCheckpointBindingEpoch > 0 &&
 		req.ExpectedCheckpointSessionID != "" && req.ExpectedCheckpointHandle != ""
-	if req.Key.WorkspaceID != req.CheckpointKey.WorkspaceID ||
+	if req.Key.WorkspaceID != req.CheckpointKey.WorkspaceID || req.TargetBindingEpoch < 1 ||
 		req.Key.LoopRunID != req.CheckpointKey.LoopRunID || req.ExpectedControlEpoch < 1 ||
 		!goalCheckpointPhaseValid(req.ExpectedCheckpointPhase) ||
 		req.ExpectedCheckpointPhase == goalCheckpointPhaseTerminal || req.ExpectedTaskRunID == "" ||
@@ -93,7 +93,7 @@ func validateAllocateBindingRequest(req goal.AllocateBindingAttemptRequest) erro
 func allocateSessionBindingAttemptWithExecutor(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	req goal.AllocateBindingAttemptRequest,
+	req *goal.AllocateBindingAttemptRequest,
 ) (goal.SessionBinding, error) {
 	if err := validateBindingRunWorkspace(ctx, exec, req.Key); err != nil {
 		return goal.SessionBinding{}, err
@@ -117,7 +117,9 @@ func allocateSessionBindingAttemptWithExecutor(
 		if active.CreationProfileRef != profileRef || active.PolicySpecDigest != policyDigest {
 			return goal.SessionBinding{}, goalBindingMismatchError("active binding policy/profile differs")
 		}
-		return active, nil
+		if active.BindingEpoch >= req.TargetBindingEpoch {
+			return active, nil
+		}
 	}
 	return allocateNextSessionBindingAttempt(ctx, exec, req, profileRef, policyDigest)
 }
@@ -125,7 +127,7 @@ func allocateSessionBindingAttemptWithExecutor(
 func validateBindingAllocationOwner(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	req goal.AllocateBindingAttemptRequest,
+	req *goal.AllocateBindingAttemptRequest,
 ) error {
 	checkpoint, err := loadGoalCheckpointWithExecutor(ctx, exec, req.CheckpointKey)
 	if err != nil {
@@ -157,7 +159,7 @@ func validateBindingAllocationOwner(
 func allocateNextSessionBindingAttempt(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	req goal.AllocateBindingAttemptRequest,
+	req *goal.AllocateBindingAttemptRequest,
 	profileRef string,
 	policyDigest string,
 ) (goal.SessionBinding, error) {
@@ -191,7 +193,10 @@ func allocateNextSessionBindingAttempt(
 	if creatingCount != 0 {
 		return goal.SessionBinding{}, goalControlStaleError("another binding creation attempt is already pending")
 	}
-	epoch := maximumEpoch + 1
+	if req.TargetBindingEpoch != maximumEpoch+1 {
+		return goal.SessionBinding{}, goalControlStaleError("binding allocation must target the next epoch")
+	}
+	epoch := req.TargetBindingEpoch
 	attemptID, sessionID := goal.DeriveBindingIdentity(req.CheckpointKey, req.IdentityHandle, epoch)
 	creationOptions := req.CreationOptions
 	creationOptions.SessionID = sessionID
@@ -217,7 +222,7 @@ func allocateNextSessionBindingAttempt(
 
 func allocatedBindingMatchesRequest(
 	binding goal.SessionBinding,
-	req goal.AllocateBindingAttemptRequest,
+	req *goal.AllocateBindingAttemptRequest,
 	profileRef string,
 	policyDigest string,
 ) (bool, error) {
