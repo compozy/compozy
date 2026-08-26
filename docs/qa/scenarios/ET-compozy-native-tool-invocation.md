@@ -6,13 +6,13 @@ persona: Ada
 journey: J-validate-compozy-hard-cut
 expected: A managed session, including Codex on a macOS CGO-disabled build, and the operator CLI discover and invoke compozy__ native tools; hosted MCP advertises only compozy_host__ façade names from compozy-hosted-tools, and retired identifiers resolve as unknown without aliases.
 entry_points: compozy tool list|search|info|invoke -o json; managed session tool call; compozy mcp serve; hosted MCP tools/list and tools/call
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260727-runtime-legacy-identity
 fix_status: fixed
 retest_status: pass
 fix_commits: e4df8634
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-config-get-missing.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-config-get-missing-summary.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-info-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-native-tool-approval-grants;ET-workspace-host-api-mcp
 ---
 

@@ -45,9 +45,8 @@ const COMMAND_SECTIONS = [
 ] as const;
 
 /**
- * The daemon's display_name is the canonical token ("/goal"); the menu shows a
- * human title instead. Built-in/agent names humanize to Title Case while skill
- * names keep their exact kebab identity.
+ * Built-in and agent display names humanize to Title Case. Skill rows use their
+ * canonical token so a namespaced collision stays distinguishable from its bare winner.
  */
 function humanizeCommandLabel(displayName: string, lane: SessionCommandMenuLane): string {
   const bare = displayName.startsWith("/") ? displayName.slice(1) : displayName;
@@ -69,10 +68,11 @@ function commandMenuItem(
   const scope = command.source?.scope;
   const origin = command.source?.origin?.trim();
   const reason = command.unavailable_reason?.trim();
+  const labelSource = lane === "skill" ? command.canonical_token : command.display_name;
   return {
     id: command.id,
     token: command.canonical_token,
-    label: humanizeCommandLabel(command.display_name, lane),
+    label: humanizeCommandLabel(labelSource, lane),
     lane,
     available: command.available,
     ...(command.description ? { description: command.description } : {}),

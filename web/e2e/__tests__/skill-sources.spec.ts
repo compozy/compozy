@@ -253,6 +253,9 @@ test.describe("skill sources", () => {
     await expect(menu).toBeVisible();
 
     const absorbed = menu.locator(`[data-command-token="/${ABSORBED_SKILL}"]`);
+    await expect(absorbed).toHaveCount(1);
+    await expect(appPage.getByText(ABSORBED_SKILL, { exact: true })).toHaveCount(1);
+    await expect(appPage.getByText(`agents:${ABSORBED_SKILL}`, { exact: true })).toBeVisible();
     await expect(absorbed.locator("[data-slot='composer-command-origin']")).toHaveText("agents", {
       timeout: 20_000,
     });

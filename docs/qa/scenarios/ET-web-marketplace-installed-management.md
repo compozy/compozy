@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-marketplace-acquisition
 expected: Each kind opens in Installed scope with `tab` omitted and exposes only daemon-backed controls: skill content, shadows, enable and update; extension kit inventory, lifecycle, environment, diagnostics and provenance; MCP creation and exact-scope configuration, status and authorization.
 entry_points: /marketplace/skills; /marketplace/mcps; /marketplace/extensions
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-skill-disabled.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/extension-spec-cycle-trust.png; docs/qa/evidence/2026-08-10-loop-browser-runtime-closeout/marketplace-mcp-playwright-installed.png
-last_report: docs/qa/reports/2026-08-10-loop-browser-runtime-closeout.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-web-extensions-manage; ET-web-extension-detail; ET-web-mcp-status-matrix
 ---
 

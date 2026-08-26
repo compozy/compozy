@@ -6,13 +6,13 @@ persona: Ada
 journey: J-load-skill-in-managed-session
 expected: A real managed Codex session whose startup is delayed beyond the hosted-MCP bind TTL and whose truncated catalog omits an installed skill still discovers and loads its exact marker-bearing body through compozy__skill_view, without invoking the operator CLI or reading the skill file directly; managed environment markers make every compozy skill command fail before resolution or UDS access, while an operator can still read the same body with compozy skill view.
 entry_points: delayed managed session prompt; `compozy__skill_view`; managed-env `compozy skill`; operator `compozy skill view`
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260805-hosted-mcp-cold-start-nonce-expiry
 fix_status: fixed
 retest_status: pass
 fix_commits: PR #323 remediation commit
-evidence: /Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/hosted-skill-summary.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/provider-hosted-skill-walk.json;/Users/pedronauck/dev/qa-labs/compozy-pr372-extension-agent-session-skills-native-cli-20260813-181110-157690-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-13-pr372-extension-agent-session-skills-native-cli.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/observation-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-003
 ---
 

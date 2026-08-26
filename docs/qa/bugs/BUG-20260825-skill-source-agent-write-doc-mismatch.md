@@ -1,6 +1,6 @@
 # BUG-20260825-skill-source-agent-write-doc-mismatch: The official skill tells agents a config write is denied that actually succeeds
 
-- **Status:** fixed <!-- open | fixed | verified | wont-fix | invalid -->
+- **Status:** verified <!-- open | fixed | verified | wont-fix | invalid -->
 - **Impact (user-side):** Trust-Damage
 - **Severity:** Medium · **Priority:** P1
 - **Persona Affected:** Ada
@@ -71,7 +71,7 @@ marketplace feed root and is correct — no site change is implied.
   `skillsConfigPathIsTrustRoot`, which is what the doc author read — but that check is unreachable
   for these two keys. Task 07 wrote the sentence from the unreachable branch; the runtime has always
   matched `_spec.md:445` instead.
-- **Fix commit:** see `docs: correct the agent write policy for skill source keys`
+- **Fix commit:** `2643f4aba`
 - **Regression test:** documented replay — the reproduction transcript above *is* the before/after
   evidence, and prose has no red-before test. A guard was added in the canonical suite
   `internal/config/tool_surface_test.go` (`TestToolConfigPathPolicy`) pinning both paths as

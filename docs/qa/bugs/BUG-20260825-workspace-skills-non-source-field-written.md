@@ -38,7 +38,7 @@ no file mutation.
   Gateway, and Shell, but had no policy for the `[skills]` section. The source-specific validator
   returned early for every non-source path, so the generic overlay editor wrote the field locally
   instead of reaching the strict settings API decoder that already enforced the contract.
-- **Fix commit:** see `fix: reject non-source skill fields at workspace scope`
+- **Fix commit:** `b346b36d4`
 - **Regression tests:** `TestWriteScopeValidationAndTargetScope/Should reject non-source skill
   fields at workspace scope` owns the policy; `TestConfigSkillSourceValuesAndValidationRendering/
   Should reject a non-source workspace skill field without writing a file` owns the structured CLI

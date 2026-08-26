@@ -303,8 +303,7 @@ func skillExposureErrorPayload(err error) *contract.SkillExposureErrorPayload {
 		return nil
 	}
 	payload := &contract.SkillExposureErrorPayload{Code: skills.ExposureCodeSkillNotExposable, Message: err.Error()}
-	var exposureErr *skills.ExposureError
-	if errors.As(err, &exposureErr) {
+	if exposureErr, ok := errors.AsType[*skills.ExposureError](err); ok {
 		payload.Code = exposureErr.Code
 		payload.Message = exposureErr.Message
 		if exposureErr.Code == skills.ExposureCodeNameConflict || exposureErr.Code == skills.ExposureCodeForeignLink {
@@ -347,8 +346,7 @@ func (h *BaseHandlers) respondSkillExposureFailure(
 	expose bool,
 ) {
 	rolledBack := false
-	var batchErr *skills.ExposureBatchError
-	if errors.As(err, &batchErr) {
+	if batchErr, ok := errors.AsType[*skills.ExposureBatchError](err); ok {
 		rolledBack = batchErr.RolledBack
 	}
 	failureCount := 0

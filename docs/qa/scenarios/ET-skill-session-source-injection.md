@@ -6,13 +6,13 @@ persona: Dora
 journey: J-use-absorbed-skills-in-a-session
 expected: A session omits only skills its provider already reads natively from the winning root, while the command picker, qualified invocation, exact profile ownership, verification, and drift rejection remain available and deterministic
 entry_points: session startup prompt; session prompt input; session composer `/` picker; compozy session commands <session-id> -o json; GET /api/workspaces/{workspace_id}/sessions/{session_id}/commands over HTTP or UDS; slash command submission; harness diagnostics
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/session-catalog.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-session-command-catalog-parity; ET-skill-origin-attribution; ET-session-composer-skill-chip; ET-managed-session-skill-loading
 ---
 

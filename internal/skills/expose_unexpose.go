@@ -154,8 +154,7 @@ func (m *ExposeManager) unexposeWithoutRecord(owner exposureOwner, skill *Skill,
 }
 
 func exposureErrorPath(err error) string {
-	var typed *ExposureError
-	if errors.As(err, &typed) {
+	if typed, ok := errors.AsType[*ExposureError](err); ok {
 		return typed.Path
 	}
 	return ""

@@ -6,13 +6,13 @@ persona: Dora
 journey: J-diagnose-skill-sources
 expected: Human and JSON CLI output report the effective source order, scope, origin, availability, truncation, skipped links, and collisions consistently for user, profile, and workspace views
 entry_points: compozy skill sources; compozy skill sources -o json; compozy skill sources --json; compozy skill sources --workspace <id>; GET /api/settings/skills per-root diagnostics over HTTP or UDS; Settings > Skills per-root diagnostics at /settings/skills
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-skill-detail-rejects-workspace-id
+fix_status: fixed
+retest_status: pass
+fix_commits: 740d868cf
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/sources-cli.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/diagnostics-links.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/exposure-errors-summary.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-manage-skill-source-policy; ET-live-skill-source-reload; ET-skill-source-symlink-containment; ET-web-skill-sources-settings
 ---
 

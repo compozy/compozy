@@ -6,13 +6,13 @@ persona: Dora
 journey: J-absorb-skills-from-other-tools
 expected: Fresh CLI and settings reads agree after source set, clear, and validation operations at user, profile, and workspace scope, while agent scope remains read-only
 entry_points: compozy config get|set|unset skills.sources|skills.custom_sources --scope user|profile|workspace; [skills] sources|custom_sources in ~/.compozy/config.toml, a profile config.toml, and <ws>/.compozy/config.toml; GET /api/settings/skills?scope=user|profile|workspace|agent over HTTP or UDS; PATCH /api/settings/skills over HTTP or UDS
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-skill-source-profile-write-rejected;BUG-20260825-workspace-skills-non-source-field-written
+fix_status: fixed
+retest_status: pass
+fix_commits: 84913fa33;b346b36d4
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/validation-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/profile-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/native-config-summary.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-live-skill-source-reload; ET-workspace-skill-source-teammate; ET-skill-source-agent-parity
 ---
 

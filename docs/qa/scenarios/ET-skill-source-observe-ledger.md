@@ -6,13 +6,13 @@ persona: Dora
 journey: J-operate-skill-sources-headless
 expected: Each source, scan, and exposure lifecycle path leaves exactly its own durable event with correlation keys, a discarded generation is recorded as superseded and never as applied, and per-suppression decisions never enter the ledger
 entry_points: compozy logs --type skills.sources.applied|skills.sources.superseded|skills.sources.apply_failed --component skill; compozy logs --type skills.scan.truncated|skills.scan.link_skipped --component skill; compozy logs --type skills.exposure.created|skills.exposure.removed|skills.exposure.operation_failed|skills.exposure.broken_detected|skills.exposure.cleanup_failed --component skill; GET /api/logs over HTTP or UDS; harness suppression diagnostics
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-skill-source-event-omits-custom-roots
+fix_status: fixed
+retest_status: pass
+fix_commits: e7dffdb74
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-skill-http.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-skill-cli.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/live-apply-summary.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-skill-source-agent-parity; ET-live-skill-source-reload; ET-skill-exposure-lifecycle; ET-skill-source-diagnostics-cli
 ---
 

@@ -1,6 +1,6 @@
 # BUG-20260825-skill-detail-rejects-workspace-id: Every workspace-scoped skill detail and expose call is refused
 
-- **Status:** fixed <!-- open | fixed | verified | wont-fix | invalid -->
+- **Status:** verified <!-- open | fixed | verified | wont-fix | invalid -->
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** Critical · **Priority:** P0
 - **Persona Affected:** Dora
@@ -69,7 +69,7 @@ links"), which is the wrong code and points a client at the wrong cause.
   (`TestGetSkill/Should resolve workspace-only skills from the canonical workspace id`) builds a stub
   `ResolvedWorkspace` that leaves `WorkspaceID` empty, so the fallback returned `ID` and the
   comparison passed. Production never has that shape.
-- **Fix commit:** see `fix: accept the registered workspace id on skill detail and expose routes`
+- **Fix commit:** `740d868cf`
 - **Regression test:** `internal/api/core/skills_test.go`, `TestGetSkill` — new subtest
   "Should accept the registered workspace id when a durable identity is also stamped" builds the
   resolver's real shape (both `ID` and `WorkspaceID` populated). Failed before the fix with the exact

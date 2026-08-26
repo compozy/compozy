@@ -1,6 +1,6 @@
 # BUG-20260825-skill-source-profile-write-rejected: Setting a skill source for one profile fails with an internal decoder error
 
-- **Status:** fixed <!-- open | fixed | verified | wont-fix | invalid -->
+- **Status:** verified <!-- open | fixed | verified | wont-fix | invalid -->
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Dora
@@ -70,7 +70,7 @@ PATCH /api/settings/skills?scope=profile&profile=helix   {"config":{...}}    -> 
   `scope == ScopeWorkspace`, so a profile-scope body fell through to the config-only branch, which
   rejects every key except `config`. The profile half of the four-layer contract was unreachable
   from any transport, HTTP and UDS alike.
-- **Fix commit:** see `fix: accept skill source overrides at exact-profile scope`
+- **Fix commit:** `84913fa33`
 - **Regression test:** `internal/api/core/settings_test.go`,
   `TestUpdateSettingsSkillsSourcePolicyShapes` — three new subtests covering the presence-aware
   override states at `scope=profile` (set, `null`-clear, empty list), one pinning that a full

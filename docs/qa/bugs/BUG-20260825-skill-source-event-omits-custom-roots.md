@@ -41,7 +41,7 @@ actually applied.
   intentionally only the daemon's user-level registry configuration during profile/workspace
   applies. The staged profile/workspace projection — including custom roots — was therefore
   invisible to the event writer.
-- **Fix commit:** see `fix: record every effective skill source root in apply events`
+- **Fix commit:** `e7dffdb74`
 - **Regression tests:** `TestSkillsSectionDiagnostics/Should correlate source applies with every
   effective root` proves settings measures the exact post-write projection; and
   `TestRegistryConfigGenerationFence/Should keep the winning profile generation on every catalog

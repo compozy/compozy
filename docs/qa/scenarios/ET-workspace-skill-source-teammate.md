@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-absorb-skills-from-other-tools
 expected: A cloned repository's committed skill folders and source configuration load for anyone who opens that workspace with default personal settings, stay scoped to it, and nothing personal is written back into the repository
 entry_points: <ws>/.compozy/config.toml [skills] sources|custom_sources; <ws>/.agents/skills/<name>/SKILL.md; compozy skill list --workspace <ref>; compozy skill sources --workspace <ref>; GET /api/settings/skills?scope=workspace&workspace_id=<id> over HTTP or UDS; session composer `/` picker in that workspace
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-workspace-native-skill-missing
+fix_status: fixed
+retest_status: pass
+fix_commits: df739b0
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/origin-native-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/list-workspace.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/workspace-other.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-manage-skill-source-policy; ET-live-skill-source-reload; ET-skill-origin-attribution
 ---
 

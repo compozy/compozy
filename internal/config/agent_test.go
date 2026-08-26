@@ -1252,7 +1252,6 @@ Prompt.
 		if err == nil {
 			t.Fatal("ParseAgentDef() error = nil, want decode failure")
 		}
-
 		yamlErr, yamlErrMatched := errors.AsType[*yaml.SyntaxError](err)
 		if !yamlErrMatched {
 			t.Fatalf("ParseAgentDef() error = %v, want yaml syntax error in unwrap chain", err)

@@ -1,23 +1,22 @@
 import { describe, expect, it } from "vitest";
 
+import { LOOP_RUN_VISUAL_CONTRACT } from "../../systems/loops/components/stories/loop-run-visual-contract";
+import loopRunPageSource from "../../systems/loops/components/stories/loop-run-page.stories.tsx?raw";
+import loopRunRegistersSource from "../../systems/loops/components/stories/loop-run-registers.stories.tsx?raw";
+import loopRunsSource from "../../systems/loops/components/stories/loop-runs.stories.tsx?raw";
+
 // A Visual Contract row with no target is not a missing screenshot — it is a
 // state nobody can look at, and without this it surfaces halfway through a
 // capture run instead of here.
 describe("loop run Visual Contract targets", () => {
-  it("stages every VC row against a story export that exists", async () => {
-    const { LOOP_RUN_VISUAL_CONTRACT } =
-      await import("../../systems/loops/components/stories/loop-run-visual-contract");
-    const modules = [
-      await import("../../systems/loops/components/stories/loop-run-page.stories"),
-      await import("../../systems/loops/components/stories/loop-run-registers.stories"),
-      await import("../../systems/loops/components/stories/loop-runs.stories"),
-    ];
+  it("stages every VC row against a story export that exists", () => {
+    const sources = [loopRunPageSource, loopRunRegistersSource, loopRunsSource];
     const staged = new Set<string>();
-    for (const module of modules) {
-      const title = (module.default as { title?: string }).title;
-      for (const exportName of Object.keys(module)) {
-        if (exportName === "default") continue;
-        staged.add(`${title}::${exportName}`);
+    for (const source of sources) {
+      const title = source.match(/title:\s*"([^"]+)"/)?.[1];
+      if (!title) throw new Error("Story source is missing its CSF title");
+      for (const match of source.matchAll(/^export const (\w+): Story =/gm)) {
+        staged.add(`${title}::${match[1]}`);
       }
     }
 

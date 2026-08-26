@@ -6,13 +6,13 @@ persona: Dora
 journey: J-diagnose-skill-sources
 expected: A physical skill directory reached through links yields exactly one catalog entry attributed to its highest-precedence root, every escaping, dangling, or cyclic link is skipped with a per-entry diagnostic without failing the root, and no profile or workspace ever reads another one's roots through a link
 entry_points: compozy skill sources; compozy skill sources -o json; compozy skill where <name>; compozy skill list --source <tier>; GET /api/settings/skills over HTTP or UDS; Settings > Skills per-root diagnostics at /settings/skills; compozy logs --type skills.scan.link_skipped --component skill
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/symlink-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/list-links.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-link-skipped.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-skill-source-diagnostics-cli; ET-skill-origin-attribution; ET-skill-exposure-lifecycle
 ---
 

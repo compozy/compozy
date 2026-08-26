@@ -14,8 +14,7 @@ function returnToAgent(
   windowId: string,
   agentName: string
 ): void {
-  void coordinator.userClose(windowId).then(closed => {
-    if (!closed) return;
+  void coordinator.userClose(windowId).then(() => {
     void coordinator.userOpen({
       app: "agents",
       route: {
@@ -66,11 +65,6 @@ export function useSessionWindowController(windowId: string) {
     windowId,
   ]);
 
-  useEffect(() => {
-    if (!deletedLocally || agentName === null) return;
-    returnToAgent(coordinator, windowId, agentName);
-  }, [agentName, coordinator, deletedLocally, windowId]);
-
   return {
     ...resolution,
     agentName,
@@ -79,7 +73,9 @@ export function useSessionWindowController(windowId: string) {
     liveTailEnabled,
     sessionId,
     handleDeleteSuccess: () => {
-      if (sessionId !== null) setDeletedSessionId(sessionId);
+      if (sessionId === null || agentName === null) return;
+      setDeletedSessionId(sessionId);
+      returnToAgent(coordinator, windowId, agentName);
     },
   };
 }

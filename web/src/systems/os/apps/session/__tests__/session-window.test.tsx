@@ -141,6 +141,7 @@ describe("SessionWindow", () => {
     ownerViewSpy.mockClear();
     foreignState.current = { status: "disabled" };
     userClose.mockClear();
+    userClose.mockResolvedValue(true);
     userOpen.mockClear();
     useSessionPresenceSpy.mockClear();
   });
@@ -202,6 +203,24 @@ describe("SessionWindow", () => {
       { profile: "marketing" },
       expect.objectContaining({ enabled: true, liveTail: false })
     );
+    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
+    await waitFor(() =>
+      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
+        app: "agents",
+        route: { pathname: "/agents/qa-agent", search: {} },
+      })
+    );
+  });
+
+  it("Should return to the agent after the daemon already removed the deleted session window", async () => {
+    userClose.mockResolvedValue(false);
+    render(<SessionWindow windowId="session:sess-1" />);
+    const props = sessionWindowViewSpy.mock.lastCall?.[0] as
+      | { onDeleteSuccess?: () => void }
+      | undefined;
+
+    act(() => props?.onDeleteSuccess?.());
+
     await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
     await waitFor(() =>
       expect(userOpen).toHaveBeenCalledExactlyOnceWith({

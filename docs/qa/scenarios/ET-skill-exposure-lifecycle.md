@@ -6,13 +6,13 @@ persona: Dora
 journey: J-share-skills-with-other-tools
 expected: Eligible user and workspace skills expose only into enabled preset roots, repeated operations are idempotent, failures preserve foreign entries, and every inspection surface reports the reconciled link state
 entry_points: compozy skill create <name> --expose agents|claude; compozy skill expose <name> --to agents|claude; compozy skill unexpose <name> --to agents|claude; compozy skill info; compozy skill where; POST /api/skills/{name}/expose over HTTP or UDS; POST /api/skills/{name}/unexpose over HTTP or UDS; GET /api/skills/{name}
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-skill-detail-rejects-workspace-id
+fix_status: fixed
+retest_status: pass
+fix_commits: 740d868cf
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/exposure-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/exposure-create.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/exposure-foreign-conflict.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-web-skill-expose-panel; ET-skill-source-agent-parity; ET-manage-skill-source-policy
 ---
 

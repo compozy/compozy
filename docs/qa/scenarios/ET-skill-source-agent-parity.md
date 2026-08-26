@@ -6,13 +6,13 @@ persona: Ada
 journey: J-operate-skill-sources-headless
 expected: CLI, HTTP, UDS, native tools, and the extension Host API return the same field names and values for the same persisted source state, every refusal is a matchable code, and no step needs the web UI
 entry_points: compozy__skill_list; compozy__skill_search; compozy__skill_view; compozy__config_get; compozy__config_set; compozy__config_unset; GET /api/settings/skills over HTTP or UDS; PATCH /api/settings/skills over HTTP or UDS; GET /api/skills; GET /api/skills/{name}; POST /api/skills/{name}/expose over HTTP or UDS; POST /api/skills/{name}/unexpose over HTTP or UDS; extension Host API skills/list
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-skill-detail-rejects-workspace-id;BUG-20260825-skill-source-agent-write-doc-mismatch;BUG-20260825-skill-source-profile-write-rejected;BUG-20260825-workspace-skills-non-source-field-written
+fix_status: fixed
+retest_status: pass
+fix_commits: 2643f4aba;740d868cf;84913fa33;b346b36d4
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-list.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/tool-skill-view.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/parity-after.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-skill-origin-attribution; ET-skill-exposure-lifecycle; ET-manage-skill-source-policy; ET-skill-source-observe-ledger
 ---
 

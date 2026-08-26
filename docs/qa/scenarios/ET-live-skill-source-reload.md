@@ -6,13 +6,13 @@ persona: Dora
 journey: J-absorb-skills-from-other-tools
 expected: Source enablement, disablement, replacement, and scan-health changes become visible through skill resources, settings diagnostics, and agent envelopes within two watcher intervals without restarting the daemon
 entry_points: PATCH /api/settings/skills over HTTP or UDS; compozy config set skills.sources; compozy skill sources; Settings > Skills sources section at /settings/skills; resources/list; agent session envelope
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-skill-source-event-omits-custom-roots
+fix_status: fixed
+retest_status: pass
+fix_commits: e7dffdb74
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/live-apply-summary.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/list-after-live-apply.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-skill-cli.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-manage-skill-source-policy
 ---
 

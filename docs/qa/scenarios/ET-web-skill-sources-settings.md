@@ -6,13 +6,13 @@ persona: Dora
 journey: J-absorb-skills-from-other-tools
 expected: Preset rows, folder paths, and counts match what the daemon measured; absent, unreadable, and unmeasured folders never render as a zero; adding and removing folders works with inline errors for a duplicate or a wrong-scope path; workspace scope states inheritance per key and returns to it; the exact workspace-profile projection is read-only; a rejected save keeps the draft and quotes the daemon
 entry_points: /settings/skills; Settings > Skills sources section at user, profile, workspace, workspace-profile, and agent scope
-qa_status: untested
-bug_ids:
-fix_status:
-retest_status:
-fix_commits:
-evidence:
-last_report:
+qa_status: pass
+bug_ids: BUG-20260825-custom-source-stuck-pending
+fix_status: fixed
+retest_status: pass
+fix_commits: df739b0
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/browser-e2e;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/settings-http-after.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-manage-skill-source-policy; ET-live-skill-source-reload; ET-skill-source-diagnostics-cli
 ---
 

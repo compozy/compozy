@@ -412,6 +412,7 @@ describe("session actions", () => {
     });
     const cancelSpy = vi.spyOn(queryClient, "cancelQueries");
     const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    const onDeleteSuccess = vi.fn();
     queryClient.setQueryData(sessionKeys.detail(WORKSPACE_ID, createdSession.id), createdSession);
     queryClient.setQueryData(
       sessionKeys.transcript(WORKSPACE_ID, createdSession.id),
@@ -430,7 +431,7 @@ describe("session actions", () => {
     );
     sessionStore.trigger.composerDraftChanged({ sessionId: createdSession.id, text: "remove me" });
 
-    const { result } = renderHook(() => useDeleteSession(), {
+    const { result } = renderHook(() => useDeleteSession({ onDeleteSuccess }), {
       wrapper: createWrapper(queryClient),
     });
 
@@ -467,9 +468,13 @@ describe("session actions", () => {
     expect(
       sessionStore.getSnapshot().context.liveTailSuppressions[createdSession.id]
     ).toBeUndefined();
+    expect(onDeleteSuccess).toHaveBeenCalledOnce();
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: sessionKeys.workspaceLists(WORKSPACE_ID),
     });
+    expect(onDeleteSuccess.mock.invocationCallOrder[0]).toBeLessThan(
+      invalidateSpy.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY
+    );
   });
 
   it("useDeleteSession preserves cached session data and drafts on failure", async () => {

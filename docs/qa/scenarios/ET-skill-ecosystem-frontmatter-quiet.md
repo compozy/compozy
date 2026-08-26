@@ -6,13 +6,13 @@ persona: Dora
 journey: J-diagnose-skill-sources
 expected: Skill definitions authored for other tools load silently with their ecosystem fields recognized and visibly not honored, while a genuinely unknown field still raises a warning that names it
 entry_points: compozy skill sources; compozy skill sources -o json; compozy skill info <name>; compozy skill view <name>; Settings > Skills per-root diagnostics at /settings/skills; daemon logs during a scan pass
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/list-additional.json;/Users/pedronauck/dev/qa-labs/compozy-skill-sources-final-rebased-20260825-20260825-230120-931206-lab/qa-artifacts/qa/skill-sources/logs-skill-cli.json
+last_report: docs/qa/reports/2026-08-25-skill-sources.md
 overlaps: ET-skill-source-diagnostics-cli; ET-skill-source-symlink-containment
 ---
 
