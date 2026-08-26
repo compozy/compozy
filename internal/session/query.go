@@ -110,7 +110,11 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	}
 
 	if session, ok := m.Get(target); ok {
-		return normalizeExpiredSessionAttach(m.sessionInfoForRead(session), m.now()), nil
+		info := m.sessionInfoForRead(session)
+		if err := m.overlayDurableSpawnLifecycle(ctx, info); err != nil {
+			return nil, err
+		}
+		return normalizeExpiredSessionAttach(info, m.now()), nil
 	}
 
 	meta, err := m.readMetaWithContext(ctx, target)
@@ -129,7 +133,23 @@ func (m *Manager) Status(ctx context.Context, id string) (*Info, error) {
 	if err := m.populateArchiveMetadata(ctx, info); err != nil {
 		return nil, err
 	}
+	if err := m.overlayDurableSpawnLifecycle(ctx, info); err != nil {
+		return nil, err
+	}
 	return info, nil
+}
+
+func (m *Manager) overlayDurableSpawnLifecycle(ctx context.Context, info *Info) error {
+	if info == nil || info.State != StateStopped || info.Lineage == nil || m.sessionCatalog == nil {
+		return nil
+	}
+	durable, err := m.durableSessionInfoForLifecycleTransition(ctx, info.ID)
+	if err != nil {
+		return err
+	}
+	info.ParkedAt = cloneTimePointer(durable.ParkedAt)
+	info.IdleExpiresAt = cloneTimePointer(durable.IdleExpiresAt)
+	return nil
 }
 
 // InputQueueSummary returns the durable busy-input state for one session.

@@ -1228,6 +1228,73 @@ func TestManagerStatusReturnsActiveAndStoredSessions(t *testing.T) {
 	}
 }
 
+func TestManagerStatusReturnsDurableParkedLifecycleForStoppedSession(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should project the durable idle clock for a stopped child", func(t *testing.T) {
+		t.Parallel()
+
+		catalog := newRecordingSessionCatalog()
+		h := newHarness(t, WithSessionCatalog(catalog))
+		ctx := testutil.Context(t)
+		parent := createSession(t, h)
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), parent.ID); stopErr != nil &&
+				!errors.Is(stopErr, ErrSessionNotFound) {
+				t.Errorf("Stop(parent cleanup) error = %v", stopErr)
+			}
+		})
+		childTTL := h.manager.now().Add(time.Hour)
+		child, err := h.manager.Create(ctx, CreateOpts{
+			AgentName: "coder",
+			Name:      "parked child",
+			Workspace: h.workspaceID,
+			Type:      SessionTypeSpawned,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parent.ID,
+				RootSessionID:   parent.ID,
+				SpawnDepth:      1,
+				SpawnRole:       "worker",
+				TTLExpiresAt:    &childTTL,
+				SpawnBudget: store.SessionSpawnBudget{
+					MaxChildren: 2,
+					MaxDepth:    2,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("Create(child) error = %v", err)
+		}
+		if err := h.manager.Stop(ctx, child.ID); err != nil {
+			t.Fatalf("Stop(child) error = %v", err)
+		}
+
+		parkedAt := time.Date(2026, 8, 26, 9, 0, 0, 0, time.UTC)
+		idleExpiresAt := parkedAt.Add(2 * time.Second)
+		catalog.mu.Lock()
+		durable := catalog.sessions[child.ID]
+		durable.ParkedAt = &parkedAt
+		durable.IdleExpiresAt = &idleExpiresAt
+		catalog.sessions[child.ID] = durable
+		catalog.mu.Unlock()
+
+		info, err := h.manager.Status(ctx, child.ID)
+		if err != nil {
+			t.Fatalf("Status(parked child) error = %v", err)
+		}
+		if info.ParkedAt == nil || !info.ParkedAt.Equal(parkedAt) ||
+			info.IdleExpiresAt == nil || !info.IdleExpiresAt.Equal(idleExpiresAt) {
+			t.Fatalf(
+				"Status(parked child) lifecycle = parked %v expires %v, want %s/%s",
+				info.ParkedAt,
+				info.IdleExpiresAt,
+				parkedAt,
+				idleExpiresAt,
+			)
+		}
+	})
+}
+
 func TestManagerStatusReturnsDurableAttentionForStoppedSession(t *testing.T) {
 	t.Parallel()
 
