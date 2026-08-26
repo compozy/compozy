@@ -775,7 +775,11 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			}
 			defaultRuntime, ok := def.Inputs[input].Default.(map[string]any)
 			if !ok || len(defaultRuntime) != 0 {
-				t.Fatalf("implement-tasks input %q default = %#v, want empty runtime object", input, def.Inputs[input].Default)
+				t.Fatalf(
+					"implement-tasks input %q default = %#v, want empty runtime object",
+					input,
+					def.Inputs[input].Default,
+				)
 			}
 		}
 		for nodeID, runtimeInput := range map[dsl.NodeID]string{

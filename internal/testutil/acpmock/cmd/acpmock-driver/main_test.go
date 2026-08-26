@@ -458,7 +458,13 @@ func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
 		}
 		for name, value := range want {
 			if got[name] != value {
-				t.Fatalf("CreateTerminal().Env[%q] = %q, want %q; env=%#v", name, got[name], value, conn.createRequest.Env)
+				t.Fatalf(
+					"CreateTerminal().Env[%q] = %q, want %q; env=%#v",
+					name,
+					got[name],
+					value,
+					conn.createRequest.Env,
+				)
 			}
 		}
 	})

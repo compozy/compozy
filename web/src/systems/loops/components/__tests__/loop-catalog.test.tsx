@@ -165,7 +165,7 @@ describe("LoopCatalog", () => {
     const { rerender } = render(<Harness onRun={() => {}} />);
     const row = screen.getAllByTestId("loop-catalog-row")[0];
     expect(within(row).getByText("Engineering")).toBeInTheDocument();
-    expect(within(row).getByText("3 inputs")).toBeInTheDocument();
+    expect(within(row).getByText("9 inputs")).toBeInTheDocument();
     expect(within(row).getByText("iteration cap 50")).toBeInTheDocument();
     expect(within(row).getByText("looprun_running")).toBeInTheDocument();
     expect(row.querySelector('time[datetime="2026-07-05T12:00:00Z"]')).not.toBeNull();
@@ -175,7 +175,7 @@ describe("LoopCatalog", () => {
     rerender(<Harness onRun={() => {}} view="cards" />);
     const card = screen.getByTestId("loop-catalog-card-implement-tasks");
     expect(within(card).getByText("Engineering")).toBeInTheDocument();
-    expect(within(card).getByText("3 inputs")).toBeInTheDocument();
+    expect(within(card).getByText("9 inputs")).toBeInTheDocument();
     expect(within(card).getByText("iteration cap 50")).toBeInTheDocument();
     expect(within(card).getByText("looprun_running")).toBeInTheDocument();
     expect(card.querySelector('time[datetime="2026-07-05T12:00:00Z"]')).not.toBeNull();

@@ -91,7 +91,17 @@ describe("LoopTargetFields", () => {
 
     selectLoop("implement-tasks");
     const controls = screen.getAllByTestId("loop-input-control").map(node => node.dataset.input);
-    expect(controls).toEqual(["slug", "implementer", "auto_commit"]);
+    expect(controls).toEqual([
+      "slug",
+      "mode",
+      "implementer",
+      "orchestrator",
+      "auto_commit",
+      "orchestrator_runtime",
+      "backend_runtime",
+      "frontend_runtime",
+      "default_runtime",
+    ]);
     expect(screen.getByTestId("loop-input-field-slug")).toBeInTheDocument();
     expect(screen.getByTestId("loop-input-field-implementer")).toBeInTheDocument();
     expect(screen.getByTestId("loop-input-switch-auto_commit")).toBeInTheDocument();
