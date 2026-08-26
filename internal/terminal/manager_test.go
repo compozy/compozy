@@ -106,6 +106,46 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the public workspace registration separate from its durable identity", func(t *testing.T) {
+		t.Parallel()
+		const (
+			registrationID = "ws_0123456789abcdef"
+			identityID     = "01ARZ3NDEKTSV4RRFFQ69G5FAV"
+		)
+		resolver := &staticWorkspaceResolver{workspace: workspacepkg.ResolvedWorkspace{
+			Workspace:   workspacepkg.Workspace{ID: registrationID, RootDir: t.TempDir()},
+			WorkspaceID: identityID,
+		}}
+		manager, err := NewManager(
+			WithPTY(&fakePTY{}),
+			WithWorkspaceResolver(resolver),
+			WithSettingsProvider(func(context.Context, string, string) (Settings, error) {
+				return DefaultSettings(), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Shutdown(context.Background()); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+		})
+
+		handle := openTestTerminal(t, manager, registrationID, "profile-a")
+		if got := handle.Info().WS; got != registrationID {
+			t.Fatalf("Info().WS = %q, want public registration %q", got, registrationID)
+		}
+		items, err := manager.List(context.Background(), registrationID, store.ReadScope{ProfileID: "profile-a"})
+		if err != nil || len(items) != 1 {
+			t.Fatalf("List(public registration) = %#v error=%v, want one terminal", items, err)
+		}
+		items, err = manager.List(context.Background(), identityID, store.ReadScope{ProfileID: "profile-a"})
+		if err != nil || len(items) != 0 {
+			t.Fatalf("List(durable identity) = %#v error=%v, want no public match", items, err)
+		}
+	})
+
 	t.Run("Should make cross-workspace and cross-profile lookups indistinguishable from absence [UT-057][UT-089][UT-103][IT-036]", func(t *testing.T) {
 		t.Parallel()
 		manager, _, _ := newTestManager(t, DefaultSettings())

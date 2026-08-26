@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -180,7 +181,9 @@ func (r *staticWorkspaceResolver) Resolve(_ context.Context, id string) (workspa
 	resolved := r.workspace
 	if id != "" {
 		resolved.ID = id
-		resolved.WorkspaceID = id
+		if strings.TrimSpace(resolved.WorkspaceID) == "" {
+			resolved.WorkspaceID = id
+		}
 	}
 	return resolved, nil
 }
@@ -197,7 +200,9 @@ func (r *staticWorkspaceResolver) ResolveForProfile(
 	resolved := r.workspace
 	if id != "" {
 		resolved.ID = id
-		resolved.WorkspaceID = id
+		if strings.TrimSpace(resolved.WorkspaceID) == "" {
+			resolved.WorkspaceID = id
+		}
 	}
 	return resolved, nil
 }

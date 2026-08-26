@@ -477,11 +477,14 @@ func TestService(t *testing.T) {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
 		var available atomic.Bool
-		pool, err := workspacedb.NewPool(func(context.Context, string) (string, error) {
+		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 			if !available.Load() {
-				return "", errors.New("store unavailable")
+				return workspacedb.ResolvedRoot{}, errors.New("store unavailable")
 			}
-			return workspaceRoot, nil
+			return workspacedb.ResolvedRoot{
+				RootDir:     workspaceRoot,
+				WorkspaceID: identity.WorkspaceID,
+			}, nil
 		})
 		if err != nil {
 			t.Fatalf("NewPool() error = %v", err)
@@ -531,11 +534,17 @@ func newJournalTestService(t *testing.T, ctx context.Context) (*Service, string)
 	if err != nil {
 		t.Fatalf("EnsureIdentity() error = %v", err)
 	}
-	pool, err := workspacedb.NewPool(func(_ context.Context, workspaceID string) (string, error) {
+	pool, err := workspacedb.NewPool(func(
+		_ context.Context,
+		workspaceID string,
+	) (workspacedb.ResolvedRoot, error) {
 		if workspaceID != identity.WorkspaceID {
-			return "", errors.New("unknown workspace")
+			return workspacedb.ResolvedRoot{}, errors.New("unknown workspace")
 		}
-		return workspaceRoot, nil
+		return workspacedb.ResolvedRoot{
+			RootDir:     workspaceRoot,
+			WorkspaceID: identity.WorkspaceID,
+		}, nil
 	})
 	if err != nil {
 		t.Fatalf("NewPool() error = %v", err)

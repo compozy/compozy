@@ -222,12 +222,9 @@ func (m *Service) resolveOpenWorkspace(
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, "", "", fmt.Errorf("terminal: resolve workspace %q: %w", workspaceID, err)
 	}
-	canonicalID := resolved.WorkspaceID
+	canonicalID := strings.TrimSpace(resolved.ID)
 	if canonicalID == "" {
-		canonicalID = resolved.ID
-	}
-	if canonicalID == "" {
-		canonicalID = workspaceID
+		return workspacepkg.ResolvedWorkspace{}, "", "", errors.New("terminal: resolved workspace registration is required")
 	}
 	resolved.AdditionalDirs = append(resolved.AdditionalDirs, additionalRoots...)
 	validCwd, err := resolveWorkspaceCwd(resolved, cwd)

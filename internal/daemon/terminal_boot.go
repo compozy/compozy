@@ -19,19 +19,27 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 	if state.workspaceResolver == nil {
 		return errors.New("daemon: terminal workspace resolver is required")
 	}
-	databasePool, err := workspacedb.NewPool(func(resolveCtx context.Context, workspaceID string) (string, error) {
+	databasePool, err := workspacedb.NewPool(func(
+		resolveCtx context.Context,
+		workspaceID string,
+	) (workspacedb.ResolvedRoot, error) {
 		resolved, resolveErr := state.workspaceResolver.Resolve(resolveCtx, workspaceID)
 		if resolveErr != nil {
-			return "", resolveErr
+			return workspacedb.ResolvedRoot{}, resolveErr
 		}
-		canonicalID := strings.TrimSpace(resolved.WorkspaceID)
-		if canonicalID == "" {
-			canonicalID = strings.TrimSpace(resolved.ID)
+		registrationID := strings.TrimSpace(resolved.ID)
+		if registrationID != strings.TrimSpace(workspaceID) {
+			return workspacedb.ResolvedRoot{}, fmt.Errorf(
+				"daemon: resolved workspace registration %q does not match %q",
+				registrationID,
+				workspaceID,
+			)
 		}
-		if canonicalID != strings.TrimSpace(workspaceID) {
-			return "", fmt.Errorf("daemon: resolved workspace id %q does not match %q", canonicalID, workspaceID)
+		identityID := strings.TrimSpace(resolved.WorkspaceID)
+		if identityID == "" {
+			return workspacedb.ResolvedRoot{}, errors.New("daemon: resolved workspace identity is required")
 		}
-		return resolved.RootDir, nil
+		return workspacedb.ResolvedRoot{RootDir: resolved.RootDir, WorkspaceID: identityID}, nil
 	})
 	if err != nil {
 		return fmt.Errorf("daemon: create workspace database pool: %w", err)

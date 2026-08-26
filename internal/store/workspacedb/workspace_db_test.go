@@ -172,11 +172,12 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		pool, err := NewPool(func(_ context.Context, workspaceID string) (string, error) {
-			if workspaceID != identity.WorkspaceID {
-				return "", errors.New("unexpected workspace")
+		const registrationID = "ws_0123456789abcdef"
+		pool, err := NewPool(func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
+			if workspaceID != registrationID {
+				return ResolvedRoot{}, errors.New("unexpected workspace")
 			}
-			return workspaceRoot, nil
+			return ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
 		})
 		if err != nil {
 			t.Fatalf("NewPool() error = %v", err)
@@ -186,21 +187,21 @@ func TestOpen(t *testing.T) {
 				t.Errorf("Pool.Close() error = %v", err)
 			}
 		})
-		first, err := pool.Open(ctx, identity.WorkspaceID)
+		first, err := pool.Open(ctx, registrationID)
 		if err != nil {
 			t.Fatalf("Pool.Open(first) error = %v", err)
 		}
-		second, err := pool.Open(ctx, identity.WorkspaceID)
+		second, err := pool.Open(ctx, registrationID)
 		if err != nil {
 			t.Fatalf("Pool.Open(second) error = %v", err)
 		}
 		if first != second {
 			t.Fatal("Pool.Open() did not reuse the workspace handle")
 		}
-		if err := pool.CloseWorkspace(ctx, identity.WorkspaceID); err != nil {
+		if err := pool.CloseWorkspace(ctx, registrationID); err != nil {
 			t.Fatalf("Pool.CloseWorkspace() error = %v", err)
 		}
-		reopened, err := pool.Open(ctx, identity.WorkspaceID)
+		reopened, err := pool.Open(ctx, registrationID)
 		if err != nil {
 			t.Fatalf("Pool.Open(reopen) error = %v", err)
 		}
@@ -218,24 +219,25 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnsureIdentity() error = %v", err)
 		}
-		pool, err := NewPool(func(_ context.Context, workspaceID string) (string, error) {
-			if workspaceID != identity.WorkspaceID {
-				return "", errors.New("unexpected workspace")
+		const registrationID = "ws_1123456789abcdef"
+		pool, err := NewPool(func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
+			if workspaceID != registrationID {
+				return ResolvedRoot{}, errors.New("unexpected workspace")
 			}
-			return workspaceRoot, nil
+			return ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
 		})
 		if err != nil {
 			t.Fatalf("NewPool() error = %v", err)
 		}
-		db, err := pool.Open(ctx, identity.WorkspaceID)
+		db, err := pool.Open(ctx, registrationID)
 		if err != nil {
 			t.Fatalf("Pool.Open() error = %v", err)
 		}
 		dbPath := db.Path()
-		if err := pool.CloseWorkspace(ctx, identity.WorkspaceID); err != nil {
+		if err := pool.CloseWorkspace(ctx, registrationID); err != nil {
 			t.Fatalf("Pool.CloseWorkspace() error = %v", err)
 		}
-		if err := pool.RemoveWorkspace(ctx, identity.WorkspaceID); err != nil {
+		if err := pool.RemoveWorkspace(ctx, registrationID); err != nil {
 			t.Fatalf("Pool.RemoveWorkspace() error = %v", err)
 		}
 		if _, err := os.Stat(dbPath); !errors.Is(err, os.ErrNotExist) {
@@ -259,16 +261,20 @@ func TestOpen(t *testing.T) {
 		}
 		firstEntered := make(chan struct{})
 		releaseFirst := make(chan struct{})
-		pool, err := NewPool(func(_ context.Context, workspaceID string) (string, error) {
+		const (
+			firstRegistrationID  = "ws_2123456789abcdef"
+			secondRegistrationID = "ws_3123456789abcdef"
+		)
+		pool, err := NewPool(func(_ context.Context, workspaceID string) (ResolvedRoot, error) {
 			switch workspaceID {
-			case firstIdentity.WorkspaceID:
+			case firstRegistrationID:
 				close(firstEntered)
 				<-releaseFirst
-				return firstRoot, nil
-			case secondIdentity.WorkspaceID:
-				return secondRoot, nil
+				return ResolvedRoot{RootDir: firstRoot, WorkspaceID: firstIdentity.WorkspaceID}, nil
+			case secondRegistrationID:
+				return ResolvedRoot{RootDir: secondRoot, WorkspaceID: secondIdentity.WorkspaceID}, nil
 			default:
-				return "", fmt.Errorf("unexpected workspace %q", workspaceID)
+				return ResolvedRoot{}, fmt.Errorf("unexpected workspace %q", workspaceID)
 			}
 		})
 		if err != nil {
@@ -282,14 +288,14 @@ func TestOpen(t *testing.T) {
 
 		firstResult := make(chan error, 1)
 		go func() {
-			_, openErr := pool.Open(ctx, firstIdentity.WorkspaceID)
+			_, openErr := pool.Open(ctx, firstRegistrationID)
 			firstResult <- openErr
 		}()
 		<-firstEntered
 
 		secondResult := make(chan error, 1)
 		go func() {
-			_, openErr := pool.Open(ctx, secondIdentity.WorkspaceID)
+			_, openErr := pool.Open(ctx, secondRegistrationID)
 			secondResult <- openErr
 		}()
 		var secondErr error

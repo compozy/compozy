@@ -14,8 +14,14 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// RootResolver resolves a canonical workspace id to its filesystem root.
-type RootResolver func(ctx context.Context, workspaceID string) (string, error)
+// ResolvedRoot binds a public workspace registration to its durable on-disk identity.
+type ResolvedRoot struct {
+	RootDir     string
+	WorkspaceID string
+}
+
+// RootResolver resolves a public workspace id to its root and durable identity.
+type RootResolver func(ctx context.Context, workspaceID string) (ResolvedRoot, error)
 
 // Pool owns lazy, reusable database handles for daemon-known workspaces.
 type Pool struct {
@@ -90,18 +96,28 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 }
 
 func (p *Pool) openWorkspace(ctx context.Context, workspaceID string) (*DB, error) {
-	root, err := p.resolveRoot(ctx, workspaceID)
+	resolved, err := p.resolveRoot(ctx, workspaceID)
 	if err != nil {
 		return nil, fmt.Errorf("store: resolve workspace database root %q: %w", workspaceID, err)
 	}
-	db, err := OpenWorkspace(ctx, root)
+	resolved.RootDir = strings.TrimSpace(resolved.RootDir)
+	resolved.WorkspaceID = strings.TrimSpace(resolved.WorkspaceID)
+	if resolved.RootDir == "" || resolved.WorkspaceID == "" {
+		return nil, fmt.Errorf("store: resolved workspace database root %q is incomplete", workspaceID)
+	}
+	db, err := OpenWorkspace(ctx, resolved.RootDir)
 	if err != nil {
 		return nil, err
 	}
-	if db.WorkspaceID() != workspaceID {
+	if db.WorkspaceID() != resolved.WorkspaceID {
 		closeErr := db.Close(context.WithoutCancel(ctx))
 		return nil, errors.Join(
-			fmt.Errorf("store: workspace database identity %q does not match requested %q", db.WorkspaceID(), workspaceID),
+			fmt.Errorf(
+				"store: workspace database identity %q does not match resolved %q for registration %q",
+				db.WorkspaceID(),
+				resolved.WorkspaceID,
+				workspaceID,
+			),
 			closeErr,
 		)
 	}
@@ -178,11 +194,15 @@ func (p *Pool) RemoveWorkspace(ctx context.Context, workspaceID string) error {
 		removeErr := removeSQLiteFiles(path)
 		return errors.Join(closeErr, removeErr)
 	}
-	root, err := p.resolveRoot(ctx, workspaceID)
+	resolved, err := p.resolveRoot(ctx, workspaceID)
 	if err != nil {
 		return fmt.Errorf("store: resolve workspace database root %q for removal: %w", workspaceID, err)
 	}
-	path := filepath.Join(root, compozyconfig.DirName, store.GlobalDatabaseName)
+	rootDir := strings.TrimSpace(resolved.RootDir)
+	if rootDir == "" {
+		return fmt.Errorf("store: resolved workspace database root %q is incomplete", workspaceID)
+	}
+	path := filepath.Join(rootDir, compozyconfig.DirName, store.GlobalDatabaseName)
 	return removeSQLiteFiles(path)
 }
 
