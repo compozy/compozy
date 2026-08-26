@@ -120,6 +120,37 @@ func TestDaemonCallDirectory(t *testing.T) {
 // Invariant: an accepted queue entry is not projected as delivered until its durable state is sent.
 func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 	t.Parallel()
+	t.Run("Should surface operator completion as attention without attaching a model runtime", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &callSessionManagerStub{
+			info: &session.Info{ID: "ses_operator", State: session.StateStopped},
+		}
+		invoker := &daemonCallSessionInvoker{
+			sessions: manager,
+			isOperatorCallerSession: func(_ context.Context, sessionID string) (bool, error) {
+				return sessionID == "ses_operator", nil
+			},
+		}
+		outcome, err := invoker.DeliverAtBoundary(context.Background(), callspkg.Delivery{
+			CallID: "call_operator", RecipientSessionID: "ses_operator", Kind: callspkg.DeliveryKindCompletion,
+		})
+		if err != nil {
+			t.Fatalf("DeliverAtBoundary(operator) error = %v", err)
+		}
+		if outcome.State != callspkg.DeliveryStateInjected || outcome.Reason != "operator_attention" {
+			t.Fatalf("DeliverAtBoundary(operator) = %#v, want injected operator attention", outcome)
+		}
+		if manager.statusCalls != 0 || manager.resumeCalls != 0 || manager.sendCalls != 0 {
+			t.Fatalf(
+				"operator delivery runtime calls = status %d resume %d send %d, want none",
+				manager.statusCalls,
+				manager.resumeCalls,
+				manager.sendCalls,
+			)
+		}
+	})
+
 	t.Run("Should project delivery from the durable queue state", func(t *testing.T) {
 		t.Parallel()
 
@@ -202,6 +233,7 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 
 type callSessionManagerStub struct {
 	info          *session.Info
+	statusCalls   int
 	resumeErr     error
 	resumeCalls   int
 	sentSessionID string
@@ -213,6 +245,7 @@ type callSessionManagerStub struct {
 }
 
 func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
+	s.statusCalls++
 	return s.info, nil
 }
 

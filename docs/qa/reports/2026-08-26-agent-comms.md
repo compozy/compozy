@@ -29,7 +29,7 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Pending | | |
+| 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-operator-caller-model-runtime | pending QA remediation commit |
 | 2 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-cancel | Bruno | Interrupt Tour | Pending | | |
 | 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fixed, retest pending | BUG-20260826-call-deadline-activation-fence | pending QA remediation commit |
 | 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Pending | | |
@@ -75,6 +75,11 @@ Pending execution.
   fence and claim-token errors. The service now cleans up the unbound child and returns the durable
   terminal record without attempting a second claim release. Focused race-enabled regression is
   green; public CLI retest remains pending a rebuilt isolated daemon.
+- `BUG-20260826-operator-caller-model-runtime` — completion delivery treated the operator caller as
+  a normal agent session and attached a model runtime, contradicting the accepted spec and blocking
+  later calls after crash recovery. The daemon now resolves this role before delivery and records
+  operator attention without status, resume, or prompt operations. Focused regression is green;
+  public restart/reuse retest remains pending.
 
 ## Paper Cuts
 
@@ -85,6 +90,9 @@ None recorded yet.
 - Before remediation, the short-deadline call `call-a2dd5c68719b0a90` returned joined activation
   fence and invalid-claim diagnostics even though its durable record was already `timeout` with
   `call_timeout`. See the linked bug and isolated-lab evidence.
+- The operator caller `ses_operator_225d12b20945a1568f3fee27` acquired a model runtime through
+  completion delivery. After interrupted daemon shutdown, its dead runtime blocked the next call
+  before admission. See `BUG-20260826-operator-caller-model-runtime`.
 
 ## Human Verifications Needed
 

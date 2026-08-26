@@ -13,9 +13,10 @@ import (
 )
 
 type daemonCallSessionInvoker struct {
-	sessions    callSessionManager
-	maxChildren int
-	maxDepth    int
+	sessions                callSessionManager
+	isOperatorCallerSession func(context.Context, string) (bool, error)
+	maxChildren             int
+	maxDepth                int
 }
 
 type callSessionManager interface {
@@ -127,6 +128,18 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 	ctx context.Context,
 	delivery callspkg.Delivery,
 ) (callspkg.DeliveryOutcome, error) {
+	if i.isOperatorCallerSession != nil {
+		operatorCaller, err := i.isOperatorCallerSession(ctx, delivery.RecipientSessionID)
+		if err != nil {
+			return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: inspect operator call recipient: %w", err)
+		}
+		if operatorCaller {
+			return callspkg.DeliveryOutcome{
+				State:  callspkg.DeliveryStateInjected,
+				Reason: "operator_attention",
+			}, nil
+		}
+	}
 	woken := false
 	info, err := i.sessions.Status(ctx, delivery.RecipientSessionID)
 	if err != nil {

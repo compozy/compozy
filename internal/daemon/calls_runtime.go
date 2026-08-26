@@ -35,7 +35,8 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	}
 	directory := &daemonCallDirectory{store: callStore, state: state}
 	invoker := &daemonCallSessionInvoker{
-		sessions: callSessions, maxChildren: state.cfg.Calls.MaxChildren, maxDepth: state.cfg.Calls.MaxDepth,
+		sessions: callSessions, isOperatorCallerSession: callStore.IsOperatorCallerSession,
+		maxChildren: state.cfg.Calls.MaxChildren, maxDepth: state.cfg.Calls.MaxDepth,
 	}
 	service, err := callspkg.NewService(
 		callspkg.WithStore(callStore),
