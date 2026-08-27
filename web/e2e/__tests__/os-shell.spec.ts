@@ -2949,6 +2949,11 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
   // a full DOM snapshot for every traced action, and that recorder work runs
   // on the renderer thread that this envelope is meant to measure.
   const dragInput = await appPage.context().newCDPSession(appPage);
+  // Shared CI runners can schedule a renderer GC immediately after the 12
+  // window bodies settle. Drain it before opening the measured interval so a
+  // one-off runtime pause is not reported as application drag work.
+  await dragInput.send("HeapProfiler.collectGarbage");
+  await waitForLongTaskQuiet(appPage);
   await appPage.evaluate(() => {
     const tasks: number[] = [];
     Reflect.set(window, "__osLongTasks", tasks);
