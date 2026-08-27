@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.3.0 - 2026-08-24
+## 0.3.0 - 2026-08-27
 
 ### ♻️ Refactoring
 
@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Use geist instead of inter (#334)
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
+
+### ⚡ Performance Improvements
+
+- Delegate full gates to pull request CI (#476)
 
 ### 🎉 Features
 
@@ -56,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deliver the command palette operating surface (#441)
 - Make loop runs legible and task lists calm (#452)
 - Complete production demo seed (#453)
+- Profiles — the who-is-working dimension (#457)
+- Combine settings update actions (#461)
+- Replace environment path with worktree icon (#463)
+- Group session tool calls (#466)
+- Restore agent-manageable Goal orchestration (#470)
+- Support conjunctive runtime routing (#475)
+- Expand profile identity customization (#484)
+- Absorb ecosystem skill folders and expose skills back (#488)
+- Merge spec-cycle task delivery loops (#491)
 
 ### 🐛 Bug Fixes
 
@@ -134,6 +147,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve run-agent session lifecycle (#446)
 - Use migration timeout for tail replay
 - Recover ACP sessions after provider disconnects (#454)
+- Close profiles regressions after PR 457 (#459)
+- Make sessions dock contextual (#468)
+- Classify settled spawned TTL cleanup correctly (#469)G
+- Restore reliable session message copy (#460)
+- Add runtime provider tooltips (#464)
+- Close windows when sessions are deleted (#465)
+- Route command palette entities directly (#467)
+- Preserve worktree binding during reconciliation (#456)
+- Harden profile-scoped runtime and web flows (#481)
+- Keep inactive loop routes out of task projection (#483)
+- Harden Loop recovery and expose execution truth (#492)
+- Publish npm packages with trusted identity (#495)
+- Accept setup-node OIDC placeholder
+- Preserve web assets in release module
 
 ### 🔧 Miscellaneous Tasks
 
@@ -146,6 +173,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Align dead session recovery coverage
 - Preserve loop claim tokens in daemon fixtures (#418)
 - Fix cases failing
+- Fix failing tests
 
 ## 0.2.15 - 2026-07-17
 

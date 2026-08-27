@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-24
+## 0.3.0 - 2026-08-27
 
 ### ♻️ Refactoring
 
@@ -9,6 +9,10 @@
 - Use geist instead of inter (#334)
 - Add global workspace toggle (#368)
 - Unify PRD and TechSpec into a single spec pipeline (#397)
+
+### ⚡ Performance Improvements
+
+- Delegate full gates to pull request CI (#476)
 
 ### 🎉 Features
 
@@ -49,6 +53,15 @@
 - Deliver the command palette operating surface (#441)
 - Make loop runs legible and task lists calm (#452)
 - Complete production demo seed (#453)
+- Profiles — the who-is-working dimension (#457)
+- Combine settings update actions (#461)
+- Replace environment path with worktree icon (#463)
+- Group session tool calls (#466)
+- Restore agent-manageable Goal orchestration (#470)
+- Support conjunctive runtime routing (#475)
+- Expand profile identity customization (#484)
+- Absorb ecosystem skill folders and expose skills back (#488)
+- Merge spec-cycle task delivery loops (#491)
 
 ### 🐛 Bug Fixes
 
@@ -127,6 +140,20 @@
 - Preserve run-agent session lifecycle (#446)
 - Use migration timeout for tail replay
 - Recover ACP sessions after provider disconnects (#454)
+- Close profiles regressions after PR 457 (#459)
+- Make sessions dock contextual (#468)
+- Classify settled spawned TTL cleanup correctly (#469)G
+- Restore reliable session message copy (#460)
+- Add runtime provider tooltips (#464)
+- Close windows when sessions are deleted (#465)
+- Route command palette entities directly (#467)
+- Preserve worktree binding during reconciliation (#456)
+- Harden profile-scoped runtime and web flows (#481)
+- Keep inactive loop routes out of task projection (#483)
+- Harden Loop recovery and expose execution truth (#492)
+- Publish npm packages with trusted identity (#495)
+- Accept setup-node OIDC placeholder
+- Preserve web assets in release module
 
 ### 🔧 Miscellaneous Tasks
 
@@ -139,6 +166,7 @@
 - Align dead session recovery coverage
 - Preserve loop claim tokens in daemon fixtures (#418)
 - Fix cases failing
+- Fix failing tests
 
 ### Release Notes
 
@@ -187,6 +215,15 @@ auto_commit = false
 [loops.inputs.implement-tasks]
 auto_commit = false
 ```
+
+##### One task-delivery Loop with two execution modes
+
+`implement-tasks` now owns both task-delivery paths. Its default `per-task` mode keeps one isolated `code_implementer` session per task; `mode=orchestrated` uses the bundled `orchestrator` agent to spawn, prompt, verify, and stop one bounded worker per task.
+
+- Four optional runtime inputs choose the conductor, backend workers, frontend workers, and every other worker. Task-frontmatter runtime fields still win over these run inputs.
+- `compozy spawn` now accepts provider, model, reasoning-effort, and speed overrides, so orchestrated workers preserve the complete runtime choice.
+- Goal output contracts now require the runtime's `complete|blocked` vocabulary, and Goal prompts receive the authored output schema.
+- The standalone `orchestrate-tasks` Loop and its docs/catalog entry are removed. Operator-side `[loops.inputs.orchestrate-tasks]` config blocks are now inert and should be deleted; move any desired values under `[loops.inputs.implement-tasks]` and set `mode = "orchestrated"`.
 
 ##### The desktop app is now Electron
 
