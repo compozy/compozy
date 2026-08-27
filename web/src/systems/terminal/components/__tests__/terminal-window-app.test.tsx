@@ -33,8 +33,8 @@ import {
  *
  * Invariant: every S1 state renders with its distinguishing behaviour, and the
  * two contention behaviours hold — displacing another person confirms by name
- * before any write, and tab overflow at the cap collapses rather than shrinking
- * tabs past legibility.
+ * before any write, an unchanged browser identity keeps one writable attachment,
+ * and tab overflow at the cap collapses rather than shrinking tabs past legibility.
  */
 
 const TERMINAL_LIMIT = 8;
@@ -221,6 +221,24 @@ describe("TerminalWindowApp — S1 states", () => {
     await waitFor(() =>
       expect(screen.getByTestId("terminal-connecting")).toHaveTextContent("Catching up…")
     );
+  });
+
+  it("Should keep one writable attachment when the browser identity is unchanged", async () => {
+    const socket = recordingSocketFactory();
+    renderWindow({
+      socketFactory: socket.factory,
+      terminals: [DEV_SERVER_TERMINAL],
+      viewerToken: "attachment-token",
+    });
+
+    await socket.readyForConnectionCount(1);
+    await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
+    await socket.deliver(TERMINAL_SERVER_OP.owner, humanOwnerPayload(TERMINAL_FIXTURE_VIEWER));
+
+    await waitFor(() =>
+      expect(screen.getByRole("log", { name: DEV_SERVER_TERMINAL.title })).toBeInTheDocument()
+    );
+    expect(socket.connectionCount()).toBe(1);
   });
 
   it("Should offer a retry only where retrying is the remedy", async () => {

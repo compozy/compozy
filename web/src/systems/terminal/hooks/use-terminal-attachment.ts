@@ -67,6 +67,8 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
     scope,
   } = options;
   const profile = scope.profile ?? "";
+  const viewerId = options.viewer?.id ?? null;
+  const viewerAttachmentToken = options.viewer?.attachmentToken ?? null;
 
   const buildSink = useEffectEvent(
     (): TerminalStreamSink => ({
@@ -89,7 +91,10 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
       terminalId,
       scope: { profile },
       mode,
-      viewer: options.viewer,
+      viewer:
+        viewerId !== null && viewerAttachmentToken !== null
+          ? { id: viewerId, attachmentToken: viewerAttachmentToken }
+          : null,
       sink: buildSink(),
       socketFactory,
       handlers: {
@@ -150,12 +155,13 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
   }, [
     enabled,
     mode,
-    options.viewer,
     profile,
     restartKey,
     socketFactory,
     store,
     terminalId,
+    viewerAttachmentToken,
+    viewerId,
     workspaceId,
   ]);
 
