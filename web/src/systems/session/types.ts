@@ -297,7 +297,7 @@ export interface UIMessage {
 
 export interface PermissionRequest {
   requestId: string;
-  /** Stable runtime identity when the permission originated from a Compozy native tool. */
+  /** Stable runtime identity when the permission originated from a CompozyOS native tool. */
   toolId?: string;
   toolName: string;
   toolInput: Record<string, unknown>;
