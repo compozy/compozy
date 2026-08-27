@@ -142,7 +142,6 @@ export {
 
 export { sessionPromptCapability } from "./lib/session-prompt-capability";
 export type { SessionPromptCapability } from "./lib/session-prompt-capability";
-// Attachment surface — byte URLs, prompt parts, item shaping, cards (./attachments).
 export {
   attachmentExtensionMark,
   attachmentsFromPromptMessageParts,
@@ -170,8 +169,6 @@ export { formatMessageTimestamp, formatMessageTimestampFull } from "./lib/format
 export { isClarifyEventData } from "./lib/clarify-event";
 export { isAgentEventPayload, resolveToolResult } from "./lib/message-parts";
 export { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "./lib/session-display-title";
-// Attention surface — badge dictionary, pending-interaction reads, list
-// preferences, presence lease. Grouped in ./attention; re-exported here.
 export {
   acquireSessionPresence,
   DEFAULT_SESSION_LIST_PREFERENCES,
@@ -470,7 +467,6 @@ export {
 } from "./components/session-inspector";
 export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
 
-// Environment surface — worktree binding, fork, target selection (./environment).
 export {
   environmentTargetLabel,
   forkSessionToWorktree,
