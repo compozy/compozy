@@ -5,12 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import type { Locator, Page } from "@playwright/test";
 
-import {
-  appWindow,
-  commandPalette,
-  openCommandPalette,
-  switchWorkspace,
-} from "../fixtures/os-navigation";
+import { appWindow, commandPalette, switchWorkspace } from "../fixtures/os-navigation";
 import { marketplaceOperatorSelectors, profilesOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
@@ -412,8 +407,10 @@ test.describe("Profile-aware extension management", () => {
 
 async function openAndFillCommandPalette(page: Page, query: string): Promise<Locator> {
   const palette = commandPalette(page);
+  const trigger = page.getByRole("button", { name: "Command palette", exact: true });
   await expect(async () => {
-    await openCommandPalette(page);
+    if (!(await palette.isVisible().catch(() => false))) await trigger.click();
+    await expect(palette).toBeVisible({ timeout: 2_000 });
     const input = palette.getByRole("combobox");
     await input.fill(query, { timeout: 2_000 });
     await expect(input).toHaveValue(query);
