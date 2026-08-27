@@ -381,7 +381,7 @@ export function runLoopFields(_raw: RawLoopNode): FieldSpec[] {
       json: true,
       optionalLabel: "optional · child-only JSON",
       placeholder: '{"iteration_cap": 4, "budget_tokens": 250000}',
-      hint: "Per-run settings for this child only. The daemon validates the same closed fields as a direct Loop run; nothing is saved to the child definition.",
+      hint: "These settings apply only to this child run. The service accepts the same settings as a direct Loop run. It does not save them to the child definition.",
     },
     {
       type: "select",

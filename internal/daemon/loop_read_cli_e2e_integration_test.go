@@ -562,7 +562,9 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	t.Run("Should return the exact timeline branch conflict over real SQL IT-022", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
 		first := runLoopWithHumanGate(t, ctx, harness)
+		t.Cleanup(func() { cancelLoopReadRun(t, ctx, harness, first.ID) })
 		second := runLoopWithHumanGate(t, ctx, harness)
+		t.Cleanup(func() { cancelLoopReadRun(t, ctx, harness, second.ID) })
 		waitForLoopRunStatus(t, ctx, harness, first.ID, compozycontract.LoopRunStatusNeedsApproval)
 		waitForLoopRunStatus(t, ctx, harness, second.ID, compozycontract.LoopRunStatusNeedsApproval)
 
@@ -581,12 +583,11 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			body != "{\"error\":\"timeline_branch_changed\",\"code\":\"timeline_branch_changed\"}" {
 			t.Fatalf("timeline branch response = status %d body %q", status, body)
 		}
-		cancelLoopReadRun(t, ctx, harness, first.ID)
-		cancelLoopReadRun(t, ctx, harness, second.ID)
 	})
 	t.Run("Should reflect a real node verb in the roster and reject its stale replay IT-027", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
 		quarantinedRun := runLoopViaHTTP(t, ctx, harness, loopReadQuarantineLoopName)
+		t.Cleanup(func() { killLoopReadRun(t, ctx, harness, quarantinedRun.ID) })
 		waitForLoopRosterNodeState(
 			t,
 			ctx,
@@ -653,7 +654,6 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			logLoopRunTimeoutDebug(t, harness, quarantinedRun.ID, compozycontract.LoopRunPayload{})
 		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
-		killLoopReadRun(t, ctx, harness, quarantinedRun.ID)
 	})
 	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
