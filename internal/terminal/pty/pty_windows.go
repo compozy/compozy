@@ -103,7 +103,23 @@ func (p *windowsProc) ProcessGroupID() int { return p.pid }
 
 func (p *windowsProc) StartedAt() time.Time { return p.startedAt }
 
-func (p *windowsProc) Reader() io.Reader { return p.device }
+func (p *windowsProc) Reader() io.Reader { return windowsPTYReader{device: p.device} }
+
+type windowsPTYReader struct {
+	device *conpty.ConPty
+}
+
+func (r windowsPTYReader) Read(buffer []byte) (int, error) {
+	if len(buffer) == 0 {
+		return 0, nil
+	}
+	for {
+		read, err := r.device.Read(buffer)
+		if read != 0 || err != nil {
+			return read, err
+		}
+	}
+}
 
 func (p *windowsProc) Write(input []byte) (int, error) {
 	written, err := p.device.Write(input)
