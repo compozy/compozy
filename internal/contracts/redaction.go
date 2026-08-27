@@ -19,7 +19,11 @@ func RedactPreservingContract(contract Contract, payload json.RawMessage) (json.
 	if err := decoder.Decode(&decoded); err != nil {
 		return nil, nil, fmt.Errorf("decode result for redaction: %w", err)
 	}
-	if path, found := findSecretField(decoded, "$"); found {
+	path, found, err := findSecretField(payload)
+	if err != nil {
+		return nil, nil, fmt.Errorf("inspect result for secret fields: %w", err)
+	}
+	if found {
 		return nil, nil, newError(
 			CodeRedactionConflict,
 			FaultChild,
@@ -54,26 +58,59 @@ func RedactPreservingContract(contract Contract, payload json.RawMessage) (json.
 	return encoded, redactions, nil
 }
 
-func findSecretField(value any, path string) (string, bool) {
-	switch typed := value.(type) {
-	case map[string]any:
-		for key, child := range typed {
+func findSecretField(payload json.RawMessage) (string, bool, error) {
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.UseNumber()
+	return findSecretFieldValue(decoder, "$")
+}
+
+func findSecretFieldValue(decoder *json.Decoder, path string) (string, bool, error) {
+	token, err := decoder.Token()
+	if err != nil {
+		return "", false, err
+	}
+	delimiter, composite := token.(json.Delim)
+	if !composite {
+		return "", false, nil
+	}
+	switch delimiter {
+	case '{':
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return "", false, err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return "", false, fmt.Errorf("object key has type %T", keyToken)
+			}
 			childPath := fieldPath(path, key)
 			if deniedSecretKey(key) {
-				return childPath, true
+				return childPath, true, nil
 			}
-			if foundPath, found := findSecretField(child, childPath); found {
-				return foundPath, true
-			}
-		}
-	case []any:
-		for index, child := range typed {
-			if foundPath, found := findSecretField(child, indexedPath(path, index)); found {
-				return foundPath, true
+			if foundPath, found, err := findSecretFieldValue(decoder, childPath); err != nil {
+				return "", false, err
+			} else if found {
+				return foundPath, true, nil
 			}
 		}
+	case '[':
+		for index := 0; decoder.More(); index++ {
+			foundPath, found, err := findSecretFieldValue(decoder, indexedPath(path, index))
+			if err != nil {
+				return "", false, err
+			}
+			if found {
+				return foundPath, true, nil
+			}
+		}
+	default:
+		return "", false, fmt.Errorf("unexpected JSON delimiter %q", delimiter)
 	}
-	return "", false
+	if _, err := decoder.Token(); err != nil {
+		return "", false, err
+	}
+	return "", false, nil
 }
 
 func redactValue(value any, path string, redactions *[]Redaction) any {
