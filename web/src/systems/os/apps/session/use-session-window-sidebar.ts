@@ -43,7 +43,7 @@ export function useSessionWindowSidebar({
 }: {
   windowId: string;
   workspaceId: string;
-  sessionId: string;
+  sessionId?: string;
 }): SessionWindowSidebarModel {
   const sidebar = useSessionSidebarState();
   const { coordinator } = useOsShell();
@@ -56,8 +56,8 @@ export function useSessionWindowSidebar({
   const worktree = useScopedWorktreeFilter(workspaceId, useWorktreeScopeId(), {
     enabled: sidebar.open,
   });
-  const sessionsQuery = useSessions(workspaceId, {
-    enabled: sidebar.open && worktree.resolved,
+  const sessionsQuery = useSessions(workspaceId || null, {
+    enabled: sidebar.open && worktree.resolved && workspaceId !== "",
     // The narrow breadth lists this workspace's complete catalog, so the rail
     // and the shell modal never disagree about what exists.
     loadAll: view.scope === "workspace",
@@ -73,7 +73,7 @@ export function useSessionWindowSidebar({
   });
 
   const onSelectSession = (target: SessionPayload) => {
-    if (target.id === sessionId) return;
+    if (sessionId !== undefined && target.id === sessionId) return;
     if (target.workspace_id !== workspaceId) {
       jumpToSession({
         sessionId: target.id,

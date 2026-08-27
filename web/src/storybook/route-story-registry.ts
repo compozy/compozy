@@ -472,6 +472,13 @@ export const routeStoryRegistry = [
     storyName: "Default",
   },
   {
+    system: "session",
+    routePath: "/sessions",
+    storybookPath: "/sessions",
+    title: "systems/session/routes/Sessions",
+    storyName: "Default",
+  },
+  {
     system: "network",
     routePath: "/network/$workspaceId/$channel/threads/$threadId",
     storybookPath: `${storyNetworkBasePath}/threads/${storyThreadId}`,

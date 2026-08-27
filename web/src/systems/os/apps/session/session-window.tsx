@@ -1,6 +1,7 @@
 import { useSessionWindowController } from "./hooks/use-session-window-controller";
 import { preloadSessionWindowModules } from "./session-window-module-loader";
 import { SessionProfileOwnerNotice } from "./session-profile-owner-notice";
+import { SessionWindowEmpty } from "./session-window-empty";
 import { SessionWindowNotice, SessionWindowView } from "./session-window-view";
 
 // This controller is itself route-local and lazy. Once it is requested, warm
@@ -35,10 +36,11 @@ export function SessionWindow({ windowId }: { windowId: string }) {
     workspaceId,
   } = useSessionWindowController(windowId);
 
-  if (deletedLocally) return null;
-
-  if (sessionId === null || agentName === null) {
-    return <SessionWindowNotice message="This window does not point at a session." />;
+  if (deletedLocally || sessionId === null) {
+    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
+  }
+  if (agentName === null) {
+    return <SessionWindowEmpty windowId={windowId} workspaceId={workspaceId ?? ""} />;
   }
   if (crossesWorkspace) {
     return <SessionWindowNotice message={error?.message ?? "Session workspace unavailable"} />;

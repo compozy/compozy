@@ -37,6 +37,9 @@ export interface OsAppDescriptor {
 
 const SESSION_PATH_PATTERN = /^\/agents\/[^/]+\/sessions\/([^/]+)/;
 
+/** In-window landing after delete or a session window with no selected session. */
+export const SESSION_EMPTY_PATH = "/sessions";
+
 export function matchSessionInstance(pathname: string): string | null {
   const match = SESSION_PATH_PATTERN.exec(pathname);
   return match ? decodeURIComponent(match[1]) : null;
@@ -54,7 +57,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     id: "session",
     title: "Session",
     icon: MessagesSquare,
-    paths: [],
+    paths: [SESSION_EMPTY_PATH],
     dock: "sessions-launcher",
     badge: "sessions",
     matchInstance: matchSessionInstance,

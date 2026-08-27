@@ -1,6 +1,9 @@
 package windowmanager
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowCommand) (bool, error) {
 	window, exists := snapshot.Windows[command.WindowID]
@@ -41,7 +44,11 @@ func (r *reducer) navigateWindow(snapshot *Snapshot, command NavigateWindowComma
 			}
 		}
 		if retargeted {
-			window.InstanceKey = clonePointer(command.InstanceKey)
+			if strings.TrimSpace(*command.InstanceKey) == "" {
+				window.InstanceKey = nil
+			} else {
+				window.InstanceKey = clonePointer(command.InstanceKey)
+			}
 			window.NavStack = nil
 		}
 		window.Route = route

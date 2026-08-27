@@ -396,7 +396,8 @@ test("operator cancels a running prompt, clears the transcript, and deletes the 
   );
   await appPage.getByTestId("delete-dialog-confirm").click();
   expect((await deleteResponsePromise).ok()).toBe(true);
-  await expect.poll(() => new URL(appPage.url()).pathname).toBe(`/agents/${faultAgent}`);
+  await expect.poll(() => new URL(appPage.url()).pathname).toBe("/sessions");
+  await expect(appPage.getByTestId("session-window-empty")).toBeVisible();
 
   await expect(
     runtime.requestJSON<SessionEnvelope>(sessionAPIPath(workspace.id, deletableSession.id))

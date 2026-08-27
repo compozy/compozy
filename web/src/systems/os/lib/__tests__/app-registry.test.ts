@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { OS_APPS, matchSessionInstance, resolveAppForPath } from "../app-registry";
+import { defaultOsWindowRoute } from "../window-manager-view";
+import { pickLastCreatedSession } from "../last-created-session";
+import type { SessionPayload } from "@/systems/session";
+
+function catalogSession(id: string, createdAt: string, archivedAt: string | null = null) {
+  return { id, created_at: createdAt, archived_at: archivedAt } as SessionPayload;
+}
 
 describe("app registry", () => {
   it("Should extract the session instance key and reject non-session agent paths (UT-050)", () => {
@@ -20,6 +27,25 @@ describe("app registry", () => {
     expect(resolved?.app.id).toBe("session");
     expect(resolved?.instanceKey).toBe("s1");
     expect(resolveAppForPath("/agents/webgen")?.app.id).toBe("agents");
+  });
+
+  it("Should resolve the session empty route without an instance key", () => {
+    const resolved = resolveAppForPath("/sessions");
+    expect(resolved?.app.id).toBe("session");
+    expect(resolved?.instanceKey).toBeNull();
+    expect(matchSessionInstance("/sessions")).toBeNull();
+    expect(defaultOsWindowRoute("session")).toEqual({ pathname: "/sessions", search: {} });
+  });
+
+  it("Should pick the latest created live session and ignore archived rows", () => {
+    const older = catalogSession("sess-a", "2026-08-01T00:00:00Z");
+    const newer = catalogSession("sess-b", "2026-08-02T00:00:00Z");
+    const archivedNewer = catalogSession("sess-c", "2026-08-03T00:00:00Z", "2026-08-04T00:00:00Z");
+    const tiedHigherId = catalogSession("sess-z", "2026-08-02T00:00:00Z");
+
+    expect(pickLastCreatedSession([older, archivedNewer])).toEqual(older);
+    expect(pickLastCreatedSession([older, newer, tiedHigherId])).toEqual(tiedHigherId);
+    expect(pickLastCreatedSession([archivedNewer])).toBeNull();
   });
 
   it("Should own the desktop root exactly (no prefix bleed)", () => {

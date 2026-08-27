@@ -1,4 +1,7 @@
-import { resolveAppDescriptorForPath as resolveAppForPath } from "./app-catalog";
+import {
+  resolveAppDescriptorForPath as resolveAppForPath,
+  SESSION_EMPTY_PATH,
+} from "./app-catalog";
 import type {
   OsDesktopRuntimeStore,
   OsOpenTarget,
@@ -301,6 +304,17 @@ export class RoutingCoordinator {
     const outcome = this.manager.retargetWindow(windowId, target.instanceKey, target.route);
     if (!(await outcome.completion)) return false;
     this.pushRoute(target.route);
+    return true;
+  }
+
+  /** Drop the session instance and land on the empty route so the frame stays. */
+  async userRetireSession(windowId: string): Promise<boolean> {
+    const state = this.manager.getState();
+    if (!state.windows[windowId]) return false;
+    const route = { pathname: SESSION_EMPTY_PATH, search: {} };
+    const outcome = this.manager.retargetWindow(windowId, "", route);
+    if (!(await outcome.completion)) return false;
+    this.pushRoute(route);
     return true;
   }
 

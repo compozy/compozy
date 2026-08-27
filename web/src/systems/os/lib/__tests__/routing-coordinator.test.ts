@@ -811,4 +811,21 @@ describe("RoutingCoordinator", () => {
     expect(router.navigate).toHaveBeenCalledOnce();
     expect(router.navigate).toHaveBeenCalledWith(target);
   });
+
+  it("Should retire a session tab onto the empty route without closing the window", async () => {
+    const current = windowFixture("session", "/agents/coder/sessions/sess-a", "sess-a");
+    const { coordinator, router, store } = createCoordinator([current]);
+    coordinator.completeHydration();
+    vi.mocked(router.replace).mockClear();
+    const empty = route("/sessions");
+
+    await expect(coordinator.userRetireSession(current.id)).resolves.toBe(true);
+
+    expect(store.spies.retargetWindow).toHaveBeenCalledWith(current.id, "", empty);
+    expect(store.spies.closeWindow).not.toHaveBeenCalled();
+    expect(store.spies.openOrFocus).not.toHaveBeenCalled();
+    expect(router.navigate).toHaveBeenCalledOnce();
+    expect(router.navigate).toHaveBeenCalledWith(empty);
+    expect(store.getState().windows[current.id]?.instanceKey).toBe("");
+  });
 });
