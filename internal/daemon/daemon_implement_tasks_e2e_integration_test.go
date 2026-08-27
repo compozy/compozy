@@ -30,7 +30,8 @@ const (
 )
 
 func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
-	t.Parallel()
+	// Each journey starts a full runtime, and orchestrated mode adds nested agent processes.
+	// Keep them serial so race-heavy peer harnesses cannot starve child activation.
 
 	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
 		harness, ctx := startImplementTasksE2EHarness(t)
