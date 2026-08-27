@@ -36,6 +36,7 @@ func TestCallCreateCommand(t *testing.T) {
 			"--strict", "--result-budget", "512KiB", "--result-overflow", "reject",
 			"--idle-ttl", "1500ms", "--deadline", "2500ms", "--idempotency-key", "retry-1",
 			"--runtime", "anthropic/opus/high/fast", "--tools", "read,write", "--skills", "review",
+			"--mcp-servers", "github", "--sandbox-profiles", "restricted",
 			"--workspace-paths", "/repo", "--network-channels", "engineering",
 		}
 		for _, format := range []string{"human", "json", "jsonl", "toon"} {
@@ -60,7 +61,8 @@ func TestCallCreateCommand(t *testing.T) {
 		}
 		if string(item.Expect) != `{"type":"object"}` || len(item.Narrow.Tools) != 2 ||
 			len(item.Narrow.Skills) != 1 || len(item.Narrow.WorkspacePaths) != 1 ||
-			len(item.Narrow.NetworkChannels) != 1 {
+			len(item.Narrow.NetworkChannels) != 1 || len(item.Narrow.MCPServers) != 1 ||
+			len(item.Narrow.SandboxProfiles) != 1 {
 			t.Fatalf("CreateCall contract/narrowing = %#v", item)
 		}
 	})
@@ -86,6 +88,69 @@ func TestCallCreateCommand(t *testing.T) {
 	})
 }
 
+func TestCallBatchCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should send one exclusive tasks payload and render mixed outcomes", func(t *testing.T) {
+		t.Parallel()
+
+		client := &stubClient{createCallBatchFn: func(
+			_ context.Context,
+			workspaceID string,
+			request contract.CreateCallRequest,
+		) ([]contract.CallBatchItemPayload, error) {
+			if workspaceID != "" || !request.TasksPresent || len(request.Tasks) != 2 ||
+				request.Prompt != "" || request.Target != (contract.CallTargetRequest{}) {
+				t.Fatalf("CreateCallBatch request = workspace %q %#v", workspaceID, request)
+			}
+			return []contract.CallBatchItemPayload{
+				{CallID: "call-1", State: "queued"},
+				{Error: &contract.CallErrorResponse{Code: "call_agent_unknown", Error: "missing"}},
+			}, nil
+		}}
+		payload := `[{"target":{"agent":"reviewer"},"prompt":"Review"},{"target":{"session_id":"sess-child"},"prompt":"Continue"}]`
+		stdout, stderr, err := executeRootCommand(
+			t,
+			newDefaultProfileTestDeps(t, client),
+			"call",
+			"batch",
+			payload,
+			"-o",
+			"json",
+		)
+		if err != nil || stderr != "" || !strings.Contains(stdout, `"call_id": "call-1"`) ||
+			!strings.Contains(stdout, `"code": "call_agent_unknown"`) {
+			t.Fatalf("call batch output/stderr/error = %q/%q/%v", stdout, stderr, err)
+		}
+	})
+
+	t.Run("Should reject an empty batch before transport", func(t *testing.T) {
+		t.Parallel()
+
+		called := false
+		client := &stubClient{createCallBatchFn: func(
+			context.Context,
+			string,
+			contract.CreateCallRequest,
+		) ([]contract.CallBatchItemPayload, error) {
+			called = true
+			return nil, nil
+		}}
+		code, stdout, stderr := executeRootCommandWithExit(
+			t,
+			newDefaultProfileTestDeps(t, client),
+			"call",
+			"batch",
+			`[]`,
+			"-o",
+			"json",
+		)
+		if code != 2 || stdout != "" || !strings.Contains(stderr, "at least one task") || called {
+			t.Fatalf("empty call batch = code %d stdout %q stderr %q called %t", code, stdout, stderr, called)
+		}
+	})
+}
+
 func TestCallReadCommands(t *testing.T) {
 	t.Parallel()
 
@@ -97,7 +162,9 @@ func TestCallReadCommands(t *testing.T) {
 	client := &stubClient{
 		listCallsFn: func(_ context.Context, query callListQuery) (contract.CallsResponse, error) {
 			if query.Limit != 7 || query.Cursor != "after-0" || query.Caller != "ses_parent" ||
-				len(query.States) != 2 {
+				len(query.States) != 2 || query.Attention == nil || !*query.Attention ||
+				query.ChildSessionID != "ses_child" || query.RootSessionID != "ses_root" ||
+				query.Agent != "reviewer" {
 				t.Fatalf("ListCalls query = %#v", query)
 			}
 			return contract.CallsResponse{Items: []contract.CallPayload{record}, NextCursor: "after-1"}, nil
@@ -110,6 +177,16 @@ func TestCallReadCommands(t *testing.T) {
 		},
 		getCallResultFn: func(_ context.Context, _ string, callID string) (contract.CallResultResponse, error) {
 			return contract.CallResultResponse{CallID: callID, Result: json.RawMessage(`{"score":9}`)}, nil
+		},
+		getCallPromptFn: func(_ context.Context, _ string, callID string) (contract.CallPromptResponse, error) {
+			return contract.CallPromptResponse{CallID: callID, Prompt: "Review this"}, nil
+		},
+		getCallSupersededFn: func(
+			_ context.Context,
+			_ string,
+			callID string,
+		) (contract.CallSupersededResponse, error) {
+			return contract.CallSupersededResponse{CallID: callID, Result: json.RawMessage(`{"score":8}`)}, nil
 		},
 		cancelCallFn: func(
 			_ context.Context,
@@ -139,6 +216,7 @@ func TestCallReadCommands(t *testing.T) {
 	t.Run("Should render list show result cancel and publish shapes", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(t, deps,
 			"call", "list", "--state", "running,completed", "--caller", "ses_parent",
+			"--attention", "--child-session", "ses_child", "--root-session", "ses_root", "--agent", "reviewer",
 			"--cursor", "after-0", "--limit", "7", "-o", "json")
 		if err != nil || !strings.Contains(stdout, `"next_cursor": "after-1"`) {
 			t.Fatalf("call list output/error = %q/%v", stdout, err)
@@ -150,6 +228,8 @@ func TestCallReadCommands(t *testing.T) {
 		}{
 			{name: "Should show a call", args: []string{"call", "show", "call-1", "-o", "human"}, want: "reviewer"},
 			{name: "Should print a call result", args: []string{"call", "result", "call-1", "-o", "json"}, want: `"score": 9`},
+			{name: "Should print a call prompt", args: []string{"call", "prompt", "call-1", "-o", "human"}, want: "Review this"},
+			{name: "Should print superseded evidence", args: []string{"call", "superseded", "call-1", "-o", "json"}, want: `"score": 8`},
 			{name: "Should cancel a call", args: []string{"call", "cancel", "call-1", "--reason", "done", "-o", "jsonl"}, want: `"state":"canceled"`},
 			{name: "Should publish a call", args: []string{"call", "publish", "call-1", "--channel", "reviews", "--thread", "thread-1", "-o", "toon"}, want: "network-1"},
 		} {

@@ -31782,22 +31782,41 @@ export interface operations {
               replayed?: boolean;
               result_budget_bytes: number;
               result_bytes?: number;
-              result_overflow: string;
-              result_preview?: unknown;
+              /** @enum {string} */
+              result_overflow: "store" | "reject";
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              result_preview?: {
+                [key: string]: unknown;
+              };
               root_session_id: string;
-              scope: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
               second_issue_text?: string;
               /** Format: date-time */
               settled_at?: string | null;
               /** Format: date-time */
               started_at?: string | null;
-              state: string;
+              /** @enum {string} */
+              state:
+                | "queued"
+                | "running"
+                | "completed"
+                | "invalid-result"
+                | "completed-without-result"
+                | "failed"
+                | "canceled"
+                | "timeout"
+                | "expired";
               strict: boolean;
               superseded_bytes: number;
-              superseded_preview?: unknown;
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              superseded_preview?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               updated_at: string;
-              verdict?: string;
+              /** @enum {string} */
+              verdict?: "returned" | "extracted" | "repaired";
               workspace_id?: string;
             }[];
             next_cursor?: string;
@@ -31915,7 +31934,10 @@ export interface operations {
         "application/json": {
           /** Format: int64 */
           deadline_seconds?: number | null;
-          expect?: unknown;
+          /** @description JSON Schema or example-shape shorthand for the required structured result. */
+          expect?: {
+            [key: string]: unknown;
+          };
           idempotency_key?: string;
           /** Format: int64 */
           idle_ttl_seconds?: number | null;
@@ -31927,25 +31949,38 @@ export interface operations {
             tools?: string[];
             workspace_paths?: string[];
           };
-          prompt: string;
+          prompt?: string;
           result_budget?: string;
-          result_overflow?: string;
+          /** @enum {string} */
+          result_overflow?: "store" | "reject";
           runtime?: {
             model?: string;
             provider?: string;
             reasoning_effort?: string;
-            speed?: string;
+            /** @enum {string} */
+            speed?: "normal" | "fast";
           } | null;
-          scope?: string;
+          /** @enum {string} */
+          scope?: "global" | "workspace";
           strict?: boolean;
-          target: {
+          target?: {
             agent?: string;
             session_id?: string;
-          };
+          } & (
+            | {
+                agent: string;
+              }
+            | {
+                session_id: string;
+              }
+          );
           tasks?: {
             /** Format: int64 */
             deadline_seconds?: number | null;
-            expect?: unknown;
+            /** @description JSON Schema or example-shape shorthand for the required structured result. */
+            expect?: {
+              [key: string]: unknown;
+            };
             idempotency_key?: string;
             /** Format: int64 */
             idle_ttl_seconds?: number | null;
@@ -31957,23 +31992,91 @@ export interface operations {
               tools?: string[];
               workspace_paths?: string[];
             };
-            prompt: string;
+            prompt?: string;
             result_budget?: string;
-            result_overflow?: string;
+            /** @enum {string} */
+            result_overflow?: "store" | "reject";
             runtime?: {
               model?: string;
               provider?: string;
               reasoning_effort?: string;
-              speed?: string;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
             } | null;
             strict?: boolean;
-            target: {
+            target?: {
               agent?: string;
               session_id?: string;
-            };
+            } & (
+              | {
+                  agent: string;
+                }
+              | {
+                  session_id: string;
+                }
+            );
           }[];
           workspace_id?: string;
-        };
+        } & (
+          | {
+              prompt: string;
+              target: {
+                agent?: string;
+                session_id?: string;
+              } & (
+                | {
+                    agent: string;
+                  }
+                | {
+                    session_id: string;
+                  }
+              );
+            }
+          | {
+              tasks: {
+                /** Format: int64 */
+                deadline_seconds?: number | null;
+                /** @description JSON Schema or example-shape shorthand for the required structured result. */
+                expect?: {
+                  [key: string]: unknown;
+                };
+                idempotency_key?: string;
+                /** Format: int64 */
+                idle_ttl_seconds?: number | null;
+                narrow?: {
+                  mcp_servers?: string[];
+                  network_channels?: string[];
+                  sandbox_profiles?: string[];
+                  skills?: string[];
+                  tools?: string[];
+                  workspace_paths?: string[];
+                };
+                prompt?: string;
+                result_budget?: string;
+                /** @enum {string} */
+                result_overflow?: "store" | "reject";
+                runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning_effort?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                } | null;
+                strict?: boolean;
+                target?: {
+                  agent?: string;
+                  session_id?: string;
+                } & (
+                  | {
+                      agent: string;
+                    }
+                  | {
+                      session_id: string;
+                    }
+                );
+              }[];
+            }
+        );
       };
     };
     responses: {
@@ -32002,7 +32105,17 @@ export interface operations {
             /** Format: date-time */
             idle_expires_at?: string | null;
             replayed?: boolean;
-            state?: string;
+            /** @enum {string} */
+            state?:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
           }[];
         };
       };
@@ -32018,7 +32131,17 @@ export interface operations {
             /** Format: date-time */
             idle_expires_at: string | null;
             replayed: boolean;
-            state: string;
+            /** @enum {string} */
+            state:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
           };
         };
       };
@@ -32221,22 +32344,41 @@ export interface operations {
             replayed?: boolean;
             result_budget_bytes: number;
             result_bytes?: number;
-            result_overflow: string;
-            result_preview?: unknown;
+            /** @enum {string} */
+            result_overflow: "store" | "reject";
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            result_preview?: {
+              [key: string]: unknown;
+            };
             root_session_id: string;
-            scope: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
             second_issue_text?: string;
             /** Format: date-time */
             settled_at?: string | null;
             /** Format: date-time */
             started_at?: string | null;
-            state: string;
+            /** @enum {string} */
+            state:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
             strict: boolean;
             superseded_bytes: number;
-            superseded_preview?: unknown;
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            superseded_preview?: {
+              [key: string]: unknown;
+            };
             /** Format: date-time */
             updated_at: string;
-            verdict?: string;
+            /** @enum {string} */
+            verdict?: "returned" | "extracted" | "repaired";
             workspace_id?: string;
           };
         };
@@ -32369,7 +32511,8 @@ export interface operations {
           "application/json": {
             /** Format: int64 */
             clamped_timeout_ms: number;
-            outcome: string;
+            /** @enum {string} */
+            outcome: "complete" | "partial" | "timeout";
             pending: string[];
             resume?: string;
             settled: {
@@ -32412,22 +32555,41 @@ export interface operations {
               replayed?: boolean;
               result_budget_bytes: number;
               result_bytes?: number;
-              result_overflow: string;
-              result_preview?: unknown;
+              /** @enum {string} */
+              result_overflow: "store" | "reject";
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              result_preview?: {
+                [key: string]: unknown;
+              };
               root_session_id: string;
-              scope: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
               second_issue_text?: string;
               /** Format: date-time */
               settled_at?: string | null;
               /** Format: date-time */
               started_at?: string | null;
-              state: string;
+              /** @enum {string} */
+              state:
+                | "queued"
+                | "running"
+                | "completed"
+                | "invalid-result"
+                | "completed-without-result"
+                | "failed"
+                | "canceled"
+                | "timeout"
+                | "expired";
               strict: boolean;
               superseded_bytes: number;
-              superseded_preview?: unknown;
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              superseded_preview?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               updated_at: string;
-              verdict?: string;
+              /** @enum {string} */
+              verdict?: "returned" | "extracted" | "repaired";
               workspace_id?: string;
             }[];
           };
@@ -32598,7 +32760,17 @@ export interface operations {
         };
         content: {
           "application/json": {
-            state: string;
+            /** @enum {string} */
+            state:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
           };
         };
       };
@@ -33057,7 +33229,10 @@ export interface operations {
         content: {
           "application/json": {
             call_id: string;
-            result: unknown;
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            result: {
+              [key: string]: unknown;
+            };
           };
         };
       };
@@ -33180,7 +33355,10 @@ export interface operations {
         content: {
           "application/json": {
             call_id: string;
-            result: unknown;
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            result: {
+              [key: string]: unknown;
+            };
           };
         };
       };
@@ -47092,7 +47270,8 @@ export interface operations {
               created_at: string;
               /** Format: date-time */
               delivered_at?: string | null;
-              delivery: string;
+              /** @enum {string} */
+              delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
               from: {
                 id: string;
                 kind: string;
@@ -47102,7 +47281,8 @@ export interface operations {
               profile_id: string;
               profile_name: string;
               reason?: string;
-              scope: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
               text: string;
               to_session_id: string;
               workspace_id?: string;
@@ -47225,7 +47405,14 @@ export interface operations {
           to: {
             agent?: string;
             session_id?: string;
-          };
+          } & (
+            | {
+                agent: string;
+              }
+            | {
+                session_id: string;
+              }
+          );
           workspace_id?: string;
         };
       };
@@ -47238,7 +47425,8 @@ export interface operations {
         };
         content: {
           "application/json": {
-            delivery: string;
+            /** @enum {string} */
+            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
             message_id: string;
           };
         };
@@ -47430,7 +47618,8 @@ export interface operations {
             created_at: string;
             /** Format: date-time */
             delivered_at?: string | null;
-            delivery: string;
+            /** @enum {string} */
+            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
             from: {
               id: string;
               kind: string;
@@ -47440,7 +47629,8 @@ export interface operations {
             profile_id: string;
             profile_name: string;
             reason?: string;
-            scope: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
             text: string;
             to_session_id: string;
             workspace_id?: string;
@@ -104011,22 +104201,41 @@ export interface operations {
               replayed?: boolean;
               result_budget_bytes: number;
               result_bytes?: number;
-              result_overflow: string;
-              result_preview?: unknown;
+              /** @enum {string} */
+              result_overflow: "store" | "reject";
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              result_preview?: {
+                [key: string]: unknown;
+              };
               root_session_id: string;
-              scope: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
               second_issue_text?: string;
               /** Format: date-time */
               settled_at?: string | null;
               /** Format: date-time */
               started_at?: string | null;
-              state: string;
+              /** @enum {string} */
+              state:
+                | "queued"
+                | "running"
+                | "completed"
+                | "invalid-result"
+                | "completed-without-result"
+                | "failed"
+                | "canceled"
+                | "timeout"
+                | "expired";
               strict: boolean;
               superseded_bytes: number;
-              superseded_preview?: unknown;
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              superseded_preview?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               updated_at: string;
-              verdict?: string;
+              /** @enum {string} */
+              verdict?: "returned" | "extracted" | "repaired";
               workspace_id?: string;
             }[];
             next_cursor?: string;
@@ -104147,7 +104356,10 @@ export interface operations {
         "application/json": {
           /** Format: int64 */
           deadline_seconds?: number | null;
-          expect?: unknown;
+          /** @description JSON Schema or example-shape shorthand for the required structured result. */
+          expect?: {
+            [key: string]: unknown;
+          };
           idempotency_key?: string;
           /** Format: int64 */
           idle_ttl_seconds?: number | null;
@@ -104159,25 +104371,38 @@ export interface operations {
             tools?: string[];
             workspace_paths?: string[];
           };
-          prompt: string;
+          prompt?: string;
           result_budget?: string;
-          result_overflow?: string;
+          /** @enum {string} */
+          result_overflow?: "store" | "reject";
           runtime?: {
             model?: string;
             provider?: string;
             reasoning_effort?: string;
-            speed?: string;
+            /** @enum {string} */
+            speed?: "normal" | "fast";
           } | null;
-          scope?: string;
+          /** @enum {string} */
+          scope?: "global" | "workspace";
           strict?: boolean;
-          target: {
+          target?: {
             agent?: string;
             session_id?: string;
-          };
+          } & (
+            | {
+                agent: string;
+              }
+            | {
+                session_id: string;
+              }
+          );
           tasks?: {
             /** Format: int64 */
             deadline_seconds?: number | null;
-            expect?: unknown;
+            /** @description JSON Schema or example-shape shorthand for the required structured result. */
+            expect?: {
+              [key: string]: unknown;
+            };
             idempotency_key?: string;
             /** Format: int64 */
             idle_ttl_seconds?: number | null;
@@ -104189,23 +104414,91 @@ export interface operations {
               tools?: string[];
               workspace_paths?: string[];
             };
-            prompt: string;
+            prompt?: string;
             result_budget?: string;
-            result_overflow?: string;
+            /** @enum {string} */
+            result_overflow?: "store" | "reject";
             runtime?: {
               model?: string;
               provider?: string;
               reasoning_effort?: string;
-              speed?: string;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
             } | null;
             strict?: boolean;
-            target: {
+            target?: {
               agent?: string;
               session_id?: string;
-            };
+            } & (
+              | {
+                  agent: string;
+                }
+              | {
+                  session_id: string;
+                }
+            );
           }[];
           workspace_id?: string;
-        };
+        } & (
+          | {
+              prompt: string;
+              target: {
+                agent?: string;
+                session_id?: string;
+              } & (
+                | {
+                    agent: string;
+                  }
+                | {
+                    session_id: string;
+                  }
+              );
+            }
+          | {
+              tasks: {
+                /** Format: int64 */
+                deadline_seconds?: number | null;
+                /** @description JSON Schema or example-shape shorthand for the required structured result. */
+                expect?: {
+                  [key: string]: unknown;
+                };
+                idempotency_key?: string;
+                /** Format: int64 */
+                idle_ttl_seconds?: number | null;
+                narrow?: {
+                  mcp_servers?: string[];
+                  network_channels?: string[];
+                  sandbox_profiles?: string[];
+                  skills?: string[];
+                  tools?: string[];
+                  workspace_paths?: string[];
+                };
+                prompt?: string;
+                result_budget?: string;
+                /** @enum {string} */
+                result_overflow?: "store" | "reject";
+                runtime?: {
+                  model?: string;
+                  provider?: string;
+                  reasoning_effort?: string;
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
+                } | null;
+                strict?: boolean;
+                target?: {
+                  agent?: string;
+                  session_id?: string;
+                } & (
+                  | {
+                      agent: string;
+                    }
+                  | {
+                      session_id: string;
+                    }
+                );
+              }[];
+            }
+        );
       };
     };
     responses: {
@@ -104234,7 +104527,17 @@ export interface operations {
             /** Format: date-time */
             idle_expires_at?: string | null;
             replayed?: boolean;
-            state?: string;
+            /** @enum {string} */
+            state?:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
           }[];
         };
       };
@@ -104250,7 +104553,17 @@ export interface operations {
             /** Format: date-time */
             idle_expires_at: string | null;
             replayed: boolean;
-            state: string;
+            /** @enum {string} */
+            state:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
           };
         };
       };
@@ -104455,22 +104768,41 @@ export interface operations {
             replayed?: boolean;
             result_budget_bytes: number;
             result_bytes?: number;
-            result_overflow: string;
-            result_preview?: unknown;
+            /** @enum {string} */
+            result_overflow: "store" | "reject";
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            result_preview?: {
+              [key: string]: unknown;
+            };
             root_session_id: string;
-            scope: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
             second_issue_text?: string;
             /** Format: date-time */
             settled_at?: string | null;
             /** Format: date-time */
             started_at?: string | null;
-            state: string;
+            /** @enum {string} */
+            state:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
             strict: boolean;
             superseded_bytes: number;
-            superseded_preview?: unknown;
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            superseded_preview?: {
+              [key: string]: unknown;
+            };
             /** Format: date-time */
             updated_at: string;
-            verdict?: string;
+            /** @enum {string} */
+            verdict?: "returned" | "extracted" | "repaired";
             workspace_id?: string;
           };
         };
@@ -104605,7 +104937,8 @@ export interface operations {
           "application/json": {
             /** Format: int64 */
             clamped_timeout_ms: number;
-            outcome: string;
+            /** @enum {string} */
+            outcome: "complete" | "partial" | "timeout";
             pending: string[];
             resume?: string;
             settled: {
@@ -104648,22 +104981,41 @@ export interface operations {
               replayed?: boolean;
               result_budget_bytes: number;
               result_bytes?: number;
-              result_overflow: string;
-              result_preview?: unknown;
+              /** @enum {string} */
+              result_overflow: "store" | "reject";
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              result_preview?: {
+                [key: string]: unknown;
+              };
               root_session_id: string;
-              scope: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
               second_issue_text?: string;
               /** Format: date-time */
               settled_at?: string | null;
               /** Format: date-time */
               started_at?: string | null;
-              state: string;
+              /** @enum {string} */
+              state:
+                | "queued"
+                | "running"
+                | "completed"
+                | "invalid-result"
+                | "completed-without-result"
+                | "failed"
+                | "canceled"
+                | "timeout"
+                | "expired";
               strict: boolean;
               superseded_bytes: number;
-              superseded_preview?: unknown;
+              /** @description Free-form structured JSON returned under the call's declared result contract. */
+              superseded_preview?: {
+                [key: string]: unknown;
+              };
               /** Format: date-time */
               updated_at: string;
-              verdict?: string;
+              /** @enum {string} */
+              verdict?: "returned" | "extracted" | "repaired";
               workspace_id?: string;
             }[];
           };
@@ -104836,7 +105188,17 @@ export interface operations {
         };
         content: {
           "application/json": {
-            state: string;
+            /** @enum {string} */
+            state:
+              | "queued"
+              | "running"
+              | "completed"
+              | "invalid-result"
+              | "completed-without-result"
+              | "failed"
+              | "canceled"
+              | "timeout"
+              | "expired";
           };
         };
       };
@@ -105301,7 +105663,10 @@ export interface operations {
         content: {
           "application/json": {
             call_id: string;
-            result: unknown;
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            result: {
+              [key: string]: unknown;
+            };
           };
         };
       };
@@ -105426,7 +105791,10 @@ export interface operations {
         content: {
           "application/json": {
             call_id: string;
-            result: unknown;
+            /** @description Free-form structured JSON returned under the call's declared result contract. */
+            result: {
+              [key: string]: unknown;
+            };
           };
         };
       };
@@ -122854,7 +123222,8 @@ export interface operations {
               created_at: string;
               /** Format: date-time */
               delivered_at?: string | null;
-              delivery: string;
+              /** @enum {string} */
+              delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
               from: {
                 id: string;
                 kind: string;
@@ -122864,7 +123233,8 @@ export interface operations {
               profile_id: string;
               profile_name: string;
               reason?: string;
-              scope: string;
+              /** @enum {string} */
+              scope: "global" | "workspace";
               text: string;
               to_session_id: string;
               workspace_id?: string;
@@ -122990,7 +123360,14 @@ export interface operations {
           to: {
             agent?: string;
             session_id?: string;
-          };
+          } & (
+            | {
+                agent: string;
+              }
+            | {
+                session_id: string;
+              }
+          );
           workspace_id?: string;
         };
       };
@@ -123003,7 +123380,8 @@ export interface operations {
         };
         content: {
           "application/json": {
-            delivery: string;
+            /** @enum {string} */
+            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
             message_id: string;
           };
         };
@@ -123197,7 +123575,8 @@ export interface operations {
             created_at: string;
             /** Format: date-time */
             delivered_at?: string | null;
-            delivery: string;
+            /** @enum {string} */
+            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
             from: {
               id: string;
               kind: string;
@@ -123207,7 +123586,8 @@ export interface operations {
             profile_id: string;
             profile_name: string;
             reason?: string;
-            scope: string;
+            /** @enum {string} */
+            scope: "global" | "workspace";
             text: string;
             to_session_id: string;
             workspace_id?: string;

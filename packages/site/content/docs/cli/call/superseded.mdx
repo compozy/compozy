@@ -1,30 +1,21 @@
 ---
-title: "compozy call list"
-description: "List durable calls"
+title: "compozy call superseded"
+description: "Print preserved late-result evidence"
 ---
 
-## compozy call list
+## compozy call superseded
 
-List durable calls
+Print preserved late-result evidence
 
 ```
-compozy call list [flags]
+compozy call superseded <call-id> [flags]
 ```
 
 ### Options
 
 ```
-      --agent string           Target agent name
-      --all-profiles           Read across every profile and include owner labels
-      --attention              Only calls that need attention
-      --caller string          Caller session or run id
-      --child-session string   Receiving child session id
-      --cursor string          Opaque page cursor
-  -h, --help                   help for list
-      --limit int              Page size (maximum 200) (default 50)
-      --root-session string    Governed root session id
-      --state strings          Call states to include
-      --workspace string       Override workspace name or id; omit for global scope
+  -h, --help               help for superseded
+      --workspace string   Override workspace name or id; omit for global scope
 ```
 
 ### Options inherited from parent commands
@@ -49,5 +40,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy call list -o json
+compozy call superseded <call-id> -o json
 ```

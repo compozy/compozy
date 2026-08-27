@@ -6,7 +6,7 @@ func callDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
 		callDescriptor(toolspkg.ToolIDAgentCall, "agent_call", "Agent Call",
 			"Delegate further work to one named agent or existing child. This never settles your current bound call.",
-			callCreateInputSchema, toolspkg.RiskMutating, false),
+			callCreateInputSchema, callCreateOutputSchema, toolspkg.RiskMutating, false),
 		callDescriptor(
 			toolspkg.ToolIDCallReturn,
 			"call_return",
@@ -14,41 +14,47 @@ func callDescriptors() []toolspkg.Descriptor {
 			"Mandatory terminal act for a bound child. Return a real JSON result or final text; "+
 				"a truly empty omission settles completed-without-result.",
 			callReturnInputSchema,
+			callReturnOutputSchema,
 			toolspkg.RiskMutating,
 			false,
 		),
 		callDescriptor(toolspkg.ToolIDCallAwait, "call_await", "Call Await",
-			"Wait for one or more calls for a bounded interval.", callAwaitInputSchema, toolspkg.RiskRead, true),
+			"Wait for one or more calls for a bounded interval.",
+			callAwaitInputSchema, callAwaitOutputSchema, toolspkg.RiskRead, true),
 		callDescriptor(toolspkg.ToolIDCallCancel, "call_cancel", "Call Cancel",
-			"Cancel one caller-owned call idempotently.", callCancelInputSchema, toolspkg.RiskMutating, false),
+			"Cancel one caller-owned call idempotently.",
+			callCancelInputSchema, nativeCallRecordOutputSchema, toolspkg.RiskMutating, false),
 		callDescriptor(toolspkg.ToolIDCallResult, "call_result", "Call Result",
-			"Read the complete stored JSON result for one settled call.", callIDInputSchema, toolspkg.RiskRead, true),
+			"Read the complete stored JSON result for one settled call.",
+			callIDInputSchema, callResultOutputSchema, toolspkg.RiskRead, true),
 		callDescriptor(toolspkg.ToolIDCallPublish, "call_publish", "Call Publish",
 			"Publish one completed result into a participating Network channel thread.",
-			callPublishInputSchema, toolspkg.RiskMutating, false),
+			callPublishInputSchema, callPublishOutputSchema, toolspkg.RiskMutating, false),
 		callDescriptor(toolspkg.ToolIDAgentMessage, "agent_message", "Agent Message",
 			"Send inert text to one lineage session without creating a new call.",
-			callMessageInputSchema, toolspkg.RiskMutating, false),
+			callMessageInputSchema, agentMessageOutputSchema, toolspkg.RiskMutating, false),
 	}
 }
 
 func callDescriptor(
 	id toolspkg.ToolID,
-	nativeName, title, description, schema string,
+	nativeName, title, description, inputSchema, outputSchema string,
 	risk toolspkg.RiskClass,
 	readOnly bool,
 ) toolspkg.Descriptor {
-	return nativeDescriptor(
-		id, nativeName, title, description, schema, risk, readOnly, risk == toolspkg.RiskDestructive, false,
+	descriptor := nativeDescriptor(
+		id, nativeName, title, description, inputSchema, risk, readOnly, risk == toolspkg.RiskDestructive, false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDCalls}, []string{"calls", agentsSegment}, []string{nativeName, title},
 	)
+	descriptor.OutputSchema = []byte(outputSchema)
+	return descriptor
 }
 
 const callCreateTaskSchema = `{
 	"type":"object",
 	"properties":{
 		"agent":{"type":"string","minLength":1},"session_id":{"type":"string","minLength":1},
-		"prompt":{"type":"string","minLength":1},"expect":{},
+		"prompt":{"type":"string","minLength":1},"expect":{"type":"object"},
 		"idle_ttl_seconds":{"type":"integer","minimum":1},
 		"deadline_seconds":{
 			"description":"Positive integer seconds; invalid values return call_deadline_invalid."
@@ -80,7 +86,7 @@ const callCreateInputSchema = `{
 	"type":"object",
 	"properties":{
 		"agent":{"type":"string","minLength":1},"session_id":{"type":"string","minLength":1},
-		"prompt":{"type":"string","minLength":1},"expect":{},
+		"prompt":{"type":"string","minLength":1},"expect":{"type":"object"},
 		"idle_ttl_seconds":{"type":"integer","minimum":1},
 		"deadline_seconds":{
 			"description":"Positive integer seconds; invalid values return call_deadline_invalid."
@@ -100,7 +106,18 @@ const callCreateInputSchema = `{
 			"network_channels":{"type":"array","items":{"type":"string"}},
 			"sandbox_profiles":{"type":"array","items":{"type":"string"}}
 		},"additionalProperties":false},
-		"tasks":{"type":"array","items":` + callCreateTaskSchema + `}
+		"tasks":{"type":"array","minItems":1,"items":` + callCreateTaskSchema + `}
+	},
+	"if":{"required":["tasks"]},
+	"then":{"not":{"anyOf":[
+			{"required":["agent"]},{"required":["session_id"]},{"required":["prompt"]},
+			{"required":["expect"]},{"required":["idle_ttl_seconds"]},{"required":["deadline_seconds"]},
+			{"required":["strict"]},{"required":["result_budget"]},{"required":["result_overflow"]},
+			{"required":["idempotency_key"]},{"required":["runtime"]},{"required":["narrow"]}
+	]}},
+	"else":{
+		"required":["prompt"],
+		"oneOf":[{"required":["agent"]},{"required":["session_id"]}]
 	},
 	"additionalProperties":false
 }`
@@ -112,7 +129,9 @@ const callReturnInputSchema = `{
 		"result":{"not":{"type":"null"}},
 		"final_text":{"type":"string","minLength":1,"pattern":"\\S"}
 	},
-	"not":{"properties":{"result":{"type":"null"},"final_text":{"enum":[""]}}},
+	"if":{"required":["result"]},
+	"then":{"not":{"required":["final_text"]}},
+	"else":{"required":["final_text"]},
 	"additionalProperties":false
 }`
 

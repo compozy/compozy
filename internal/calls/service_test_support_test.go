@@ -15,7 +15,6 @@ import (
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -158,7 +157,7 @@ func validAgentTarget() TargetContext {
 		ProfileID: "default", WorkspaceID: "ws-1", ParentSessionID: "parent-1",
 		AgentName: "reviewer", GovernedRootID: "root-1", Depth: 1, Allowed: true,
 		Runtime: RuntimeSpec{Provider: "anthropic", Model: "sonnet", Speed: speed.SpeedNormal},
-		CallerPolicy: store.SessionPermissionPolicy{
+		CallerPolicy: PermissionPolicy{
 			Tools:  append(boundChildBaseTools(), boundChildDelegationTools()...),
 			Skills: []string{"review", "code"},
 		},
@@ -305,23 +304,26 @@ func (s *memoryCallStore) GetCallByChild(_ context.Context, scope CallScope, chi
 	return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
 }
 
-func (s *memoryCallStore) GetCallForSettlement(_ context.Context, callID string) (CallRecord, error) {
+func (s *memoryCallStore) GetCallForSettlement(_ context.Context, scope CallScope, callID string) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	record, ok := s.calls[callID]
-	if !ok {
+	if !ok || record.ProfileID != scope.ProfileID || record.Scope != scope.Scope ||
+		record.WorkspaceID != scope.WorkspaceID {
 		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
 	}
 	return record, nil
 }
 
-func (s *memoryCallStore) GetOpenCallForChild(_ context.Context, childID string) (CallRecord, error) {
+func (s *memoryCallStore) GetOpenCallForChild(_ context.Context, scope CallScope, childID string) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var candidates []CallRecord
 	for callID := range s.calls {
 		record := s.calls[callID]
-		if record.ChildSessionID == childID && record.State == StateRunning {
+		if record.ChildSessionID == childID && record.State == StateRunning &&
+			record.ProfileID == scope.ProfileID && record.Scope == scope.Scope &&
+			record.WorkspaceID == scope.WorkspaceID {
 			candidates = append(candidates, record)
 		}
 	}

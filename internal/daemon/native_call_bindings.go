@@ -12,24 +12,25 @@ import (
 func (n *daemonNativeTools) callToolBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) map[toolspkg.ToolID]nativeToolBinding {
-	bind := func(call toolspkg.NativeToolFunc) toolspkg.NativeToolFunc {
-		return func(
-			ctx context.Context,
-			scope toolspkg.Scope,
-			req toolspkg.CallRequest,
-		) (toolspkg.ToolResult, error) {
-			result, err := call(ctx, scope, req)
-			return result, nativeCallToolError(req.ToolID, err)
-		}
-	}
 	return map[toolspkg.ToolID]nativeToolBinding{
-		toolspkg.ToolIDAgentCall:    {call: bind(n.agentCall), availability: availability},
-		toolspkg.ToolIDCallReturn:   {call: bind(n.callReturn), availability: availability},
-		toolspkg.ToolIDCallAwait:    {call: bind(n.callAwait), availability: availability},
-		toolspkg.ToolIDCallCancel:   {call: bind(n.callCancel), availability: availability},
-		toolspkg.ToolIDCallResult:   {call: bind(n.callResult), availability: availability},
-		toolspkg.ToolIDCallPublish:  {call: bind(n.callPublish), availability: availability},
-		toolspkg.ToolIDAgentMessage: {call: bind(n.agentMessage), availability: availability},
+		toolspkg.ToolIDAgentCall:    {call: nativeCallErrorAdapter(n.agentCall), availability: availability},
+		toolspkg.ToolIDCallReturn:   {call: nativeCallErrorAdapter(n.callReturn), availability: availability},
+		toolspkg.ToolIDCallAwait:    {call: nativeCallErrorAdapter(n.callAwait), availability: availability},
+		toolspkg.ToolIDCallCancel:   {call: nativeCallErrorAdapter(n.callCancel), availability: availability},
+		toolspkg.ToolIDCallResult:   {call: nativeCallErrorAdapter(n.callResult), availability: availability},
+		toolspkg.ToolIDCallPublish:  {call: nativeCallErrorAdapter(n.callPublish), availability: availability},
+		toolspkg.ToolIDAgentMessage: {call: nativeCallErrorAdapter(n.agentMessage), availability: availability},
+	}
+}
+
+func nativeCallErrorAdapter(call toolspkg.NativeToolFunc) toolspkg.NativeToolFunc {
+	return func(
+		ctx context.Context,
+		scope toolspkg.Scope,
+		req toolspkg.CallRequest,
+	) (toolspkg.ToolResult, error) {
+		result, err := call(ctx, scope, req)
+		return result, nativeCallToolError(req.ToolID, err)
 	}
 }
 
@@ -44,25 +45,13 @@ func nativeCallToolError(id toolspkg.ToolID, err error) error {
 	if !ok {
 		return err
 	}
-	code := toolspkg.ErrorCodeConflict
-	reasons := make([]toolspkg.ReasonCode, 0, 1)
-	switch callErr.Code {
-	case callspkg.CodeTargetDenied, callspkg.CodeSettlementDenied, callspkg.CodeMessageTargetDenied,
-		callspkg.CodeMessageTargetBlocked, callspkg.CodeWideningRejected:
-		code = toolspkg.ErrorCodeDenied
-		reasons = append(reasons, toolspkg.ReasonSessionDenied)
-	case callspkg.CodeWorkspaceDenied:
-		code = toolspkg.ErrorCodeDenied
-		reasons = append(reasons, toolspkg.ReasonWorkspaceAccessDenied)
-	case callspkg.CodeNotFound, callspkg.CodeAgentUnknown, callspkg.CodeMessageNotFound:
-		code = toolspkg.ErrorCodeNotFound
-	case callspkg.CodeValidation, callspkg.CodeExpectInvalid, callspkg.CodePromptRequired,
-		callspkg.CodeDeadlineInvalid, callspkg.CodeResultInvalid, callspkg.CodeResultOverBudget,
-		callspkg.CodeMessageTooLarge:
-		code = toolspkg.ErrorCodeInvalidInput
-		reasons = append(reasons, toolspkg.ReasonSchemaInvalid)
-	}
-	return toolspkg.NewToolError(code, id, callErr.Error(), callErr, reasons...)
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCode(callErr.Code),
+		id,
+		callErr.Error(),
+		callErr,
+		toolspkg.ReasonCode(callErr.Code),
+	)
 }
 
 func (n *daemonNativeTools) callsService() core.CallsService {

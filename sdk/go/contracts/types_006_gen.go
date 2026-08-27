@@ -11,12 +11,7 @@ type CallObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
 
-type CallOwnerPayload struct {
-	Kind string `json:"kind"`
-	ID   string `json:"id"`
-}
-
-type CallPayload struct {
+type CallObservationPayload struct {
 	Event            HookEvent `json:"event"`
 	Timestamp        time.Time `json:"timestamp"`
 	ProfileID        string    `json:"profile_id"`
@@ -43,6 +38,11 @@ type CallPayload struct {
 	PreservedResults int       `json:"preserved_results,omitempty"`
 }
 
+type CallOwnerPayload struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+}
+
 type CallProvenancePayload struct {
 	ProducedBy string `json:"produced_by,omitempty"`
 	SessionID  string `json:"session_id,omitempty"`
@@ -61,12 +61,16 @@ type CallTargetParams struct {
 }
 
 type CallsListParams struct {
-	Scope       string   `json:"scope,omitempty"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-	State       []string `json:"state,omitempty"`
-	Caller      string   `json:"caller,omitempty"`
-	Cursor      string   `json:"cursor,omitempty"`
-	Limit       int      `json:"limit,omitempty"`
+	Scope          string   `json:"scope,omitempty"`
+	WorkspaceID    string   `json:"workspace_id,omitempty"`
+	State          []string `json:"state,omitempty"`
+	Attention      *bool    `json:"attention,omitempty"`
+	Caller         string   `json:"caller,omitempty"`
+	ChildSessionID string   `json:"child_session_id,omitempty"`
+	RootSessionID  string   `json:"root_session_id,omitempty"`
+	Agent          string   `json:"agent,omitempty"`
+	Cursor         string   `json:"cursor,omitempty"`
+	Limit          int      `json:"limit,omitempty"`
 }
 
 type CallsResponse struct {

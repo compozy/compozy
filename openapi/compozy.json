@@ -69510,6 +69510,7 @@
                   "properties": {
                     "items": {
                       "items": {
+                        "additionalProperties": false,
                         "properties": {
                           "actor": {
                             "properties": {
@@ -69629,13 +69630,25 @@
                             "type": "integer"
                           },
                           "result_overflow": {
+                            "enum": [
+                              "store",
+                              "reject"
+                            ],
                             "type": "string"
                           },
-                          "result_preview": {},
+                          "result_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "root_session_id": {
                             "type": "string"
                           },
                           "scope": {
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ],
                             "type": "string"
                           },
                           "second_issue_text": {
@@ -69652,6 +69665,17 @@
                             "type": "string"
                           },
                           "state": {
+                            "enum": [
+                              "queued",
+                              "running",
+                              "completed",
+                              "invalid-result",
+                              "completed-without-result",
+                              "failed",
+                              "canceled",
+                              "timeout",
+                              "expired"
+                            ],
                             "type": "string"
                           },
                           "strict": {
@@ -69660,12 +69684,21 @@
                           "superseded_bytes": {
                             "type": "integer"
                           },
-                          "superseded_preview": {},
+                          "superseded_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "updated_at": {
                             "format": "date-time",
                             "type": "string"
                           },
                           "verdict": {
+                            "enum": [
+                              "returned",
+                              "extracted",
+                              "repaired"
+                            ],
                             "type": "string"
                           },
                           "workspace_id": {
@@ -69718,6 +69751,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -69772,6 +69806,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -69826,6 +69861,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -69975,13 +70011,302 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
+                "oneOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "tasks"
+                      ],
+                      "type": "object"
+                    },
+                    "properties": {
+                      "prompt": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "target": {
+                        "additionalProperties": false,
+                        "oneOf": [
+                          {
+                            "properties": {
+                              "agent": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "agent"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "properties": {
+                              "session_id": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "session_id"
+                            ],
+                            "type": "object"
+                          }
+                        ],
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "session_id": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "prompt"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "target"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "prompt"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "expect"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "idle_ttl_seconds"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "deadline_seconds"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "strict"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "result_budget"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "result_overflow"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "idempotency_key"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "runtime"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "narrow"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "properties": {
+                      "tasks": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "deadline_seconds": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "expect": {
+                              "additionalProperties": true,
+                              "description": "JSON Schema or example-shape shorthand for the required structured result.",
+                              "type": "object"
+                            },
+                            "idempotency_key": {
+                              "type": "string"
+                            },
+                            "idle_ttl_seconds": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "narrow": {
+                              "properties": {
+                                "mcp_servers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "network_channels": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "sandbox_profiles": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "skills": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "tools": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "workspace_paths": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "prompt": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "result_budget": {
+                              "type": "string"
+                            },
+                            "result_overflow": {
+                              "enum": [
+                                "store",
+                                "reject"
+                              ],
+                              "type": "string"
+                            },
+                            "runtime": {
+                              "additionalProperties": false,
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "strict": {
+                              "type": "boolean"
+                            },
+                            "target": {
+                              "additionalProperties": false,
+                              "oneOf": [
+                                {
+                                  "properties": {
+                                    "agent": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "agent"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "properties": {
+                                    "session_id": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "session_id"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "properties": {
+                                "agent": {
+                                  "type": "string"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "tasks"
+                    ],
+                    "type": "object"
+                  }
+                ],
                 "properties": {
                   "deadline_seconds": {
                     "format": "int64",
                     "nullable": true,
                     "type": "integer"
                   },
-                  "expect": {},
+                  "expect": {
+                    "additionalProperties": true,
+                    "description": "JSON Schema or example-shape shorthand for the required structured result.",
+                    "type": "object"
+                  },
                   "idempotency_key": {
                     "type": "string"
                   },
@@ -70032,15 +70357,21 @@
                     "type": "object"
                   },
                   "prompt": {
+                    "minLength": 1,
                     "type": "string"
                   },
                   "result_budget": {
                     "type": "string"
                   },
                   "result_overflow": {
+                    "enum": [
+                      "store",
+                      "reject"
+                    ],
                     "type": "string"
                   },
                   "runtime": {
+                    "additionalProperties": false,
                     "nullable": true,
                     "properties": {
                       "model": {
@@ -70053,18 +70384,53 @@
                         "type": "string"
                       },
                       "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
                         "type": "string"
                       }
                     },
                     "type": "object"
                   },
                   "scope": {
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ],
                     "type": "string"
                   },
                   "strict": {
                     "type": "boolean"
                   },
                   "target": {
+                    "additionalProperties": false,
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "agent": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "properties": {
+                          "session_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "session_id"
+                        ],
+                        "type": "object"
+                      }
+                    ],
                     "properties": {
                       "agent": {
                         "type": "string"
@@ -70077,13 +70443,18 @@
                   },
                   "tasks": {
                     "items": {
+                      "additionalProperties": false,
                       "properties": {
                         "deadline_seconds": {
                           "format": "int64",
                           "nullable": true,
                           "type": "integer"
                         },
-                        "expect": {},
+                        "expect": {
+                          "additionalProperties": true,
+                          "description": "JSON Schema or example-shape shorthand for the required structured result.",
+                          "type": "object"
+                        },
                         "idempotency_key": {
                           "type": "string"
                         },
@@ -70134,15 +70505,21 @@
                           "type": "object"
                         },
                         "prompt": {
+                          "minLength": 1,
                           "type": "string"
                         },
                         "result_budget": {
                           "type": "string"
                         },
                         "result_overflow": {
+                          "enum": [
+                            "store",
+                            "reject"
+                          ],
                           "type": "string"
                         },
                         "runtime": {
+                          "additionalProperties": false,
                           "nullable": true,
                           "properties": {
                             "model": {
@@ -70155,6 +70532,10 @@
                               "type": "string"
                             },
                             "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
                               "type": "string"
                             }
                           },
@@ -70164,6 +70545,33 @@
                           "type": "boolean"
                         },
                         "target": {
+                          "additionalProperties": false,
+                          "oneOf": [
+                            {
+                              "properties": {
+                                "agent": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agent"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "properties": {
+                                "session_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "session_id"
+                              ],
+                              "type": "object"
+                            }
+                          ],
                           "properties": {
                             "agent": {
                               "type": "string"
@@ -70175,22 +70583,15 @@
                           "type": "object"
                         }
                       },
-                      "required": [
-                        "prompt",
-                        "target"
-                      ],
                       "type": "object"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "workspace_id": {
                     "type": "string"
                   }
                 },
-                "required": [
-                  "prompt",
-                  "target"
-                ],
                 "type": "object"
               }
             }
@@ -70204,6 +70605,7 @@
               "application/json": {
                 "schema": {
                   "items": {
+                    "additionalProperties": false,
                     "properties": {
                       "call_id": {
                         "type": "string"
@@ -70212,6 +70614,7 @@
                         "type": "string"
                       },
                       "error": {
+                        "additionalProperties": false,
                         "nullable": true,
                         "properties": {
                           "available": {
@@ -70268,6 +70671,17 @@
                         "type": "boolean"
                       },
                       "state": {
+                        "enum": [
+                          "queued",
+                          "running",
+                          "completed",
+                          "invalid-result",
+                          "completed-without-result",
+                          "failed",
+                          "canceled",
+                          "timeout",
+                          "expired"
+                        ],
                         "type": "string"
                       }
                     },
@@ -70283,6 +70697,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "call_id": {
                       "type": "string"
@@ -70299,6 +70714,17 @@
                       "type": "boolean"
                     },
                     "state": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "invalid-result",
+                        "completed-without-result",
+                        "failed",
+                        "canceled",
+                        "timeout",
+                        "expired"
+                      ],
                       "type": "string"
                     }
                   },
@@ -70318,6 +70744,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -70372,6 +70799,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -70426,6 +70854,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -70480,6 +70909,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -70534,6 +70964,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -70703,6 +71134,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "actor": {
                       "properties": {
@@ -70822,13 +71254,25 @@
                       "type": "integer"
                     },
                     "result_overflow": {
+                      "enum": [
+                        "store",
+                        "reject"
+                      ],
                       "type": "string"
                     },
-                    "result_preview": {},
+                    "result_preview": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    },
                     "root_session_id": {
                       "type": "string"
                     },
                     "scope": {
+                      "enum": [
+                        "global",
+                        "workspace"
+                      ],
                       "type": "string"
                     },
                     "second_issue_text": {
@@ -70845,6 +71289,17 @@
                       "type": "string"
                     },
                     "state": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "invalid-result",
+                        "completed-without-result",
+                        "failed",
+                        "canceled",
+                        "timeout",
+                        "expired"
+                      ],
                       "type": "string"
                     },
                     "strict": {
@@ -70853,12 +71308,21 @@
                     "superseded_bytes": {
                       "type": "integer"
                     },
-                    "superseded_preview": {},
+                    "superseded_preview": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    },
                     "updated_at": {
                       "format": "date-time",
                       "type": "string"
                     },
                     "verdict": {
+                      "enum": [
+                        "returned",
+                        "extracted",
+                        "repaired"
+                      ],
                       "type": "string"
                     },
                     "workspace_id": {
@@ -70896,6 +71360,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -70950,6 +71415,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71004,6 +71470,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71190,12 +71657,18 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "clamped_timeout_ms": {
                       "format": "int64",
                       "type": "integer"
                     },
                     "outcome": {
+                      "enum": [
+                        "complete",
+                        "partial",
+                        "timeout"
+                      ],
                       "type": "string"
                     },
                     "pending": {
@@ -71209,6 +71682,7 @@
                     },
                     "settled": {
                       "items": {
+                        "additionalProperties": false,
                         "properties": {
                           "actor": {
                             "properties": {
@@ -71328,13 +71802,25 @@
                             "type": "integer"
                           },
                           "result_overflow": {
+                            "enum": [
+                              "store",
+                              "reject"
+                            ],
                             "type": "string"
                           },
-                          "result_preview": {},
+                          "result_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "root_session_id": {
                             "type": "string"
                           },
                           "scope": {
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ],
                             "type": "string"
                           },
                           "second_issue_text": {
@@ -71351,6 +71837,17 @@
                             "type": "string"
                           },
                           "state": {
+                            "enum": [
+                              "queued",
+                              "running",
+                              "completed",
+                              "invalid-result",
+                              "completed-without-result",
+                              "failed",
+                              "canceled",
+                              "timeout",
+                              "expired"
+                            ],
                             "type": "string"
                           },
                           "strict": {
@@ -71359,12 +71856,21 @@
                           "superseded_bytes": {
                             "type": "integer"
                           },
-                          "superseded_preview": {},
+                          "superseded_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "updated_at": {
                             "format": "date-time",
                             "type": "string"
                           },
                           "verdict": {
+                            "enum": [
+                              "returned",
+                              "extracted",
+                              "repaired"
+                            ],
                             "type": "string"
                           },
                           "workspace_id": {
@@ -71413,6 +71919,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71467,6 +71974,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71521,6 +72029,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71575,6 +72084,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71629,6 +72139,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71805,8 +72316,20 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "state": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "invalid-result",
+                        "completed-without-result",
+                        "failed",
+                        "canceled",
+                        "timeout",
+                        "expired"
+                      ],
                       "type": "string"
                     }
                   },
@@ -71823,6 +72346,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71877,6 +72401,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71931,6 +72456,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -71985,6 +72511,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72039,6 +72566,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72230,6 +72758,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72284,6 +72813,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72338,6 +72868,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72543,6 +73074,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72597,6 +73129,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72651,6 +73184,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72705,6 +73239,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72759,6 +73294,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -72928,11 +73464,16 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "call_id": {
                       "type": "string"
                     },
-                    "result": {}
+                    "result": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    }
                   },
                   "required": [
                     "call_id",
@@ -72948,6 +73489,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -73002,6 +73544,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -73056,6 +73599,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -73225,11 +73769,16 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "call_id": {
                       "type": "string"
                     },
-                    "result": {}
+                    "result": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    }
                   },
                   "required": [
                     "call_id",
@@ -73245,6 +73794,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -73299,6 +73849,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -73353,6 +73904,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110265,6 +110817,7 @@
                   "properties": {
                     "items": {
                       "items": {
+                        "additionalProperties": false,
                         "properties": {
                           "attempts": {
                             "type": "integer"
@@ -110282,6 +110835,12 @@
                             "type": "string"
                           },
                           "delivery": {
+                            "enum": [
+                              "queued",
+                              "delivered-into-turn",
+                              "woke",
+                              "failed"
+                            ],
                             "type": "string"
                           },
                           "from": {
@@ -110315,6 +110874,10 @@
                             "type": "string"
                           },
                           "scope": {
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ],
                             "type": "string"
                           },
                           "text": {
@@ -110360,6 +110923,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110414,6 +110978,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110468,6 +111033,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110628,6 +111194,33 @@
                     "type": "string"
                   },
                   "to": {
+                    "additionalProperties": false,
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "agent": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "properties": {
+                          "session_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "session_id"
+                        ],
+                        "type": "object"
+                      }
+                    ],
                     "properties": {
                       "agent": {
                         "type": "string"
@@ -110658,8 +111251,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "delivery": {
+                      "enum": [
+                        "queued",
+                        "delivered-into-turn",
+                        "woke",
+                        "failed"
+                      ],
                       "type": "string"
                     },
                     "message_id": {
@@ -110680,6 +111280,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110734,6 +111335,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110788,6 +111390,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110842,6 +111445,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110896,6 +111500,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -110950,6 +111555,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -111119,6 +111725,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "attempts": {
                       "type": "integer"
@@ -111136,6 +111743,12 @@
                       "type": "string"
                     },
                     "delivery": {
+                      "enum": [
+                        "queued",
+                        "delivered-into-turn",
+                        "woke",
+                        "failed"
+                      ],
                       "type": "string"
                     },
                     "from": {
@@ -111169,6 +111782,10 @@
                       "type": "string"
                     },
                     "scope": {
+                      "enum": [
+                        "global",
+                        "workspace"
+                      ],
                       "type": "string"
                     },
                     "text": {
@@ -111203,6 +111820,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -111257,6 +111875,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -111311,6 +111930,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -255923,6 +256543,7 @@
                   "properties": {
                     "items": {
                       "items": {
+                        "additionalProperties": false,
                         "properties": {
                           "actor": {
                             "properties": {
@@ -256042,13 +256663,25 @@
                             "type": "integer"
                           },
                           "result_overflow": {
+                            "enum": [
+                              "store",
+                              "reject"
+                            ],
                             "type": "string"
                           },
-                          "result_preview": {},
+                          "result_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "root_session_id": {
                             "type": "string"
                           },
                           "scope": {
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ],
                             "type": "string"
                           },
                           "second_issue_text": {
@@ -256065,6 +256698,17 @@
                             "type": "string"
                           },
                           "state": {
+                            "enum": [
+                              "queued",
+                              "running",
+                              "completed",
+                              "invalid-result",
+                              "completed-without-result",
+                              "failed",
+                              "canceled",
+                              "timeout",
+                              "expired"
+                            ],
                             "type": "string"
                           },
                           "strict": {
@@ -256073,12 +256717,21 @@
                           "superseded_bytes": {
                             "type": "integer"
                           },
-                          "superseded_preview": {},
+                          "superseded_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "updated_at": {
                             "format": "date-time",
                             "type": "string"
                           },
                           "verdict": {
+                            "enum": [
+                              "returned",
+                              "extracted",
+                              "repaired"
+                            ],
                             "type": "string"
                           },
                           "workspace_id": {
@@ -256131,6 +256784,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256185,6 +256839,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256239,6 +256894,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256397,13 +257053,302 @@
           "content": {
             "application/json": {
               "schema": {
+                "additionalProperties": false,
+                "oneOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "tasks"
+                      ],
+                      "type": "object"
+                    },
+                    "properties": {
+                      "prompt": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "target": {
+                        "additionalProperties": false,
+                        "oneOf": [
+                          {
+                            "properties": {
+                              "agent": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "agent"
+                            ],
+                            "type": "object"
+                          },
+                          {
+                            "properties": {
+                              "session_id": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "session_id"
+                            ],
+                            "type": "object"
+                          }
+                        ],
+                        "properties": {
+                          "agent": {
+                            "type": "string"
+                          },
+                          "session_id": {
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "target",
+                      "prompt"
+                    ],
+                    "type": "object"
+                  },
+                  {
+                    "not": {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "target"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "prompt"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "expect"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "idle_ttl_seconds"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "deadline_seconds"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "strict"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "result_budget"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "result_overflow"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "idempotency_key"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "runtime"
+                          ],
+                          "type": "object"
+                        },
+                        {
+                          "required": [
+                            "narrow"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    },
+                    "properties": {
+                      "tasks": {
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "deadline_seconds": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "expect": {
+                              "additionalProperties": true,
+                              "description": "JSON Schema or example-shape shorthand for the required structured result.",
+                              "type": "object"
+                            },
+                            "idempotency_key": {
+                              "type": "string"
+                            },
+                            "idle_ttl_seconds": {
+                              "format": "int64",
+                              "nullable": true,
+                              "type": "integer"
+                            },
+                            "narrow": {
+                              "properties": {
+                                "mcp_servers": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "network_channels": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "sandbox_profiles": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "skills": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "tools": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                },
+                                "workspace_paths": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "prompt": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "result_budget": {
+                              "type": "string"
+                            },
+                            "result_overflow": {
+                              "enum": [
+                                "store",
+                                "reject"
+                              ],
+                              "type": "string"
+                            },
+                            "runtime": {
+                              "additionalProperties": false,
+                              "nullable": true,
+                              "properties": {
+                                "model": {
+                                  "type": "string"
+                                },
+                                "provider": {
+                                  "type": "string"
+                                },
+                                "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
+                                  ],
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "strict": {
+                              "type": "boolean"
+                            },
+                            "target": {
+                              "additionalProperties": false,
+                              "oneOf": [
+                                {
+                                  "properties": {
+                                    "agent": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "agent"
+                                  ],
+                                  "type": "object"
+                                },
+                                {
+                                  "properties": {
+                                    "session_id": {
+                                      "minLength": 1,
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "session_id"
+                                  ],
+                                  "type": "object"
+                                }
+                              ],
+                              "properties": {
+                                "agent": {
+                                  "type": "string"
+                                },
+                                "session_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "type": "object"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "required": [
+                      "tasks"
+                    ],
+                    "type": "object"
+                  }
+                ],
                 "properties": {
                   "deadline_seconds": {
                     "format": "int64",
                     "nullable": true,
                     "type": "integer"
                   },
-                  "expect": {},
+                  "expect": {
+                    "additionalProperties": true,
+                    "description": "JSON Schema or example-shape shorthand for the required structured result.",
+                    "type": "object"
+                  },
                   "idempotency_key": {
                     "type": "string"
                   },
@@ -256454,15 +257399,21 @@
                     "type": "object"
                   },
                   "prompt": {
+                    "minLength": 1,
                     "type": "string"
                   },
                   "result_budget": {
                     "type": "string"
                   },
                   "result_overflow": {
+                    "enum": [
+                      "store",
+                      "reject"
+                    ],
                     "type": "string"
                   },
                   "runtime": {
+                    "additionalProperties": false,
                     "nullable": true,
                     "properties": {
                       "model": {
@@ -256475,18 +257426,53 @@
                         "type": "string"
                       },
                       "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
                         "type": "string"
                       }
                     },
                     "type": "object"
                   },
                   "scope": {
+                    "enum": [
+                      "global",
+                      "workspace"
+                    ],
                     "type": "string"
                   },
                   "strict": {
                     "type": "boolean"
                   },
                   "target": {
+                    "additionalProperties": false,
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "agent": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "properties": {
+                          "session_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "session_id"
+                        ],
+                        "type": "object"
+                      }
+                    ],
                     "properties": {
                       "agent": {
                         "type": "string"
@@ -256499,13 +257485,18 @@
                   },
                   "tasks": {
                     "items": {
+                      "additionalProperties": false,
                       "properties": {
                         "deadline_seconds": {
                           "format": "int64",
                           "nullable": true,
                           "type": "integer"
                         },
-                        "expect": {},
+                        "expect": {
+                          "additionalProperties": true,
+                          "description": "JSON Schema or example-shape shorthand for the required structured result.",
+                          "type": "object"
+                        },
                         "idempotency_key": {
                           "type": "string"
                         },
@@ -256556,15 +257547,21 @@
                           "type": "object"
                         },
                         "prompt": {
+                          "minLength": 1,
                           "type": "string"
                         },
                         "result_budget": {
                           "type": "string"
                         },
                         "result_overflow": {
+                          "enum": [
+                            "store",
+                            "reject"
+                          ],
                           "type": "string"
                         },
                         "runtime": {
+                          "additionalProperties": false,
                           "nullable": true,
                           "properties": {
                             "model": {
@@ -256577,6 +257574,10 @@
                               "type": "string"
                             },
                             "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
                               "type": "string"
                             }
                           },
@@ -256586,6 +257587,33 @@
                           "type": "boolean"
                         },
                         "target": {
+                          "additionalProperties": false,
+                          "oneOf": [
+                            {
+                              "properties": {
+                                "agent": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "agent"
+                              ],
+                              "type": "object"
+                            },
+                            {
+                              "properties": {
+                                "session_id": {
+                                  "minLength": 1,
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "session_id"
+                              ],
+                              "type": "object"
+                            }
+                          ],
                           "properties": {
                             "agent": {
                               "type": "string"
@@ -256597,22 +257625,15 @@
                           "type": "object"
                         }
                       },
-                      "required": [
-                        "prompt",
-                        "target"
-                      ],
                       "type": "object"
                     },
+                    "minItems": 1,
                     "type": "array"
                   },
                   "workspace_id": {
                     "type": "string"
                   }
                 },
-                "required": [
-                  "prompt",
-                  "target"
-                ],
                 "type": "object"
               }
             }
@@ -256626,6 +257647,7 @@
               "application/json": {
                 "schema": {
                   "items": {
+                    "additionalProperties": false,
                     "properties": {
                       "call_id": {
                         "type": "string"
@@ -256634,6 +257656,7 @@
                         "type": "string"
                       },
                       "error": {
+                        "additionalProperties": false,
                         "nullable": true,
                         "properties": {
                           "available": {
@@ -256690,6 +257713,17 @@
                         "type": "boolean"
                       },
                       "state": {
+                        "enum": [
+                          "queued",
+                          "running",
+                          "completed",
+                          "invalid-result",
+                          "completed-without-result",
+                          "failed",
+                          "canceled",
+                          "timeout",
+                          "expired"
+                        ],
                         "type": "string"
                       }
                     },
@@ -256705,6 +257739,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "call_id": {
                       "type": "string"
@@ -256721,6 +257756,17 @@
                       "type": "boolean"
                     },
                     "state": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "invalid-result",
+                        "completed-without-result",
+                        "failed",
+                        "canceled",
+                        "timeout",
+                        "expired"
+                      ],
                       "type": "string"
                     }
                   },
@@ -256740,6 +257786,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256794,6 +257841,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256848,6 +257896,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256902,6 +257951,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -256956,6 +258006,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -257134,6 +258185,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "actor": {
                       "properties": {
@@ -257253,13 +258305,25 @@
                       "type": "integer"
                     },
                     "result_overflow": {
+                      "enum": [
+                        "store",
+                        "reject"
+                      ],
                       "type": "string"
                     },
-                    "result_preview": {},
+                    "result_preview": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    },
                     "root_session_id": {
                       "type": "string"
                     },
                     "scope": {
+                      "enum": [
+                        "global",
+                        "workspace"
+                      ],
                       "type": "string"
                     },
                     "second_issue_text": {
@@ -257276,6 +258340,17 @@
                       "type": "string"
                     },
                     "state": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "invalid-result",
+                        "completed-without-result",
+                        "failed",
+                        "canceled",
+                        "timeout",
+                        "expired"
+                      ],
                       "type": "string"
                     },
                     "strict": {
@@ -257284,12 +258359,21 @@
                     "superseded_bytes": {
                       "type": "integer"
                     },
-                    "superseded_preview": {},
+                    "superseded_preview": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    },
                     "updated_at": {
                       "format": "date-time",
                       "type": "string"
                     },
                     "verdict": {
+                      "enum": [
+                        "returned",
+                        "extracted",
+                        "repaired"
+                      ],
                       "type": "string"
                     },
                     "workspace_id": {
@@ -257327,6 +258411,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -257381,6 +258466,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -257435,6 +258521,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -257630,12 +258717,18 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "clamped_timeout_ms": {
                       "format": "int64",
                       "type": "integer"
                     },
                     "outcome": {
+                      "enum": [
+                        "complete",
+                        "partial",
+                        "timeout"
+                      ],
                       "type": "string"
                     },
                     "pending": {
@@ -257649,6 +258742,7 @@
                     },
                     "settled": {
                       "items": {
+                        "additionalProperties": false,
                         "properties": {
                           "actor": {
                             "properties": {
@@ -257768,13 +258862,25 @@
                             "type": "integer"
                           },
                           "result_overflow": {
+                            "enum": [
+                              "store",
+                              "reject"
+                            ],
                             "type": "string"
                           },
-                          "result_preview": {},
+                          "result_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "root_session_id": {
                             "type": "string"
                           },
                           "scope": {
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ],
                             "type": "string"
                           },
                           "second_issue_text": {
@@ -257791,6 +258897,17 @@
                             "type": "string"
                           },
                           "state": {
+                            "enum": [
+                              "queued",
+                              "running",
+                              "completed",
+                              "invalid-result",
+                              "completed-without-result",
+                              "failed",
+                              "canceled",
+                              "timeout",
+                              "expired"
+                            ],
                             "type": "string"
                           },
                           "strict": {
@@ -257799,12 +258916,21 @@
                           "superseded_bytes": {
                             "type": "integer"
                           },
-                          "superseded_preview": {},
+                          "superseded_preview": {
+                            "additionalProperties": true,
+                            "description": "Free-form structured JSON returned under the call's declared result contract.",
+                            "type": "object"
+                          },
                           "updated_at": {
                             "format": "date-time",
                             "type": "string"
                           },
                           "verdict": {
+                            "enum": [
+                              "returned",
+                              "extracted",
+                              "repaired"
+                            ],
                             "type": "string"
                           },
                           "workspace_id": {
@@ -257853,6 +258979,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -257907,6 +259034,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -257961,6 +259089,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258015,6 +259144,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258069,6 +259199,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258254,8 +259385,20 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "state": {
+                      "enum": [
+                        "queued",
+                        "running",
+                        "completed",
+                        "invalid-result",
+                        "completed-without-result",
+                        "failed",
+                        "canceled",
+                        "timeout",
+                        "expired"
+                      ],
                       "type": "string"
                     }
                   },
@@ -258272,6 +259415,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258326,6 +259470,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258380,6 +259525,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258434,6 +259580,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258488,6 +259635,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258688,6 +259836,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258742,6 +259891,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -258796,6 +259946,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259010,6 +260161,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259064,6 +260216,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259118,6 +260271,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259172,6 +260326,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259226,6 +260381,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259404,11 +260560,16 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "call_id": {
                       "type": "string"
                     },
-                    "result": {}
+                    "result": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    }
                   },
                   "required": [
                     "call_id",
@@ -259424,6 +260585,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259478,6 +260640,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259532,6 +260695,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259710,11 +260874,16 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "call_id": {
                       "type": "string"
                     },
-                    "result": {}
+                    "result": {
+                      "additionalProperties": true,
+                      "description": "Free-form structured JSON returned under the call's declared result contract.",
+                      "type": "object"
+                    }
                   },
                   "required": [
                     "call_id",
@@ -259730,6 +260899,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259784,6 +260954,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -259838,6 +261009,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -308627,6 +309799,7 @@
                   "properties": {
                     "items": {
                       "items": {
+                        "additionalProperties": false,
                         "properties": {
                           "attempts": {
                             "type": "integer"
@@ -308644,6 +309817,12 @@
                             "type": "string"
                           },
                           "delivery": {
+                            "enum": [
+                              "queued",
+                              "delivered-into-turn",
+                              "woke",
+                              "failed"
+                            ],
                             "type": "string"
                           },
                           "from": {
@@ -308677,6 +309856,10 @@
                             "type": "string"
                           },
                           "scope": {
+                            "enum": [
+                              "global",
+                              "workspace"
+                            ],
                             "type": "string"
                           },
                           "text": {
@@ -308722,6 +309905,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -308776,6 +309960,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -308830,6 +310015,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -308999,6 +310185,33 @@
                     "type": "string"
                   },
                   "to": {
+                    "additionalProperties": false,
+                    "oneOf": [
+                      {
+                        "properties": {
+                          "agent": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "agent"
+                        ],
+                        "type": "object"
+                      },
+                      {
+                        "properties": {
+                          "session_id": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "session_id"
+                        ],
+                        "type": "object"
+                      }
+                    ],
                     "properties": {
                       "agent": {
                         "type": "string"
@@ -309029,8 +310242,15 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "delivery": {
+                      "enum": [
+                        "queued",
+                        "delivered-into-turn",
+                        "woke",
+                        "failed"
+                      ],
                       "type": "string"
                     },
                     "message_id": {
@@ -309051,6 +310271,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309105,6 +310326,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309159,6 +310381,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309213,6 +310436,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309267,6 +310491,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309321,6 +310546,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309499,6 +310725,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "attempts": {
                       "type": "integer"
@@ -309516,6 +310743,12 @@
                       "type": "string"
                     },
                     "delivery": {
+                      "enum": [
+                        "queued",
+                        "delivered-into-turn",
+                        "woke",
+                        "failed"
+                      ],
                       "type": "string"
                     },
                     "from": {
@@ -309549,6 +310782,10 @@
                       "type": "string"
                     },
                     "scope": {
+                      "enum": [
+                        "global",
+                        "workspace"
+                      ],
                       "type": "string"
                     },
                     "text": {
@@ -309583,6 +310820,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309637,6 +310875,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {
@@ -309691,6 +310930,7 @@
             "content": {
               "application/json": {
                 "schema": {
+                  "additionalProperties": false,
                   "properties": {
                     "available": {
                       "items": {

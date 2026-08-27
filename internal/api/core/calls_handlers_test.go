@@ -86,6 +86,15 @@ func (s callsServiceStub) Result(
 	return s.result(ctx, query, callID)
 }
 
+func (s callsServiceStub) ResultForActor(
+	ctx context.Context,
+	query callspkg.CallReadQuery,
+	callID string,
+	_ callspkg.Actor,
+) (callspkg.ResultPayload, error) {
+	return s.result(ctx, query, callID)
+}
+
 func (s callsServiceStub) Prompt(
 	ctx context.Context,
 	query callspkg.CallReadQuery,

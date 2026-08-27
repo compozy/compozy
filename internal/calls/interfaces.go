@@ -8,43 +8,93 @@ import (
 	"github.com/compozy/compozy/internal/task"
 )
 
-// Store owns durable call lifecycle and activation state.
-type Store interface {
-	contracts.RegistryStore
+// AdmissionStore owns atomic call admission.
+type AdmissionStore interface {
 	AdmitCall(context.Context, Admission) (AdmissionResult, error)
+}
+
+// CallLookupStore owns lifecycle lookups by call or child identity.
+type CallLookupStore interface {
 	GetCall(context.Context, CallScope, string) (CallRecord, error)
 	GetCallByChild(context.Context, CallScope, string) (CallRecord, error)
-	GetCallForSettlement(context.Context, string) (CallRecord, error)
-	GetOpenCallForChild(context.Context, string) (CallRecord, error)
+	GetCallForSettlement(context.Context, CallScope, string) (CallRecord, error)
+	GetOpenCallForChild(context.Context, CallScope, string) (CallRecord, error)
+}
+
+// ActivationMutationStore owns activation terminal state changes.
+type ActivationMutationStore interface {
 	BindActivationChild(context.Context, ActivationBinding) (CallRecord, error)
 	FailActivation(context.Context, ActivationFailure) (CallRecord, error)
+}
+
+// SettlementStore owns repair and terminal settlement mutations.
+type SettlementStore interface {
 	RecordRepair(context.Context, RepairMutation) (CallRecord, error)
 	SettleCall(context.Context, SettlementMutation) (CallRecord, error)
+}
+
+// DeadlineStore owns deadline recovery reads.
+type DeadlineStore interface {
 	ListDueCalls(context.Context, time.Time, int) ([]CallRecord, error)
+}
+
+// SubtreeStore owns subtree drain fences and projections.
+type SubtreeStore interface {
 	FenceSessionDrain(context.Context, string, time.Time) error
 	UnfenceSessionDrain(context.Context, string, time.Time) error
 	ListOpenSubtreeCalls(context.Context, string) ([]CallRecord, error)
 	CountPreservedSubtreeResults(context.Context, string) (int, error)
+}
+
+// ActivationQueueStore owns durable activation queue recovery.
+type ActivationQueueStore interface {
 	ListQueuedActivationRunIDs(context.Context, int) ([]string, error)
 	LoadActivation(context.Context, string) (CallRecord, ActivationSpec, []byte, PermissionAtoms, error)
 	ReconcileActivations(context.Context, time.Time) ([]string, error)
+}
+
+// OperatorStore owns the stable operator caller binding.
+type OperatorStore interface {
 	ResolveOperatorCaller(context.Context, OperatorCallerBinding) (OperatorCallerBinding, error)
 	IsOperatorCallerSession(context.Context, string) (bool, error)
+}
+
+// TargetContextStore resolves persisted caller and target ownership.
+type TargetContextStore interface {
 	ResolveCallTargetContext(context.Context, CreateInput) (TargetContext, error)
+}
+
+// Store composes the small persistence ports required by call lifecycle services.
+type Store interface {
+	contracts.RegistryStore
+	AdmissionStore
+	CallLookupStore
+	ActivationMutationStore
+	SettlementStore
+	DeadlineStore
+	SubtreeStore
+	ActivationQueueStore
+	OperatorStore
+	TargetContextStore
 }
 
 // MailboxStore owns durable messages, deliveries, and child reap fences.
 type MailboxStore interface {
+	ChildParkingStore
 	AcceptMessage(context.Context, MessageAdmission) (MessageRecord, error)
 	GetMessage(context.Context, CallScope, string) (MessageRecord, error)
 	ListPendingDeliveries(context.Context, string, int) ([]DeliveryRecord, error)
 	RecordDelivery(context.Context, DeliveryUpdate) (DeliveryRecord, error)
-	ParkCallChild(context.Context, string, time.Time, time.Time) (bool, error)
-	ClearCallChildIdleClock(context.Context, string, time.Time) error
 	GetCallPayload(context.Context, string, string) ([]byte, error)
 	FailPendingDeliveriesForRecipient(context.Context, string, string, time.Time) error
 	FenceSessionReap(context.Context, string, time.Time) (bool, error)
 	FinalizeReapedSession(context.Context, string, string, time.Time) error
+}
+
+// ChildParkingStore owns the settled-child idle clock.
+type ChildParkingStore interface {
+	ParkCallChild(context.Context, string, time.Time, time.Time) (bool, error)
+	ClearCallChildIdleClock(context.Context, string, time.Time) error
 }
 
 // PayloadStore reads durable call prompt and result blobs.

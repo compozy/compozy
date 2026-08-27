@@ -233,6 +233,78 @@ func TestDocumentDescribesCallsAndMessages(t *testing.T) {
 		}
 	})
 
+	t.Run("Should make single and batch call creation mutually exclusive", func(t *testing.T) {
+		t.Parallel()
+
+		create := operationFor(t, doc, "/api/calls", http.MethodPost)
+		request := jsonRequestSchema(t, create)
+		if got, want := len(request.OneOf), 2; got != want {
+			t.Fatalf("create call oneOf branches = %d, want %d", got, want)
+		}
+		for _, payload := range []string{
+			`{"target":{"agent":"reviewer"},"prompt":"Review this"}`,
+			`{"target":{"session_id":"sess-child"},"prompt":"Continue"}`,
+			`{"tasks":[{"target":{"agent":"reviewer"},"prompt":"Review this"}]}`,
+		} {
+			assertOpenAPISchemaJSONValidity(t, request, payload, true)
+		}
+		for _, payload := range []string{
+			`{}`,
+			`{"target":{"agent":"reviewer","session_id":"sess-child"},"prompt":"ambiguous"}`,
+			`{"target":{"agent":"reviewer"}}`,
+			`{"target":{"agent":"reviewer"},"prompt":""}`,
+			`{"tasks":[]}`,
+			`{"tasks":[{"target":{"agent":"reviewer"},"prompt":"Review this"}],"prompt":"mixed"}`,
+		} {
+			assertOpenAPISchemaJSONValidity(t, request, payload, false)
+		}
+	})
+
+	t.Run("Should publish closed call objects typed JSON and shared enums", func(t *testing.T) {
+		t.Parallel()
+
+		create := operationFor(t, doc, "/api/calls", http.MethodPost)
+		request := jsonRequestSchema(t, create)
+		assertSchemaHasAdditionalProperties(t, request, false)
+		assertEnumValues(t, propertySchema(t, request, "scope"), "global", "workspace")
+		assertEnumValues(t, propertySchema(t, request, "result_overflow"), "store", "reject")
+		expect := propertySchema(t, request, "expect")
+		assertSchemaIncludesType(t, expect, openapi3.TypeObject)
+		assertSchemaHasAdditionalProperties(t, expect, true)
+		if !strings.Contains(expect.Description, "JSON Schema") {
+			t.Fatalf("expect description = %q, want result-contract meaning", expect.Description)
+		}
+		runtime := propertySchema(t, request, "runtime")
+		assertEnumValues(t, propertySchema(t, runtime, "speed"), "normal", "fast")
+
+		detail := jsonResponseSchema(
+			t,
+			operationFor(t, doc, "/api/calls/{call_id}", http.MethodGet),
+			http.StatusOK,
+		)
+		assertSchemaHasAdditionalProperties(t, detail, false)
+		assertEnumValues(
+			t,
+			propertySchema(t, detail, "state"),
+			"queued", "running", "completed", "invalid-result", "completed-without-result",
+			"failed", "canceled", "timeout", "expired",
+		)
+		assertEnumValues(t, propertySchema(t, detail, "verdict"), "returned", "extracted", "repaired")
+		assertEnumValues(t, propertySchema(t, detail, "result_overflow"), "store", "reject")
+
+		result := jsonResponseSchema(
+			t,
+			operationFor(t, doc, "/api/calls/{call_id}/result", http.MethodGet),
+			http.StatusOK,
+		)
+		resultPayload := propertySchema(t, result, "result")
+		assertSchemaIncludesType(t, resultPayload, openapi3.TypeObject)
+		assertSchemaHasAdditionalProperties(t, resultPayload, true)
+		if !strings.Contains(resultPayload.Description, "structured JSON") {
+			t.Fatalf("result description = %q, want structured result meaning", resultPayload.Description)
+		}
+	})
+
 	t.Run("Should describe optional subtree stop input and its drain report", func(t *testing.T) {
 		t.Parallel()
 

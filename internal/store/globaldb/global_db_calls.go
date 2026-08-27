@@ -16,13 +16,23 @@ import (
 )
 
 var (
-	_ callspkg.Store            = (*CallRepo)(nil)
-	_ callspkg.MailboxStore     = (*CallRepo)(nil)
-	_ callspkg.PayloadStore     = (*CallRepo)(nil)
-	_ callspkg.CallListStore    = (*CallRepo)(nil)
-	_ callspkg.CallReadStore    = (*CallRepo)(nil)
-	_ callspkg.MessageReadStore = (*CallRepo)(nil)
-	_ callspkg.PublicationStore = (*CallRepo)(nil)
+	_ callspkg.Store                   = (*CallRepo)(nil)
+	_ callspkg.AdmissionStore          = (*CallRepo)(nil)
+	_ callspkg.CallLookupStore         = (*CallRepo)(nil)
+	_ callspkg.ActivationMutationStore = (*CallRepo)(nil)
+	_ callspkg.SettlementStore         = (*CallRepo)(nil)
+	_ callspkg.DeadlineStore           = (*CallRepo)(nil)
+	_ callspkg.SubtreeStore            = (*CallRepo)(nil)
+	_ callspkg.ActivationQueueStore    = (*CallRepo)(nil)
+	_ callspkg.OperatorStore           = (*CallRepo)(nil)
+	_ callspkg.TargetContextStore      = (*CallRepo)(nil)
+	_ callspkg.MailboxStore            = (*CallRepo)(nil)
+	_ callspkg.ChildParkingStore       = (*CallRepo)(nil)
+	_ callspkg.PayloadStore            = (*CallRepo)(nil)
+	_ callspkg.CallListStore           = (*CallRepo)(nil)
+	_ callspkg.CallReadStore           = (*CallRepo)(nil)
+	_ callspkg.MessageReadStore        = (*CallRepo)(nil)
+	_ callspkg.PublicationStore        = (*CallRepo)(nil)
 )
 
 func (g *CallRepo) PutContract(ctx context.Context, contract contracts.Contract) error {
@@ -143,24 +153,30 @@ func (g *CallRepo) GetCallByChild(
 
 func (g *CallRepo) GetCallForSettlement(
 	ctx context.Context,
+	scope callspkg.CallScope,
 	callID string,
 ) (callspkg.CallRecord, error) {
 	if err := g.checkReady(ctx, "get call for settlement"); err != nil {
 		return callspkg.CallRecord{}, err
 	}
-	return getCallByIDWithExecutor(ctx, g.db, callID)
+	return getCallWithExecutor(ctx, g.db, scope, callID)
 }
 
 func (g *CallRepo) GetOpenCallForChild(
 	ctx context.Context,
+	scope callspkg.CallScope,
 	childSessionID string,
 ) (callspkg.CallRecord, error) {
 	if err := g.checkReady(ctx, "get open call for child"); err != nil {
 		return callspkg.CallRecord{}, err
 	}
 	record, err := scanCallRecord(g.db.QueryRowContext(ctx, `SELECT `+callSelectColumnsSQL+`
-		FROM calls WHERE child_session_id = ? AND state = 'running'
-		ORDER BY created_at DESC, call_id DESC LIMIT 1`, strings.TrimSpace(childSessionID)))
+		FROM calls WHERE profile_id = ? AND scope = ? AND workspace_id = ?
+		AND child_session_id = ? AND state = 'running'
+		ORDER BY created_at DESC, call_id DESC LIMIT 1`,
+		strings.TrimSpace(scope.ProfileID), string(scope.Scope), strings.TrimSpace(scope.WorkspaceID),
+		strings.TrimSpace(childSessionID),
+	))
 	if errors.Is(err, sql.ErrNoRows) {
 		return callspkg.CallRecord{}, &callspkg.Error{
 			Code:    callspkg.CodeReturnUnbound,

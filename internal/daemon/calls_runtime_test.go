@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
@@ -220,8 +219,8 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 		invoker := &daemonCallSessionInvoker{sessions: manager}
 		delivery := callspkg.Delivery{
 			CallID: "call_1", RecipientSessionID: "ses_parent", Body: "wake", Kind: "completion",
-			WakeEventID: "wake_1", Metadata: acp.PromptSyntheticMeta{
-				CallID: "call_1", CallState: "completed", ResultRef: "sha256:result",
+			WakeEventID: "wake_1", Metadata: callspkg.DeliveryMetadata{
+				CallID: "call_1", CallState: "completed",
 				DeliveryKind: "completion", Reason: "call_completion", WakeEventID: "wake_1",
 			},
 		}
@@ -452,7 +451,7 @@ func (s *callRuntimeServiceStub) DrainDeliveries(context.Context, string, int) e
 	return nil
 }
 
-func (s *callRuntimeServiceStub) Return(
+func (s *callRuntimeServiceStub) SettleTurnEnd(
 	_ context.Context,
 	input callspkg.ReturnInput,
 ) (callspkg.Settlement, error) {

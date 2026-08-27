@@ -20,7 +20,6 @@ type callSurfaceService struct {
 }
 
 var _ core.CallsService = (*callSurfaceService)(nil)
-var _ nativeCallsService = (*callSurfaceService)(nil)
 
 func newCallSurfaceService(service *callspkg.Service, sessions SessionManager) *callSurfaceService {
 	return &callSurfaceService{Service: service, sessions: sessions}

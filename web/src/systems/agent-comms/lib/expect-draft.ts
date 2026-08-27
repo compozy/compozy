@@ -1,3 +1,7 @@
+import type { CreateSingleCallRequest } from "../types";
+
+type CallExpect = NonNullable<CreateSingleCallRequest["expect"]>;
+
 /**
  * Pre-flight for a hand-written result contract.
  *
@@ -8,7 +12,7 @@
  * server-side, and second-guessing that here would mean maintaining a copy of
  * the validator that could disagree with it.
  */
-export type ExpectDraftResult = { ok: true; value?: unknown } | { ok: false; message: string };
+export type ExpectDraftResult = { ok: true; value?: CallExpect } | { ok: false; message: string };
 
 export function parseExpectDraft(raw: string): ExpectDraftResult {
   const trimmed = raw.trim();
@@ -16,11 +20,19 @@ export function parseExpectDraft(raw: string): ExpectDraftResult {
   // unchecked answer.
   if (trimmed === "") return { ok: true };
   try {
-    return { ok: true, value: JSON.parse(trimmed) };
+    const value: unknown = JSON.parse(trimmed);
+    if (!isRecord(value)) {
+      return { ok: false, message: "A result contract must be a JSON object." };
+    }
+    return { ok: true, value };
   } catch (error) {
     return {
       ok: false,
       message: error instanceof Error ? error.message : "That is not valid JSON.",
     };
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }

@@ -146,7 +146,7 @@ export interface AgentCommsMockStore {
   pageMessages(workspaceId: string, url: URL): MessagesPage;
   findCall(workspaceId: string, url: URL, callId: string): CallPayload | undefined;
   /** Cancel is idempotent: a settled call answers with its terminal state. */
-  cancelCall(workspaceId: string, url: URL, callId: string): string | undefined;
+  cancelCall(workspaceId: string, url: URL, callId: string): CallPayload["state"] | undefined;
   addCall(call: CallPayload): void;
   addMessage(message: CallMessagePayload): void;
   setCalls(next: readonly CallPayload[]): void;

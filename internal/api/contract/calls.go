@@ -31,8 +31,8 @@ type CallPermissionNarrowingRequest struct {
 
 // CreateCallItemRequest contains one independently admitted call.
 type CreateCallItemRequest struct {
-	Target          CallTargetRequest              `json:"target"`
-	Prompt          string                         `json:"prompt"`
+	Target          CallTargetRequest              `json:"target,omitzero"`
+	Prompt          string                         `json:"prompt,omitempty"`
 	Expect          json.RawMessage                `json:"expect,omitempty"`
 	IdleTTLSeconds  *int64                         `json:"idle_ttl_seconds,omitempty"`
 	DeadlineSeconds *int64                         `json:"deadline_seconds,omitempty"`

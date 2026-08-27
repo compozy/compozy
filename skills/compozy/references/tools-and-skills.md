@@ -256,6 +256,10 @@ and local staging state before performing manual cleanup.
 
 Inside CompozyOS, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
 
+For delegation, discover the `compozy__calls` toolset and inspect both input and output schemas. The
+schemas enforce single-versus-batch exclusivity, typed per-item batch failures, and non-empty return
+settlement.
+
 ## Management-Surface Exceptions
 
 Keep these on operator CLI, HTTP, or UDS surfaces unless CompozyOS explicitly exposes a scoped tool:

@@ -5,7 +5,7 @@ func callHookEventDescriptors() map[HookEvent]EventDescriptor {
 	for _, definition := range callHookEventDefinitions() {
 		descriptors[definition.event] = EventDescriptor{
 			Event: definition.event, Family: definition.family, SyncEligible: definition.syncEligible,
-			PayloadSchema: "CallPayload", PatchSchema: "CallObservationPatch",
+			PayloadSchema: "CallObservationPayload", PatchSchema: "CallObservationPatch",
 		}
 	}
 	return descriptors

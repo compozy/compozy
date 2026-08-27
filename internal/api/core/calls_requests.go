@@ -11,11 +11,10 @@ import (
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
-func callReadQuery(c *gin.Context, readScope store.ReadScope) (callspkg.CallReadQuery, error) {
+func callReadQuery(c *gin.Context, readScope callspkg.ReadScope) (callspkg.CallReadQuery, error) {
 	scope, workspaceID, err := callSurfaceScope(c, "", "")
 	if err != nil {
 		return callspkg.CallReadQuery{}, err

@@ -194,10 +194,10 @@ describe("buildCallDetailView — the answer", () => {
 
   it("Should mark a preview bounded only when it is smaller than what is stored", () => {
     const complete = buildCallDetailView({
-      call: call({ result_preview: "ok", result_bytes: 2 }),
+      call: call({ result_preview: { value: "ok" }, result_bytes: 14 }),
     });
     const clipped = buildCallDetailView({
-      call: call({ result_preview: "ok", result_bytes: 4_096 }),
+      call: call({ result_preview: { value: "ok" }, result_bytes: 4_096 }),
     });
     expect(complete.result).toMatchObject({ kind: "value", bounded: false });
     expect(clipped.result).toMatchObject({ kind: "value", bounded: true });

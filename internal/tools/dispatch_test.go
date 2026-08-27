@@ -188,6 +188,39 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve a successful mutation committed before caller cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		descriptor.Risk = RiskMutating
+		ctx, cancel := context.WithCancel(t.Context())
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				cancel()
+				return ToolResult{Preview: "committed"}, nil
+			},
+		})
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithToolEventSink(&recordingToolEventSink{}),
+			WithPolicyInputs(PolicyInputs{SystemPermissionMode: PermissionModeApproveAll}, ToolsetCatalog{}),
+		)
+
+		result, err := registry.Call(ctx, Scope{}, CallRequest{
+			ToolID: descriptor.ID,
+			Input:  json.RawMessage(`{"query":"x"}`),
+		})
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want committed success", err)
+		}
+		if result.Preview != "committed" {
+			t.Fatalf("RuntimeRegistry.Call() result preview = %q, want committed", result.Preview)
+		}
+	})
+
 	t.Run("Should recheck policy before provider invocation and emit denial", func(t *testing.T) {
 		t.Parallel()
 

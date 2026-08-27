@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -53,9 +51,27 @@ func NormalizeReadQuery(query CallReadQuery) (CallReadQuery, error) {
 	return query, nil
 }
 
+// ReadScope selects one profile or the explicit all-profile aggregate.
+type ReadScope struct {
+	ProfileID   string
+	AllProfiles bool
+}
+
+// Validate rejects every implicit or contradictory call read boundary.
+func (s ReadScope) Validate() error {
+	profileID := strings.TrimSpace(s.ProfileID)
+	if s.AllProfiles && profileID != "" {
+		return errors.New("calls: aggregate read forbids profile_id")
+	}
+	if !s.AllProfiles && profileID == "" {
+		return errors.New("calls: scoped read requires profile_id")
+	}
+	return nil
+}
+
 // CallReadQuery selects one profile or the explicit all-profile aggregate call population.
 type CallReadQuery struct {
-	ReadScope   store.ReadScope
+	ReadScope   ReadScope
 	Scope       Scope
 	WorkspaceID string
 	Actor       Actor
@@ -147,6 +163,27 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 	if err := authorizeResultReader(&record, query.Actor); err != nil {
 		return ResultPayload{}, err
 	}
+	return s.resultPayload(ctx, &record)
+}
+
+// ResultForActor returns a result only to its caller, bound child, or controlling operator.
+func (s *Service) ResultForActor(
+	ctx context.Context,
+	query CallReadQuery,
+	callID string,
+	actor Actor,
+) (ResultPayload, error) {
+	record, err := s.GetRead(ctx, query, callID)
+	if err != nil {
+		return ResultPayload{}, err
+	}
+	if err := authorizeResultReader(&record, actor); err != nil {
+		return ResultPayload{}, err
+	}
+	return s.resultPayload(ctx, &record)
+}
+
+func (s *Service) resultPayload(ctx context.Context, record *CallRecord) (ResultPayload, error) {
 	if record.State != StateCompleted || strings.TrimSpace(record.ResultRef) == "" {
 		return ResultPayload{}, newError(
 			CodeNotSettled,
@@ -162,17 +199,16 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 }
 
 func authorizeResultReader(record *CallRecord, actor Actor) error {
-	switch strings.TrimSpace(actor.Kind) {
-	case "human":
-		if strings.TrimSpace(actor.ID) != "" {
-			return nil
-		}
-	case actorKindAgentSession:
-		actorID := strings.TrimSpace(actor.ID)
-		if actorID != "" && (actorID == strings.TrimSpace(record.ParentSessionID) ||
-			actorID == strings.TrimSpace(record.ChildSessionID)) {
-			return nil
-		}
+	kind, id := strings.TrimSpace(actor.Kind), strings.TrimSpace(actor.ID)
+	if id == "" {
+		return newError(CodeTargetDenied, "result is available only to the caller, bound child, or operator", nil)
+	}
+	if kind == "human" || kind == "daemon" {
+		return nil
+	}
+	if kind == actorKindAgentSession &&
+		(id == record.Caller.ID || id == record.ParentSessionID || id == record.ChildSessionID) {
+		return nil
 	}
 	return newError(CodeTargetDenied, "result is available only to the caller, bound child, or operator", nil)
 }

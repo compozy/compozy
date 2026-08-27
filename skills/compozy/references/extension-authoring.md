@@ -129,6 +129,13 @@ promote also require fresh `text`, `message_id`, and `idempotency_key`; promote 
 `expected_turn_id`. Read the list again after an action instead of maintaining a private queue or
 assuming an input was delivered from its position alone.
 
+### Calls and mailbox reads
+
+Extensions can observe profile-owned call records through `calls/list`, `calls/get`, `calls/result`,
+and `messages/list`. These methods require `calls:read`; list methods return bounded page envelopes.
+The Host API intentionally has no call or mailbox mutations. Use hooks for committed lifecycle
+observation and the native, CLI, or HTTP/UDS surface when the caller has mutation authority.
+
 ### Durable session runtime
 
 Use `sessions/runtime/set` and `sessions/runtime/clear` with `session.write` when an extension must

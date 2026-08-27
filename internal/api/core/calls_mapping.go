@@ -45,18 +45,11 @@ type callPayloadContent struct {
 }
 
 func (h *BaseHandlers) callPayloadContent(
-	ctx context.Context,
+	_ context.Context,
 	record *callspkg.CallRecord,
 	projected callspkg.ProjectionContent,
 ) (callPayloadContent, error) {
 	content := callPayloadContent{}
-	if childID := strings.TrimSpace(record.ChildSessionID); childID != "" && h.Sessions != nil {
-		info, err := h.Sessions.Status(ctx, childID)
-		if err != nil {
-			return callPayloadContent{}, err
-		}
-		content.IdleExpiresAt = info.IdleExpiresAt
-	}
 	if len(projected.Prompt) > 0 {
 		content.PromptPreview = boundedCallTextPreview(string(projected.Prompt), callPromptPreviewBytes)
 		content.PromptBytes = len(projected.Prompt)
@@ -119,19 +112,12 @@ func boundedCallTextPreview(value string, maxBytes int) string {
 }
 
 func (h *BaseHandlers) callCreatePayload(
-	ctx context.Context,
+	_ context.Context,
 	record *callspkg.CallRecord,
 ) (contract.CallCreatePayload, error) {
 	payload := contract.CallCreatePayload{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		State: string(record.State), Replayed: record.Replayed,
-	}
-	if childID := strings.TrimSpace(record.ChildSessionID); childID != "" && h.Sessions != nil {
-		info, err := h.Sessions.Status(ctx, childID)
-		if err != nil {
-			return contract.CallCreatePayload{}, err
-		}
-		payload.IdleExpiresAt = info.IdleExpiresAt
 	}
 	return payload, nil
 }

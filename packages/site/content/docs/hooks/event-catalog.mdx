@@ -76,6 +76,25 @@ Runtime recovery hooks are also observation-only. Their payload carries the turn
 runtime generation, failure kind, and a bounded redacted failure detail. Hook failure never blocks
 or rolls back recovery.
 
+## Call And Mailbox Events
+
+| Event                    | Sync       | Payload                  | Patch                  | Fires when                                    |
+| ------------------------ | ---------- | ------------------------ | ---------------------- | --------------------------------------------- |
+| `call.created`           | async only | `CallObservationPayload` | `CallObservationPatch` | A call is admitted.                           |
+| `call.state_changed`     | async only | `CallObservationPayload` | `CallObservationPatch` | A durable call state changes.                 |
+| `call.settled`           | async only | `CallObservationPayload` | `CallObservationPatch` | A call reaches a terminal state.              |
+| `call.canceled`          | async only | `CallObservationPayload` | `CallObservationPatch` | A caller or operator cancels a call.          |
+| `call.published`         | async only | `CallObservationPayload` | `CallObservationPatch` | A result is published to Network.             |
+| `call.message_sent`      | async only | `CallObservationPayload` | `CallObservationPatch` | A message is committed.                       |
+| `call.message_delivered` | async only | `CallObservationPayload` | `CallObservationPatch` | A message reaches its recipient.              |
+| `call.message_rejected`  | async only | `CallObservationPayload` | `CallObservationPatch` | A sender-side limit rejects a message.        |
+| `call.revived`           | async only | `CallObservationPayload` | `CallObservationPatch` | A parked child resumes for a follow-up call.  |
+| `call.reaped`            | async only | `CallObservationPayload` | `CallObservationPatch` | A parked child is removed after its idle TTL. |
+| `call.subtree_drained`   | async only | `CallObservationPayload` | `CallObservationPatch` | A governed subtree finishes draining.         |
+
+These events observe committed state and cannot change or roll it back. Their payload carries the
+profile and scope owner plus the identifiers and bounded lifecycle fields relevant to the event.
+
 ## Input And Prompt Events
 
 | Event                  | Sync | Payload                 | Patch                 | Fires when                                                                  |

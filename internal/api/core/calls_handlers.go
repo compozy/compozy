@@ -9,7 +9,6 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	callspkg "github.com/compozy/compozy/internal/calls"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -364,13 +363,13 @@ func (h *BaseHandlers) callsOperatorActor() callspkg.Actor {
 	return callspkg.Actor{Kind: callsOperatorActorKind, ID: "operator:" + h.transportName()}
 }
 
-func (h *BaseHandlers) callsReadScope(c *gin.Context) (store.ReadScope, bool) {
+func (h *BaseHandlers) callsReadScope(c *gin.Context) (callspkg.ReadScope, bool) {
 	scope, err := h.resolveProfileReadScope(c)
 	if err != nil {
 		h.respondProfileReadScopeError(c, err)
-		return store.ReadScope{}, false
+		return callspkg.ReadScope{}, false
 	}
-	return scope, true
+	return callspkg.ReadScope{ProfileID: scope.ProfileID, AllProfiles: scope.AllProfiles}, true
 }
 
 func (h *BaseHandlers) resolvedCallReadQuery(c *gin.Context) (callspkg.CallReadQuery, bool) {

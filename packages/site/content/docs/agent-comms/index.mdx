@@ -93,15 +93,16 @@ evidence. Nothing in Network ever creates, answers, or changes a call.
 
 ## Surfaces
 
-Everything here works identically from the CLI, HTTP, UDS, and the native tools, and the Agents app
-renders the same records.
+CLI, HTTP, UDS, native tools, and the Agents app use the same profile- and workspace-owned records.
+Their operations differ by caller authority; the extension Host API is intentionally read-only.
 
-| Surface      | Entry point                                                                 |
-| ------------ | --------------------------------------------------------------------------- |
-| CLI          | [`compozy call`](/docs/cli/call), [`compozy message`](/docs/cli/message)    |
-| HTTP / UDS   | [Calls API](/docs/api/calls), [Messages API](/docs/api/messages)            |
-| Native tools | the `compozy__calls` toolset — see [Subagents](/docs/agent-comms/subagents) |
-| Agents app   | the Activity view and call detail under `/agents`                           |
+| Surface            | Entry point                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------- |
+| CLI                | [`compozy call`](/docs/cli/call), [`compozy message`](/docs/cli/message)                    |
+| HTTP / UDS         | [Calls API](/docs/api/calls), [Messages API](/docs/api/messages)                            |
+| Native tools       | the `compozy__calls` toolset — see [Subagents](/docs/agent-comms/subagents)                 |
+| Extension Host API | `calls/list`, `calls/get`, `calls/result`, and `messages/list` under the `calls:read` grant |
+| Agents app         | the Activity view and call detail under `/agents`                                           |
 
 For exact flags, use the [Call CLI reference](/docs/cli/call) and the
 [Message CLI reference](/docs/cli/message). For exact request and response bodies, use the

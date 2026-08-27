@@ -13,7 +13,6 @@ import (
 
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/task"
 )
 
@@ -113,7 +112,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		t.Parallel()
 
 		target := validAgentTarget()
-		target.CallerPolicy = store.SessionPermissionPolicy{
+		target.CallerPolicy = PermissionPolicy{
 			Tools: append(
 				append(boundChildBaseTools(), boundChildDelegationTools()...),
 				"compozy__session_stop",
@@ -134,10 +133,8 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if record.State != StateRunning || len(invoker.spawns) != 1 {
 			t.Fatalf("activated call = %#v spawns=%d, want one running child", record, len(invoker.spawns))
 		}
-		want := store.NormalizeSessionPermissionPolicy(target.CallerPolicy)
-		want.Tools = store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
-			Tools: append(boundChildBaseTools(), boundChildDelegationTools()...),
-		}).Tools
+		want := normalizePermissionPolicy(target.CallerPolicy)
+		want.Tools = normalizePermissionAtoms(append(boundChildBaseTools(), boundChildDelegationTools()...))
 		got := invoker.spawns[0].Permissions.Policy()
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("spawn permission policy = %#v, want inherited %#v", got, want)
@@ -159,9 +156,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			t.Fatalf("Create() error = %v", err)
 		}
 		record = activateCreatedCall(t, service, &record)
-		wantTools := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
-			Tools: boundChildBaseTools(),
-		}).Tools
+		wantTools := normalizePermissionAtoms(boundChildBaseTools())
 		if len(invoker.spawns) != 1 || !reflect.DeepEqual(invoker.spawns[0].Permissions.Tools, wantTools) {
 			t.Fatalf("spawn tools at depth wall = %#v, want %v", invoker.spawns, wantTools)
 		}
@@ -299,7 +294,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 	t.Run("Should validate each call against the current narrowed caller set", func(t *testing.T) {
 		t.Parallel()
 		var mu sync.Mutex
-		current := store.SessionPermissionPolicy{
+		current := PermissionPolicy{
 			Tools: append(boundChildBaseTools(), boundChildDelegationTools()...), Skills: []string{"review"},
 		}
 		directory := routedCallDirectory(func(
@@ -318,7 +313,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			t.Fatalf("Create(first) error = %v", err)
 		}
 		mu.Lock()
-		current = store.SessionPermissionPolicy{
+		current = PermissionPolicy{
 			Tools: append(boundChildBaseTools(), boundChildDelegationTools()...), Skills: []string{"code"},
 		}
 		mu.Unlock()

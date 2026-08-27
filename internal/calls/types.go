@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/store"
 )
 
 // Scope identifies the ownership boundary for a call.
@@ -271,7 +269,19 @@ type Delivery struct {
 	Body               string
 	Kind               DeliveryKind
 	WakeEventID        string
-	Metadata           acp.PromptSyntheticMeta
+	Metadata           DeliveryMetadata
+}
+
+// DeliveryMetadata carries calls-owned facts to the runtime adapter.
+type DeliveryMetadata struct {
+	CallID         string
+	CallState      string
+	ResultBytes    int
+	ContractDigest string
+	MessageID      string
+	DeliveryKind   string
+	Reason         string
+	WakeEventID    string
 }
 
 // DeliveryOutcome describes what happened at the runtime boundary.
@@ -338,13 +348,13 @@ type MessageRecord struct {
 
 // DeliveryRecord is one durable delivery attempt stream.
 type DeliveryRecord struct {
+	ProfileID          string
+	Scope              Scope
+	WorkspaceID        string
 	DeliveryID         string
 	Kind               DeliveryKind
 	SubjectID          string
 	RecipientSessionID string
-	ProfileID          string
-	Scope              Scope
-	WorkspaceID        string
 	OwnerKey           string
 	WakeEventID        string
 	State              DeliveryState
@@ -391,7 +401,7 @@ type TargetContext struct {
 	State           TargetState
 	ExpiredAt       time.Time
 	Runtime         RuntimeSpec
-	CallerPolicy    store.SessionPermissionPolicy
+	CallerPolicy    PermissionPolicy
 	Allowed         bool
 }
 

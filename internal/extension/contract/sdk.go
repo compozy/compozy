@@ -38,8 +38,8 @@ const (
 	sdkAutonomyMatcherValue                     = "AutonomyMatcher"
 	sdkAutonomyObservationPatchValue            = "AutonomyObservationPatch"
 	sdkBridgeInstanceValue                      = "BridgeInstance"
+	sdkCallObservationPayloadValue              = "CallObservationPayload"
 	sdkCallObservationPatchValue                = "CallObservationPatch"
-	sdkCallPayloadValue                         = "CallPayload"
 	sdkContextBlockValue                        = "ContextBlock"
 	sdkContextCompactPayloadValue               = "ContextCompactPayload"
 	sdkContextCompactionPatchValue              = "ContextCompactionPatch"
@@ -317,7 +317,7 @@ var sdkRootTypes = []NamedType{
 	{Name: sdkAuthoredContextObservationPatchValue, Value: hooks.AuthoredContextObservationPatch{}},
 	{Name: sdkNetworkPayloadValue, Value: hooks.NetworkPayload{}},
 	{Name: sdkNetworkObservationPatchValue, Value: hooks.NetworkObservationPatch{}},
-	{Name: sdkCallPayloadValue, Value: hooks.CallPayload{}},
+	{Name: sdkCallObservationPayloadValue, Value: hooks.CallObservationPayload{}},
 	{Name: sdkCallObservationPatchValue, Value: hooks.CallObservationPatch{}},
 	{Name: sdkTurnPayloadValue, Value: hooks.TurnPayload{}},
 	{Name: sdkTurnPatchValue, Value: hooks.TurnPatch{}},

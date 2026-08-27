@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 )
 
 const (
@@ -57,9 +56,19 @@ type PermissionAtoms struct {
 	SandboxProfiles []string
 }
 
+// PermissionPolicy is the normalized calls-owned permission boundary.
+type PermissionPolicy struct {
+	Tools           []string
+	Skills          []string
+	MCPServers      []string
+	WorkspacePaths  []string
+	NetworkChannels []string
+	SandboxProfiles []string
+}
+
 // Policy converts authored atoms into the canonical normalized policy.
-func (p PermissionAtoms) Policy() store.SessionPermissionPolicy {
-	return store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
+func (p PermissionAtoms) Policy() PermissionPolicy {
+	return normalizePermissionPolicy(PermissionPolicy{
 		Tools: p.Tools, Skills: p.Skills,
 		MCPServers:      p.MCPServers,
 		WorkspacePaths:  p.WorkspacePaths,
@@ -69,11 +78,11 @@ func (p PermissionAtoms) Policy() store.SessionPermissionPolicy {
 }
 
 func resolvePermissionNarrowing(
-	parent store.SessionPermissionPolicy,
+	parent PermissionPolicy,
 	requested PermissionAtoms,
 	remainingDepth int,
 ) PermissionAtoms {
-	parent = store.NormalizeSessionPermissionPolicy(parent)
+	parent = normalizePermissionPolicy(parent)
 	request := requested.Policy()
 	tools := request.Tools
 	if len(tools) == 0 {
@@ -90,7 +99,7 @@ func resolvePermissionNarrowing(
 		})
 	}
 	return PermissionAtoms{
-		Tools:           store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{Tools: tools}).Tools,
+		Tools:           normalizePermissionAtoms(tools),
 		Skills:          inheritPermissionCategory(parent.Skills, request.Skills),
 		MCPServers:      inheritPermissionCategory(parent.MCPServers, request.MCPServers),
 		WorkspacePaths:  inheritPermissionCategory(parent.WorkspacePaths, request.WorkspacePaths),
@@ -106,7 +115,7 @@ func inheritPermissionCategory(parent []string, requested []string) []string {
 	return append([]string(nil), parent...)
 }
 
-func wideningPermissionAtoms(parent store.SessionPermissionPolicy, child store.SessionPermissionPolicy) []string {
+func wideningPermissionAtoms(parent PermissionPolicy, child PermissionPolicy) []string {
 	types := []struct {
 		name   string
 		parent []string
@@ -133,4 +142,26 @@ func wideningPermissionAtoms(parent store.SessionPermissionPolicy, child store.S
 	}
 	sort.Strings(widening)
 	return widening
+}
+
+func normalizePermissionPolicy(policy PermissionPolicy) PermissionPolicy {
+	return PermissionPolicy{
+		Tools: normalizePermissionAtoms(policy.Tools), Skills: normalizePermissionAtoms(policy.Skills),
+		MCPServers:      normalizePermissionAtoms(policy.MCPServers),
+		WorkspacePaths:  normalizePermissionAtoms(policy.WorkspacePaths),
+		NetworkChannels: normalizePermissionAtoms(policy.NetworkChannels),
+		SandboxProfiles: normalizePermissionAtoms(policy.SandboxProfiles),
+	}
+}
+
+func normalizePermissionAtoms(values []string) []string {
+	if values == nil {
+		return []string{}
+	}
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		normalized = append(normalized, strings.TrimSpace(value))
+	}
+	slices.Sort(normalized)
+	return slices.Compact(normalized)
 }

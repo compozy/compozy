@@ -314,6 +314,11 @@ of `agent` or `session_id`, plus a non-empty `prompt`. Optional: `expect` (resul
 parent. `tasks` carries a bounded batch of the same item shape. Its `agent` parameter description
 holds the live roster; at the depth wall the tool is absent from your toolset.
 
+Inline fields and `tasks` are exclusive. A single call returns one call record; a batch returns
+`items`, where each item contains exactly one `call` or typed `error`. `compozy__call_return` requires
+exactly one non-empty `result` object or `final_text`. `compozy__call_result` returns
+`{call_id, result}`; treat the result as the complete stored payload, not a preview.
+
 Read `references/agent-comms.md` in full before using this toolset. It owns call and mailbox
 behavior: scope, result admission and repair, states, settlement, delivery, bounds, and the Network
 publish boundary. A bound child must finish its current call with `compozy__call_return`, whose input

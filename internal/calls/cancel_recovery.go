@@ -213,7 +213,7 @@ func (s *Service) settleControlledCall(
 	if err := s.fenceActivation(ctx, record, options.fenceReason); err != nil {
 		return CallRecord{}, false, err
 	}
-	current, err := s.store.GetCallForSettlement(ctx, record.CallID)
+	current, err := s.store.GetCallForSettlement(ctx, callScopeForRecord(record), record.CallID)
 	if err != nil {
 		return CallRecord{}, false, err
 	}
@@ -241,7 +241,7 @@ func (s *Service) settleControlledCall(
 		}
 	}
 	if IsCode(err, CodeAlreadySettled) {
-		latest, loadErr := s.store.GetCallForSettlement(ctx, current.CallID)
+		latest, loadErr := s.store.GetCallForSettlement(ctx, callScopeForRecord(&current), current.CallID)
 		if loadErr != nil {
 			return CallRecord{}, false, errors.Join(err, loadErr)
 		}

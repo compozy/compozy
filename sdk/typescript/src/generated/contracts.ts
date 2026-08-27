@@ -1336,7 +1336,7 @@ export interface CallObservationPatch {
   labels?: Record<string, string>;
 }
 
-export interface CallPayload {
+export interface CallObservationPayload {
   event: HookEvent;
   timestamp: ISODateTime;
   profile_id: string;
@@ -1378,7 +1378,11 @@ export interface CallsListParams {
   scope?: string;
   workspace_id?: string;
   state?: string[];
+  attention?: boolean;
   caller?: string;
+  child_session_id?: string;
+  root_session_id?: string;
+  agent?: string;
   cursor?: string;
   limit?: number;
 }
@@ -7867,17 +7871,17 @@ export interface HookPayloadByEvent {
   "worktree.created": WorktreeObservationPayload;
   "worktree.adopted": WorktreeObservationPayload;
   "worktree.removed": WorktreeObservationPayload;
-  "call.created": CallPayload;
-  "call.state_changed": CallPayload;
-  "call.settled": CallPayload;
-  "call.canceled": CallPayload;
-  "call.published": CallPayload;
-  "call.message_sent": CallPayload;
-  "call.message_delivered": CallPayload;
-  "call.message_rejected": CallPayload;
-  "call.revived": CallPayload;
-  "call.reaped": CallPayload;
-  "call.subtree_drained": CallPayload;
+  "call.created": CallObservationPayload;
+  "call.state_changed": CallObservationPayload;
+  "call.settled": CallObservationPayload;
+  "call.canceled": CallObservationPayload;
+  "call.published": CallObservationPayload;
+  "call.message_sent": CallObservationPayload;
+  "call.message_delivered": CallObservationPayload;
+  "call.message_rejected": CallObservationPayload;
+  "call.revived": CallObservationPayload;
+  "call.reaped": CallObservationPayload;
+  "call.subtree_drained": CallObservationPayload;
 }
 
 export interface HookPatchByEvent {

@@ -197,6 +197,9 @@ func prefixedID(prefix string) (string, error) {
 // NormalizeCallScope trims, infers, and validates a service ownership boundary.
 func NormalizeCallScope(scope CallScope) (CallScope, error) {
 	scope.ProfileID = strings.TrimSpace(scope.ProfileID)
+	if scope.ProfileID == "" {
+		return CallScope{}, newError(CodeValidation, "profile_id is required", nil)
+	}
 	normalized, workspaceID, err := NormalizeReadScope(scope.Scope, scope.WorkspaceID)
 	if err != nil {
 		return CallScope{}, newError(CodeValidation, "invalid call scope", err)
@@ -204,4 +207,12 @@ func NormalizeCallScope(scope CallScope) (CallScope, error) {
 	scope.Scope = normalized
 	scope.WorkspaceID = workspaceID
 	return scope, nil
+}
+
+func callScopeForRecord(record *CallRecord) CallScope {
+	return CallScope{
+		ProfileID:   record.ProfileID,
+		Scope:       record.Scope,
+		WorkspaceID: record.WorkspaceID,
+	}
 }

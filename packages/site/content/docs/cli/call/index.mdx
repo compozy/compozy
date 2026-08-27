@@ -19,10 +19,12 @@ compozy call <agent-or-session-id> <prompt> [flags]
   -h, --help                       help for call
       --idempotency-key string     Stable retry identity
       --idle-ttl duration          Parked child idle ceiling
+      --mcp-servers strings        Allowed MCP server atoms
       --network-channels strings   Allowed Network channels
       --result-budget string       Per-call result budget, for example 512KiB
       --result-overflow string     Over-budget policy: store or reject
       --runtime string             Runtime override: provider/model/reasoning/speed
+      --sandbox-profiles strings   Allowed sandbox profile atoms
       --skills strings             Allowed skill atoms
       --strict                     Require an explicit structured return
       --tools strings              Allowed tool atoms
@@ -57,11 +59,14 @@ compozy call <agent-or-session-id> <prompt> -o json
 
 ## Subcommands
 
-| Command                                        | Description                                |
-| ---------------------------------------------- | ------------------------------------------ |
-| [compozy call await](/docs/cli/call/await)     | Wait for a call checkpoint                 |
-| [compozy call cancel](/docs/cli/call/cancel)   | Cancel a call idempotently                 |
-| [compozy call list](/docs/cli/call/list)       | List durable calls                         |
-| [compozy call publish](/docs/cli/call/publish) | Publish completed call evidence to Network |
-| [compozy call result](/docs/cli/call/result)   | Print the complete stored JSON result      |
-| [compozy call show](/docs/cli/call/show)       | Show one durable call                      |
+| Command                                              | Description                                |
+| ---------------------------------------------------- | ------------------------------------------ |
+| [compozy call await](/docs/cli/call/await)           | Wait for a call checkpoint                 |
+| [compozy call batch](/docs/cli/call/batch)           | Create a bounded batch of agent calls      |
+| [compozy call cancel](/docs/cli/call/cancel)         | Cancel a call idempotently                 |
+| [compozy call list](/docs/cli/call/list)             | List durable calls                         |
+| [compozy call prompt](/docs/cli/call/prompt)         | Print the complete authored call prompt    |
+| [compozy call publish](/docs/cli/call/publish)       | Publish completed call evidence to Network |
+| [compozy call result](/docs/cli/call/result)         | Print the complete stored JSON result      |
+| [compozy call show](/docs/cli/call/show)             | Show one durable call                      |
+| [compozy call superseded](/docs/cli/call/superseded) | Print preserved late-result evidence       |

@@ -101,6 +101,9 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 	completionCtx, cancelCompletion := r.postDispatchContext(ctx)
 	defer cancelCompletion()
 	if err != nil {
+		if contextError := contextErr(ctx, target.descriptor.ID); contextError != nil {
+			err = contextError
+		}
 		normalized := normalizeBackendError(target.descriptor.ID, err)
 		if hookErr := r.runPostErrorHook(completionCtx, target, patchedReq, normalized); hookErr != nil {
 			normalized = hookErr

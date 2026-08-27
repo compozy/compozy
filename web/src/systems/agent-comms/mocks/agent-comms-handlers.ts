@@ -23,7 +23,7 @@ import { buildCallFixture, buildCallMessageFixture } from "./fixtures";
 import type {
   CallMessagePayload,
   CallPayload,
-  CreateCallRequest,
+  CreateSingleCallRequest,
   SendCallMessageRequest,
 } from "../types";
 
@@ -57,17 +57,23 @@ function sanitizeMockText(value: string): string | null {
   return residue === "" ? null : sanitized;
 }
 
-function parseCreateCallRequest(value: unknown): CreateCallRequest | null {
+function parseCreateCallRequest(value: unknown): CreateSingleCallRequest | null {
   if (!isRecord(value) || !isRecord(value.target) || typeof value.prompt !== "string") return null;
   const agent = typeof value.target.agent === "string" ? value.target.agent.trim() : "";
   const sessionId =
     typeof value.target.session_id === "string" ? value.target.session_id.trim() : "";
   const prompt = sanitizeMockText(value.prompt);
-  if (prompt === null || prompt.trim() === "" || (agent === "" && sessionId === "")) return null;
+  if (prompt === null || prompt.trim() === "" || (agent === "") === (sessionId === "")) return null;
+  let expect: Record<string, unknown> | undefined;
+  if (Object.hasOwn(value, "expect")) {
+    if (!isRecord(value.expect)) return null;
+    expect = value.expect;
+  }
+  const target = agent !== "" ? { agent } : { session_id: sessionId };
   return {
-    target: { ...(agent ? { agent } : {}), ...(sessionId ? { session_id: sessionId } : {}) },
+    target,
     prompt,
-    ...(Object.hasOwn(value, "expect") ? { expect: value.expect } : {}),
+    ...(expect === undefined ? {} : { expect }),
     ...(typeof value.strict === "boolean" ? { strict: value.strict } : {}),
   };
 }
@@ -77,9 +83,10 @@ function parseSendCallMessageRequest(value: unknown): SendCallMessageRequest | n
   const agent = typeof value.to.agent === "string" ? value.to.agent.trim() : "";
   const sessionId = typeof value.to.session_id === "string" ? value.to.session_id.trim() : "";
   const text = sanitizeMockText(value.text);
-  if (text === null || text.trim() === "" || (agent === "" && sessionId === "")) return null;
+  if (text === null || text.trim() === "" || (agent === "") === (sessionId === "")) return null;
+  const to = agent !== "" ? { agent } : { session_id: sessionId };
   return {
-    to: { ...(agent ? { agent } : {}), ...(sessionId ? { session_id: sessionId } : {}) },
+    to,
     text,
     ...(typeof value.call_id === "string" && value.call_id.trim()
       ? { call_id: value.call_id.trim() }
@@ -91,7 +98,7 @@ function parseSendCallMessageRequest(value: unknown): SendCallMessageRequest | n
 function acceptedCall(
   store: AgentCommsMockStore,
   callId: string,
-  body: CreateCallRequest,
+  body: CreateSingleCallRequest,
   workspaceId: string,
   profileName: string
 ): CallPayload {
@@ -102,7 +109,6 @@ function acceptedCall(
   return buildCallFixture({
     call_id: callId,
     state: "queued",
-    verdict: "pending",
     created_at: new Date().toISOString(),
     settled_at: null,
     caller: { id: caller, kind: "session" },

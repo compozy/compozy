@@ -80,7 +80,7 @@ method list, per call.
 
 ## Permission catalog
 
-Twenty-six consent areas cover the 95 methods.
+The catalog maps every Host API method to one consent area.
 
 | Consent area       | Host API methods                                                                                                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -89,6 +89,7 @@ Twenty-six consent areas cover the 95 methods.
 | `bridge:read`      | `bridges/instances/get`, `bridges/instances/list`                                                                                                                                                                             |
 | `bridge:write`     | `bridges/instances/report_state`, `bridges/messages/ingest`                                                                                                                                                                   |
 | `clarify:ask`      | `clarify/ask`                                                                                                                                                                                                                 |
+| `calls:read`       | `calls/list`, `calls/get`, `calls/result`, `messages/list`                                                                                                                                                                   |
 | `heartbeat:read`   | `agents/heartbeat/get`, `agents/heartbeat/history`, `agents/heartbeat/status`, `agents/heartbeat/validate`                                                                                                                    |
 | `heartbeat:write`  | `agents/heartbeat/delete`, `agents/heartbeat/put`, `agents/heartbeat/rollback`, `agents/heartbeat/wake`                                                                                                                       |
 | `logs:read`        | `logs/list`                                                                                                                                                                                                                   |

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 // Suite: call result authorization
@@ -25,7 +24,7 @@ func TestServiceResultAuthorization(t *testing.T) {
 		t.Fatalf("Return() error = %v", err)
 	}
 	base := CallReadQuery{
-		ReadScope: store.ReadScope{ProfileID: settled.Call.ProfileID},
+		ReadScope: ReadScope{ProfileID: settled.Call.ProfileID},
 		Scope:     settled.Call.Scope, WorkspaceID: settled.Call.WorkspaceID,
 	}
 

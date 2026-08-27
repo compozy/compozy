@@ -107,7 +107,7 @@ func TestManagerProfileLifecycle(t *testing.T) {
 				ProfileID: created.ID, WorkspaceID: workspaceID,
 				ParentSessionID: parentID, AgentName: "reviewer",
 				GovernedRootID: parentID, Depth: 1, Allowed: true,
-				CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+				CallerPolicy: callspkg.PermissionPolicy{Skills: []string{"review"}},
 			}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
 		})
 		calls, err := callspkg.NewService(

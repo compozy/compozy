@@ -177,6 +177,9 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				if withDigests.InputSchemaDigest == "" {
 					t.Fatalf("calls descriptor %q input schema digest is empty", id)
 				}
+				if withDigests.OutputSchemaDigest == "" {
+					t.Fatalf("calls descriptor %q output schema digest is empty", id)
+				}
 			})
 		}
 		if _, exists := descriptors[toolspkg.ToolID("compozy__session_spawn")]; exists {
@@ -214,6 +217,79 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				t.Fatalf("%s input schema rejected terminal payload %s: %v", returnDescriptor.ID, payload, err)
 			}
 		}
+	})
+
+	t.Run("Should enforce exclusive call creation and nonempty returns", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		create := descriptors[toolspkg.ToolIDAgentCall]
+		for _, payload := range []string{
+			`{"agent":"reviewer","prompt":"Review this"}`,
+			`{"session_id":"sess-child","prompt":"Continue"}`,
+			`{"tasks":[{"agent":"reviewer","prompt":"Review this"},{"session_id":"sess-child","prompt":"Continue"}]}`,
+		} {
+			assertNativeInputSchemaAccepts(t, create, payload)
+		}
+		for _, payload := range []string{
+			`{}`,
+			`{"agent":"reviewer"}`,
+			`{"agent":"reviewer","prompt":"Review this","expect":[]}`,
+			`{"agent":"reviewer","session_id":"sess-child","prompt":"ambiguous"}`,
+			`{"tasks":[]}`,
+			`{"tasks":[{"agent":"reviewer","prompt":"Review this","expect":"anything"}]}`,
+			`{"tasks":[{"agent":"reviewer","prompt":"Review this"}],"prompt":"mixed"}`,
+		} {
+			assertNativeInputSchemaRejects(t, create, payload)
+		}
+
+		callReturn := descriptors[toolspkg.ToolIDCallReturn]
+		assertNativeInputSchemaAccepts(t, callReturn, `{"result":{}}`)
+		assertNativeInputSchemaAccepts(t, callReturn, `{"final_text":"done"}`)
+		for _, payload := range []string{
+			`{}`,
+			`{"final_text":""}`,
+			`{"result":{},"final_text":"done"}`,
+		} {
+			assertNativeInputSchemaRejects(t, callReturn, payload)
+		}
+	})
+
+	t.Run("Should validate truthful calls output envelopes", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		record := `{"call_id":"call-1","profile_id":"default","scope":"workspace","caller":{},"actor":{},"root_session_id":"sess-root","depth":1,"state":"completed","result_bytes":2,"result_budget_bytes":1024,"result_overflow":"store","strict":false,"repair_attempts":0,"replayed":false,"created_at":"2026-08-27T12:00:00Z","updated_at":"2026-08-27T12:00:01Z"}`
+		assertNativeOutputSchemaAccepts(t, descriptors[toolspkg.ToolIDAgentCall], record)
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDAgentCall],
+			`{"items":[{"call":`+record+`},{"error":{"code":"call_unknown_target","message":"unknown target"}}]}`,
+		)
+		assertNativeOutputSchemaRejects(t, descriptors[toolspkg.ToolIDAgentCall], `{"items":[{}]}`)
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDCallReturn],
+			`{"call_id":"call-1","state":"completed"}`,
+		)
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDCallAwait],
+			`{"settled":[`+record+`],"pending":[],"outcome":"complete","resume":"","clamped_timeout_ms":0}`,
+		)
+		assertNativeOutputSchemaAccepts(t, descriptors[toolspkg.ToolIDCallCancel], record)
+		assertNativeOutputSchemaAccepts(t, descriptors[toolspkg.ToolIDCallResult], `{"call_id":"call-1","result":{}}`)
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDCallPublish],
+			`{"network_message_id":"msg-1","published":true}`,
+		)
+		assertNativeOutputSchemaAccepts(
+			t,
+			descriptors[toolspkg.ToolIDAgentMessage],
+			`{"message_id":"msg-1","delivery":"queued"}`,
+		)
+		assertNativeOutputSchemaRejects(t, descriptors[toolspkg.ToolIDCallResult], `{}`)
 	})
 
 	t.Run("Should expose typed participation on execution management tools", func(t *testing.T) {
@@ -1946,6 +2022,30 @@ func assertNativeOutputSchemaAccepts(t *testing.T, descriptor toolspkg.Descripto
 	}
 	if err := compiled.Validate(instance); err != nil {
 		t.Fatalf("%s output schema rejected %s: %v", descriptor.ID, payload, err)
+	}
+}
+
+func assertNativeInputSchemaAccepts(t *testing.T, descriptor toolspkg.Descriptor, payload string) {
+	t.Helper()
+	compiled := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+	instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("%s valid input parse error = %v", descriptor.ID, err)
+	}
+	if err := compiled.Validate(instance); err != nil {
+		t.Fatalf("%s input schema rejected %s: %v", descriptor.ID, payload, err)
+	}
+}
+
+func assertNativeInputSchemaRejects(t *testing.T, descriptor toolspkg.Descriptor, payload string) {
+	t.Helper()
+	compiled := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+	instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+	if err != nil {
+		t.Fatalf("%s invalid input parse error = %v", descriptor.ID, err)
+	}
+	if err := compiled.Validate(instance); err == nil {
+		t.Fatalf("%s input schema accepted forbidden payload %s", descriptor.ID, payload)
 	}
 }
 

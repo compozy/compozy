@@ -87,6 +87,7 @@ Generic Go concurrency patterns (goroutine ownership, channels vs mutexes, `sele
 | `internal/automation`           | Cron, webhook, and scheduled triggers; durable scheduler state                  |
 | `internal/bridges`              | External messaging adapters (Slack, Telegram, etc.)                             |
 | `internal/bridgesdk`            | Bridge SDK / contract types                                                     |
+| `internal/calls`                | Profile-scoped agent calls, result admission, mailbox, and lifecycle policy     |
 | `internal/cli`                  | Cobra commands                                                                  |
 | `internal/codegen`              | OpenAPI → TS generator helpers                                                  |
 | `internal/coordinator`          | Coordinator-agent bootstrap and lifecycle                                       |

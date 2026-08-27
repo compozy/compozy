@@ -24,8 +24,10 @@ type callCreateFlags struct {
 	runtime         string
 	tools           []string
 	skills          []string
+	mcpServers      []string
 	workspacePaths  []string
 	networkChannels []string
+	sandboxProfiles []string
 }
 
 func newCallCommand(deps commandDeps) *cobra.Command {
@@ -40,10 +42,13 @@ func newCallCommand(deps commandDeps) *cobra.Command {
 	configureProfileMutationCommand(cmd, deps)
 	cmd.AddCommand(
 		newCallListCommand(deps),
+		newCallBatchCommand(deps),
 		newCallShowCommand(deps),
+		newCallPromptCommand(deps),
 		newCallAwaitCommand(deps),
 		newCallCancelCommand(deps),
 		newCallResultCommand(deps),
+		newCallSupersededCommand(deps),
 		newCallPublishCommand(deps),
 	)
 	return cmd
@@ -61,8 +66,10 @@ func addCallCreateFlags(cmd *cobra.Command, flags *callCreateFlags) {
 	cmd.Flags().StringVar(&flags.runtime, "runtime", "", "Runtime override: provider/model/reasoning/speed")
 	cmd.Flags().StringSliceVar(&flags.tools, "tools", nil, "Allowed tool atoms")
 	cmd.Flags().StringSliceVar(&flags.skills, "skills", nil, "Allowed skill atoms")
+	cmd.Flags().StringSliceVar(&flags.mcpServers, "mcp-servers", nil, "Allowed MCP server atoms")
 	cmd.Flags().StringSliceVar(&flags.workspacePaths, "workspace-paths", nil, "Allowed workspace paths")
 	cmd.Flags().StringSliceVar(&flags.networkChannels, "network-channels", nil, "Allowed Network channels")
+	cmd.Flags().StringSliceVar(&flags.sandboxProfiles, "sandbox-profiles", nil, "Allowed sandbox profile atoms")
 }
 
 func runCallCreate(deps commandDeps, flags *callCreateFlags) func(*cobra.Command, []string) error {
@@ -97,12 +104,14 @@ func (flags *callCreateFlags) request(target, prompt string) (contract.CreateCal
 		),
 		IdempotencyKey: strings.TrimSpace(flags.idempotencyKey),
 		Narrow: contract.CallPermissionNarrowingRequest{
-			Tools:  cleanCallValues(flags.tools),
-			Skills: cleanCallValues(flags.skills),
+			Tools:      cleanCallValues(flags.tools),
+			Skills:     cleanCallValues(flags.skills),
+			MCPServers: cleanCallValues(flags.mcpServers),
 			WorkspacePaths: cleanCallValues(
 				flags.workspacePaths,
 			),
 			NetworkChannels: cleanCallValues(flags.networkChannels),
+			SandboxProfiles: cleanCallValues(flags.sandboxProfiles),
 		},
 	}
 	target = strings.TrimSpace(target)

@@ -6,22 +6,16 @@ import (
 	"strings"
 	"time"
 
-	core "github.com/compozy/compozy/internal/api/core"
+	"github.com/compozy/compozy/internal/api/core"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/speed"
-	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const daemonAgentSessionActorKind = "agent_session"
-
-type nativeCallsService interface {
-	core.CallsService
-	Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
-}
 
 func (n *daemonNativeTools) agentCall(
 	ctx context.Context,
@@ -250,14 +244,16 @@ func (n *daemonNativeTools) callAwait(
 		item := nativeCallRecord(record)
 		if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
 			result, resultErr := service.Result(ctx, callspkg.CallReadQuery{
-				ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
+				ReadScope: callspkg.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
 				WorkspaceID: callScope.WorkspaceID,
 				Actor:       callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 			}, record.CallID)
 			if resultErr != nil {
 				return toolspkg.ToolResult{}, resultErr
 			}
-			item["result_preview"] = nativeBoundedResultPreview(result.Bytes, record.ResultBudget.MaxBytes)
+			if preview := nativeBoundedResultPreview(result.Bytes, record.ResultBudget.MaxBytes); preview != nil {
+				item["result_preview"] = preview
+			}
 		}
 		settled = append(settled, item)
 	}
@@ -309,15 +305,17 @@ func (n *daemonNativeTools) callResult(
 		return toolspkg.ToolResult{}, err
 	}
 	callScope := nativeCallsScope(scope)
-	result, err := service.Result(ctx, callspkg.CallReadQuery{
-		ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
+	result, err := service.ResultForActor(ctx, callspkg.CallReadQuery{
+		ReadScope: callspkg.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
 		WorkspaceID: callScope.WorkspaceID,
-		Actor:       callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
-	}, input.CallID)
+	}, input.CallID, callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredNetworkResult(json.RawMessage(result.Bytes), result.CallID)
+	return structuredNetworkResult(map[string]any{
+		"call_id": result.CallID,
+		"result":  json.RawMessage(result.Bytes),
+	}, result.CallID)
 }
 
 func nativeBoundedResultPreview(payload []byte, limit int) json.RawMessage {
@@ -395,16 +393,12 @@ func (n *daemonNativeTools) callPublish(
 	}, receipt.NetworkMessageID)
 }
 
-func (n *daemonNativeTools) requireCallsService(toolID toolspkg.ToolID) (nativeCallsService, error) {
+func (n *daemonNativeTools) requireCallsService(toolID toolspkg.ToolID) (core.CallsService, error) {
 	service := n.callsService()
 	if service == nil {
 		return nil, nativeUnavailableError(toolID, "calls service is unavailable")
 	}
-	nativeService, ok := service.(nativeCallsService)
-	if !ok {
-		return nil, nativeUnavailableError(toolID, "calls service does not support native settlement")
-	}
-	return nativeService, nil
+	return service, nil
 }
 
 func nativeCallsScope(scope toolspkg.Scope) callspkg.CallScope {
@@ -421,17 +415,32 @@ func nativeCallsScope(scope toolspkg.Scope) callspkg.CallScope {
 }
 
 func nativeCallRecord(record *callspkg.CallRecord) map[string]any {
-	return map[string]any{
+	payload := map[string]any{
 		"call_id": record.CallID, "profile_id": record.ProfileID, "scope": record.Scope,
 		"workspace_id": record.WorkspaceID, "caller": record.Caller, "actor": record.Actor,
-		"agent": record.AgentName, "child_session_id": record.ChildSessionID,
-		"parent_session_id": record.ParentSessionID, "root_session_id": record.GovernedRootID,
-		"depth": record.Depth, "state": record.State, "verdict": record.Verdict,
-		"expect_digest": record.ExpectDigest, "result_bytes": record.ResultBytes,
+		"root_session_id": record.GovernedRootID, "depth": record.Depth, "state": record.State,
+		"result_bytes":        record.ResultBytes,
 		"result_budget_bytes": record.ResultBudget.MaxBytes, "result_overflow": record.ResultBudget.Overflow,
-		"strict": record.Strict, "failure_code": record.FailureCode,
-		"repair_attempts": record.RepairAttempts, "replayed": record.Replayed,
-		"deadline_at": record.DeadlineAt, "created_at": record.CreatedAt,
-		"started_at": record.StartedAt, "settled_at": record.SettledAt, "updated_at": record.UpdatedAt,
+		"strict": record.Strict, "repair_attempts": record.RepairAttempts, "replayed": record.Replayed,
+		"created_at": record.CreatedAt, "updated_at": record.UpdatedAt,
 	}
+	optionalStrings := map[string]string{
+		"agent": record.AgentName, "child_session_id": record.ChildSessionID,
+		"parent_session_id": record.ParentSessionID, "verdict": string(record.Verdict),
+		"expect_digest": record.ExpectDigest, "failure_code": record.FailureCode,
+	}
+	for name, value := range optionalStrings {
+		if strings.TrimSpace(value) != "" {
+			payload[name] = value
+		}
+	}
+	optionalTimes := map[string]time.Time{
+		"deadline_at": record.DeadlineAt, "started_at": record.StartedAt, "settled_at": record.SettledAt,
+	}
+	for name, value := range optionalTimes {
+		if !value.IsZero() {
+			payload[name] = value
+		}
+	}
+	return payload
 }

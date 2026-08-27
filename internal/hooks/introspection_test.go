@@ -150,7 +150,7 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 		t.Fatalf("permission.request SyncEligible = false, want true")
 	}
 	if descriptor := byEvent[HookCallCreated]; descriptor.Family != HookEventFamilyCall ||
-		descriptor.SyncEligible || descriptor.PayloadSchema != "CallPayload" ||
+		descriptor.SyncEligible || descriptor.PayloadSchema != "CallObservationPayload" ||
 		descriptor.PatchSchema != "CallObservationPatch" {
 		t.Fatalf("call.created descriptor = %#v, want asynchronous call observation", descriptor)
 	}
@@ -159,7 +159,7 @@ func TestAllEventDescriptorsReturnsFullTaxonomy(t *testing.T) {
 	} {
 		descriptor := byEvent[event]
 		if descriptor.Family != HookEventFamilyCall || descriptor.SyncEligible ||
-			descriptor.PayloadSchema != "CallPayload" || descriptor.PatchSchema != "CallObservationPatch" {
+			descriptor.PayloadSchema != "CallObservationPayload" || descriptor.PatchSchema != "CallObservationPatch" {
 			t.Fatalf("%s descriptor = %#v, want asynchronous call observation", event, descriptor)
 		}
 	}

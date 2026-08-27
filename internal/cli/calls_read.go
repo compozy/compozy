@@ -12,7 +12,11 @@ import (
 type callReadFlags struct {
 	workspace string
 	states    []string
+	attention bool
 	caller    string
+	child     string
+	root      string
+	agent     string
 	cursor    string
 	limit     int
 }
@@ -28,9 +32,14 @@ func newCallListCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return err
 			}
+			var attention *bool
+			if cmd.Flags().Changed("attention") {
+				attention = &flags.attention
+			}
 			response, err := client.ListCalls(cmd.Context(), callListQuery{
 				WorkspaceID: workspaceID, States: flags.states, Caller: flags.caller,
-				Cursor: flags.cursor, Limit: flags.limit,
+				Attention: attention, ChildSessionID: flags.child, RootSessionID: flags.root,
+				Agent: flags.agent, Cursor: flags.cursor, Limit: flags.limit,
 			})
 			if err != nil {
 				return withCallCommandExit(err)
@@ -82,6 +91,52 @@ func newCallResultCommand(deps commandDeps) *cobra.Command {
 				return withCallCommandExit(err)
 			}
 			return writeCommandOutput(cmd, callResultBundle(result))
+		},
+	}
+	addCallReadFlags(cmd, flags, false)
+	configureSingleProfileReadCommand(cmd, deps)
+	return cmd
+}
+
+func newCallPromptCommand(deps commandDeps) *cobra.Command {
+	flags := &callReadFlags{}
+	cmd := &cobra.Command{
+		Use:   "prompt <call-id>",
+		Short: "Print the complete authored call prompt",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			if err != nil {
+				return err
+			}
+			prompt, err := client.GetCallPrompt(cmd.Context(), workspaceID, args[0])
+			if err != nil {
+				return withCallCommandExit(err)
+			}
+			return writeCommandOutput(cmd, callPromptBundle(prompt))
+		},
+	}
+	addCallReadFlags(cmd, flags, false)
+	configureSingleProfileReadCommand(cmd, deps)
+	return cmd
+}
+
+func newCallSupersededCommand(deps commandDeps) *cobra.Command {
+	flags := &callReadFlags{}
+	cmd := &cobra.Command{
+		Use:   "superseded <call-id>",
+		Short: "Print preserved late-result evidence",
+		Args:  exactOneNonBlankArg(),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			client, workspaceID, err := resolveCallClient(cmd, deps, flags.workspace)
+			if err != nil {
+				return err
+			}
+			result, err := client.GetCallSuperseded(cmd.Context(), workspaceID, args[0])
+			if err != nil {
+				return withCallCommandExit(err)
+			}
+			return writeCommandOutput(cmd, callSupersededBundle(result))
 		},
 	}
 	addCallReadFlags(cmd, flags, false)
@@ -192,7 +247,11 @@ func addCallReadFlags(cmd *cobra.Command, flags *callReadFlags, list bool) {
 		return
 	}
 	cmd.Flags().StringSliceVar(&flags.states, "state", nil, "Call states to include")
+	cmd.Flags().BoolVar(&flags.attention, "attention", false, "Only calls that need attention")
 	cmd.Flags().StringVar(&flags.caller, "caller", "", "Caller session or run id")
+	cmd.Flags().StringVar(&flags.child, "child-session", "", "Receiving child session id")
+	cmd.Flags().StringVar(&flags.root, "root-session", "", "Governed root session id")
+	cmd.Flags().StringVar(&flags.agent, "agent", "", "Target agent name")
 	cmd.Flags().StringVar(&flags.cursor, "cursor", "", "Opaque page cursor")
 	cmd.Flags().IntVar(&flags.limit, "limit", 50, "Page size (maximum 200)")
 }

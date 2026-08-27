@@ -171,9 +171,12 @@ type stubClient struct {
 	listProfilesFn               func(context.Context) ([]contract.Profile, error)
 	listProfileSelectionsFn      func(context.Context) ([]contract.ProfileSelection, error)
 	createCallFn                 func(context.Context, string, contract.CreateCallRequest) (contract.CallCreatePayload, error)
+	createCallBatchFn            func(context.Context, string, contract.CreateCallRequest) ([]contract.CallBatchItemPayload, error)
 	listCallsFn                  func(context.Context, callListQuery) (contract.CallsResponse, error)
 	getCallFn                    func(context.Context, string, string) (contract.CallPayload, error)
+	getCallPromptFn              func(context.Context, string, string) (contract.CallPromptResponse, error)
 	getCallResultFn              func(context.Context, string, string) (contract.CallResultResponse, error)
+	getCallSupersededFn          func(context.Context, string, string) (contract.CallSupersededResponse, error)
 	awaitCallFn                  func(context.Context, string, string, contract.AwaitCallsRequest) (contract.AwaitCallsResponse, error)
 	cancelCallFn                 func(context.Context, string, string, contract.CancelCallRequest) (contract.CancelCallResponse, error)
 	publishCallFn                func(context.Context, string, string, contract.PublishCallRequest) (contract.PublishCallResponse, error)
@@ -1710,6 +1713,17 @@ func (s *stubClient) CreateCall(
 	return contract.CallCreatePayload{}, errors.New("unexpected CreateCall call")
 }
 
+func (s *stubClient) CreateCallBatch(
+	ctx context.Context,
+	workspaceID string,
+	request contract.CreateCallRequest,
+) ([]contract.CallBatchItemPayload, error) {
+	if s.createCallBatchFn != nil {
+		return s.createCallBatchFn(ctx, workspaceID, request)
+	}
+	return nil, errors.New("unexpected CreateCallBatch call")
+}
+
 func (s *stubClient) ListCalls(ctx context.Context, query callListQuery) (contract.CallsResponse, error) {
 	if s.listCallsFn != nil {
 		return s.listCallsFn(ctx, query)
@@ -1726,6 +1740,28 @@ func (s *stubClient) GetCall(
 		return s.getCallFn(ctx, workspaceID, callID)
 	}
 	return contract.CallPayload{}, errors.New("unexpected GetCall call")
+}
+
+func (s *stubClient) GetCallPrompt(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+) (contract.CallPromptResponse, error) {
+	if s.getCallPromptFn != nil {
+		return s.getCallPromptFn(ctx, workspaceID, callID)
+	}
+	return contract.CallPromptResponse{}, errors.New("unexpected GetCallPrompt call")
+}
+
+func (s *stubClient) GetCallSuperseded(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+) (contract.CallSupersededResponse, error) {
+	if s.getCallSupersededFn != nil {
+		return s.getCallSupersededFn(ctx, workspaceID, callID)
+	}
+	return contract.CallSupersededResponse{}, errors.New("unexpected GetCallSuperseded call")
 }
 
 func (s *stubClient) GetCallResult(

@@ -32,7 +32,7 @@ func (d daemonCallHookDispatcher) ObserveCall(
 	if d.now != nil {
 		now = d.now().UTC()
 	}
-	hookPayload := hookspkg.CallPayload{
+	hookPayload := hookspkg.CallObservationPayload{
 		PayloadBase: hookspkg.PayloadBase{Event: hookEvent, Timestamp: now},
 		ProfileID:   payload.ProfileID, Scope: string(payload.Scope), WorkspaceID: payload.WorkspaceID,
 		CallID: payload.CallID, MessageID: payload.MessageID,
@@ -66,7 +66,7 @@ func dispatchCallHook(
 	ctx context.Context,
 	dispatcher *hookspkg.Hooks,
 	event hookspkg.HookEvent,
-	payload hookspkg.CallPayload,
+	payload hookspkg.CallObservationPayload,
 ) error {
 	var err error
 	switch event {

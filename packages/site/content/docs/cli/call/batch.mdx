@@ -1,30 +1,21 @@
 ---
-title: "compozy call list"
-description: "List durable calls"
+title: "compozy call batch"
+description: "Create a bounded batch of agent calls"
 ---
 
-## compozy call list
+## compozy call batch
 
-List durable calls
+Create a bounded batch of agent calls
 
 ```
-compozy call list [flags]
+compozy call batch <json-or-@file> [flags]
 ```
 
 ### Options
 
 ```
-      --agent string           Target agent name
-      --all-profiles           Read across every profile and include owner labels
-      --attention              Only calls that need attention
-      --caller string          Caller session or run id
-      --child-session string   Receiving child session id
-      --cursor string          Opaque page cursor
-  -h, --help                   help for list
-      --limit int              Page size (maximum 200) (default 50)
-      --root-session string    Governed root session id
-      --state strings          Call states to include
-      --workspace string       Override workspace name or id; omit for global scope
+  -h, --help               help for batch
+      --workspace string   Override workspace name or id; omit for global scope
 ```
 
 ### Options inherited from parent commands
@@ -49,5 +40,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy call list -o json
+compozy call batch <json-or-@file> -o json
 ```

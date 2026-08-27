@@ -161,7 +161,7 @@ func matchNetwork(matcher HookMatcher, payload NetworkPayload) bool {
 	return matcher.MatchesNetwork(payload)
 }
 
-func matchCall(matcher HookMatcher, payload CallPayload) bool {
+func matchCall(matcher HookMatcher, payload CallObservationPayload) bool {
 	autonomy := matcher.autonomy()
 	return matchStringField(matcher.AgentName, payload.AgentName) &&
 		matchStringField(matcher.WorkspaceID, payload.WorkspaceID) &&

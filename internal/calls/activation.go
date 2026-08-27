@@ -44,7 +44,7 @@ func (s *Service) invokeClaimedActivation(
 		cleanupErr = s.invoker.StopManaged(cleanupCtx, childID, "call activation persistence failed")
 		cancel()
 	}
-	if latest, handled, raceErr := s.resolveActivationSettlementRace(ctx, record.CallID, err, cleanupErr); handled {
+	if latest, handled, raceErr := s.resolveActivationSettlementRace(ctx, record, err, cleanupErr); handled {
 		return latest, raceErr
 	}
 	releaseErr := s.releaseActivationClaim(ctx, claim, "activation persistence failed")
@@ -107,7 +107,7 @@ func (s *Service) failClaimedActivation(
 	if settleErr != nil {
 		if latest, handled, raceErr := s.resolveActivationSettlementRace(
 			ctx,
-			record.CallID,
+			record,
 			settleErr,
 			nil,
 		); handled {
@@ -123,14 +123,14 @@ func (s *Service) failClaimedActivation(
 
 func (s *Service) resolveActivationSettlementRace(
 	ctx context.Context,
-	callID string,
+	record *CallRecord,
 	settleErr error,
 	cleanupErr error,
 ) (CallRecord, bool, error) {
 	if !IsCode(settleErr, CodeAlreadySettled) {
 		return CallRecord{}, false, nil
 	}
-	latest, loadErr := s.store.GetCallForSettlement(ctx, callID)
+	latest, loadErr := s.store.GetCallForSettlement(ctx, callScopeForRecord(record), record.CallID)
 	if loadErr != nil {
 		return CallRecord{}, true, errors.Join(settleErr, cleanupErr, loadErr)
 	}

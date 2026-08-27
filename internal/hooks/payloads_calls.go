@@ -2,8 +2,8 @@ package hooks
 
 import "strings"
 
-// CallPayload is the sanitized observation payload for committed call and mailbox transitions.
-type CallPayload struct {
+// CallObservationPayload is the sanitized observation of committed call and mailbox transitions.
+type CallObservationPayload struct {
 	PayloadBase
 	ProfileID        string `json:"profile_id"`
 	Scope            string `json:"scope"`
@@ -30,7 +30,7 @@ type CallPayload struct {
 }
 
 // HookProfileID returns the immutable profile owner for declaration isolation.
-func (p CallPayload) HookProfileID() string { return strings.TrimSpace(p.ProfileID) }
+func (p CallObservationPayload) HookProfileID() string { return strings.TrimSpace(p.ProfileID) }
 
 // CallObservationPatch is intentionally observation-only.
 type CallObservationPatch = AutonomyObservationPatch

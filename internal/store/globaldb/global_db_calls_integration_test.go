@@ -164,7 +164,7 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 
 		fixture := newCallSettlementFixture(t)
 		record := fixture.create(t, "silent", callSettlementExpectSchema, nil)
-		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
+		settled, err := fixture.service.SettleTurnEnd(fixture.ctx, callspkg.ReturnInput{
 			Scope: record.OwnerScope(), CallID: record.CallID, FinalText: "",
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
@@ -319,7 +319,7 @@ func (f callSettlementFixture) scope() callspkg.CallScope {
 
 func (f callSettlementFixture) readQuery() callspkg.CallReadQuery {
 	return callspkg.CallReadQuery{
-		ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+		ReadScope: callspkg.ReadScope{ProfileID: store.DefaultProfileID},
 		Scope:     callspkg.ScopeWorkspace, WorkspaceID: f.workspaceID,
 	}
 }
@@ -475,6 +475,12 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		"calls-ownership",
 		filepath.Join(t.TempDir(), "workspace"),
 	)
+	otherWorkspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-ownership-other",
+		filepath.Join(t.TempDir(), "other-workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	secondProfileID := strings.Repeat("Q", 26)
 	if _, err := database.db.ExecContext(ctx, `INSERT INTO profiles
@@ -548,9 +554,60 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		); err != nil {
 			t.Fatalf("bind default call child for read projection error = %v", err)
 		}
+		foreignScope := callspkg.CallScope{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: otherWorkspaceID,
+		}
+		if _, err := database.GetCallForSettlement(ctx, foreignScope, defaultCall.CallID); !callspkg.IsCode(
+			err,
+			callspkg.CodeNotFound,
+		) {
+			t.Fatalf("GetCallForSettlement(cross workspace) error = %v, want %s", err, callspkg.CodeNotFound)
+		}
+		if _, err := database.GetOpenCallForChild(
+			ctx,
+			foreignScope,
+			parents[store.DefaultProfileID],
+		); !callspkg.IsCode(err, callspkg.CodeReturnUnbound) {
+			t.Fatalf("GetOpenCallForChild(cross workspace) error = %v, want %s", err, callspkg.CodeReturnUnbound)
+		}
+
+		madeCall, err := service.Create(ctx, callspkg.CreateInput{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind: participation.OwnerKindSession, ID: parents[store.DefaultProfileID], WorkspaceID: workspaceID,
+			},
+			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "same-session made projection",
+			IdempotencyKey: "same-session-made", Actor: callspkg.Actor{Kind: "human", ID: "operator:test"},
+			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+		})
+		if err != nil {
+			t.Fatalf("Create(same-session made) error = %v", err)
+		}
+		readQuery := callspkg.CallReadQuery{
+			ReadScope: callspkg.ReadScope{ProfileID: store.DefaultProfileID},
+			Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+		}
+		made, err := service.List(ctx, callspkg.CallListQuery{
+			CallReadQuery: readQuery, Caller: parents[store.DefaultProfileID], Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("List(same-session made) error = %v", err)
+		}
+		received, err := service.List(ctx, callspkg.CallListQuery{
+			CallReadQuery: readQuery, ChildSessionID: parents[store.DefaultProfileID], Limit: 10,
+		})
+		if err != nil {
+			t.Fatalf("List(same-session received) error = %v", err)
+		}
+		if made.Total != 1 || len(made.Items) != 1 || made.Items[0].CallID != madeCall.CallID {
+			t.Fatalf("List(same-session made) = %#v, want %s", made, madeCall.CallID)
+		}
+		if received.Total != 1 || len(received.Items) != 1 || received.Items[0].CallID != defaultCall.CallID {
+			t.Fatalf("List(same-session received) = %#v, want %s", received, defaultCall.CallID)
+		}
 		exactPage, err := service.List(ctx, callspkg.CallListQuery{
 			CallReadQuery: callspkg.CallReadQuery{
-				ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+				ReadScope: callspkg.ReadScope{ProfileID: store.DefaultProfileID},
 				Scope:     callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
 			},
 			ChildSessionID: parents[store.DefaultProfileID], RootSessionID: parents[store.DefaultProfileID],
@@ -564,14 +621,18 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		}
 		aggregatePage, err := service.List(ctx, callspkg.CallListQuery{
 			CallReadQuery: callspkg.CallReadQuery{
-				ReadScope: store.ReadScope{AllProfiles: true}, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+				ReadScope: callspkg.ReadScope{
+					AllProfiles: true,
+				},
+				Scope:       callspkg.ScopeWorkspace,
+				WorkspaceID: workspaceID,
 			},
 			Agent: "reviewer", Limit: 1,
 		})
 		if err != nil {
 			t.Fatalf("List(aggregate agent summary) error = %v", err)
 		}
-		if aggregatePage.Total != 2 || len(aggregatePage.Items) != 1 || aggregatePage.NextCursor == "" {
+		if aggregatePage.Total != 3 || len(aggregatePage.Items) != 1 || aggregatePage.NextCursor == "" {
 			t.Fatalf("List(aggregate agent summary) = %#v", aggregatePage)
 		}
 		for profileID, parentID := range parents {
@@ -1239,6 +1300,7 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 	service, err := callspkg.NewService(
 		callspkg.WithStore(database), callspkg.WithDirectory(callIntegrationDirectory{database: database}),
 		callspkg.WithActivationRunCanceler(manager), callspkg.WithConfig(config.DefaultCallsConfig()),
+		callspkg.WithSessionInvoker(&callIntegrationInvoker{database: database, workspaceID: workspaceID, now: now}),
 		callspkg.WithClock(func() time.Time { return now }), callspkg.WithIDGenerator(store.NewID),
 	)
 	if err != nil {
@@ -1716,8 +1778,8 @@ func registerCallSession(ctx context.Context, t *testing.T, database *GlobalDB, 
 	}
 }
 
-func callIntegrationPermissionPolicy() store.SessionPermissionPolicy {
-	return store.SessionPermissionPolicy{
+func callIntegrationPermissionPolicy() callspkg.PermissionPolicy {
+	return callspkg.PermissionPolicy{
 		Tools:  callIntegrationHelperTools(),
 		Skills: []string{"review"},
 	}
@@ -2329,8 +2391,12 @@ func (i *callIntegrationInvoker) SpawnChild(
 		Lineage: &store.SessionLineage{
 			ParentSessionID: spec.ParentSessionID, RootSessionID: spec.ParentSessionID,
 			SpawnDepth: 1, SpawnRole: "worker", AutoStopOnParent: true,
-			SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
-			PermissionPolicy: spec.Permissions.Policy(),
+			SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools: spec.Permissions.Tools, Skills: spec.Permissions.Skills,
+				MCPServers: spec.Permissions.MCPServers, WorkspacePaths: spec.Permissions.WorkspacePaths,
+				NetworkChannels: spec.Permissions.NetworkChannels, SandboxProfiles: spec.Permissions.SandboxProfiles,
+			},
 		},
 		CreatedAt: i.now, UpdatedAt: i.now,
 	})

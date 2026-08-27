@@ -109,6 +109,51 @@ type nativeCallsServiceStub struct {
 	ret    func(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
 }
 
+func TestNativeCallErrorAdapter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve the exact call code message and reason", func(t *testing.T) {
+		t.Parallel()
+
+		callErr := &callspkg.Error{Code: callspkg.CodeTargetDenied, Message: "target is outside the caller lineage"}
+		adapted := nativeCallErrorAdapter(func(
+			context.Context,
+			toolspkg.Scope,
+			toolspkg.CallRequest,
+		) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{}, callErr
+		})
+		_, err := adapted(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDCallResult})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok {
+			t.Fatalf("nativeCallErrorAdapter() error = %T %v, want *tools.ToolError", err, err)
+		}
+		if toolErr.Code != toolspkg.ErrorCode(callspkg.CodeTargetDenied) ||
+			toolErr.Message != callErr.Error() ||
+			!slices.Equal(toolErr.ReasonCodes, []toolspkg.ReasonCode{toolspkg.ReasonCode(callspkg.CodeTargetDenied)}) ||
+			!errors.Is(toolErr, callErr) {
+			t.Fatalf("nativeCallErrorAdapter() error = %#v, want exact call envelope", toolErr)
+		}
+	})
+
+	t.Run("Should leave non-call failures unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		backendErr := errors.New("backend unavailable")
+		adapted := nativeCallErrorAdapter(func(
+			context.Context,
+			toolspkg.Scope,
+			toolspkg.CallRequest,
+		) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{}, backendErr
+		})
+		_, err := adapted(t.Context(), toolspkg.Scope{}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDAgentCall})
+		if !errors.Is(err, backendErr) {
+			t.Fatalf("nativeCallErrorAdapter() error = %v, want original backend error", err)
+		}
+	})
+}
+
 func (s nativeCallsServiceStub) Create(
 	ctx context.Context,
 	input callspkg.CreateInput,
@@ -164,6 +209,15 @@ func (nativeCallsServiceStub) Result(
 	string,
 ) (callspkg.ResultPayload, error) {
 	return callspkg.ResultPayload{}, errors.New("unexpected Result call")
+}
+
+func (nativeCallsServiceStub) ResultForActor(
+	context.Context,
+	callspkg.CallReadQuery,
+	string,
+	callspkg.Actor,
+) (callspkg.ResultPayload, error) {
+	return callspkg.ResultPayload{}, errors.New("unexpected ResultForActor call")
 }
 
 func (nativeCallsServiceStub) Prompt(
@@ -11926,8 +11980,8 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 			Input:  json.RawMessage(`{"agent":"reviewer","prompt":"Review"}`),
 		})
 		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
-		if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
-			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSchemaInvalid) ||
+		if !ok || toolErr.Code != toolspkg.ErrorCode(callspkg.CodeResultInvalid) ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonCode(callspkg.CodeResultInvalid)) ||
 			!strings.Contains(toolErr.Message, string(callspkg.CodeResultInvalid)) {
 			t.Fatalf("call binding error = %#v, want typed invalid-result refusal", err)
 		}

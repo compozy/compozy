@@ -65,13 +65,17 @@ func hostAPITestTaskCatalogFilterMapper(query *taskpkg.CatalogQuery, includeLoop
 
 type hostAPICallsReaderStub struct {
 	reads atomic.Int64
+	list  func(context.Context, callspkg.CallListQuery) (callspkg.CallPage, error)
 }
 
 func (s *hostAPICallsReaderStub) List(
-	context.Context,
-	callspkg.CallListQuery,
+	ctx context.Context,
+	query callspkg.CallListQuery,
 ) (callspkg.CallPage, error) {
 	s.reads.Add(1)
+	if s.list != nil {
+		return s.list(ctx, query)
+	}
 	return callspkg.CallPage{}, nil
 }
 
@@ -450,6 +454,66 @@ func TestHostAPIHandlerCallsReadConsent(t *testing.T) {
 			t.Fatalf("calls reader invocations = %d, want one authorized read", got)
 		}
 	})
+
+	t.Run("Should forward every derived calls list filter", func(t *testing.T) {
+		t.Parallel()
+
+		env := newHostAPITestEnv(t)
+		reader := &hostAPICallsReaderStub{list: func(
+			_ context.Context,
+			query callspkg.CallListQuery,
+		) (callspkg.CallPage, error) {
+			if !query.Attention || query.Caller != "sess-caller" || query.ChildSessionID != "sess-child" ||
+				query.RootSessionID != "sess-root" || query.Agent != "reviewer" || query.Cursor != "next" ||
+				query.Limit != 17 || !slices.Equal(query.State, []callspkg.State{callspkg.StateRunning}) {
+				t.Fatalf("calls/list query = %#v", query)
+			}
+			return callspkg.CallPage{}, nil
+		}}
+		env.handler.calls = reader
+		env.grant("ext-calls-filters", []string{"calls/list"}, nil)
+		_, err := env.call(t, "ext-calls-filters", "calls/list", map[string]any{
+			"scope": "global", "state": []string{"running"}, "attention": true,
+			"caller": "sess-caller", "child_session_id": "sess-child", "root_session_id": "sess-root",
+			"agent": "reviewer", "cursor": "next", "limit": 17,
+		})
+		if err != nil {
+			t.Fatalf("Handle(calls/list filters) error = %v", err)
+		}
+	})
+}
+
+func TestMapHostAPICallRPCError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		code callspkg.ErrorCode
+		want int
+	}{
+		{name: "Should map target denial to forbidden", code: callspkg.CodeTargetDenied, want: 403},
+		{name: "Should map missing calls to not found", code: callspkg.CodeNotFound, want: 404},
+		{name: "Should map settlement conflicts to conflict", code: callspkg.CodeAlreadySettled, want: 409},
+		{name: "Should map expired targets to gone", code: callspkg.CodeTargetExpired, want: 410},
+		{name: "Should map oversized messages to payload too large", code: callspkg.CodeMessageTooLarge, want: 413},
+		{name: "Should map invalid deadlines to unprocessable", code: callspkg.CodeDeadlineInvalid, want: 422},
+		{name: "Should map message pressure to rate limited", code: callspkg.CodeMessageRateLimited, want: 429},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := mapHostAPICallRPCError("call", "call-1", &callspkg.Error{
+				Code: testCase.code, Message: "stable message",
+			})
+			assertRPCErrorCode(t, err, testCase.want)
+			data := decodeRPCData(t, err)
+			if data["code"] != string(testCase.code) ||
+				data[extensionStateError] != string(testCase.code)+": stable message" {
+				t.Fatalf("RPC data = %#v, want exact call code and message", data)
+			}
+		})
+	}
 }
 
 func TestHostAPIHandlerSessionsCreateReturnsSessionID(t *testing.T) {

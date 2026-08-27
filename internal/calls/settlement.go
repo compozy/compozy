@@ -21,6 +21,24 @@ func RequireCallSettlementActor(record *CallRecord, actor SettlementActor) error
 
 // Return validates and settles one result from its bound child session.
 func (s *Service) Return(ctx context.Context, input ReturnInput) (Settlement, error) {
+	hasResult := len(input.Result) > 0
+	hasFinalText := strings.TrimSpace(input.FinalText) != ""
+	if hasResult == hasFinalText {
+		return Settlement{}, newError(CodeValidation, "provide exactly one of result or final_text", nil)
+	}
+	return s.settleReturn(ctx, input)
+}
+
+// SettleTurnEnd handles a child turn that ended without invoking the explicit return act.
+// It is intentionally separate from Return so public callers cannot submit an empty return.
+func (s *Service) SettleTurnEnd(ctx context.Context, input ReturnInput) (Settlement, error) {
+	if len(input.Result) > 0 {
+		return Settlement{}, newError(CodeValidation, "turn-end settlement cannot carry an explicit result", nil)
+	}
+	return s.settleReturn(ctx, input)
+}
+
+func (s *Service) settleReturn(ctx context.Context, input ReturnInput) (Settlement, error) {
 	scope, err := NormalizeCallScope(input.Scope)
 	if err != nil {
 		return Settlement{}, err
@@ -180,7 +198,7 @@ func (s *Service) settleWithPayload(
 		Result: outcome.Payload, ResultRef: ref, ResultBytes: len(outcome.Payload), SettledAt: s.now().UTC(),
 	})
 	if IsCode(err, CodeAlreadySettled) {
-		current, loadErr := s.store.GetCall(ctx, record.OwnerScope(), record.CallID)
+		current, loadErr := s.store.GetCallForSettlement(ctx, record.OwnerScope(), record.CallID)
 		if loadErr != nil {
 			return Settlement{}, errors.Join(err, loadErr)
 		}
@@ -257,12 +275,12 @@ func (s *Service) parkSettledChild(ctx context.Context, record *CallRecord) erro
 	if s.invoker == nil {
 		return errors.New("calls: session invoker is required for child parking")
 	}
-	mailbox, err := s.mailboxStore()
-	if err != nil {
-		return err
+	parking, ok := s.store.(ChildParkingStore)
+	if !ok {
+		return errors.New("calls: store does not implement settled-child parking")
 	}
 	now := s.now().UTC()
-	eligible, err := mailbox.ParkCallChild(ctx, childID, now, now.Add(record.IdleTTL))
+	eligible, err := parking.ParkCallChild(ctx, childID, now, now.Add(record.IdleTTL))
 	if err != nil {
 		return fmt.Errorf("calls: inspect child %q park eligibility: %w", childID, err)
 	}
@@ -274,7 +292,7 @@ func (s *Service) parkSettledChild(ctx context.Context, record *CallRecord) erro
 	if err := s.invoker.StopManaged(stopCtx, childID, "call child parked"); err != nil {
 		clearCtx, clearCancel := s.detachedOperationContext(ctx)
 		defer clearCancel()
-		clearErr := mailbox.ClearCallChildIdleClock(clearCtx, childID, now)
+		clearErr := parking.ClearCallChildIdleClock(clearCtx, childID, now)
 		return errors.Join(fmt.Errorf("calls: park child runtime %q: %w", childID, err), clearErr)
 	}
 	return nil

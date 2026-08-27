@@ -83,13 +83,19 @@ func (g *CallRepo) ListOpenSubtreeCalls(
 	if err := g.checkReady(ctx, "list open subtree calls"); err != nil {
 		return nil, err
 	}
-	rows, err := g.db.QueryContext(ctx, `WITH RECURSIVE descendants(id) AS (
-		SELECT id FROM sessions WHERE id = ?
+	rows, err := g.db.QueryContext(ctx, `WITH RECURSIVE root(id, profile_id, workspace_id) AS (
+		SELECT id, profile_id, workspace_id FROM sessions WHERE id = ?
+	), descendants(id, profile_id, workspace_id) AS (
+		SELECT id, profile_id, workspace_id FROM root
 		UNION
-		SELECT child.id FROM sessions child JOIN descendants parent ON child.parent_session_id = parent.id
+		SELECT child.id, child.profile_id, child.workspace_id FROM sessions child
+		JOIN descendants parent ON child.parent_session_id = parent.id
+		WHERE child.profile_id = parent.profile_id AND child.workspace_id = parent.workspace_id
 	) SELECT `+callSelectColumnsSQL+` FROM calls
 	WHERE state IN ('queued', 'running') AND (
 		parent_session_id IN (SELECT id FROM descendants) OR child_session_id IN (SELECT id FROM descendants)
+	) AND EXISTS (SELECT 1 FROM root WHERE calls.profile_id = root.profile_id
+		AND calls.workspace_id = root.workspace_id
 	) ORDER BY depth DESC, created_at DESC, call_id DESC`, strings.TrimSpace(rootSessionID))
 	if err != nil {
 		return nil, fmt.Errorf("store: list open subtree calls: %w", err)
@@ -114,13 +120,19 @@ func (g *CallRepo) CountPreservedSubtreeResults(ctx context.Context, rootSession
 		return 0, err
 	}
 	var count int
-	err := g.db.QueryRowContext(ctx, `WITH RECURSIVE descendants(id) AS (
-		SELECT id FROM sessions WHERE id = ?
+	err := g.db.QueryRowContext(ctx, `WITH RECURSIVE root(id, profile_id, workspace_id) AS (
+		SELECT id, profile_id, workspace_id FROM sessions WHERE id = ?
+	), descendants(id, profile_id, workspace_id) AS (
+		SELECT id, profile_id, workspace_id FROM root
 		UNION
-		SELECT child.id FROM sessions child JOIN descendants parent ON child.parent_session_id = parent.id
+		SELECT child.id, child.profile_id, child.workspace_id FROM sessions child
+		JOIN descendants parent ON child.parent_session_id = parent.id
+		WHERE child.profile_id = parent.profile_id AND child.workspace_id = parent.workspace_id
 	) SELECT COUNT(*) FROM calls
 	WHERE state = 'completed' AND result_ref IS NOT NULL AND (
 		parent_session_id IN (SELECT id FROM descendants) OR child_session_id IN (SELECT id FROM descendants)
+	) AND EXISTS (SELECT 1 FROM root WHERE calls.profile_id = root.profile_id
+		AND calls.workspace_id = root.workspace_id
 	)`, strings.TrimSpace(rootSessionID)).Scan(&count)
 	if err != nil {
 		return 0, fmt.Errorf("store: count preserved subtree results: %w", err)

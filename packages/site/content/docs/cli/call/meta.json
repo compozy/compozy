@@ -1,4 +1,15 @@
 {
     "title": "Call",
-    "pages": ["index", "await", "cancel", "list", "publish", "result", "show"]
+    "pages": [
+        "index",
+        "await",
+        "batch",
+        "cancel",
+        "list",
+        "prompt",
+        "publish",
+        "result",
+        "show",
+        "superseded"
+    ]
 }

@@ -47,7 +47,7 @@ func (g *CallRepo) ResolveCallTargetContext(
 	base := callspkg.TargetContext{
 		ProfileID: caller.profileID, WorkspaceID: caller.workspaceID,
 		ParentSessionID: caller.id, GovernedRootID: rootID, Depth: caller.depth + 1,
-		CallerPolicy: policy, Allowed: caller.profileID == strings.TrimSpace(input.ProfileID),
+		CallerPolicy: callPermissionPolicy(policy), Allowed: caller.profileID == strings.TrimSpace(input.ProfileID),
 	}
 	if strings.TrimSpace(input.Target.Agent) != "" {
 		if err := g.countLiveCallChildren(ctx, caller.id, &base.LiveChildren); err != nil {
@@ -64,6 +64,14 @@ func (g *CallRepo) ResolveCallTargetContext(
 		return callspkg.TargetContext{}, err
 	}
 	return g.resolveExistingCallTarget(ctx, caller, target, rootID, base)
+}
+
+func callPermissionPolicy(policy store.SessionPermissionPolicy) callspkg.PermissionPolicy {
+	return callspkg.PermissionPolicy{
+		Tools: policy.Tools, Skills: policy.Skills, MCPServers: policy.MCPServers,
+		WorkspacePaths: policy.WorkspacePaths, NetworkChannels: policy.NetworkChannels,
+		SandboxProfiles: policy.SandboxProfiles,
+	}
 }
 
 func (g *CallRepo) countLiveCallChildren(ctx context.Context, callerID string, count *int) error {

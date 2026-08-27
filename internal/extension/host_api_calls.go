@@ -9,7 +9,6 @@ import (
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	callspkg "github.com/compozy/compozy/internal/calls"
-	"github.com/compozy/compozy/internal/store"
 )
 
 func (h *HostAPIHandler) handleCallsList(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -28,8 +27,15 @@ func (h *HostAPIHandler) handleCallsList(ctx context.Context, raw json.RawMessag
 		}
 	}
 	page, err := reader.List(ctx, callspkg.CallListQuery{
-		CallReadQuery: query, State: states, Caller: params.Caller,
-		Cursor: params.Cursor, Limit: params.Limit,
+		CallReadQuery:  query,
+		State:          states,
+		Attention:      params.Attention != nil && *params.Attention,
+		Caller:         params.Caller,
+		ChildSessionID: params.ChildSessionID,
+		RootSessionID:  params.RootSessionID,
+		Agent:          params.Agent,
+		Cursor:         params.Cursor,
+		Limit:          params.Limit,
 	})
 	if err != nil {
 		return nil, mapHostAPICallRPCError("call", "", err)
@@ -151,7 +157,7 @@ func (h *HostAPIHandler) hostAPICallsReadQuery(
 		workspaceID = boundWorkspaceID
 	}
 	query, err := callspkg.NormalizeReadQuery(callspkg.CallReadQuery{
-		ReadScope: store.ReadScope{ProfileID: profileID},
+		ReadScope: callspkg.ReadScope{ProfileID: profileID},
 		Scope:     callspkg.Scope(rawScope), WorkspaceID: workspaceID,
 	})
 	if err != nil {
@@ -293,17 +299,22 @@ func mapHostAPICallRPCError(resource string, id string, err error) error {
 
 func hostAPICallErrorStatus(code callspkg.ErrorCode) (int, string) {
 	switch code {
-	case callspkg.CodeValidation, callspkg.CodeAgentUnknown, callspkg.CodeExpectInvalid,
+	case callspkg.CodeValidation, callspkg.CodeExpectInvalid,
 		callspkg.CodePromptRequired, callspkg.CodeChildrenCap, callspkg.CodeWideningRejected,
 		callspkg.CodeDepthExceeded, callspkg.CodeBatchEmpty, callspkg.CodeBatchOverCap,
-		callspkg.CodeResultInvalid, callspkg.CodeResultOverBudget, callspkg.CodeDeadlineInvalid,
-		callspkg.CodeMessageTooLarge:
+		callspkg.CodeResultInvalid, callspkg.CodeResultOverBudget:
 		return 400, "Invalid call"
+	case callspkg.CodeDeadlineInvalid:
+		return 422, "Invalid call request"
 	case callspkg.CodeTargetDenied, callspkg.CodeWorkspaceDenied, callspkg.CodeSettlementDenied,
 		callspkg.CodeMessageTargetBlocked, callspkg.CodeMessageTargetDenied:
 		return 403, "Forbidden"
-	case callspkg.CodeNotFound, callspkg.CodeTargetExpired, callspkg.CodeMessageNotFound:
-		return HostAPINotFoundCode, "Not found"
+	case callspkg.CodeAgentUnknown, callspkg.CodeNotFound, callspkg.CodeMessageNotFound:
+		return 404, "Not found"
+	case callspkg.CodeTargetExpired:
+		return 410, "Gone"
+	case callspkg.CodeMessageTooLarge:
+		return 413, "Payload too large"
 	case callspkg.CodeCanceled, callspkg.CodeTimedOut:
 		return 408, "Call timed out"
 	case callspkg.CodeParentTerminal, callspkg.CodeIdempotencyConflict, callspkg.CodeNotSettled,

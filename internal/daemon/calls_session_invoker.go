@@ -66,7 +66,7 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 		Provider: spec.Runtime.Provider, Model: spec.Runtime.Model,
 		ReasoningEffort: spec.Runtime.ReasoningEffort, Speed: spec.Runtime.Speed,
 		TTL: spec.IdleTTL, AutoStopOnParent: true, NotifyCreator: false, NotifyCreatorSet: true,
-		PermissionPolicy: spec.Permissions.Policy(), GovernanceBudget: budget,
+		PermissionPolicy: sessionPermissionPolicy(spec.Permissions.Policy()), GovernanceBudget: budget,
 		AllowedToolsOverride: append([]string(nil), spec.Permissions.Tools...),
 	})
 	if err != nil {
@@ -82,6 +82,14 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 		return callspkg.SessionRef{}, errors.Join(err, cleanupErr)
 	}
 	return callspkg.SessionRef{ID: child.ID}, nil
+}
+
+func sessionPermissionPolicy(policy callspkg.PermissionPolicy) store.SessionPermissionPolicy {
+	return store.SessionPermissionPolicy{
+		Tools: policy.Tools, Skills: policy.Skills, MCPServers: policy.MCPServers,
+		WorkspacePaths: policy.WorkspacePaths, NetworkChannels: policy.NetworkChannels,
+		SandboxProfiles: policy.SandboxProfiles,
+	}
 }
 
 func (i *daemonCallSessionInvoker) Revive(ctx context.Context, sessionID, prompt, callID string) error {
@@ -165,7 +173,12 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 	if identity == "" {
 		identity = delivery.CallID + ":" + string(delivery.Kind)
 	}
-	metadata := delivery.Metadata.Normalize()
+	metadata := acp.PromptSyntheticMeta{
+		CallID: delivery.Metadata.CallID, CallState: delivery.Metadata.CallState,
+		ResultBytes: delivery.Metadata.ResultBytes, ContractDigest: delivery.Metadata.ContractDigest,
+		MessageID: delivery.Metadata.MessageID, DeliveryKind: delivery.Metadata.DeliveryKind,
+		Reason: delivery.Metadata.Reason, WakeEventID: delivery.Metadata.WakeEventID,
+	}.Normalize()
 	result, err := i.send(ctx, delivery.RecipientSessionID, delivery.Body, identity, &metadata)
 	if err != nil {
 		return callspkg.DeliveryOutcome{}, err

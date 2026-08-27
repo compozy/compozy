@@ -23,7 +23,7 @@ const (
 
 type callTurnEndService interface {
 	DrainDeliveries(context.Context, string, int) error
-	Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
+	SettleTurnEnd(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
 }
 
 type callTurnEndSessionReader interface {
@@ -47,11 +47,11 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	}
 	callStore, ok := state.registry.(callspkg.Store)
 	if !ok {
-		return nil
+		return fmt.Errorf("daemon: registry %T does not implement calls.Store", state.registry)
 	}
 	callSessions, ok := state.sessions.(callSessionManager)
 	if !ok {
-		return nil
+		return fmt.Errorf("daemon: sessions %T do not implement callSessionManager", state.sessions)
 	}
 	directory := &daemonCallDirectory{store: callStore, state: state}
 	invoker := &daemonCallSessionInvoker{
@@ -188,8 +188,10 @@ func (r *callRuntime) onTurnEnd(ctx context.Context, sessionID string) {
 	if strings.TrimSpace(finalText) != "" {
 		return
 	}
-	_, err = r.turnEndService.Return(turnCtx, callspkg.ReturnInput{
-		Scope:          callspkg.CallScope{ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID},
+	_, err = r.turnEndService.SettleTurnEnd(turnCtx, callspkg.ReturnInput{
+		Scope: callspkg.CallScope{
+			ProfileID: info.ProfileID, Scope: callspkg.Scope(info.Scope), WorkspaceID: info.WorkspaceID,
+		},
 		CallID:         callID,
 		ChildSessionID: sessionID,
 		FinalText:      finalText,

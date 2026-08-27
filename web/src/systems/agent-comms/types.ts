@@ -37,7 +37,8 @@ export type CallSupersededResponse = OperationResponse<"getCallSupersededWorkspa
 
 export type CreateCallRequest = OperationRequestBody<"createCallWorkspace">;
 /** One-call admission body; batch-only fields are rejected at this boundary. */
-export type CreateSingleCallRequest = Omit<CreateCallRequest, "tasks"> & { tasks?: never };
+type SingleCallRequest<T> = T extends { target: unknown; prompt: string } ? T : never;
+export type CreateSingleCallRequest = SingleCallRequest<CreateCallRequest>;
 export type CreateCallResponse = OperationResponse<"createCallWorkspace", 201>;
 export type CancelCallRequest = OperationRequestBody<"cancelCallWorkspace">;
 export type CancelCallResponse = OperationResponse<"cancelCallWorkspace", 200>;

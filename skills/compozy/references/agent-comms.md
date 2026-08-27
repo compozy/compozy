@@ -114,8 +114,11 @@ transitions and never gate them.
 
 ```bash
 compozy call reviewer "Review HEAD~1..HEAD" --expect @contract.json --idle-ttl 1h -o json
+compozy call batch @calls.json -o json
 compozy call list --state running,completed --limit 20 -o json
 compozy call show call_01JBD8G2K7Q9 -o json
+compozy call prompt call_01JBD8G2K7Q9 -o json
+compozy call superseded call_01JBD8G2K7Q9 -o json
 compozy call await call_01JBD8G2K7Q9 --timeout 120s -o json
 compozy call result call_01JBD8G2K7Q9 -o json
 compozy call cancel call_01JBD8G2K7Q9 --reason "superseded" -o json
@@ -127,9 +130,9 @@ compozy agent list -o json
 ```
 
 `call await` exits `3` on a timeout checkpoint and `2` on a typed error. Omit
-`--workspace` for Global scope. The CLI exposes four narrowing flags (`--tools`,
-`--skills`, `--workspace-paths`, `--network-channels`); `mcp_servers` and
-`sandbox_profiles` narrow only through the tool's `narrow` object or the API.
+`--workspace` for Global scope. CLI create exposes all six narrowing categories through `--tools`,
+`--skills`, `--mcp-servers`, `--workspace-paths`, `--network-channels`, and
+`--sandbox-profiles`.
 
 ## Bounds and the Network boundary
 

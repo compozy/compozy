@@ -11,24 +11,74 @@ import (
 )
 
 type callListQuery struct {
-	WorkspaceID string
-	States      []string
-	Caller      string
-	Cursor      string
-	Limit       int
-	SessionID   string
+	WorkspaceID    string
+	States         []string
+	Attention      *bool
+	Caller         string
+	ChildSessionID string
+	RootSessionID  string
+	Agent          string
+	Cursor         string
+	Limit          int
+	SessionID      string
 }
 
 type callAPIClient interface {
 	CreateCall(context.Context, string, contract.CreateCallRequest) (contract.CallCreatePayload, error)
+	CreateCallBatch(context.Context, string, contract.CreateCallRequest) ([]contract.CallBatchItemPayload, error)
 	ListCalls(context.Context, callListQuery) (contract.CallsResponse, error)
 	GetCall(context.Context, string, string) (contract.CallPayload, error)
+	GetCallPrompt(context.Context, string, string) (contract.CallPromptResponse, error)
 	GetCallResult(context.Context, string, string) (contract.CallResultResponse, error)
+	GetCallSuperseded(context.Context, string, string) (contract.CallSupersededResponse, error)
 	AwaitCall(context.Context, string, string, contract.AwaitCallsRequest) (contract.AwaitCallsResponse, error)
 	CancelCall(context.Context, string, string, contract.CancelCallRequest) (contract.CancelCallResponse, error)
 	PublishCall(context.Context, string, string, contract.PublishCallRequest) (contract.PublishCallResponse, error)
 	SendCallMessage(context.Context, string, contract.SendCallMessageRequest) (contract.SendCallMessageResponse, error)
 	ListCallMessages(context.Context, callListQuery) (contract.CallMessagesResponse, error)
+}
+
+func (c *daemonClient) GetCallPrompt(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+) (contract.CallPromptResponse, error) {
+	var response contract.CallPromptResponse
+	err := c.doJSON(
+		ctx, http.MethodGet, callClientPath(workspaceID, callID)+"/prompt",
+		profileQueryValues(ctx, nil), nil, &response,
+	)
+	return response, err
+}
+
+func (c *daemonClient) GetCallSuperseded(
+	ctx context.Context,
+	workspaceID string,
+	callID string,
+) (contract.CallSupersededResponse, error) {
+	var response contract.CallSupersededResponse
+	err := c.doJSON(
+		ctx, http.MethodGet, callClientPath(workspaceID, callID)+"/superseded",
+		profileQueryValues(ctx, nil), nil, &response,
+	)
+	return response, err
+}
+
+func (c *daemonClient) CreateCallBatch(
+	ctx context.Context,
+	workspaceID string,
+	request contract.CreateCallRequest,
+) ([]contract.CallBatchItemPayload, error) {
+	var response []contract.CallBatchItemPayload
+	err := c.doJSON(
+		ctx,
+		http.MethodPost,
+		callsClientPath(workspaceID),
+		profileQueryValues(ctx, nil),
+		request,
+		&response,
+	)
+	return response, err
 }
 
 func (c *daemonClient) PublishCall(
@@ -67,6 +117,12 @@ func (c *daemonClient) ListCalls(ctx context.Context, query callListQuery) (cont
 		values.Add("state", state)
 	}
 	setCallQueryValue(values, "caller", query.Caller)
+	if query.Attention != nil {
+		values.Set("attention", strconv.FormatBool(*query.Attention))
+	}
+	setCallQueryValue(values, "child_session_id", query.ChildSessionID)
+	setCallQueryValue(values, "root_session_id", query.RootSessionID)
+	setCallQueryValue(values, "agent", query.Agent)
 	setCallQueryValue(values, "cursor", query.Cursor)
 	if query.Limit > 0 {
 		values.Set("limit", strconv.Itoa(query.Limit))

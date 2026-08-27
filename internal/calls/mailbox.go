@@ -9,7 +9,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/contracts"
 )
 
@@ -37,20 +36,9 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 	if err := validateMessageIdentity(input); err != nil {
 		return MessageRecord{}, err
 	}
-	if input.To == "parent" {
-		if input.From.Kind != "session" {
-			return MessageRecord{}, newError(CodeTargetDenied, "only a child session may address parent", nil)
-		}
-		call, resolveErr := s.store.GetCallByChild(ctx, CallScope{
-			ProfileID: input.ProfileID, Scope: input.Scope, WorkspaceID: input.WorkspaceID,
-		}, input.From.ID)
-		if resolveErr != nil {
-			return MessageRecord{}, resolveErr
-		}
-		input.To = call.ParentSessionID
-		if input.CallID == "" {
-			input.CallID = call.CallID
-		}
+	input, err = s.resolveParentMessageTarget(ctx, input)
+	if err != nil {
+		return MessageRecord{}, err
 	}
 	clean, _, reject := contracts.SanitizeText(input.Body)
 	if reject {
@@ -94,6 +82,26 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 		Actor: Actor{Kind: record.From.Kind, ID: record.From.ID}, Delivery: string(record.Delivery),
 	})
 	return record, nil
+}
+
+func (s *Service) resolveParentMessageTarget(ctx context.Context, input SendMessageInput) (SendMessageInput, error) {
+	if input.To != "parent" {
+		return input, nil
+	}
+	if input.From.Kind != "session" {
+		return SendMessageInput{}, newError(CodeTargetDenied, "only a child session may address parent", nil)
+	}
+	call, err := s.store.GetOpenCallForChild(ctx, CallScope{
+		ProfileID: input.ProfileID, Scope: input.Scope, WorkspaceID: input.WorkspaceID,
+	}, input.From.ID)
+	if err != nil {
+		return SendMessageInput{}, err
+	}
+	input.To = call.ParentSessionID
+	if input.CallID == "" {
+		input.CallID = call.CallID
+	}
+	return input, nil
 }
 
 func (s *Service) emitMessageRejected(ctx context.Context, input SendMessageInput, err error) {
@@ -307,7 +315,7 @@ func safeDeliveryCause(cause error) error {
 
 type durableDeliveryContent struct {
 	body     string
-	metadata acp.PromptSyntheticMeta
+	metadata DeliveryMetadata
 }
 
 func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) (durableDeliveryContent, error) {
@@ -323,13 +331,13 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 		}
 		return durableDeliveryContent{
 			body: RenderPeerMessage(message, s.messageMaxBytes),
-			metadata: acp.PromptSyntheticMeta{
+			metadata: DeliveryMetadata{
 				MessageID: message.MessageID, CallID: message.CallID,
 				DeliveryKind: string(delivery.Kind), Reason: "call_message", WakeEventID: delivery.WakeEventID,
 			},
 		}, nil
 	case DeliveryKindFollowUp:
-		call, err := s.store.GetCall(ctx, delivery.OwnerScope(), delivery.SubjectID)
+		call, err := s.store.GetCallForSettlement(ctx, delivery.OwnerScope(), delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
 		}
@@ -341,7 +349,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			body: string(prompt), metadata: deliverySyntheticMetadata(delivery, &call, "call_follow_up"),
 		}, nil
 	case DeliveryKindCompletion:
-		call, err := s.store.GetCall(ctx, delivery.OwnerScope(), delivery.SubjectID)
+		call, err := s.store.GetCallForSettlement(ctx, delivery.OwnerScope(), delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
 		}
@@ -350,7 +358,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			metadata: deliverySyntheticMetadata(delivery, &call, "call_completion"),
 		}, nil
 	case DeliveryKindRepair:
-		call, err := s.store.GetCall(ctx, delivery.OwnerScope(), delivery.SubjectID)
+		call, err := s.store.GetCallForSettlement(ctx, delivery.OwnerScope(), delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
 		}
@@ -370,9 +378,9 @@ func deliverySyntheticMetadata(
 	delivery DeliveryRecord,
 	call *CallRecord,
 	reason string,
-) acp.PromptSyntheticMeta {
-	return acp.PromptSyntheticMeta{
-		CallID: call.CallID, CallState: string(call.State), ResultRef: call.ResultRef,
+) DeliveryMetadata {
+	return DeliveryMetadata{
+		CallID: call.CallID, CallState: string(call.State),
 		ResultBytes: call.ResultBytes, ContractDigest: call.ExpectDigest,
 		DeliveryKind: string(delivery.Kind), Reason: reason, WakeEventID: delivery.WakeEventID,
 	}

@@ -17,6 +17,31 @@ func callCreateBundle(record contract.CallCreatePayload) outputBundle {
 	})
 }
 
+func callBatchBundle(items []contract.CallBatchItemPayload) outputBundle {
+	return listBundle(
+		items,
+		items,
+		"Calls",
+		[]string{"CALL", "CHILD", "STATE", "ERROR"},
+		"calls",
+		[]string{"call_id", "child_session_id", "state", "error"},
+		func(item contract.CallBatchItemPayload) []string {
+			code := ""
+			if item.Error != nil {
+				code = item.Error.Code
+			}
+			return []string{item.CallID, item.ChildSessionID, item.State, code}
+		},
+		func(item contract.CallBatchItemPayload) []string {
+			code := ""
+			if item.Error != nil {
+				code = item.Error.Code
+			}
+			return []string{item.CallID, item.ChildSessionID, item.State, code}
+		},
+	)
+}
+
 func callDetailBundle(record *contract.CallPayload) outputBundle {
 	return recordBundle(record, "Call", callDetailRows(record))
 }
@@ -54,6 +79,17 @@ func callResultBundle(result contract.CallResultResponse) outputBundle {
 		human: func() (string, error) { return strings.TrimSpace(string(result.Result)), nil },
 		toon:  func() (string, error) { return strings.TrimSpace(string(result.Result)), nil },
 	}
+}
+
+func callPromptBundle(prompt contract.CallPromptResponse) outputBundle {
+	return recordBundle(prompt, "Prompt", []keyValue{
+		{Label: "Call", Value: prompt.CallID},
+		{Label: "Prompt", Value: prompt.Prompt},
+	})
+}
+
+func callSupersededBundle(result contract.CallSupersededResponse) outputBundle {
+	return callResultBundle(contract.CallResultResponse{CallID: result.CallID, Result: result.Result})
 }
 
 func callAwaitBundle(response contract.AwaitCallsResponse) outputBundle {

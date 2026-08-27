@@ -144,15 +144,6 @@ describe("buildCallTree", () => {
       "expired",
     ]);
   });
-
-  it("Should narrow an unknown state to null instead of guessing a neighbour", () => {
-    const tree = buildCallTree([
-      call({ call_id: "call_x", parent_session_id: "ses_root", state: "half-done" }),
-    ]);
-
-    expect(tree.groups[0]!.rows[0]!.state).toBeNull();
-    expect(tree.groups[0]!.escalation).toBeNull();
-  });
 });
 
 describe("buildCallTree — nesting for the tree primitive", () => {

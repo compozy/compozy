@@ -44,6 +44,36 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		}
 	})
 
+	t.Run("Should require exactly one nonempty return representation", func(t *testing.T) {
+		t.Parallel()
+
+		service, _, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		record := createContractedCall(t, service)
+		base := ReturnInput{
+			Scope:  record.OwnerScope(),
+			CallID: record.CallID,
+			Actor:  SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		}
+		for _, input := range []ReturnInput{
+			base,
+			func() ReturnInput {
+				value := base
+				value.FinalText = "   "
+				return value
+			}(),
+			func() ReturnInput {
+				value := base
+				value.Result = json.RawMessage(`{}`)
+				value.FinalText = "done"
+				return value
+			}(),
+		} {
+			if _, err := service.Return(t.Context(), input); !IsCode(err, CodeValidation) {
+				t.Fatalf("Return(%#v) error = %v, want %s", input, err, CodeValidation)
+			}
+		}
+	})
+
 	t.Run("Should preserve the idle clock when stopping the child cancels the return request", func(t *testing.T) {
 		t.Parallel()
 		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
@@ -109,8 +139,26 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 			t.Fatalf("stored result refs = result %q superseded %q", stored.ResultRef, stored.SupersededRef)
 		}
 		readQuery := CallReadQuery{
-			ReadScope: store.ReadScope{ProfileID: record.ProfileID},
+			ReadScope: ReadScope{ProfileID: record.ProfileID},
 			Scope:     record.Scope, WorkspaceID: record.WorkspaceID,
+		}
+		for _, actor := range []Actor{
+			{Kind: actorKindAgentSession, ID: record.Caller.ID},
+			{Kind: actorKindAgentSession, ID: record.ChildSessionID},
+			{Kind: "human", ID: "operator:test"},
+		} {
+			result, resultErr := service.ResultForActor(context.Background(), readQuery, record.CallID, actor)
+			if resultErr != nil || string(result.Bytes) != `{"answer":42}` {
+				t.Fatalf("ResultForActor(%#v) = %#v, %v", actor, result, resultErr)
+			}
+		}
+		if _, resultErr := service.ResultForActor(
+			context.Background(),
+			readQuery,
+			record.CallID,
+			Actor{Kind: actorKindAgentSession, ID: "unrelated-session"},
+		); !IsCode(resultErr, CodeTargetDenied) {
+			t.Fatalf("ResultForActor(unrelated) error = %v, want %s", resultErr, CodeTargetDenied)
 		}
 		prompt, err := service.Prompt(context.Background(), readQuery, record.CallID)
 		if err != nil || prompt.Text != "work" {
@@ -342,7 +390,7 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 			if strict {
 				text = `{"answer":7}`
 			}
-			settlement, err := service.Return(context.Background(), ReturnInput{
+			settlement, err := service.SettleTurnEnd(context.Background(), ReturnInput{
 				Scope: record.OwnerScope(), CallID: record.CallID, FinalText: text,
 				Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 			})
@@ -445,7 +493,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 			t.Fatalf("NormalizeCallScope() error = %v", err)
 		}
 		readQuery, err := NormalizeReadQuery(CallReadQuery{
-			ReadScope: store.ReadScope{ProfileID: " default "}, WorkspaceID: " ws-1 ",
+			ReadScope: ReadScope{ProfileID: " default "}, WorkspaceID: " ws-1 ",
 		})
 		if err != nil {
 			t.Fatalf("NormalizeReadQuery() error = %v", err)
@@ -455,7 +503,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 			t.Fatalf("normalized scopes = service %#v read %#v", serviceScope, readQuery)
 		}
 		_, err = NormalizeReadQuery(CallReadQuery{
-			ReadScope: store.ReadScope{ProfileID: store.DefaultProfileID},
+			ReadScope: ReadScope{ProfileID: store.DefaultProfileID},
 			Scope:     ScopeGlobal, WorkspaceID: "ws-1",
 		})
 		if !IsCode(err, CodeValidation) {
@@ -1001,7 +1049,7 @@ func activateCreatedCall(t *testing.T, service *Service, record *CallRecord) Cal
 	if dispatched == 0 {
 		t.Fatalf("DispatchQueued() dispatched no activation for %q", record.CallID)
 	}
-	activated, err := service.store.GetCallForSettlement(t.Context(), record.CallID)
+	activated, err := service.store.GetCallForSettlement(t.Context(), record.OwnerScope(), record.CallID)
 	if err != nil {
 		t.Fatalf("GetCallForSettlement() error = %v", err)
 	}
