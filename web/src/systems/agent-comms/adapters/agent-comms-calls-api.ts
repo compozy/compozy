@@ -14,6 +14,8 @@
  * Filters are projected from the generated operation, so a daemon-side rename
  * breaks the build here instead of silently dropping a filter.
  */
+import { z } from "zod";
+
 import { apiClient, apiRequestFailed, requireResponseData } from "@/lib/api-client";
 import type { ProfileScopeParams } from "@/systems/profiles";
 
@@ -215,23 +217,34 @@ export async function createCall(
     throw toAgentCommsApiError("Failed to create the call", response, error);
   }
   const payload = requireAgentCommsResponseData(data, response, "Failed to create the call");
-  if (!isCallAcceptance(payload)) {
+  const accepted = callAcceptanceSchema.safeParse(payload);
+  if (!accepted.success) {
     throw toAgentCommsApiError(
       "Failed to create the call: the runtime returned a batch response",
       response,
       undefined
     );
   }
-  return payload;
+  return accepted.data;
 }
 
-function isCallAcceptance(payload: unknown): payload is CreateCallResponse {
-  return (
-    typeof payload === "object" &&
-    payload !== null &&
-    typeof (payload as { call_id?: unknown }).call_id === "string"
-  );
-}
+const callAcceptanceSchema = z.looseObject({
+  call_id: z.string(),
+  child_session_id: z.string().optional(),
+  idle_expires_at: z.string().nullable(),
+  replayed: z.boolean(),
+  state: z.enum([
+    "queued",
+    "running",
+    "completed",
+    "invalid-result",
+    "completed-without-result",
+    "failed",
+    "canceled",
+    "timeout",
+    "expired",
+  ]),
+}) satisfies z.ZodType<CreateCallResponse>;
 
 /** Idempotent: cancelling a settled call answers 200 with its terminal state. */
 export async function cancelCall(

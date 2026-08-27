@@ -11,7 +11,8 @@
  *   are kept indefinitely, so an old call can name a child that no longer
  *   exists. Asking first is what lets the jump link degrade honestly instead of
  *   dangling. The check can only run once the record names the child, so the
- *   view is rebuilt here with the answer rather than re-running the call query.
+ *   flag is handed back into the same detail hook rather than rebuilding the
+ *   view a second time.
  * - **Call again and Message child are composed, not fired.** Neither is a
  *   one-click repeat: calling again means deciding whether to revive the same
  *   helper or start a fresh one, and repeating the ask verbatim means fetching
@@ -23,7 +24,6 @@ import { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import {
-  buildCallDetailView,
   isAgentCommsApiError,
   useAgentCallCompose,
   useCallDetail,
@@ -39,10 +39,8 @@ export function useAgentCall(callId: string, windowId: string) {
   const navigate = useNavigate({ from: "/agents" });
   const [composing, setComposing] = useState<"call-again" | "message" | null>(null);
   const [messageText, setMessageText] = useState("");
+  const [childSessionId, setChildSessionId] = useState("");
 
-  const detail = useCallDetail(callId, { live });
-  const call = detail.call;
-  const childSessionId = call?.child_session_id ?? "";
   const childSession = useSession(childSessionId);
   const childUsage = useSessionUsage(childSessionId, null, null, {
     enabled: childSessionId !== "",
@@ -53,14 +51,17 @@ export function useAgentCall(callId: string, windowId: string) {
   const counterpartExists =
     childSessionId === "" ? true : childSession.isPending ? undefined : !childSession.isError;
 
-  const view = call
-    ? buildCallDetailView({
-        call,
-        ...(counterpartExists === undefined ? {} : { counterpartExists }),
-      })
-    : null;
+  const detail = useCallDetail(callId, {
+    live,
+    ...(counterpartExists === undefined ? {} : { counterpartExists }),
+  });
+  const nextChildSessionId = detail.call?.child_session_id ?? "";
+  if (nextChildSessionId !== childSessionId) {
+    setChildSessionId(nextChildSessionId);
+  }
 
   const mutations = useCallMutations(detail.scope);
+  const view = detail.view;
 
   // A living child is revived by name; an expired or pruned one is gone, so the
   // repeat targets the definition and the compose says so.
@@ -78,6 +79,7 @@ export function useAgentCall(callId: string, windowId: string) {
     // empty rather than holding a truncated preview that would be sent verbatim.
     ...(detail.fullPrompt === undefined ? {} : { initialPrompt: detail.fullPrompt }),
     contractRequired: Boolean(view?.expectDigest),
+    roster: false,
   });
 
   const cancel = () => {
@@ -157,7 +159,7 @@ export function useAgentCall(callId: string, windowId: string) {
       : null,
 
     openCaller: () => {
-      const callerId = call?.caller.id;
+      const callerId = detail.call?.caller.id;
       if (!callerId) return;
       void navigate({ to: "/session/$id", params: { id: callerId } });
     },

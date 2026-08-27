@@ -76,7 +76,7 @@ describe("deriveCallAttention — causes", () => {
     });
     // The OS layer suppresses the duplicate bare session row for this child.
     expect([...model.blockedChildSessionIds]).toEqual(["ses_child"]);
-    expect(model.count).toBe(1);
+    expect(model.count).toBe(0);
   });
 });
 

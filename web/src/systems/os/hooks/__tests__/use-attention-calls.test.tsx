@@ -97,7 +97,7 @@ describe("useAttentionCalls", () => {
     expect(after.current.rows).toEqual([]);
   });
 
-  it("Should load every attention page before building bell rows", async () => {
+  it("Should keep the badge on the daemon total and stop at the first attention page", async () => {
     setAgentCommsMockCalls(
       Array.from({ length: 130 }, (_, index) =>
         buildCallFixture({
@@ -112,8 +112,9 @@ describe("useAttentionCalls", () => {
     );
     const { result } = setup();
 
-    await waitFor(() => expect(result.current.rows).toHaveLength(130));
+    await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.count).toBe(130);
-    expect(requests.filter(url => url.searchParams.get("attention") === "true").length).toBe(2);
+    expect(result.current.rows).toHaveLength(100);
+    expect(requests.filter(url => url.searchParams.get("attention") === "true").length).toBe(1);
   });
 });

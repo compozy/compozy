@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import type { SessionPayload } from "@/systems/session";
-
 import { buildCallTree, childStatesForRoot, escalateCallStates } from "../agent-comms-tree";
+import { countsForTreeGroups } from "../agent-comms-tree-counts";
 import type { CallPayload } from "../../types";
 
 /**
@@ -279,50 +278,67 @@ describe("escalateCallStates", () => {
 });
 
 /**
- * Invariant: a child is reported gone only when a complete catalog could have
- * listed it and did not. Owning layer: `childStatesForRoot`. Canonical suite:
- * this file — it already owns the tree-row projection.
+ * Invariant: child state is copied from a daemon projection, never invented
+ * from session stop reasons. Owning layer: `childStatesForRoot`. Canonical
+ * suite: this file — it already owns the tree-row projection.
  */
 describe("childStatesForRoot", () => {
-  function session(overrides: Partial<SessionPayload> & Pick<SessionPayload, "id">) {
-    return { state: "active", ...overrides } as SessionPayload;
-  }
-
-  it("Should report an expected child the catalog omits as gone", () => {
-    // The whole reason the expected ids are an input: there is no session row
-    // to iterate for a child that no longer exists.
-    const states = childStatesForRoot(["ses_alive", "ses_reaped"], [session({ id: "ses_alive" })]);
-
-    expect(states.get("ses_reaped")).toBe("gone");
-    expect(states.get("ses_alive")).toBe("running");
-  });
-
-  it("Should distinguish a settlement-parked child from every other stopped child", () => {
-    // A crashed child is also `stopped`, but it is gone rather than resting —
-    // so the daemon's own stop detail is what distinguishes the parked child.
+  it("Should copy only daemon-projected states for expected children", () => {
     const states = childStatesForRoot(
-      ["ses_parked", "ses_crashed"],
+      ["ses_alive", "ses_parked", "ses_missing"],
       [
-        session({ id: "ses_parked", state: "stopped", stop_detail: "call child parked" }),
-        session({ id: "ses_crashed", state: "stopped", stop_detail: "provider crashed" }),
+        { id: "ses_alive", child_state: "running" },
+        { id: "ses_parked", child_state: "parked" },
+        { id: "ses_other", child_state: "gone" },
       ]
     );
 
+    expect(states.get("ses_alive")).toBe("running");
     expect(states.get("ses_parked")).toBe("parked");
-    expect(states.get("ses_crashed")).toBe("gone");
+    expect(states.has("ses_missing")).toBe(false);
+    expect(states.has("ses_other")).toBe(false);
+  });
+
+  it("Should ignore a stop reason that is not a projected child_state", () => {
+    const states = childStatesForRoot(
+      ["ses_parked"],
+      [{ id: "ses_parked", child_state: "call child parked" }]
+    );
+    expect(states.size).toBe(0);
   });
 
   it("Should claim nothing at all while a root's catalog is incomplete", () => {
-    // Fail open: a slow or failed read must never render as a dead child.
     expect(childStatesForRoot(["ses_alive", "ses_reaped"], undefined).size).toBe(0);
   });
+});
 
-  it("Should ignore sessions outside the expected set", () => {
-    const states = childStatesForRoot(
-      ["ses_mine"],
-      [session({ id: "ses_mine" }), session({ id: "ses_someone_elses" })]
-    );
+/**
+ * Invariant: exact per-root totals exist only for a complete loaded population,
+ * or from the daemon's scoped total when Activity is already one root.
+ * Owning layer: `countsForTreeGroups`. Canonical suite: this file.
+ */
+describe("countsForTreeGroups", () => {
+  it("Should omit per-root totals while the workspace page is incomplete", () => {
+    const tree = buildCallTree([
+      call({ call_id: "call_a", parent_session_id: "ses_root", state: "running" }),
+    ]);
+    expect(countsForTreeGroups(tree.groups, { complete: false }).size).toBe(0);
+  });
 
-    expect([...states.keys()]).toEqual(["ses_mine"]);
+  it("Should derive facets from loaded rows once the page is complete", () => {
+    const tree = buildCallTree([
+      call({ call_id: "call_run", parent_session_id: "ses_root", state: "running" }),
+      call({ call_id: "call_bad", parent_session_id: "ses_root", state: "invalid-result" }),
+    ]);
+    const counts = countsForTreeGroups(tree.groups, { complete: true });
+    expect(counts.get("ses_root")).toEqual({ total: 2, running: 1, needsYou: 1 });
+  });
+
+  it("Should keep a scoped daemon total when a single-root page is incomplete", () => {
+    const tree = buildCallTree([
+      call({ call_id: "call_a", parent_session_id: "ses_root", state: "running" }),
+    ]);
+    const counts = countsForTreeGroups(tree.groups, { complete: false, scopedTotal: 12 });
+    expect(counts.get("ses_root")).toEqual({ total: 12 });
   });
 });

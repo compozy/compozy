@@ -138,12 +138,12 @@ describe("fetchSessions", () => {
     });
   });
 
-  it("omits blank and undefined filters", async () => {
+  it("pins a blank workspace instead of widening to every workspace", async () => {
     mockJsonResponse({ sessions: [], page: { has_more: false, limit: 50, total: 0 } });
 
     await fetchSessions({ workspace_id: "   ", q: undefined });
 
-    await expectFetchRequest({ path: "/api/sessions?all_workspaces=true" });
+    await expectFetchRequest({ path: "/api/sessions?workspace_id=" });
   });
 
   it("throws on non-ok response", async () => {

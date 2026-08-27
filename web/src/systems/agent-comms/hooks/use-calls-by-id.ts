@@ -25,10 +25,7 @@ export interface CallsByIdModel {
 export function useCallsById(callIds: readonly string[], live = false): CallsByIdModel {
   const scope = useAgentCommsScope();
   return useQueries({
-    // The native call tool returns at acceptance, before the child settles.
-    // Keep a mounted transcript card live until each record is terminal even
-    // after the parent turn itself has settled.
-    queries: callIds.map(callId => callDetailOptions(scope, callId, live, true, true)),
+    queries: callIds.map(callId => callDetailOptions(scope, callId, live)),
     combine: results => ({
       calls: results
         .map(result => result.data)

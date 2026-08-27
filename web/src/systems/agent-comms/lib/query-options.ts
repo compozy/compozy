@@ -130,11 +130,9 @@ export function callDetailOptions(
     refetchInterval: query => {
       const state = toCallState(query.state.data?.state);
       if (state !== null && isTerminalCallState(state)) return false;
-      if (live) return LIVE_CALL_POLL_INTERVAL;
-      if (!pollUntilTerminal || query.state.status === "error" || query.state.error !== null) {
-        return false;
-      }
-      return LIVE_CALL_POLL_INTERVAL;
+      if (query.state.status === "error" || query.state.error != null) return false;
+      if (live || pollUntilTerminal) return LIVE_CALL_POLL_INTERVAL;
+      return false;
     },
     retry: shouldRetryDetailQuery,
     enabled: isScopeReady(scope) && Boolean(callId) && enabled,

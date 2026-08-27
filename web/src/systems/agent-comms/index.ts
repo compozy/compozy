@@ -78,7 +78,10 @@ export {
   type CallCommsTree,
   type CallTreeGroup,
   type CallTreeRow,
+  type ChildStateCatalogRow,
 } from "./lib/agent-comms-tree";
+export { countsForTreeGroups, type CallTreeGroupCounts } from "./lib/agent-comms-tree-counts";
+export { callCreateFailureCopy, callMessageFailureCopy } from "./lib/call-failure-copy";
 export {
   buildCallTreeDataSource,
   callNodeId,
@@ -144,7 +147,7 @@ export {
 } from "./components/agent-call-state-pill";
 export { AgentUntrustedFrame } from "./components/agent-untrusted-frame";
 export { AgentCallCost } from "./components/agent-call-cost";
-export { AgentCallTree, type CallTreeGroupCounts } from "./components/agent-call-tree";
+export { AgentCallTree } from "./components/agent-call-tree";
 export { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "./lib/agent-call-tree-constants";
 export { AgentCallTreeRow } from "./components/agent-call-tree-row";
 export { AgentCallTreeRootRow } from "./components/agent-call-tree-root-row";

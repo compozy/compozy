@@ -14,7 +14,7 @@ import {
   type CallTreeNode,
 } from "../lib/agent-comms-tree-nodes";
 
-interface AgentCallTreeScroller {
+export interface AgentCallTreeScroller {
   virtualizer: Virtualizer<HTMLDivElement, Element> | null;
   indexById: Map<string, number>;
 }

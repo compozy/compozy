@@ -3,8 +3,8 @@
  *
  * The transcript already holds the `compozy__agent_call` tool part, ordered by
  * the daemon among the turn's other work. This renders that part as a call card
- * instead of a generic tool row, and reads the call records live by id — because
- * the tool's own result was written at acceptance and says `running` forever.
+ * instead of a generic tool row. Records arrive from the parent — this card
+ * does not fetch.
  *
  * One invocation is one card, whether it started one call or twelve. A batch
  * that rendered as twelve sibling cards would turn a single "ask twelve helpers"
@@ -12,12 +12,13 @@
  */
 import { AgentCallTurnCard } from "./agent-call-turn-card";
 import { AgentCallTurnFanout } from "./agent-call-turn-fanout";
-import { useCallsById } from "../hooks/use-calls-by-id";
 import type { AgentCallToolInvocation } from "../lib/agent-call-tool-parts";
+import type { CallPayload } from "../types";
 
 export interface AgentCallInvocationCardProps {
   invocation: AgentCallToolInvocation;
-  live?: boolean;
+  calls: readonly CallPayload[];
+  loading: boolean;
   onOpenCall: (callId: string) => void;
   onOpenCallsPanel?: () => void;
   "data-testid"?: string;
@@ -25,13 +26,12 @@ export interface AgentCallInvocationCardProps {
 
 export function AgentCallInvocationCard({
   invocation,
-  live = false,
+  calls,
+  loading,
   onOpenCall,
   onOpenCallsPanel,
   "data-testid": testId,
 }: AgentCallInvocationCardProps) {
-  const { calls, loading } = useCallsById(invocation.callIds, live);
-
   // The tool has not returned yet, so there is no record to read. Saying the ask
   // is in flight is honest; rendering an empty card would not be.
   if (invocation.callIds.length === 0) {

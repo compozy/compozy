@@ -1,5 +1,4 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { useEffect } from "react";
 
 import {
   sessionScopedDetailOptions,
@@ -7,6 +6,7 @@ import {
   sessionLedgerOptions,
   sessionRecapOptions,
   sessionUsageOptions,
+  sessionsCompleteListOptions,
   sessionsListOptions,
 } from "../lib/query-options";
 import {
@@ -34,35 +34,41 @@ export function useSessions(workspace: string | null = null, options?: UseSessio
   // query key partitions by profile for free, so a switch cannot show the
   // previous profile's rows while the new page loads.
   const { params } = useProfileReadScope();
+  // Only an explicit `null` means every workspace. An empty string is "no
+  // workspace yet" and must not widen into `all_workspaces`.
+  const workspaceReady = workspace === null || workspace.trim() !== "";
   const filters = normalizeSessionListFilters({
     ...options?.filters,
-    ...(workspace ? { workspace_id: workspace } : { all_workspaces: true }),
+    ...(workspace === null ? { all_workspaces: true } : { workspace_id: workspace }),
     ...params,
   });
-  const query = useInfiniteQuery({
+  const enabled = (options?.enabled ?? true) && workspaceReady;
+  const loadAll = options?.loadAll === true;
+
+  const paged = useInfiniteQuery({
     ...sessionsListOptions(filters),
-    enabled: options?.enabled ?? true,
+    enabled: enabled && !loadAll,
+  });
+  const complete = useQuery({
+    ...sessionsCompleteListOptions(filters),
+    enabled: enabled && loadAll,
   });
 
-  useEffect(() => {
-    if (
-      !options?.loadAll ||
-      options.enabled === false ||
-      !query.hasNextPage ||
-      query.isFetchingNextPage ||
-      query.isError
-    ) {
-      return;
-    }
-    // React Query records a continuation failure on the query; the consumer
-    // reads that state, so the promise itself needs no second error channel.
-    void query.fetchNextPage().catch(() => undefined);
-  }, [options?.enabled, options?.loadAll, query]);
+  if (loadAll) {
+    return {
+      ...complete,
+      data: complete.data?.sessions,
+      total: complete.data?.page.total ?? 0,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: async () => complete,
+    };
+  }
 
   return {
-    ...query,
-    data: flattenSessionPages(query.data),
-    total: sessionListTotal(query.data),
+    ...paged,
+    data: flattenSessionPages(paged.data),
+    total: sessionListTotal(paged.data),
   };
 }
 

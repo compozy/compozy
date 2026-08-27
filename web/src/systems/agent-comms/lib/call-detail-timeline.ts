@@ -11,6 +11,7 @@
  */
 import { Circle, CircleOff, Clock, Plus, RotateCcw, Sparkles, type LucideIcon } from "lucide-react";
 
+import { CALL_STATE_GLYPH } from "./call-state-glyphs";
 import { CALL_STATE_SIGNAL, CALL_VERDICT_SIGNAL, toCallState, toCallVerdict } from "./call-state";
 import type { CallPayload } from "../types";
 
@@ -115,7 +116,7 @@ export function buildCallTimeline(call: CallPayload): CallTimelineEvent[] {
       detail: settledDetail(call),
       at: call.settled_at,
       tone: state === null ? "neutral" : CALL_STATE_SIGNAL[state].tone,
-      glyph: state === null ? CircleOff : CALL_STATE_SIGNAL[state].glyph,
+      glyph: state === null ? CircleOff : CALL_STATE_GLYPH[state],
     });
   }
 

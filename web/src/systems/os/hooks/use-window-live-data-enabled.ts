@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { use } from "react";
 
 import { useDocumentVisible } from "@/hooks/use-document-visible";
 
@@ -7,7 +7,7 @@ import { useDesktop } from "./use-desktop";
 
 /** Defaults to live outside the retained-window OS shell. */
 export function useCurrentWindowLiveDataEnabled(): boolean {
-  return useContext(WindowLiveDataContext);
+  return use(WindowLiveDataContext);
 }
 
 /** A retained OS window owns live-data connections only while it is actually visible. */

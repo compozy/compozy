@@ -14,10 +14,10 @@
  * The fifth read answers a different question — *does the counterpart still
  * exist?* Retention prunes sessions while their call records survive, so a row
  * can name a session that can no longer be opened. Every call in one session's
- * panel shares one governed root, so one `root=` catalog read covers every
- * counterpart in both directions at once.
+ * panel shares one governed root, so one complete `root=` catalog read covers
+ * every counterpart in both directions at once.
  */
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 
 import {
   CALLS_PANEL_PAGE_SIZE,
@@ -25,10 +25,11 @@ import {
   useAgentCommsScope,
   useCallCount,
   type CallDirectionSection,
+  type CallPayload,
 } from "@/systems/agent-comms";
-import type { CallPayload } from "@/systems/agent-comms";
 
-import { useSessions } from "./use-sessions";
+import { sessionsCompleteListOptions } from "../lib/query-options";
+import { useSession } from "./use-sessions";
 
 export interface SessionCallsPanelModel {
   made: CallDirectionSection;
@@ -38,16 +39,6 @@ export interface SessionCallsPanelModel {
 }
 
 const NO_PRUNED_SESSIONS: ReadonlySet<string> = new Set<string>();
-
-/**
- * The one root every call on this panel hangs from.
- *
- * Read off the rows rather than assumed from `sessionId`: a session that was
- * itself delegated to is not its own root, and the daemon stamps the real one.
- */
-function panelRoot(made: readonly CallPayload[], received: readonly CallPayload[]): string {
-  return made[0]?.root_session_id ?? received[0]?.root_session_id ?? "";
-}
 
 /**
  * Which counterparts are gone.
@@ -81,6 +72,10 @@ export function useSessionCallsPanel(
 ): SessionCallsPanelModel {
   const scope = useAgentCommsScope();
   const enabled = sessionId !== "" && liveDataEnabled;
+  const session = useSession(sessionId);
+  // Fail-open: a session that has not named its root yet is treated as its own
+  // root rather than waiting on the first call row to arrive.
+  const root = session.data?.lineage?.root_session_id ?? sessionId;
 
   const made = useInfiniteQuery(
     callsListOptions(
@@ -107,15 +102,17 @@ export function useSessionCallsPanel(
 
   const madeCalls = (made.data?.pages ?? []).flatMap(page => page.items);
   const receivedCalls = (received.data?.pages ?? []).flatMap(page => page.items);
-  const root = panelRoot(madeCalls, receivedCalls);
 
-  const catalog = useSessions(scope.workspaceId || null, {
-    filters: { root },
-    loadAll: true,
-    enabled: enabled && root !== "",
+  const catalog = useQuery({
+    ...sessionsCompleteListOptions({
+      workspace_id: scope.workspaceId,
+      root,
+      ...scope.params,
+    }),
+    enabled: enabled && scope.workspaceId !== "" && root !== "",
   });
-  const complete = root !== "" && !catalog.hasNextPage && !catalog.isError;
-  const known = complete && catalog.data ? new Set(catalog.data.map(session => session.id)) : null;
+  const complete = catalog.isSuccess;
+  const known = complete ? new Set(catalog.data.sessions.map(item => item.id)) : null;
 
   return {
     made: {

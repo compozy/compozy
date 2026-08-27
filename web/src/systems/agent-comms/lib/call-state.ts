@@ -1,66 +1,34 @@
 /**
- * The one call-state → tone / glyph / word dictionary.
+ * The one call-state → tone / word dictionary.
  *
- * Every surface reads from here: tree rows, call detail, the Calls inspector
- * panel, transcript cards, bell rows. The wire types `state`, `verdict`, and
- * `delivery` as open `string` (the daemon owns the vocabulary in
- * `internal/calls/types.go`), so the web declares the literal unions in
- * `../types` and funnels every raw value through the `to*` narrowers below.
- * `as const satisfies Record<…>` makes each dictionary exhaustive — a new token
- * fails typecheck until it has an entry.
+ * Every surface reads from here. The wire already closes `state`, `verdict`, and
+ * `delivery` on the generated contract; `to*` is the only narrowing seam for a
+ * raw string that somehow missed that close. Glyphs live in `call-state-glyphs.ts`.
  *
  * Grammar is locked in `docs/design/opendesign/agent-comms/DESIGN-NOTES.md`:
  *
  * - **Colour never announces liveness; motion does.** `queued` and `running` are
- *   neutral. A tree can hold dozens of running calls, so accent there would blow
- *   the accent budget into a control-room wash. The typing dots carry aliveness,
- *   and reduced motion holds them steady.
- * - **The needs-you class shares one tone and differs by glyph.** `invalid-result`,
- *   `completed-without-result`, `failed`, and `expired` all mean "expectations
- *   unmet" and all render danger — colour is never the only channel.
- * - **`canceled` and `timeout` are warning, not danger.** Both are deliberate
- *   outcomes, not faults.
- * - **The word in the chip is the runtime's exact term** and never leaves the
- *   chip, so screen and CLI cannot disagree. "pending", "done", and "error" are
- *   banned as state names.
+ *   neutral. The typing dots carry aliveness.
+ * - **The needs-you class shares one tone and differs by glyph.**
+ * - **`canceled` and `timeout` are warning, not danger.**
+ * - **The word in the chip is the runtime's exact term.**
  */
-import {
-  Ban,
-  Check,
-  Circle,
-  CircleOff,
-  CircleSlash,
-  Clock,
-  FileX,
-  Hourglass,
-  Moon,
-  TimerOff,
-  X,
-  type LucideIcon,
-} from "lucide-react";
-
 import type { PillTone } from "@compozy/ui";
 
 import { type CallDelivery, type CallState, type CallVerdict, type ChildState } from "../types";
 
-// The dictionary module is where consumers reach for the vocabulary, so the
-// unions travel with the signals that interpret them.
 export type { CallDelivery, CallState, CallVerdict, ChildState };
 
 /**
  * Which of the three needs-you causes a state carries, if any.
  *
  * Only `invalid-result` and `completed-without-result` are needs-you *by state*.
- * `failed` and `expired` share the danger tone because expectations went unmet,
- * but they are not operator-actionable in the bell — the spec names exactly
- * three causes and the third (a child blocked on a decision) lives on the child
- * session, not on the call.
+ * The third (a child blocked on a decision) lives on the child session.
  */
 export type CallAttentionClass = "needs-you" | "finished" | "none";
 
 export interface CallStateSignal {
   tone: PillTone;
-  glyph: LucideIcon;
   /** Exact CLI vocabulary — also the accessible label. */
   label: CallState;
   /** Whether the row shows typing dots. Motion, not colour, means alive. */
@@ -73,7 +41,6 @@ export interface CallStateSignal {
 export const CALL_STATE_SIGNAL = {
   queued: {
     tone: "neutral",
-    glyph: Clock,
     label: "queued",
     live: false,
     terminal: false,
@@ -81,7 +48,6 @@ export const CALL_STATE_SIGNAL = {
   },
   running: {
     tone: "neutral",
-    glyph: Circle,
     label: "running",
     live: true,
     terminal: false,
@@ -89,7 +55,6 @@ export const CALL_STATE_SIGNAL = {
   },
   completed: {
     tone: "success",
-    glyph: Check,
     label: "completed",
     live: false,
     terminal: true,
@@ -97,7 +62,6 @@ export const CALL_STATE_SIGNAL = {
   },
   "invalid-result": {
     tone: "danger",
-    glyph: FileX,
     label: "invalid-result",
     live: false,
     terminal: true,
@@ -105,7 +69,6 @@ export const CALL_STATE_SIGNAL = {
   },
   "completed-without-result": {
     tone: "danger",
-    glyph: CircleSlash,
     label: "completed-without-result",
     live: false,
     terminal: true,
@@ -113,7 +76,6 @@ export const CALL_STATE_SIGNAL = {
   },
   failed: {
     tone: "danger",
-    glyph: X,
     label: "failed",
     live: false,
     terminal: true,
@@ -121,7 +83,6 @@ export const CALL_STATE_SIGNAL = {
   },
   canceled: {
     tone: "warning",
-    glyph: Ban,
     label: "canceled",
     live: false,
     terminal: true,
@@ -129,7 +90,6 @@ export const CALL_STATE_SIGNAL = {
   },
   timeout: {
     tone: "warning",
-    glyph: TimerOff,
     label: "timeout",
     live: false,
     terminal: true,
@@ -137,7 +97,6 @@ export const CALL_STATE_SIGNAL = {
   },
   expired: {
     tone: "danger",
-    glyph: Hourglass,
     label: "expired",
     live: false,
     terminal: true,
@@ -183,11 +142,6 @@ export interface CallVerdictSignal {
   description: string;
 }
 
-/**
- * How the answer arrived. This rides beside the success chip as a neutral mono
- * word — provenance is admission truth, so `extracted` is never dressed up as
- * `returned`.
- */
 export const CALL_VERDICT_SIGNAL = {
   returned: { label: "returned", description: "answer accepted as sent" },
   extracted: {
@@ -206,24 +160,14 @@ export function toCallVerdict(raw: string | undefined): CallVerdict | null {
 
 export interface CallDeliverySignal {
   tone: PillTone;
-  glyph: LucideIcon;
   label: CallDelivery;
 }
 
-/**
- * The four public receipts. A receipt is a confirmation, so the two delivered
- * forms are success; `queued` is neutral; `failed` carries the typed reason on
- * the row. No read/seen state exists in the runtime, so none renders.
- */
 export const CALL_DELIVERY_SIGNAL = {
-  "delivered-into-turn": {
-    tone: "success",
-    glyph: Check,
-    label: "delivered-into-turn",
-  },
-  woke: { tone: "success", glyph: Check, label: "woke" },
-  queued: { tone: "neutral", glyph: Clock, label: "queued" },
-  failed: { tone: "danger", glyph: X, label: "failed" },
+  "delivered-into-turn": { tone: "success", label: "delivered-into-turn" },
+  woke: { tone: "success", label: "woke" },
+  queued: { tone: "neutral", label: "queued" },
+  failed: { tone: "danger", label: "failed" },
 } as const satisfies Record<CallDelivery, CallDeliverySignal>;
 
 export function toCallDelivery(raw: string | undefined): CallDelivery | null {
@@ -235,21 +179,14 @@ export function toCallDelivery(raw: string | undefined): CallDelivery | null {
 
 export interface ChildStateSignal {
   tone: PillTone;
-  glyph: LucideIcon;
   label: ChildState;
   live: boolean;
 }
 
-/**
- * Exactly three. `parked` is still addressable — contacting it is what revives
- * it — so there is no Revive control anywhere; the affordances are call-again
- * and message. A `gone` child keeps its identity and loses its affordances
- * entirely, never greyed.
- */
 export const CHILD_STATE_SIGNAL = {
-  running: { tone: "neutral", glyph: Circle, label: "running", live: true },
-  parked: { tone: "neutral", glyph: Moon, label: "parked", live: false },
-  gone: { tone: "neutral", glyph: CircleOff, label: "gone", live: false },
+  running: { tone: "neutral", label: "running", live: true },
+  parked: { tone: "neutral", label: "parked", live: false },
+  gone: { tone: "neutral", label: "gone", live: false },
 } as const satisfies Record<ChildState, ChildStateSignal>;
 
 export function toChildState(raw: string | undefined): ChildState | null {

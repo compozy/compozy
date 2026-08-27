@@ -24,9 +24,7 @@
  * the end of its group rather than dropped. Losing a row silently is worse than
  * showing one with less structure than usual.
  */
-import type { SessionPayload } from "@/systems/session";
-
-import { toCallState, type CallState } from "./call-state";
+import { toCallState, toChildState, type CallState } from "./call-state";
 import type { CallPayload, ChildState } from "../types";
 
 export interface CallTreeRow {
@@ -306,48 +304,27 @@ export function buildCallTree(calls: readonly CallPayload[]): CallCommsTree {
 }
 
 /**
- * Which of a tree's children are parked, still working, or gone.
+ * Copy daemon-projected child states onto the children a tree named.
  *
- * The expected children are an **input**, and that is the whole design. A child
- * the catalog omits has no session row to iterate, so absence only carries
- * meaning when measured against a list of who was supposed to be there — a
- * projection over sessions alone could never emit `gone`.
- *
- * `sessions` is `undefined` while a root's catalog is still loading or has
- * errored, and then nothing is claimed about that root at all. Reporting `gone`
- * on a transport blip would turn a slow network into a wall of dead children.
+ * The wire has no `child_state` today. Until it does, callers pass `undefined`
+ * and this returns an empty map — never a parked/gone guess from stop reasons.
  */
+export interface ChildStateCatalogRow {
+  id: string;
+  child_state?: string;
+}
+
 export function childStatesForRoot(
   expectedChildIds: readonly string[],
-  sessions: readonly SessionPayload[] | undefined
+  catalog: readonly ChildStateCatalogRow[] | undefined
 ): ReadonlyMap<string, ChildState> {
   const states = new Map<string, ChildState>();
-  if (sessions === undefined) return states;
-  for (const childId of expectedChildIds) {
-    if (childId !== "") states.set(childId, "gone");
-  }
-  for (const session of sessions) {
-    if (!states.has(session.id)) continue;
-    if (session.state === "stopped") {
-      states.set(session.id, isParkedCallChild(session) ? "parked" : "gone");
-      continue;
-    }
-    states.set(session.id, "running");
+  if (catalog === undefined) return states;
+  const expected = new Set(expectedChildIds.filter(id => id !== ""));
+  for (const row of catalog) {
+    if (!expected.has(row.id)) continue;
+    const state = toChildState(row.child_state);
+    if (state !== null) states.set(row.id, state);
   }
   return states;
 }
-
-/**
- * A parked child is stopped *on purpose*, by settlement.
- *
- * The daemon has no `parked` session state — it parks by writing `parked_at`
- * and stopping the child with this exact reason (`parkSettledChild`). The stop
- * detail is the only part of that visible on the wire, which is why it is
- * matched literally rather than inferred from `stopped` alone: every other
- * stopped child is gone, whether it failed, was canceled, or ended normally.
- */
-function isParkedCallChild(session: SessionPayload): boolean {
-  return session.state === "stopped" && session.stop_detail === PARKED_STOP_DETAIL;
-}
-
-const PARKED_STOP_DETAIL = "call child parked";

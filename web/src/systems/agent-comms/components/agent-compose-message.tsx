@@ -14,32 +14,7 @@ import { Send } from "lucide-react";
 
 import { ActionResultBanner, Button, Eyebrow, Panel, Textarea } from "@compozy/ui";
 
-import { AGENT_COMMS_ERROR_CODES, type AgentCommsErrorCode } from "../adapters/agent-comms-api";
-
-/** Plain-language recovery per typed refusal. The code renders beside it. */
-const SEND_FAILURE_COPY: Partial<Record<AgentCommsErrorCode, string>> = {
-  message_target_blocked:
-    "That helper is waiting on a decision from you. Answer it on its own screen first — a message cannot approve a pending permission.",
-  message_rate_limited: "Too many messages in the last minute. Try again shortly.",
-  message_duplicate: "That exact message just went out. The original is already on its way.",
-  message_too_large: "That message is longer than the runtime accepts. Shorten it and send again.",
-  message_pending_cap:
-    "That helper already has as many undelivered messages as it can hold. Wait for it to work through them.",
-  call_target_expired:
-    "That helper sat idle past its limit and left. Ask the agent again to start a fresh one.",
-  call_target_denied: "That helper is outside your lineage, so you cannot message it.",
-  call_workspace_denied: "That helper belongs to another workspace.",
-};
-
-const FALLBACK_FAILURE_COPY = "The message did not go out.";
-
-function failureCopy(code: string | null): string {
-  if (code === null) return FALLBACK_FAILURE_COPY;
-  const known = (AGENT_COMMS_ERROR_CODES as readonly string[]).includes(code)
-    ? SEND_FAILURE_COPY[code as AgentCommsErrorCode]
-    : undefined;
-  return known ?? FALLBACK_FAILURE_COPY;
-}
+import { callMessageFailureCopy } from "../lib/call-failure-copy";
 
 export interface AgentComposeMessageProps {
   /** Who the message goes to, for the heading. */
@@ -102,7 +77,7 @@ export function AgentComposeMessage({
           className="mt-2"
           tone="danger"
           data-testid="agent-compose-message-error"
-          title={failureCopy(failureCode)}
+          title={callMessageFailureCopy(failureCode)}
           description={<span className="font-mono text-form">{failureCode}</span>}
         />
       ) : null}

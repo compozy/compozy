@@ -154,12 +154,9 @@ export function deriveCallAttention(input: CallAttentionInput): CallAttentionMod
 
   const rows = coalesceByTree([...stateRows, ...blockedRows].sort(byRecencyDesc));
 
-  // The badge counts causes, not rows: a coalesced tree of twelve is twelve
-  // things needing a look, shown as one row. The state half comes from the
-  // daemon's own total so it stays right past the page bound; the blocked half
-  // is only ever as complete as the open-call page it was joined against.
-  const stateCount = input.needsYouTotal ?? stateRows.length;
-  const count = input.stale ? 0 : stateCount + blockedRows.length;
+  // The badge is the daemon's `attention` total — never a loaded-page length
+  // and never the blocked join, which is only as complete as the open-call page.
+  const count = input.stale ? 0 : (input.needsYouTotal ?? 0);
 
   return { rows, count, blockedChildSessionIds };
 }

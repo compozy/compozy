@@ -13,6 +13,7 @@ import {
   AGENT_CALL_TOOL_NAME,
   AgentCallInvocationCard,
   callIdsFromToolResult,
+  useCallsById,
 } from "@/systems/agent-comms";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
 import {
@@ -122,15 +123,18 @@ function SessionCallInvocation({
   turnSettled: boolean;
 }) {
   const navigate = useNavigate();
+  const callIds = callIdsFromToolResult(tool.result);
+  const { calls, loading } = useCallsById(callIds, !turnSettled);
   return (
     <AgentCallInvocationCard
       data-testid="session-call-invocation"
       invocation={{
         toolCallId: tool.toolCallId,
-        callIds: callIdsFromToolResult(tool.result),
+        callIds,
         pending: tool.status === "running",
       }}
-      live={!turnSettled}
+      calls={calls}
+      loading={loading}
       onOpenCall={callId => {
         void navigate({ to: "/agents/calls/$callId", params: { callId } });
       }}
@@ -373,9 +377,9 @@ export function AssistantMessageTimeline() {
   const { goal, rows, timelineStore } = useAssistantMessageTimeline();
 
   return (
-    <TimelineRowContext.Provider value={timelineStore}>
+    <TimelineRowContext value={timelineStore}>
       {goal ? <GoalPromptNotice goal={goal} /> : null}
       {renderTimelineRows(rows)}
-    </TimelineRowContext.Provider>
+    </TimelineRowContext>
   );
 }

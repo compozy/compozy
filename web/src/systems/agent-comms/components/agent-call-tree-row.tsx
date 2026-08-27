@@ -62,6 +62,7 @@ export function AgentCallTreeRow({
 }: AgentCallTreeRowProps) {
   const { call } = row;
   const agentName = call.agent ?? call.call_id;
+  const stat = trailingStat(row);
   return (
     <span
       data-testid={testId}
@@ -83,11 +84,8 @@ export function AgentCallTreeRow({
         <AgentChildStatePill data-testid="agent-call-tree-child-state" state={childState} />
       ) : null}
       <span className="flex-1" />
-      <span
-        className="max-w-48 shrink-0 truncate font-mono text-form text-muted"
-        title={trailingStat(row)}
-      >
-        {trailingStat(row)}
+      <span className="max-w-48 shrink-0 truncate font-mono text-form text-muted" title={stat}>
+        {stat}
       </span>
       <Time iso={call.updated_at} className="shrink-0 text-form text-muted" />
     </span>

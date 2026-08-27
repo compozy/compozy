@@ -20,6 +20,13 @@ describe("session worktree scoping", () => {
     expect(sessionKeys.list(filters)).not.toEqual(sessionKeys.list({ workspace_id: "ws_alpha" }));
   });
 
+  it("Should keep an explicit empty workspace pin instead of widening to every workspace", () => {
+    expect(normalizeSessionListFilters({ workspace_id: "" })).toEqual({ workspace_id: "" });
+    expect(normalizeSessionListFilters({ all_workspaces: true })).toMatchObject({
+      all_workspaces: true,
+    });
+  });
+
   it("Should drop a blank governed root instead of widening with an empty value", () => {
     expect(
       normalizeSessionListFilters({ workspace_id: "ws_alpha", root: "   " })

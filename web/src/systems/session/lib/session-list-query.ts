@@ -9,9 +9,12 @@ function normalizedText(value: string | undefined): string | undefined {
 
 export function normalizeSessionListFilters(filters: SessionListFilters = {}): SessionListFilters {
   const workspaceId = normalizedText(filters.workspace_id);
+  const hasWorkspaceKey = Object.hasOwn(filters, "workspace_id");
   const normalized: SessionListFilters = workspaceId
     ? { workspace_id: workspaceId }
-    : { all_workspaces: true };
+    : filters.all_workspaces === true || !hasWorkspaceKey
+      ? { all_workspaces: true }
+      : { workspace_id: "" };
   const agent = normalizedText(filters.agent);
   const search = normalizedText(filters.q);
   // Server-side scoping: a worktree selection filters on the bound worktree id

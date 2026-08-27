@@ -143,24 +143,23 @@ describe("call query options", () => {
     expect(callCountOptions(SCOPE, {}, false).refetchInterval).toBe(false);
   });
 
-  it("Should keep a referenced invocation fresh until its call settles", () => {
-    const interval = callDetailOptions(SCOPE, "call_1", false, true, true).refetchInterval;
-    expect(interval).toBeTypeOf("function");
-    if (typeof interval !== "function") return;
+  it("Should poll a live detail until the call settles, and stay still when the window is not live", () => {
+    const idle = callDetailOptions(SCOPE, "call_1", false).refetchInterval;
+    expect(idle).toBeTypeOf("function");
+    if (typeof idle !== "function") return;
+    expect(idle({ state: { data: { state: "running" }, error: null } } as never)).toBe(false);
+    expect(idle({ state: { data: { state: "completed" }, error: null } } as never)).toBe(false);
 
-    expect(interval({ state: { data: { state: "running" }, error: null } } as never)).toBe(5_000);
-    expect(interval({ state: { data: { state: "completed" }, error: null } } as never)).toBe(false);
-    expect(interval({ state: { data: undefined, error: new Error("offline") } } as never)).toBe(
-      false
-    );
-
-    const liveInterval = callDetailOptions(SCOPE, "call_1", true, true, true).refetchInterval;
+    const liveInterval = callDetailOptions(SCOPE, "call_1", true).refetchInterval;
     expect(liveInterval).toBeTypeOf("function");
     if (typeof liveInterval !== "function") return;
     expect(liveInterval({ state: { data: { state: "running" }, error: null } } as never)).toBe(
       5_000
     );
     expect(liveInterval({ state: { data: { state: "completed" }, error: null } } as never)).toBe(
+      false
+    );
+    expect(liveInterval({ state: { data: undefined, error: new Error("offline") } } as never)).toBe(
       false
     );
   });

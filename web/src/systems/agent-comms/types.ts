@@ -6,8 +6,8 @@
  * from `operations[...]` through the shared contract helpers — nothing here is
  * hand-mirrored, and a daemon-side rename breaks the build rather than drifting.
  *
- * Only the closed view unions at the bottom are declared locally: they are the
- * `_dx.md` vocabulary, which the wire carries as bare `string`.
+ * `CHILD_STATES` is the only local view union: the wire has no `child_state`
+ * field yet, so the web must not invent parked/gone from session stop reasons.
  */
 import type { OperationQuery, OperationRequestBody, OperationResponse } from "@/lib/api-contract";
 
@@ -71,40 +71,52 @@ export type SendCallMessageResponse = OperationResponse<"sendCallMessageWorkspac
 
 export type StopSessionDrainResponse = OperationResponse<"stopSession", 200>;
 
-// --- View unions (the `_dx.md` vocabulary) ----------------------------------
+// --- Closed contract unions -------------------------------------------------
 
-/**
- * A call is always in exactly one of these nine. The wire types them as
- * `string`; `toCallState` in `lib/call-state.ts` is the only narrowing seam.
- */
-export const CALL_STATES = [
-  "queued",
-  "running",
-  "completed",
-  "invalid-result",
-  "completed-without-result",
-  "failed",
-  "canceled",
-  "timeout",
-  "expired",
-] as const;
-
-export type CallState = (typeof CALL_STATES)[number];
+/** Nine call states, taken from the list item the daemon already closes. */
+export type CallState = CallPayload["state"];
 
 /** How an admitted result arrived. `extracted` never renders as `returned`. */
-export const CALL_VERDICTS = ["returned", "extracted", "repaired"] as const;
+export type CallVerdict = NonNullable<CallPayload["verdict"]>;
 
-export type CallVerdict = (typeof CALL_VERDICTS)[number];
+/** The public delivery receipts. The runtime does not model read/seen. */
+export type CallDelivery = SendCallMessageResponse["delivery"];
+
+const CALL_STATE_BY_VALUE = {
+  queued: "queued",
+  running: "running",
+  completed: "completed",
+  "invalid-result": "invalid-result",
+  "completed-without-result": "completed-without-result",
+  failed: "failed",
+  canceled: "canceled",
+  timeout: "timeout",
+  expired: "expired",
+} as const satisfies Record<CallState, CallState>;
+
+export const CALL_STATES = Object.values(CALL_STATE_BY_VALUE);
+
+const CALL_VERDICT_BY_VALUE = {
+  returned: "returned",
+  extracted: "extracted",
+  repaired: "repaired",
+} as const satisfies Record<CallVerdict, CallVerdict>;
+
+export const CALL_VERDICTS = Object.values(CALL_VERDICT_BY_VALUE);
+
+const CALL_DELIVERY_BY_VALUE = {
+  "delivered-into-turn": "delivered-into-turn",
+  woke: "woke",
+  queued: "queued",
+  failed: "failed",
+} as const satisfies Record<CallDelivery, CallDelivery>;
+
+export const CALL_DELIVERIES = Object.values(CALL_DELIVERY_BY_VALUE);
 
 /**
- * The public delivery receipts. Internal transport states never surface, and no
- * read/seen state exists anywhere — the runtime does not model one.
+ * View vocabulary only. The daemon does not project `child_state` on a call,
+ * so consumers must leave the map empty rather than guessing from stop reasons.
  */
-export const CALL_DELIVERIES = ["delivered-into-turn", "woke", "queued", "failed"] as const;
-
-export type CallDelivery = (typeof CALL_DELIVERIES)[number];
-
-/** A child session is working, resting, or gone. There is no fourth. */
 export const CHILD_STATES = ["running", "parked", "gone"] as const;
 
 export type ChildState = (typeof CHILD_STATES)[number];

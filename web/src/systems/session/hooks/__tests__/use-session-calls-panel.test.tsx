@@ -9,36 +9,44 @@ import { buildCallFixture, completedCallFixture } from "@/systems/agent-comms/mo
 
 import { useSessionCallsPanel } from "../use-session-calls-panel";
 
-const { catalogRef, madeCallsRef, receivedCallsRef, querySpies, optionSpies } = vi.hoisted(() => ({
-  catalogRef: {
-    current: {
-      data: undefined as { id: string }[] | undefined,
-      hasNextPage: false,
-      isError: false,
+const { catalogRef, sessionRef, madeCallsRef, receivedCallsRef, querySpies, optionSpies } =
+  vi.hoisted(() => ({
+    catalogRef: {
+      current: {
+        data: undefined as { sessions: { id: string }[] } | undefined,
+        isSuccess: false,
+        isError: false,
+        isPending: false,
+      },
     },
-  },
-  madeCallsRef: { current: [] as unknown[] },
-  receivedCallsRef: { current: [] as unknown[] },
-  querySpies: {
-    madeLoadMore: vi.fn(),
-    madeRetry: vi.fn(),
-    receivedLoadMore: vi.fn(),
-    receivedRetry: vi.fn(),
-  },
-  optionSpies: {
-    list: vi.fn(
-      (
-        _scope: unknown,
-        filter: { caller?: string; child_session_id?: string },
-        live: boolean,
-        enabled: boolean
-      ) => ({ ...filter, live, enabled })
-    ),
-    count: vi.fn(
-      (_scope: unknown, _filter: unknown, _options: { enabled: boolean; live: boolean }) => 0
-    ),
-  },
-}));
+    sessionRef: {
+      current: {
+        data: undefined as { lineage?: { root_session_id?: string } } | undefined,
+      },
+    },
+    madeCallsRef: { current: [] as unknown[] },
+    receivedCallsRef: { current: [] as unknown[] },
+    querySpies: {
+      madeLoadMore: vi.fn(),
+      madeRetry: vi.fn(),
+      receivedLoadMore: vi.fn(),
+      receivedRetry: vi.fn(),
+    },
+    optionSpies: {
+      list: vi.fn(
+        (
+          _scope: unknown,
+          filter: { caller?: string; child_session_id?: string },
+          live: boolean,
+          enabled: boolean
+        ) => ({ ...filter, live, enabled })
+      ),
+      count: vi.fn(
+        (_scope: unknown, _filter: unknown, _options: { enabled: boolean; live: boolean }) => 0
+      ),
+      complete: vi.fn((filters: unknown) => ({ complete: true, filters })),
+    },
+  }));
 
 vi.mock("@tanstack/react-query", () => ({
   useInfiniteQuery: (filter: { caller?: string }) => {
@@ -54,6 +62,10 @@ vi.mock("@tanstack/react-query", () => ({
       refetch: made ? querySpies.madeRetry : querySpies.receivedRetry,
     };
   },
+  useQuery: (options: { complete?: boolean }) => {
+    if (options.complete) return catalogRef.current;
+    return sessionRef.current;
+  },
 }));
 
 vi.mock("@/systems/agent-comms", () => ({
@@ -63,6 +75,7 @@ vi.mock("@/systems/agent-comms", () => ({
     workspaceId: "ws_main",
     profileKey: "profile:default",
     actingProfile: "default",
+    params: { profile: "default" },
     profileScope: { profile: "default" },
   }),
   useCallCount: (
@@ -75,8 +88,12 @@ vi.mock("@/systems/agent-comms", () => ({
   },
 }));
 
+vi.mock("../../lib/query-options", () => ({
+  sessionsCompleteListOptions: (filters: unknown) => optionSpies.complete(filters),
+}));
+
 vi.mock("../use-sessions", () => ({
-  useSessions: () => catalogRef.current,
+  useSession: () => sessionRef.current,
 }));
 
 describe("useSessionCallsPanel — retained counterpart availability", () => {
@@ -95,10 +112,14 @@ describe("useSessionCallsPanel — retained counterpart availability", () => {
         root_session_id: rootSessionId,
       }),
     ];
+    sessionRef.current = {
+      data: { lineage: { root_session_id: rootSessionId } },
+    };
     catalogRef.current = {
-      data: [{ id: rootSessionId }],
-      hasNextPage: false,
+      data: { sessions: [{ id: rootSessionId }] },
+      isSuccess: true,
       isError: false,
+      isPending: false,
     };
   });
 
@@ -162,17 +183,27 @@ describe("useSessionCallsPanel — retained counterpart availability", () => {
     expect(result.current.prunedSessionIds).toEqual(new Set([childSessionId, callerSessionId]));
   });
 
-  it("Should fail open while the catalog is incomplete", () => {
-    catalogRef.current = { data: [{ id: rootSessionId }], hasNextPage: true, isError: false };
+  it("Should fail open while the catalog is pending", () => {
+    catalogRef.current = { data: undefined, isSuccess: false, isError: false, isPending: true };
 
     const { result } = renderHook(() => useSessionCallsPanel(rootSessionId));
     expect(result.current.prunedSessionIds).toEqual(new Set());
   });
 
   it("Should fail open when the catalog read errors", () => {
-    catalogRef.current = { data: undefined, hasNextPage: false, isError: true };
+    catalogRef.current = { data: undefined, isSuccess: false, isError: true, isPending: false };
 
     const { result } = renderHook(() => useSessionCallsPanel(rootSessionId));
     expect(result.current.prunedSessionIds).toEqual(new Set());
+  });
+
+  it("Should pin the counterpart catalog to the session lineage root and workspace", () => {
+    renderHook(() => useSessionCallsPanel(rootSessionId));
+
+    expect(optionSpies.complete).toHaveBeenCalledWith({
+      workspace_id: "ws_main",
+      root: rootSessionId,
+      profile: "default",
+    });
   });
 });

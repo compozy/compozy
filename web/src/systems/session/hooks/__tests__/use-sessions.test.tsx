@@ -250,6 +250,14 @@ describe("useSessions", () => {
 
     expect(fetchSessions).not.toHaveBeenCalled();
   });
+
+  it("does not widen an empty workspace into every workspace", async () => {
+    renderHook(() => useSessions(""), {
+      wrapper: createWrapper(),
+    });
+
+    expect(fetchSessions).not.toHaveBeenCalled();
+  });
 });
 
 describe("session event query identity", () => {

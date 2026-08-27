@@ -8,18 +8,17 @@
  * single-owner: the shell already holds that socket, and a second subscriber's
  * unmount would close it.
  *
- * It also issues the per-tree count probes. Each is a `limit=1` filtered read
- * whose only product is the daemon's `total`, so a tree header can say "3 calls ·
- * 2 running" from real numbers instead of counting the rows on screen.
+ * Per-tree counts come from the already-loaded tree rows, or from the daemon's
+ * scoped `total` when Activity is already filtered to one root. Incomplete
+ * workspace pages do not invent exact per-root totals.
  */
 import { useNavigate } from "@tanstack/react-router";
 
 import {
+  countsForTreeGroups,
   isAgentCommsApiError,
   useAgentCommsActivity,
-  useCallCounts,
   useCallMutations,
-  type CallTreeGroupCounts,
 } from "@/systems/agent-comms";
 import { useSessionCatalogStreamStatus } from "@/systems/session";
 
@@ -37,35 +36,11 @@ export function useAgentsActivity(windowId: string, search: AgentActivitySearch 
   });
   const mutations = useCallMutations(activity.scope);
 
-  const rootSessionIds = activity.tree.groups.map(group => group.rootSessionId);
-
-  // One probe per rendered tree per facet. They key separately from the row
-  // pages, so refreshing a header never evicts the rows underneath it.
-  const countFacets = rootSessionIds.flatMap(rootSessionId => [
-    { key: `${rootSessionId}:total` as const, filter: { root_session_id: rootSessionId } },
-    {
-      key: `${rootSessionId}:running` as const,
-      filter: { root_session_id: rootSessionId, state: "running" },
-    },
-    {
-      key: `${rootSessionId}:needsYou` as const,
-      filter: { root_session_id: rootSessionId, attention: true },
-    },
-  ]);
-  const counts = useCallCounts(activity.scope, countFacets, { live });
-
-  const countsByRoot = new Map<string, CallTreeGroupCounts>();
-  rootSessionIds.forEach(rootSessionId => {
-    countsByRoot.set(rootSessionId, {
-      total: counts[`${rootSessionId}:total`],
-      running: counts[`${rootSessionId}:running`],
-      needsYou: counts[`${rootSessionId}:needsYou`],
-    });
+  const countsByRoot = countsForTreeGroups(activity.tree.groups, {
+    complete: !activity.hasMore,
+    ...(search.root && activity.total !== undefined ? { scopedTotal: activity.total } : {}),
   });
 
-  // Each tree names the children its rows point at, so the catalog read knows
-  // who to expect — which is the only way a child that is *missing* can be
-  // reported as gone rather than silently omitted.
   const rootChildren = activity.tree.groups.map(group => {
     const childSessionIds: string[] = [];
     for (const row of group.rows) {

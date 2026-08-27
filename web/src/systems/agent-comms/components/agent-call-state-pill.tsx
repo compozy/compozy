@@ -11,6 +11,7 @@
  */
 import { Pill, TypingDots, type PillTone } from "@compozy/ui";
 
+import { CALL_DELIVERY_GLYPH, CALL_STATE_GLYPH, CHILD_STATE_GLYPH } from "../lib/call-state-glyphs";
 import {
   CALL_DELIVERY_SIGNAL,
   CALL_STATE_SIGNAL,
@@ -47,7 +48,7 @@ export function AgentCallStatePill({
     );
   }
   const signal = CALL_STATE_SIGNAL[state];
-  const Glyph = signal.glyph;
+  const Glyph = CALL_STATE_GLYPH[state];
   return (
     <Pill tone={signal.tone} size="xs" mono data-testid={testId} data-state={state}>
       <Glyph className="size-3" aria-hidden="true" />
@@ -112,7 +113,7 @@ export function AgentMessageDeliveryPill({
     );
   }
   const signal = CALL_DELIVERY_SIGNAL[delivery];
-  const Glyph = signal.glyph;
+  const Glyph = CALL_DELIVERY_GLYPH[delivery];
   return (
     <Pill tone={signal.tone} size="xs" mono data-testid={testId} data-delivery={delivery}>
       <Glyph className="size-3" aria-hidden="true" />
@@ -136,7 +137,7 @@ export function AgentChildStatePill({
   "data-testid"?: string;
 }) {
   const signal = CHILD_STATE_SIGNAL[state];
-  const Glyph = signal.glyph;
+  const Glyph = CHILD_STATE_GLYPH[state];
   const tone: PillTone = signal.tone;
   return (
     <Pill tone={tone} size="xs" mono data-testid={testId} data-child-state={state}>

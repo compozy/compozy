@@ -107,15 +107,21 @@ describe("useAgentCall — reading one call", () => {
     );
   });
 
-  it("Should distinguish a failed recent-call read from an empty history", async () => {
+  it("Should not issue a recent-call roster read from call-again", async () => {
     recentCallsFail = true;
     const { result } = setup(completedCallFixture.call_id);
 
     await waitFor(() => expect(result.current.view).not.toBeNull());
-    await waitFor(() => expect(result.current.compose.recentCallsError).not.toBeNull());
 
-    expect(result.current.compose.recentCallsPending).toBe(false);
+    expect(result.current.compose.recentCallsError).toBeNull();
     expect(result.current.compose.recentCalls).toEqual([]);
+    expect(
+      requests.some(
+        url =>
+          url.pathname === `/api/workspaces/${callFixtureWorkspaceId}/calls` &&
+          url.searchParams.get("agent") === completedCallFixture.agent
+      )
+    ).toBe(false);
   });
 });
 
@@ -174,7 +180,9 @@ describe("useAgentCall — Call again", () => {
 
     expect(result.current.compose.accepted).toBeNull();
     expect(result.current.compose.failure?.code).toBe("call_expect_required");
-    expect(requests.some(url => url.pathname.endsWith("/calls") && url.search !== "")).toBe(true);
+    expect(
+      requests.some(url => url.pathname === `/api/workspaces/${callFixtureWorkspaceId}/calls`)
+    ).toBe(false);
   });
 
   it("Should accept the repeat once a contract is supplied", async () => {

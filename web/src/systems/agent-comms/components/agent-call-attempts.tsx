@@ -28,12 +28,14 @@ export interface AgentCallAttemptsProps {
  * line. Splitting on newlines keeps each pointer on its own row without
  * reformatting any of them.
  */
+const ISSUE_LINE = /^(?:[-*]\s*)?(?:\$|\/)[^:]*:\s*\S/;
+
 function issueLines(text: string | null | undefined): string[] {
   if (!text) return [];
   return text
     .split("\n")
     .map(line => line.trim())
-    .filter(line => /^(?:[-*]\s*)?(?:\$|\/)[^:]*:\s*\S/.test(line));
+    .filter(line => ISSUE_LINE.test(line));
 }
 
 function Attempt({

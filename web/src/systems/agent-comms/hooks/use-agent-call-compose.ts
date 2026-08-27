@@ -13,6 +13,7 @@ import { useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 
 import { agentCommsErrorCode, isAgentCommsApiError } from "../adapters/agent-comms-api";
+import { callCreateFailureCopy } from "../lib/call-failure-copy";
 import { parseExpectDraft } from "../lib/expect-draft";
 import { callsListOptions } from "../lib/query-options";
 import { useAgentCommsScope } from "./use-agent-comms-scope";
@@ -24,21 +25,6 @@ import type { CallPayload } from "../types";
 const RECENT_CALLS_LIMIT = 10;
 
 const ACTIVE_STATES = "queued,running";
-
-/** Plain-language recovery per typed refusal; the code renders beside it. */
-const CALL_FAILURE_COPY: Record<string, string> = {
-  call_expect_invalid:
-    "That answer shape isn't usable. Provide an example of the answer, or a full JSON Schema.",
-  call_agent_unknown: "There is no agent by that name here.",
-  call_prompt_empty: "A call always carries work — say what you want done.",
-  call_target_expired:
-    "That helper sat idle past its limit and left. Calling the agent again starts a fresh one.",
-  call_children_cap: "This caller already has as many helpers as it may run at once.",
-  call_depth_exceeded: "Delegation is already as deep as it goes here.",
-  call_workspace_denied: "That agent belongs to another workspace.",
-};
-
-const FALLBACK_FAILURE_COPY = "The call was not accepted.";
 
 export interface UseAgentCallComposeOptions {
   live?: boolean;
@@ -59,6 +45,11 @@ export interface UseAgentCallComposeOptions {
   initialPrompt?: string;
   /** The prior call had a contract that cannot be reconstructed from its digest. */
   contractRequired?: boolean;
+  /**
+   * Recent-calls list and active-instance count. Agent detail needs them;
+   * call-again does not.
+   */
+  roster?: boolean;
 }
 
 export interface AgentCallComposeModel {
@@ -82,7 +73,13 @@ export function useAgentCallCompose(
   agentName: string,
   options: UseAgentCallComposeOptions = {}
 ): AgentCallComposeModel {
-  const { live = false, targetSessionId = null, initialPrompt, contractRequired = false } = options;
+  const {
+    live = false,
+    targetSessionId = null,
+    initialPrompt,
+    contractRequired = false,
+    roster = true,
+  } = options;
   const scope = useAgentCommsScope();
   const mutations = useCallMutations(scope);
   const [prompt, setPrompt] = useState("");
@@ -98,24 +95,23 @@ export function useAgentCallCompose(
     setPrompt(initialPrompt);
   }
 
-  const enabled = agentName !== "";
+  const rosterEnabled = roster && agentName !== "";
   const recent = useInfiniteQuery(
-    callsListOptions(scope, { agent: agentName, limit: RECENT_CALLS_LIMIT }, live, enabled)
+    callsListOptions(scope, { agent: agentName, limit: RECENT_CALLS_LIMIT }, live, rosterEnabled)
   );
   const activeInstances = useCallCount(
     scope,
     { agent: agentName, state: ACTIVE_STATES },
-    { live, enabled }
+    { live, enabled: rosterEnabled }
   );
 
   const remoteFailure = (() => {
     const error = mutations.create.error;
     if (!error) return null;
-    const code = agentCommsErrorCode(error);
     const raw = isAgentCommsApiError(error) ? error.code : null;
     return {
       code: raw ?? "call_rejected",
-      message: (code && CALL_FAILURE_COPY[code]) || FALLBACK_FAILURE_COPY,
+      message: callCreateFailureCopy(agentCommsErrorCode(error)),
     };
   })();
 
