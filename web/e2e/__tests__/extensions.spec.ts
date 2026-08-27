@@ -304,6 +304,7 @@ test.describe("Profile-aware extension management", () => {
     let palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
     await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
     await appPage.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
 
     await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
       body: JSON.stringify({ enabled: false, profile: "growth" }),
@@ -319,6 +320,7 @@ test.describe("Profile-aware extension management", () => {
     palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
     await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toHaveCount(0);
     await appPage.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
 
     await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
       body: JSON.stringify({ enabled: true, profile: "growth" }),
@@ -408,12 +410,11 @@ test.describe("Profile-aware extension management", () => {
 async function openAndFillCommandPalette(page: Page, query: string): Promise<Locator> {
   const palette = commandPalette(page);
   const trigger = page.getByRole("button", { name: "Command palette", exact: true });
-  await expect(async () => {
-    if (!(await palette.isVisible().catch(() => false))) await trigger.click();
-    await expect(palette).toBeVisible({ timeout: 2_000 });
-    const input = palette.getByRole("combobox");
-    await input.fill(query, { timeout: 2_000 });
-    await expect(input).toHaveValue(query);
-  }).toPass({ timeout: 20_000 });
+  await expect(palette).toHaveCount(0);
+  await trigger.click();
+  await expect(palette).toBeVisible();
+  const input = palette.getByRole("combobox");
+  await input.fill(query);
+  await expect(input).toHaveValue(query);
   return palette;
 }

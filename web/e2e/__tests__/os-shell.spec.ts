@@ -3041,39 +3041,37 @@ test("E2E-023: the 12-window envelope holds for drag frames, restore, and conver
       width: 0.38,
       height: 0.46,
     });
-    for (const peer of [peerA, peerB]) {
+    const peers = [peerA, peerB];
+    for (const peer of peers) {
       await expect
         .poll(() =>
           windowMatchesAuthority(peer, appWindow(peer, "sandbox"), runtime, workspace.id, sandboxID)
         )
         .toBe(true);
       await waitForLongTaskQuiet(peer);
-      await peer.evaluate(() => {
-        const tasks: number[] = [];
-        Reflect.set(window, "__osLongTasks", tasks);
-        new PerformanceObserver(list => {
-          for (const entry of list.getEntries()) tasks.push(entry.duration);
-        }).observe({ type: "longtask", buffered: false });
-      });
     }
-    await moveWindowFromCLI(runtime, workspace.id, sandboxID, "desktop-default", {
+    const measuredRect: NormalizedRect = {
       x: 0.32,
       y: 0.24,
       width: 0.38,
       height: 0.46,
-    });
-    for (const peer of [peerA, peerB]) {
-      await expect
-        .poll(() =>
-          windowMatchesAuthority(peer, appWindow(peer, "sandbox"), runtime, workspace.id, sandboxID)
-        )
-        .toBe(true);
-    }
-    const peerLongTasks = await Promise.all(
-      [peerA, peerB].map(peer =>
-        peer.evaluate(() => Reflect.get(window, "__osLongTasks") as number[])
-      )
+    };
+    await Promise.all(
+      peers.map(peer => installPeerConvergenceProbe(peer, sandboxID, measuredRect))
     );
+    await moveWindowFromCLI(runtime, workspace.id, sandboxID, "desktop-default", measuredRect);
+    const peerLongTasks = await Promise.all(peers.map(readPeerConvergenceProbe));
+    for (const peer of peers) {
+      expect(
+        await windowMatchesAuthority(
+          peer,
+          appWindow(peer, "sandbox"),
+          runtime,
+          workspace.id,
+          sandboxID
+        )
+      ).toBe(true);
+    }
     worstPeerTask = Math.max(0, ...peerLongTasks.flat());
   } finally {
     await peerA.context().close();
@@ -3148,6 +3146,81 @@ async function waitForLongTaskQuiet(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const settle = Reflect.get(window, "__osSettle") as { last: number };
     return performance.now() - settle.last > 600;
+  });
+}
+
+async function installPeerConvergenceProbe(
+  page: Page,
+  windowId: string,
+  target: NormalizedRect
+): Promise<void> {
+  await page.evaluate(
+    ({ target, windowId }) => {
+      const surface = document.querySelector<HTMLElement>(
+        `[data-testid="${CSS.escape(`os-window-${windowId}`)}"]`
+      );
+      const frame = surface?.closest<HTMLElement>('[data-slot="os-window-frame"]');
+      const layer = document.querySelector<HTMLElement>('[data-slot="os-win-layer"]');
+      const host = frame?.parentElement;
+      if (!frame || !host || !layer) {
+        throw new Error(`window ${windowId} and its layer must be mounted before measurement`);
+      }
+
+      const tasks: number[] = [];
+      const longTasks = new PerformanceObserver(list => {
+        for (const entry of list.getEntries()) tasks.push(entry.duration);
+      });
+      longTasks.observe({ type: "longtask", buffered: false });
+
+      let resolveProbe: (durations: number[]) => void = () => {};
+      const result = new Promise<number[]>(resolve => {
+        resolveProbe = resolve;
+      });
+      Reflect.set(window, "__osPeerConvergence", result);
+
+      const matchesTarget = () => {
+        const frameBox = frame.getBoundingClientRect();
+        const layerBox = layer.getBoundingClientRect();
+        const actual = {
+          x: Math.round(frameBox.x - layerBox.x),
+          y: Math.round(frameBox.y - layerBox.y),
+          width: Math.round(frameBox.width),
+          height: Math.round(frameBox.height),
+        };
+        const expected = {
+          x: Math.round(target.x * layerBox.width),
+          y: Math.round(target.y * layerBox.height),
+          width: Math.round(target.width * layerBox.width),
+          height: Math.round(target.height * layerBox.height),
+        };
+        return Object.keys(expected).every(key => {
+          const dimension = key as keyof typeof expected;
+          return Math.abs(actual[dimension] - expected[dimension]) <= 2;
+        });
+      };
+
+      const mutations = new MutationObserver(() => {
+        if (!matchesTarget()) return;
+        mutations.disconnect();
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            for (const entry of longTasks.takeRecords()) tasks.push(entry.duration);
+            longTasks.disconnect();
+            resolveProbe(tasks);
+          });
+        });
+      });
+      mutations.observe(host, { attributes: true, attributeFilter: ["style"] });
+    },
+    { target, windowId }
+  );
+}
+
+async function readPeerConvergenceProbe(page: Page): Promise<number[]> {
+  return await page.evaluate(async () => {
+    const result = Reflect.get(window, "__osPeerConvergence") as Promise<number[]> | undefined;
+    if (!result) throw new Error("peer convergence probe must be installed before it is read");
+    return await result;
   });
 }
 
