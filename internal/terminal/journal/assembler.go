@@ -25,17 +25,37 @@ type commandAssembly struct {
 
 // RegisterTerminal creates the bounded writer lane before terminal bytes flow.
 func (s *Service) RegisterTerminal(
+	ctx context.Context,
 	info terminalpkg.Info,
 	setBlocked func(bool),
 	emit func(terminalpkg.Event),
 ) {
-	if s == nil || info.ID == "" {
+	if s == nil || ctx == nil || info.ID == "" {
 		return
 	}
-	s.ensureLane(info, setBlocked, emit)
+	s.ensureLane(ctx, info, setBlocked, emit)
+}
+
+// CloseTerminal flushes and removes the writer lane owned by one terminal.
+func (s *Service) CloseTerminal(ctx context.Context, info terminalpkg.Info) error {
+	if s == nil {
+		return nil
+	}
+	key := terminalLaneKey(info)
+	s.mu.Lock()
+	lane := s.lanes[key]
+	if lane != nil {
+		delete(s.lanes, key)
+	}
+	s.mu.Unlock()
+	if lane == nil {
+		return nil
+	}
+	return lane.close(ctx)
 }
 
 func (s *Service) ensureLane(
+	ctx context.Context,
 	info terminalpkg.Info,
 	setBlocked func(bool),
 	emit func(terminalpkg.Event),
@@ -46,7 +66,7 @@ func (s *Service) ensureLane(
 	if lane := s.lanes[key]; lane != nil {
 		return lane, false
 	}
-	lane := newTerminalLane(s, info, setBlocked, emit)
+	lane := newTerminalLane(ctx, s, info, setBlocked, emit)
 	s.lanes[key] = lane
 	return lane, true
 }
@@ -56,13 +76,16 @@ func (s *Service) ConsumeMarkerFacts(
 	_ context.Context,
 	info terminalpkg.Info,
 	facts []terminalpkg.MarkerFacts,
-) {
+) error {
 	if s == nil || len(facts) == 0 {
-		return
+		return nil
 	}
 	lane := s.lane(info)
 	if lane == nil {
-		return
+		return &terminalpkg.Error{
+			Code: "journal_unavailable", Message: "terminal journal lane is unavailable",
+			Err: terminalpkg.ErrJournalUnavailable,
+		}
 	}
 	for _, fact := range facts {
 		switch fact.Kind {
@@ -71,7 +94,7 @@ func (s *Service) ConsumeMarkerFacts(
 			id, err := randomCommandID()
 			if err != nil {
 				s.logger.Error("terminal journal: generate command id", "terminal_id", info.ID, "error", err)
-				lane.setAuditBlocked(true)
+				lane.setAuditBlocked()
 				continue
 			}
 			lane.setAssembly(commandAssembly{
@@ -92,6 +115,7 @@ func (s *Service) ConsumeMarkerFacts(
 			lane.finishAssembly(fact.Exit, s.now())
 		}
 	}
+	return nil
 }
 
 func (l *terminalLane) finishAssembly(exitCode *int, finishedAt time.Time) {

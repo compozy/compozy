@@ -48,7 +48,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		return nil, err
 	}
 	openRequest := OpenRequest{WS: workspaceID, Actor: request.Actor}
-	releaseAdmission, err := m.reserveAdmission(openRequest, settings)
+	releaseAdmission, err := m.reserveAdmission(ctx, openRequest, settings)
 	if err != nil {
 		return nil, err
 	}
@@ -75,10 +75,10 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
-	item := newSession(m, proc, info, settings, nonce, profileName, 80, 24, true)
+	item := newSession(ctx, m, proc, info, settings, nonce, profileName, 80, 24, true)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
-		return nil, errors.Join(err, cleanupUnregisteredProcess(proc))
+		return nil, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
 	}
 	item.processRecord = processRecord
 	key := terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id}
@@ -99,6 +99,9 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 
 // Release closes and immediately forgets a consumer-owned terminal.
 func (m *Service) Release(ctx context.Context, workspaceID, profileID string, id ID, actor Actor) error {
+	if err := requestContextError(ctx, "release"); err != nil {
+		return err
+	}
 	if actor.ProfileID != profileID {
 		return &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 	}

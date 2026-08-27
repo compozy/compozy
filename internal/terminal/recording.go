@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -64,7 +65,16 @@ func (r *activeRecording) contents() []byte {
 	return append([]byte(nil), r.buffer.Bytes()...)
 }
 
-func (s *session) startRecording(actor Actor) (RecordingRef, error) {
+func (s *session) startRecording(ctx context.Context, actor Actor) (RecordingRef, error) {
+	ref, err := s.beginRecording()
+	if err != nil {
+		return RecordingRef{}, err
+	}
+	s.emitRecordingEvent(ctx, EventKindRecordingStarted, actor, ref, "", false)
+	return ref, nil
+}
+
+func (s *session) beginRecording() (RecordingRef, error) {
 	if !RecordingAvailable(s.Info().Capabilities) {
 		return RecordingRef{}, &Error{
 			Code:    errorCodeRecordingUnavailable,
@@ -103,7 +113,6 @@ func (s *session) startRecording(actor Actor) (RecordingRef, error) {
 	s.recording = recording
 	s.recordingMu.Unlock()
 	ref := RecordingRef{ID: id, TerminalID: info.ID, ProfileID: info.ProfileID, StartedAt: startedAt}
-	s.emitRecordingEvent(EventKindRecordingStarted, actor, ref, "", false)
 	return ref, nil
 }
 
@@ -140,7 +149,7 @@ func (s *session) appendRecording(output []byte) {
 	s.recordingMu.Unlock()
 	info := s.Info()
 	stoppedAt := s.manager.now()
-	s.emitRecordingEvent(EventKindRecordingStopped, Actor{
+	s.emitRecordingEvent(s.ctx, EventKindRecordingStopped, Actor{
 		Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID,
 	}, RecordingRef{
 		ID: recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
@@ -148,7 +157,7 @@ func (s *session) appendRecording(output []byte) {
 	}, "storage_stall", true)
 	s.recordingWG.Go(func() {
 		actor := Actor{Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID}
-		persistCtx, cancel := context.WithTimeout(context.Background(), recordingPersistenceTimeout)
+		persistCtx, cancel := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
 		defer cancel()
 		if _, err := s.persistRecording(persistCtx, actor, recording, "storage_stall", false); err != nil {
 			s.retainFailedRecording(recording)
@@ -184,7 +193,7 @@ func (s *session) persistRecording(
 		}
 	}
 	if ctx == nil {
-		ctx = context.Background()
+		return RecordingRef{}, errors.New("terminal: recording persistence context is required")
 	}
 	info := s.Info()
 	stoppedAt := s.manager.now()
@@ -208,25 +217,32 @@ func (s *session) persistRecording(
 	var err error
 	select {
 	case <-ctx.Done():
-		err = ctx.Err()
+		err = context.Cause(ctx)
 	case outcome := <-result:
 		persisted, err = outcome.ref, outcome.err
 	}
 	if err != nil {
 		if emit {
-			s.emitRecordingEvent(EventKindRecordingStopped, actor, ref, "storage_error", recording.truncated)
+			s.emitRecordingEvent(ctx, EventKindRecordingStopped, actor, ref, "storage_error", recording.truncated)
 		}
 		return RecordingRef{}, fmt.Errorf("terminal: persist recording %q: %w", recording.id, err)
 	}
 	if emit {
-		s.emitRecordingEvent(EventKindRecordingStopped, actor, persisted, reason, recording.truncated)
+		s.emitRecordingEvent(ctx, EventKindRecordingStopped, actor, persisted, reason, recording.truncated)
 	}
 	return persisted, nil
 }
 
-func (s *session) emitRecordingEvent(kind EventKind, actor Actor, ref RecordingRef, reason string, truncated bool) {
+func (s *session) emitRecordingEvent(
+	ctx context.Context,
+	kind EventKind,
+	actor Actor,
+	ref RecordingRef,
+	reason string,
+	truncated bool,
+) {
 	info := s.Info()
-	s.manager.events.Notify(context.Background(), Event{
+	s.manager.events.Notify(ctx, Event{
 		Kind: kind, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: s.profileName,
 		TerminalID: info.ID, Actor: actor, Info: &info, Reason: reason, At: s.manager.now(),
 		Detail: &EventDetail{RecordingID: ref.ID, Digest: ref.Digest, Bytes: ref.Bytes, Truncated: truncated},

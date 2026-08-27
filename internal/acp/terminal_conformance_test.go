@@ -1,19 +1,23 @@
 package acp
 
 // Suite: ACP terminal behavioral conformance.
-// Invariant: the terminal adapters preserve the 64 KiB UTF-8-safe output window,
-// polling lifecycle, permission gate, and network-turn ownership lockdown.
+// Invariant: terminal adapters preserve output bounds, request cancellation,
+// independent cleanup budgets, polling, permissions, and network-turn ownership.
 // Boundary IN: ACP terminal requests. Boundary OUT: shared terminal core.
 
 import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
+	"time"
 	"unicode/utf8"
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 func TestTerminalBehavioralConformance(t *testing.T) {
@@ -25,6 +29,45 @@ func TestTerminalBehavioralConformance(t *testing.T) {
 		assertTerminalNetworkTurnRejectsNonAllowlistedCommands,
 	)
 	t.Run("Should enforce network-turn terminal ownership [IT-011]", assertNetworkTurnTerminalOwnershipGuards)
+	t.Run("Should bound detached terminal lifecycle work", assertBoundedTerminalLifecycleContext)
+	t.Run("Should reject canceled kill output and release before host access", assertCanceledTerminalRequests)
+	t.Run("Should isolate every terminal cleanup and core shutdown budget", assertIndependentCloseAllBudgets)
+}
+
+func assertBoundedTerminalLifecycleContext(t *testing.T) {
+	t.Parallel()
+
+	parent, cancelParent := context.WithDeadline(
+		t.Context(),
+		time.Now().Add(defaultStopTimeout/2),
+	)
+	child, cancelChild := withoutCancelPreservingDeadline(parent)
+	defer cancelParent()
+	defer cancelChild()
+	parentDeadline, parentBounded := parent.Deadline()
+	childDeadline, childBounded := child.Deadline()
+	if !parentBounded || !childBounded || !childDeadline.Equal(parentDeadline) {
+		t.Fatalf(
+			"bounded child deadline = %v/%t, want %v/%t",
+			childDeadline,
+			childBounded,
+			parentDeadline,
+			parentBounded,
+		)
+	}
+	cancelParent()
+	select {
+	case <-child.Done():
+		t.Fatalf("child context canceled by parent: %v", child.Err())
+	default:
+	}
+
+	// Invariant: detached cleanup still receives a finite deadline when its caller supplies none.
+	unboundedChild, cancelUnboundedChild := withoutCancelPreservingDeadline(context.WithoutCancel(t.Context()))
+	defer cancelUnboundedChild()
+	if _, ok := unboundedChild.Deadline(); !ok {
+		t.Fatal("detached terminal lifecycle context has no deadline")
+	}
 }
 
 func assertTerminalOutputWindow(t *testing.T) {
@@ -47,7 +90,7 @@ func assertTerminalOutputWindow(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("handleWaitForTerminalExit() error = %v", err)
 		}
-		output, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+		output, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 			SessionId: "sess-direct", TerminalId: create.TerminalId,
 		})
 		if err != nil {
@@ -84,6 +127,161 @@ func assertTerminalOutputWindow(t *testing.T) {
 		t.Fatalf("zero-limit TerminalOutput = %#v, want empty truncated output", zero)
 	}
 }
+
+func assertCanceledTerminalRequests(t *testing.T) {
+	t.Parallel()
+
+	probe := &canceledTerminalHostProbe{}
+	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+	proc.toolHost = probe
+	cause := errors.New("RPC canceled")
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(cause)
+	for _, request := range []struct {
+		name   string
+		method string
+		params any
+	}{
+		{
+			name: "kill", method: acpsdk.ClientMethodTerminalKill,
+			params: acpsdk.KillTerminalRequest{SessionId: "sess-direct", TerminalId: "term-canceled"},
+		},
+		{
+			name: "output", method: acpsdk.ClientMethodTerminalOutput,
+			params: acpsdk.TerminalOutputRequest{SessionId: "sess-direct", TerminalId: "term-canceled"},
+		},
+		{
+			name: "release", method: acpsdk.ClientMethodTerminalRelease,
+			params: acpsdk.ReleaseTerminalRequest{SessionId: "sess-direct", TerminalId: "term-canceled"},
+		},
+	} {
+		t.Run(request.name, func(t *testing.T) {
+			result, requestErr := proc.handleInbound(ctx, request.method, mustMarshalJSON(request.params))
+			if result != nil || requestErr == nil {
+				t.Fatalf("handleInbound(%s, canceled) = %#v error=%v", request.name, result, requestErr)
+			}
+		})
+	}
+	if probe.killCalls.Load() != 0 || probe.outputCalls.Load() != 0 || probe.releaseCalls.Load() != 0 {
+		t.Fatalf(
+			"canceled host calls = kill %d output %d release %d, want zero",
+			probe.killCalls.Load(), probe.outputCalls.Load(), probe.releaseCalls.Load(),
+		)
+	}
+}
+
+func assertIndependentCloseAllBudgets(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		core := &closeAllTerminalCore{observed: make(chan cleanupContextState, 2)}
+		shutdown := &terminalShutdownProbe{observed: make(chan cleanupContextState, 1)}
+		lifecycle := context.WithValue(t.Context(), acpCleanupContextKey{}, "lifecycle-value")
+		manager := &terminalManager{
+			lifecycle: lifecycle,
+			core:      core,
+			ownedCore: shutdown,
+			terminals: map[string]*managedTerminal{
+				"term-a": {
+					handle: &terminalInfoHandle{info: terminalpkg.Info{
+						ID: "term-a", WS: "workspace-a", ProfileID: "profile-a",
+					}},
+				},
+				"term-b": {
+					handle: &terminalInfoHandle{info: terminalpkg.Info{
+						ID: "term-b", WS: "workspace-a", ProfileID: "profile-a",
+					}},
+				},
+			},
+		}
+		manager.closeAll()
+		first := <-core.observed
+		second := <-core.observed
+		shutdownState := <-shutdown.observed
+		if !errors.Is(first.err, context.DeadlineExceeded) || !first.hasDeadline {
+			t.Fatalf("first terminal cleanup context = %#v, want exhausted bounded context", first)
+		}
+		for name, state := range map[string]cleanupContextState{
+			"second terminal": second,
+			"core shutdown":   shutdownState,
+		} {
+			if state.err != nil || !state.hasDeadline || state.value != "lifecycle-value" {
+				t.Fatalf("%s context = %#v, want active independent bounded context", name, state)
+			}
+		}
+	})
+}
+
+type canceledTerminalHostProbe struct {
+	ToolHost
+	killCalls    atomic.Int32
+	outputCalls  atomic.Int32
+	releaseCalls atomic.Int32
+}
+
+func (p *canceledTerminalHostProbe) KillTerminal(string) error {
+	p.killCalls.Add(1)
+	return nil
+}
+
+func (p *canceledTerminalHostProbe) TerminalOutput(string) (string, error) {
+	p.outputCalls.Add(1)
+	return "unexpected", nil
+}
+
+func (p *canceledTerminalHostProbe) ReleaseTerminal(string) error {
+	p.releaseCalls.Add(1)
+	return nil
+}
+
+type cleanupContextState struct {
+	err         error
+	value       any
+	hasDeadline bool
+}
+
+type acpCleanupContextKey struct{}
+
+func observeACPContext(ctx context.Context) cleanupContextState {
+	_, hasDeadline := ctx.Deadline()
+	return cleanupContextState{
+		err: ctx.Err(), value: ctx.Value(acpCleanupContextKey{}), hasDeadline: hasDeadline,
+	}
+}
+
+type closeAllTerminalCore struct {
+	TerminalHost
+	calls    atomic.Int32
+	observed chan cleanupContextState
+}
+
+func (c *closeAllTerminalCore) Release(
+	ctx context.Context,
+	_ string,
+	_ string,
+	_ terminalpkg.ID,
+	_ terminalpkg.Actor,
+) error {
+	if c.calls.Add(1) == 1 {
+		<-ctx.Done()
+	}
+	c.observed <- observeACPContext(ctx)
+	return ctx.Err()
+}
+
+type terminalShutdownProbe struct {
+	observed chan cleanupContextState
+}
+
+func (p *terminalShutdownProbe) Shutdown(ctx context.Context) error {
+	p.observed <- observeACPContext(ctx)
+	return nil
+}
+
+type terminalInfoHandle struct {
+	terminalpkg.Handle
+	info terminalpkg.Info
+}
+
+func (h *terminalInfoHandle) Info() terminalpkg.Info { return h.info }
 
 func assertTerminalPermissionGate(t *testing.T) {
 	t.Parallel()

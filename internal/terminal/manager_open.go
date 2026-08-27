@@ -10,11 +10,14 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
+
+const processCleanupTimeout = 5 * time.Second
 
 func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error) {
 	if ctx == nil {
@@ -43,7 +46,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 		return nil, err
 	}
 	request.WS = workspaceID
-	releaseAdmission, err := m.reserveAdmission(request, settings)
+	releaseAdmission, err := m.reserveAdmission(ctx, request, settings)
 	if err != nil {
 		return nil, err
 	}
@@ -76,10 +79,11 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
 	}, request.Actor)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
-	item := newSession(m, proc, info, settings, nonce, profileName, cols, rows, strings.TrimSpace(request.Title) != "")
+	titlePinned := strings.TrimSpace(request.Title) != ""
+	item := newSession(ctx, m, proc, info, settings, nonce, profileName, cols, rows, titlePinned)
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
-		cleanupErr := cleanupUnregisteredProcess(proc)
+		cleanupErr := cleanupUnregisteredProcess(ctx, proc)
 		return nil, errors.Join(err, cleanupErr)
 	}
 	item.processRecord = processRecord
@@ -87,11 +91,23 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if err := m.insert(key, item); err != nil {
 		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
 	}
-	m.startOpenedSession(ctx, item, request.Actor, settings.Recording)
+	if err := m.startOpenedSession(ctx, item, request.Actor, settings.Recording); err != nil {
+		m.removeInserted(key, item)
+		item.cancel()
+		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
+	}
 	return item, nil
 }
 
-func (m *Service) startOpenedSession(ctx context.Context, item *session, actor Actor, record bool) {
+func (m *Service) startOpenedSession(ctx context.Context, item *session, actor Actor, record bool) error {
+	var autoRecording RecordingRef
+	if record {
+		var err error
+		autoRecording, err = item.beginRecording()
+		if err != nil {
+			return fmt.Errorf("terminal: start automatic recording: %w", err)
+		}
+	}
 	m.registerJournalTerminal(item)
 	opened := item.Info()
 	m.events.Notify(ctx, Event{
@@ -101,11 +117,10 @@ func (m *Service) startOpenedSession(ctx context.Context, item *session, actor A
 	})
 	if record {
 		autoActor := Actor{Kind: ActorKindSystem, ID: "terminal-auto-recording", ProfileID: opened.ProfileID}
-		if _, err := item.startRecording(autoActor); err != nil {
-			m.logger.Warn("terminal: start automatic recording", "terminal_id", opened.ID, "error", err)
-		}
+		item.emitRecordingEvent(ctx, EventKindRecordingStarted, autoActor, autoRecording, "", false)
 	}
 	item.start()
+	return nil
 }
 
 func ownedInfo(info Info, actor Actor) Info {
@@ -132,7 +147,10 @@ func (m *Service) eventProfileName(ctx context.Context, profileID string) string
 	return name
 }
 
-func (m *Service) reserveAdmission(request OpenRequest, settings Settings) (func(), error) {
+func (m *Service) reserveAdmission(ctx context.Context, request OpenRequest, settings Settings) (func(), error) {
+	if err := requestContextError(ctx, "reserve admission"); err != nil {
+		return nil, err
+	}
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
@@ -164,12 +182,12 @@ func (m *Service) reserveAdmission(request OpenRequest, settings Settings) (func
 	daemonCount += m.pendingDaemon
 	if workspaceCount >= settings.MaxPerWorkspace {
 		m.mu.Unlock()
-		m.emitLimitRejected(request, "workspace", workspaceCount, settings.MaxPerWorkspace)
+		m.emitLimitRejected(ctx, request, "workspace", workspaceCount, settings.MaxPerWorkspace)
 		return nil, limitError(workspaceCount, settings.MaxPerWorkspace, workspaceIDs)
 	}
 	if daemonCount >= settings.MaxPerDaemon {
 		m.mu.Unlock()
-		m.emitLimitRejected(request, "daemon", daemonCount, settings.MaxPerDaemon)
+		m.emitLimitRejected(ctx, request, "daemon", daemonCount, settings.MaxPerDaemon)
 		return nil, limitError(daemonCount, settings.MaxPerDaemon, daemonIDs)
 	}
 	m.pendingByScope[scope]++
@@ -206,8 +224,21 @@ func (m *Service) insert(key terminalKey, item *session) error {
 	return nil
 }
 
-func (m *Service) emitLimitRejected(request OpenRequest, limit string, current, maximum int) {
-	m.events.Notify(context.Background(), Event{
+func (m *Service) removeInserted(key terminalKey, expected *session) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.terminals[key] == expected {
+		delete(m.terminals, key)
+	}
+}
+
+func (m *Service) emitLimitRejected(
+	ctx context.Context,
+	request OpenRequest,
+	limit string,
+	current, maximum int,
+) {
+	m.events.Notify(ctx, Event{
 		Kind: EventKindLimitRejected, WorkspaceID: request.WS, ProfileID: request.Actor.ProfileID,
 		Actor: request.Actor, Detail: &EventDetail{Limit: limit, Current: current, Max: maximum}, At: m.now(),
 	})
@@ -362,13 +393,19 @@ func normalizedDimensions(cols, rows uint16) (uint16, uint16) {
 	return min(cols, 2000), min(rows, 1000)
 }
 
-func cleanupUnregisteredProcess(proc Proc) error {
+func cleanupUnregisteredProcess(ctx context.Context, proc Proc) error {
 	if proc == nil {
 		return nil
 	}
+	cleanupCtx, cancel := boundedCleanupContext(ctx, processCleanupTimeout)
+	defer cancel()
+	return cleanupProcess(cleanupCtx, proc)
+}
+
+func cleanupProcess(ctx context.Context, proc Proc) error {
 	killErr := proc.Kill(terminalpty.SignalKILL)
 	closeErr := proc.Close()
-	_, waitErr := proc.Wait(context.Background())
+	_, waitErr := proc.Wait(ctx)
 	return errors.Join(killErr, closeErr, waitErr)
 }
 
@@ -378,14 +415,22 @@ func cleanupRegisteredProcess(
 	record processCheckpoint,
 	cause error,
 ) error {
-	cleanupErr := cleanupUnregisteredProcess(proc)
+	cleanupCtx, cancelCleanup := boundedCleanupContext(ctx, processCleanupTimeout)
+	cleanupErr := cleanupProcess(cleanupCtx, proc)
+	cancelCleanup()
 	var completeErr error
 	if record != nil {
-		completeErr = record.Complete(context.WithoutCancel(ctx), toolruntime.ProcessCompletion{
+		completeCtx, cancelComplete := boundedCleanupContext(ctx, processCleanupTimeout)
+		completeErr = record.Complete(completeCtx, toolruntime.ProcessCompletion{
 			Err: cause, Error: "terminal startup rollback",
 		})
+		cancelComplete()
 	}
 	return errors.Join(cause, cleanupErr, completeErr)
+}
+
+func boundedCleanupContext(parent context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(parent), timeout)
 }
 
 func validateSettings(settings Settings) error {

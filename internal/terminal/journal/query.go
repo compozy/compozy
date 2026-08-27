@@ -28,7 +28,10 @@ func (s *Service) Query(
 	scope store.ReadScope,
 	query terminalpkg.Query,
 ) (*terminalpkg.Page, error) {
-	if err := scope.Validate(); err != nil || strings.TrimSpace(workspaceID) == "" {
+	if err := scope.Validate(); err != nil {
+		return nil, fmt.Errorf("terminal journal: validate query scope: %w", err)
+	}
+	if strings.TrimSpace(workspaceID) == "" {
 		return &terminalpkg.Page{Entries: []terminalpkg.CommandRow{}}, nil
 	}
 	workspaceID = strings.TrimSpace(workspaceID)

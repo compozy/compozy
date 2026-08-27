@@ -220,21 +220,26 @@ func (h *localToolHost) createTerminal(
 }
 
 func (h *localToolHost) KillTerminal(id string) error {
+	return h.killTerminalWithContext(h.terminals.lifecycle, id)
+}
+
+func (h *localToolHost) killTerminalWithContext(ctx context.Context, id string) error {
 	if err := h.Authorize(permissionCloseTerminal); err != nil {
 		return err
 	}
-	return h.terminals.kill(id)
+	return h.terminals.kill(ctx, id)
 }
 
 func (h *localToolHost) TerminalOutput(id string) (string, error) {
-	output, _, _, err := h.terminalOutputStatus(id)
+	output, _, _, err := h.terminalOutputStatusWithContext(h.terminals.lifecycle, id)
 	return output, err
 }
 
-func (h *localToolHost) terminalOutputStatus(
+func (h *localToolHost) terminalOutputStatusWithContext(
+	ctx context.Context,
 	id string,
 ) (string, bool, *acpsdk.TerminalExitStatus, error) {
-	return h.terminals.output(id)
+	return h.terminals.output(ctx, id)
 }
 
 func (h *localToolHost) WaitForTerminalExit(ctx context.Context, id string) (int, error) {
@@ -262,7 +267,11 @@ func (h *localToolHost) waitForTerminalExitStatus(
 }
 
 func (h *localToolHost) ReleaseTerminal(id string) error {
-	return h.terminals.release(id)
+	return h.releaseTerminalWithContext(h.terminals.lifecycle, id)
+}
+
+func (h *localToolHost) releaseTerminalWithContext(ctx context.Context, id string) error {
+	return h.terminals.releaseWithContext(ctx, id)
 }
 
 func (h *localToolHost) terminalOwnership(id string) (terminalOwnership, error) {

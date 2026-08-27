@@ -10,13 +10,16 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
-func (m *terminalManager) kill(id string) error {
+func (m *terminalManager) kill(ctx context.Context, id string) error {
+	if err := terminalRequestContextError(ctx, "kill"); err != nil {
+		return err
+	}
 	managed, err := m.lookup(id)
 	if err != nil {
 		return err
 	}
 	if err := managed.handle.Signal(
-		context.Background(),
+		ctx,
 		managed.actor,
 		terminalpkg.SignalHUP,
 	); err != nil &&
@@ -26,12 +29,18 @@ func (m *terminalManager) kill(id string) error {
 	return nil
 }
 
-func (m *terminalManager) output(id string) (string, bool, *acpsdk.TerminalExitStatus, error) {
+func (m *terminalManager) output(
+	ctx context.Context,
+	id string,
+) (string, bool, *acpsdk.TerminalExitStatus, error) {
+	if err := terminalRequestContextError(ctx, "output"); err != nil {
+		return "", false, nil, err
+	}
 	managed, err := m.lookup(id)
 	if err != nil {
 		return "", false, nil, err
 	}
-	read, err := managed.handle.Screen(context.Background(), terminalpkg.ReadOptions{
+	read, err := managed.handle.Screen(ctx, terminalpkg.ReadOptions{
 		View: "tail", MaxBytes: managed.outputLimit,
 	})
 	if err != nil {
@@ -52,9 +61,6 @@ func (m *terminalManager) wait(ctx context.Context, id string) (*acpsdk.Terminal
 	if err != nil {
 		return nil, err
 	}
-	if result.Reason == "timeout" && ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
 	info := managed.handle.Info()
 	if info.Exit != nil {
 		return terminalExitStatus(info.Exit), nil
@@ -62,14 +68,17 @@ func (m *terminalManager) wait(ctx context.Context, id string) (*acpsdk.Terminal
 	return &acpsdk.TerminalExitStatus{ExitCode: result.ExitCode}, nil
 }
 
-func (m *terminalManager) release(id string) error {
+func (m *terminalManager) releaseWithContext(ctx context.Context, id string) error {
+	if err := terminalRequestContextError(ctx, "release"); err != nil {
+		return err
+	}
 	managed, err := m.lookup(id)
 	if err != nil {
 		return err
 	}
 	info := managed.handle.Info()
 	if err := m.core.Release(
-		context.Background(),
+		ctx,
 		info.WS,
 		info.ProfileID,
 		info.ID,
@@ -92,15 +101,33 @@ func (m *terminalManager) closeAll() {
 	}
 	m.mu.RUnlock()
 	for _, id := range ids {
-		if err := m.release(id); err != nil && m.logger != nil {
+		cleanupCtx, cancelCleanup := m.cleanupContext()
+		if err := m.releaseWithContext(cleanupCtx, id); err != nil && m.logger != nil {
 			m.logger.Warn("acp: release terminal during close", "terminal_id", id, "error", err)
 		}
+		cancelCleanup()
 	}
 	if m.ownedCore != nil {
-		if err := m.ownedCore.Shutdown(context.Background()); err != nil && m.logger != nil {
+		shutdownCtx, cancelShutdown := m.cleanupContext()
+		if err := m.ownedCore.Shutdown(shutdownCtx); err != nil && m.logger != nil {
 			m.logger.Warn("acp: shutdown local terminal core", "error", err)
 		}
+		cancelShutdown()
 	}
+}
+
+func (m *terminalManager) cleanupContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(m.lifecycle), defaultStopTimeout)
+}
+
+func terminalRequestContextError(ctx context.Context, operation string) error {
+	if ctx == nil {
+		return fmt.Errorf("acp: terminal %s context is required", operation)
+	}
+	if ctx.Err() != nil {
+		return context.Cause(ctx)
+	}
+	return nil
 }
 
 func (m *terminalManager) lookup(id string) (*managedTerminal, error) {

@@ -3,15 +3,17 @@ package terminal
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
 )
 
 const (
-	idleSampleInterval = 100 * time.Millisecond
-	idleSamplesNeeded  = 3
-	idleMaximumWait    = 700 * time.Millisecond
+	idleSampleInterval  = 100 * time.Millisecond
+	idleSamplesNeeded   = 3
+	idleMaximumWait     = 700 * time.Millisecond
+	waitSnapshotTimeout = time.Second
 )
 
 func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResult, error) {
@@ -25,7 +27,11 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 	waitCtx := ctx
 	var cancel context.CancelFunc
 	if condition.TimeoutMs > 0 {
-		waitCtx, cancel = context.WithTimeout(ctx, time.Duration(condition.TimeoutMs)*time.Millisecond)
+		waitCtx, cancel = context.WithTimeoutCause(
+			ctx,
+			time.Duration(condition.TimeoutMs)*time.Millisecond,
+			&Error{Code: "terminal_wait_timeout", Message: "terminal wait timed out", Err: ErrWaitTimeout},
+		)
 		defer cancel()
 	}
 	if until == terminalWaitIdle {
@@ -41,34 +47,35 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 			if until == terminalWaitExit {
 				select {
 				case <-waitCtx.Done():
-					return nil, waitCtx.Err()
+					cause := context.Cause(waitCtx)
+					if errors.Is(cause, ErrWaitTimeout) {
+						return s.waitTimeoutResult(waitCtx, cause)
+					}
+					return nil, cause
 				case <-s.done:
 				}
 				s.mu.RLock()
 				exit = cloneExit(s.exit)
 				s.mu.RUnlock()
 			}
-			return s.waitExitResult(exit), nil
+			return s.waitExitResult(waitCtx, exit)
 		}
 		if until == terminalWaitMatch {
 			output, _ := s.ring.Snapshot()
 			if matcher.Match(output) {
-				return &WaitResult{Reason: terminalWaitMatch, Screen: s.currentScreen(waitCtx), Untrusted: true}, nil
+				return s.waitStateResult(waitCtx, terminalWaitMatch)
 			}
 		}
 		if readerEnded && until != terminalWaitExit {
-			return &WaitResult{Reason: "stalled", Screen: s.currentScreen(waitCtx), Untrusted: true}, nil
+			return s.waitStateResult(waitCtx, "stalled")
 		}
 		select {
 		case <-waitCtx.Done():
-			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-				return &WaitResult{
-					Reason:    "timeout",
-					Screen:    s.currentScreen(context.Background()),
-					Untrusted: true,
-				}, nil
+			cause := context.Cause(waitCtx)
+			if errors.Is(cause, ErrWaitTimeout) {
+				return s.waitTimeoutResult(waitCtx, cause)
 			}
-			return nil, waitCtx.Err()
+			return nil, cause
 		case <-revisionReady:
 		}
 	}
@@ -97,7 +104,10 @@ func prepareWaitCondition(condition WaitCondition) (string, *regexp.Regexp, erro
 	}
 	matcher, err := regexp.Compile(condition.Pattern)
 	if err != nil {
-		return "", nil, &Error{Code: "terminal_wait_pattern_invalid", Message: err.Error(), Err: ErrUnsupported}
+		return "", nil, &Error{
+			Code: "terminal_wait_pattern_invalid", Message: "terminal wait pattern is invalid",
+			Err: errors.Join(ErrUnsupported, err),
+		}
 	}
 	return until, matcher, nil
 }
@@ -114,20 +124,13 @@ func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return &WaitResult{
-					Reason:    "timeout",
-					Screen:    s.currentScreen(context.Background()),
-					Untrusted: true,
-				}, nil
+			cause := context.Cause(ctx)
+			if errors.Is(cause, ErrWaitTimeout) {
+				return s.waitTimeoutResult(ctx, cause)
 			}
-			return nil, ctx.Err()
+			return nil, cause
 		case <-deadline.C:
-			return &WaitResult{
-				Reason:    "still_running",
-				Screen:    s.currentScreen(context.Background()),
-				Untrusted: true,
-			}, nil
+			return s.waitStateResult(ctx, "still_running")
 		case <-ticker.C:
 			s.mu.RLock()
 			exit := cloneExit(s.exit)
@@ -135,14 +138,10 @@ func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
 			readerEnded := s.readerEnded
 			s.mu.RUnlock()
 			if exit != nil {
-				return s.waitExitResult(exit), nil
+				return s.waitExitResult(ctx, exit)
 			}
 			if readerEnded {
-				return &WaitResult{
-					Reason:    "stalled",
-					Screen:    s.currentScreen(context.Background()),
-					Untrusted: true,
-				}, nil
+				return s.waitStateResult(ctx, "stalled")
 			}
 			if lastRevision == revision {
 				stable++
@@ -151,30 +150,41 @@ func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
 				lastRevision = revision
 			}
 			if stable >= idleSamplesNeeded {
-				return &WaitResult{
-					Reason:    terminalWaitIdle,
-					Screen:    s.currentScreen(context.Background()),
-					Untrusted: true,
-				}, nil
+				return s.waitStateResult(ctx, terminalWaitIdle)
 			}
 		}
 	}
 }
 
-func (s *session) currentScreen(ctx context.Context) string {
-	read, err := s.Screen(ctx, ReadOptions{View: terminalViewScreen})
-	if err != nil {
-		read, err = s.Screen(ctx, ReadOptions{View: terminalViewTail, MaxBytes: 64 << 10})
-		if err != nil {
-			return ""
-		}
-	}
-	return read.Content
+func (s *session) waitTimeoutResult(ctx context.Context, cause error) (*WaitResult, error) {
+	snapshotCtx, cancel := boundedCleanupContext(ctx, waitSnapshotTimeout)
+	defer cancel()
+	result, snapshotErr := s.waitStateResult(snapshotCtx, "timeout")
+	return result, errors.Join(cause, snapshotErr)
 }
 
-func (s *session) waitExitResult(exit *Exit) *WaitResult {
-	return &WaitResult{
-		Reason: terminalWaitExit, ExitCode: exit.Code,
-		Screen: s.currentScreen(context.Background()), Untrusted: true,
+func (s *session) currentScreen(ctx context.Context) (string, error) {
+	read, screenErr := s.Screen(ctx, ReadOptions{View: terminalViewScreen})
+	if screenErr == nil {
+		return read.Content, nil
 	}
+	read, tailErr := s.Screen(ctx, ReadOptions{View: terminalViewTail, MaxBytes: 64 << 10})
+	if tailErr != nil {
+		return "", errors.Join(
+			fmt.Errorf("terminal: snapshot wait screen: %w", screenErr),
+			fmt.Errorf("terminal: snapshot wait tail: %w", tailErr),
+		)
+	}
+	return read.Content, nil
+}
+
+func (s *session) waitStateResult(ctx context.Context, reason string) (*WaitResult, error) {
+	screen, err := s.currentScreen(ctx)
+	return &WaitResult{Reason: reason, Screen: screen, Untrusted: true}, err
+}
+
+func (s *session) waitExitResult(ctx context.Context, exit *Exit) (*WaitResult, error) {
+	result, err := s.waitStateResult(ctx, terminalWaitExit)
+	result.ExitCode = exit.Code
+	return result, err
 }

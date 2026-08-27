@@ -6,6 +6,7 @@ package terminal
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
@@ -63,11 +64,34 @@ func TestWaitEngineContract(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
-		timedOut, err := handle.Wait(context.Background(), WaitCondition{Until: "exit", TimeoutMs: 25})
-		if err != nil || timedOut.Reason != "timeout" {
+		if err := starter.latest().emit([]byte("alpha\rZ")); err != nil {
+			t.Fatalf("emit(before timeout) error = %v", err)
+		}
+		tail := waitForTerminalTail(
+			t,
+			handle,
+			"timeout fixture output did not reach terminal tail",
+			func(tail *ReadResult) bool {
+				return tail.Content == "alpha\rZ"
+			},
+		)
+		expectedScreen, err := handle.Screen(t.Context(), ReadOptions{View: terminalViewScreen})
+		if err != nil {
+			t.Fatalf("Screen(timeout fixture) error = %v", err)
+		}
+		if expectedScreen.Content == tail.Content {
+			t.Fatalf(
+				"timeout fixture screen/tail = %q/%q, want distinct VT rendering",
+				expectedScreen.Content,
+				tail.Content,
+			)
+		}
+		timedOut, err := handle.Wait(t.Context(), WaitCondition{Until: "exit", TimeoutMs: 25})
+		if !errors.Is(err, ErrWaitTimeout) || timedOut == nil || timedOut.Reason != "timeout" ||
+			!timedOut.Untrusted || timedOut.Screen != expectedScreen.Content {
 			t.Fatalf("Wait(timeout) = %#v error=%v", timedOut, err)
 		}
-		idle, err := handle.Wait(context.Background(), WaitCondition{Until: "idle", TimeoutMs: 600})
+		idle, err := handle.Wait(t.Context(), WaitCondition{Until: "idle", TimeoutMs: 600})
 		if err != nil || idle.Reason != "idle" {
 			t.Fatalf("Wait(idle) = %#v error=%v", idle, err)
 		}
@@ -94,6 +118,19 @@ func TestWaitEngineContract(t *testing.T) {
 		<-tickerDone
 		if err != nil || holding.Reason != "still_running" {
 			t.Fatalf("Wait(holding) = %#v error=%v", holding, err)
+		}
+	})
+
+	t.Run("Should preserve the caller cancellation cause", func(t *testing.T) {
+		t.Parallel()
+		manager, _, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		cause := errors.New("turn canceled")
+		waitCtx, cancel := context.WithCancelCause(t.Context())
+		cancel(cause)
+		result, err := handle.Wait(waitCtx, WaitCondition{Until: "exit"})
+		if result != nil || !errors.Is(err, cause) {
+			t.Fatalf("Wait(canceled) = %#v error=%v, want caller cause", result, err)
 		}
 	})
 

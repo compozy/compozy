@@ -25,110 +25,10 @@ func (s *session) infoSnapshotLocked() Info {
 	return info
 }
 
-func (s *session) Write(ctx context.Context, actor Actor, input []byte) error {
-	return s.deliverInputMode(ctx, actor, input, false, false)
-}
-
-type inputVisibilityProc interface {
-	InputVisible() (bool, error)
-	WriteRedacted([]byte) (int, error)
-}
-
-func requireInputVisibilityProc(proc Proc) (inputVisibilityProc, error) {
-	visibilityProc, ok := proc.(inputVisibilityProc)
-	if !ok {
-		return nil, &Error{
-			Code:    errorCodeNotInteractive,
-			Message: "terminal input requests require an echo-aware interactive terminal",
-			Err:     ErrNotInteractive,
-		}
-	}
-	return visibilityProc, nil
-}
-
-func (s *session) deliverInputMode(
-	ctx context.Context,
-	actor Actor,
-	input []byte,
-	clientRedact bool,
-	answerHandoff bool,
-) error {
-	if err := s.authorizeProfile(actor); err != nil {
-		return err
-	}
-	if s.Info().Mode != ModePTY {
-		return &Error{Code: errorCodeNotInteractive, Message: errorMessageNotInteractive, Err: ErrNotInteractive}
-	}
-	if s.audit.Blocked() {
-		return &Error{
-			Code:    "journal_unavailable",
-			Message: "terminal input is blocked while journal delivery is unavailable",
-			Err:     ErrJournalUnavailable,
-		}
-	}
-	if err := s.runningGate(); err != nil {
-		return err
-	}
-	if actor.Kind == ActorKindAgent {
-		if s.manager.typingGrants == nil {
-			return &Error{
-				Code:    "typing_grant_rejected",
-				Message: "agent typing requires a one-time terminal grant",
-				Err:     ErrTypingGrant,
-			}
-		}
-		if err := s.manager.typingGrants.AuthorizeTerminalInput(ctx, actor, s.Info()); err != nil {
-			return err
-		}
-	}
-	filtered := s.filter.FilterInput(input)
-	info := s.Info()
-	redacted := clientRedact
-	writer := s.proc.Write
-	if clientRedact {
-		visibilityProc, err := requireInputVisibilityProc(s.proc)
-		if err != nil {
-			return err
-		}
-		writer = visibilityProc.WriteRedacted
-	}
-	if visibilityProc, ok := s.proc.(inputVisibilityProc); ok {
-		inputVisible, err := visibilityProc.InputVisible()
-		if err != nil {
-			return err
-		}
-		redacted = redacted || !inputVisible
-		if redacted && !clientRedact {
-			writer = visibilityProc.WriteRedacted
-		}
-	}
-	auditInput := filtered
-	if redacted {
-		auditInput = nil
-	}
-	reservation, admitted := s.manager.reserveJournalInput(info, auditInput)
-	if !admitted {
-		return &Error{
-			Code:    "journal_unavailable",
-			Message: "terminal input is blocked while the journal lane is full",
-			Err:     ErrJournalUnavailable,
-		}
-	}
-	var deliveryErr error
-	if answerHandoff {
-		deliveryErr = s.lease.answerHandoff(actor, filtered, writer)
-	} else {
-		deliveryErr = s.lease.deliverWith(actor, filtered, writer)
-	}
-	if deliveryErr != nil {
-		s.manager.releaseJournalInput(info, reservation)
-		return deliveryErr
-	}
-	s.manager.commitJournalInput(info, actor, auditInput, reservation)
-	return nil
-}
-
 func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult, error) {
+	if err := requestContextError(ctx, "read"); err != nil {
+		return nil, err
+	}
 	view := strings.TrimSpace(options.View)
 	if view == "" {
 		view = terminalViewScreen
@@ -238,23 +138,25 @@ func (s *session) readLines(options ReadOptions) (*ReadResult, error) {
 }
 
 func (s *session) Takeover(ctx context.Context, actor Actor, force bool) error {
+	if err := requestContextError(ctx, "takeover"); err != nil {
+		return err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
 	if err := s.runningGate(); err != nil {
 		return err
 	}
-	_, before := s.lease.snapshot()
 	if err := s.lease.takeover(actor, force); err != nil {
 		return err
-	}
-	if before == nil || !sameActor(actor, *before) {
-		s.supersedeInputRequests(context.WithoutCancel(ctx), actor)
 	}
 	return nil
 }
 
-func (s *session) Yield(_ context.Context, actor Actor) error {
+func (s *session) Yield(ctx context.Context, actor Actor) error {
+	if err := requestContextError(ctx, "yield"); err != nil {
+		return err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
@@ -297,15 +199,21 @@ func (s *session) runEnded(actor Actor) bool {
 		return false
 	}
 	s.lease.runEnded(actor)
-	s.supersedeInputRequests(context.Background(), actor)
+	s.supersedeInputRequests(s.ctx, actor)
 	return true
 }
 
-func (s *session) Signal(_ context.Context, actor Actor, signal Signal) error {
+func (s *session) Signal(ctx context.Context, actor Actor, signal Signal) error {
+	if err := requestContextError(ctx, "signal"); err != nil {
+		return err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
 	if err := s.runningGate(); err != nil {
+		return err
+	}
+	if err := s.authorizePendingInputMutation(actor); err != nil {
 		return err
 	}
 	if err := s.authorizeClose(actor); err != nil {
@@ -360,11 +268,14 @@ func (s *session) authorizeProfile(actor Actor) error {
 	return nil
 }
 
-func (s *session) StartRecording(_ context.Context, actor Actor) (RecordingRef, error) {
+func (s *session) StartRecording(ctx context.Context, actor Actor) (RecordingRef, error) {
+	if err := requestContextError(ctx, "start recording"); err != nil {
+		return RecordingRef{}, err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return RecordingRef{}, err
 	}
-	return s.startRecording(actor)
+	return s.startRecording(ctx, actor)
 }
 
 func (s *session) StopRecording(ctx context.Context, actor Actor) (RecordingRef, error) {
@@ -401,7 +312,7 @@ func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, 
 	s.mu.Lock()
 	s.info.Lease = to
 	s.info.Controller = cloneActor(controller)
-	if from == LeaseAgentOwned && to != LeaseAgentOwned && reason != "answer_handoff" {
+	if from == LeaseAgentOwned && to != LeaseAgentOwned {
 		s.info.TypingGeneration++
 	}
 	info := s.infoSnapshotLocked()
@@ -429,7 +340,7 @@ func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, 
 			subscriber.deliver(Frame{Op: terminalwire.ServerOpOwner, Payload: payload}, 0)
 		}
 	}
-	s.manager.events.Notify(context.Background(), Event{
+	s.manager.events.Notify(s.ctx, Event{
 		Kind: EventKindLeaseChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.profileName,
 		TerminalID:  info.ID, Actor: actor, Info: &info,

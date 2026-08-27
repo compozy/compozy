@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-
 	"strings"
 	"time"
 
@@ -92,13 +91,13 @@ func (p *AgentProcess) handleInbound(
 	case acpsdk.ClientMethodTerminalCreate:
 		return handleInboundRequest(ctx, params, p.handleCreateTerminal)
 	case acpsdk.ClientMethodTerminalKill:
-		return handleInboundRequestNoContext(params, p.handleKillTerminal)
+		return handleInboundRequest(ctx, params, p.handleKillTerminal)
 	case acpsdk.ClientMethodTerminalOutput:
-		return handleInboundRequestNoContext(params, p.handleTerminalOutput)
+		return handleInboundRequest(ctx, params, p.handleTerminalOutput)
 	case acpsdk.ClientMethodTerminalWaitForExit:
 		return handleInboundRequest(ctx, params, p.handleWaitForTerminalExit)
 	case acpsdk.ClientMethodTerminalRelease:
-		return handleInboundRequestNoContext(params, p.handleReleaseTerminal)
+		return handleInboundRequest(ctx, params, p.handleReleaseTerminal)
 	default:
 		return nil, acpsdk.NewMethodNotFound(method)
 	}
@@ -115,22 +114,6 @@ func handleInboundRequest[Req any, Resp any](
 	}
 
 	response, err := fn(ctx, request)
-	if err != nil {
-		return nil, requestError(err)
-	}
-	return response, nil
-}
-
-func handleInboundRequestNoContext[Req any, Resp any](
-	params json.RawMessage,
-	fn func(Req) (Resp, error),
-) (any, *acpsdk.RequestError) {
-	var request Req
-	if err := json.Unmarshal(params, &request); err != nil {
-		return nil, acpsdk.NewInvalidParams(map[string]any{EventTypeError: err.Error()})
-	}
-
-	response, err := fn(request)
 	if err != nil {
 		return nil, requestError(err)
 	}

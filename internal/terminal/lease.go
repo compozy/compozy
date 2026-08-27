@@ -108,46 +108,6 @@ func writeAllInput(input []byte, write func([]byte) (int, error)) error {
 	return nil
 }
 
-func (m *leaseMachine) answerHandoff(actor Actor, input []byte, write func([]byte) (int, error)) error {
-	m.mu.Lock()
-	if m.controller == nil {
-		m.mu.Unlock()
-		return &Error{
-			Code:    errorCodeInputAnswerRequiresWrite,
-			Message: "answering an input request requires the write lease",
-			Err:     ErrInputRequiresWrite,
-		}
-	}
-	if sameActor(actor, *m.controller) {
-		err := writeAllInput(input, write)
-		m.mu.Unlock()
-		return err
-	}
-	if actor.Kind != ActorKindHuman || m.controller.Kind != ActorKindAgent {
-		controller := cloneActor(m.controller)
-		m.mu.Unlock()
-		return &Error{
-			Code:       "input_answer_requires_write",
-			Message:    "answering an input request requires the write lease",
-			Controller: controller,
-			Err:        ErrInputRequiresWrite,
-		}
-	}
-	previous := *m.controller
-	from := m.state
-	m.controller = cloneActor(&actor)
-	m.state = LeaseHumanOwned
-	m.generation++
-	err := writeAllInput(input, write)
-	m.controller = cloneActor(&previous)
-	m.state = LeaseAgentOwned
-	m.generation++
-	m.mu.Unlock()
-	m.emitWithController(from, LeaseHumanOwned, "answer_handoff", actor, &actor)
-	m.emitWithController(LeaseHumanOwned, LeaseAgentOwned, "answer_return", previous, &previous)
-	return err
-}
-
 func (m *leaseMachine) authorize(actor Actor) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()

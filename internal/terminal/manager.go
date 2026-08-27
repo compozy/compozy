@@ -17,9 +17,10 @@ import (
 )
 
 const (
-	maxTombstones                 = 256
-	defaultReaperPeriod           = time.Minute
-	defaultJournalShutdownTimeout = 5 * time.Second
+	maxTombstones                  = 256
+	defaultReaperPeriod            = time.Minute
+	defaultJournalShutdownTimeout  = 5 * time.Second
+	defaultTerminalShutdownTimeout = 30 * time.Second
 )
 
 type terminalKey struct {
@@ -63,12 +64,14 @@ type Service struct {
 	pendingByScope map[terminalScope]int
 	pendingDaemon  int
 	closing        bool
-	reaperCancel   context.CancelFunc
+	reaperStop     chan struct{}
 	reaperDone     chan struct{}
 	shutdownDone   chan struct{}
 	shutdownErr    error
 	inputs         *inputRegistry
 }
+
+var _ Manager = (*Service)(nil)
 
 func NewManager(options ...Option) (*Service, error) {
 	service := &Service{
@@ -104,19 +107,22 @@ func (m *Service) Start(ctx context.Context) error {
 			Err:     ErrShuttingDown,
 		}
 	}
-	if m.reaperCancel != nil {
+	if m.reaperStop != nil {
 		m.mu.Unlock()
 		return nil
 	}
-	reaperCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
-	m.reaperCancel = cancel
+	m.reaperStop = make(chan struct{})
+	reaperStop := m.reaperStop
 	m.reaperDone = make(chan struct{})
 	m.mu.Unlock()
-	go m.reaper(reaperCtx, defaultReaperPeriod)
+	go m.reaper(ctx, reaperStop, defaultReaperPeriod)
 	return nil
 }
 
-func (m *Service) Handle(_ context.Context, workspaceID, profileID string, id ID) (Handle, error) {
+func (m *Service) Handle(ctx context.Context, workspaceID, profileID string, id ID) (Handle, error) {
+	if err := requestContextError(ctx, "handle"); err != nil {
+		return nil, err
+	}
 	session, err := m.lookup(terminalKey{workspaceID: workspaceID, profileID: profileID, id: id})
 	if err != nil {
 		return nil, err
@@ -133,9 +139,12 @@ func (m *Service) Get(ctx context.Context, workspaceID, profileID string, id ID)
 	return &info, nil
 }
 
-func (m *Service) List(_ context.Context, workspaceID string, scope store.ReadScope) ([]Info, error) {
+func (m *Service) List(ctx context.Context, workspaceID string, scope store.ReadScope) ([]Info, error) {
+	if err := requestContextError(ctx, "list"); err != nil {
+		return nil, err
+	}
 	if err := scope.Validate(); err != nil {
-		return []Info{}, nil
+		return nil, fmt.Errorf("terminal: validate list scope: %w", err)
 	}
 	m.mu.RLock()
 	items := make([]Info, 0)
@@ -268,14 +277,18 @@ func (m *Service) Shutdown(ctx context.Context) error {
 		return m.waitForShutdown(ctx, done)
 	}
 	m.closing = true
-	cancel := m.reaperCancel
+	reaperStop := m.reaperStop
 	targets := make([]terminalLifecycleTarget, 0, len(m.terminals))
 	for key, item := range m.terminals {
 		targets = append(targets, terminalLifecycleTarget{key: key, item: item})
 	}
 	done := m.shutdownDone
 	m.mu.Unlock()
-	go m.drain(context.WithoutCancel(ctx), cancel, targets)
+	drainCtx, cancelDrain := boundedCleanupContext(ctx, defaultTerminalShutdownTimeout)
+	go func() {
+		defer cancelDrain()
+		m.drain(drainCtx, reaperStop, targets)
+	}()
 	return m.waitForShutdown(ctx, done)
 }
 
@@ -290,9 +303,9 @@ func (m *Service) waitForShutdown(ctx context.Context, done <-chan struct{}) err
 	}
 }
 
-func (m *Service) drain(ctx context.Context, cancel context.CancelFunc, targets []terminalLifecycleTarget) {
-	if cancel != nil {
-		cancel()
+func (m *Service) drain(ctx context.Context, reaperStop chan struct{}, targets []terminalLifecycleTarget) {
+	if reaperStop != nil {
+		close(reaperStop)
 		<-m.reaperDone
 	}
 	closeErr := m.closeAndArchiveTerminals(ctx, targets, "shutdown", "daemon-shutdown")
@@ -360,8 +373,7 @@ func (m *Service) processRegistration(
 		return nil, nil
 	}
 	info := item.Info()
-	registerCtx := context.WithoutCancel(ctx)
-	handle, err := m.registerProcess(registerCtx, toolruntime.RegisterConfig{
+	handle, err := m.registerProcess(ctx, toolruntime.RegisterConfig{
 		Source: toolruntime.ProcessSourceTerminal,
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  info.ControllerSessionID(),

@@ -167,7 +167,7 @@ func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
 	id, err := randomCommandID()
 	if err != nil {
 		l.service.logger.Error("terminal journal: generate idle command id", "terminal_id", l.info.ID, "error", err)
-		l.setAuditBlocked(true)
+		l.setAuditBlocked()
 		return
 	}
 	finishedAt := l.service.now()

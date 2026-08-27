@@ -50,7 +50,7 @@ func newTerminalManager(
 		}
 	}
 	return &terminalManager{
-		logger: logger, core: core, ownedCore: ownedCore, coreErr: coreErr, scope: scope,
+		logger: logger, lifecycle: ctx, core: core, ownedCore: ownedCore, coreErr: coreErr, scope: scope,
 		terminals: make(map[string]*managedTerminal),
 	}
 }

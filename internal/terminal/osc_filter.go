@@ -27,6 +27,7 @@ type oscParser struct {
 	pending       []byte
 	discarding    bool
 	discardEscape bool
+	discardKind   byte
 }
 
 func newOSCSecurityFilter(nonce string, onTitle func(string)) *oscSecurityFilter {
@@ -61,7 +62,7 @@ func (p *oscParser) filter(
 	display := make([]byte, 0, len(data))
 	facts := make([]MarkerFacts, 0, 1)
 	for len(data) > 0 {
-		start := bytes.Index(data, []byte{0x1b, ']'})
+		start, kind := controlStart(data)
 		if start < 0 {
 			if len(data) > 0 && data[len(data)-1] == 0x1b {
 				display = append(display, data[:len(data)-1]...)
@@ -72,12 +73,13 @@ func (p *oscParser) filter(
 			break
 		}
 		display = append(display, data[:start]...)
-		end, terminatorBytes := oscEnd(data[start+2:])
+		end, terminatorBytes := controlEnd(data[start+2:], kind)
 		if end < 0 {
 			partial := data[start:]
 			if len(partial) > maxPendingOSCBytes {
 				p.discarding = true
 				p.discardEscape = partial[len(partial)-1] == 0x1b
+				p.discardKind = kind
 			} else {
 				p.pending = append(p.pending, partial...)
 			}
@@ -85,8 +87,13 @@ func (p *oscParser) filter(
 		}
 		content := data[start+2 : start+2+end]
 		wholeEnd := start + 2 + end + terminatorBytes
+		if kind == 'd' {
+			data = data[wholeEnd:]
+			continue
+		}
 		switch {
 		case bytes.HasPrefix(content, []byte("52;")):
+		case bytes.HasPrefix(content, []byte("7;")), bytes.HasPrefix(content, []byte("8;")):
 		case bytes.HasPrefix(content, []byte("0;")), bytes.HasPrefix(content, []byte("2;")):
 			if onTitle != nil {
 				onTitle(SanitizeTitle(string(content[2:])))
@@ -112,13 +119,42 @@ func (p *oscParser) discardUntilTerminator(input []byte) []byte {
 		return input[1:]
 	}
 	p.discardEscape = false
-	end, terminatorBytes := oscEnd(input)
+	end, terminatorBytes := controlEnd(input, p.discardKind)
 	if end < 0 {
 		p.discardEscape = len(input) > 0 && input[len(input)-1] == 0x1b
 		return nil
 	}
 	p.discarding = false
 	return input[end+terminatorBytes:]
+}
+
+func controlStart(input []byte) (int, byte) {
+	osc := bytes.Index(input, []byte{0x1b, ']'})
+	dcs := bytes.Index(input, []byte{0x1b, 'P'})
+	switch {
+	case osc < 0:
+		return dcs, 'd'
+	case dcs < 0 || osc < dcs:
+		return osc, 'o'
+	default:
+		return dcs, 'd'
+	}
+}
+
+func controlEnd(input []byte, kind byte) (int, int) {
+	if kind == 'd' {
+		return dcsEnd(input)
+	}
+	return oscEnd(input)
+}
+
+func dcsEnd(input []byte) (int, int) {
+	for index, value := range input {
+		if value == 0x1b && index+1 < len(input) && input[index+1] == '\\' {
+			return index, 2
+		}
+	}
+	return -1, 0
 }
 
 func oscEnd(input []byte) (int, int) {

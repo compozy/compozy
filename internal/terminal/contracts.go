@@ -276,7 +276,7 @@ type MarkerFacts struct {
 }
 
 type MarkerConsumer interface {
-	ConsumeMarkerFacts(ctx context.Context, terminal Info, facts []MarkerFacts)
+	ConsumeMarkerFacts(ctx context.Context, terminal Info, facts []MarkerFacts) error
 }
 
 type ProcSpec = terminalpty.ProcSpec

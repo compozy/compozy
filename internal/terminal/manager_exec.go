@@ -67,12 +67,12 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	}
 	if request.Visible {
 		if err := m.publishExec(ctx, run, request); err != nil {
-			return nil, errors.Join(err, cleanupExecRun(ctx, run.item, err))
+			return nil, cleanupExecRun(ctx, run.item, err)
 		}
 		run.settlePublication()
 	}
 	run.item.start()
-	go m.recordExec(context.WithoutCancel(ctx), run, request, argv)
+	go m.recordExec(run, request, argv)
 	timer := time.NewTimer(yield)
 	defer timer.Stop()
 	select {
@@ -92,7 +92,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		if !request.Visible {
 			if err := m.publishExec(ctx, run, request); err != nil {
 				run.settlePublication()
-				return nil, errors.Join(err, cleanupExecRun(ctx, run.item, err))
+				return nil, cleanupExecRun(ctx, run.item, err)
 			}
 		}
 		run.settlePublication()
@@ -100,7 +100,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		return &ExecResult{StillRunning: true, TerminalID: &id, Untrusted: true, CommandID: run.commandID}, nil
 	case <-ctx.Done():
 		run.settlePublication()
-		return nil, errors.Join(ctx.Err(), cleanupExecRun(ctx, run.item, ctx.Err()))
+		return nil, cleanupExecRun(ctx, run.item, context.Cause(ctx))
 	}
 }
 
@@ -226,11 +226,12 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 		Capabilities: request.Capabilities,
 		CreatedAt:    m.now(),
 	}, request.Actor)
-	item := newSession(m, proc, info, settings, nonce, m.eventProfileName(ctx, request.Actor.ProfileID), 80, 24, true)
+	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
+	item := newSession(ctx, m, proc, info, settings, nonce, profileName, 80, 24, true)
 	item.captureOutput = true
 	processRecord, err := m.processRegistration(ctx, item, spec)
 	if err != nil {
-		return nil, errors.Join(err, cleanupUnregisteredProcess(proc))
+		return nil, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
 	}
 	item.processRecord = processRecord
 	return &execRun{
@@ -241,7 +242,7 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 
 func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecRequest) error {
 	settings := run.item.settings(ctx)
-	release, err := m.reserveAdmission(OpenRequest{WS: run.key.workspaceID, Actor: request.Actor}, settings)
+	release, err := m.reserveAdmission(ctx, OpenRequest{WS: run.key.workspaceID, Actor: request.Actor}, settings)
 	if err != nil {
 		return err
 	}
@@ -260,9 +261,11 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 	return nil
 }
 
-func (m *Service) recordExec(ctx context.Context, run *execRun, request ExecRequest, argv []string) {
+func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
 	<-run.item.done
 	<-run.decision
+	ctx, cancel := boundedCleanupContext(run.item.ctx, defaultJournalShutdownTimeout)
+	defer cancel()
 	if m.journal == nil {
 		run.journaled <- nil
 		return
@@ -358,15 +361,19 @@ func newCommandID(entropy io.Reader) (string, error) {
 
 func cleanupExecRun(ctx context.Context, item *session, cause error) error {
 	if item == nil {
-		return nil
+		return cause
 	}
-	cleanupErr := cleanupUnregisteredProcess(item.proc)
+	cleanupCtx, cancelCleanup := boundedCleanupContext(ctx, processCleanupTimeout)
+	cleanupErr := cleanupProcess(cleanupCtx, item.proc)
+	cancelCleanup()
 	var completeErr error
 	if item.processRecord != nil {
+		completeCtx, cancelComplete := boundedCleanupContext(ctx, processCleanupTimeout)
 		completeErr = item.processRecord.Complete(
-			context.WithoutCancel(ctx),
+			completeCtx,
 			toolruntime.ProcessCompletion{Err: cause, Error: "terminal exec rollback"},
 		)
+		cancelComplete()
 	}
-	return errors.Join(cleanupErr, completeErr)
+	return errors.Join(cause, cleanupErr, completeErr)
 }

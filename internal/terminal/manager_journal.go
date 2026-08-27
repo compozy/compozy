@@ -3,7 +3,11 @@ package terminal
 import "context"
 
 type journalTerminalRegistrar interface {
-	RegisterTerminal(Info, func(bool), func(Event))
+	RegisterTerminal(context.Context, Info, func(bool), func(Event))
+}
+
+type journalTerminalCloser interface {
+	CloseTerminal(context.Context, Info) error
 }
 
 type journalCommandObserver interface {
@@ -11,6 +15,14 @@ type journalCommandObserver interface {
 	CommitInput(Info, Actor, []byte, int)
 	ReleaseInput(Info, int)
 	ObserveOutput(Info)
+}
+
+func (m *Service) closeJournalTerminal(ctx context.Context, item *session) error {
+	closer, ok := m.markers.(journalTerminalCloser)
+	if !ok {
+		return nil
+	}
+	return closer.CloseTerminal(ctx, item.Info())
 }
 
 func (m *Service) registerJournalTerminal(item *session) {
@@ -21,8 +33,8 @@ func (m *Service) registerJournalTerminal(item *session) {
 	if !ok {
 		return
 	}
-	registrar.RegisterTerminal(item.Info(), item.audit.SetBlocked, func(event Event) {
-		m.events.Notify(context.Background(), event)
+	registrar.RegisterTerminal(item.ctx, item.Info(), item.audit.SetBlocked, func(event Event) {
+		m.events.Notify(item.ctx, event)
 	})
 }
 

@@ -937,7 +937,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 		t.Fatalf("handleInbound(release terminal) error = %v", reqErr)
 	}
 
-	if _, _, _, err := proc.terminals.output(createResponse.TerminalId); err == nil {
+	if _, _, _, err := proc.terminals.output(t.Context(), createResponse.TerminalId); err == nil {
 		t.Fatal("output(released terminal) error = nil, want terminal not found")
 	}
 }
@@ -995,7 +995,7 @@ printf network-ok`)
 		t.Fatalf("handleWaitForTerminalExit(same network turn) error = %v", err)
 	}
 
-	networkOutput, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+	networkOutput, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	})
@@ -1033,7 +1033,7 @@ printf network-ok`)
 	}
 	defer proc.endPrompt(secondTurn)
 
-	if _, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+	if _, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); !errors.Is(err, ErrToolBlockedForNetworkTurn) {
@@ -1047,14 +1047,14 @@ printf network-ok`)
 		t.Fatalf("handleWaitForTerminalExit(previous network turn) error = %v, want ErrToolBlockedForNetworkTurn", err)
 	}
 
-	if _, err := proc.handleKillTerminal(acpsdk.KillTerminalRequest{
+	if _, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); err != nil {
 		t.Fatalf("handleKillTerminal(network-owned) error = %v", err)
 	}
 
-	if _, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: networkCreate.TerminalId,
 	}); err != nil {
@@ -1068,7 +1068,7 @@ printf network-ok`)
 		{
 			name: "output user terminal",
 			run: func() error {
-				_, err := proc.handleTerminalOutput(acpsdk.TerminalOutputRequest{
+				_, err := proc.handleTerminalOutput(t.Context(), acpsdk.TerminalOutputRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1088,7 +1088,7 @@ printf network-ok`)
 		{
 			name: "kill user terminal",
 			run: func() error {
-				_, err := proc.handleKillTerminal(acpsdk.KillTerminalRequest{
+				_, err := proc.handleKillTerminal(t.Context(), acpsdk.KillTerminalRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1098,7 +1098,7 @@ printf network-ok`)
 		{
 			name: "release user terminal",
 			run: func() error {
-				_, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+				_, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
 					SessionId:  "sess-direct",
 					TerminalId: userCreate.TerminalId,
 				})
@@ -1304,7 +1304,7 @@ func TestHandleReleaseTerminalRemovesExternalOwnership(t *testing.T) {
 	}
 	defer proc.endPrompt(active)
 
-	if _, err := proc.handleReleaseTerminal(acpsdk.ReleaseTerminalRequest{
+	if _, err := proc.handleReleaseTerminal(t.Context(), acpsdk.ReleaseTerminalRequest{
 		SessionId:  "sess-direct",
 		TerminalId: "term-external",
 	}); err != nil {

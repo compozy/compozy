@@ -24,6 +24,8 @@ const (
 
 type session struct {
 	manager     *Service
+	ctx         context.Context
+	cancel      context.CancelFunc
 	proc        Proc
 	filter      outputFilter
 	ring        *Ring
@@ -67,6 +69,7 @@ type session struct {
 }
 
 func newSession(
+	parent context.Context,
 	manager *Service,
 	proc Proc,
 	info Info,
@@ -77,8 +80,11 @@ func newSession(
 	rows uint16,
 	titlePinned bool,
 ) *session {
+	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	item := &session{
 		manager:       manager,
+		ctx:           ctx,
+		cancel:        cancel,
 		proc:          proc,
 		flow:          terminalwire.NewGroup(),
 		ring:          NewRing(settings.ScrollbackBytes),
@@ -110,7 +116,13 @@ func (s *session) settings(ctx context.Context) Settings {
 	current := s.policy
 	s.mu.RUnlock()
 	settings, err := s.manager.settings(ctx, workspaceID, profileID)
-	if err != nil || validateSettings(settings) != nil {
+	validationErr := validateSettings(settings)
+	if err != nil || validationErr != nil {
+		s.manager.logger.Warn(
+			"terminal: retain last valid settings",
+			"terminal_id", s.info.ID,
+			"error", errors.Join(err, validationErr),
+		)
 		return current
 	}
 	s.mu.Lock()
@@ -139,14 +151,23 @@ func (s *session) start() {
 
 func (s *session) readOutput() {
 	reads := make(chan outputRead, 1)
-	go readProcessOutput(s.proc.Reader(), reads, s.flow)
+	go readProcessOutput(s.ctx, s.proc.Reader(), reads, s.flow)
 	coalescer := newOutputCoalescer(s.acceptOutput)
 	for {
 		select {
 		case read := <-reads:
 			filtered := s.filter.Filter(read.data)
 			if len(filtered.MarkerFacts) > 0 {
-				s.manager.markers.ConsumeMarkerFacts(context.Background(), s.Info(), filtered.MarkerFacts)
+				if err := s.manager.markers.ConsumeMarkerFacts(
+					s.ctx, s.Info(), filtered.MarkerFacts,
+				); err != nil {
+					s.audit.SetBlocked(true)
+					s.manager.logger.Error(
+						"terminal: consume authenticated marker facts",
+						"terminal_id", s.info.ID,
+						"error", err,
+					)
+				}
 			}
 			if len(read.data) > 0 && len(filtered.DisplayBytes) == 0 {
 				s.acceptFilteredOutput()
@@ -171,10 +192,10 @@ type outputRead struct {
 	err  error
 }
 
-func readProcessOutput(reader io.Reader, output chan<- outputRead, flow *terminalwire.Group) {
+func readProcessOutput(ctx context.Context, reader io.Reader, output chan<- outputRead, flow *terminalwire.Group) {
 	buffer := make([]byte, outputReadBytes)
 	for {
-		if err := flow.WaitProducer(context.Background()); err != nil {
+		if err := flow.WaitProducer(ctx); err != nil {
 			output <- outputRead{err: err}
 			return
 		}
@@ -232,39 +253,6 @@ func (s *session) acceptFilteredOutput() {
 	s.mu.Unlock()
 }
 
-func (s *session) capturedOutput() ([]byte, bool, int64) {
-	s.captureMu.Lock()
-	defer s.captureMu.Unlock()
-	return append([]byte(nil), s.capture...), s.captureTruncated, s.captureBytes
-}
-
-func (s *session) appendCaptureLocked(input []byte) {
-	s.captureBytes += int64(len(input))
-	if !s.captureTruncated && len(s.capture)+len(input) <= execCaptureLimit {
-		s.capture = append(s.capture, input...)
-		return
-	}
-	headSize := execCaptureLimit / 2
-	tailSize := execCaptureLimit - headSize
-	if !s.captureTruncated {
-		combined := make([]byte, 0, len(s.capture)+len(input))
-		combined = append(combined, s.capture...)
-		combined = append(combined, input...)
-		s.capture = append(s.capture[:0], combined[:headSize]...)
-		s.capture = append(s.capture, combined[len(combined)-tailSize:]...)
-		s.captureTruncated = true
-		return
-	}
-	tail := make([]byte, 0, tailSize+len(input))
-	tail = append(tail, s.capture[headSize:]...)
-	tail = append(tail, input...)
-	s.capture = s.capture[:headSize]
-	if len(tail) > tailSize {
-		tail = tail[len(tail)-tailSize:]
-	}
-	s.capture = append(s.capture, tail...)
-}
-
 func (s *session) programTitleChanged(title string) {
 	if title == "" {
 		return
@@ -289,7 +277,7 @@ func (s *session) programTitleChanged(title string) {
 	for _, subscriber := range subscribers {
 		subscriber.deliver(Frame{Op: terminalwire.ServerOpTitle, Payload: payload}, 0)
 	}
-	s.manager.events.Notify(context.Background(), Event{
+	s.manager.events.Notify(s.ctx, Event{
 		Kind: EventKindTitleChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.profileName,
 		TerminalID:  info.ID, Actor: Actor{Kind: ActorKindSystem, ID: "terminal-program", ProfileID: info.ProfileID},
@@ -298,7 +286,7 @@ func (s *session) programTitleChanged(title string) {
 }
 
 func (s *session) waitProcess(outputDone <-chan struct{}) {
-	ptyExit, waitErr := s.proc.Wait(context.Background())
+	ptyExit, waitErr := s.proc.Wait(s.ctx)
 	s.flow.ResumeProducer()
 	select {
 	case <-outputDone:
@@ -346,13 +334,19 @@ func (s *session) finalize(exit Exit) {
 		info := s.infoSnapshotLocked()
 		s.mu.Unlock()
 		s.recordingWG.Wait()
-		recordingCtx, cancelRecording := context.WithTimeout(context.Background(), recordingPersistenceTimeout)
+		recordingCtx, cancelRecording := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
 		_, recordingErr := s.stopRecording(recordingCtx, actor, "terminal_closed")
 		cancelRecording()
 		if recordingErr != nil &&
 			!isRecordingNotActive(recordingErr) {
 			s.manager.logger.Warn("terminal: stop recording on exit", "terminal_id", info.ID, "error", recordingErr)
 		}
+		journalCtx, cancelJournal := boundedCleanupContext(s.ctx, defaultJournalShutdownTimeout)
+		if err := s.manager.closeJournalTerminal(journalCtx, s); err != nil {
+			s.audit.SetBlocked(true)
+			s.manager.logger.Error("terminal: close journal lane", "terminal_id", info.ID, "error", err)
+		}
+		cancelJournal()
 		for _, subscriber := range subscribers {
 			subscriber.finish(exit)
 		}
@@ -368,12 +362,14 @@ func (s *session) finalize(exit Exit) {
 			if exit.Cause == "unknown" {
 				completion.Err = errors.New("terminal process exit cause unknown")
 			}
-			if err := s.processRecord.Complete(context.Background(), completion); err != nil {
+			completeCtx, cancelComplete := boundedCleanupContext(s.ctx, processCleanupTimeout)
+			if err := s.processRecord.Complete(completeCtx, completion); err != nil {
 				s.manager.logger.Warn("terminal: complete process record", "terminal_id", s.info.ID, "error", err)
 			}
+			cancelComplete()
 		}
 		if emitClosed {
-			s.manager.events.Notify(context.Background(), Event{
+			s.manager.events.Notify(s.ctx, Event{
 				Kind: EventKindClosed, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 				ProfileName: s.profileName,
 				TerminalID:  info.ID, Actor: actor, Info: &info, Exit: cloneExit(&exit), Reason: reason,
@@ -381,10 +377,14 @@ func (s *session) finalize(exit Exit) {
 			})
 		}
 		close(s.done)
+		s.cancel()
 	})
 }
 
 func (s *session) close(ctx context.Context, signal Signal, reason string, actor Actor) (*Exit, error) {
+	if err := requestContextError(ctx, "close"); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	if s.exit != nil {
 		exit := cloneExit(s.exit)
@@ -400,7 +400,7 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 		signal = SignalHUP
 	}
 	if s.processRecord != nil {
-		if err := s.processRecord.Checkpoint(context.WithoutCancel(ctx), toolruntime.ProcessCheckpoint{
+		if err := s.processRecord.Checkpoint(ctx, toolruntime.ProcessCheckpoint{
 			State: toolruntime.ProcessStateInterrupting, Error: reason,
 		}); err != nil {
 			s.manager.logger.Warn("terminal: checkpoint interrupt", "terminal_id", s.info.ID, "error", err)
@@ -411,7 +411,7 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 	}
 	select {
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return nil, context.Cause(ctx)
 	case <-s.done:
 		s.mu.RLock()
 		defer s.mu.RUnlock()

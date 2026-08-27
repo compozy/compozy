@@ -2,12 +2,10 @@ package terminal
 
 import (
 	"context"
-	"encoding/hex"
+	"errors"
 	"fmt"
-	"io"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -15,30 +13,15 @@ import (
 
 const (
 	inputRequestTTL             = 15 * time.Minute
+	inputEventDeliveryTimeout   = 5 * time.Second
 	maxInputRequestsPerTerminal = 4
 	maxInputRequestsPerScope    = 32
 )
 
-type pendingInput struct {
-	projection PendingInputRequest
-	session    *session
-	result     chan InputOutcome
-	timer      *time.Timer
-	resolving  bool
-}
-
-type inputRegistry struct {
-	mu            sync.Mutex
-	pending       map[InputRequestID]*pendingInput
-	resolved      map[InputRequestID]struct{}
-	resolvedOrder []InputRequestID
-}
-
-func newInputRegistry() *inputRegistry {
-	return &inputRegistry{pending: make(map[InputRequestID]*pendingInput), resolved: make(map[InputRequestID]struct{})}
-}
-
 func (s *session) RequestInput(ctx context.Context, request InputRequest) (*InputOutcome, error) {
+	if ctx == nil {
+		return nil, errors.New("terminal: input request context is required")
+	}
 	if s.Info().Mode != ModePTY {
 		return nil, &Error{
 			Code:    errorCodeNotInteractive,
@@ -73,13 +56,17 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 	if err != nil {
 		return nil, err
 	}
-	s.manager.events.Notify(context.WithoutCancel(ctx), Event{
+	s.manager.events.Notify(ctx, Event{
 		Kind: EventKindInputRequested, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: s.profileName,
 		TerminalID: info.ID, Actor: requester, Reason: request.Reason,
 		Detail: &EventDetail{RequestID: pending.projection.ID, Redacted: redacted}, At: s.manager.now(),
 	})
-	outcome := <-pending.result
-	return &outcome, nil
+	select {
+	case outcome := <-pending.result:
+		return &outcome, nil
+	case <-ctx.Done():
+		return nil, fmt.Errorf("terminal: input request canceled: %w", context.Cause(ctx))
+	}
 }
 
 func (s *session) AnswerInput(
@@ -88,6 +75,9 @@ func (s *session) AnswerInput(
 	id InputRequestID,
 	answer InputAnswer,
 ) (*InputOutcome, error) {
+	if err := requestContextError(ctx, "answer input"); err != nil {
+		return nil, err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return nil, err
 	}
@@ -98,6 +88,9 @@ func (s *session) AnswerInput(
 			Err:     ErrInputRequiresWrite,
 		}
 	}
+	if err := s.lease.authorize(actor); err != nil {
+		return nil, err
+	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
 		return nil, err
@@ -107,17 +100,22 @@ func (s *session) AnswerInput(
 	if len(delivery) == 0 || (delivery[len(delivery)-1] != '\n' && delivery[len(delivery)-1] != '\r') {
 		delivery = append(delivery, '\n')
 	}
-	if err := s.deliverInputMode(ctx, actor, delivery, pending.projection.Redacted, true); err != nil {
-		s.manager.inputs.release(id)
+	if err := s.deliverInputMode(ctx, actor, delivery, pending.projection.Redacted); err != nil {
+		s.manager.inputs.release(pending)
 		return nil, err
 	}
 	outcome := InputOutcome{Outcome: "answered", Redacted: pending.projection.Redacted, Length: len(filtered)}
-	s.manager.inputs.complete(id, outcome)
-	s.emitInputProvided(ctx, pending, actor, "answered", len(filtered))
+	if !s.manager.inputs.complete(pending, outcome) {
+		return nil, inputRequestAlreadyResolvedError()
+	}
+	s.emitInputProvided(ctx, pending, actor, "answered", len(filtered), "")
 	return &outcome, nil
 }
 
-func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestID, _ string) error {
+func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestID, reason string) error {
+	if err := requestContextError(ctx, "reject input"); err != nil {
+		return err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
@@ -128,17 +126,29 @@ func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestI
 			Err:     ErrInputRequiresWrite,
 		}
 	}
+	if err := s.lease.authorize(actor); err != nil {
+		return err
+	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
 		return err
 	}
-	if err := s.lease.answerHandoff(actor, nil, func([]byte) (int, error) { return 0, nil }); err != nil {
-		s.manager.inputs.release(id)
-		return err
+	if !s.manager.inputs.complete(
+		pending,
+		InputOutcome{Outcome: "rejected", Redacted: pending.projection.Redacted},
+	) {
+		return inputRequestAlreadyResolvedError()
 	}
-	s.manager.inputs.complete(id, InputOutcome{Outcome: "rejected", Redacted: pending.projection.Redacted})
-	s.emitInputProvided(ctx, pending, actor, "rejected", 0)
+	s.emitInputProvided(ctx, pending, actor, "rejected", 0, strings.TrimSpace(reason))
 	return nil
+}
+
+func inputRequestAlreadyResolvedError() error {
+	return &Error{
+		Code:    errorCodeInputAlreadyAnswered,
+		Message: errorMessageInputAlreadyResolved,
+		Err:     ErrInputAnswered,
+	}
 }
 
 // PendingInput returns the server-owned redaction facts used by the answer transport.
@@ -157,14 +167,16 @@ func (s *session) emitInputProvided(
 	actor Actor,
 	outcome string,
 	length int,
+	reason string,
 ) {
-	s.manager.events.Notify(context.WithoutCancel(ctx), Event{
+	s.manager.events.Notify(ctx, Event{
 		Kind:        EventKindInputProvided,
 		WorkspaceID: pending.projection.WorkspaceID,
 		ProfileID:   pending.projection.ProfileID,
 		ProfileName: pending.projection.ProfileName,
 		TerminalID:  pending.projection.TerminalID,
 		Actor:       actor,
+		Reason:      reason,
 		Detail: &EventDetail{
 			RequestID: pending.projection.ID,
 			Redacted:  pending.projection.Redacted,
@@ -176,226 +188,21 @@ func (s *session) emitInputProvided(
 }
 
 func (m *Service) InputRequests(
-	_ context.Context,
+	ctx context.Context,
 	workspaceID string,
 	scope store.ReadScope,
 	terminalID ID,
 ) ([]PendingInputRequest, error) {
+	if err := requestContextError(ctx, "list input requests"); err != nil {
+		return nil, err
+	}
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("terminal: validate input request scope: %w", err)
 	}
 	return m.inputs.list(workspaceID, scope, terminalID), nil
 }
 
-func (r *inputRegistry) create(
-	session *session,
-	request InputRequest,
-	redacted bool,
-	generateID func() (InputRequestID, error),
-) (*pendingInput, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	info := session.Info()
-	terminalCount, scopeCount := 0, 0
-	for _, candidate := range r.pending {
-		if candidate.projection.TerminalID == info.ID && candidate.projection.ProfileID == info.ProfileID &&
-			candidate.projection.WorkspaceID == info.WS {
-			terminalCount++
-		}
-		if candidate.projection.ProfileID == info.ProfileID && candidate.projection.WorkspaceID == info.WS {
-			scopeCount++
-		}
-	}
-	if terminalCount >= maxInputRequestsPerTerminal {
-		return nil, &Error{
-			Code:    "input_request_limit_reached",
-			Message: "terminal input request limit reached",
-			Current: terminalCount,
-			Max:     maxInputRequestsPerTerminal,
-			Err:     ErrInputLimit,
-		}
-	}
-	if scopeCount >= maxInputRequestsPerScope {
-		return nil, &Error{
-			Code:    "input_request_limit_reached",
-			Message: "workspace input request limit reached",
-			Current: scopeCount,
-			Max:     maxInputRequestsPerScope,
-			Err:     ErrInputLimit,
-		}
-	}
-	id, err := generateID()
-	if err != nil {
-		return nil, err
-	}
-	pending := &pendingInput{
-		projection: PendingInputRequest{
-			ID:            id,
-			TerminalID:    info.ID,
-			WorkspaceID:   info.WS,
-			ProfileID:     info.ProfileID,
-			ProfileName:   session.profileName,
-			Reason:        strings.TrimSpace(request.Reason),
-			PromptExcerpt: strings.TrimSpace(request.PromptExcerpt),
-			Redacted:      redacted,
-			RequestedAt:   session.manager.now(),
-		},
-		session: session, result: make(chan InputOutcome, 1),
-	}
-	pending.timer = time.AfterFunc(session.manager.inputRequestTTL, func() {
-		if resolved := r.resolve(id, InputOutcome{Outcome: "expired", Redacted: redacted}); resolved != nil {
-			resolved.session.emitInputProvided(
-				context.Background(),
-				resolved,
-				Actor{Kind: ActorKindSystem, ID: "input-request-expiry", ProfileID: info.ProfileID},
-				"expired",
-				0,
-			)
-		}
-	})
-	r.pending[id] = pending
-	return pending, nil
-}
-
-func (r *inputRegistry) claim(session *session, id InputRequestID) (*pendingInput, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	pending := r.pending[id]
-	if pending == nil || pending.session != session {
-		if _, answered := r.resolved[id]; answered {
-			return nil, &Error{
-				Code:    errorCodeInputAlreadyAnswered,
-				Message: "terminal input request is already resolved",
-				Err:     ErrInputAnswered,
-			}
-		}
-		return nil, &Error{
-			Code:    "input_request_not_found",
-			Message: "terminal input request was not found",
-			Err:     ErrInputNotFound,
-		}
-	}
-	if pending.resolving {
-		return nil, &Error{
-			Code:    errorCodeInputAlreadyAnswered,
-			Message: "terminal input request is already being resolved",
-			Err:     ErrInputAnswered,
-		}
-	}
-	pending.resolving = true
-	return pending, nil
-}
-
-func (r *inputRegistry) inspect(session *session, id InputRequestID) (*pendingInput, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	pending := r.pending[id]
-	if pending == nil || pending.session != session {
-		if _, answered := r.resolved[id]; answered {
-			return nil, &Error{
-				Code:    errorCodeInputAlreadyAnswered,
-				Message: "terminal input request is already resolved",
-				Err:     ErrInputAnswered,
-			}
-		}
-		return nil, &Error{
-			Code:    "input_request_not_found",
-			Message: "terminal input request was not found",
-			Err:     ErrInputNotFound,
-		}
-	}
-	if pending.resolving {
-		return nil, &Error{
-			Code:    errorCodeInputAlreadyAnswered,
-			Message: "terminal input request is already being resolved",
-			Err:     ErrInputAnswered,
-		}
-	}
-	return pending, nil
-}
-
-func (r *inputRegistry) release(id InputRequestID) {
-	r.mu.Lock()
-	if pending := r.pending[id]; pending != nil {
-		pending.resolving = false
-	}
-	r.mu.Unlock()
-}
-
-func (r *inputRegistry) complete(id InputRequestID, outcome InputOutcome) {
-	r.resolve(id, outcome)
-}
-
-func (r *inputRegistry) resolve(id InputRequestID, outcome InputOutcome) *pendingInput {
-	r.mu.Lock()
-	pending := r.pending[id]
-	if pending == nil {
-		r.mu.Unlock()
-		return nil
-	}
-	delete(r.pending, id)
-	r.resolved[id] = struct{}{}
-	r.resolvedOrder = append(r.resolvedOrder, id)
-	if len(r.resolvedOrder) > 256 {
-		oldest := r.resolvedOrder[0]
-		r.resolvedOrder = r.resolvedOrder[1:]
-		delete(r.resolved, oldest)
-	}
-	r.mu.Unlock()
-	if pending.timer != nil {
-		pending.timer.Stop()
-	}
-	pending.result <- outcome
-	return pending
-}
-
-func (r *inputRegistry) resolveTerminal(session *session, outcome string) []*pendingInput {
-	r.mu.Lock()
-	ids := make([]InputRequestID, 0)
-	for id, pending := range r.pending {
-		if pending.session == session {
-			ids = append(ids, id)
-		}
-	}
-	r.mu.Unlock()
-	resolved := make([]*pendingInput, 0, len(ids))
-	for _, id := range ids {
-		r.mu.Lock()
-		candidate := r.pending[id]
-		redacted := candidate != nil && candidate.projection.Redacted
-		r.mu.Unlock()
-		pending := r.resolve(id, InputOutcome{Outcome: outcome, Redacted: redacted})
-		if pending != nil {
-			resolved = append(resolved, pending)
-		}
-	}
-	return resolved
-}
-
-func (r *inputRegistry) list(workspaceID string, scope store.ReadScope, terminalID ID) []PendingInputRequest {
-	r.mu.Lock()
-	items := make([]PendingInputRequest, 0)
-	for _, pending := range r.pending {
-		item := pending.projection
-		if item.WorkspaceID == workspaceID && scope.Matches(item.ProfileID) &&
-			(terminalID == "" || item.TerminalID == terminalID) {
-			items = append(items, item)
-		}
-	}
-	r.mu.Unlock()
-	slices.SortFunc(items, func(left, right PendingInputRequest) int {
-		if left.RequestedAt.Equal(right.RequestedAt) {
-			return strings.Compare(string(left.ID), string(right.ID))
-		}
-		if left.RequestedAt.Before(right.RequestedAt) {
-			return -1
-		}
-		return 1
-	})
-	return items
-}
-
-func (m *Service) resolveInputRequestsOnClose(ctx context.Context, event Event) {
+func (m *Service) resolveInputRequestsOnClose(_ context.Context, event Event) {
 	if event.Kind != EventKindClosed {
 		return
 	}
@@ -410,21 +217,11 @@ func (m *Service) resolveInputRequestsOnClose(ctx context.Context, event Event) 
 	if event.Reason == "profile_archived" {
 		outcome = "rejected"
 	}
-	for _, pending := range m.inputs.resolveTerminal(session, outcome) {
-		pending.session.emitInputProvided(ctx, pending, event.Actor, outcome, 0)
-	}
+	m.inputs.resolveTerminal(session, inputTerminalResolution{
+		outcome: outcome, actor: event.Actor, reason: event.Reason,
+	})
 }
 
-func (s *session) supersedeInputRequests(ctx context.Context, actor Actor) {
-	for _, pending := range s.manager.inputs.resolveTerminal(s, "superseded") {
-		s.emitInputProvided(ctx, pending, actor, "superseded", 0)
-	}
-}
-
-func newInputRequestID(entropy io.Reader) (InputRequestID, error) {
-	raw := make([]byte, 8)
-	if _, err := io.ReadFull(entropy, raw); err != nil {
-		return "", fmt.Errorf("terminal: generate input request id: %w", err)
-	}
-	return InputRequestID("input-" + hex.EncodeToString(raw)), nil
+func (s *session) supersedeInputRequests(_ context.Context, actor Actor) {
+	s.manager.inputs.resolveTerminal(s, inputTerminalResolution{outcome: "superseded", actor: actor})
 }

@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"context"
 	"errors"
 	"fmt"
 )
@@ -12,6 +13,7 @@ const (
 	errorCodeGenerationFenced         = "generation_fenced"
 	errorCodeInputAlreadyAnswered     = "input_request_already_answered"
 	errorCodeInputAnswerRequiresWrite = "input_answer_requires_write"
+	errorCodeInputPending             = "input_request_pending"
 	errorCodeInvalidCwd               = "invalid_cwd"
 	errorCodeNotInteractive           = "terminal_not_interactive"
 	errorCodeNotFound                 = "terminal_not_found"
@@ -21,6 +23,8 @@ const (
 	errorMessageExpired               = "terminal has expired"
 	errorMessageExited                = "terminal has exited"
 	errorMessageGenerationFenced      = "terminal action came from a stale runtime generation"
+	errorMessageInputAlreadyResolved  = "terminal input request is already resolved"
+	errorMessageInputPending          = "agent terminal mutation is blocked while an input request is pending"
 	errorMessageNotFound              = "terminal not found"
 	errorMessageNotInteractive        = "terminal is not interactive"
 	errorMessageShuttingDown          = "terminal manager is shutting down"
@@ -39,6 +43,8 @@ var (
 	ErrInputAnswered      = errors.New("terminal input request already answered")
 	ErrInputLimit         = errors.New("terminal input request limit reached")
 	ErrInputRequiresWrite = errors.New("terminal input answer requires write")
+	ErrInputPending       = errors.New("terminal input request pending")
+	ErrWaitTimeout        = errors.New("terminal wait timeout")
 	ErrExited             = errors.New("terminal exited")
 	ErrExpired            = errors.New("terminal expired")
 	ErrLimitReached       = errors.New("terminal limit reached")
@@ -79,4 +85,14 @@ func (e *Error) Unwrap() error {
 		return nil
 	}
 	return e.Err
+}
+
+func requestContextError(ctx context.Context, operation string) error {
+	if ctx == nil {
+		return fmt.Errorf("terminal: %s context is required", operation)
+	}
+	if err := ctx.Err(); err != nil {
+		return context.Cause(ctx)
+	}
+	return nil
 }

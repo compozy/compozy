@@ -58,11 +58,14 @@ func (m *Service) RuntimeRecovered(_ context.Context, previous, current Actor) i
 
 // Claim grants an available or recovery-fenced terminal back to its bound agent generation.
 func (m *Service) Claim(
-	_ context.Context,
+	ctx context.Context,
 	workspaceID string,
 	id ID,
 	actor Actor,
 ) error {
+	if err := requestContextError(ctx, "claim"); err != nil {
+		return err
+	}
 	item, err := m.lookup(terminalKey{workspaceID: workspaceID, profileID: actor.ProfileID, id: id})
 	if err != nil {
 		return err

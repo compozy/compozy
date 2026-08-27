@@ -26,13 +26,18 @@ const (
 
 type terminalManager struct {
 	logger    *slog.Logger
+	lifecycle context.Context
 	core      TerminalHost
-	ownedCore *terminalpkg.Service
+	ownedCore terminalShutdowner
 	coreErr   error
 	scope     terminalScope
 
 	mu        sync.RWMutex
 	terminals map[string]*managedTerminal
+}
+
+type terminalShutdowner interface {
+	Shutdown(context.Context) error
 }
 
 type managedTerminal struct {
@@ -164,8 +169,12 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 				return killErr
 			}
 			if handle != nil {
+				completeCtx, cancelComplete := context.WithTimeout(
+					context.WithoutCancel(callbackCtx), defaultStopTimeout,
+				)
+				defer cancelComplete()
 				return handle.Complete(
-					context.WithoutCancel(callbackCtx),
+					completeCtx,
 					toolruntime.ProcessCompletion{Err: errors.New("terminal interrupted")},
 				)
 			}
@@ -214,8 +223,12 @@ func (p *AgentProcess) takeExternalTerminalProcess(id string) *toolruntime.Handl
 }
 
 func (p *AgentProcess) handleKillTerminal(
+	ctx context.Context,
 	request acpsdk.KillTerminalRequest,
 ) (acpsdk.KillTerminalResponse, error) {
+	if err := terminalRequestContextError(ctx, "kill"); err != nil {
+		return acpsdk.KillTerminalResponse{}, err
+	}
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
@@ -223,20 +236,37 @@ func (p *AgentProcess) handleKillTerminal(
 	if err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
-	if err := host.KillTerminal(request.TerminalId); err != nil {
+	if err := killTerminalWithRequestContext(ctx, host, request.TerminalId); err != nil {
 		return acpsdk.KillTerminalResponse{}, err
 	}
+	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
+	defer cancelComplete()
 	p.completeExternalTerminalProcess(
-		context.Background(),
+		completeCtx,
 		request.TerminalId,
 		toolruntime.ProcessCompletion{Err: errors.New("terminal killed")},
 	)
 	return acpsdk.KillTerminalResponse{}, nil
 }
 
+func killTerminalWithRequestContext(ctx context.Context, host ToolHost, id string) error {
+	if localHost, ok := host.(*localToolHost); ok {
+		return localHost.killTerminalWithContext(ctx, id)
+	}
+	if err := terminalRequestContextError(ctx, "kill"); err != nil {
+		return err
+	}
+	// ToolHost's external contract has no context, so cancellation is enforceable only before this call.
+	return host.KillTerminal(id)
+}
+
 func (p *AgentProcess) handleTerminalOutput(
+	ctx context.Context,
 	request acpsdk.TerminalOutputRequest,
 ) (acpsdk.TerminalOutputResponse, error) {
+	if err := terminalRequestContextError(ctx, "output"); err != nil {
+		return acpsdk.TerminalOutputResponse{}, err
+	}
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, true); err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
@@ -245,7 +275,7 @@ func (p *AgentProcess) handleTerminalOutput(
 		return acpsdk.TerminalOutputResponse{}, err
 	}
 	if localHost, ok := host.(*localToolHost); ok {
-		output, truncated, exitStatus, err := localHost.terminalOutputStatus(request.TerminalId)
+		output, truncated, exitStatus, err := localHost.terminalOutputStatusWithContext(ctx, request.TerminalId)
 		if err != nil {
 			return acpsdk.TerminalOutputResponse{}, err
 		}
@@ -255,13 +285,21 @@ func (p *AgentProcess) handleTerminalOutput(
 			ExitStatus: exitStatus,
 		}, nil
 	}
-	output, err := host.TerminalOutput(request.TerminalId)
+	output, err := outputTerminalWithRequestContext(ctx, host, request.TerminalId)
 	if err != nil {
 		return acpsdk.TerminalOutputResponse{}, err
 	}
 	return acpsdk.TerminalOutputResponse{
 		Output: output,
 	}, nil
+}
+
+func outputTerminalWithRequestContext(ctx context.Context, host ToolHost, id string) (string, error) {
+	if err := terminalRequestContextError(ctx, "output"); err != nil {
+		return "", err
+	}
+	// ToolHost's external contract has no context, so cancellation is enforceable only before this call.
+	return host.TerminalOutput(id)
 }
 
 func (p *AgentProcess) handleWaitForTerminalExit(
@@ -292,8 +330,10 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 	if err != nil {
 		return acpsdk.WaitForTerminalExitResponse{}, err
 	}
+	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
+	defer cancelComplete()
 	p.completeExternalTerminalProcess(
-		context.Background(),
+		completeCtx,
 		request.TerminalId,
 		toolruntime.ProcessCompletion{ExitCode: new(exitCode)},
 	)
@@ -303,8 +343,12 @@ func (p *AgentProcess) handleWaitForTerminalExit(
 }
 
 func (p *AgentProcess) handleReleaseTerminal(
+	ctx context.Context,
 	request acpsdk.ReleaseTerminalRequest,
 ) (acpsdk.ReleaseTerminalResponse, error) {
+	if err := terminalRequestContextError(ctx, "release"); err != nil {
+		return acpsdk.ReleaseTerminalResponse{}, err
+	}
 	if err := p.ensureNetworkTurnTerminalAccess(request.TerminalId, false); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
@@ -312,16 +356,33 @@ func (p *AgentProcess) handleReleaseTerminal(
 	if err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
-	if err := host.ReleaseTerminal(request.TerminalId); err != nil {
+	if err := releaseTerminalWithRequestContext(ctx, host, request.TerminalId); err != nil {
 		return acpsdk.ReleaseTerminalResponse{}, err
 	}
 	p.deleteTerminalOwnership(request.TerminalId)
+	completeCtx, cancelComplete := p.terminalCompletionContext(ctx)
+	defer cancelComplete()
 	p.completeExternalTerminalProcess(
-		context.Background(),
+		completeCtx,
 		request.TerminalId,
 		toolruntime.ProcessCompletion{Error: "terminal released"},
 	)
 	return acpsdk.ReleaseTerminalResponse{}, nil
+}
+
+func releaseTerminalWithRequestContext(ctx context.Context, host ToolHost, id string) error {
+	if localHost, ok := host.(*localToolHost); ok {
+		return localHost.releaseTerminalWithContext(ctx, id)
+	}
+	if err := terminalRequestContextError(ctx, "release"); err != nil {
+		return err
+	}
+	// ToolHost's external contract has no context, so cancellation is enforceable only before this call.
+	return host.ReleaseTerminal(id)
+}
+
+func (p *AgentProcess) terminalCompletionContext(requestCtx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(requestCtx), defaultStopTimeout)
 }
 
 func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {

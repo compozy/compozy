@@ -62,7 +62,13 @@ type fakeProc struct {
 	pid            int
 	reads          atomic.Int32
 	redactedWrites atomic.Int32
+	echoWrites     atomic.Bool
 	echoEnabled    bool
+	visibilitySeen chan struct{}
+	visibilityWait <-chan struct{}
+	writeStarted   chan struct{}
+	writeRelease   <-chan struct{}
+	writeErr       error
 }
 
 type fakeResize struct {
@@ -78,20 +84,70 @@ func newFakeProc(pid int) *fakeProc {
 func (p *fakeProc) Reader() io.Reader { return countingReader{Reader: p.reader, count: &p.reads} }
 
 func (p *fakeProc) Write(input []byte) (int, error) {
+	return p.writeInput(input, true)
+}
+
+func (p *fakeProc) writeInput(input []byte, allowEcho bool) (int, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.input.Write(input)
+	started := p.writeStarted
+	p.writeStarted = nil
+	release := p.writeRelease
+	writeErr := p.writeErr
+	p.mu.Unlock()
+	if started != nil {
+		close(started)
+	}
+	if release != nil {
+		<-release
+	}
+	if writeErr != nil {
+		return 0, writeErr
+	}
+	p.mu.Lock()
+	written, err := p.input.Write(input)
+	p.mu.Unlock()
+	if err != nil || !allowEcho || !p.echoWrites.Load() {
+		return written, err
+	}
+	return p.output.Write(input)
 }
 
 func (p *fakeProc) InputVisible() (bool, error) {
 	p.mu.Lock()
-	defer p.mu.Unlock()
-	return p.echoEnabled, nil
+	started := p.visibilitySeen
+	p.visibilitySeen = nil
+	release := p.visibilityWait
+	visible := p.echoEnabled
+	p.mu.Unlock()
+	if started != nil {
+		close(started)
+	}
+	if release != nil {
+		<-release
+	}
+	return visible, nil
 }
 
 func (p *fakeProc) WriteRedacted(input []byte) (int, error) {
 	p.redactedWrites.Add(1)
-	return p.Write(input)
+	return p.writeInput(input, false)
+}
+
+func (p *fakeProc) enableWriteEcho() { p.echoWrites.Store(true) }
+
+func (p *fakeProc) blockWrites(started chan struct{}, release <-chan struct{}, err error) {
+	p.mu.Lock()
+	p.writeStarted = started
+	p.writeRelease = release
+	p.writeErr = err
+	p.mu.Unlock()
+}
+
+func (p *fakeProc) blockInputVisibility(started chan struct{}, release <-chan struct{}) {
+	p.mu.Lock()
+	p.visibilitySeen = started
+	p.visibilityWait = release
+	p.mu.Unlock()
 }
 
 func (p *fakeProc) Resize(cols, rows uint16) error {
@@ -242,6 +298,75 @@ func (g *fakeProfileGuard) EnsureAvailableID(_ context.Context, profileID string
 
 type fakeCheckpoint struct {
 	completed atomic.Bool
+}
+
+type cleanupProbeProc struct {
+	Proc
+	killErr      error
+	closeErr     error
+	waitErr      error
+	waitCtx      chan cleanupContextObservation
+	waitForBound bool
+}
+
+func (p *cleanupProbeProc) Kill(terminalpty.Signal) error { return p.killErr }
+
+func (p *cleanupProbeProc) Close() error { return p.closeErr }
+
+func (p *cleanupProbeProc) Wait(ctx context.Context) (terminalpty.Exit, error) {
+	if p.waitForBound {
+		<-ctx.Done()
+	}
+	p.waitCtx <- observeCleanupContext(ctx)
+	return terminalpty.Exit{}, errors.Join(p.waitErr, ctx.Err())
+}
+
+type cleanupContextObservation struct {
+	err         error
+	value       any
+	hasDeadline bool
+}
+
+type cleanupContextKey struct{}
+
+type cancelWhenSubscriberInsertedContext struct {
+	context.Context
+	session *session
+	cause   error
+	done    chan struct{}
+	once    sync.Once
+}
+
+func (c *cancelWhenSubscriberInsertedContext) Err() error {
+	c.session.mu.RLock()
+	inserted := len(c.session.subscribers) > 0
+	c.session.mu.RUnlock()
+	if inserted {
+		c.once.Do(func() { close(c.done) })
+		return c.cause
+	}
+	return nil
+}
+
+func (c *cancelWhenSubscriberInsertedContext) Done() <-chan struct{} { return c.done }
+
+func observeCleanupContext(ctx context.Context) cleanupContextObservation {
+	_, hasDeadline := ctx.Deadline()
+	return cleanupContextObservation{err: ctx.Err(), value: ctx.Value(cleanupContextKey{}), hasDeadline: hasDeadline}
+}
+
+type cleanupProbeCheckpoint struct {
+	completeErr error
+	completeCtx chan cleanupContextObservation
+}
+
+func (*cleanupProbeCheckpoint) Checkpoint(context.Context, toolruntime.ProcessCheckpoint) error {
+	return nil
+}
+
+func (c *cleanupProbeCheckpoint) Complete(ctx context.Context, _ toolruntime.ProcessCompletion) error {
+	c.completeCtx <- observeCleanupContext(ctx)
+	return c.completeErr
 }
 
 type fakeRecordingJournal struct {

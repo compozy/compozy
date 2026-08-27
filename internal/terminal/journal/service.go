@@ -40,6 +40,11 @@ type Service struct {
 	artifactMu    sync.Mutex
 }
 
+var (
+	_ terminal.Journal        = (*Service)(nil)
+	_ terminal.MarkerConsumer = (*Service)(nil)
+)
+
 // New constructs a durable journal.
 func New(options Options) (*Service, error) {
 	if options.Databases == nil {

@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -52,7 +53,7 @@ func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T)
 		}
 	})
 
-	t.Run("Should neutralize OSC location hyperlinks and DCS only for model output", func(t *testing.T) {
+	t.Run("Should neutralize OSC location hyperlinks and DCS for every output consumer", func(t *testing.T) {
 		t.Parallel()
 		input := []byte(
 			"before\x1b]7;file:///tmp\x07middle\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\after\x1bPprivate\x1b\\done",
@@ -61,97 +62,132 @@ func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T)
 		if got, want := string(filtered), "beforemiddlelinkafterdone"; got != want {
 			t.Fatalf("modelFacingOutput() = %q, want %q", got, want)
 		}
-		if got := string(newOSCSecurityFilter("nonce-1", nil).Filter(input).DisplayBytes); got != string(input) {
-			t.Fatalf("human display output = %q, want raw stream", got)
+		if got, want := string(newOSCSecurityFilter("nonce-1", nil).Filter(input).DisplayBytes),
+			"beforemiddlelinkafterdone"; got != want {
+			t.Fatalf("human display output = %q, want %q", got, want)
 		}
 	})
 }
 
 func TestOSCSecurityFilterShouldDeliverTypedFactsBeforeDisplayFanout(t *testing.T) {
-	t.Parallel()
-	consumer := &recordingMarkerConsumer{facts: make(chan MarkerFacts, 1)}
-	manager, starter, _ := newTestManager(t, DefaultSettings(), WithMarkerConsumer(consumer))
-	handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
-	marker := "visible\x1b]7113;v1;" + handle.MarkerNonce() + ";S;cmd=bun%20test;cwd=%2Ftmp\x1b\\after"
-	if err := starter.latest().emit([]byte(marker)); err != nil {
-		t.Fatalf("emit marker output: %v", err)
-	}
-	select {
-	case fact := <-consumer.facts:
-		if fact.Kind != "S" || fact.Command != "bun test" || fact.Cwd != "/tmp" {
-			t.Fatalf("consumed marker fact = %#v", fact)
+	t.Run("Should deliver typed facts before filtered display bytes", func(t *testing.T) {
+		t.Parallel()
+		consumer := &recordingMarkerConsumer{facts: make(chan MarkerFacts, 1)}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithMarkerConsumer(consumer))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		marker := "visible\x1b]7113;v1;" + handle.MarkerNonce() + ";S;cmd=bun%20test;cwd=%2Ftmp\x1b\\after"
+		if err := starter.latest().emit([]byte(marker)); err != nil {
+			t.Fatalf("emit marker output: %v", err)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("authenticated marker fact did not reach the consumer")
-	}
-	deadline := time.Now().Add(time.Second)
-	for handle.Info().State == "running" && time.Now().Before(deadline) {
-		read, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
-		if err != nil {
-			t.Fatalf("Screen() error = %v", err)
+		select {
+		case fact := <-consumer.facts:
+			if fact.Kind != "S" || fact.Command != "bun test" || fact.Cwd != "/tmp" {
+				t.Fatalf("consumed marker fact = %#v", fact)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("authenticated marker fact did not reach the consumer")
 		}
-		if read.Content == "visibleafter" {
-			return
+		waitForTerminalTail(
+			t,
+			handle,
+			"display fanout did not receive only filtered bytes",
+			func(read *ReadResult) bool {
+				return read.Content == "visibleafter"
+			},
+		)
+	})
+}
+
+func TestOSCSecurityFilterShouldBlockInputWhenAuthenticatedFactsCannotBeJournaled(t *testing.T) {
+	t.Run("Should block input after authenticated facts miss the journal lane", func(t *testing.T) {
+		t.Parallel()
+		consumer := &failingMarkerConsumer{called: make(chan struct{}, 1)}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithMarkerConsumer(consumer))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		marker := "\x1b]7113;v1;" + handle.MarkerNonce() + ";S;cmd=pwd;cwd=%2Ftmp\x1b\\"
+		if err := starter.latest().emit([]byte(marker)); err != nil {
+			t.Fatalf("emit marker output: %v", err)
 		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatal("display fanout did not receive only filtered bytes")
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		select {
+		case <-consumer.called:
+		case <-deadline.C:
+			t.Fatal("marker consumer was not called")
+		}
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.Write(t.Context(), actor, []byte("blocked")); !errors.Is(err, ErrJournalUnavailable) {
+			t.Fatalf("Write(after marker journal failure) error = %v, want ErrJournalUnavailable", err)
+		}
+	})
 }
 
 type recordingMarkerConsumer struct {
 	facts chan MarkerFacts
 }
 
-func (c *recordingMarkerConsumer) ConsumeMarkerFacts(_ context.Context, _ Info, facts []MarkerFacts) {
+type failingMarkerConsumer struct {
+	called chan struct{}
+}
+
+func (c *failingMarkerConsumer) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) error {
+	c.called <- struct{}{}
+	return ErrJournalUnavailable
+}
+
+func (c *recordingMarkerConsumer) ConsumeMarkerFacts(_ context.Context, _ Info, facts []MarkerFacts) error {
 	for _, fact := range facts {
 		c.facts <- fact
 	}
+	return nil
 }
 
 func TestOSCSecurityFilterShouldStripClipboardBeforeSequenceAccounting(t *testing.T) {
-	t.Parallel()
-	manager, starter, _ := newTestManager(t, DefaultSettings())
-	handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
-	sub, err := handle.Attach(context.Background(), AttachOptions{
-		Mode: "read", Flow: "drop", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-	})
-	if err != nil {
-		t.Fatalf("Attach() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := sub.Close(); err != nil {
-			t.Errorf("subscription.Close() error = %v", err)
+	t.Run("Should strip clipboard controls before sequence accounting", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		sub, err := handle.Attach(t.Context(), AttachOptions{
+			Mode: "read", Flow: "drop", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		})
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := sub.Close(); err != nil {
+				t.Errorf("subscription.Close() error = %v", err)
+			}
+		})
+		<-sub.Frames()
+		assertPresenceFrame(t, receiveSubscriptionFrame(t, sub), 1)
+		input := []byte("before\x1b]52;c;c2VjcmV0\x07after")
+		if err := starter.latest().emit(input); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		select {
+		case frame := <-sub.Frames():
+			if frame.Op != terminalwire.ServerOpOutput || frame.Seq != 0 || string(frame.Payload) != "beforeafter" {
+				t.Fatalf("OUTPUT = %#v", frame)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("filtered OUTPUT was not delivered")
+		}
+		read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen() error = %v", err)
+		}
+		if read.Seq != uint64(len("beforeafter")) || read.Content != "beforeafter" ||
+			bytes.Contains([]byte(read.Content), []byte("52;")) {
+			t.Fatalf("Screen() = %#v", read)
+		}
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.Write(t.Context(), actor, []byte("x\x1b]52;c;leak\x07y")); err != nil {
+			t.Fatalf("Write() error = %v", err)
+		}
+		if got := starter.latest().inputString(); got != "xy" {
+			t.Fatalf("process input = %q, want xy", got)
 		}
 	})
-	<-sub.Frames()
-	assertPresenceFrame(t, receiveSubscriptionFrame(t, sub), 1)
-	input := []byte("before\x1b]52;c;c2VjcmV0\x07after")
-	if err := starter.latest().emit(input); err != nil {
-		t.Fatalf("emit() error = %v", err)
-	}
-	select {
-	case frame := <-sub.Frames():
-		if frame.Op != terminalwire.ServerOpOutput || frame.Seq != 0 || string(frame.Payload) != "beforeafter" {
-			t.Fatalf("OUTPUT = %#v", frame)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("filtered OUTPUT was not delivered")
-	}
-	read, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
-	if err != nil {
-		t.Fatalf("Screen() error = %v", err)
-	}
-	if read.Seq != uint64(len("beforeafter")) || read.Content != "beforeafter" ||
-		bytes.Contains([]byte(read.Content), []byte("52;")) {
-		t.Fatalf("Screen() = %#v", read)
-	}
-	actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-	if err := handle.Write(context.Background(), actor, []byte("x\x1b]52;c;leak\x07y")); err != nil {
-		t.Fatalf("Write() error = %v", err)
-	}
-	if got := starter.latest().inputString(); got != "xy" {
-		t.Fatalf("process input = %q, want xy", got)
-	}
 }
 
 func TestTerminalTitlePipelineShouldPinAndSanitize(t *testing.T) {
@@ -169,10 +205,12 @@ func TestTerminalTitlePipelineShouldPinAndSanitize(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
-		if err := starter.latest().emit([]byte("\x1b]2;program\x07")); err != nil {
+		if err := starter.latest().emit([]byte("\x1b]2;program\x07sync")); err != nil {
 			t.Fatalf("emit() error = %v", err)
 		}
-		time.Sleep(20 * time.Millisecond)
+		waitForTerminalTail(t, handle, "title output was not consumed", func(read *ReadResult) bool {
+			return strings.Contains(read.Content, "sync")
+		})
 		if got := handle.Info().Title; got != "Pinned" {
 			t.Fatalf("Info().Title = %q, want Pinned", got)
 		}
@@ -180,15 +218,25 @@ func TestTerminalTitlePipelineShouldPinAndSanitize(t *testing.T) {
 
 	t.Run("Should strip controls and bound an unpinned title", func(t *testing.T) {
 		t.Parallel()
-		manager, starter, _ := newTestManager(t, DefaultSettings())
+		bus := NewNotifier(nil)
+		titleChanged := make(chan Event, 1)
+		bus.Observe(func(_ context.Context, event Event) {
+			if event.Kind == EventKindTitleChanged {
+				titleChanged <- event
+			}
+		})
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithNotifier(bus))
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		programTitle := "hello\n" + strings.Repeat("界", 200)
 		if err := starter.latest().emit([]byte("\x1b]2;" + programTitle + "\x07")); err != nil {
 			t.Fatalf("emit() error = %v", err)
 		}
-		deadline := time.Now().Add(time.Second)
-		for handle.Info().Title == "" && time.Now().Before(deadline) {
-			time.Sleep(time.Millisecond)
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		select {
+		case <-titleChanged:
+		case <-deadline.C:
+			t.Fatal("title change event was not emitted")
 		}
 		title := handle.Info().Title
 		if strings.ContainsAny(title, "\r\n") || len([]byte(title)) > 256 {
@@ -198,60 +246,77 @@ func TestTerminalTitlePipelineShouldPinAndSanitize(t *testing.T) {
 }
 
 func TestSessionFlowShouldPauseAndResumeThePTYReader(t *testing.T) {
-	t.Parallel()
-	manager, starter, _ := newTestManager(t, DefaultSettings())
-	handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
-	sub, err := handle.Attach(context.Background(), AttachOptions{
-		Mode: "read", Flow: "ack", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-	})
-	if err != nil {
-		t.Fatalf("Attach() error = %v", err)
-	}
-	t.Cleanup(func() {
-		if err := sub.Close(); err != nil {
-			t.Errorf("subscription.Close() error = %v", err)
+	t.Run("Should pause above the high watermark and resume below the low watermark", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		sub, err := handle.Attach(t.Context(), AttachOptions{
+			Mode: "read", Flow: "ack", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		})
+		if err != nil {
+			t.Fatalf("Attach() error = %v", err)
 		}
-	})
-	<-sub.Frames()
-	emitDone := make(chan error, 1)
-	go func() { emitDone <- starter.latest().emit(make([]byte, terminalwire.AckHighWatermark+(64<<10))) }()
-	deadline := time.Now().Add(time.Second)
-	for sub.(*subscription).queue.PendingBytes() < terminalwire.AckHighWatermark && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	readsBefore := starter.latest().reads.Load()
-	time.Sleep(20 * time.Millisecond)
-	readsAfter := starter.latest().reads.Load()
-	if readsAfter != readsBefore {
-		t.Fatalf("PTY reads advanced while high: before=%d after=%d", readsBefore, readsAfter)
-	}
-	for sub.(*subscription).queue.PendingBytes() > terminalwire.AckLowWatermark {
+		t.Cleanup(func() {
+			if err := sub.Close(); err != nil {
+				t.Errorf("subscription.Close() error = %v", err)
+			}
+		})
+		<-sub.Frames()
+		emitDone := make(chan error, 1)
+		go func() { emitDone <- starter.latest().emit(make([]byte, terminalwire.AckHighWatermark+(64<<10))) }()
+		waitForTerminalCondition(t, "queue did not reach the high watermark", func() bool {
+			return sub.(*subscription).queue.PendingBytes() >= terminalwire.AckHighWatermark
+		})
+		readsBefore := starter.latest().reads.Load()
+		stableWindow := time.NewTimer(20 * time.Millisecond)
+		defer stableWindow.Stop()
+		<-stableWindow.C
+		readsAfter := starter.latest().reads.Load()
+		if readsAfter != readsBefore {
+			t.Fatalf("PTY reads advanced while high: before=%d after=%d", readsBefore, readsAfter)
+		}
+		for sub.(*subscription).queue.PendingBytes() > terminalwire.AckLowWatermark {
+			select {
+			case frame := <-sub.Frames():
+				if frame.Op == terminalwire.ServerOpOutput {
+					sub.Ack(len(frame.Payload))
+				}
+			case <-time.After(time.Second):
+				t.Fatal("queued output was not delivered for ACK")
+			}
+		}
 		select {
-		case frame := <-sub.Frames():
-			if frame.Op == terminalwire.ServerOpOutput {
-				sub.Ack(len(frame.Payload))
+		case err := <-emitDone:
+			if err != nil {
+				t.Fatalf("producer after ACK error = %v", err)
 			}
 		case <-time.After(time.Second):
-			t.Fatal("queued output was not delivered for ACK")
+			t.Fatal("producer did not resume after ACK")
 		}
-	}
-	select {
-	case err := <-emitDone:
-		if err != nil {
-			t.Fatalf("producer after ACK error = %v", err)
+		readsBefore = starter.latest().reads.Load()
+		if err := starter.latest().emit(make([]byte, outputReadBytes)); err != nil {
+			t.Fatalf("emit after resume error = %v", err)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("producer did not resume after ACK")
-	}
-	readsBefore = starter.latest().reads.Load()
-	if err := starter.latest().emit(make([]byte, outputReadBytes)); err != nil {
-		t.Fatalf("emit after resume error = %v", err)
-	}
-	deadline = time.Now().Add(time.Second)
-	for starter.latest().reads.Load() <= readsBefore && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
-	}
-	if reads := starter.latest().reads.Load(); reads <= readsBefore {
-		t.Fatalf("PTY reads did not resume: before=%d after=%d", readsBefore, reads)
+		waitForTerminalCondition(t, "PTY reads did not resume", func() bool {
+			return starter.latest().reads.Load() > readsBefore
+		})
+		if reads := starter.latest().reads.Load(); reads <= readsBefore {
+			t.Fatalf("PTY reads did not resume: before=%d after=%d", readsBefore, reads)
+		}
+	})
+}
+
+func waitForTerminalCondition(t *testing.T, failure string, ready func() bool) {
+	t.Helper()
+	deadline := time.NewTimer(time.Second)
+	defer deadline.Stop()
+	ticker := time.NewTicker(time.Millisecond)
+	defer ticker.Stop()
+	for !ready() {
+		select {
+		case <-deadline.C:
+			t.Fatal(failure)
+		case <-ticker.C:
+		}
 	}
 }

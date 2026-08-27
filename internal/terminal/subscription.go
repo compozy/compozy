@@ -23,6 +23,8 @@ type subscription struct {
 	finishOnce sync.Once
 }
 
+var _ Subscription = (*subscription)(nil)
+
 type attachedFramePayload struct {
 	Seq       uint64     `json:"seq"`
 	Truncated bool       `json:"truncated"`
@@ -43,7 +45,10 @@ type presenceFramePayload struct {
 	Viewers int `json:"viewers"`
 }
 
-func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription, error) {
+func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscription, error) {
+	if err := requestContextError(ctx, "attach"); err != nil {
+		return nil, err
+	}
 	if err := s.authorizeProfile(options.Actor); err != nil {
 		return nil, err
 	}
@@ -66,7 +71,10 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 			return nil, err
 		}
 	}
-	settings := s.settings(context.Background())
+	settings := s.settings(ctx)
+	if err := requestContextError(ctx, "attach"); err != nil {
+		return nil, err
+	}
 	s.mu.Lock()
 	if s.reaping {
 		s.mu.Unlock()
@@ -109,8 +117,23 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 		return nil, errors.Join(err, closeErr)
 	}
 	s.mu.Unlock()
+	return s.finishAttach(ctx, options, subscriber, mode)
+}
+
+func (s *session) finishAttach(
+	ctx context.Context,
+	options AttachOptions,
+	subscriber *subscription,
+	mode string,
+) (Subscription, error) {
+	if err := requestContextError(ctx, "attach"); err != nil {
+		return nil, errors.Join(err, subscriber.Close())
+	}
 	s.broadcastPresence()
 	if options.Cols > 0 && options.Rows > 0 && mode == terminalAccessWrite {
+		if err := requestContextError(ctx, "attach"); err != nil {
+			return nil, errors.Join(err, subscriber.Close())
+		}
 		if err := subscriber.Resize(options.Cols, options.Rows); err != nil {
 			closeErr := subscriber.Close()
 			return nil, errors.Join(err, closeErr)
@@ -171,22 +194,41 @@ func (s *subscription) Ack(bytes int) { s.queue.Ack(bytes) }
 
 func (s *subscription) Resize(cols, rows uint16) error {
 	if s.mode != terminalAccessWrite {
-		return nil
+		return &Error{
+			Code: errorCodeWriteOwnerHeld, Message: "terminal resize requires a write attachment",
+			Err: ErrWriteOwnerHeld,
+		}
+	}
+	if err := s.session.lease.authorize(s.actor); err != nil {
+		return err
 	}
 	cols, rows, ok := terminalwire.ClampDimensions(cols, rows)
 	if !ok {
-		return nil
+		return &Error{
+			Code: "terminal_resize_invalid", Message: "terminal resize dimensions are invalid", Err: ErrUnsupported,
+		}
 	}
 	s.session.mu.Lock()
+	previousVoteCols, previousVoteRows := s.cols, s.rows
+	previousCols, previousRows := s.session.cols, s.session.rows
 	s.cols, s.rows = cols, rows
 	nextCols, nextRows := s.session.resizeVoteLocked()
-	changed := nextCols != s.session.cols || nextRows != s.session.rows
+	changed := nextCols != previousCols || nextRows != previousRows
 	s.session.cols, s.session.rows = nextCols, nextRows
 	s.session.mu.Unlock()
 	if !changed {
 		return nil
 	}
-	return s.session.applyResize(nextCols, nextRows)
+	if err := s.session.applyResize(nextCols, nextRows, previousCols, previousRows); err != nil {
+		s.session.mu.Lock()
+		s.cols, s.rows = previousVoteCols, previousVoteRows
+		if s.session.cols == nextCols && s.session.rows == nextRows {
+			s.session.cols, s.session.rows = previousCols, previousRows
+		}
+		s.session.mu.Unlock()
+		return err
+	}
+	return nil
 }
 
 func (s *subscription) Close() error {
@@ -229,7 +271,7 @@ func (s *subscription) demoted(reason string) {
 
 func (s *subscription) emitFlowTransition(reason string) {
 	info := s.session.Info()
-	s.session.manager.events.Notify(context.Background(), Event{
+	s.session.manager.events.Notify(s.session.ctx, Event{
 		Kind: EventKindSubscriberEvicted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.session.profileName,
 		TerminalID:  info.ID, Actor: s.actor,
@@ -239,7 +281,7 @@ func (s *subscription) emitFlowTransition(reason string) {
 
 func (s *session) emitSubscriberLimit(actor Actor, current, maximum int) {
 	info := s.Info()
-	s.manager.events.Notify(context.Background(), Event{
+	s.manager.events.Notify(s.ctx, Event{
 		Kind: EventKindLimitRejected, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		TerminalID: info.ID, Actor: actor,
 		Detail: &EventDetail{Limit: "subscribers", Current: current, Max: maximum}, At: s.manager.now(),
@@ -248,6 +290,7 @@ func (s *session) emitSubscriberLimit(actor Actor, current, maximum int) {
 
 func (s *session) removeSubscriber(subscriber *subscription) {
 	s.mu.Lock()
+	previousCols, previousRows := s.cols, s.rows
 	delete(s.subscribers, subscriber.id)
 	s.info.Viewers = len(s.subscribers)
 	s.lastActivity = s.manager.now()
@@ -261,7 +304,12 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 		s.lease.detachWriter(subscriber.leaseToken)
 	}
 	if changed {
-		if err := s.applyResize(cols, rows); err != nil {
+		if err := s.applyResize(cols, rows, previousCols, previousRows); err != nil {
+			s.mu.Lock()
+			if s.cols == cols && s.rows == rows {
+				s.cols, s.rows = previousCols, previousRows
+			}
+			s.mu.Unlock()
 			s.manager.logger.Warn(
 				"terminal: resize after subscriber departure",
 				"terminal_id",
@@ -306,12 +354,16 @@ func (s *session) resizeVoteLocked() (uint16, uint16) {
 	return cols, rows
 }
 
-func (s *session) applyResize(cols, rows uint16) error {
+func (s *session) applyResize(cols, rows, previousCols, previousRows uint16) error {
 	if err := s.proc.Resize(cols, rows); err != nil {
 		return fmt.Errorf("terminal: resize process: %w", err)
 	}
-	if err := s.vt.Resize(context.Background(), int(cols), int(rows)); err != nil {
-		return fmt.Errorf("terminal: resize emulator: %w", err)
+	if err := s.vt.Resize(s.ctx, int(cols), int(rows)); err != nil {
+		rollbackErr := s.proc.Resize(previousCols, previousRows)
+		return errors.Join(
+			fmt.Errorf("terminal: resize emulator: %w", err),
+			wrapResizeRollbackError(rollbackErr),
+		)
 	}
 	payload, err := json.Marshal(map[string]uint16{"cols": cols, "rows": rows})
 	if err != nil {
@@ -327,6 +379,13 @@ func (s *session) applyResize(cols, rows uint16) error {
 		subscriber.deliver(Frame{Op: terminalwire.ServerOpResized, Payload: payload}, 0)
 	}
 	return nil
+}
+
+func wrapResizeRollbackError(err error) error {
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("terminal: roll back process resize: %w", err)
 }
 
 func (s *session) ringNext() uint64 {

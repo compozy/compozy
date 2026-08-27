@@ -7,13 +7,15 @@ import (
 	"time"
 )
 
-func (m *Service) reaper(ctx context.Context, period time.Duration) {
+func (m *Service) reaper(ctx context.Context, stop <-chan struct{}, period time.Duration) {
 	defer close(m.reaperDone)
 	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
+			return
+		case <-stop:
 			return
 		case <-ticker.C:
 			m.reap(ctx)

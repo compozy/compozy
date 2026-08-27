@@ -16,6 +16,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/compozy/compozy/internal/store"
@@ -27,6 +28,146 @@ import (
 
 func TestManagerAdmissionAndScope(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should reject canceled request-bound operations before mutation", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(&fakeRecordingJournal{}))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		cause := errors.New("request canceled")
+		ctx, cancel := context.WithCancelCause(t.Context())
+		cancel(cause)
+		if got, err := manager.Handle(ctx, "workspace-a", "profile-a", handle.Info().ID); got != nil ||
+			!errors.Is(err, cause) {
+			t.Fatalf("Handle(canceled) = %#v error=%v", got, err)
+		}
+		if got, err := manager.List(ctx, "workspace-a", store.ReadScope{ProfileID: "profile-a"}); got != nil ||
+			!errors.Is(err, cause) {
+			t.Fatalf("List(canceled) = %#v error=%v", got, err)
+		}
+		if sub, err := handle.Attach(ctx, AttachOptions{Mode: "read", Actor: actor}); sub != nil ||
+			!errors.Is(err, cause) {
+			t.Fatalf("Attach(canceled) = %#v error=%v", sub, err)
+		}
+		for _, view := range []string{"tail", "lines"} {
+			if got, err := handle.Screen(ctx, ReadOptions{View: view}); got != nil || !errors.Is(err, cause) {
+				t.Fatalf("Screen(%s, canceled) = %#v error=%v", view, got, err)
+			}
+		}
+		if got, err := handle.StartRecording(ctx, actor); got.ID != "" || !errors.Is(err, cause) {
+			t.Fatalf("StartRecording(canceled) = %#v error=%v", got, err)
+		}
+		if started, err := handle.StartRecording(t.Context(), actor); err != nil || started.ID == "" {
+			t.Fatalf("StartRecording(after canceled request) = %#v error=%v", started, err)
+		}
+		for name, err := range map[string]error{
+			"takeover": handle.Takeover(ctx, Actor{Kind: ActorKindHuman, ID: "other", ProfileID: "profile-a"}, true),
+			"yield":    handle.Yield(ctx, actor),
+			"signal":   handle.Signal(ctx, actor, SignalTERM),
+			"claim":    manager.Claim(ctx, "workspace-a", handle.Info().ID, actor),
+			"release":  manager.Release(ctx, "workspace-a", "profile-a", handle.Info().ID, actor),
+		} {
+			if !errors.Is(err, cause) {
+				t.Fatalf("%s(canceled) error = %v, want caller cause", name, err)
+			}
+		}
+		if info := handle.Info(); info.Controller == nil || !sameActor(*info.Controller, actor) || info.Viewers != 0 {
+			t.Fatalf("state after canceled operations = %#v", info)
+		}
+		item := handle.(*session)
+		item.mu.RLock()
+		closeReason := item.closeReason
+		item.mu.RUnlock()
+		if closeReason != "" {
+			t.Fatalf("close reason after canceled release = %q, want empty", closeReason)
+		}
+		select {
+		case <-proc.done:
+			t.Fatal("canceled signal terminated the process")
+		default:
+		}
+	})
+
+	t.Run("Should roll back a subscriber when cancellation arrives after insertion", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		cause := errors.New("attach canceled after insertion")
+		item := handle.(*session)
+		ctx := &cancelWhenSubscriberInsertedContext{
+			Context: t.Context(), session: item, cause: cause, done: make(chan struct{}),
+		}
+		subscription, err := handle.Attach(ctx, AttachOptions{
+			Mode: "write", Actor: actor, Cols: 120, Rows: 40,
+		})
+		if subscription != nil || !errors.Is(err, cause) {
+			t.Fatalf("Attach(canceled after insertion) = %#v error=%v", subscription, err)
+		}
+		info := handle.Info()
+		if info.Viewers != 0 || info.Lease != LeaseHumanOwned {
+			t.Fatalf("terminal after attach rollback = viewers %d lease %s", info.Viewers, info.Lease)
+		}
+		item.mu.RLock()
+		subscriberCount := len(item.subscribers)
+		item.mu.RUnlock()
+		if subscriberCount != 0 {
+			t.Fatalf("subscriber count after canceled attach = %d, want 0", subscriberCount)
+		}
+		proc := starter.latest()
+		proc.mu.Lock()
+		resizeCount := len(proc.resizes)
+		proc.mu.Unlock()
+		if resizeCount != 0 {
+			t.Fatalf("process resize count after canceled attach = %d, want 0", resizeCount)
+		}
+	})
+
+	t.Run("Should reject canceled admission before reservation or limit events", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.MaxPerWorkspace = 1
+		settings.MaxPerDaemon = 1
+		bus := NewNotifier(nil)
+		limitEvents := make(chan Event, 1)
+		bus.Observe(func(_ context.Context, event Event) {
+			if event.Kind == EventKindLimitRejected {
+				limitEvents <- event
+			}
+		})
+		manager, _, _ := newTestManager(t, settings, WithNotifier(bus))
+		request := OpenRequest{
+			WS: "workspace-a", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		}
+		release, err := manager.reserveAdmission(t.Context(), request, settings)
+		if err != nil {
+			t.Fatalf("reserveAdmission(first) error = %v", err)
+		}
+		defer release()
+		cause := errors.New("admission canceled")
+		ctx, cancel := context.WithCancelCause(t.Context())
+		cancel(cause)
+		canceledRelease, err := manager.reserveAdmission(ctx, request, settings)
+		if canceledRelease != nil {
+			canceledRelease()
+		}
+		if !errors.Is(err, cause) {
+			t.Fatalf("reserveAdmission(canceled) error = %v, want caller cause", err)
+		}
+		select {
+		case event := <-limitEvents:
+			t.Fatalf("canceled admission emitted limit event: %#v", event)
+		default:
+		}
+		manager.mu.Lock()
+		pendingDaemon := manager.pendingDaemon
+		pendingScope := manager.pendingByScope[terminalScope{workspaceID: "workspace-a", profileID: "profile-a"}]
+		manager.mu.Unlock()
+		if pendingDaemon != 1 || pendingScope != 1 {
+			t.Fatalf("pending admission after cancellation = daemon %d scope %d, want 1/1", pendingDaemon, pendingScope)
+		}
+	})
 
 	t.Run("Should enforce per-profile workspace and daemon caps atomically [UT-055][UT-104]", func(t *testing.T) {
 		t.Parallel()
@@ -174,6 +315,10 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 			items, err := manager.List(context.Background(), "workspace-a", store.ReadScope{ProfileID: "profile-b"})
 			if err != nil || len(items) != 0 {
 				t.Fatalf("List(profile-b) = %#v error=%v", items, err)
+			}
+			items, err = manager.List(t.Context(), "workspace-a", store.ReadScope{})
+			if err == nil || items != nil {
+				t.Fatalf("List(invalid scope) = %#v error=%v, want validation error", items, err)
 			}
 			if got := handle.Info().ProfileID; got != "profile-a" {
 				t.Fatalf("Info.ProfileID = %q, want immutable profile-a", got)
@@ -416,7 +561,10 @@ func TestSessionTailReadContract(t *testing.T) {
 		if err := starter.latest().emit([]byte("a€b")); err != nil {
 			t.Fatalf("emit() error = %v", err)
 		}
-		deadline := time.Now().Add(time.Second)
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
 		for {
 			read, err := handle.Screen(context.Background(), ReadOptions{View: "tail", MaxBytes: 3})
 			if err != nil {
@@ -431,10 +579,11 @@ func TestSessionTailReadContract(t *testing.T) {
 				}
 				break
 			}
-			if time.Now().After(deadline) {
+			select {
+			case <-deadline.C:
 				t.Fatalf("Screen(tail).Seq = %d, want 5", read.Seq)
+			case <-ticker.C:
 			}
-			time.Sleep(time.Millisecond)
 		}
 	})
 }
@@ -578,8 +727,8 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Attach(watcher) error = %v", err)
 		}
-		if err := watcher.Resize(20, 5); err != nil {
-			t.Fatalf("watcher Resize() error = %v", err)
+		if err := watcher.Resize(20, 5); !errors.Is(err, ErrWriteOwnerHeld) {
+			t.Fatalf("watcher Resize() error = %v, want ErrWriteOwnerHeld", err)
 		}
 		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 100, rows: 30}) {
 			t.Fatalf("authoritative resize = %#v/%v, want 100x30", got, ok)
@@ -593,8 +742,52 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 120, rows: 40}) {
 			t.Fatalf("resize after second writer = %#v/%v, want 120x40", got, ok)
 		}
+		replacement := Actor{Kind: ActorKindHuman, ID: "replacement", ProfileID: "profile-a"}
+		if err := handle.Takeover(t.Context(), replacement, true); err != nil {
+			t.Fatalf("Takeover(replacement) error = %v", err)
+		}
+		if err := first.Resize(90, 20); !errors.Is(err, ErrWriteOwnerHeld) {
+			t.Fatalf("revoked writer Resize() error = %v, want ErrWriteOwnerHeld", err)
+		}
+		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 120, rows: 40}) {
+			t.Fatalf("resize after revoked writer = %#v/%v, want unchanged 120x40", got, ok)
+		}
 		if err := watcher.Close(); err != nil {
 			t.Fatalf("watcher Close() error = %v", err)
+		}
+	})
+
+	t.Run("Should roll the PTY size back when the emulator resize fails", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		writer, err := handle.Attach(t.Context(), AttachOptions{
+			Mode: "write", Flow: "ack", Cols: 120, Rows: 40, Actor: actor,
+		})
+		if err != nil {
+			t.Fatalf("Attach(writer) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := writer.Close(); closeErr != nil {
+				t.Errorf("writer Close() error = %v", closeErr)
+			}
+		})
+		item := handle.(*session)
+		if err := item.vt.Close(); err != nil {
+			t.Fatalf("emulator Close() error = %v", err)
+		}
+		if err := writer.Resize(100, 30); err == nil {
+			t.Fatal("Resize(with closed emulator) error = nil")
+		}
+		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 120, rows: 40}) {
+			t.Fatalf("PTY size after rollback = %#v/%v, want 120x40", got, ok)
+		}
+		item.mu.RLock()
+		cols, rows := item.cols, item.rows
+		item.mu.RUnlock()
+		if cols != 120 || rows != 40 {
+			t.Fatalf("session size after rollback = %dx%d, want 120x40", cols, rows)
 		}
 	})
 }
@@ -763,6 +956,105 @@ func TestManagerRetentionAndReaper(t *testing.T) {
 func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should bound startup rollback and preserve every cleanup failure", func(t *testing.T) {
+		t.Parallel()
+		primaryErr := errors.New("insert failed")
+		killErr := errors.New("kill failed")
+		closeErr := errors.New("close failed")
+		waitErr := errors.New("wait failed")
+		completeErr := errors.New("complete failed")
+		proc := &cleanupProbeProc{
+			killErr: killErr, closeErr: closeErr, waitErr: waitErr,
+			waitCtx: make(chan cleanupContextObservation, 1),
+		}
+		checkpoint := &cleanupProbeCheckpoint{
+			completeErr: completeErr, completeCtx: make(chan cleanupContextObservation, 1),
+		}
+		parent, cancel := context.WithCancelCause(
+			context.WithValue(t.Context(), cleanupContextKey{}, "caller-value"),
+		)
+		cancel(errors.New("request ended"))
+		err := cleanupRegisteredProcess(parent, proc, checkpoint, primaryErr)
+		for _, want := range []error{primaryErr, killErr, closeErr, waitErr, completeErr} {
+			if !errors.Is(err, want) {
+				t.Fatalf("cleanup error = %v, want joined cause %v", err, want)
+			}
+		}
+		for name, observation := range map[string]cleanupContextObservation{
+			"wait": <-proc.waitCtx, "complete": <-checkpoint.completeCtx,
+		} {
+			if observation.err != nil || observation.value != "caller-value" {
+				t.Fatalf("%s cleanup context = err %v value %v", name, observation.err, observation.value)
+			}
+			if !observation.hasDeadline {
+				t.Fatalf("%s cleanup context has no deadline", name)
+			}
+		}
+	})
+
+	t.Run("Should give process cleanup and durable completion independent bounded contexts", func(t *testing.T) {
+		for _, testCase := range []struct {
+			name string
+			run  func(context.Context, *cleanupProbeProc, *cleanupProbeCheckpoint, error) error
+		}{
+			{
+				name: "registered startup",
+				run: func(
+					ctx context.Context,
+					proc *cleanupProbeProc,
+					checkpoint *cleanupProbeCheckpoint,
+					cause error,
+				) error {
+					return cleanupRegisteredProcess(ctx, proc, checkpoint, cause)
+				},
+			},
+			{
+				name: "exec rollback",
+				run: func(
+					ctx context.Context,
+					proc *cleanupProbeProc,
+					checkpoint *cleanupProbeCheckpoint,
+					cause error,
+				) error {
+					return cleanupExecRun(ctx, &session{proc: proc, processRecord: checkpoint}, cause)
+				},
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				synctest.Test(t, func(t *testing.T) {
+					primaryErr := errors.New("rollback failed")
+					completeErr := errors.New("completion failed")
+					proc := &cleanupProbeProc{
+						waitForBound: true,
+						waitCtx:      make(chan cleanupContextObservation, 1),
+					}
+					checkpoint := &cleanupProbeCheckpoint{
+						completeErr: completeErr,
+						completeCtx: make(chan cleanupContextObservation, 1),
+					}
+					parent := context.WithValue(t.Context(), cleanupContextKey{}, "caller-value")
+					err := testCase.run(parent, proc, checkpoint, primaryErr)
+					if !errors.Is(err, primaryErr) || !errors.Is(err, context.DeadlineExceeded) ||
+						!errors.Is(err, completeErr) {
+						t.Fatalf("cleanup error = %v, want primary, deadline, and completion failures", err)
+					}
+					waitObservation := <-proc.waitCtx
+					if !errors.Is(waitObservation.err, context.DeadlineExceeded) || !waitObservation.hasDeadline {
+						t.Fatalf("wait context = %#v, want exhausted bounded context", waitObservation)
+					}
+					completeObservation := <-checkpoint.completeCtx
+					if completeObservation.err != nil || !completeObservation.hasDeadline ||
+						completeObservation.value != "caller-value" {
+						t.Fatalf(
+							"completion context = %#v, want active bounded context with caller values",
+							completeObservation,
+						)
+					}
+				})
+			})
+		}
+	})
+
 	t.Run("Should reject unavailable owners while existing reads remain available [UT-112]", func(t *testing.T) {
 		t.Parallel()
 		archived := errors.New("profile_archived")
@@ -899,10 +1191,19 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 			t.Parallel()
 			bus := NewNotifier(nil)
 			bus.Observe(func(context.Context, Event) { panic("observer bug") })
+			observerStarted := make(chan struct{}, 1)
+			releaseObserver := make(chan struct{})
+			var releaseObserverOnce sync.Once
+			releaseBlockedObserver := func() { releaseObserverOnce.Do(func() { close(releaseObserver) }) }
+			t.Cleanup(releaseBlockedObserver)
 			var later atomic.Int32
 			bus.Observe(func(_ context.Context, event Event) {
 				if event.Kind == EventKindClosed {
-					time.Sleep(10 * time.Millisecond)
+					select {
+					case observerStarted <- struct{}{}:
+					default:
+					}
+					<-releaseObserver
 					later.Add(1)
 				}
 			})
@@ -929,13 +1230,21 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 			if !registered.Load() {
 				t.Fatal("terminal process was not registered")
 			}
+			shutdownDone := make(chan error, 1)
+			go func() { shutdownDone <- manager.Shutdown(t.Context()) }()
+			select {
+			case <-observerStarted:
+			case <-time.After(time.Second):
+				t.Fatal("shutdown did not reach the blocking observer")
+			}
 			shortCtx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 			defer cancel()
 			if err := manager.Shutdown(shortCtx); !errors.Is(err, context.DeadlineExceeded) {
 				t.Fatalf("Shutdown(short) error = %v, want deadline exceeded while drain continues", err)
 			}
-			if err := manager.Shutdown(context.Background()); err != nil {
-				t.Fatalf("Shutdown(resume wait) error = %v", err)
+			releaseBlockedObserver()
+			if err := <-shutdownDone; err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
 			}
 			items, err := manager.List(context.Background(), "workspace-a", store.ReadScope{ProfileID: "profile-a"})
 			if err != nil || len(items) != 0 || later.Load() != 3 {
@@ -946,29 +1255,31 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 }
 
 func TestManagerHotSettings(t *testing.T) {
-	t.Parallel()
-	initial := DefaultSettings()
-	initial.MaxPerWorkspace = 2
-	var active atomic.Pointer[Settings]
-	active.Store(&initial)
-	manager, _, _ := newTestManager(
-		t,
-		initial,
-		WithSettingsProvider(func(context.Context, string, string) (Settings, error) {
-			return *active.Load(), nil
-		}),
-	)
-	openTestTerminal(t, manager, "workspace-a", "profile-a")
-	lowered := initial
-	lowered.MaxPerWorkspace = 1
-	active.Store(&lowered)
-	_, err := manager.Open(context.Background(), OpenRequest{
-		WS: "workspace-a", Shell: "sh", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
-		Capabilities: Capabilities{Interactive: true},
+	t.Run("Should apply a lowered workspace cap without reopening the manager [IT-033]", func(t *testing.T) {
+		t.Parallel()
+		initial := DefaultSettings()
+		initial.MaxPerWorkspace = 2
+		var active atomic.Pointer[Settings]
+		active.Store(&initial)
+		manager, _, _ := newTestManager(
+			t,
+			initial,
+			WithSettingsProvider(func(context.Context, string, string) (Settings, error) {
+				return *active.Load(), nil
+			}),
+		)
+		openTestTerminal(t, manager, "workspace-a", "profile-a")
+		lowered := initial
+		lowered.MaxPerWorkspace = 1
+		active.Store(&lowered)
+		_, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			Capabilities: Capabilities{Interactive: true},
+		})
+		if !errors.Is(err, ErrLimitReached) {
+			t.Fatalf("Open(after hot cap) error = %v, want limit reached [IT-033]", err)
+		}
 	})
-	if !errors.Is(err, ErrLimitReached) {
-		t.Fatalf("Open(after hot cap) error = %v, want limit reached [IT-033]", err)
-	}
 }
 
 func TestManagerRecordingLifecycle(t *testing.T) {
@@ -1081,7 +1392,10 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 			},
 		)
 		releaseStorage()
-		deadline := time.Now().Add(time.Second)
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		ticker := time.NewTicker(time.Millisecond)
+		defer ticker.Stop()
 		for {
 			_, cast := journal.snapshot()
 			if len(cast) > 0 {
@@ -1090,10 +1404,11 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 				}
 				break
 			}
-			if time.Now().After(deadline) {
+			select {
+			case <-deadline.C:
 				t.Fatal("truncated recording did not finish persistence")
+			case <-ticker.C:
 			}
-			time.Sleep(time.Millisecond)
 		}
 	})
 
@@ -1115,6 +1430,35 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		}
 		if _, err := handle.StopRecording(context.Background(), actor); err != nil {
 			t.Fatalf("StopRecording(auto) error = %v", err)
+		}
+	})
+
+	t.Run("Should roll back open when automatic recording cannot start [IT-031]", func(t *testing.T) {
+		t.Parallel()
+		settings := DefaultSettings()
+		settings.Recording = true
+		manager, starter, _ := newTestManager(t, settings)
+
+		_, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh",
+			Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			Capabilities: Capabilities{Interactive: true},
+		})
+		if !errors.Is(err, ErrRecording) {
+			t.Fatalf("Open(auto-record without storage) error = %v, want ErrRecording", err)
+		}
+		items, listErr := manager.List(t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"})
+		if listErr != nil || len(items) != 0 {
+			t.Fatalf("List(after failed auto-record) = %#v, error=%v", items, listErr)
+		}
+		proc := starter.latest()
+		if proc == nil {
+			t.Fatal("Open() did not start a process")
+		}
+		select {
+		case <-proc.done:
+		default:
+			t.Fatal("failed automatic recording left the process running")
 		}
 	})
 }
@@ -1858,6 +2202,456 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain a canceled caller's request until it expires", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			bus := NewNotifier(nil)
+			requested := make(chan Event, 1)
+			type observedEvent struct {
+				event       Event
+				contextErr  error
+				hasDeadline bool
+			}
+			provided := make(chan observedEvent, 1)
+			bus.Observe(func(ctx context.Context, event Event) {
+				switch event.Kind {
+				case EventKindInputRequested:
+					requested <- event
+				case EventKindInputProvided:
+					_, hasDeadline := ctx.Deadline()
+					provided <- observedEvent{event: event, contextErr: ctx.Err(), hasDeadline: hasDeadline}
+				}
+			})
+			manager, starter, _ := newTestManager(
+				t,
+				DefaultSettings(),
+				WithNotifier(bus),
+				withInputRequestTTL(100*time.Millisecond),
+			)
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("Open(agent) error = %v", err)
+			}
+			receiveStartedProc(t, starter)
+			cause := errors.New("agent turn canceled")
+			requestCtx, cancel := context.WithCancelCause(t.Context())
+			type requestResult struct {
+				outcome *InputOutcome
+				err     error
+			}
+			requestDone := make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(requestCtx, InputRequest{Reason: "confirm"})
+				requestDone <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			requestEvent := <-requested
+			cancel(cause)
+			result := <-requestDone
+			if result.outcome != nil || !errors.Is(result.err, cause) {
+				t.Fatalf(
+					"RequestInput(canceled) = %#v error=%v, want nil outcome and caller cause",
+					result.outcome,
+					result.err,
+				)
+			}
+			pending, err := manager.InputRequests(
+				t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, "",
+			)
+			if err != nil {
+				t.Fatalf("InputRequests(after cancellation) error = %v", err)
+			}
+			if len(pending) != 1 || pending[0].ID != requestEvent.DetailValue().RequestID {
+				t.Fatalf("pending after cancellation = %#v, want original request", pending)
+			}
+			synctest.Wait()
+			select {
+			case event := <-provided:
+				t.Fatalf("event before TTL = %#v, want request to remain pending", event)
+			default:
+			}
+			expired := <-provided
+			if expired.event.DetailValue().Outcome != "expired" {
+				t.Fatalf("expiration event = %#v, want expired outcome", expired.event)
+			}
+			if expired.contextErr != nil || !expired.hasDeadline {
+				t.Fatalf(
+					"expiration event context error/deadline = %v/%t, want active bounded context",
+					expired.contextErr,
+					expired.hasDeadline,
+				)
+			}
+			pending, err = manager.InputRequests(
+				t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, "",
+			)
+			if err != nil || len(pending) != 0 {
+				t.Fatalf("pending after expiration = %#v error=%v, want none", pending, err)
+			}
+		})
+	})
+
+	t.Run("Should fence expiry while an answer is being delivered", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			bus := NewNotifier(nil)
+			requested := make(chan Event, 1)
+			provided := make(chan Event, 2)
+			bus.Observe(func(_ context.Context, event Event) {
+				switch event.Kind {
+				case EventKindInputRequested:
+					requested <- event
+				case EventKindInputProvided:
+					provided <- event
+				}
+			})
+			const ttl = 100 * time.Millisecond
+			manager, starter, _ := newTestManager(
+				t, DefaultSettings(), WithNotifier(bus), withInputRequestTTL(ttl),
+			)
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("Open(agent) error = %v", err)
+			}
+			proc := receiveStartedProc(t, starter)
+			type requestResult struct {
+				outcome *InputOutcome
+				err     error
+			}
+			requestDone := make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm"})
+				requestDone <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			requestID := (<-requested).DetailValue().RequestID
+			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			if err := handle.Takeover(t.Context(), human, true); err != nil {
+				t.Fatalf("Takeover() error = %v", err)
+			}
+			writeStarted := make(chan struct{})
+			writeRelease := make(chan struct{})
+			var releaseWriteOnce sync.Once
+			releaseWrite := func() { releaseWriteOnce.Do(func() { close(writeRelease) }) }
+			t.Cleanup(releaseWrite)
+			proc.blockWrites(writeStarted, writeRelease, nil)
+			answerDone := make(chan requestResult, 1)
+			go func() {
+				outcome, answerErr := handle.AnswerInput(
+					t.Context(), human, requestID, InputAnswer{Input: []byte("yes")},
+				)
+				answerDone <- requestResult{outcome: outcome, err: answerErr}
+			}()
+			<-writeStarted
+			<-time.After(2 * ttl)
+			synctest.Wait()
+			select {
+			case result := <-requestDone:
+				releaseWrite()
+				t.Fatalf("request resolved during delivery = %#v", result)
+			default:
+			}
+			select {
+			case event := <-provided:
+				releaseWrite()
+				t.Fatalf("input event during delivery = %#v", event)
+			default:
+			}
+			releaseWrite()
+			answer := <-answerDone
+			if answer.err != nil || answer.outcome == nil || answer.outcome.Outcome != "answered" {
+				t.Fatalf("AnswerInput() = %#v error=%v", answer.outcome, answer.err)
+			}
+			request := <-requestDone
+			if request.err != nil || request.outcome == nil || request.outcome.Outcome != "answered" {
+				t.Fatalf("RequestInput() = %#v error=%v", request.outcome, request.err)
+			}
+			if event := <-provided; event.DetailValue().Outcome != "answered" {
+				t.Fatalf("input event = %#v, want answered", event)
+			}
+		})
+	})
+
+	t.Run("Should let a claimed successful answer win over run-end supersession", func(t *testing.T) {
+		t.Parallel()
+		bus := NewNotifier(nil)
+		requested := make(chan Event, 1)
+		provided := make(chan Event, 2)
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithNotifier(bus))
+		bus.Observe(func(_ context.Context, event Event) {
+			switch event.Kind {
+			case EventKindInputRequested:
+				requested <- event
+			case EventKindInputProvided:
+				provided <- event
+			}
+		})
+		handle, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		type requestResult struct {
+			outcome *InputOutcome
+			err     error
+		}
+		requestDone := make(chan requestResult, 1)
+		go func() {
+			outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm"})
+			requestDone <- requestResult{outcome: outcome, err: requestErr}
+		}()
+		requestID := (<-requested).DetailValue().RequestID
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.Takeover(t.Context(), human, true); err != nil {
+			t.Fatalf("Takeover() error = %v", err)
+		}
+		visibilityStarted := make(chan struct{})
+		visibilityRelease := make(chan struct{})
+		releaseVisibility := sync.OnceFunc(func() { close(visibilityRelease) })
+		t.Cleanup(releaseVisibility)
+		proc.blockInputVisibility(visibilityStarted, visibilityRelease)
+		answerDone := make(chan requestResult, 1)
+		go func() {
+			outcome, answerErr := handle.AnswerInput(
+				t.Context(), human, requestID, InputAnswer{Input: []byte("yes")},
+			)
+			answerDone <- requestResult{outcome: outcome, err: answerErr}
+		}()
+		<-visibilityStarted
+		if changed := manager.RunEnded(t.Context(), agent); changed != 1 {
+			t.Fatalf("RunEnded() = %d, want 1", changed)
+		}
+		select {
+		case result := <-requestDone:
+			t.Fatalf("request resolved before successful delivery completed: %#v", result)
+		default:
+		}
+		select {
+		case event := <-provided:
+			t.Fatalf("input event emitted before successful delivery completed: %#v", event)
+		default:
+		}
+		releaseVisibility()
+		answer := <-answerDone
+		if answer.err != nil || answer.outcome == nil || answer.outcome.Outcome != "answered" {
+			t.Fatalf("AnswerInput() = %#v error=%v, want answered", answer.outcome, answer.err)
+		}
+		request := <-requestDone
+		if request.err != nil || request.outcome == nil || request.outcome.Outcome != "answered" {
+			t.Fatalf("RequestInput() = %#v error=%v, want answered", request.outcome, request.err)
+		}
+		if got := proc.inputString(); got != "yes\n" {
+			t.Fatalf("delivered input = %q, want %q", got, "yes\\n")
+		}
+		if event := <-provided; event.DetailValue().Outcome != "answered" {
+			t.Fatalf("input event = %#v, want answered", event)
+		}
+		select {
+		case event := <-provided:
+			t.Fatalf("second terminal outcome event = %#v", event)
+		default:
+		}
+	})
+
+	t.Run("Should apply deferred run-end supersession after claimed delivery fails", func(t *testing.T) {
+		t.Parallel()
+		bus := NewNotifier(nil)
+		requested := make(chan Event, 1)
+		provided := make(chan Event, 1)
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithNotifier(bus))
+		bus.Observe(func(_ context.Context, event Event) {
+			if event.Kind == EventKindInputRequested {
+				requested <- event
+			}
+			if event.Kind == EventKindInputProvided {
+				provided <- event
+			}
+		})
+		handle, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		type requestResult struct {
+			outcome *InputOutcome
+			err     error
+		}
+		requestDone := make(chan requestResult, 1)
+		go func() {
+			outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm"})
+			requestDone <- requestResult{outcome: outcome, err: requestErr}
+		}()
+		requestID := (<-requested).DetailValue().RequestID
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if err := handle.Takeover(t.Context(), human, true); err != nil {
+			t.Fatalf("Takeover() error = %v", err)
+		}
+		deliveryErr := errors.New("PTY rejected input")
+		visibilityStarted := make(chan struct{})
+		visibilityRelease := make(chan struct{})
+		releaseVisibility := sync.OnceFunc(func() { close(visibilityRelease) })
+		t.Cleanup(releaseVisibility)
+		proc.blockInputVisibility(visibilityStarted, visibilityRelease)
+		proc.blockWrites(nil, nil, deliveryErr)
+		answerDone := make(chan error, 1)
+		go func() {
+			_, answerErr := handle.AnswerInput(
+				t.Context(), human, requestID, InputAnswer{Input: []byte("yes")},
+			)
+			answerDone <- answerErr
+		}()
+		<-visibilityStarted
+		if changed := manager.RunEnded(t.Context(), agent); changed != 1 {
+			t.Fatalf("RunEnded() = %d, want 1", changed)
+		}
+		releaseVisibility()
+		if answerErr := <-answerDone; !errors.Is(answerErr, deliveryErr) {
+			t.Fatalf("AnswerInput() error = %v, want delivery error", answerErr)
+		}
+		request := <-requestDone
+		if request.err != nil || request.outcome == nil || request.outcome.Outcome != "superseded" {
+			t.Fatalf("RequestInput() = %#v error=%v, want superseded", request.outcome, request.err)
+		}
+		if got := proc.inputString(); got != "" {
+			t.Fatalf("delivered input after failed delivery = %q, want empty", got)
+		}
+		if event := <-provided; event.DetailValue().Outcome != "superseded" {
+			t.Fatalf("input event = %#v, want superseded", event)
+		}
+	})
+
+	t.Run("Should restore the original expiry after failed answer delivery", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			bus := NewNotifier(nil)
+			requested := make(chan Event, 1)
+			provided := make(chan Event, 1)
+			bus.Observe(func(_ context.Context, event Event) {
+				switch event.Kind {
+				case EventKindInputRequested:
+					requested <- event
+				case EventKindInputProvided:
+					provided <- event
+				}
+			})
+			const ttl = 100 * time.Millisecond
+			manager, starter, _ := newTestManager(
+				t, DefaultSettings(), WithNotifier(bus), withInputRequestTTL(ttl),
+			)
+			handle, err := manager.Open(t.Context(), OpenRequest{
+				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+			})
+			if err != nil {
+				t.Fatalf("Open(agent) error = %v", err)
+			}
+			proc := receiveStartedProc(t, starter)
+			type requestResult struct {
+				outcome *InputOutcome
+				err     error
+			}
+			requestDone := make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm"})
+				requestDone <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			requestID := (<-requested).DetailValue().RequestID
+			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			if err := handle.Takeover(t.Context(), human, true); err != nil {
+				t.Fatalf("Takeover() error = %v", err)
+			}
+			deliveryErr := errors.New("input delivery failed")
+			writeStarted := make(chan struct{})
+			writeRelease := make(chan struct{})
+			var releaseWriteOnce sync.Once
+			releaseWrite := func() { releaseWriteOnce.Do(func() { close(writeRelease) }) }
+			t.Cleanup(releaseWrite)
+			proc.blockWrites(writeStarted, writeRelease, deliveryErr)
+			answerDone := make(chan error, 1)
+			go func() {
+				_, answerErr := handle.AnswerInput(
+					t.Context(), human, requestID, InputAnswer{Input: []byte("yes")},
+				)
+				answerDone <- answerErr
+			}()
+			<-writeStarted
+			<-time.After(40 * time.Millisecond)
+			releasedAt := time.Now()
+			releaseWrite()
+			if answerErr := <-answerDone; !errors.Is(answerErr, deliveryErr) {
+				t.Fatalf("AnswerInput() error = %v, want delivery failure", answerErr)
+			}
+			pending, err := manager.InputRequests(
+				t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, "",
+			)
+			if err != nil || len(pending) != 1 || pending[0].ID != requestID {
+				t.Fatalf("pending after failed delivery = %#v error=%v", pending, err)
+			}
+			event := <-provided
+			if elapsed := time.Since(releasedAt); elapsed != 60*time.Millisecond {
+				t.Fatalf("expiration after release = %s, want remaining 60ms", elapsed)
+			}
+			if event.DetailValue().Outcome != "expired" {
+				t.Fatalf("input event = %#v, want expired", event)
+			}
+			request := <-requestDone
+			if request.err != nil || request.outcome == nil || request.outcome.Outcome != "expired" {
+				t.Fatalf("RequestInput() = %#v error=%v", request.outcome, request.err)
+			}
+
+			if err := handle.Yield(t.Context(), human); err != nil {
+				t.Fatalf("Yield() error = %v", err)
+			}
+			requestDone = make(chan requestResult, 1)
+			go func() {
+				outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm again"})
+				requestDone <- requestResult{outcome: outcome, err: requestErr}
+			}()
+			requestID = (<-requested).DetailValue().RequestID
+			if err := handle.Takeover(t.Context(), human, true); err != nil {
+				t.Fatalf("Takeover(second) error = %v", err)
+			}
+			writeStarted = make(chan struct{})
+			writeRelease = make(chan struct{})
+			var secondReleaseWriteOnce sync.Once
+			secondReleaseWrite := func() { secondReleaseWriteOnce.Do(func() { close(writeRelease) }) }
+			t.Cleanup(secondReleaseWrite)
+			proc.blockWrites(writeStarted, writeRelease, deliveryErr)
+			answerDone = make(chan error, 1)
+			go func() {
+				_, answerErr := handle.AnswerInput(
+					t.Context(), human, requestID, InputAnswer{Input: []byte("yes")},
+				)
+				answerDone <- answerErr
+			}()
+			<-writeStarted
+			<-time.After(2 * ttl)
+			releasedAt = time.Now()
+			secondReleaseWrite()
+			if answerErr := <-answerDone; !errors.Is(answerErr, deliveryErr) {
+				t.Fatalf("AnswerInput(after TTL) error = %v, want delivery failure", answerErr)
+			}
+			event = <-provided
+			if elapsed := time.Since(releasedAt); elapsed != 0 {
+				t.Fatalf("expiration after elapsed TTL = %s, want immediate", elapsed)
+			}
+			if event.DetailValue().Outcome != "expired" {
+				t.Fatalf("input event after elapsed TTL = %#v, want expired", event)
+			}
+			request = <-requestDone
+			if request.err != nil || request.outcome == nil || request.outcome.Outcome != "expired" {
+				t.Fatalf("RequestInput(after elapsed TTL) = %#v error=%v", request.outcome, request.err)
+			}
+			pending, err = manager.InputRequests(
+				t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"}, "",
+			)
+			if err != nil || len(pending) != 0 {
+				t.Fatalf("pending after immediate expiration = %#v error=%v, want none", pending, err)
+			}
+		})
+	})
+
 	t.Run(
 		"Should require a fresh typing grant and evaluate it on every agent write [UT-025][IT-028]",
 		func(t *testing.T) {
@@ -1925,51 +2719,82 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 	)
 
 	t.Run(
-		"Should answer through an atomic redacted handoff and return control [UT-026][UT-073][UT-074][UT-075][UT-090][UT-092][IT-029]",
+		"Should require durable write control and keep redacted input out of every output sink [UT-026][UT-073][UT-074][UT-075][UT-090][UT-092][IT-029]",
 		func(t *testing.T) {
 			t.Parallel()
 			bus := NewNotifier(nil)
-			leaseEvents := make(chan Event, 2)
 			inputEvents := make(chan Event, 1)
 			bus.Observe(func(_ context.Context, event Event) {
-				if event.Kind == EventKindLeaseChanged &&
-					(event.Reason == "answer_handoff" || event.Reason == "answer_return") {
-					leaseEvents <- event
-				}
 				if event.Kind == EventKindInputProvided {
 					inputEvents <- event
 				}
 			})
 			journal := &fakeRecordingJournal{}
-			manager, starter, _ := newTestManager(t, DefaultSettings(), WithNotifier(bus), WithJournal(journal))
-			handle, err := manager.Open(context.Background(), OpenRequest{
+			manager, starter, _ := newTestManager(
+				t,
+				DefaultSettings(),
+				WithNotifier(bus),
+				WithJournal(journal),
+				WithTypingGrantAuthorizer(&fakeTypingGrantAuthorizer{}),
+			)
+			handle, err := manager.Open(t.Context(), OpenRequest{
 				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
 			})
 			if err != nil {
 				t.Fatalf("Open(agent) error = %v", err)
 			}
 			proc := receiveStartedProc(t, starter)
+			proc.enableWriteEcho()
 			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-			if _, err := handle.StartRecording(context.Background(), human); err != nil {
+			if _, err := handle.StartRecording(t.Context(), human); err != nil {
 				t.Fatalf("StartRecording() error = %v", err)
 			}
+			if err := handle.Write(t.Context(), agent, []byte("ordinary-visible")); err != nil {
+				t.Fatalf("Write(ordinary) error = %v", err)
+			}
+			waitForTailContent(t, handle, "ordinary-visible")
 			outcomeCh := make(chan *InputOutcome, 1)
 			errCh := make(chan error, 1)
 			go func() {
-				outcome, requestErr := handle.RequestInput(context.Background(), InputRequest{
+				outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{
 					Reason: "password", PromptExcerpt: "Password:", Redact: true,
 				})
 				outcomeCh <- outcome
 				errCh <- requestErr
 			}()
 			pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+			writeErr := handle.Write(t.Context(), agent, []byte("must-not-write"))
+			signalErr := handle.Signal(t.Context(), agent, SignalTERM)
+			for operation, operationErr := range map[string]error{"write": writeErr, "signal": signalErr} {
+				if !errors.Is(operationErr, ErrInputPending) ||
+					terminalErrorCode(operationErr) != errorCodeInputPending {
+					t.Fatalf(
+						"%s(agent while input pending) error = %v, want canonical ErrInputPending",
+						operation,
+						operationErr,
+					)
+				}
+			}
+			select {
+			case <-proc.done:
+				t.Fatal("agent signal terminated the process while input was pending")
+			default:
+			}
 			if _, err := handle.AnswerInput(
-				context.Background(),
+				t.Context(),
 				human,
 				pending[0].ID,
 				InputAnswer{Input: []byte("secret")},
+			); !errors.Is(err, ErrWriteOwnerHeld) {
+				t.Fatalf("AnswerInput(watcher) error = %v, want ErrWriteOwnerHeld", err)
+			}
+			if err := handle.Takeover(t.Context(), human, true); err != nil {
+				t.Fatalf("Takeover() error = %v", err)
+			}
+			if _, err := handle.AnswerInput(
+				t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
 			); err != nil {
-				t.Fatalf("AnswerInput() error = %v", err)
+				t.Fatalf("AnswerInput(controller) error = %v", err)
 			}
 			outcome := <-outcomeCh
 			if err := <-errCh; err != nil {
@@ -1978,22 +2803,12 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			if outcome.Outcome != "answered" || !outcome.Redacted || outcome.Length != len("secret") {
 				t.Fatalf("input outcome = %#v", outcome)
 			}
-			if proc.inputString() != "secret\n" || proc.redactedWrites.Load() != 1 {
+			if proc.inputString() != "ordinary-visiblesecret\n" || proc.redactedWrites.Load() != 1 {
 				t.Fatalf("delivered input/redacted writes = %q/%d", proc.inputString(), proc.redactedWrites.Load())
 			}
 			info := handle.Info()
-			if info.Controller == nil || !sameActor(*info.Controller, agent) || info.Lease != LeaseAgentOwned {
+			if info.Controller == nil || !sameActor(*info.Controller, human) || info.Lease != LeaseHumanOwned {
 				t.Fatalf("controller after answer = %#v lease=%s", info.Controller, info.Lease)
-			}
-			handoff := receiveTerminalEvent(t, leaseEvents)
-			returned := receiveTerminalEvent(t, leaseEvents)
-			if handoff.Reason != "answer_handoff" || handoff.Info == nil || handoff.Info.Controller == nil ||
-				handoff.Info.Controller.Kind != ActorKindHuman {
-				t.Fatalf("answer handoff event = %#v", handoff)
-			}
-			if returned.Reason != "answer_return" || returned.Info == nil || returned.Info.Controller == nil ||
-				!sameActor(*returned.Info.Controller, agent) {
-				t.Fatalf("answer return event = %#v", returned)
 			}
 			provided := receiveTerminalEvent(t, inputEvents)
 			encodedEvent, err := json.Marshal(provided)
@@ -2003,14 +2818,15 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			if strings.Contains(string(encodedEvent), "secret") {
 				t.Fatalf("input event leaked redacted bytes: %s", encodedEvent)
 			}
-			read, err := handle.Screen(context.Background(), ReadOptions{View: "tail"})
+			read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
 			if err != nil {
 				t.Fatalf("Screen() error = %v", err)
 			}
-			if strings.Contains(read.Content, "secret") {
-				t.Fatalf("terminal ring leaked redacted bytes: %q", read.Content)
+			if !strings.Contains(read.Content, "ordinary-visible") ||
+				strings.Contains(read.Content, "secret") || strings.Contains(read.Content, "must-not-write") {
+				t.Fatalf("terminal ring redaction result = %q", read.Content)
 			}
-			if _, err := handle.StopRecording(context.Background(), human); err != nil {
+			if _, err := handle.StopRecording(t.Context(), human); err != nil {
 				t.Fatalf("StopRecording() error = %v", err)
 			}
 			_, recording := journal.snapshot()
@@ -2029,7 +2845,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		},
 	)
 
-	t.Run("Should distinguish full takeover by superseding the pending request [IT-013][IT-029]", func(t *testing.T) {
+	t.Run("Should retain a pending request for the durable controller to reject [IT-013][IT-029]", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle, err := manager.Open(context.Background(), OpenRequest{
@@ -2053,20 +2869,12 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		if err := handle.Takeover(context.Background(), human, true); err != nil {
 			t.Fatalf("Takeover() error = %v", err)
 		}
-		outcome := <-outcomeCh
-		if outcome == nil || outcome.Outcome != "superseded" {
-			t.Fatalf("takeover outcome = %#v", outcome)
+		if err := handle.RejectInput(t.Context(), human, pending[0].ID, "not now"); err != nil {
+			t.Fatalf("RejectInput(after takeover) error = %v", err)
 		}
-		if _, err := handle.AnswerInput(
-			context.Background(),
-			human,
-			pending[0].ID,
-			InputAnswer{Input: []byte("y")},
-		); !errors.Is(
-			err,
-			ErrInputAnswered,
-		) {
-			t.Fatalf("AnswerInput(after takeover) error = %v", err)
+		outcome := <-outcomeCh
+		if outcome == nil || outcome.Outcome != "rejected" {
+			t.Fatalf("takeover rejection outcome = %#v", outcome)
 		}
 	})
 
@@ -2074,7 +2882,19 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		"Should preserve rejected and expired outcomes as distinct terminal states [UT-026][IT-013]",
 		func(t *testing.T) {
 			t.Parallel()
-			manager, starter, _ := newTestManager(t, DefaultSettings(), withInputRequestTTL(10*time.Millisecond))
+			bus := NewNotifier(nil)
+			provided := make(chan Event, 2)
+			bus.Observe(func(_ context.Context, event Event) {
+				if event.Kind == EventKindInputProvided {
+					provided <- event
+				}
+			})
+			manager, starter, _ := newTestManager(
+				t,
+				DefaultSettings(),
+				withInputRequestTTL(10*time.Millisecond),
+				WithNotifier(bus),
+			)
 			handle, err := manager.Open(context.Background(), OpenRequest{
 				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
 			})
@@ -2097,12 +2917,22 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			rejectedResult := request("reject")
 			pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
 			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			if err := handle.Takeover(t.Context(), human, true); err != nil {
+				t.Fatalf("Takeover() error = %v", err)
+			}
 			if err := handle.RejectInput(context.Background(), human, pending[0].ID, "not now"); err != nil {
 				t.Fatalf("RejectInput() error = %v", err)
 			}
 			if result := <-rejectedResult; result.err != nil || result.outcome == nil ||
 				result.outcome.Outcome != "rejected" {
 				t.Fatalf("rejected request = %#v", result)
+			}
+			if event := receiveTerminalEvent(t, provided); event.Reason != "not now" ||
+				event.DetailValue().Outcome != "rejected" {
+				t.Fatalf("rejected event = %#v", event)
+			}
+			if err := handle.Yield(t.Context(), human); err != nil {
+				t.Fatalf("Yield() error = %v", err)
 			}
 			expired := <-request("expire")
 			if expired.err != nil || expired.outcome == nil || expired.outcome.Outcome != "expired" {

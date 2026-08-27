@@ -246,4 +246,4 @@ func defaultServiceOptions(service *Service) {
 
 type noopMarkerConsumer struct{}
 
-func (noopMarkerConsumer) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) {}
+func (noopMarkerConsumer) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) error { return nil }

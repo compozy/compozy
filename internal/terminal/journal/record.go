@@ -45,7 +45,7 @@ func (s *Service) RecordQueued(
 	if err := validateCommandRow(info.WS, row); err != nil {
 		return err
 	}
-	lane, owned := s.ensureLane(info, nil, nil)
+	lane, owned := s.ensureLane(ctx, info, nil, nil)
 	result := lane.enqueue(row)
 	select {
 	case err := <-result:

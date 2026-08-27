@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -109,8 +108,8 @@ func cloneIntPtr(value *int) *int {
 func withoutCancelPreservingDeadline(ctx context.Context) (context.Context, context.CancelFunc) {
 	detached := context.WithoutCancel(ctx)
 	deadline, ok := ctx.Deadline()
-	if !ok {
-		return detached, func() {}
+	if ok {
+		return context.WithDeadline(detached, deadline)
 	}
-	return context.WithDeadline(detached, deadline)
+	return context.WithTimeout(detached, defaultStopTimeout)
 }
