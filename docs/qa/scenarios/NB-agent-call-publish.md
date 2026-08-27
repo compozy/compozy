@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-supervise-delegation-trees
 expected: A completed result publishes bounded evidence once per channel thread with source attribution; replay is idempotent and no reverse call mutation exists.
 entry_points: compozy call publish call_01JBD8G2K7Q9 --channel eng-room --thread thread_reviews; HTTP and UDS POST /api/workspaces/{workspace_id}/calls/{call_id}/publish with {"channel":"eng-room","thread_id":"thread_reviews"}; compozy__call_publish with {"call_id":"call_01JBD8G2K7Q9","channel":"eng-room","thread_id":"thread_reviews"}; the eng-room/thread_reviews Network timeline
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-call-golden-path; RT-call-profile-scope-isolation; RT-call-record-terminal-states
 ---
 

@@ -15,7 +15,7 @@ var _ taskpkg.DefinitionStore = (*TaskRepo)(nil)
 // events in one immediate transaction.
 func (g *TaskRepo) CreateTaskDefinition(
 	ctx context.Context,
-	mutation taskpkg.CreateTaskDefinitionMutation,
+	mutation *taskpkg.CreateTaskDefinitionMutation,
 ) error {
 	if err := g.checkReady(ctx, "create task definition"); err != nil {
 		return err

@@ -33,33 +33,7 @@ func taskBundle(item *TaskRecord) outputBundle {
 	return outputBundle{
 		jsonValue: *item,
 		human: func() (string, error) {
-			return renderHumanSection(taskTaskValue, []keyValue{
-				{Label: "ID", Value: stringOrDash(item.ID)},
-				{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
-				{Label: taskIdentifierValue, Value: stringOrDash(item.Identifier)},
-				{Label: taskScopeValue, Value: stringOrDash(string(item.Scope))},
-				{Label: taskWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
-				{Label: taskParentValue, Value: stringOrDash(item.ParentTaskID)},
-				{Label: taskTitleValue, Value: stringOrDash(item.Title)},
-				{Label: taskDescriptionValue, Value: stringOrDash(item.Description)},
-				{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
-				{Label: "Expect", Value: stringOrDash(item.ExpectDigest)},
-				{Label: "Result Budget", Value: stringOrDash(formatTaskResultBudget(item))},
-				{Label: "Paused", Value: strconv.FormatBool(item.Paused)},
-				{Label: "Paused By", Value: stringOrDash(item.PausedBy)},
-				{Label: taskReasonValue, Value: stringOrDash(item.PausedReason)},
-				{Label: taskOwnerValue, Value: stringOrDash(formatTaskOwnership(item.Owner))},
-				{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
-				{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
-				{
-					Label: taskParticipationChannelValue,
-					Value: resolvedParticipationChannel(item.ResolvedNetworkParticipation),
-				},
-				{Label: taskCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
-				{Label: taskUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
-				{Label: "Closed", Value: stringOrDash(formatTimePtr(item.ClosedAt))},
-				{Label: "Metadata", Value: stringOrDash(compactJSON(item.Metadata))},
-			}), nil
+			return renderHumanSection(taskTaskValue, taskHumanFields(item)), nil
 		},
 		toon: func() (string, error) {
 			return renderToonObject(taskTaskKey, []string{
@@ -110,6 +84,36 @@ func taskBundle(item *TaskRecord) outputBundle {
 				compactJSON(item.Metadata),
 			}), nil
 		},
+	}
+}
+
+func taskHumanFields(item *TaskRecord) []keyValue {
+	return []keyValue{
+		{Label: "ID", Value: stringOrDash(item.ID)},
+		{Label: sessionProfileValue, Value: stringOrDash(item.ProfileName)},
+		{Label: taskIdentifierValue, Value: stringOrDash(item.Identifier)},
+		{Label: taskScopeValue, Value: stringOrDash(string(item.Scope))},
+		{Label: taskWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
+		{Label: taskParentValue, Value: stringOrDash(item.ParentTaskID)},
+		{Label: taskTitleValue, Value: stringOrDash(item.Title)},
+		{Label: taskDescriptionValue, Value: stringOrDash(item.Description)},
+		{Label: taskStatusValue, Value: stringOrDash(string(item.Status))},
+		{Label: "Expect", Value: stringOrDash(item.ExpectDigest)},
+		{Label: "Result Budget", Value: stringOrDash(formatTaskResultBudget(item))},
+		{Label: "Paused", Value: strconv.FormatBool(item.Paused)},
+		{Label: "Paused By", Value: stringOrDash(item.PausedBy)},
+		{Label: taskReasonValue, Value: stringOrDash(item.PausedReason)},
+		{Label: taskOwnerValue, Value: stringOrDash(formatTaskOwnership(item.Owner))},
+		{Label: taskCreatedByValue, Value: stringOrDash(formatTaskActor(item.CreatedBy))},
+		{Label: taskOriginValue, Value: stringOrDash(formatTaskOrigin(item.Origin))},
+		{
+			Label: taskParticipationChannelValue,
+			Value: resolvedParticipationChannel(item.ResolvedNetworkParticipation),
+		},
+		{Label: taskCreatedValue, Value: stringOrDash(formatTime(item.CreatedAt))},
+		{Label: taskUpdatedValue, Value: stringOrDash(formatTime(item.UpdatedAt))},
+		{Label: "Closed", Value: stringOrDash(formatTimePtr(item.ClosedAt))},
+		{Label: "Metadata", Value: stringOrDash(compactJSON(item.Metadata))},
 	}
 }
 

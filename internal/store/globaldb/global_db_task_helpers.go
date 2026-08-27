@@ -99,6 +99,8 @@ func cloneTaskResultBudget(budget *contracts.ByteBudget) *contracts.ByteBudget {
 
 func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized := run
+	contractState := normalized.ContractStateValue()
+	normalized.SetContractState(contractState)
 	normalized.ID = strings.TrimSpace(normalized.ID)
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.WorkspaceID = strings.TrimSpace(normalized.WorkspaceID)
@@ -120,7 +122,7 @@ func normalizeTaskRunRecord(run taskpkg.Run) taskpkg.Run {
 	normalized.SessionID = strings.TrimSpace(normalized.SessionID)
 	normalized.Origin.Kind = normalized.Origin.Kind.Normalize()
 	normalized.Origin.Ref = strings.TrimSpace(normalized.Origin.Ref)
-	normalized.IdempotencyKey = strings.TrimSpace(normalized.IdempotencyKey)
+	normalized.IdempotencyKey = strings.TrimSpace(contractState.IdempotencyKey)
 	normalized.ExpectDigest = strings.TrimSpace(normalized.ExpectDigest)
 	normalized.ResultBudget = cloneTaskResultBudget(normalized.ResultBudget)
 	wakeID, targetSessionID, ownerKey := normalized.NetworkWakeCorrelation()

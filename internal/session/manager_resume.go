@@ -22,46 +22,15 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 	if err != nil {
 		return nil, err
 	}
-	baseCtx := ctx
-	for {
-		operationCtx, unlockConversation, lockErr := m.lockConversationOperation(baseCtx, target)
-		if lockErr != nil {
-			return nil, lockErr
-		}
-		current, exists := m.Get(target)
-		if exists && current != nil {
-			switch current.Info().State {
-			case StateStopping, StateStopped:
-				unlockConversation()
-				if waitErr := m.waitForTerminalSessionBeforeResume(baseCtx, target); waitErr != nil {
-					return nil, waitErr
-				}
-				continue
-			case StateActive:
-				active, activeErr := m.waitForResumedSession(operationCtx, target, current)
-				if activeErr == nil {
-					unlockConversation()
-					return active, nil
-				}
-				currentState := current.Info().State
-				becameTerminal := errors.Is(activeErr, ErrSessionNotActive) &&
-					(currentState == StateStopping || currentState == StateStopped)
-				unlockConversation()
-				if !becameTerminal {
-					return nil, activeErr
-				}
-				if currentState == StateStopping {
-					if waitErr := m.waitForTerminalSessionBeforeResume(baseCtx, target); waitErr != nil {
-						return nil, waitErr
-					}
-				}
-				continue
-			}
-		}
-		ctx = operationCtx
-		defer unlockConversation()
-		break
+	operationCtx, unlockConversation, active, err := m.acquireResumeOperation(ctx, target)
+	if err != nil {
+		return nil, err
 	}
+	if active != nil {
+		return active, nil
+	}
+	ctx = operationCtx
+	defer unlockConversation()
 	run, owner, err := m.beginSessionResume(target)
 	if err != nil {
 		return nil, err
@@ -84,6 +53,49 @@ func (m *Manager) Resume(ctx context.Context, id string) (resumed *Session, err 
 		return nil, err
 	}
 	return m.resumeSession(ctx, target)
+}
+
+func (m *Manager) acquireResumeOperation(
+	ctx context.Context,
+	target string,
+) (context.Context, func(), *Session, error) {
+	for {
+		operationCtx, unlockConversation, lockErr := m.lockConversationOperation(ctx, target)
+		if lockErr != nil {
+			return nil, nil, nil, lockErr
+		}
+		current, exists := m.Get(target)
+		if exists && current != nil {
+			switch current.Info().State {
+			case StateStopping, StateStopped:
+				unlockConversation()
+				if waitErr := m.waitForTerminalSessionBeforeResume(ctx, target); waitErr != nil {
+					return nil, nil, nil, waitErr
+				}
+				continue
+			case StateActive:
+				active, activeErr := m.waitForResumedSession(operationCtx, target, current)
+				if activeErr == nil {
+					unlockConversation()
+					return nil, nil, active, nil
+				}
+				currentState := current.Info().State
+				becameTerminal := errors.Is(activeErr, ErrSessionNotActive) &&
+					(currentState == StateStopping || currentState == StateStopped)
+				unlockConversation()
+				if !becameTerminal {
+					return nil, nil, nil, activeErr
+				}
+				if currentState == StateStopping {
+					if waitErr := m.waitForTerminalSessionBeforeResume(ctx, target); waitErr != nil {
+						return nil, nil, nil, waitErr
+					}
+				}
+				continue
+			}
+		}
+		return operationCtx, unlockConversation, nil, nil
+	}
 }
 
 func (m *Manager) waitForTerminalSessionBeforeResume(ctx context.Context, target string) error {

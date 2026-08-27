@@ -40,6 +40,7 @@ func (g *CallRepo) GetCallPayloads(
 		args = append(args, ref)
 	}
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(unique)), ",")
+	//nolint:gosec // Only generated parameter placeholders are concatenated; every value remains bound.
 	rows, err := g.db.QueryContext(ctx, `SELECT ref, bytes, byte_size FROM payload_blobs
 		WHERE workspace_id = ? AND ref IN (`+placeholders+`)`, args...)
 	if err != nil {

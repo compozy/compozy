@@ -113,28 +113,28 @@ type packageOwnedAgentCatalog struct {
 	artifacts session.AgentArtifacts
 }
 
-func (c packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
+func (c *packageOwnedAgentCatalog) ListAgents(context.Context) ([]core.AgentCatalogEntry, error) {
 	return []core.AgentCatalogEntry{{
 		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),
 		Origin: contract.AgentOriginGlobal,
 	}}, nil
 }
 
-func (c packageOwnedAgentCatalog) ListAgentsForWorkspace(
+func (c *packageOwnedAgentCatalog) ListAgentsForWorkspace(
 	ctx context.Context,
 	_ *workspacepkg.ResolvedWorkspace,
 ) ([]core.AgentCatalogEntry, error) {
 	return c.ListAgents(ctx)
 }
 
-func (c packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
+func (c *packageOwnedAgentCatalog) GetAgent(context.Context, string) (core.AgentCatalogEntry, error) {
 	return core.AgentCatalogEntry{
 		Def:    compozyconfig.CloneAgentDef(c.artifacts.Agent),
 		Origin: contract.AgentOriginGlobal,
 	}, nil
 }
 
-func (c packageOwnedAgentCatalog) ResolveAgentArtifacts(
+func (c *packageOwnedAgentCatalog) ResolveAgentArtifacts(
 	string,
 	*workspacepkg.ResolvedWorkspace,
 ) (session.AgentArtifacts, error) {
@@ -764,7 +764,7 @@ func TestAuthoredContextRejectsPackageOwnedSidecarMutations(t *testing.T) {
 			)
 			fixture.Handlers.SoulAuthoring = soulAuthoring
 			fixture.Handlers.HeartbeatAuthoring = heartbeatAuthoring
-			fixture.Handlers.AgentCatalog = packageOwnedAgentCatalog{
+			fixture.Handlers.AgentCatalog = &packageOwnedAgentCatalog{
 				artifacts: session.AgentArtifacts{
 					Agent:               compozyconfig.AgentDef{Name: "marketer", Prompt: "Run marketing workflows."},
 					PackageOwned:        true,

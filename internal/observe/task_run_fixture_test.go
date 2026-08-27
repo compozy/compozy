@@ -30,7 +30,7 @@ func seedObserveRunSnapshot(t *testing.T, registry *globaldb.GlobalDB, target ta
 			RunID:              target.ID,
 			RunKind:            target.RunKind,
 			LoopRunID:          target.LoopRunID,
-			IdempotencyKey:     target.IdempotencyKey,
+			IdempotencyKey:     target.IdempotencyKeyValue(),
 			Origin:             target.Origin,
 			NetworkSpec:        target.NetworkSpecSnapshot(),
 			DesignationGroupID: target.DesignationGroupID,

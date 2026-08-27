@@ -148,10 +148,14 @@ func (s *memoryCallStore) GetContract(_ context.Context, digest string) (contrac
 func (s *memoryCallStore) AdmitCall(_ context.Context, admission Admission) (AdmissionResult, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if key := admission.Record.IdempotencyKey; key != "" {
-		identity := admission.Record.ProfileID + "\x00" + string(admission.Record.Scope) + "\x00" +
-			admission.Record.WorkspaceID + "\x00" + string(admission.Record.Caller.Kind) + "\x00" +
-			admission.Record.Caller.ID + "\x00" + key
+	if admission.Record == nil {
+		return AdmissionResult{}, errors.New("calls test store: admission record is required")
+	}
+	record := *admission.Record
+	if key := record.IdempotencyKey; key != "" {
+		identity := record.ProfileID + "\x00" + string(record.Scope) + "\x00" +
+			record.WorkspaceID + "\x00" + string(record.Caller.Kind) + "\x00" +
+			record.Caller.ID + "\x00" + key
 		if callID := s.idempotency[identity]; callID != "" {
 			existing := s.calls[callID]
 			if existing.RequestDigest != admission.Record.RequestDigest {
@@ -159,17 +163,17 @@ func (s *memoryCallStore) AdmitCall(_ context.Context, admission Admission) (Adm
 			}
 			return AdmissionResult{Record: existing, Replayed: true}, nil
 		}
-		s.idempotency[identity] = admission.Record.CallID
+		s.idempotency[identity] = record.CallID
 	}
 	if admission.Contract != nil {
 		s.contracts[admission.Contract.Digest] = *admission.Contract
 	}
-	s.payloads[callPayloadKey(admission.Record.WorkspaceID, admission.Record.PromptRef)] = append(
+	s.payloads[callPayloadKey(record.WorkspaceID, record.PromptRef)] = append(
 		[]byte(nil),
 		admission.Prompt...)
-	s.calls[admission.Record.CallID] = admission.Record
+	s.calls[record.CallID] = record
 	s.admissions = append(s.admissions, admission)
-	return AdmissionResult{Record: admission.Record}, nil
+	return AdmissionResult{Record: record}, nil
 }
 
 func (s *memoryCallStore) GetCall(_ context.Context, scope CallScope, callID string) (CallRecord, error) {
@@ -228,7 +232,8 @@ func (s *memoryCallStore) GetCallByChild(_ context.Context, scope CallScope, chi
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var candidates []CallRecord
-	for _, record := range s.calls {
+	for callID := range s.calls {
+		record := s.calls[callID]
 		if record.ChildSessionID == childID && record.ProfileID == scope.ProfileID &&
 			record.Scope == scope.Scope && record.WorkspaceID == scope.WorkspaceID &&
 			(record.State == StateQueued || record.State == StateRunning) {
@@ -261,7 +266,8 @@ func (s *memoryCallStore) GetOpenCallForChild(_ context.Context, childID string)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var candidates []CallRecord
-	for _, record := range s.calls {
+	for callID := range s.calls {
+		record := s.calls[callID]
 		if record.ChildSessionID == childID && record.State == StateRunning {
 			candidates = append(candidates, record)
 		}
@@ -315,7 +321,7 @@ func (s *memoryCallStore) FailActivation(_ context.Context, failure ActivationFa
 	record.SettledAt = failure.FailedAt
 	record.UpdatedAt = failure.FailedAt
 	s.calls[failure.CallID] = record
-	s.appendCompletionDelivery(record, failure.FailedAt)
+	s.appendCompletionDelivery(&record, failure.FailedAt)
 	return record, nil
 }
 
@@ -374,11 +380,11 @@ func (s *memoryCallStore) SettleCall(_ context.Context, mutation SettlementMutat
 	}
 	s.calls[mutation.CallID] = record
 	s.settlements = append(s.settlements, mutation)
-	s.appendCompletionDelivery(record, mutation.SettledAt)
+	s.appendCompletionDelivery(&record, mutation.SettledAt)
 	return record, nil
 }
 
-func (s *memoryCallStore) appendCompletionDelivery(record CallRecord, at time.Time) {
+func (s *memoryCallStore) appendCompletionDelivery(record *CallRecord, at time.Time) {
 	if record.ParentSessionID == "" {
 		return
 	}
@@ -396,10 +402,11 @@ func (s *memoryCallStore) ListDueCalls(_ context.Context, now time.Time, limit i
 		limit = 100
 	}
 	result := make([]CallRecord, 0, min(limit, len(s.due)))
-	for _, record := range s.due {
+	for index := range s.due {
+		record := &s.due[index]
 		if (record.State == StateQueued || record.State == StateRunning) && !record.DeadlineAt.IsZero() &&
 			!record.DeadlineAt.After(now) {
-			result = append(result, record)
+			result = append(result, *record)
 		}
 	}
 	sort.Slice(result, func(i, j int) bool {
@@ -524,7 +531,8 @@ func (c *fakeActivationClaimer) ClaimNextRun(
 	}
 	if c.store != nil {
 		c.store.mu.Lock()
-		for callID, record := range c.store.calls {
+		for callID := range c.store.calls {
+			record := c.store.calls[callID]
 			if record.ActivationRunID == criteria.RunID && record.State == StateQueued {
 				record.State = StateRunning
 				c.store.calls[callID] = record

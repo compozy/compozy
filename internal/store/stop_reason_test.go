@@ -73,15 +73,15 @@ func TestSessionMetaValidateStopReason(t *testing.T) {
 			t.Parallel()
 
 			meta := SessionMeta{
-				ID:                   "sess-meta",
-				AgentName:            "coder",
-				WorkspaceID:          "ws-meta",
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				State:                "stopped",
-				RuntimeStatus:        SessionRuntimeReady,
-				StopReason:           tt.reason,
-				CreatedAt:            now,
-				UpdatedAt:            now,
+				ID:                        "sess-meta",
+				AgentName:                 "coder",
+				WorkspaceID:               "ws-meta",
+				SessionMetaPlacementState: NewSessionMetaPlacement(SessionScopeWorkspace, participation.LocalSpec()),
+				State:                     "stopped",
+				RuntimeStatus:             SessionRuntimeReady,
+				StopReason:                tt.reason,
+				CreatedAt:                 now,
+				UpdatedAt:                 now,
 			}
 
 			err := meta.Validate()

@@ -80,10 +80,13 @@ func writeSessionRecords(
 		SessionType: story.SessionType, State: string(session.StateStopped),
 		RuntimeStatus: store.SessionRuntimeUnbound,
 		StopReason:    &stopReason, StopDetail: stopDetail,
-		Failure:              sessionFailure(story),
-		Lineage:              lineage,
-		NetworkParticipation: &networkSpec,
-		CreatedAt:            story.StartedAt, UpdatedAt: story.EndedAt,
+		Failure: sessionFailure(story),
+		Lineage: lineage,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			networkSpec,
+		),
+		CreatedAt: story.StartedAt, UpdatedAt: story.EndedAt,
 	}
 	meta.SetCWD(record.RootDir)
 	meta.SetEffectivePermissions(permissions)

@@ -538,9 +538,9 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 				wantErr: true,
 			},
 			{
-				name:    "Should reject a whitespace workspace id",
-				owner:   store.SessionDBOwner{SessionID: "sess-invalid-workspace", WorkspaceID: " \t "},
-				wantErr: true,
+				name:      "Should canonicalize a whitespace workspace id for a global owner",
+				owner:     store.SessionDBOwner{SessionID: "sess-global", WorkspaceID: " \t "},
+				wantOwner: store.SessionDBOwner{SessionID: "sess-global"},
 			},
 			{
 				name:      "Should persist the canonical form of a padded owner",
@@ -602,8 +602,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 6 || firstStatus.AppliedCount != 6 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 6", firstStatus)
+		if firstStatus.Version != 7 || firstStatus.AppliedCount != 7 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 7", firstStatus)
 		}
 		if err := verifySessionDBOwner(ctx, first.db, testSessionDBOwner("sess-idempotent")); err != nil {
 			t.Fatalf("verifySessionDBOwner() error = %v", err)
@@ -751,8 +751,8 @@ func TestOpenSessionDBAppliesBaselineAndRepeatedBootIsIdempotent(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(engine-migrated) error = %v", err)
 		}
-		if status.Version != 6 || status.AppliedCount != 6 {
-			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 6", status)
+		if status.Version != 7 || status.AppliedCount != 7 {
+			t.Fatalf("Status(engine-migrated) = %#v, want version/applied count 7", status)
 		}
 		migratedOwner := testSessionDBOwner("sess-prefix-upgrade")
 		if _, err := migrationDB.ExecContext(

@@ -171,7 +171,10 @@ func toolApprovalGrantListBundle(response ToolApprovalGrantListRecord) outputBun
 		response,
 		response.Grants,
 		"Remembered Tool Approvals",
-		[]string{"ID", cliProfileHeader, toolOperatorToolIDHeader, "AGENT", "DECISION", "INPUT DIGEST", "LAST USED"},
+		[]string{
+			"ID", cliProfileHeader, toolOperatorToolIDHeader, cliAgentHeader,
+			"DECISION", "INPUT DIGEST", "LAST USED",
+		},
 		"tool_approval_grants",
 		[]string{
 			"id",

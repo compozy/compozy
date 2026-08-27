@@ -12,11 +12,14 @@ import (
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
-const profileClaimEligibilitySQL = `p.state = 'active'
-	AND NOT EXISTS (
-		SELECT 1 FROM profile_lifecycle_ops plo
-		WHERE plo.profile_id = p.id AND plo.status <> 'done'
-	)`
+const (
+	profileClaimEligibilitySQL = `p.state = 'active'
+		AND NOT EXISTS (
+			SELECT 1 FROM profile_lifecycle_ops plo
+			WHERE plo.profile_id = p.id AND plo.status <> 'done'
+		)`
+	schedulerActiveClaimPredicate = `NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`
+)
 
 func (g *TaskRunRepo) ensureClaimerHasNoActiveLease(
 	ctx context.Context,
@@ -201,7 +204,7 @@ func baseClaimPredicates(criteria taskpkg.ClaimCriteria) ([]string, []any) {
 		globalDBTaskRunStatusFilter,
 		"COALESCE(t.paused, 0) = 0",
 		profileClaimEligibilitySQL,
-		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
+		schedulerActiveClaimPredicate,
 		`NOT EXISTS (
 			WITH RECURSIVE ancestors(id, parent_task_id, paused) AS (
 				SELECT parent.id, parent.parent_task_id, parent.paused
@@ -269,7 +272,7 @@ func (g *TaskRunRepo) selectClaimableNetworkWakeRunID(
 		globalDBTaskRunStatusFilter,
 		"tr.workspace_id = ?",
 		"tr.network_target_session_id = ?",
-		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
+		schedulerActiveClaimPredicate,
 	}
 	args := []any{
 		taskpkg.RunKindNetworkWake.String(),
@@ -309,7 +312,7 @@ func (g *TaskRunRepo) selectClaimableCallActivationRunID(
 		"c.state = 'queued'",
 		"c.scope = ?",
 		"c.workspace_id = ?",
-		`NOT EXISTS (SELECT 1 FROM scheduler_pause sp WHERE sp.id = 1 AND sp.paused = 1)`,
+		schedulerActiveClaimPredicate,
 	}
 	args := []any{
 		taskpkg.RunKindCallActivation.String(),

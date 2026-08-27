@@ -11,7 +11,7 @@ import (
 
 func (s *Service) invokeClaimedActivation(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	admission Admission,
 	claim *task.ClaimResult,
 ) (CallRecord, error) {
@@ -22,73 +22,19 @@ func (s *Service) invokeClaimedActivation(
 	if activation == nil {
 		return CallRecord{}, newError(CodeValidation, "activation specification is missing", nil)
 	}
-	childID := strings.TrimSpace(activation.TargetSessionID)
 	remainingDepth := max(s.config.MaxDepth-activation.Depth, 0)
-	createdChild := false
-	var invokeErr error
-	switch activation.Kind {
-	case ActivationKindSpawn:
-		child, err := s.invoker.SpawnChild(ctx, ChildSpec{
-			CallID: record.CallID, ParentSessionID: activation.ParentSessionID,
-			AgentName: activation.AgentName, Prompt: string(admission.Prompt),
-			WorkspaceID: activation.WorkspaceID, IdleTTL: activation.IdleTTL,
-			Runtime: activation.Runtime, Permissions: admission.Narrow,
-			RemainingDepth: remainingDepth,
-		})
-		if err != nil {
-			invokeErr = err
-		} else {
-			childID = strings.TrimSpace(child.ID)
-			createdChild = true
-		}
-	case ActivationKindRevive:
-		invokeErr = s.invoker.Revive(
-			ctx,
-			childID,
-			CallPromptWithRemainingDepth(string(admission.Prompt), remainingDepth),
-			record.CallID,
-		)
-	default:
-		invokeErr = fmt.Errorf("unsupported activation kind %q", activation.Kind)
-	}
+	childID, createdChild, invokeErr := s.invokeActivation(ctx, record, admission, activation, remainingDepth)
 	if invokeErr != nil {
-		failureCode := "call_activation_failed"
-		var callErr *Error
-		if errors.As(invokeErr, &callErr) && callErr.Code != "" {
-			failureCode = string(callErr.Code)
-		}
-		failed, settleErr := s.store.FailActivation(ctx, ActivationFailure{
-			CallID:     record.CallID,
-			RunID:      activation.RunID,
-			ClaimToken: claim.ClaimToken,
-			Code:       failureCode,
-			Detail:     sanitizeDiagnostic(invokeErr.Error(), "activation failed"),
-			FailedAt:   s.now().UTC(),
-		})
-		if settleErr != nil {
-			if latest, handled, raceErr := s.resolveActivationSettlementRace(
-				ctx,
-				record.CallID,
-				settleErr,
-				nil,
-			); handled {
-				return latest, raceErr
-			}
-			releaseErr := s.releaseActivationClaim(ctx, claim, "activation settlement failed")
-			return CallRecord{}, errors.Join(invokeErr, settleErr, releaseErr)
-		}
-		s.notifyWaiters(record.CallID)
-		s.emitTerminalTransition(ctx, record.State, failed)
-		return failed, nil
+		return s.failClaimedActivation(ctx, record, activation, claim, invokeErr)
 	}
 	bound, err := s.store.BindActivationChild(ctx, ActivationBinding{
 		CallID: record.CallID, RunID: activation.RunID, ClaimToken: claim.ClaimToken,
 		ChildID: childID, ActivatedAt: s.now().UTC(),
 	})
 	if err == nil {
-		s.emitStateChanged(ctx, record.State, bound)
+		s.emitStateChanged(ctx, record.State, &bound)
 		if activation.Kind == ActivationKindRevive {
-			s.emitHook(ctx, HookCallRevived, hookPayloadForCall(bound))
+			s.emitHook(ctx, HookCallRevived, hookPayloadForCall(&bound))
 		}
 		return bound, nil
 	}
@@ -101,6 +47,76 @@ func (s *Service) invokeClaimedActivation(
 	}
 	releaseErr := s.releaseActivationClaim(ctx, claim, "activation persistence failed")
 	return CallRecord{}, errors.Join(err, cleanupErr, releaseErr)
+}
+
+func (s *Service) invokeActivation(
+	ctx context.Context,
+	record *CallRecord,
+	admission Admission,
+	activation *ActivationSpec,
+	remainingDepth int,
+) (string, bool, error) {
+	childID := strings.TrimSpace(activation.TargetSessionID)
+	switch activation.Kind {
+	case ActivationKindSpawn:
+		child, err := s.invoker.SpawnChild(ctx, ChildSpec{
+			CallID: record.CallID, ParentSessionID: activation.ParentSessionID,
+			AgentName: activation.AgentName, Prompt: string(admission.Prompt),
+			WorkspaceID: activation.WorkspaceID, IdleTTL: activation.IdleTTL,
+			Runtime: activation.Runtime, Permissions: admission.Narrow,
+			RemainingDepth: remainingDepth,
+		})
+		if err != nil {
+			return childID, false, err
+		}
+		return strings.TrimSpace(child.ID), true, nil
+	case ActivationKindRevive:
+		return childID, false, s.invoker.Revive(
+			ctx,
+			childID,
+			CallPromptWithRemainingDepth(string(admission.Prompt), remainingDepth),
+			record.CallID,
+		)
+	default:
+		return childID, false, fmt.Errorf("unsupported activation kind %q", activation.Kind)
+	}
+}
+
+func (s *Service) failClaimedActivation(
+	ctx context.Context,
+	record *CallRecord,
+	activation *ActivationSpec,
+	claim *task.ClaimResult,
+	invokeErr error,
+) (CallRecord, error) {
+	failureCode := "call_activation_failed"
+	var callErr *Error
+	if errors.As(invokeErr, &callErr) && callErr.Code != "" {
+		failureCode = string(callErr.Code)
+	}
+	failed, settleErr := s.store.FailActivation(ctx, ActivationFailure{
+		CallID:     record.CallID,
+		RunID:      activation.RunID,
+		ClaimToken: claim.ClaimToken,
+		Code:       failureCode,
+		Detail:     sanitizeDiagnostic(invokeErr.Error(), "activation failed"),
+		FailedAt:   s.now().UTC(),
+	})
+	if settleErr != nil {
+		if latest, handled, raceErr := s.resolveActivationSettlementRace(
+			ctx,
+			record.CallID,
+			settleErr,
+			nil,
+		); handled {
+			return latest, raceErr
+		}
+		releaseErr := s.releaseActivationClaim(ctx, claim, "activation settlement failed")
+		return CallRecord{}, errors.Join(invokeErr, settleErr, releaseErr)
+	}
+	s.notifyWaiters(record.CallID)
+	s.emitTerminalTransition(ctx, record.State, &failed)
+	return failed, nil
 }
 
 func (s *Service) resolveActivationSettlementRace(
@@ -148,8 +164,8 @@ func (s *Service) DispatchQueued(ctx context.Context, limit int) (int, error) {
 		if err != nil {
 			return dispatched, fmt.Errorf("calls: claim queued activation %q: %w", runID, err)
 		}
-		_, err = s.invokeClaimedActivation(ctx, record, Admission{
-			Record: record, Prompt: prompt, Narrow: permissions, Activation: &activation,
+		_, err = s.invokeClaimedActivation(ctx, &record, Admission{
+			Record: &record, Prompt: prompt, Narrow: permissions, Activation: &activation,
 		}, claim)
 		if err != nil {
 			return dispatched, err

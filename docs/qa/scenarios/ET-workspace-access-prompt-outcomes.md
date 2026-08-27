@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-cross-workspace-access
 expected: An approve-reads session hitting the native-tool boundary raises one pending permission offering allow_once, allow_session, reject_once, and reject_session; once answers apply to that call only, session answers apply to every seam for the rest of the session, and stopping the session clears the answer so the next crossing prompts again.
 entry_points: compozy__workspace_info; compozy__task_run_claim_next; compozy network coordination status --workspace; compozy call and compozy message with a foreign-workspace target (hard denial, never a prompt); compozy session approve <session-id> --request-id <request-id> --decision <allow-once|allow-always|reject-once|reject-always>; POST /api/workspaces/:workspace_id/sessions/:session_id/approve; compozy logs --type workspace.access_granted; GET /api/logs; compozy__logs; compozy__observe_search; /docs/sessions/permissions#the-prompt-in-approve-reads
-qa_status: untested
-bug_ids: BUG-20260730-tool-invoke-202-empty-success
+qa_status: pass
+bug_ids: BUG-20260730-tool-invoke-202-empty-success; BUG-20260826-prompt-stream-incomplete-reason
 fix_status: fixed
 retest_status: pass
-fix_commits: 7285bf3c
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+fix_commits: 7285bf3c; 60883a0e5
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: ET-workspace-access-mode-matrix; ET-native-tool-approval-grants
 ---
 

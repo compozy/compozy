@@ -31,7 +31,8 @@ func (s *Service) ProjectPayloads(ctx context.Context, records []CallRecord) ([]
 	}
 	refsByWorkspace := make(map[string]map[string]struct{})
 	assignments := make(map[string][]projectionRef)
-	for index, record := range records {
+	for index := range records {
+		record := &records[index]
 		workspaceID := strings.TrimSpace(record.WorkspaceID)
 		for kind, ref := range map[byte]string{
 			'p': record.PromptRef, 'r': record.ResultRef, 's': record.SupersededRef,

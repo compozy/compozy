@@ -303,16 +303,19 @@ func TestManagerRepairSession(t *testing.T) {
 func repairSessionMeta(id string, reason store.StopReason, workspaceID string) store.SessionMeta {
 	now := time.Date(2026, 4, 28, 13, 0, 0, 0, time.UTC)
 	return store.SessionMeta{
-		ID:                   id,
-		Name:                 id,
-		AgentName:            "coder",
-		WorkspaceID:          workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
-		StopReason:           &reason,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+		ID:          id,
+		Name:        id,
+		AgentName:   "coder",
+		WorkspaceID: workspaceID,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			*testLocalParticipationPtr(),
+		),
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
+		StopReason:    &reason,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}
 }
 

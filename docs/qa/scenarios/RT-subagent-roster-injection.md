@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-build-a-subagent-roster
 expected: An agent definition's description reaches the call tool's parameter, agent list, the agents route and the native tool identically with scope and shadowing, an unknown name fails with the live roster printed inline, and the injected view's caps never bound the registry.
 entry_points: .compozy/agents/reviewer/AGENT.md and $COMPOZY_HOME/agents/scout/AGENT.md descriptions; compozy agent list -o json; HTTP and UDS GET /api/agents?workspace=ws_main; compozy__agent_list with {"workspace_id":"ws_main"}; compozy__agent_create with {"name":"reviewer","description":"Reviews diffs","provider":"claude"}; the compozy__agent_call agent parameter descriptor
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-roster-call-compose; RT-agent-call-golden-path; SITE-agent-comms-docs-area
 ---
 

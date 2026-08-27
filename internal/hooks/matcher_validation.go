@@ -74,9 +74,9 @@ func appendAutonomyMatcherFieldNames(fields *[]string, matcher *AutonomyMatcher)
 	appendIf(matcherWorkflowIDKey, matcher.WorkflowID != "")
 	appendIf(matcherParticipationChannelKey, matcher.ParticipationChannel != "")
 	appendIf("coordinator_session_id", matcher.CoordinatorSessionID != "")
-	appendIf("parent_session_id", matcher.ParentSessionID != "")
-	appendIf("root_session_id", matcher.RootSessionID != "")
-	appendIf("child_session_id", matcher.ChildSessionID != "")
+	appendIf(matcherParentSessionIDKey, matcher.ParentSessionID != "")
+	appendIf(matcherRootSessionIDKey, matcher.RootSessionID != "")
+	appendIf(matcherChildSessionIDKey, matcher.ChildSessionID != "")
 	appendIf("spawn_role", matcher.SpawnRole != "")
 	appendIf(matcherReleaseReasonKey, matcher.ReleaseReason != "")
 }
@@ -154,9 +154,9 @@ func validateAutonomyMatcherPatterns(matcher *AutonomyMatcher) error {
 		{field: matcherWorkflowIDKey, pattern: matcher.WorkflowID},
 		{field: matcherParticipationChannelKey, pattern: matcher.ParticipationChannel},
 		{field: "coordinator_session_id", pattern: matcher.CoordinatorSessionID},
-		{field: "parent_session_id", pattern: matcher.ParentSessionID},
-		{field: "root_session_id", pattern: matcher.RootSessionID},
-		{field: "child_session_id", pattern: matcher.ChildSessionID},
+		{field: matcherParentSessionIDKey, pattern: matcher.ParentSessionID},
+		{field: matcherRootSessionIDKey, pattern: matcher.RootSessionID},
+		{field: matcherChildSessionIDKey, pattern: matcher.ChildSessionID},
 		{field: "spawn_role", pattern: matcher.SpawnRole},
 		{field: matcherReleaseReasonKey, pattern: matcher.ReleaseReason},
 	}

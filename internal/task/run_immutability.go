@@ -42,7 +42,8 @@ func ValidateImmutableRunFields(current Run, next Run) error {
 		{field: runFieldOrigin, same: sameOrigin(current.Origin, next.Origin)},
 		{
 			field: runFieldIdempotencyKey,
-			same:  strings.TrimSpace(current.IdempotencyKey) == strings.TrimSpace(next.IdempotencyKey),
+			same: strings.TrimSpace(current.IdempotencyKeyValue()) ==
+				strings.TrimSpace(next.IdempotencyKeyValue()),
 		},
 		{field: runFieldNetworkSpec, same: current.NetworkSpecSnapshot() == next.NetworkSpecSnapshot()},
 		{

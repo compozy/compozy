@@ -232,7 +232,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		return sqlcgen.InsertTaskRunParams{}, err
 	}
 	wakeID, targetSessionID, ownerKey := run.NetworkWakeCorrelation()
-	budgetBytes, overflow := nullableTaskResultBudget(run.ResultBudget)
+	budgetBytes, overflow := nullableTaskResultBudget(run.ResultBudgetValue())
 	return sqlcgen.InsertTaskRunParams{
 		ID:                     run.ID,
 		TaskID:                 nullableTaskString(run.TaskID),
@@ -250,7 +250,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		SessionID:              nullableTaskString(run.SessionID),
 		OriginKind:             string(run.Origin.Kind),
 		OriginRef:              run.Origin.Ref,
-		IdempotencyKey:         nullableTaskString(run.IdempotencyKey),
+		IdempotencyKey:         nullableTaskString(run.IdempotencyKeyValue()),
 		NetworkSpecJson:        network.JSON,
 		NetworkMode:            network.Mode,
 		NetworkChannel:         network.Channel,
@@ -282,7 +282,7 @@ func taskRunParams(run taskpkg.Run) (sqlcgen.InsertTaskRunParams, error) {
 		NetworkWakeID:          nullableTaskString(wakeID),
 		NetworkTargetSessionID: nullableTaskString(targetSessionID),
 		NetworkOwnerKey:        nullableTaskString(ownerKey),
-		ExpectDigest:           nullableTaskString(run.ExpectDigest),
+		ExpectDigest:           nullableTaskString(run.ExpectDigestValue()),
 		ResultBudgetBytes:      budgetBytes,
 		ResultOverflow:         overflow,
 	}, nil

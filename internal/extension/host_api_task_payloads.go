@@ -101,7 +101,7 @@ func taskRunPayloadFromRun(run *taskpkg.Run) apicontract.TaskRunPayload {
 		ClaimedBy:                    cloneActorIdentity(run.ClaimedBy),
 		SessionID:                    run.SessionID,
 		Origin:                       run.Origin,
-		IdempotencyKey:               run.IdempotencyKey,
+		IdempotencyKey:               run.IdempotencyKeyValue(),
 		ResolvedNetworkParticipation: participation.CloneSpec(run.NetworkSpecSnapshot()),
 		QueuedAt:                     run.QueuedAt,
 		ClaimedAt:                    optionalTime(run.ClaimedAt),

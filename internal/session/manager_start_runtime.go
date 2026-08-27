@@ -159,7 +159,7 @@ func (m *Manager) prepareAcceptedSessionDefinition(
 	if err != nil {
 		return fmt.Errorf("session: resolve workspace agent %q: %w", spec.agentName, err)
 	}
-	if err := m.prepareSessionStartSoul(ctx, spec, artifacts, updatedAt); err != nil {
+	if err := m.prepareSessionStartSoul(ctx, spec, &artifacts, updatedAt); err != nil {
 		return fmt.Errorf("session: prepare soul for %q: %w", spec.sessionID, err)
 	}
 

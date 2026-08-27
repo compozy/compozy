@@ -33,7 +33,7 @@ func (n *daemonNativeTools) sessionWait(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -76,7 +76,7 @@ func (n *daemonNativeTools) sessionStop(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -127,7 +127,7 @@ func (n *daemonNativeTools) sessionApprove(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeApprovalSelfError(req.ToolID, err)
 	}
@@ -159,7 +159,7 @@ func (n *daemonNativeTools) sessionClarifyAnswer(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, info, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeApprovalSelfError(req.ToolID, err)
 	}
@@ -199,7 +199,7 @@ func (n *daemonNativeTools) sessionPromptCancel(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID, true)
+	target, _, err := n.nativeOrchestrationTarget(ctx, scope, req.ToolID, input.SessionID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
@@ -222,13 +222,12 @@ func (n *daemonNativeTools) nativeOrchestrationTarget(
 	scope toolspkg.Scope,
 	id toolspkg.ToolID,
 	sessionID string,
-	denySelf bool,
 ) (string, *session.Info, error) {
 	target, err := requiredNativeString(id, "session_id", sessionID)
 	if err != nil {
 		return "", nil, err
 	}
-	if denySelf && target == strings.TrimSpace(scope.SessionID) {
+	if target == strings.TrimSpace(scope.SessionID) {
 		return "", nil, nativeSelfTargetError(id)
 	}
 	resolved, err := n.nativeResolvedWorkspace(ctx, id, "", scope)

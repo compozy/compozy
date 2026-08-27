@@ -30,19 +30,22 @@ func TestReconciliationIndexesSessionDirNotInDB(t *testing.T) {
 		stopReason := store.StopUserCanceled
 
 		if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-			ID:                   "sess-new",
-			ProfileID:            store.DefaultProfileID,
-			Name:                 "New",
-			AgentName:            "coder",
-			Provider:             "claude",
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			StopReason:           &stopReason,
-			StopDetail:           "requested by API",
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:          "sess-new",
+			ProfileID:   store.DefaultProfileID,
+			Name:        "New",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: h.workspaceID,
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				participation.LocalSpec(),
+			),
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			StopReason:    &stopReason,
+			StopDetail:    "requested by API",
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta() error = %v", err)
 		}
@@ -149,17 +152,20 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, rootID)),
 			store.SessionMeta{
-				ID:                   rootID,
-				ProfileID:            store.DefaultProfileID,
-				Name:                 "Root",
-				AgentName:            "coder",
-				Provider:             "claude",
-				WorkspaceID:          h.workspaceID,
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				State:                "stopped",
-				RuntimeStatus:        store.SessionRuntimeUnbound,
-				CreatedAt:            now,
-				UpdatedAt:            now,
+				ID:          rootID,
+				ProfileID:   store.DefaultProfileID,
+				Name:        "Root",
+				AgentName:   "coder",
+				Provider:    "claude",
+				WorkspaceID: h.workspaceID,
+				SessionMetaPlacementState: store.NewSessionMetaPlacement(
+					store.SessionScopeWorkspace,
+					participation.LocalSpec(),
+				),
+				State:         "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound,
+				CreatedAt:     now,
+				UpdatedAt:     now,
 			},
 		); err != nil {
 			t.Fatalf("WriteSessionMeta(root) error = %v", err)
@@ -167,15 +173,18 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, parentID)),
 			store.SessionMeta{
-				ID:                   parentID,
-				ProfileID:            store.DefaultProfileID,
-				Name:                 "Parent",
-				AgentName:            "coder",
-				Provider:             "claude",
-				WorkspaceID:          h.workspaceID,
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				State:                "stopped",
-				RuntimeStatus:        store.SessionRuntimeUnbound,
+				ID:          parentID,
+				ProfileID:   store.DefaultProfileID,
+				Name:        "Parent",
+				AgentName:   "coder",
+				Provider:    "claude",
+				WorkspaceID: h.workspaceID,
+				SessionMetaPlacementState: store.NewSessionMetaPlacement(
+					store.SessionScopeWorkspace,
+					participation.LocalSpec(),
+				),
+				State:         "stopped",
+				RuntimeStatus: store.SessionRuntimeUnbound,
 				Lineage: &store.SessionLineage{
 					ParentSessionID: rootID,
 					RootSessionID:   rootID,
@@ -214,13 +223,16 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 						ID: "thinking", BoolValue: new(true),
 					}},
 				}, 1),
-				WorkspaceID:          h.workspaceID,
-				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-				SessionType:          "worker",
-				State:                "stopped",
-				ACPSessionID:         &acpSessionID,
-				StopReason:           &stopReason,
-				StopDetail:           "agent process exited",
+				WorkspaceID: h.workspaceID,
+				SessionMetaPlacementState: store.NewSessionMetaPlacement(
+					store.SessionScopeWorkspace,
+					participation.LocalSpec(),
+				),
+				SessionType:  "worker",
+				State:        "stopped",
+				ACPSessionID: &acpSessionID,
+				StopReason:   &stopReason,
+				StopDetail:   "agent process exited",
 				Failure: &store.SessionFailure{
 					Kind:            store.FailureProcess,
 					Summary:         "agent exited with status 1",
@@ -478,23 +490,26 @@ func TestReconciliationPreservesWorktreeBinding(t *testing.T) {
 		}
 
 		meta := store.SessionMeta{
-			ProfileID:            store.DefaultProfileID,
-			ID:                   sessionID,
-			Name:                 creationOptions.Name,
-			AgentName:            creationProfile.AgentName,
-			Provider:             creationProfile.Provider,
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(creationOptions.NetworkParticipation),
-			SessionType:          creationOptions.SessionType,
-			State:                "stopped",
-			CreationProfile:      &creationProfile,
-			CreationOptions:      &creationOptions,
-			CreationProfileRef:   creationIdentity.CreationProfileRef,
-			PolicySpecDigest:     creationIdentity.PolicySpecDigest,
-			CreationDigest:       creationIdentity.CreationDigest,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ProfileID:     store.DefaultProfileID,
+			ID:            sessionID,
+			Name:          creationOptions.Name,
+			AgentName:     creationProfile.AgentName,
+			Provider:      creationProfile.Provider,
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   h.workspaceID,
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				creationOptions.NetworkParticipation,
+			),
+			SessionType:        creationOptions.SessionType,
+			State:              "stopped",
+			CreationProfile:    &creationProfile,
+			CreationOptions:    &creationOptions,
+			CreationProfileRef: creationIdentity.CreationProfileRef,
+			PolicySpecDigest:   creationIdentity.PolicySpecDigest,
+			CreationDigest:     creationIdentity.CreationDigest,
+			CreatedAt:          now,
+			UpdatedAt:          now,
 		}
 		meta.SetCWD(worktreePath)
 		meta.SetWorktreeID(worktreeID)
@@ -594,33 +609,39 @@ func TestReconciliationSkipsSessionMetadataWithoutProvider(t *testing.T) {
 		validMetaPath := store.SessionMetaFile(validDir)
 		now := h.now.Add(45 * time.Minute)
 		if err := store.WriteSessionMeta(validMetaPath, store.SessionMeta{
-			ID:                   "sess-valid",
-			ProfileID:            store.DefaultProfileID,
-			Name:                 "Valid",
-			AgentName:            "coder",
-			Provider:             "claude",
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-			State:                "active",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:          "sess-valid",
+			ProfileID:   store.DefaultProfileID,
+			Name:        "Valid",
+			AgentName:   "coder",
+			Provider:    "claude",
+			WorkspaceID: h.workspaceID,
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				participation.LocalSpec(),
+			),
+			State:         "active",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta(valid) error = %v", err)
 		}
 
 		invalidMetaPath := store.SessionMetaFile(filepath.Join(h.home.SessionsDir, "sess-without-provider"))
 		if err := store.WriteSessionMeta(invalidMetaPath, store.SessionMeta{
-			ID:                   "sess-without-provider",
-			ProfileID:            store.DefaultProfileID,
-			Name:                 "Missing Provider",
-			AgentName:            "coder",
-			WorkspaceID:          h.workspaceID,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			CreatedAt:            now,
-			UpdatedAt:            now,
+			ID:          "sess-without-provider",
+			ProfileID:   store.DefaultProfileID,
+			Name:        "Missing Provider",
+			AgentName:   "coder",
+			WorkspaceID: h.workspaceID,
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				participation.LocalSpec(),
+			),
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}); err != nil {
 			t.Fatalf("WriteSessionMeta(invalid) error = %v", err)
 		}

@@ -62,25 +62,24 @@ type SessionMeta struct {
 	RuntimeGeneration int64                         `json:"runtime_generation,omitempty"`
 	RuntimeSelection  *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	*SessionProviderExecutionState
-	ProfileID   string       `json:"profile_id"`
-	Scope       SessionScope `json:"scope"`
-	WorkspaceID string       `json:"workspace_id,omitempty"`
+	ProfileID   string `json:"profile_id"`
+	WorkspaceID string `json:"workspace_id,omitempty"`
 	*SessionExecutionLocationState
-	NetworkParticipation *participation.Spec     `json:"network_participation"`
-	SessionType          string                  `json:"session_type,omitempty"`
-	Lineage              *SessionLineage         `json:"lineage,omitempty"`
-	State                string                  `json:"state"`
-	StopReason           *StopReason             `json:"stop_reason,omitempty"`
-	StopDetail           string                  `json:"stop_detail,omitempty"`
-	Failure              *SessionFailure         `json:"failure,omitempty"`
-	ACPSessionID         *string                 `json:"acp_session_id,omitempty"`
-	Liveness             *SessionLivenessMeta    `json:"liveness,omitempty"`
-	Sandbox              *SessionSandboxMeta     `json:"sandbox,omitempty"`
-	CreationProfile      *SessionCreationProfile `json:"creation_profile,omitempty"`
-	CreationOptions      *SessionCreationOptions `json:"creation_options,omitempty"`
-	CreationProfileRef   string                  `json:"creation_profile_ref,omitempty"`
-	PolicySpecDigest     string                  `json:"policy_spec_digest,omitempty"`
-	CreationDigest       string                  `json:"creation_digest,omitempty"`
+	*SessionMetaPlacementState
+	SessionType        string                  `json:"session_type,omitempty"`
+	Lineage            *SessionLineage         `json:"lineage,omitempty"`
+	State              string                  `json:"state"`
+	StopReason         *StopReason             `json:"stop_reason,omitempty"`
+	StopDetail         string                  `json:"stop_detail,omitempty"`
+	Failure            *SessionFailure         `json:"failure,omitempty"`
+	ACPSessionID       *string                 `json:"acp_session_id,omitempty"`
+	Liveness           *SessionLivenessMeta    `json:"liveness,omitempty"`
+	Sandbox            *SessionSandboxMeta     `json:"sandbox,omitempty"`
+	CreationProfile    *SessionCreationProfile `json:"creation_profile,omitempty"`
+	CreationOptions    *SessionCreationOptions `json:"creation_options,omitempty"`
+	CreationProfileRef string                  `json:"creation_profile_ref,omitempty"`
+	PolicySpecDigest   string                  `json:"policy_spec_digest,omitempty"`
+	CreationDigest     string                  `json:"creation_digest,omitempty"`
 	*SessionAdvertisedCommandState
 	SoulSnapshotID   string    `json:"soul_snapshot_id,omitempty"`
 	SoulDigest       string    `json:"soul_digest,omitempty"`
@@ -208,7 +207,7 @@ func (m SessionMeta) Validate() error {
 	if err := requireField(m.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := validateSessionLocation(m.Scope, m.WorkspaceID, m.WorktreeIDValue()); err != nil {
+	if err := validateSessionLocation(m.ScopeValue(), m.WorkspaceID, m.WorktreeIDValue()); err != nil {
 		return err
 	}
 	if err := requireField(m.State, "session state"); err != nil {
@@ -294,7 +293,7 @@ func validateSessionSpeedMetadata(speed speedpkg.Speed, resolution *speedpkg.Res
 
 // NetworkSpecSnapshot returns the immutable participation snapshot stored in metadata.
 func (m SessionMeta) NetworkSpecSnapshot() participation.Spec {
-	if m.NetworkParticipation == nil {
+	if m.SessionMetaPlacementState == nil || m.NetworkParticipation == nil {
 		return participation.Spec{}
 	}
 	return *m.NetworkParticipation

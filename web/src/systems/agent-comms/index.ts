@@ -144,11 +144,8 @@ export {
 } from "./components/agent-call-state-pill";
 export { AgentUntrustedFrame } from "./components/agent-untrusted-frame";
 export { AgentCallCost } from "./components/agent-call-cost";
-export {
-  AgentCallTree,
-  CALL_TREE_VIRTUALIZATION_THRESHOLD,
-  type CallTreeGroupCounts,
-} from "./components/agent-call-tree";
+export { AgentCallTree, type CallTreeGroupCounts } from "./components/agent-call-tree";
+export { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "./lib/agent-call-tree-constants";
 export { AgentCallTreeRow } from "./components/agent-call-tree-row";
 export { AgentCallTreeRootRow } from "./components/agent-call-tree-root-row";
 export { AgentCallDetail } from "./components/agent-call-detail";

@@ -32,7 +32,8 @@ var (
 // SpawnWakeReason identifies why a child woke its creator.
 type SpawnWakeReason string
 
-// SpawnWakeEvent is the bounded child-session wake payload; WakeEventID is stable for one attention occurrence and changes for a repeated occurrence.
+// SpawnWakeEvent is the bounded child-session wake payload. WakeEventID is stable for one attention occurrence and
+// changes for a repeated occurrence.
 type SpawnWakeEvent struct {
 	ChildSessionID string          `json:"child_session_id"`
 	ChildAgentName string          `json:"child_agent_name,omitempty"`

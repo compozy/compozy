@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
+//nolint:funlen // Cobra command construction keeps one cohesive flag surface beside its handler.
 func newTaskCreateCommand(deps commandDeps) *cobra.Command {
 	var (
 		id             string

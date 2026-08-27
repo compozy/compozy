@@ -9,13 +9,16 @@ import (
 
 const (
 	matcherAgentNameKey            = "agent_name"
+	matcherChildSessionIDKey       = "child_session_id"
 	matcherParticipationChannelKey = "participation_channel"
 	matcherInputClassKey           = "input_class"
 	matcherLoopNameKey             = "loop_name"
 	matcherLoopRunIDKey            = "loop_run_id"
 	matcherNodeIDKey               = "node_id"
+	matcherParentSessionIDKey      = "parent_session_id"
 	matcherReleaseReasonKey        = "release_reason"
 	matcherRunIDKey                = "run_id"
+	matcherRootSessionIDKey        = "root_session_id"
 	matcherTaskIDKey               = "task_id"
 	matcherWorkflowIDKey           = "workflow_id"
 	matcherWorkspaceIDKey          = "workspace_id"
@@ -154,9 +157,9 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherRunIDKey:                {},
 		matcherWorkflowIDKey:           {},
 		matcherParticipationChannelKey: {},
-		"parent_session_id":            {},
-		"root_session_id":              {},
-		"child_session_id":             {},
+		matcherParentSessionIDKey:      {},
+		matcherRootSessionIDKey:        {},
+		matcherChildSessionIDKey:       {},
 		"spawn_role":                   {},
 	},
 	HookEventFamilyNetwork: {
@@ -175,11 +178,11 @@ var allowedMatcherFieldsByFamily = map[HookEventFamily]map[string]struct{}{
 		matcherWorktreeIDKey:    {},
 	},
 	HookEventFamilyCall: {
-		matcherAgentNameKey:   {},
-		matcherWorkspaceIDKey: {},
-		"parent_session_id":   {},
-		"root_session_id":     {},
-		"child_session_id":    {},
+		matcherAgentNameKey:       {},
+		matcherWorkspaceIDKey:     {},
+		matcherParentSessionIDKey: {},
+		matcherRootSessionIDKey:   {},
+		matcherChildSessionIDKey:  {},
 	},
 }
 

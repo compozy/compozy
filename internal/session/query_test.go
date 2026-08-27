@@ -1068,7 +1068,7 @@ func (c *multiPagedRecordingSessionCatalog) PageSessions(
 		if _, skip := excluded[info.ID]; skip {
 			continue
 		}
-		archived := info.ArchivedAt != nil
+		archived := info.ArchivedAtValue() != nil
 		if query.Archive == store.SessionArchiveExclude && archived ||
 			query.Archive == store.SessionArchiveOnly && !archived {
 			continue
@@ -1147,7 +1147,7 @@ func (c *pagedRecordingSessionCatalog) PageSessions(
 	if c.durable.ID == "" {
 		return store.SessionCatalogPage{}, nil
 	}
-	archived := c.durable.ArchivedAt != nil
+	archived := c.durable.ArchivedAtValue() != nil
 	if (query.Archive == store.SessionArchiveExclude && archived) ||
 		(query.Archive == store.SessionArchiveOnly && !archived) {
 		return store.SessionCatalogPage{}, nil
@@ -1274,9 +1274,9 @@ func TestManagerStatusReturnsDurableParkedLifecycleForStoppedSession(t *testing.
 		drainingAt := idleExpiresAt.Add(time.Second)
 		catalog.mu.Lock()
 		durable := catalog.sessions[child.ID]
-		durable.ParkedAt = &parkedAt
-		durable.IdleExpiresAt = &idleExpiresAt
-		durable.DrainingAt = &drainingAt
+		durable.SetLifecycleTimes(store.SessionLifecycleTimes{
+			ParkedAt: &parkedAt, IdleExpiresAt: &idleExpiresAt, DrainingAt: &drainingAt,
+		})
 		catalog.sessions[child.ID] = durable
 		catalog.mu.Unlock()
 
@@ -1489,16 +1489,19 @@ func TestManagerStatusDoesNotRepairPendingStartMetadata(t *testing.T) {
 
 	acpSessionID := "acp-pending"
 	meta := store.SessionMeta{
-		ID:                   sessionID,
-		Name:                 "pending",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		State:                string(StateStarting),
-		RuntimeStatus:        store.SessionRuntimeBinding,
-		ACPSessionID:         stringPointer(acpSessionID),
-		CreatedAt:            time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
+		ID:          sessionID,
+		Name:        "pending",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			*testLocalParticipationPtr(),
+		),
+		State:         string(StateStarting),
+		RuntimeStatus: store.SessionRuntimeBinding,
+		ACPSessionID:  stringPointer(acpSessionID),
+		CreatedAt:     time.Date(2026, 4, 20, 12, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 20, 12, 0, 1, 0, time.UTC),
 	}
 	metaPath := store.SessionMetaFile(sessionDir)
 	if err := store.WriteSessionMeta(metaPath, meta); err != nil {
@@ -2129,14 +2132,17 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 	createdAt := time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC)
 	updatedAt := createdAt.Add(time.Minute)
 	info := sessionInfoFromMeta(store.SessionMeta{
-		ID:                   "sess-1",
-		Name:                 "stored",
-		AgentName:            "coder",
-		Provider:             "codex",
-		Model:                "  gpt-4o  ",
-		ReasoningEffort:      "  high  ",
-		WorkspaceID:          "ws-1",
-		NetworkParticipation: testLocalParticipationPtr(),
+		ID:              "sess-1",
+		Name:            "stored",
+		AgentName:       "coder",
+		Provider:        "codex",
+		Model:           "  gpt-4o  ",
+		ReasoningEffort: "  high  ",
+		WorkspaceID:     "ws-1",
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			*testLocalParticipationPtr(),
+		),
 		CreationOptions: &store.SessionCreationOptions{
 			NetworkOwnerKey: " session:sess-1 ",
 		},
@@ -2181,14 +2187,17 @@ func TestReadMetaAndQueryHelpers(t *testing.T) {
 
 	t.Run("Should keep stop fields empty when omitted", func(t *testing.T) {
 		infoWithoutStop := sessionInfoFromMeta(store.SessionMeta{
-			ID:                   "sess-legacy",
-			AgentName:            "coder",
-			WorkspaceID:          "ws-1",
-			NetworkParticipation: testLocalParticipationPtr(),
-			State:                string(StateStopped),
-			RuntimeStatus:        store.SessionRuntimeReady,
-			CreatedAt:            createdAt,
-			UpdatedAt:            updatedAt,
+			ID:          "sess-legacy",
+			AgentName:   "coder",
+			WorkspaceID: "ws-1",
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				*testLocalParticipationPtr(),
+			),
+			State:         string(StateStopped),
+			RuntimeStatus: store.SessionRuntimeReady,
+			CreatedAt:     createdAt,
+			UpdatedAt:     updatedAt,
 		})
 		if got := infoWithoutStop.StopReason; got != "" {
 			t.Fatalf("sessionInfoFromMeta().StopReason = %q, want empty", got)
@@ -2312,15 +2321,18 @@ func writeStoppedSessionArtifacts(t *testing.T, h *harness, id string, withDB bo
 
 	now := time.Date(2026, 4, 3, 11, 0, 0, 0, time.UTC)
 	if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-		ID:                   id,
-		Name:                 "stored",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
-		CreatedAt:            now,
-		UpdatedAt:            now,
+		ID:          id,
+		Name:        "stored",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			*testLocalParticipationPtr(),
+		),
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
+		CreatedAt:     now,
+		UpdatedAt:     now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", id, err)
 	}
@@ -2346,16 +2358,19 @@ func createEscapedStoredSession(t *testing.T, h *harness) string {
 
 	now := time.Now().UTC()
 	if err := store.WriteSessionMeta(store.SessionMetaFile(escapedDir), store.SessionMeta{
-		ID:                   escapedID,
-		Name:                 "escaped",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		SessionType:          string(SessionTypeUser),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
-		CreatedAt:            now.Add(-time.Minute),
-		UpdatedAt:            now,
+		ID:          escapedID,
+		Name:        "escaped",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			*testLocalParticipationPtr(),
+		),
+		SessionType:   string(SessionTypeUser),
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
+		CreatedAt:     now.Add(-time.Minute),
+		UpdatedAt:     now,
 	}); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", escapedDir, err)
 	}

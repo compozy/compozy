@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-message-a-running-agent
 expected: Rate limit, dedup window, pending cap and byte ceiling are all checked inside the message-accept transaction and reject with their own typed, observable codes, and the pending cap counts queued-undelivered transport backlog rather than anything resembling read state.
 entry_points: compozy message send ses_01JBD8G2MZTX "bounded message"; HTTP and UDS POST /api/workspaces/{workspace_id}/messages with {"to":{"session_id":"ses_01JBD8G2MZTX"},"text":"bounded message"}; compozy__agent_message with {"to":"parent","text":"bounded message"}; compozy config get calls.messages.rate_limit_per_minute and compozy config set calls.messages.rate_limit_per_minute 1, repeated for calls.messages.dedup_window, calls.messages.pending_cap, and calls.messages.max_bytes
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-mailbox-send-list; RT-calls-config-effects
 ---
 

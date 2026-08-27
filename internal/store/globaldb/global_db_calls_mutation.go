@@ -100,7 +100,7 @@ func (g *CallRepo) FailActivation(
 		if err != nil {
 			return err
 		}
-		if err := insertCompletionDelivery(ctx, exec, loaded, failure.FailedAt); err != nil {
+		if err := insertCompletionDelivery(ctx, exec, &loaded, failure.FailedAt); err != nil {
 			return err
 		}
 		record = loaded
@@ -173,7 +173,7 @@ func (g *CallRepo) RecordRepair(
 		if loadErr != nil {
 			return loadErr
 		}
-		if insertErr := insertRepairDelivery(ctx, exec, loaded, mutation.At); insertErr != nil {
+		if insertErr := insertRepairDelivery(ctx, exec, &loaded, mutation.At); insertErr != nil {
 			return insertErr
 		}
 		record = loaded
@@ -185,7 +185,7 @@ func (g *CallRepo) RecordRepair(
 func insertRepairDelivery(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 	at time.Time,
 ) error {
 	identity := callDeliveryIdentityFor("repair", record.CallID)
@@ -264,7 +264,7 @@ func (g *CallRepo) SettleCall(
 		if err != nil {
 			return err
 		}
-		return insertCompletionDelivery(ctx, exec, record, mutation.SettledAt)
+		return insertCompletionDelivery(ctx, exec, &record, mutation.SettledAt)
 	})
 	return record, err
 }
@@ -272,7 +272,7 @@ func (g *CallRepo) SettleCall(
 func insertCompletionDelivery(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 	at time.Time,
 ) error {
 	if strings.TrimSpace(record.ParentSessionID) == "" {

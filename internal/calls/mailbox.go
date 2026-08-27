@@ -338,7 +338,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			return durableDeliveryContent{}, err
 		}
 		return durableDeliveryContent{
-			body: string(prompt), metadata: deliverySyntheticMetadata(delivery, call, "call_follow_up"),
+			body: string(prompt), metadata: deliverySyntheticMetadata(delivery, &call, "call_follow_up"),
 		}, nil
 	case DeliveryKindCompletion:
 		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
@@ -353,8 +353,8 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			}
 		}
 		return durableDeliveryContent{
-			body:     RenderCompletionWake(call, payload),
-			metadata: deliverySyntheticMetadata(delivery, call, "call_completion"),
+			body:     RenderCompletionWake(&call, payload),
+			metadata: deliverySyntheticMetadata(delivery, &call, "call_completion"),
 		}, nil
 	case DeliveryKindRepair:
 		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
@@ -366,7 +366,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			return durableDeliveryContent{}, errors.New("calls: repair delivery has no safe issue text")
 		}
 		return durableDeliveryContent{
-			body: body, metadata: deliverySyntheticMetadata(delivery, call, "call_repair"),
+			body: body, metadata: deliverySyntheticMetadata(delivery, &call, "call_repair"),
 		}, nil
 	default:
 		return durableDeliveryContent{}, fmt.Errorf("calls: unsupported delivery kind %q", delivery.Kind)
@@ -375,7 +375,7 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 
 func deliverySyntheticMetadata(
 	delivery DeliveryRecord,
-	call CallRecord,
+	call *CallRecord,
 	reason string,
 ) acp.PromptSyntheticMeta {
 	return acp.PromptSyntheticMeta{

@@ -20,6 +20,16 @@ const (
 	ScopeWorkspace Scope = "workspace"
 )
 
+const (
+	actorKindAgentSession        = "agent_session"
+	permissionKindTools          = "tools"
+	permissionKindSkills         = "skills"
+	permissionKindMCPServers     = "mcp_servers"
+	permissionKindWorkspacePaths = "workspace_paths"
+	permissionKindNetwork        = "network_channels"
+	permissionKindSandbox        = "sandbox_profiles"
+)
+
 // State is the durable lifecycle state of a call.
 type State string
 
@@ -307,7 +317,7 @@ type MessageRecord struct {
 	DeliveryReason   string          `json:"delivery_reason,omitempty"`
 	DeliveryAttempts int             `json:"delivery_attempts"`
 	CreatedAt        time.Time       `json:"created_at"`
-	DeliveredAt      time.Time       `json:"delivered_at,omitempty"`
+	DeliveredAt      time.Time       `json:"delivered_at,omitzero"`
 }
 
 // DeliveryRecord is one durable delivery attempt stream.

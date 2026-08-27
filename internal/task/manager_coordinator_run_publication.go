@@ -31,6 +31,7 @@ func (m *Service) publishCoordinatorEnqueuedRuns(
 	}
 	var publicationErrs []error
 	for index, run := range runs {
+		idempotencyKey := run.IdempotencyKeyValue()
 		task, err := m.reconcileTaskCascade(ctx, run.TaskID, actor)
 		if err != nil {
 			publicationErrs = append(publicationErrs, err)
@@ -54,12 +55,12 @@ func (m *Service) publishCoordinatorEnqueuedRuns(
 				Attempt:        int(run.Attempt),
 				Status:         run.Status,
 				TaskStatus:     task.Status,
-				IdempotencyKey: run.IdempotencyKey,
+				IdempotencyKey: idempotencyKey,
 			},
 		); err != nil {
 			publicationErrs = append(publicationErrs, err)
 		}
-		m.dispatchTaskRunEnqueued(ctx, run, task, actor, run.IdempotencyKey)
+		m.dispatchTaskRunEnqueued(ctx, run, task, actor, idempotencyKey)
 	}
 	return errorsJoin(publicationErrs...)
 }

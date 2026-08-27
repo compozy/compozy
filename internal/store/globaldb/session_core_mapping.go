@@ -68,7 +68,7 @@ func newSessionUpsertParams(
 		SelectedSpeed:            selectedRuntimeSpeed(session.SelectedRuntime),
 		SelectedAcpOptionsJson:   selectedACPOptionsJSON,
 		RuntimeSelectionRevision: session.RuntimeSelectionRevision,
-		Scope:                    string(normalizeStoreSessionScope(session.Scope)),
+		Scope:                    string(normalizeStoreSessionScope(session.ScopeValue())),
 		WorkspaceID:              session.WorkspaceID,
 		WorktreeID:               nullableSessionString(session.WorktreeID),
 		SessionType:              store.NormalizeSessionType(session.SessionType),
@@ -113,10 +113,8 @@ func newSessionUpsertParams(
 		SandboxProviderStateJson: sessionSandboxProviderStateJSON(session.Sandbox),
 		SandboxLastSyncAt:        nullableSessionSandboxLastSyncAt(session.Sandbox),
 		SandboxLastSyncError:     sessionSandboxLastSyncError(session.Sandbox),
-		CreatedAt: store.FormatTimestamp(
-			session.CreatedAt,
-		),
-		UpdatedAt: store.FormatTimestamp(session.UpdatedAt),
+		CreatedAt:                store.FormatTimestamp(session.CreatedAt),
+		UpdatedAt:                store.FormatTimestamp(session.UpdatedAt),
 	}
 }
 

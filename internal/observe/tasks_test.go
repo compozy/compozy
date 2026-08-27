@@ -395,7 +395,7 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Origin:             taskOrigin(taskpkg.OriginKindNetwork, "peer:peer-ops/channel:ops"),
 		RunNetworkState:    observeRunNetworkState(h.workspaceID, "ops"),
 		DesignationGroupID: "metrics-cohort",
-		IdempotencyKey:     "idem-1",
+		RunContractState:   &taskpkg.RunContractState{IdempotencyKey: "idem-1"},
 		QueuedAt:           h.now.Add(time.Minute),
 	})
 	createObserveRun(t, h, taskpkg.Run{
@@ -406,7 +406,7 @@ func TestQueryTaskMetricsCountsDuplicateIngressAndChannelMismatch(t *testing.T) 
 		Origin:             taskOrigin(taskpkg.OriginKindCLI, "compozy task run"),
 		RunNetworkState:    observeRunNetworkState(h.workspaceID, "eng"),
 		DesignationGroupID: "metrics-cohort",
-		IdempotencyKey:     "idem-2",
+		RunContractState:   &taskpkg.RunContractState{IdempotencyKey: "idem-2"},
 		QueuedAt:           h.now.Add(6 * time.Minute),
 	})
 	createObserveEvent(t, h, taskpkg.Event{

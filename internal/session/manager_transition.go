@@ -166,7 +166,7 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		RuntimeGeneration:        info.RuntimeGeneration,
 		SelectedRuntime:          storeSessionRuntimeSelection(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
-		Scope:                    normalizeSessionScope(info.Scope),
+		ScopeState:               store.NewSessionScopeState(normalizeSessionScope(info.Scope)),
 		WorkspaceID:              info.WorkspaceID,
 		WorktreeID:               info.WorktreeID,
 		SessionType:              string(info.Type),
@@ -191,12 +191,14 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 			LastSeenAt:             cloneTimePointer(info.LastSeenAt),
 			AttentionChangedAt:     cloneTimePointer(info.AttentionChangedAt),
 		},
-		ArchivedAt:    cloneTimePointer(info.ArchivedAt),
-		ParkedAt:      cloneTimePointer(info.ParkedAt),
-		IdleExpiresAt: cloneTimePointer(info.IdleExpiresAt),
-		DrainingAt:    cloneTimePointer(info.DrainingAt),
-		CreatedAt:     info.CreatedAt,
-		UpdatedAt:     info.UpdatedAt,
+		Lifecycle: &store.SessionLifecycleTimes{
+			ArchivedAt:    cloneTimePointer(info.ArchivedAt),
+			ParkedAt:      cloneTimePointer(info.ParkedAt),
+			IdleExpiresAt: cloneTimePointer(info.IdleExpiresAt),
+			DrainingAt:    cloneTimePointer(info.DrainingAt),
+		},
+		CreatedAt: info.CreatedAt,
+		UpdatedAt: info.UpdatedAt,
 	}
 	result.SetACPOptions(storeOptionSelectionsFromACP(info.ACPOptions))
 	result.SetRuntimeRecovery(info.RuntimeRecovery)

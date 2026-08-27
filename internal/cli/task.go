@@ -39,6 +39,7 @@ const (
 	taskModeValue                 = "Mode"
 	taskOriginValue               = "Origin"
 	taskOutcomeValue              = "Outcome"
+	cliAgentHeader                = "AGENT"
 	taskOwnerValue                = "Owner"
 	taskParentValue               = "Parent"
 	taskQueuedValue               = "Queued"

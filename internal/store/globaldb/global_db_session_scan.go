@@ -23,6 +23,7 @@ type sessionInfoRow struct {
 	selectedReasoning      string
 	selectedSpeed          string
 	selectedACPOptionsJSON string
+	scope                  string
 	networkSpecJSON        string
 	networkMode            string
 	networkChannel         sql.NullString
@@ -99,6 +100,7 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.RuntimeTransition = row.session.RuntimeTransition
 	session.RuntimeFailure = strings.TrimSpace(row.session.RuntimeFailure)
 	session.RuntimeGeneration = row.session.RuntimeGeneration
+	session.SetScope(store.SessionScope(strings.TrimSpace(row.scope)))
 	if err := applySessionRuntimeScan(&session, &row); err != nil {
 		return store.SessionInfo{}, err
 	}
@@ -255,7 +257,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		if parseErr != nil {
 			return fmt.Errorf("store: parse session attach expires at: %w", parseErr)
 		}
-		session.AttachExpiresAt = &attachExpiresAt
+		session.SetAttachExpiresAt(&attachExpiresAt)
 	}
 	session.TranscriptEpoch = row.transcriptEpoch
 	if err := populateSessionAttentionScanParts(session, row); err != nil {
@@ -266,7 +268,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 		if parseErr != nil {
 			return fmt.Errorf("store: parse session archived at: %w", parseErr)
 		}
-		session.ArchivedAt = &archivedAt
+		session.SetArchivedAt(&archivedAt)
 	}
 	if err := assignSessionLifecycleTimes(session, row); err != nil {
 		return err
@@ -284,8 +286,7 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 	var row sessionInfoRow
 	if err := scanner.Scan(
-		&row.session.ID,
-		&row.session.ProfileID,
+		&row.session.ID, &row.session.ProfileID,
 		&row.name,
 		&row.session.AgentName,
 		&row.session.Provider,
@@ -305,7 +306,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.selectedSpeed,
 		&row.selectedACPOptionsJSON,
 		&row.session.RuntimeSelectionRevision,
-		&row.session.Scope,
+		&row.scope,
 		&row.session.WorkspaceID,
 		&row.worktreeID,
 		&row.networkSpecJSON,
@@ -360,8 +361,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.envProviderStateJSON,
 		&row.envLastSyncAt,
 		&row.envLastSyncError,
-		&row.createdAtRaw,
-		&row.updatedAtRaw,
+		&row.createdAtRaw, &row.updatedAtRaw,
 	); err != nil {
 		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
 	}
@@ -370,13 +370,13 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 
 func assignSessionLifecycleTimes(session *store.SessionInfo, row *sessionInfoRow) error {
 	values := []struct {
-		name   string
-		raw    sql.NullString
-		target **time.Time
+		name string
+		raw  sql.NullString
+		set  func(*time.Time)
 	}{
-		{name: "parked_at", raw: row.parkedAt, target: &session.ParkedAt},
-		{name: "idle_expires_at", raw: row.idleExpiresAt, target: &session.IdleExpiresAt},
-		{name: "draining_at", raw: row.drainingAt, target: &session.DrainingAt},
+		{name: "parked_at", raw: row.parkedAt, set: session.SetParkedAt},
+		{name: "idle_expires_at", raw: row.idleExpiresAt, set: session.SetIdleExpiresAt},
+		{name: "draining_at", raw: row.drainingAt, set: session.SetDrainingAt},
 	}
 	for _, value := range values {
 		if !value.raw.Valid || strings.TrimSpace(value.raw.String) == "" {
@@ -386,7 +386,7 @@ func assignSessionLifecycleTimes(session *store.SessionInfo, row *sessionInfoRow
 		if err != nil {
 			return fmt.Errorf("store: parse session %s: %w", value.name, err)
 		}
-		*value.target = &parsed
+		value.set(&parsed)
 	}
 	return nil
 }

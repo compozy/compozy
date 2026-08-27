@@ -205,7 +205,7 @@ func stopSessionOperationSpec() OperationSpec {
 			{Status: 204, Description: specNoContentDescription},
 			{Status: 404, Description: specSessionNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid session stop request", Body: contract.ErrorPayload{}},
-			{Status: 503, Description: "Call service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: callServiceUnavailableDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},
 	}

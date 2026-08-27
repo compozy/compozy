@@ -1881,10 +1881,10 @@ func (s *recordingTaskService) EnqueueRun(
 		return nil, s.enqueueErr
 	}
 	return &taskpkg.Run{
-		ID:             "task-run-1",
-		TaskID:         spec.TaskID,
-		Origin:         actor.Origin,
-		IdempotencyKey: spec.IdempotencyKey,
+		ID:               "task-run-1",
+		TaskID:           spec.TaskID,
+		Origin:           actor.Origin,
+		RunContractState: &taskpkg.RunContractState{IdempotencyKey: spec.IdempotencyKey},
 	}, nil
 }
 

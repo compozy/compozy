@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-contract-a-task-result
 expected: Task authoring accepts expect and budget fields, reads echo the digest and effective budget, and completion validates the immutable run-start snapshot with one resubmission.
 entry_points: compozy task create "Review the patch" --expect @review-contract.json and compozy task update task_01JBD9AAAA --expect @review-contract-v2.json; HTTP and UDS POST /api/tasks and PATCH /api/tasks/{id} with {"expect":{},"result_budget":"256KiB","result_overflow":"store"}; HTTP and UDS POST /api/agent/tasks/{run_id}/complete with {"claim_token":"…","result":{"verdict":"approved"}}; task reads that return expect_digest and the effective budget; compozy__task_create and compozy__task_update with the same contract and budget fields
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: TA-task-result-default-budget; RT-call-return-contract-repair; LP-loop-contract-regime-adoption
 ---
 

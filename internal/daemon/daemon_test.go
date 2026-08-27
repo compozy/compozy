@@ -7121,19 +7121,19 @@ func seedDetachedHarnessRecoveryRunForTest(
 		t.Fatalf("CreateTask(%q) error = %v", taskID, err)
 	}
 	run := taskpkg.Run{
-		ProfileID:       store.DefaultProfileID,
-		ID:              runID,
-		TaskID:          taskID,
-		Status:          taskpkg.TaskRunStatusCompleted,
-		Attempt:         1,
-		Origin:          actor.Origin,
-		IdempotencyKey:  "idem-" + runID,
-		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "builders")},
-		Metadata:        runMetadata,
-		QueuedAt:        completedAt.Add(-2 * time.Minute),
-		ClaimedAt:       completedAt.Add(-90 * time.Second),
-		StartedAt:       completedAt.Add(-time.Minute),
-		EndedAt:         completedAt,
+		ProfileID:        store.DefaultProfileID,
+		ID:               runID,
+		TaskID:           taskID,
+		Status:           taskpkg.TaskRunStatusCompleted,
+		Attempt:          1,
+		Origin:           actor.Origin,
+		RunContractState: &taskpkg.RunContractState{IdempotencyKey: "idem-" + runID},
+		RunNetworkState:  &taskpkg.RunNetworkState{NetworkSpec: daemonTestLiveParticipation("ws-1", "builders")},
+		Metadata:         runMetadata,
+		QueuedAt:         completedAt.Add(-2 * time.Minute),
+		ClaimedAt:        completedAt.Add(-90 * time.Second),
+		StartedAt:        completedAt.Add(-time.Minute),
+		EndedAt:          completedAt,
 	}
 	run.SetResult(json.RawMessage(`{"ok":true}`))
 	command, err := taskpkg.NewTerminalRunHistoryImport(run, actor)
@@ -9811,7 +9811,7 @@ func (r *recordingRegistry) CreateTask(context.Context, taskpkg.Task) error {
 
 func (r *recordingRegistry) CreateTaskDefinition(
 	context.Context,
-	taskpkg.CreateTaskDefinitionMutation,
+	*taskpkg.CreateTaskDefinitionMutation,
 ) error {
 	return nil
 }

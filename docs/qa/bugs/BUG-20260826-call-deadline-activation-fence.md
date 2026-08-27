@@ -1,6 +1,6 @@
 # BUG-20260826-call-deadline-activation-fence: Deadline settlement leaked activation fence internals from call creation
 
-- **Status:** fixed and publicly verified
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
@@ -35,7 +35,7 @@ durable call `call-a2dd5c68719b0a90` was already `timeout` with `call_timeout`.
 - **Regression:** The canonical call settlement suite deterministically terminalizes the call
   immediately before bind, then proves Create returns `timeout`, the orphan child is stopped once,
   and no second lease release occurs.
-- **Fix commit:** `a669e796a`.
+- **Fix commit:** `272a472ef`.
 
 ## Verification
 

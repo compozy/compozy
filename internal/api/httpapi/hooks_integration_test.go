@@ -554,12 +554,15 @@ func openHookRunSessionDB(t *testing.T, homePaths compozyconfig.HomePaths, sessi
 	if err := store.WriteSessionMeta(
 		store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, sessionID)),
 		store.SessionMeta{
-			ID:                   sessionID,
-			AgentName:            "coder",
-			WorkspaceID:          "ws-http-hooks",
-			State:                "stopped",
-			RuntimeStatus:        store.SessionRuntimeUnbound,
-			NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
+			ID:            sessionID,
+			AgentName:     "coder",
+			WorkspaceID:   "ws-http-hooks",
+			State:         "stopped",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				participation.LocalSpec(),
+			),
 		},
 	); err != nil {
 		t.Fatalf("WriteSessionMeta(%q) error = %v", sessionID, err)

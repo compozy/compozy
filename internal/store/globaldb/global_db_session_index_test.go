@@ -124,11 +124,12 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		if err != nil {
 			t.Fatalf("SetSessionArchived() error = %v", err)
 		}
-		if archived.ArchivedAt == nil || archived.State != globalDBSessionStateStopped {
+		if archived.ArchivedAtValue() == nil || archived.State != globalDBSessionStateStopped {
 			t.Fatalf("SetSessionArchived() = %#v, want archived stopped session", archived)
 		}
 		idempotent, err := globalDB.SetSessionArchived(ctx, workspaceID, stopped.ID, true)
-		if err != nil || idempotent.ArchivedAt == nil || !idempotent.ArchivedAt.Equal(*archived.ArchivedAt) {
+		if err != nil || idempotent.ArchivedAtValue() == nil ||
+			!idempotent.ArchivedAtValue().Equal(*archived.ArchivedAtValue()) {
 			t.Fatalf("SetSessionArchived(idempotent) = %#v, %v, want stable timestamp", idempotent, err)
 		}
 		if _, err := globalDB.SetSessionArchived(ctx, foreignWorkspaceID, stopped.ID, false); !errors.Is(
@@ -175,7 +176,7 @@ func TestPageSessionsVisibilityExclusion(t *testing.T) {
 		}
 
 		restored, err := globalDB.SetSessionArchived(ctx, workspaceID, stopped.ID, false)
-		if err != nil || restored.ArchivedAt != nil {
+		if err != nil || restored.ArchivedAtValue() != nil {
 			t.Fatalf("SetSessionArchived(false) = %#v, %v, want restored session", restored, err)
 		}
 	})

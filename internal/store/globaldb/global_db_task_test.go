@@ -5492,14 +5492,15 @@ func storeLeasedTaskRunForBlockTest(
 func taskRunForTest(id string, taskID string) taskpkg.Run {
 	queuedAt := time.Date(2026, 4, 14, 13, 0, 0, 0, time.UTC)
 	return taskpkg.Run{
-		ID:              id,
-		TaskID:          taskID,
-		Status:          taskpkg.TaskRunStatusQueued,
-		Attempt:         1,
-		Origin:          taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
-		RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
-		ProfileID:       store.DefaultProfileID,
-		QueuedAt:        queuedAt,
+		ID:               id,
+		TaskID:           taskID,
+		Status:           taskpkg.TaskRunStatusQueued,
+		Attempt:          1,
+		Origin:           taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "scheduler"},
+		RunContractState: &taskpkg.RunContractState{},
+		RunNetworkState:  &taskpkg.RunNetworkState{NetworkSpec: participation.LocalSpec()},
+		ProfileID:        store.DefaultProfileID,
+		QueuedAt:         queuedAt,
 	}
 }
 
@@ -5776,7 +5777,7 @@ func assertTaskRunEqual(t *testing.T, got taskpkg.Run, want taskpkg.Run) {
 		got.FailureKind != want.FailureKind ||
 		got.SessionID != want.SessionID ||
 		got.Origin != want.Origin ||
-		got.IdempotencyKey != want.IdempotencyKey ||
+		got.IdempotencyKeyValue() != want.IdempotencyKeyValue() ||
 		got.NetworkSpec != want.NetworkSpec ||
 		got.ClaimTokenHash != want.ClaimTokenHash ||
 		!got.QueuedAt.Equal(want.QueuedAt) ||

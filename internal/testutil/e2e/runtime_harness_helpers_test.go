@@ -77,12 +77,15 @@ func TestRuntimeHarnessCaptureHelpersPersistArtifacts(t *testing.T) {
 
 	metaPath := store.SessionMetaFile(filepath.Join(homePaths.SessionsDir, "sess-1"))
 	if err := store.WriteSessionMeta(metaPath, store.SessionMeta{
-		ID:                   "sess-1",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-1",
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "stopped",
+		ID:            "sess-1",
+		AgentName:     "coder",
+		WorkspaceID:   "ws-1",
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			participation.LocalSpec(),
+		),
+		State: "stopped",
 		Sandbox: &store.SessionSandboxMeta{
 			SandboxID:      "env-1",
 			Backend:        "local",

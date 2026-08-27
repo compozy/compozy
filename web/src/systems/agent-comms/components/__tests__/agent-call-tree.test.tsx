@@ -2,7 +2,8 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AgentCallTree, CALL_TREE_VIRTUALIZATION_THRESHOLD } from "../agent-call-tree";
+import { AgentCallTree } from "../agent-call-tree";
+import { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "../../lib/agent-call-tree-constants";
 import { buildCallTree } from "../../lib/agent-comms-tree";
 import { activityTreeCallsFixture, buildLargeTreeFixture, completedCallFixture } from "../../mocks";
 

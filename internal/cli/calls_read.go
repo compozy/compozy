@@ -58,7 +58,7 @@ func newCallShowCommand(deps commandDeps) *cobra.Command {
 			if err != nil {
 				return withCallCommandExit(err)
 			}
-			return writeCommandOutput(cmd, callDetailBundle(record))
+			return writeCommandOutput(cmd, callDetailBundle(&record))
 		},
 	}
 	addCallReadFlags(cmd, flags, false)

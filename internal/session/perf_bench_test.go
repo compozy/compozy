@@ -81,16 +81,19 @@ func BenchmarkManagerListAllLarge(b *testing.B) {
 			b.Fatalf("MkdirAll(%q) error = %v", sessionDir, err)
 		}
 		if err := store.WriteSessionMeta(store.SessionMetaFile(sessionDir), store.SessionMeta{
-			ID:                   fmt.Sprintf("sess-%03d", idx),
-			Name:                 fmt.Sprintf("Session %03d", idx),
-			AgentName:            "coder",
-			WorkspaceID:          "ws-bench",
-			NetworkParticipation: testLocalParticipationPtr(),
-			SessionType:          string(SessionTypeUser),
-			State:                string(StateStopped),
-			RuntimeStatus:        store.SessionRuntimeReady,
-			CreatedAt:            benchmarkSessionTime.Add(-time.Duration(idx) * time.Minute),
-			UpdatedAt:            benchmarkSessionTime.Add(-time.Duration(idx) * time.Second),
+			ID:          fmt.Sprintf("sess-%03d", idx),
+			Name:        fmt.Sprintf("Session %03d", idx),
+			AgentName:   "coder",
+			WorkspaceID: "ws-bench",
+			SessionMetaPlacementState: store.NewSessionMetaPlacement(
+				store.SessionScopeWorkspace,
+				*testLocalParticipationPtr(),
+			),
+			SessionType:   string(SessionTypeUser),
+			State:         string(StateStopped),
+			RuntimeStatus: store.SessionRuntimeReady,
+			CreatedAt:     benchmarkSessionTime.Add(-time.Duration(idx) * time.Minute),
+			UpdatedAt:     benchmarkSessionTime.Add(-time.Duration(idx) * time.Second),
 		}); err != nil {
 			b.Fatalf("WriteSessionMeta(%d) error = %v", idx, err)
 		}

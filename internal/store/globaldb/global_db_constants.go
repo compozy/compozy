@@ -1,6 +1,7 @@
 package globaldb
 
 const (
+	callActorKindSession         = "session"
 	globalDBBridgeProfileClause  = " AND bi.profile_id = ?"
 	globalDBOutcomeKey           = "outcome"
 	globalDBSessionStateStarting = "starting"

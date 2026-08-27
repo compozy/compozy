@@ -1,6 +1,6 @@
 # BUG-20260826-operator-caller-model-runtime: Completion delivery attached a model runtime to the operator caller
 
-- **Status:** fixed and publicly verified
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno; Ada
@@ -34,7 +34,7 @@ reads and operator attention, and later calls reuse the identity after restart.
   session runtime state; the durable call and attention read models remain the UI/CLI authority.
 - **Regression:** The canonical daemon call-delivery suite proves an operator completion becomes an
   injected attention item with zero status, resume, or prompt operations.
-- **Fix commit:** `82d27bca1`.
+- **Fix commit:** `18662244f`.
 
 ## Verification
 

@@ -19,12 +19,12 @@ func (s *Service) Cancel(
 	if err != nil {
 		return CallRecord{}, err
 	}
-	if err := requireCallControlActor(record, actor); err != nil {
+	if err := requireCallControlActor(&record, actor); err != nil {
 		return CallRecord{}, err
 	}
 	detail := sanitizeDiagnostic(reason, "canceled")
 	failureDetail := sanitizeDiagnostic(actor.Kind+":"+actor.ID+": "+detail, detail)
-	settled, settledNow, err := s.settleControlledCall(ctx, record, controlledSettlement{
+	settled, settledNow, err := s.settleControlledCall(ctx, &record, controlledSettlement{
 		fenceReason: "call canceled",
 		stop: func(current CallRecord) error {
 			if current.State != StateRunning || strings.TrimSpace(current.ChildSessionID) == "" {
@@ -47,19 +47,19 @@ func (s *Service) Cancel(
 		},
 	})
 	if err == nil && settledNow {
-		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(settled))
+		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(&settled))
 	}
 	return settled, err
 }
 
-func requireCallControlActor(record CallRecord, actor Actor) error {
+func requireCallControlActor(record *CallRecord, actor Actor) error {
 	kind, id := strings.TrimSpace(actor.Kind), strings.TrimSpace(actor.ID)
 	if kind == "" || id == "" {
 		return newError(CodeSettlementDenied, "cancel actor is required", nil)
 	}
 	isOperator := kind == "human" || kind == "daemon"
 	isBoundActor := kind == record.Actor.Kind && id == record.Actor.ID
-	isParentSession := kind == "agent_session" && (id == record.ParentSessionID || id == record.Caller.ID)
+	isParentSession := kind == actorKindAgentSession && (id == record.ParentSessionID || id == record.Caller.ID)
 	if isOperator || isBoundActor || isParentSession {
 		return nil
 	}
@@ -78,7 +78,8 @@ func (s *Service) SweepDeadlines(ctx context.Context, now time.Time) (SweepRepor
 		return SweepReport{}, err
 	}
 	report := SweepReport{TimedOut: make([]string, 0, len(due))}
-	for _, record := range due {
+	for index := range due {
+		record := &due[index]
 		settled, settledNow, settleErr := s.settleControlledCall(ctx, record, controlledSettlement{
 			fenceReason: "call deadline elapsed",
 			stop: func(current CallRecord) error {
@@ -137,13 +138,14 @@ func (s *Service) DrainSubtree(
 	detail := sanitizeDiagnostic(reason, "subtree drained")
 	drainPayload := HookPayload{CallID: rootID, RootSessionID: rootID, Actor: actor}
 	if len(openCalls) > 0 {
-		drainPayload = hookPayloadForCall(openCalls[0])
+		drainPayload = hookPayloadForCall(&openCalls[0])
 		drainPayload.CallID = rootID
 		drainPayload.RootSessionID = rootID
 		drainPayload.Actor = actor
 	}
 	stopped := make(map[string]struct{}, len(openCalls))
-	for _, record := range openCalls {
+	for index := range openCalls {
+		record := &openCalls[index]
 		settled, settledNow, settleErr := s.settleControlledCall(ctx, record, controlledSettlement{
 			fenceReason: "subtree drain",
 			stop: func(current CallRecord) error {
@@ -176,7 +178,7 @@ func (s *Service) DrainSubtree(
 			return report, settleErr
 		}
 		report.CanceledCalls = append(report.CanceledCalls, settled.CallID)
-		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(settled))
+		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(&settled))
 	}
 	drainPayload.StoppedChildren = len(report.Stopped)
 	drainPayload.ClosedCalls = len(report.CanceledCalls)
@@ -193,13 +195,13 @@ type controlledSettlement struct {
 
 func (s *Service) settleControlledCall(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	options controlledSettlement,
 ) (CallRecord, bool, error) {
 	if record.State.Terminal() {
-		return record, false, nil
+		return *record, false, nil
 	}
-	if _, err := s.fenceActivation(ctx, record, options.fenceReason); err != nil {
+	if err := s.fenceActivation(ctx, record, options.fenceReason); err != nil {
 		return CallRecord{}, false, err
 	}
 	current, err := s.store.GetCallForSettlement(ctx, record.CallID)
@@ -228,6 +230,6 @@ func (s *Service) settleControlledCall(
 		return CallRecord{}, false, err
 	}
 	s.notifyWaiters(settled.CallID)
-	s.emitTerminalTransition(ctx, current.State, settled)
+	s.emitTerminalTransition(ctx, current.State, &settled)
 	return settled, true, nil
 }

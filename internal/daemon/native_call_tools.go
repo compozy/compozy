@@ -122,7 +122,7 @@ func (n *daemonNativeTools) agentCall(
 		for _, outcome := range outcomes {
 			item := make(map[string]any)
 			if outcome.Call != nil {
-				item["call"] = nativeCallRecord(*outcome.Call)
+				item["call"] = nativeCallRecord(outcome.Call)
 			} else if outcome.Error != nil {
 				item["error"] = outcome.Error
 			}
@@ -138,7 +138,7 @@ func (n *daemonNativeTools) agentCall(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredNetworkResult(nativeCallRecord(record), record.CallID+" "+string(record.State))
+	return structuredNetworkResult(nativeCallRecord(&record), record.CallID+" "+string(record.State))
 }
 
 func (n *daemonNativeTools) nativeCreateCallInput(
@@ -272,7 +272,8 @@ func (n *daemonNativeTools) callAwait(
 		return toolspkg.ToolResult{}, err
 	}
 	settled := make([]map[string]any, 0, len(outcome.Settled))
-	for _, record := range outcome.Settled {
+	for index := range outcome.Settled {
+		record := &outcome.Settled[index]
 		item := nativeCallRecord(record)
 		if record.State == callspkg.StateCompleted && strings.TrimSpace(record.ResultRef) != "" {
 			result, resultErr := service.Result(ctx, callspkg.CallReadQuery{
@@ -319,7 +320,7 @@ func (n *daemonNativeTools) callCancel(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(nativeCallRecord(record), string(record.State))
+	return structuredResult(nativeCallRecord(&record), string(record.State))
 }
 
 func (n *daemonNativeTools) callResult(
@@ -450,7 +451,7 @@ func nativeCallsScope(scope toolspkg.Scope) callspkg.CallScope {
 	return result
 }
 
-func nativeCallRecord(record callspkg.CallRecord) map[string]any {
+func nativeCallRecord(record *callspkg.CallRecord) map[string]any {
 	return map[string]any{
 		"call_id": record.CallID, "profile_id": record.ProfileID, "scope": record.Scope,
 		"workspace_id": record.WorkspaceID, "caller": record.Caller, "actor": record.Actor,

@@ -124,7 +124,7 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		SoulDigest:               strings.TrimSpace(info.SoulDigest),
 		ParentSoulDigest:         strings.TrimSpace(info.ParentSoulDigest),
 		AttachedTo:               strings.TrimSpace(info.AttachedTo),
-		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAt),
+		AttachExpiresAt:          cloneTimePtr(info.AttachExpiresAtValue()),
 		TranscriptEpoch:          info.TranscriptEpoch,
 		PendingPermissionCount:   attention.PendingPermissionCount,
 		PendingClarifyCount:      attention.PendingClarifyCount,
@@ -133,7 +133,7 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		LastSeenRevision:         attention.LastSeenRevision,
 		LastSeenAt:               cloneTimePtr(attention.LastSeenAt),
 		AttentionChangedAt:       cloneTimePtr(attention.AttentionChangedAt),
-		ArchivedAt:               cloneTimePtr(info.ArchivedAt),
+		ArchivedAt:               cloneTimePtr(info.ArchivedAtValue()),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}

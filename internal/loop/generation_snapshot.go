@@ -31,7 +31,8 @@ type GenerationSnapshotPayload struct {
 	BoundaryEffects       map[Status][]RenderedEffectIntent `json:"boundary_effects,omitempty"`
 }
 
-// GenerationOutput is one loop_generation_outputs row mutation: ResultKind maps the durable envelope kind, SchemaRef maps its schema_ref, and OutputRef maps its payload_ref.
+// GenerationOutput is one loop_generation_outputs row mutation. ResultKind maps the durable envelope kind,
+// SchemaRef maps its schema_ref, and OutputRef maps its payload_ref.
 type GenerationOutput struct {
 	Generation       int                  `json:"generation,omitempty"`
 	NodeID           string               `json:"node_id"`

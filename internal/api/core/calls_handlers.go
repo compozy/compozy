@@ -60,7 +60,7 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
-	payload, err := h.callCreatePayload(operationCtx, record)
+	payload, err := h.callCreatePayload(operationCtx, &record)
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -79,7 +79,7 @@ func (h *BaseHandlers) createCallBatch(c *gin.Context, inputs []callspkg.CreateI
 	for _, outcome := range outcomes {
 		item := contract.CallBatchItemPayload{}
 		if outcome.Call != nil {
-			payload, mapErr := h.callCreatePayload(operationCtx, *outcome.Call)
+			payload, mapErr := h.callCreatePayload(operationCtx, outcome.Call)
 			if mapErr != nil {
 				h.respondCallsError(c, mapErr)
 				return
@@ -186,12 +186,12 @@ func (h *BaseHandlers) callReadDetail(c *gin.Context, wholeResult bool) {
 		h.respondCallsError(c, err)
 		return
 	}
-	content, err := h.callPayloadContent(c.Request.Context(), record, projected[0])
+	content, err := h.callPayloadContent(c.Request.Context(), &record, projected[0])
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, callPayload(record, owners[record.ProfileID], content))
+	c.JSON(http.StatusOK, callPayload(&record, owners[record.ProfileID], content))
 }
 
 // CallsPrompt returns the exact authored prompt through the call read boundary.
@@ -350,7 +350,7 @@ func (h *BaseHandlers) callsReadScope(c *gin.Context) (store.ReadScope, bool) {
 		h.respondProfileReadScopeError(c, err)
 		return store.ReadScope{}, false
 	}
-	return store.ReadScope(scope), true
+	return scope, true
 }
 
 func (h *BaseHandlers) resolvedCallReadQuery(c *gin.Context) (callspkg.CallReadQuery, bool) {

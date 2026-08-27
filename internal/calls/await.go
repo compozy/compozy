@@ -58,13 +58,7 @@ func (s *Service) Await(ctx context.Context, input AwaitInput) (AwaitOutcome, er
 				outcome.Pending = append(outcome.Pending, callID)
 			}
 		}
-		if len(outcome.Pending) == 0 {
-			outcome.Outcome = AwaitOutcomeComplete
-		} else if len(outcome.Settled) > 0 {
-			outcome.Outcome = AwaitOutcomePartial
-		} else {
-			outcome.Outcome = AwaitOutcomeTimeout
-		}
+		outcome.Outcome = classifyAwaitOutcome(outcome)
 		return outcome, nil
 	}
 	outcome, err := snapshot()
@@ -89,6 +83,17 @@ func (s *Service) Await(ctx context.Context, input AwaitInput) (AwaitOutcome, er
 		if err != nil || len(outcome.Settled) > 0 {
 			return s.withResume(outcome), err
 		}
+	}
+}
+
+func classifyAwaitOutcome(outcome AwaitOutcome) AwaitOutcomeKind {
+	switch {
+	case len(outcome.Pending) == 0:
+		return AwaitOutcomeComplete
+	case len(outcome.Settled) > 0:
+		return AwaitOutcomePartial
+	default:
+		return AwaitOutcomeTimeout
 	}
 }
 

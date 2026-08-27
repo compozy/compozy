@@ -58,7 +58,7 @@ func (s *Service) emitHook(ctx context.Context, event HookEvent, payload HookPay
 	s.hooks.ObserveCall(ctx, event, payload)
 }
 
-func hookPayloadForCall(record CallRecord) HookPayload {
+func hookPayloadForCall(record *CallRecord) HookPayload {
 	return HookPayload{
 		ProfileID: record.ProfileID, Scope: record.Scope, WorkspaceID: record.WorkspaceID,
 		CallID: record.CallID, ParentSessionID: record.ParentSessionID,
@@ -68,13 +68,13 @@ func hookPayloadForCall(record CallRecord) HookPayload {
 	}
 }
 
-func (s *Service) emitStateChanged(ctx context.Context, previous State, record CallRecord) {
+func (s *Service) emitStateChanged(ctx context.Context, previous State, record *CallRecord) {
 	payload := hookPayloadForCall(record)
 	payload.PreviousState = previous
 	s.emitHook(ctx, HookCallStateChanged, payload)
 }
 
-func (s *Service) emitTerminalTransition(ctx context.Context, previous State, record CallRecord) {
+func (s *Service) emitTerminalTransition(ctx context.Context, previous State, record *CallRecord) {
 	s.emitStateChanged(ctx, previous, record)
 	s.emitHook(ctx, HookCallSettled, hookPayloadForCall(record))
 }

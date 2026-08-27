@@ -80,7 +80,7 @@ type SessionInfo struct {
 	RuntimeGeneration        int64
 	SelectedRuntime          *SessionRuntimeSelection
 	RuntimeSelectionRevision int64
-	Scope                    SessionScope
+	ScopeState               *SessionScopeState
 	WorkspaceID              string
 	WorktreeID               string
 	*SessionNetworkState
@@ -97,13 +97,9 @@ type SessionInfo struct {
 	SoulDigest       string
 	ParentSoulDigest string
 	AttachedTo       string
-	AttachExpiresAt  *time.Time
 	TranscriptEpoch  int64
 	Attention        *SessionAttention
-	ArchivedAt       *time.Time
-	ParkedAt         *time.Time
-	IdleExpiresAt    *time.Time
-	DrainingAt       *time.Time
+	Lifecycle        *SessionLifecycleTimes
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }
@@ -139,7 +135,7 @@ func (s SessionInfo) Validate() error {
 	if err := requireField(s.AgentName, "session agent name"); err != nil {
 		return err
 	}
-	if err := validateSessionLocation(s.Scope, s.WorkspaceID, s.WorktreeID); err != nil {
+	if err := validateSessionLocation(s.ScopeValue(), s.WorkspaceID, s.WorktreeID); err != nil {
 		return err
 	}
 	if err := requireField(s.State, "session state"); err != nil {

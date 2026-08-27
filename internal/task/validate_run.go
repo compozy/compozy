@@ -39,7 +39,7 @@ func (r Run) Validate() error {
 }
 
 func validateRunResultContract(r Run) error {
-	return validatePersistedResultContract(r.ExpectDigest, r.ResultBudget, "task_run")
+	return validatePersistedResultContract(r.ExpectDigestValue(), r.ResultBudgetValue(), "task_run")
 }
 
 func validateRunIdentity(r Run) error {

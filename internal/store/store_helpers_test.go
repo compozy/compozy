@@ -576,15 +576,18 @@ func TestValidationHelpersAndPathUtilities(t *testing.T) {
 			name: "session meta valid",
 			validate: func() error {
 				return (SessionMeta{
-					ID:                   "sess-meta",
-					AgentName:            "coder",
-					WorkspaceID:          "ws-meta",
-					ProfileID:            DefaultProfileID,
-					NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-					State:                "active",
-					RuntimeStatus:        SessionRuntimeReady,
-					CreatedAt:            now,
-					UpdatedAt:            now,
+					ID:          "sess-meta",
+					AgentName:   "coder",
+					WorkspaceID: "ws-meta",
+					ProfileID:   DefaultProfileID,
+					SessionMetaPlacementState: NewSessionMetaPlacement(
+						SessionScopeWorkspace,
+						participation.LocalSpec(),
+					),
+					State:         "active",
+					RuntimeStatus: SessionRuntimeReady,
+					CreatedAt:     now,
+					UpdatedAt:     now,
 				}).Validate()
 			},
 		},

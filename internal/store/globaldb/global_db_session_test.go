@@ -1334,19 +1334,19 @@ func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
 		now := time.Date(2026, 5, 22, 11, 0, 0, 0, time.UTC)
 		expiredAt := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 		if err := globalDB.RegisterSession(ctx, store.SessionInfo{
-			ProfileID:       store.DefaultProfileID,
-			ID:              "sess-expired-attach",
-			Name:            "Expired Attach",
-			AgentName:       "coder",
-			Provider:        "claude",
-			RuntimeStatus:   store.SessionRuntimeUnbound,
-			WorkspaceID:     workspaceID,
-			SessionType:     defaultSessionType,
-			State:           globalDBSessionStateActive,
-			AttachedTo:      "operator-old",
-			AttachExpiresAt: &expiredAt,
-			CreatedAt:       now.Add(-time.Hour),
-			UpdatedAt:       now.Add(-time.Hour),
+			ProfileID:     store.DefaultProfileID,
+			ID:            "sess-expired-attach",
+			Name:          "Expired Attach",
+			AgentName:     "coder",
+			Provider:      "claude",
+			RuntimeStatus: store.SessionRuntimeUnbound,
+			WorkspaceID:   workspaceID,
+			SessionType:   defaultSessionType,
+			State:         globalDBSessionStateActive,
+			AttachedTo:    "operator-old",
+			Lifecycle:     &store.SessionLifecycleTimes{AttachExpiresAt: &expiredAt},
+			CreatedAt:     now.Add(-time.Hour),
+			UpdatedAt:     now.Add(-time.Hour),
 		}); err != nil {
 			t.Fatalf("RegisterSession() error = %v", err)
 		}
@@ -1361,11 +1361,11 @@ func TestGlobalDBListSessionsSweepsExpiredAttachLocks(t *testing.T) {
 		if len(sessions) != 1 {
 			t.Fatalf("len(sessions) = %d, want 1", len(sessions))
 		}
-		if sessions[0].AttachedTo != "" || sessions[0].AttachExpiresAt != nil {
+		if sessions[0].AttachedTo != "" || sessions[0].AttachExpiresAtValue() != nil {
 			t.Fatalf(
 				"session attach fields = %#v/%#v, want cleared",
 				sessions[0].AttachedTo,
-				sessions[0].AttachExpiresAt,
+				sessions[0].AttachExpiresAtValue(),
 			)
 		}
 		cleared, err := globalDB.SweepExpiredSessionAttachLocks(ctx, now)

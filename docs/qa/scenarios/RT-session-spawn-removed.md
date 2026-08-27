@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-contain-and-audit-delegation
 expected: The old CLI verb, HTTP and UDS route, native tool, schemas, and generated clients are absent while agent call remains the sole delegation surface.
 entry_points: compozy spawn; HTTP and UDS POST /api/agent/spawn with {"agent":"reviewer","prompt":"review"}; compozy__session_spawn with {"agent":"reviewer","prompt":"review"}; internal/codegen/hostapi/catalog.json and native schema digests; openapi/compozy.json; web/src/generated/compozy-openapi.d.ts; packages/site/content/docs/cli; skills/compozy
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-call-golden-path; SITE-agent-comms-docs-area; ET-workspace-access-prompt-outcomes
 ---
 

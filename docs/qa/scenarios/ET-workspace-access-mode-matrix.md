@@ -6,13 +6,13 @@ persona: Ada
 journey: J-cross-workspace-access
 expected: An approve-all session reaches another workspace at every consent seam, a deny-all session is denied at every seam with the permission-mode hint and no prompt, an approve-reads session is denied with the same hint at the agent-identity, task, and coordination seams, and a cross-workspace call or message is hard-denied in every mode; each policy evaluation produces the expected workspace.access_granted or workspace.access_denied audit event in a healthy store, naming target, seam, source, and mode.
 entry_points: compozy__workspace_info; compozy__memory_list; compozy__task_run_claim_next; compozy task next --workspace; compozy network peers --workspace; compozy network channels update --workspace; compozy network coordination status --workspace; compozy call and compozy message with a foreign-workspace target; POST /api/workspaces/:workspace_id/calls and POST …/messages with a foreign-workspace target; POST /api/agent/tasks/claim-next (HTTP+UDS); GET /api/agent/me (HTTP+UDS); GET /api/workspaces/:workspace_id/network/peers (HTTP+UDS); PATCH /api/workspaces/:workspace_id/network/channels/:channel (HTTP+UDS); GET /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); PUT /api/workspaces/:workspace_id/network-coordination (HTTP+UDS); compozy logs --type workspace.access_denied; /docs/agent-comms/budgets-and-safety; /docs/agents/spawning; /docs/autonomy/safe-spawn; /docs/configuration/config-toml; /docs/hooks/event-catalog; /docs/sessions/permissions#cross-workspace-access; /docs/workspaces; /docs/workspaces/resolver#isolation-and-cross-workspace-access; skills/compozy/references/native-tools.md; skills/compozy/references/agent-definitions.md
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260729-coordination-cli-drops-agent-identity; BUG-20260730-tool-invoke-202-empty-success
 fix_status: fixed
 retest_status: pass
 fix_commits: 4ef8e8c;7285bf3c
-evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md
-last_report: docs/qa/reports/2026-07-29-site-improvs-deep-review.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-northstar-pay-20260729-124649-419333-lab/qa-artifacts/qa/notes/cross-workspace-access-results.md; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: ET-workspace-access-prompt-outcomes; ET-native-workspace-scope-isolation; MS-workspace-resolution-chain
 ---
 

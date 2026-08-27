@@ -50,10 +50,7 @@ func (g *CallRepo) ResolveCallTargetContext(
 		CallerPolicy: policy, Allowed: caller.profileID == strings.TrimSpace(input.ProfileID),
 	}
 	if strings.TrimSpace(input.Target.Agent) != "" {
-		if err := g.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions child
-			WHERE child.parent_session_id = ? AND child.state <> 'stopped'
-			AND NOT EXISTS (SELECT 1 FROM operator_caller_sessions o WHERE o.session_id = child.id)`, caller.id).
-			Scan(&base.LiveChildren); err != nil {
+		if err := g.countLiveCallChildren(ctx, caller.id, &base.LiveChildren); err != nil {
 			return callspkg.TargetContext{}, fmt.Errorf("store: count live call children: %w", err)
 		}
 		return base, nil
@@ -66,6 +63,22 @@ func (g *CallRepo) ResolveCallTargetContext(
 	if err != nil {
 		return callspkg.TargetContext{}, err
 	}
+	return g.resolveExistingCallTarget(ctx, caller, target, rootID, base)
+}
+
+func (g *CallRepo) countLiveCallChildren(ctx context.Context, callerID string, count *int) error {
+	return g.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM sessions child
+		WHERE child.parent_session_id = ? AND child.state <> 'stopped'
+		AND NOT EXISTS (SELECT 1 FROM operator_caller_sessions o WHERE o.session_id = child.id)`, callerID).
+		Scan(count)
+}
+
+func (g *CallRepo) resolveExistingCallTarget(
+	ctx context.Context,
+	caller, target callSessionContext,
+	rootID string,
+	base callspkg.TargetContext,
+) (callspkg.TargetContext, error) {
 	operator, err := g.IsOperatorCallerSession(ctx, target.id)
 	if err != nil {
 		return callspkg.TargetContext{}, err

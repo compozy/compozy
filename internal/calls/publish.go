@@ -57,7 +57,7 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 			nil,
 		)
 	}
-	payload, err := s.loadPublicationPayload(ctx, record)
+	payload, err := s.loadPublicationPayload(ctx, &record)
 	if err != nil {
 		return PublishReceipt{}, err
 	}
@@ -69,7 +69,7 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 		return PublishReceipt{}, newError(CodePublishNoParticipation, "active Network participation is required", nil)
 	}
 	publisherSessionID := record.Caller.ID
-	if input.Actor.Kind == "agent_session" {
+	if input.Actor.Kind == actorKindAgentSession {
 		publisherSessionID = input.Actor.ID
 	}
 	evidence := ResultEvidence{
@@ -89,18 +89,22 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	if err != nil {
 		return PublishReceipt{}, err
 	}
-	s.emitHook(ctx, HookCallPublished, HookPayload{
+	s.emitHook(ctx, HookCallPublished, publicationHookPayload(&record, input, publication.NetworkMessageID))
+	return PublishReceipt{NetworkMessageID: publication.NetworkMessageID, Published: inserted}, nil
+}
+
+func publicationHookPayload(record *CallRecord, input PublishInput, networkMessageID string) HookPayload {
+	return HookPayload{
 		ProfileID: record.ProfileID, Scope: record.Scope, WorkspaceID: record.WorkspaceID,
 		CallID: record.CallID, ParentSessionID: record.ParentSessionID,
 		ChildSessionID: record.ChildSessionID, RootSessionID: record.GovernedRootID,
 		AgentName: record.AgentName, State: record.State, Verdict: record.Verdict,
 		Actor: input.Actor, Channel: input.Channel, ThreadID: input.ThreadID,
-		NetworkMessageID: publication.NetworkMessageID,
-	})
-	return PublishReceipt{NetworkMessageID: publication.NetworkMessageID, Published: inserted}, nil
+		NetworkMessageID: networkMessageID,
+	}
 }
 
-func (s *Service) loadPublicationPayload(ctx context.Context, record CallRecord) (json.RawMessage, error) {
+func (s *Service) loadPublicationPayload(ctx context.Context, record *CallRecord) (json.RawMessage, error) {
 	mailbox, err := s.payloadStore()
 	if err != nil {
 		return nil, err

@@ -43,8 +43,8 @@ func (h *HostAPIHandler) handleCallsList(ctx context.Context, raw json.RawMessag
 		return nil, mapHostAPICallRPCError("call", "", err)
 	}
 	items := make([]apicontract.CallPayload, 0, len(page.Items))
-	for index, record := range page.Items {
-		items = append(items, hostAPICallPayload(record, profileName, projected[index]))
+	for index := range page.Items {
+		items = append(items, hostAPICallPayload(&page.Items[index], profileName, projected[index]))
 	}
 	return apicontract.CallsResponse{Items: items, NextCursor: page.NextCursor, Total: page.Total}, nil
 }
@@ -74,7 +74,7 @@ func (h *HostAPIHandler) handleCallsGet(ctx context.Context, raw json.RawMessage
 	if err != nil {
 		return nil, mapHostAPICallRPCError("call", callID, err)
 	}
-	return hostAPICallPayload(record, profileName, projected[0]), nil
+	return hostAPICallPayload(&record, profileName, projected[0]), nil
 }
 
 func (h *HostAPIHandler) handleCallsResult(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -177,7 +177,7 @@ func (h *HostAPIHandler) hostAPICallProfileName(ctx context.Context, profileID s
 }
 
 func hostAPICallPayload(
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 	profileName string,
 	projected callspkg.ProjectionContent,
 ) apicontract.CallPayload {

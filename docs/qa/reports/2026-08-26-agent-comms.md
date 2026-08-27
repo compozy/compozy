@@ -2,8 +2,8 @@
 
 - **Scope:** Typed agent calls, durable mailbox, subagent roster, lifecycle controls, profile isolation, public runtime surfaces, Agents app, docs, and the Loop contract canary.
 - **Cadence tier:** full
-- **Build:** `921b6e584e99f226803750a979fbce038c132a9d` · **Environment:** fresh isolated lab pending bootstrap; native provider and browser parity will be recorded from its manifest
-- **Started:** 2026-08-26T06:50:12Z · **Status:** in-progress
+- **Build:** `39e030cac` after rebase onto `origin/main` / PR #484 · **Environment:** isolated lab `compozy-agent-comms-20260826-20260826-065104-728050-lab`, workspace `ws_aafadda4c1666afd`
+- **Started:** 2026-08-26T06:50:12Z · **Status:** scenario walks and scoped local gate complete; PR CI pending
 
 ## Personas
 
@@ -29,44 +29,64 @@
 
 | # | Charter | Journey / Scenario | Persona | Tour | Status | Issue | Fix commit |
 |---|---|---|---|---|---|---|---|
-| 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fix verified, full walk pending | BUG-20260826-operator-caller-model-runtime; BUG-20260826-call-child-tool-policy | 82d27bca1; 5df9697 |
-| 2 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-cancel | Bruno | Interrupt Tour | Pending | | |
-| 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout | Bruno | Interrupt Tour | Fix verified, full walk pending | BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout | a669e796a; cf46ed340 |
-| 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Fix verified, full walk pending | BUG-20260826-call-child-tool-policy | 5df9697 |
-| 5 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-call-wake-delivery-exactly-once | Ada | Multi-Tab Tour | Pending | | |
-| 6 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-follow-up | Ada | Multi-Tab Tour | Pending | | |
-| 7 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-batch | Ada | Multi-Tab Tour | Pending | | |
-| 8 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-agent-mailbox-send-list | Bruno | Garbage Tour | Pending | | |
-| 9 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-message-limits-typed-rejections | Bruno | Garbage Tour | Pending | | |
-| 10 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-parked-child-idle-ttl | Bruno | Garbage Tour | Fix verified, full walk pending | BUG-20260826-parked-child-idle-clock | ed9c5ac; 8181f49 |
-| 11 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-delegation-depth-and-caps | Dora | Error Guessing Tour | Pending | | |
-| 12 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-calls-config-effects | Dora | Error Guessing Tour | Pending | | |
-| 13 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-session-spawn-removed | Dora | Error Guessing Tour | Pending | | |
-| 14 | CH-agent-comms-sanitize-and-scope | J-contain-and-audit-delegation / RT-call-payload-sanitize-sweep | Dora | Garbage Tour | Pending | | |
-| 15 | CH-agent-comms-sanitize-and-scope | J-contain-and-audit-delegation / RT-call-profile-scope-isolation | Dora | Garbage Tour | Pending | | |
-| 16 | CH-agent-comms-sanitize-and-scope | J-contain-and-audit-delegation / ET-call-hooks-host-api-reads | Dora | Garbage Tour | Pending | | |
-| 17 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-delegation-activity-tree | Ada | Interrupt Tour | Pending | | |
-| 18 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-call-record-terminal-states | Ada | Interrupt Tour | Pending | | |
-| 19 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-delegation-attention-signals | Ada | Interrupt Tour | Pending | | |
-| 20 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-session-stop-subtree | Ada | Interrupt Tour | Pending | | |
-| 21 | CH-agent-comms-in-session-truth | J-supervise-delegation-trees / RT-in-context-call-messages | Théo | Feature Tour | Pending | | |
-| 22 | CH-agent-comms-in-session-truth | J-supervise-delegation-trees / RT-session-calls-inspector-panel | Théo | Feature Tour | Pending | | |
-| 23 | CH-agent-comms-in-session-truth | J-supervise-delegation-trees / NB-agent-call-publish | Théo | Feature Tour | Pending | | |
-| 24 | CH-agent-comms-roster-and-docs-truth | J-build-a-subagent-roster / SITE-agent-comms-docs-area | Lea | Feature Tour | Pending | | |
-| 25 | CH-agent-comms-roster-and-docs-truth | J-build-a-subagent-roster / RT-subagent-roster-injection | Lea | Feature Tour | Pending | | |
-| 26 | CH-agent-comms-roster-and-docs-truth | J-build-a-subagent-roster / RT-agent-roster-call-compose | Lea | Feature Tour | Pending | | |
-| 27 | CH-agent-comms-spawn-hard-cut-crossings | J-cross-workspace-access / ET-workspace-access-mode-matrix | Bruno | Back-Button Tour | Pending | | |
-| 28 | CH-agent-comms-spawn-hard-cut-crossings | J-cross-workspace-access / ET-workspace-access-prompt-outcomes | Bruno | Back-Button Tour | Pending | | |
-| 29 | CH-agent-comms-spawn-hard-cut-crossings | J-cross-workspace-access / RT-session-parent-provenance | Bruno | Back-Button Tour | Pending | | |
-| 30 | CH-agent-comms-task-result-contract | J-contract-a-task-result / TA-task-result-contract | Bruno | Data Tour | Pending | | |
-| 31 | CH-agent-comms-task-result-contract | J-contract-a-task-result / TA-task-result-default-budget | Bruno | Data Tour | Pending | | |
-| 32 | CH-agent-comms-loop-contract-canary | J-complete-partial-loop / LP-loop-contract-regime-adoption | Bruno | Feature Tour | Pending | | |
+| 1 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-golden-path | Bruno | Interrupt Tour | Fixed | BUG-20260826-operator-caller-model-runtime; BUG-20260826-call-child-tool-policy | 18662244f; 1487f48ad |
+| 2 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-cancel | Bruno | Interrupt Tour | Pass | | |
+| 3 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-agent-call-deadline-timeout; RT-session-wait-state | Bruno | Interrupt Tour | Fixed | BUG-20260826-call-deadline-activation-fence; BUG-20260826-bounded-wait-client-timeout | 272a472ef; 73e48d5ff |
+| 4 | CH-agent-comms-settlement-authority | J-delegate-work-to-an-agent / RT-call-return-contract-repair | Bruno | Interrupt Tour | Fixed | BUG-20260826-call-child-tool-policy | 1487f48ad |
+| 5 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-call-wake-delivery-exactly-once | Ada | Multi-Tab Tour | Pass | | |
+| 6 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-follow-up | Ada | Multi-Tab Tour | Pass | | |
+| 7 | CH-agent-comms-delivery-exactly-once | J-delegate-work-to-an-agent / RT-agent-call-batch | Ada | Multi-Tab Tour | Pass | | |
+| 8 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-agent-mailbox-send-list | Bruno | Garbage Tour | Pass | | |
+| 9 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-message-limits-typed-rejections | Bruno | Garbage Tour | Pass | | |
+| 10 | CH-agent-comms-mailbox-backpressure | J-message-a-running-agent / RT-parked-child-idle-ttl | Bruno | Garbage Tour | Fixed | BUG-20260826-parked-child-idle-clock | 22e982fc6; 76dcc3d5a |
+| 11 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-delegation-depth-and-caps | Dora | Error Guessing Tour | Pass | | |
+| 12 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-calls-config-effects | Dora | Error Guessing Tour | Pass | | |
+| 13 | CH-agent-comms-containment-fence | J-contain-and-audit-delegation / RT-session-spawn-removed | Dora | Error Guessing Tour | Pass | | |
+| 14 | CH-agent-comms-sanitize-and-scope | J-contain-and-audit-delegation / RT-call-payload-sanitize-sweep | Dora | Garbage Tour | Pass | | |
+| 15 | CH-agent-comms-sanitize-and-scope | J-contain-and-audit-delegation / RT-call-profile-scope-isolation | Dora | Garbage Tour | Pass | | |
+| 16 | CH-agent-comms-sanitize-and-scope | J-contain-and-audit-delegation / ET-call-hooks-host-api-reads | Dora | Garbage Tour | Pass | | |
+| 17 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-delegation-activity-tree | Ada | Interrupt Tour | Pass | | |
+| 18 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-call-record-terminal-states | Ada | Interrupt Tour | Pass | | |
+| 19 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-delegation-attention-signals | Ada | Interrupt Tour | Pass | | |
+| 20 | CH-agent-comms-operator-fence | J-supervise-delegation-trees / RT-session-stop-subtree | Ada | Interrupt Tour | Pass | | |
+| 21 | CH-agent-comms-in-session-truth | J-supervise-delegation-trees / RT-in-context-call-messages | Théo | Feature Tour | Pass | | |
+| 22 | CH-agent-comms-in-session-truth | J-supervise-delegation-trees / RT-session-calls-inspector-panel | Théo | Feature Tour | Pass | | |
+| 23 | CH-agent-comms-in-session-truth | J-supervise-delegation-trees / NB-agent-call-publish | Théo | Feature Tour | Pass | | |
+| 24 | CH-agent-comms-roster-and-docs-truth | J-build-a-subagent-roster / SITE-agent-comms-docs-area | Lea | Feature Tour | Pass | | |
+| 25 | CH-agent-comms-roster-and-docs-truth | J-build-a-subagent-roster / RT-subagent-roster-injection | Lea | Feature Tour | Pass | | |
+| 26 | CH-agent-comms-roster-and-docs-truth | J-build-a-subagent-roster / RT-agent-roster-call-compose | Lea | Feature Tour | Pass | | |
+| 27 | CH-agent-comms-spawn-hard-cut-crossings | J-cross-workspace-access / ET-workspace-access-mode-matrix | Bruno | Back-Button Tour | Pass | | |
+| 28 | CH-agent-comms-spawn-hard-cut-crossings | J-cross-workspace-access / ET-workspace-access-prompt-outcomes | Bruno | Back-Button Tour | Fixed | BUG-20260826-prompt-stream-incomplete-reason | 60883a0e5 |
+| 29 | CH-agent-comms-spawn-hard-cut-crossings | J-cross-workspace-access / RT-session-parent-provenance | Bruno | Back-Button Tour | Pass | | |
+| 30 | CH-agent-comms-task-result-contract | J-contract-a-task-result / TA-task-result-contract | Bruno | Data Tour | Pass | | |
+| 31 | CH-agent-comms-task-result-contract | J-contract-a-task-result / TA-task-result-default-budget | Bruno | Data Tour | Pass | | |
+| 32 | CH-agent-comms-loop-contract-canary | J-complete-partial-loop / LP-loop-contract-regime-adoption | Bruno | Feature Tour | Pass | | |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 
 ## Session Debriefs
 
-Pending execution.
+- **Settlement authority:** Bruno completed create, await, result, cancel, deadline, and strict
+  repair flows. Four blocking failures were fixed and re-walked through the public CLI and durable
+  read paths.
+- **Delivery exactly once:** Ada reused a parked child, followed up, batched two calls, and observed
+  one terminal delivery per call without duplicate wake effects.
+- **Mailbox backpressure:** Bruno sent and listed durable messages, exercised typed size/contract
+  rejection, and verified that the repaired idle clock expires a parked child at the advertised
+  instant.
+- **Containment and sanitization:** Dora exercised caps, sequential config changes, the deleted
+  `spawn` verb, payload redaction, profile scope, hooks, and host-API reads. Denials remained typed
+  and no cross-workspace record leaked.
+- **Operator and in-session truth:** Ada and Théo compared Activity, call detail, attention, session
+  messages, the Calls inspector, subtree stop, and publish behavior against the same durable calls.
+- **Roster and docs truth:** Lea discovered four agents, composed a call from the roster, and checked
+  the six agent-comms documentation pages against their visual references.
+- **Spawn hard cut, task contracts, and Loop canary:** Bruno confirmed workspace consent outcomes,
+  immutable provenance, task result digests/budgets, and the Loop no-call-record boundary.
+
+The two widest journeys, delegation and supervision, were re-walked through functionality,
+accessibility, clarity, feedback, resilience, and trust lenses. Every lens passed; no additional
+paper cut or blocking discrepancy was found.
 
 ## What Was Fixed
 
@@ -94,10 +114,14 @@ Pending execution.
   in-memory lifecycle fields. Settlement now uses bounded detached stop and cleanup contexts, and
   stopped spawned-session reads overlay the durable parking lifecycle. The package race suites and
   a public TTL expiry retest pass.
+- `BUG-20260826-prompt-stream-incomplete-reason` — a remote prompt interrupted before its terminal
+  event lost the stable incomplete-stream classification across store, SSE, and CLI boundaries.
+  The structured reason now survives gateway translation, and the canonical focused regression plus
+  the completed runtime E2E reconnect flow pass.
 
 ## Paper Cuts
 
-None recorded yet.
+None recorded.
 
 ## Runtime Errors Observed
 
@@ -116,14 +140,16 @@ None recorded yet.
 - Completed child `ses_call_call-cb436767ac2b68c4` lost its two-second parking clock after the
   settlement stop and remained callable beyond its requested TTL. See
   `BUG-20260826-parked-child-idle-clock`.
+- A remote gateway prompt interruption surfaced only a generic transport error instead of the
+  resumable `prompt_stream_incomplete` reason. See `BUG-20260826-prompt-stream-incomplete-reason`.
 
 ## Human Verifications Needed
 
-None identified yet.
+None.
 
 ## Decisions for a Human
 
-None identified yet.
+None.
 
 ## Learnings
 
@@ -131,7 +157,15 @@ None identified yet.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** pending
-- **Issues by user impact:** pending
-- **Coverage:** 0 / 32 scenarios walked
-- **Verdict:** pending — the matrix and fresh-lab execution must finish first.
+- **QA verdict:** PASS locally; exact-head PR CI remains the delivery backstop.
+- **Final verify:** `qa/final-make-verify.log`
+- **Exit gate:** focused post-rebase conflict tests passed with `-race`; the required scoped
+  `make gate` passed on the final pre-commit tree. Local full/E2E runs are intentionally delegated
+  to exact-head PR CI per the operator directive.
+- **Issues by user impact:** 6 Blocks-Completion findings, all fixed and verified; 0 open
+  Data-Loss, Trust-Damage, Friction, or Cosmetic findings.
+- **Coverage:** 32 / 32 matrix rows walked; 33 tracker scenarios settled because
+  `RT-session-wait-state` shares the deadline row.
+- **Parity disclosure:** the isolated lab used the native provider and real daemon/Web surfaces.
+  Post-rebase focused tests covered every manual conflict; the exact rebased head still awaits CI.
+- **Verdict:** locally verified; not ready to merge until exact-head PR checks are green.

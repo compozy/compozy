@@ -3,6 +3,7 @@ package builtin
 import toolspkg "github.com/compozy/compozy/internal/tools"
 
 const (
+	agentsSegment               = "agents"
 	authoredContextHeartbeatKey = "heartbeat"
 )
 
@@ -38,7 +39,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
-		[]string{"agents", authoredContextHeartbeatKey, authoredContextStatusKey, "wake"},
+		[]string{agentsSegment, authoredContextHeartbeatKey, authoredContextStatusKey, "wake"},
 		[]string{"heartbeat status", "wake audit", "agent heartbeat policy"},
 	),
 	nativeDescriptor(
@@ -52,7 +53,7 @@ var authoredContextTools = []toolspkg.Descriptor{
 		false,
 		false,
 		[]toolspkg.ToolsetID{toolspkg.ToolsetIDAuthoredContext},
-		[]string{"agents", authoredContextHeartbeatKey, "wake"},
+		[]string{agentsSegment, authoredContextHeartbeatKey, "wake"},
 		[]string{"heartbeat wake", "manual wake", "advisory wake"},
 	),
 }

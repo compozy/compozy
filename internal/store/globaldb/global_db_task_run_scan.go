@@ -128,6 +128,7 @@ type taskRunScanFields struct {
 }
 
 func (fields *taskRunScanFields) record(run taskpkg.Run) (taskpkg.Run, error) {
+	run.SetContractState(run.ContractStateValue())
 	assignScannedTaskRunRecord(
 		&run,
 		fields.runKind,

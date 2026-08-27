@@ -99,7 +99,7 @@ func (m *Service) executeTaskBoundary(
 			result.execution.Run,
 			result.execution.Task,
 			actor,
-			result.execution.Run.IdempotencyKey,
+			result.execution.Run.IdempotencyKeyValue(),
 		)
 	}
 	return &result.execution, nil

@@ -2,6 +2,8 @@ package spec
 
 import "github.com/compozy/compozy/internal/api/contract"
 
+const callServiceUnavailableDescription = "Call service is not configured"
+
 func registryCallOperations() []OperationSpec {
 	operations := callOperationsForPrefix("/api", "")
 	return append(operations, callOperationsForPrefix("/api/workspaces/{workspace_id}", "Workspace")...)
@@ -15,7 +17,7 @@ func callOperationsForPrefix(prefix, operationSuffix string) []OperationSpec {
 	callPath := prefix + "/calls"
 	callIDPath := callPath + "/{call_id}"
 	messagePath := prefix + "/messages"
-	return []OperationSpec{
+	operations := []OperationSpec{
 		{
 			Method: httpMethodPost, Path: callPath, OperationID: "createCall" + operationSuffix,
 			Summary: "Create one agent call or a bounded batch", Tags: []string{specCallsKey},
@@ -29,7 +31,7 @@ func callOperationsForPrefix(prefix, operationSuffix string) []OperationSpec {
 				{Status: 409, Description: "Call identity conflict", Body: contract.CallErrorResponse{}},
 				{Status: 410, Description: "Call target expired", Body: contract.CallErrorResponse{}},
 				{Status: 422, Description: "Invalid call request", Body: contract.CallErrorResponse{}},
-				{Status: 503, Description: "Call service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: callServiceUnavailableDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 		{
@@ -85,6 +87,15 @@ func callOperationsForPrefix(prefix, operationSuffix string) []OperationSpec {
 		callMutationOperation(callIDPath+"/publish", "publishCall"+operationSuffix,
 			"Publish one completed call to Compozy Network", workspaceParams, contract.PublishCallRequest{}, false,
 			contract.PublishCallResponse{}),
+	}
+	return append(operations, callMessageOperations(messagePath, operationSuffix, workspaceParams)...)
+}
+
+func callMessageOperations(
+	messagePath, operationSuffix string,
+	workspaceParams []ParameterSpec,
+) []OperationSpec {
+	return []OperationSpec{
 		{
 			Method: httpMethodPost, Path: messagePath, OperationID: "sendCallMessage" + operationSuffix,
 			Summary: "Send one inert message to a child session", Tags: []string{specMessagesKey},
@@ -98,7 +109,7 @@ func callOperationsForPrefix(prefix, operationSuffix string) []OperationSpec {
 				{Status: 413, Description: "Message is too large", Body: contract.CallErrorResponse{}},
 				{Status: 422, Description: "Invalid message request", Body: contract.CallErrorResponse{}},
 				{Status: 429, Description: "Message rate limit exceeded", Body: contract.CallErrorResponse{}},
-				{Status: 503, Description: "Call service is not configured", Body: contract.ErrorPayload{}},
+				{Status: 503, Description: callServiceUnavailableDescription, Body: contract.ErrorPayload{}},
 			},
 		},
 		{
@@ -141,7 +152,7 @@ func callMutationOperation(
 			{Status: 409, Description: "Call state conflict", Body: contract.CallErrorResponse{}},
 			{Status: 410, Description: "Call target expired", Body: contract.CallErrorResponse{}},
 			{Status: 422, Description: "Invalid call request", Body: contract.CallErrorResponse{}},
-			{Status: 503, Description: "Call service is not configured", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: callServiceUnavailableDescription, Body: contract.ErrorPayload{}},
 		},
 	}
 }
@@ -152,6 +163,6 @@ func callReadResponses(body any) []ResponseSpec {
 		{Status: 404, Description: "Call or message not found", Body: contract.CallErrorResponse{}},
 		{Status: 409, Description: "Call result is not settled", Body: contract.CallErrorResponse{}},
 		{Status: 422, Description: "Invalid call read request", Body: contract.CallErrorResponse{}},
-		{Status: 503, Description: "Call service is not configured", Body: contract.ErrorPayload{}},
+		{Status: 503, Description: callServiceUnavailableDescription, Body: contract.ErrorPayload{}},
 	}
 }

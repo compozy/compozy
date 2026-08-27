@@ -1,6 +1,6 @@
 # BUG-20260826-bounded-wait-client-timeout: The CLI transport interrupted valid waits after 30 seconds
 
-- **Status:** fixed and publicly verified
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Ada; Bruno
@@ -32,7 +32,7 @@ as a transport error before the daemon could report a checkpoint or state transi
   plus five seconds for response delivery. An earlier caller context deadline still wins.
 - **Regression:** The canonical CLI client suite proves call and session waits use the dedicated
   transport, carry the requested deadline beyond 30 seconds, and clamp oversized waits.
-- **Fix commit:** `cf46ed340`.
+- **Fix commit:** `73e48d5ff`.
 
 ## Verification
 

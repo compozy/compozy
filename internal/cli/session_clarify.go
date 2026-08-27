@@ -113,7 +113,7 @@ func sessionClarificationsBundle(response ClarificationsRecord) outputBundle {
 		response,
 		response.Clarifications,
 		"Pending Session Questions",
-		[]string{"REQUEST ID", "AGENT", "QUESTION", "CHOICES", "DEADLINE"},
+		[]string{"REQUEST ID", cliAgentHeader, "QUESTION", "CHOICES", "DEADLINE"},
 		"clarifications",
 		[]string{"request_id", "agent_name", "question", "choices", "deadline"},
 		func(item ClarificationPendingRecord) []string {

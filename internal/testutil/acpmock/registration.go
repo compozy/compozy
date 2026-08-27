@@ -111,24 +111,8 @@ func Register(homePaths compozyconfig.HomePaths, opts RegisterOptions) (Registra
 		return Registration{}, fmt.Errorf("acpmock: write agent definition %q: %w", agentDefPath, err)
 	}
 
-	loaded, err := compozyconfig.LoadAgentDefFile(agentDefPath)
-	if err != nil {
-		return Registration{}, postWriteRegistrationError(
-			agentDefPath,
-			"validate written agent definition",
-			err,
-		)
-	}
-	cfg := compozyconfig.DefaultWithHome(homePaths)
-	if providerName == ProviderName {
-		cfg.Providers[ProviderName] = ProviderConfig(driverPath)
-	}
-	if _, err := cfg.ResolveAgent(loaded); err != nil {
-		return Registration{}, postWriteRegistrationError(
-			agentDefPath,
-			"resolve written agent definition",
-			err,
-		)
+	if err := validateRegisteredAgent(homePaths, agentDefPath, providerName, driverPath); err != nil {
+		return Registration{}, err
 	}
 
 	return Registration{
@@ -143,6 +127,24 @@ func Register(homePaths compozyconfig.HomePaths, opts RegisterOptions) (Registra
 		Model:           fixture.agent.Model,
 		Permissions:     fixture.agent.Permissions,
 	}, nil
+}
+
+func validateRegisteredAgent(
+	homePaths compozyconfig.HomePaths,
+	agentDefPath, providerName, driverPath string,
+) error {
+	loaded, err := compozyconfig.LoadAgentDefFile(agentDefPath)
+	if err != nil {
+		return postWriteRegistrationError(agentDefPath, "validate written agent definition", err)
+	}
+	cfg := compozyconfig.DefaultWithHome(homePaths)
+	if providerName == ProviderName {
+		cfg.Providers[ProviderName] = ProviderConfig(driverPath)
+	}
+	if _, err := cfg.ResolveAgent(loaded); err != nil {
+		return postWriteRegistrationError(agentDefPath, "resolve written agent definition", err)
+	}
+	return nil
 }
 
 // ProviderConfig returns the local auth-free provider config for ACP mock agents.

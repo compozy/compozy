@@ -41,7 +41,7 @@ func (m *Manager) WithSoulClaimLock(ctx context.Context, sessionID string, fn fu
 func (m *Manager) prepareSessionStartSoul(
 	ctx context.Context,
 	spec *sessionStartSpec,
-	artifacts AgentArtifacts,
+	artifacts *AgentArtifacts,
 	now time.Time,
 ) error {
 	if spec == nil {
@@ -91,7 +91,7 @@ func (m *Manager) prepareResumeSoul(ctx context.Context, spec *sessionStartSpec)
 
 func (m *Manager) resolveSoul(
 	ctx context.Context,
-	artifacts AgentArtifacts,
+	artifacts *AgentArtifacts,
 	workspaceSnapshot *workspacepkg.ResolvedWorkspace,
 ) (soul.ResolvedSoul, error) {
 	if workspaceSnapshot == nil {

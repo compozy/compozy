@@ -1464,7 +1464,7 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		globalDB.SetTaskEventCommitObserver(observer)
 		installTaskEventInsertFailureTriggerForType(t, globalDB, event.EventType)
 
-		err = globalDB.CreateTaskDefinition(ctx, taskpkg.CreateTaskDefinitionMutation{
+		err = globalDB.CreateTaskDefinition(ctx, &taskpkg.CreateTaskDefinitionMutation{
 			Task: taskRecord, Contract: &contract, Profile: &profile, Events: []taskpkg.Event{event},
 		})
 		assertForcedTaskEventInsertError(t, err, "CreateTaskDefinition()")

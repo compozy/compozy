@@ -1000,7 +1000,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("Rename(stopped) = %#v, want renamed archived session", updated)
 		}
 		catalogInfo, ok := catalog.get(active.ID)
-		if !ok || catalogInfo.Name != updated.Name || catalogInfo.ArchivedAt == nil {
+		if !ok || catalogInfo.Name != updated.Name || catalogInfo.ArchivedAtValue() == nil {
 			t.Fatalf("archived catalog after rename = %#v", catalogInfo)
 		}
 		h.driver.mu.Lock()
@@ -1291,7 +1291,7 @@ func (c *recordingSessionCatalog) SessionArchivedAt(
 	if !ok || current.WorkspaceID != workspaceID {
 		return nil, fmt.Errorf("%w: %s", store.ErrSessionNotFound, sessionID)
 	}
-	return cloneTimePointer(current.ArchivedAt), nil
+	return cloneTimePointer(current.ArchivedAtValue()), nil
 }
 
 func (c *recordingSessionCatalog) SetSessionArchived(
@@ -1309,14 +1309,14 @@ func (c *recordingSessionCatalog) SetSessionArchived(
 	if archived && current.State != string(StateStopped) {
 		return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, sessionID)
 	}
-	if archived == (current.ArchivedAt != nil) {
+	if archived == (current.ArchivedAtValue() != nil) {
 		return current, nil
 	}
 	if archived {
 		now := time.Now().UTC()
-		current.ArchivedAt = &now
+		current.SetArchivedAt(&now)
 	} else {
-		current.ArchivedAt = nil
+		current.SetArchivedAt(nil)
 	}
 	c.sessions[sessionID] = current
 	return current, nil
@@ -1354,12 +1354,13 @@ func (c *recordingSessionCatalog) AttachSession(
 	if current.State != string(StateActive) {
 		return store.SessionAttach{}, store.ErrSessionNotAttachable
 	}
-	if current.AttachedTo != "" && current.AttachExpiresAt != nil && current.AttachExpiresAt.After(normalized.Now) {
+	if current.AttachedTo != "" && current.AttachExpiresAtValue() != nil &&
+		current.AttachExpiresAtValue().After(normalized.Now) {
 		return store.SessionAttach{}, store.ErrSessionAttachLocked
 	}
 	expiresAt := normalized.Now.Add(normalized.TTL).UTC()
 	current.AttachedTo = normalized.AttachedTo
-	current.AttachExpiresAt = &expiresAt
+	current.SetAttachExpiresAt(&expiresAt)
 	current.UpdatedAt = normalized.Now
 	c.sessions[normalized.SessionID] = current
 	return store.SessionAttach{

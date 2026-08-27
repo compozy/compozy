@@ -24,7 +24,8 @@ func (h *BaseHandlers) callPayloads(
 		return nil, err
 	}
 	items := make([]contract.CallPayload, 0, len(records))
-	for index, record := range records {
+	for index := range records {
+		record := &records[index]
 		content, contentErr := h.callPayloadContent(ctx, record, projected[index])
 		if contentErr != nil {
 			return nil, contentErr
@@ -45,7 +46,7 @@ type callPayloadContent struct {
 
 func (h *BaseHandlers) callPayloadContent(
 	ctx context.Context,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 	projected callspkg.ProjectionContent,
 ) (callPayloadContent, error) {
 	content := callPayloadContent{}
@@ -71,7 +72,7 @@ func (h *BaseHandlers) callPayloadContent(
 }
 
 func callPayload(
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 	profile profileOwnerIdentity,
 	content callPayloadContent,
 ) contract.CallPayload {
@@ -119,7 +120,7 @@ func boundedCallTextPreview(value string, maxBytes int) string {
 
 func (h *BaseHandlers) callCreatePayload(
 	ctx context.Context,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 ) (contract.CallCreatePayload, error) {
 	payload := contract.CallCreatePayload{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
@@ -164,16 +165,16 @@ func callMessagePayload(record callspkg.MessageRecord, profile profileOwnerIdent
 
 func publicCallDelivery(value string) string {
 	switch strings.TrimSpace(value) {
-	case "pending", "queued":
-		return "queued"
+	case "pending", queryFilterQueuedValue:
+		return queryFilterQueuedValue
 	case "injected", "delivered-into-turn":
 		return "delivered-into-turn"
 	case "woken", "woke":
 		return "woke"
-	case "failed":
-		return "failed"
+	case queryFilterFailedValue:
+		return queryFilterFailedValue
 	default:
-		return "failed"
+		return queryFilterFailedValue
 	}
 }
 
@@ -188,8 +189,8 @@ func timePointer(value time.Time) *time.Time {
 	if value.IsZero() {
 		return nil
 	}
-	copy := value.UTC()
-	return &copy
+	cloned := value.UTC()
+	return &cloned
 }
 
 func cloneCallJSON(value json.RawMessage) json.RawMessage {

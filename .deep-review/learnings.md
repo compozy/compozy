@@ -1,8 +1,8 @@
-## 15bf6af1f103d644 — Keep extension hooks distinct from observability events
+## 15bf6af1f103d644 — Keep the call hook catalog aligned with observability
 
 - Scope: internal/hooks/**
-- Rule: Do not expand the agent-calls extension hook family beyond the exact events accepted by the spec; observability events are a separate catalog.
-- Why: The agent-comms spec binds extension hooks to exactly seven events while defining eleven observability events independently.
+- Rule: Keep the extension hook family and canonical call observability catalog on the same eleven event names.
+- Why: One shared catalog prevents lifecycle observations from drifting between extensions, runtime diagnostics, docs, and QA.
 - Origin: session, 2026-08-26
 
 ## cf13849291102e09 — Never fold an applied migration into another migration

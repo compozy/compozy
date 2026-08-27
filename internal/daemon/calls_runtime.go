@@ -92,7 +92,9 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 		service: service, turnEndService: service, ctx: runCtx, logger: state.logger,
 		cancel: cancel, done: make(chan struct{}),
 	}
-	runtime.sessions, _ = state.sessions.(callTurnEndSessionReader)
+	if sessions, supported := state.sessions.(callTurnEndSessionReader); supported {
+		runtime.sessions = sessions
+	}
 	state.calls = runtime
 	state.deps.Calls = newCallSurfaceService(service, state.sessions)
 	if registrar, ok := state.sessions.(turnEndNotifierRegistrar); ok {

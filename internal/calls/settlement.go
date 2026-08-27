@@ -14,8 +14,8 @@ import (
 const settledChildStopTimeout = 30 * time.Second
 
 // RequireCallSettlementActor accepts only the child session bound to the call.
-func RequireCallSettlementActor(record CallRecord, actor SettlementActor) error {
-	if strings.TrimSpace(actor.Kind) != "agent_session" ||
+func RequireCallSettlementActor(record *CallRecord, actor SettlementActor) error {
+	if strings.TrimSpace(actor.Kind) != actorKindAgentSession ||
 		strings.TrimSpace(actor.ID) != strings.TrimSpace(record.ChildSessionID) {
 		return newError(CodeSettlementDenied, "only the bound child session may settle this call", nil)
 	}
@@ -39,24 +39,24 @@ func (s *Service) Return(ctx context.Context, input ReturnInput) (Settlement, er
 	if err != nil {
 		return Settlement{}, err
 	}
-	if err := RequireCallSettlementActor(record, input.Actor); err != nil {
+	if err := RequireCallSettlementActor(&record, input.Actor); err != nil {
 		return Settlement{}, err
 	}
 	if record.State.Terminal() {
 		if len(input.Result) > 0 {
-			return s.recordSupersededResult(ctx, record, input.Result)
+			return s.recordSupersededResult(ctx, &record, input.Result)
 		}
 		return Settlement{}, newError(CodeAlreadySettled, fmt.Sprintf("call is %s", record.State), nil)
 	}
 	if len(input.Result) > 0 {
-		return s.returnPayload(ctx, record, input.Result, input.ChildLive)
+		return s.returnPayload(ctx, &record, input.Result, input.ChildLive)
 	}
-	return s.returnFinalText(ctx, record, input.FinalText, input.ChildLive)
+	return s.returnFinalText(ctx, &record, input.FinalText, input.ChildLive)
 }
 
 func (s *Service) returnPayload(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	raw json.RawMessage,
 	childLive bool,
 ) (Settlement, error) {
@@ -72,7 +72,7 @@ func (s *Service) returnPayload(
 
 func (s *Service) validateReturnedPayload(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	raw json.RawMessage,
 ) (json.RawMessage, Verdict, []contracts.ValidationIssue, error) {
 	if !json.Valid(raw) {
@@ -123,7 +123,7 @@ func (s *Service) validateReturnedPayload(
 
 func (s *Service) handleInvalidResult(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	issues []contracts.ValidationIssue,
 	childLive bool,
 ) (Settlement, error) {
@@ -150,7 +150,7 @@ func (s *Service) handleInvalidResult(
 
 func (s *Service) settleWithPayload(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	payload json.RawMessage,
 	verdict Verdict,
 ) (Settlement, error) {
@@ -177,7 +177,7 @@ func (s *Service) settleWithPayload(
 			return Settlement{}, errors.Join(err, loadErr)
 		}
 		if current.State.Terminal() {
-			return s.recordSupersededResult(ctx, current, outcome.Payload)
+			return s.recordSupersededResult(ctx, &current, outcome.Payload)
 		}
 	}
 	return Settlement{Call: settled}, err
@@ -185,7 +185,7 @@ func (s *Service) settleWithPayload(
 
 func (s *Service) returnFinalText(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	finalText string,
 	childLive bool,
 ) (Settlement, error) {
@@ -220,24 +220,24 @@ func (s *Service) returnFinalText(
 
 func (s *Service) settleTerminal(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	mutation SettlementMutation,
 ) (CallRecord, error) {
-	if _, err := s.fenceActivation(ctx, record, "call terminal settlement"); err != nil {
+	if err := s.fenceActivation(ctx, record, "call terminal settlement"); err != nil {
 		return CallRecord{}, err
 	}
 	settled, err := s.store.SettleCall(ctx, mutation)
 	if err == nil {
 		s.notifyWaiters(record.CallID)
-		s.emitTerminalTransition(ctx, record.State, settled)
-		if parkErr := s.parkSettledChild(ctx, settled); parkErr != nil {
+		s.emitTerminalTransition(ctx, record.State, &settled)
+		if parkErr := s.parkSettledChild(ctx, &settled); parkErr != nil {
 			return settled, parkErr
 		}
 	}
 	return settled, err
 }
 
-func (s *Service) parkSettledChild(ctx context.Context, record CallRecord) error {
+func (s *Service) parkSettledChild(ctx context.Context, record *CallRecord) error {
 	childID := strings.TrimSpace(record.ChildSessionID)
 	if childID == "" || s.invoker == nil {
 		return nil
@@ -267,25 +267,25 @@ func (s *Service) parkSettledChild(ctx context.Context, record CallRecord) error
 
 func (s *Service) fenceActivation(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	reason string,
-) (CancelOutcome, error) {
+) error {
 	if strings.TrimSpace(record.ActivationRunID) == "" {
-		return CancelOutcome{}, nil
+		return nil
 	}
 	if s.canceler == nil {
-		return CancelOutcome{}, errors.New("calls: activation run canceler is required")
+		return errors.New("calls: activation run canceler is required")
 	}
-	outcome, err := s.canceler.CancelActivationRun(ctx, record.ActivationRunID, reason)
+	_, err := s.canceler.CancelActivationRun(ctx, record.ActivationRunID, reason)
 	if err != nil {
-		return CancelOutcome{}, fmt.Errorf("calls: fence activation run %q: %w", record.ActivationRunID, err)
+		return fmt.Errorf("calls: fence activation run %q: %w", record.ActivationRunID, err)
 	}
-	return outcome, nil
+	return nil
 }
 
 func (s *Service) recordSupersededResult(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	payload json.RawMessage,
 ) (Settlement, error) {
 	clean, issues := sanitizeJSONResult(payload)
@@ -302,7 +302,7 @@ func (s *Service) recordSupersededResult(
 	return Settlement{Call: updated}, newError(CodeAlreadySettled, fmt.Sprintf("call is %s", record.State), nil)
 }
 
-func effectiveVerdict(record CallRecord, verdict Verdict) Verdict {
+func effectiveVerdict(record *CallRecord, verdict Verdict) Verdict {
 	if record.RepairAttempts > 0 {
 		return VerdictRepaired
 	}

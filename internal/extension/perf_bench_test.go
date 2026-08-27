@@ -196,14 +196,14 @@ func extensionBenchmarkTaskRuns(count int) []taskpkg.Run {
 	)
 	for i := range count {
 		run := taskpkg.Run{
-			ID:             fmt.Sprintf("run-%03d", i),
-			TaskID:         fmt.Sprintf("task-%03d", i),
-			Status:         taskpkg.TaskRunStatusRunning,
-			Attempt:        int32(i%3 + 1),
-			ClaimedBy:      extensionBenchmarkClaimedBy(i),
-			SessionID:      fmt.Sprintf("session-%03d", i),
-			Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "bench-ext"},
-			IdempotencyKey: fmt.Sprintf("idem-%03d", i),
+			ID:               fmt.Sprintf("run-%03d", i),
+			TaskID:           fmt.Sprintf("task-%03d", i),
+			Status:           taskpkg.TaskRunStatusRunning,
+			Attempt:          int32(i%3 + 1),
+			ClaimedBy:        extensionBenchmarkClaimedBy(i),
+			SessionID:        fmt.Sprintf("session-%03d", i),
+			Origin:           taskpkg.Origin{Kind: taskpkg.OriginKindExtension, Ref: "bench-ext"},
+			RunContractState: &taskpkg.RunContractState{IdempotencyKey: fmt.Sprintf("idem-%03d", i)},
 			RunNetworkState: &taskpkg.RunNetworkState{NetworkSpec: participation.Spec{
 				Version:         participation.SpecVersion,
 				Mode:            participation.ModeLive,

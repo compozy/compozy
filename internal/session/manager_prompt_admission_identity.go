@@ -139,7 +139,7 @@ func promptAdmissionFingerprint(
 		ExpectedTurnID   string                            `json:"expected_turn_id,omitempty"`
 		SkillInvocations []commandpkg.Invocation           `json:"skill_invocations,omitempty"`
 		AttachmentIDs    []string                          `json:"attachment_ids,omitempty"`
-		PromptMeta       acp.PromptMeta                    `json:"prompt_meta,omitempty"`
+		PromptMeta       acp.PromptMeta                    `json:"prompt_meta,omitzero"`
 	}{
 		Version: sessionPromptFingerprintVersion, Operation: strings.TrimSpace(operation),
 		MessageID: strings.TrimSpace(req.messageID), AuthoredText: strings.TrimSpace(req.authoredMessage),

@@ -6,13 +6,13 @@ persona: Ada
 journey: J-contain-and-audit-delegation
 expected: All eleven call hook events fire with sanitized profile-scoped payloads, state and rejection events carry their transition facts, a hook may narrow a permission set but never widen it and is re-validated after its mutation, Host API calls and messages reads work under calls:read with no mutation method, and a downed extension fails open.
 entry_points: extension manifest hook declarations; call.created; call.settled; call.canceled; call.published; call.message_sent; call.message_delivered; call.subtree_drained; Host API calls/list; calls/get; calls/result; messages/list; the calls:read permission contract; extension host structured events and diagnostics
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: ET-network-participation-hooks; RT-call-payload-sanitize-sweep; RT-call-profile-scope-isolation
 ---
 

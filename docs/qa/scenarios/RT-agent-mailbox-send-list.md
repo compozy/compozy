@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-message-a-running-agent
 expected: An operator message is durably queued or delivered to an allowed lineage session and list/detail reads preserve profile and workspace isolation.
 entry_points: compozy message send ses_01JBD8G2MZTX "Prioritize the loop package first"; compozy message list --session ses_01JBD8G2MZTX --limit 2; HTTP and UDS POST /api/workspaces/{workspace_id}/messages with {"to":{"session_id":"ses_01JBD8G2MZTX"},"text":"Prioritize the loop package first"}; HTTP and UDS GET /api/workspaces/{workspace_id}/messages?session=ses_01JBD8G2MZTX&limit=2; compozy__agent_message with {"to":"parent","text":"Blocked on the loop tests"} and with {"to":"ses_01JBD8G2MZTX","text":"Continue"}
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-message-limits-typed-rejections; RT-parked-child-idle-ttl; RT-in-context-call-messages
 ---
 

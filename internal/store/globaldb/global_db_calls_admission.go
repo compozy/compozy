@@ -98,7 +98,7 @@ func (g *CallRepo) AdmitCall(
 func findIdempotentCall(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 ) (callspkg.CallRecord, bool, error) {
 	if strings.TrimSpace(record.IdempotencyKey) == "" {
 		return callspkg.CallRecord{}, false, nil
@@ -136,7 +136,7 @@ func validateCallAdmissionFence(
 func validateGovernedRootFence(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 ) error {
 	var profileID, workspaceID string
 	var drainingAt sql.NullString
@@ -166,7 +166,7 @@ func validateGovernedRootFence(
 func validateCallTargetFence(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 ) error {
 	if strings.TrimSpace(record.ChildSessionID) == "" {
 		return nil
@@ -239,7 +239,7 @@ func validateCallChildrenCapFence(
 	return nil
 }
 
-func insertCall(ctx context.Context, exec taskSQLExecutor, record callspkg.CallRecord) error {
+func insertCall(ctx context.Context, exec taskSQLExecutor, record *callspkg.CallRecord) error {
 	_, err := exec.ExecContext(ctx, `INSERT INTO calls (
 		call_id, profile_id, scope, workspace_id, caller_kind, caller_id, actor_kind, actor_id,
 		parent_session_id, agent_name, child_session_id, governed_root_id, depth, state, expect_digest,
@@ -290,8 +290,11 @@ func insertCallActivation(
 	run := taskpkg.Run{
 		ID: activation.RunID, WorkspaceID: activation.WorkspaceID,
 		RunKind: taskpkg.RunKindCallActivation, Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.admission:" + activation.CallID},
-		IdempotencyKey: "call-activation:" + activation.CallID, QueuedAt: at,
+		Origin: taskpkg.Origin{Kind: taskpkg.OriginKindDaemon, Ref: "calls.admission:" + activation.CallID},
+		RunContractState: &taskpkg.RunContractState{
+			IdempotencyKey: "call-activation:" + activation.CallID,
+		},
+		QueuedAt: at,
 	}
 	run.SetNetworkState(participation.LocalSpec(), "", "", "")
 	normalized, err := tasks.normalizeTaskRunForCreate(run)
@@ -336,7 +339,7 @@ func insertCallActivation(
 func insertCallFollowUpDelivery(
 	ctx context.Context,
 	exec taskSQLExecutor,
-	record callspkg.CallRecord,
+	record *callspkg.CallRecord,
 	delivery callspkg.Delivery,
 ) error {
 	identity := callDeliveryIdentityFor("message", record.CallID)

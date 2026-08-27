@@ -1,6 +1,6 @@
 # BUG-20260826-call-child-tool-policy: Unrestricted call children could not return results
 
-- **Status:** fixed and publicly verified
+- **Status:** verified
 - **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno; Ada
@@ -35,7 +35,7 @@ while the call remained `running`.
 - **Regression:** The canonical call admission suite proves omitted categories inherit from the
   caller, and the canonical session lineage suite proves an unrestricted logical root persists the
   native tool universe.
-- **Fix commit:** `5df9697`.
+- **Fix commit:** `1487f48ad`.
 
 ## Verification
 

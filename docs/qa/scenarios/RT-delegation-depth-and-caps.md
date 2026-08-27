@@ -6,13 +6,13 @@ persona: Dora
 journey: J-contain-and-audit-delegation
 expected: At the depth wall the call tool is absent from the child's toolset rather than present and refusing, the per-parent children cap rejects with a typed error naming the cap and count, and the per-root execution budget admits and queues visibly instead of rejecting.
 entry_points: compozy config set calls.max_depth 1, compozy config set calls.max_children 1, compozy config set calls.max_active_per_root 1, and compozy config set calls.max_batch 1; compozy__agent_call with {"agent":"reviewer","prompt":"nested work"} from the depth-walled child; compozy call list --state queued --limit 8; HTTP and UDS POST /api/workspaces/{workspace_id}/calls with {"tasks":[{"agent":"scout","prompt":"one"},{"agent":"reviewer","prompt":"two"}]}
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-calls-config-effects; RT-agent-call-batch; RT-call-wake-delivery-exactly-once
 ---
 

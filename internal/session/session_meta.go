@@ -1,7 +1,6 @@
 package session
 
 import (
-	"github.com/compozy/compozy/internal/network/participation"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -39,25 +38,27 @@ func (s *Session) metaLocked() store.SessionMeta {
 			storeSessionRuntimeSelection(s.SelectedRuntime),
 			s.RuntimeSelectionRevision,
 		),
-		Scope:                s.Scope,
-		WorkspaceID:          s.WorkspaceID,
-		NetworkParticipation: participation.CloneSpec(s.NetworkParticipation),
-		SessionType:          string(normalizeSessionType(s.Type)),
-		Lineage:              store.NormalizeSessionLineage(s.ID, s.Lineage),
-		State:                string(s.State),
-		StopReason:           stopReasonPointer(s.stopReason),
-		StopDetail:           s.stopDetail,
-		Failure:              store.CloneSessionFailure(s.failure),
-		ACPSessionID:         stringPointer(s.ACPSessionID),
-		Liveness:             store.CloneSessionLivenessMeta(s.Liveness),
-		Sandbox:              cloneSessionSandboxMeta(s.Sandbox),
-		CreationProfile:      profile,
-		CreationOptions:      creationOptions,
-		SoulSnapshotID:       s.SoulSnapshotID,
-		SoulDigest:           s.SoulDigest,
-		ParentSoulDigest:     s.ParentSoulDigest,
-		CreatedAt:            s.CreatedAt,
-		UpdatedAt:            s.UpdatedAt,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			s.Scope,
+			s.NetworkParticipation,
+		),
+		WorkspaceID:      s.WorkspaceID,
+		SessionType:      string(normalizeSessionType(s.Type)),
+		Lineage:          store.NormalizeSessionLineage(s.ID, s.Lineage),
+		State:            string(s.State),
+		StopReason:       stopReasonPointer(s.stopReason),
+		StopDetail:       s.stopDetail,
+		Failure:          store.CloneSessionFailure(s.failure),
+		ACPSessionID:     stringPointer(s.ACPSessionID),
+		Liveness:         store.CloneSessionLivenessMeta(s.Liveness),
+		Sandbox:          cloneSessionSandboxMeta(s.Sandbox),
+		CreationProfile:  profile,
+		CreationOptions:  creationOptions,
+		SoulSnapshotID:   s.SoulSnapshotID,
+		SoulDigest:       s.SoulDigest,
+		ParentSoulDigest: s.ParentSoulDigest,
+		CreatedAt:        s.CreatedAt,
+		UpdatedAt:        s.UpdatedAt,
 	}
 	meta.SetACPOptions(storeOptionSelectionsFromACP(s.ACPOptions))
 	meta.SetRuntimeRecovery(s.RuntimeRecovery)

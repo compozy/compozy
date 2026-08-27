@@ -33,6 +33,7 @@ func (a *mockAgent) executeHostedNativeCall(
 	if err := json.Unmarshal(step.RawInput, &arguments); err != nil {
 		return diagnostic, fmt.Errorf("acpmock-driver: decode %s input: %w", step.Kind, err)
 	}
+	//nolint:gosec // The test fixture intentionally executes the configured local MCP server command.
 	command := exec.CommandContext(ctx, server.Command, server.Args...)
 	command.Env = append(os.Environ(), mcpServerEnvironment(server)...)
 	client := sdkmcp.NewClient(

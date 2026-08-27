@@ -17,16 +17,16 @@ func TestWriteSessionMetaAndReadBack(t *testing.T) {
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	stopReason := StopHookStopped
 	meta := SessionMeta{
-		ID:                   "sess-meta",
-		Name:                 "Session Meta",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-meta",
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		SessionType:          "system",
-		State:                "stopped",
-		RuntimeStatus:        SessionRuntimeReady,
-		StopReason:           &stopReason,
-		StopDetail:           "hook denied continuation",
+		ID:                        "sess-meta",
+		Name:                      "Session Meta",
+		AgentName:                 "coder",
+		WorkspaceID:               "ws-meta",
+		SessionMetaPlacementState: NewSessionMetaPlacement(SessionScopeWorkspace, participation.LocalSpec()),
+		SessionType:               "system",
+		State:                     "stopped",
+		RuntimeStatus:             SessionRuntimeReady,
+		StopReason:                &stopReason,
+		StopDetail:                "hook denied continuation",
 		Sandbox: &SessionSandboxMeta{
 			SandboxID:             "env-123",
 			Backend:               "daytona",
@@ -108,14 +108,14 @@ func TestWriteSessionMetaConcurrentWritesDoNotCorruptFile(t *testing.T) {
 
 	path := filepath.Join(t.TempDir(), SessionMetaName)
 	base := SessionMeta{
-		ID:                   "sess-meta-concurrent",
-		AgentName:            "coder",
-		WorkspaceID:          "ws-meta-concurrent",
-		NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
-		State:                "active",
-		RuntimeStatus:        SessionRuntimeReady,
-		CreatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		ID:                        "sess-meta-concurrent",
+		AgentName:                 "coder",
+		WorkspaceID:               "ws-meta-concurrent",
+		SessionMetaPlacementState: NewSessionMetaPlacement(SessionScopeWorkspace, participation.LocalSpec()),
+		State:                     "active",
+		RuntimeStatus:             SessionRuntimeReady,
+		CreatedAt:                 time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
+		UpdatedAt:                 time.Date(2026, 4, 3, 18, 0, 0, 0, time.UTC),
 	}
 
 	var wg sync.WaitGroup
@@ -211,20 +211,20 @@ func TestSessionMetaValidateRejectsParticipationOutsideCreationIdentity(t *testi
 		},
 	}
 	meta := SessionMeta{
-		ID:                   options.SessionID,
-		AgentName:            profile.AgentName,
-		WorkspaceID:          profile.WorkspaceID,
-		NetworkParticipation: participation.CloneSpec(live),
-		SessionType:          options.SessionType,
-		State:                "stopped",
-		RuntimeStatus:        SessionRuntimeReady,
-		CreationProfile:      &profile,
-		CreationOptions:      &options,
-		CreationProfileRef:   profileRef,
-		PolicySpecDigest:     policyDigest,
-		CreationDigest:       creationDigest,
-		CreatedAt:            time.Date(2026, 4, 3, 19, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 3, 19, 1, 0, 0, time.UTC),
+		ID:                        options.SessionID,
+		AgentName:                 profile.AgentName,
+		WorkspaceID:               profile.WorkspaceID,
+		SessionMetaPlacementState: NewSessionMetaPlacement(SessionScopeWorkspace, live),
+		SessionType:               options.SessionType,
+		State:                     "stopped",
+		RuntimeStatus:             SessionRuntimeReady,
+		CreationProfile:           &profile,
+		CreationOptions:           &options,
+		CreationProfileRef:        profileRef,
+		PolicySpecDigest:          policyDigest,
+		CreationDigest:            creationDigest,
+		CreatedAt:                 time.Date(2026, 4, 3, 19, 0, 0, 0, time.UTC),
+		UpdatedAt:                 time.Date(2026, 4, 3, 19, 1, 0, 0, time.UTC),
 	}
 
 	if err := meta.Validate(); err == nil {

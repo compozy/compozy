@@ -23,8 +23,8 @@ func (m *Service) prepareResultContract(
 		return nil, err
 	}
 	budget := m.resultBudget
-	if run.ResultBudget != nil {
-		budget = *run.ResultBudget
+	if resultBudget := run.ResultBudgetValue(); resultBudget != nil {
+		budget = *resultBudget
 	}
 	outcome, err := contracts.EnforceBudget(budget, prepared)
 	if err != nil {
@@ -44,7 +44,8 @@ func (m *Service) sanitizeAndValidateTaskResult(
 	run Run,
 	payload json.RawMessage,
 ) (json.RawMessage, error) {
-	hasContract := strings.TrimSpace(run.ExpectDigest) != ""
+	expectDigest := run.ExpectDigestValue()
+	hasContract := strings.TrimSpace(expectDigest) != ""
 	if len(bytes.TrimSpace(payload)) == 0 {
 		if !hasContract {
 			return nil, nil
@@ -68,13 +69,13 @@ func (m *Service) sanitizeAndValidateTaskResult(
 	if m.resultContracts == nil {
 		return nil, fmt.Errorf("task: result contract registry is required")
 	}
-	contract, err := m.resultContracts.Resolve(ctx, run.ExpectDigest)
+	contract, err := m.resultContracts.Resolve(ctx, expectDigest)
 	if err != nil {
 		return nil, fmt.Errorf("task: resolve result contract: %w", err)
 	}
 	redacted, redactions, redactErr := contracts.RedactPreservingContract(contract, payload)
 	if redactErr == nil {
-		return m.validatePreparedTaskResult(ctx, run.ExpectDigest, redacted)
+		return m.validatePreparedTaskResult(ctx, expectDigest, redacted)
 	}
 	if len(redactions) > 0 {
 		return nil, taskResultIssues(contracts.ValidationIssue{
@@ -87,7 +88,7 @@ func (m *Service) sanitizeAndValidateTaskResult(
 			Path: "$", Message: "result contains unsafe secret material",
 		})
 	}
-	return m.validatePreparedTaskResult(ctx, run.ExpectDigest, json.RawMessage(clean))
+	return m.validatePreparedTaskResult(ctx, expectDigest, json.RawMessage(clean))
 }
 
 func (m *Service) validatePreparedTaskResult(

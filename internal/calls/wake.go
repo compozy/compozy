@@ -10,7 +10,7 @@ import (
 const completionPreviewBytes = 512
 
 // RenderCompletionWake frames a bounded result or failure summary for the caller.
-func RenderCompletionWake(call CallRecord, payload []byte) string {
+func RenderCompletionWake(call *CallRecord, payload []byte) string {
 	agent := strings.TrimSpace(call.AgentName)
 	if agent == "" {
 		agent = "agent"
@@ -26,7 +26,9 @@ func RenderCompletionWake(call CallRecord, payload []byte) string {
 			resultSummary += ", contract sha256:" + digest
 		}
 		return fmt.Sprintf(
-			"Call completed: %s (%s) → %s.\nResult preview (%s):\n<untrusted-call-result>\n%s\n</untrusted-call-result>\nFetch the full result with compozy__call_result.",
+			"Call completed: %s (%s) → %s.\nResult preview (%s):\n"+
+				"<untrusted-call-result>\n%s\n</untrusted-call-result>\n"+
+				"Fetch the full result with compozy__call_result.",
 			agent,
 			call.CallID,
 			call.State,

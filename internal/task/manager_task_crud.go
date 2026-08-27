@@ -59,7 +59,7 @@ func (m *Service) CreateTask(
 	if err != nil {
 		return nil, err
 	}
-	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
+	if err := m.store.CreateTaskDefinition(ctx, &CreateTaskDefinitionMutation{
 		Task: record, Contract: contract, Profile: profile, Events: []Event{event},
 	}); err != nil {
 		return nil, err
@@ -178,7 +178,7 @@ func (m *Service) CreateChildTask(
 		return nil, err
 	}
 	events := []Event{createdEvent, parentEvent}
-	if err := m.store.CreateTaskDefinition(ctx, CreateTaskDefinitionMutation{
+	if err := m.store.CreateTaskDefinition(ctx, &CreateTaskDefinitionMutation{
 		Task: child, Contract: contract, Profile: profile, Events: events,
 	}); err != nil {
 		return nil, err

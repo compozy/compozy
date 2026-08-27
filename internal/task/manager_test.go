@@ -428,11 +428,6 @@ type contextSensitiveRunStore struct {
 	*inMemoryManagerStore
 }
 
-type taskMutationDeadlineStore struct {
-	*inMemoryManagerStore
-	deadlines []bool
-}
-
 type adjacentRecoveredEventStore struct {
 	*inMemoryManagerStore
 	adjacent EventRecord
@@ -503,16 +498,6 @@ func (s *contextSensitiveRunStore) UpdateNonTerminalTaskRun(ctx context.Context,
 		return ctx.Err()
 	}
 	return s.inMemoryManagerStore.UpdateNonTerminalTaskRun(ctx, run)
-}
-
-func (s *taskMutationDeadlineStore) WithTaskMutationTransaction(
-	ctx context.Context,
-	action string,
-	mutation RunMutation,
-) error {
-	_, hasDeadline := ctx.Deadline()
-	s.deadlines = append(s.deadlines, hasDeadline)
-	return s.inMemoryManagerStore.WithTaskMutationTransaction(ctx, action, mutation)
 }
 
 func (s *adjacentRecoveredEventStore) ClearTaskNeedsAttention(
@@ -1993,7 +1978,7 @@ func (s *inMemoryManagerStore) DeleteExecutionProfile(_ context.Context, taskID 
 
 func (s *inMemoryManagerStore) CreateTaskDefinition(
 	ctx context.Context,
-	mutation CreateTaskDefinitionMutation,
+	mutation *CreateTaskDefinitionMutation,
 ) error {
 	if mutation.Contract != nil {
 		if err := s.PutContract(ctx, *mutation.Contract); err != nil {
@@ -3048,7 +3033,7 @@ func (s *inMemoryManagerStore) ReserveQueuedRun(
 		Status:             TaskRunStatusQueued,
 		Attempt:            int32(nextAttempt),
 		Origin:             normalizedReservation.Origin,
-		IdempotencyKey:     trimmedKey,
+		RunContractState:   &RunContractState{IdempotencyKey: trimmedKey},
 		DesignationGroupID: requestedDesignationGroupID,
 		RunWorktreeState: &RunWorktreeState{
 			ResolvedWorktreeMode: normalizedReservation.ResolvedWorktreeMode,
@@ -10712,15 +10697,15 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		run := Run{
-			ID:             "run-loop-coordinator-entropy",
-			TaskID:         taskRecord.ID,
-			RunKind:        RunKindCoordinator,
-			LoopRunID:      "loop-run-entropy",
-			Status:         TaskRunStatusQueued,
-			Attempt:        1,
-			IdempotencyKey: "coordinator:entropy",
-			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
-			QueuedAt:       now,
+			ID:               "run-loop-coordinator-entropy",
+			TaskID:           taskRecord.ID,
+			RunKind:          RunKindCoordinator,
+			LoopRunID:        "loop-run-entropy",
+			Status:           TaskRunStatusQueued,
+			Attempt:          1,
+			RunContractState: &RunContractState{IdempotencyKey: "coordinator:entropy"},
+			Origin:           Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			QueuedAt:         now,
 		}
 		if err := store.CreateTaskRun(context.Background(), run); err != nil {
 			t.Fatalf("CreateTaskRun() error = %v", err)
@@ -10912,15 +10897,15 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 	run := Run{
-		ID:             "run-loop-coordinator",
-		TaskID:         taskRecord.ID,
-		RunKind:        RunKindCoordinator,
-		LoopRunID:      "loop-run-1",
-		Status:         TaskRunStatusQueued,
-		Attempt:        1,
-		IdempotencyKey: "coordinator:test",
-		Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
-		QueuedAt:       now,
+		ID:               "run-loop-coordinator",
+		TaskID:           taskRecord.ID,
+		RunKind:          RunKindCoordinator,
+		LoopRunID:        "loop-run-1",
+		Status:           TaskRunStatusQueued,
+		Attempt:          1,
+		RunContractState: &RunContractState{IdempotencyKey: "coordinator:test"},
+		Origin:           Origin{Kind: OriginKindDaemon, Ref: "loop"},
+		QueuedAt:         now,
 	}
 	if err := store.CreateTaskRun(context.Background(), run); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)
@@ -11209,15 +11194,15 @@ func TestManagerStartRunShouldRejectCoordinatorClaimTokenMismatch(t *testing.T) 
 			t.Fatalf("CreateTask() error = %v", err)
 		}
 		run := Run{
-			ID:             "run-loop-coordinator-mismatch",
-			TaskID:         taskRecord.ID,
-			RunKind:        RunKindCoordinator,
-			LoopRunID:      "loop-run-mismatch",
-			Status:         TaskRunStatusQueued,
-			Attempt:        1,
-			IdempotencyKey: "coordinator:mismatch",
-			Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
-			QueuedAt:       now,
+			ID:               "run-loop-coordinator-mismatch",
+			TaskID:           taskRecord.ID,
+			RunKind:          RunKindCoordinator,
+			LoopRunID:        "loop-run-mismatch",
+			Status:           TaskRunStatusQueued,
+			Attempt:          1,
+			RunContractState: &RunContractState{IdempotencyKey: "coordinator:mismatch"},
+			Origin:           Origin{Kind: OriginKindDaemon, Ref: "loop"},
+			QueuedAt:         now,
 		}
 		if err := store.CreateTaskRun(context.Background(), run); err != nil {
 			t.Fatalf("CreateTaskRun() error = %v", err)

@@ -31,17 +31,9 @@ import { Tree, TreeItem, TreeItemLabel } from "@compozy/ui";
 import { AgentCallTreeRootRow } from "./agent-call-tree-root-row";
 import { AgentCallTreeRow } from "./agent-call-tree-row";
 import { useAgentCallTree } from "./use-agent-call-tree";
+import { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "../lib/agent-call-tree-constants";
 import type { CallCommsTree } from "../lib/agent-comms-tree";
 import type { ChildState } from "../types";
-
-/**
- * Rows below this stay fully mounted.
- *
- * Windowing costs a scroll viewport and a measurement pass; an ordinary tree of
- * a few dozen rows is cheaper without it, and reads better inside the page's own
- * scroll.
- */
-export const CALL_TREE_VIRTUALIZATION_THRESHOLD = 60;
 
 /** Fixed comfortable single-line row estimate plus its gap. */
 const ROW_ESTIMATE = 34;

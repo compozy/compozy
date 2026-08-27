@@ -78,7 +78,7 @@ func memoryDreamState(record memory.DreamRunRecord) contract.MemoryDreamState {
 	switch strings.TrimSpace(record.Status) {
 	case statusStateRunning:
 		return contract.MemoryDreamStateRunning
-	case "failed":
+	case queryFilterFailedValue:
 		return contract.MemoryDreamStateFailed
 	case toolInvokeStatusCompleted:
 		if record.PromotedCount > 0 {

@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+//nolint:funlen // This is a one-to-one dependency projection; splitting it would obscure missing wiring.
 func (s *Server) handlerConfig(staticFS fs.FS) *handlerConfig {
 	return &handlerConfig{
 		sessions:            s.sessions,

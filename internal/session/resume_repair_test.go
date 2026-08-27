@@ -281,14 +281,17 @@ func TestValidateInfrastructure(t *testing.T) {
 
 func validResumeMeta(h *harness, sessionID string) store.SessionMeta {
 	return store.SessionMeta{
-		ID:                   sessionID,
-		Name:                 "resume-session",
-		AgentName:            "coder",
-		WorkspaceID:          h.workspaceID,
-		NetworkParticipation: testLocalParticipationPtr(),
-		SessionType:          string(SessionTypeUser),
-		State:                string(StateStopped),
-		RuntimeStatus:        store.SessionRuntimeReady,
+		ID:          sessionID,
+		Name:        "resume-session",
+		AgentName:   "coder",
+		WorkspaceID: h.workspaceID,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			*testLocalParticipationPtr(),
+		),
+		SessionType:   string(SessionTypeUser),
+		State:         string(StateStopped),
+		RuntimeStatus: store.SessionRuntimeReady,
 	}
 }
 

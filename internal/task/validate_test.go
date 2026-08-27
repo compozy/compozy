@@ -221,6 +221,7 @@ func TestValidateImmutableRunFields(t *testing.T) {
 			t.Parallel()
 
 			next := current
+			next.RunContractState = cloneRunContractStateForImmutabilityTest(current.RunContractState)
 			next.RunNetworkState = cloneRunNetworkStateForImmutabilityTest(current.RunNetworkState)
 			tt.mutate(&next)
 			err := ValidateImmutableRunFields(current, next)
@@ -235,6 +236,14 @@ func TestValidateImmutableRunFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+func cloneRunContractStateForImmutabilityTest(state *RunContractState) *RunContractState {
+	if state == nil {
+		return nil
+	}
+	cloned := *state
+	return &cloned
 }
 
 func cloneRunNetworkStateForImmutabilityTest(state *RunNetworkState) *RunNetworkState {
@@ -1014,13 +1023,14 @@ func validTask() Task {
 func validRun() Run {
 	now := time.Date(2026, 4, 14, 12, 30, 0, 0, time.UTC)
 	return Run{
-		ID:       "run-1",
-		TaskID:   "task-1",
-		Status:   TaskRunStatusQueued,
-		Attempt:  1,
-		Origin:   Origin{Kind: OriginKindCLI, Ref: "compozy task run enqueue"},
-		QueuedAt: now,
-		Result:   rawJSONPointer(json.RawMessage(`{"ok":true}`)),
+		ID:               "run-1",
+		TaskID:           "task-1",
+		Status:           TaskRunStatusQueued,
+		Attempt:          1,
+		Origin:           Origin{Kind: OriginKindCLI, Ref: "compozy task run enqueue"},
+		RunContractState: &RunContractState{},
+		QueuedAt:         now,
+		Result:           rawJSONPointer(json.RawMessage(`{"ok":true}`)),
 	}
 }
 

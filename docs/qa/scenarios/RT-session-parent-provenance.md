@@ -6,13 +6,13 @@ persona: Ada
 journey: J-cross-workspace-access
 expected: compozy session new --parent <id> creates a user-type session whose lineage carries parent_session_id, root_session_id inherited from the parent's tree, and a server-computed spawn_depth, with no TTL, auto-stop, budget, or permission narrowing; a cross-workspace or missing parent is rejected with a deterministic error. POST /api/sessions accepts parent_session_id and infers the caller session when validated agent identity headers arrive without an explicit parent. compozy__session_create records the bound caller automatically (same workspace only). session list --parent <id> returns direct children, --root <id> returns the whole tree including the root, and the human table shows a Parent column; the same parent/root filters work on GET /api/sessions (HTTP+UDS) and compozy__session_list. Governed delegation lineage now comes from calls rather than a public spawn verb, and the reaper never touches user-type provenance sessions.
 entry_points: compozy session new --agent reviewer --parent ses_01JBD7ZZAAAA and compozy session list --parent ses_01JBD7ZZAAAA --root ses_01JBD7ZZAAAA; HTTP and UDS POST /api/sessions with {"agent":"reviewer","parent_session_id":"ses_01JBD7ZZAAAA"}; compozy__session_create with {"agent":"reviewer","parent_session_id":"ses_01JBD7ZZAAAA"}; compozy__session_list with {"parent":"ses_01JBD7ZZAAAA","root":"ses_01JBD7ZZAAAA"}; a call-created child in the same lineage filters
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-session-sidebar-parent-20260806-212647-734931-lab/qa-artifacts/qa/journey-log.jsonl
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-session-sidebar-parent-20260806-212647-734931-lab/qa-artifacts/qa/journey-log.jsonl; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: ET-session-command-catalog-parity; RT-session-list-row-actions; RT-session-spawn-removed
 ---
 

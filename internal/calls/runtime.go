@@ -74,11 +74,11 @@ func wideningPermissionAtoms(parent store.SessionPermissionPolicy, child store.S
 		parent []string
 		child  []string
 	}{
-		{"tools", parent.Tools, child.Tools}, {"skills", parent.Skills, child.Skills},
-		{"mcp_servers", parent.MCPServers, child.MCPServers},
-		{"workspace_paths", parent.WorkspacePaths, child.WorkspacePaths},
-		{"network_channels", parent.NetworkChannels, child.NetworkChannels},
-		{"sandbox_profiles", parent.SandboxProfiles, child.SandboxProfiles},
+		{permissionKindTools, parent.Tools, child.Tools}, {permissionKindSkills, parent.Skills, child.Skills},
+		{permissionKindMCPServers, parent.MCPServers, child.MCPServers},
+		{permissionKindWorkspacePaths, parent.WorkspacePaths, child.WorkspacePaths},
+		{permissionKindNetwork, parent.NetworkChannels, child.NetworkChannels},
+		{permissionKindSandbox, parent.SandboxProfiles, child.SandboxProfiles},
 	}
 	widening := make([]string, 0)
 	for _, permissionType := range types {

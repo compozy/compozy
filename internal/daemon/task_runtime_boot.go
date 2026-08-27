@@ -333,9 +333,9 @@ func newTaskRuntimeManager(
 		state.cfg.Autonomy.BlockRecurrenceLimit,
 		state.cfg.Task.Orchestration.MaxActiveRunsPerWorkspace,
 	)
-	options = append(options, taskpkg.WithGovernedRootActiveRunCap(state.cfg.Calls.MaxActivePerRoot))
 	options = append(
 		options,
+		taskpkg.WithGovernedRootActiveRunCap(state.cfg.Calls.MaxActivePerRoot),
 		taskpkg.WithParticipationResolver(resolver),
 		taskpkg.WithExecutionProfileValidationOptions(taskpkg.ExecutionProfileValidationOptions{
 			AllowProviderOverride:       state.cfg.Task.Orchestration.Profile.AllowTaskProviderOverride,

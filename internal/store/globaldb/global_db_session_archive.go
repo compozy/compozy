@@ -23,7 +23,7 @@ func (g *SessionRepo) SessionArchivedAt(
 	if err != nil {
 		return nil, err
 	}
-	return cloneArchiveTime(info.ArchivedAt), nil
+	return cloneArchiveTime(info.ArchivedAtValue()), nil
 }
 
 // SetSessionArchived archives or restores one workspace-owned session.
@@ -49,7 +49,7 @@ func (g *SessionRepo) SetSessionArchived(
 	if archived && strings.TrimSpace(current.State) != globalDBSessionStateStopped {
 		return store.SessionInfo{}, fmt.Errorf("%w: %s", store.ErrSessionArchiveRequiresStopped, sessionID)
 	}
-	if archived == (current.ArchivedAt != nil) {
+	if archived == (current.ArchivedAtValue() != nil) {
 		return current, nil
 	}
 

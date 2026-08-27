@@ -125,18 +125,37 @@ func validateSecretFieldAuthorship(canonical json.RawMessage) error {
 }
 
 func walkSecretFieldAuthorship(root, schema map[string]any, path string, visiting map[string]struct{}) error {
-	if reference, ok := schema["$ref"].(string); ok && strings.HasPrefix(reference, "#/") {
-		if _, cycle := visiting[reference]; !cycle {
-			resolved, found := resolveLocalSchemaRef(root, reference)
-			if found {
-				visiting[reference] = struct{}{}
-				if err := walkSecretFieldAuthorship(root, resolved, path, visiting); err != nil {
-					return err
-				}
-				delete(visiting, reference)
-			}
-		}
+	if err := walkSecretReference(root, schema, path, visiting); err != nil {
+		return err
 	}
+	required := requiredSchemaFields(schema)
+	if err := walkSecretProperties(root, schema, path, visiting, required); err != nil {
+		return err
+	}
+	if err := walkSecretObjectKeywords(root, schema, path, visiting); err != nil {
+		return err
+	}
+	return walkSecretDefinitionKeywords(root, schema, path, visiting)
+}
+
+func walkSecretReference(root, schema map[string]any, path string, visiting map[string]struct{}) error {
+	reference, ok := schema["$ref"].(string)
+	if !ok || !strings.HasPrefix(reference, "#/") {
+		return nil
+	}
+	if _, cycle := visiting[reference]; cycle {
+		return nil
+	}
+	resolved, found := resolveLocalSchemaRef(root, reference)
+	if !found {
+		return nil
+	}
+	visiting[reference] = struct{}{}
+	defer delete(visiting, reference)
+	return walkSecretFieldAuthorship(root, resolved, path, visiting)
+}
+
+func requiredSchemaFields(schema map[string]any) map[string]struct{} {
 	required := make(map[string]struct{})
 	if values, ok := schema[schemaRequired].([]any); ok {
 		for _, value := range values {
@@ -145,6 +164,14 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 			}
 		}
 	}
+	return required
+}
+
+func walkSecretProperties(
+	root, schema map[string]any,
+	path string,
+	visiting, required map[string]struct{},
+) error {
 	if properties, ok := schema[schemaProperties].(map[string]any); ok {
 		for name, child := range properties {
 			if _, isRequired := required[name]; isRequired && deniedSecretKey(name) {
@@ -161,6 +188,10 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 			}
 		}
 	}
+	return nil
+}
+
+func walkSecretObjectKeywords(root, schema map[string]any, path string, visiting map[string]struct{}) error {
 	for _, keyword := range []string{
 		schemaItems,
 		schemaContains,
@@ -187,6 +218,10 @@ func walkSecretFieldAuthorship(root, schema map[string]any, path string, visitin
 			}
 		}
 	}
+	return nil
+}
+
+func walkSecretDefinitionKeywords(root, schema map[string]any, path string, visiting map[string]struct{}) error {
 	for _, keyword := range []string{"$defs", schemaDependentSchemas} {
 		if definitions, ok := schema[keyword].(map[string]any); ok {
 			for name, child := range definitions {

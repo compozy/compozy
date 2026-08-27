@@ -29,7 +29,7 @@ type AutonomyError struct {
 // Error returns the redacted public error string.
 func (e *AutonomyError) Error() string {
 	if e == nil {
-		return "<nil>"
+		return nilStringValue
 	}
 	if e.Err == nil {
 		return fmt.Sprintf("task: autonomy lease rejected: %s", e.Reason)

@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const nilStringValue = "<nil>"
+
 var (
 	// ErrTaskNotFound reports that no persisted task matched the lookup.
 	ErrTaskNotFound = errors.New("task: task not found")
@@ -109,7 +111,7 @@ func NewHallucinatedTaskRefsError(
 
 func (e *HallucinatedTaskRefsError) Error() string {
 	if e == nil {
-		return "<nil>"
+		return nilStringValue
 	}
 	invalid := strings.Join(e.InvalidTaskIDs, ",")
 	if invalid == "" {

@@ -4322,14 +4322,14 @@ func TestDetachedHarnessMatchValidatorsRejectConflicts(t *testing.T) {
 	}
 
 	matchingRun := taskpkg.Run{
-		ID:             "run-validator",
-		TaskID:         req.TaskID,
-		Status:         taskpkg.TaskRunStatusQueued,
-		Attempt:        1,
-		Origin:         actor.Origin,
-		IdempotencyKey: req.SubmissionKey,
-		Metadata:       runMetadataJSON,
-		QueuedAt:       time.Date(2026, 4, 18, 11, 5, 0, 0, time.UTC),
+		ID:               "run-validator",
+		TaskID:           req.TaskID,
+		Status:           taskpkg.TaskRunStatusQueued,
+		Attempt:          1,
+		Origin:           actor.Origin,
+		RunContractState: &taskpkg.RunContractState{IdempotencyKey: req.SubmissionKey},
+		Metadata:         runMetadataJSON,
+		QueuedAt:         time.Date(2026, 4, 18, 11, 5, 0, 0, time.UTC),
 	}
 	if err := validateDetachedHarnessRunMatch(matchingRun, req, actor.Origin, runMetadata); err != nil {
 		t.Fatalf("validateDetachedHarnessRunMatch(match) error = %v", err)

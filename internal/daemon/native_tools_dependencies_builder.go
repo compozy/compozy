@@ -48,24 +48,19 @@ func (d *Daemon) nativeToolsDeps(
 		MemoryProviders:            state.deps.MemoryProviders,
 		MemorySessionLedger:        state.deps.MemorySessionLedger,
 		Bridges:                    state.deps.Bridges,
-		Gateway: func() core.GatewayService {
-			if state.deps.Gateway == nil {
-				return nil
-			}
-			return state.deps.Gateway
-		},
-		GatewayPermissionMode: nativeGatewayPermissionModeSource(state.sessions),
-		HomePaths:             d.homePaths,
-		Observer:              state.observer,
-		HookBindings:          state.hookBindings,
-		AgentCatalog:          agentCatalog,
-		Vault:                 state.providerVault,
-		AgentResolver:         agentCatalog,
-		HeartbeatStatus:       state.deps.HeartbeatStatus,
-		HeartbeatWake:         state.deps.HeartbeatWake,
-		SessionHealth:         state.deps.SessionHealth,
-		WakeEvents:            state.deps.WakeEvents,
-		Automation:            state.deps.Automation,
+		Gateway:                    nativeGatewayDependency(state),
+		GatewayPermissionMode:      nativeGatewayPermissionModeSource(state.sessions),
+		HomePaths:                  d.homePaths,
+		Observer:                   state.observer,
+		HookBindings:               state.hookBindings,
+		AgentCatalog:               agentCatalog,
+		Vault:                      state.providerVault,
+		AgentResolver:              agentCatalog,
+		HeartbeatStatus:            state.deps.HeartbeatStatus,
+		HeartbeatWake:              state.deps.HeartbeatWake,
+		SessionHealth:              state.deps.SessionHealth,
+		WakeEvents:                 state.deps.WakeEvents,
+		Automation:                 state.deps.Automation,
 		AutomationRuntime: func() core.AutomationManager {
 			return state.deps.Automation
 		},
@@ -92,6 +87,15 @@ func (d *Daemon) populateNativeExtensionDeps(deps *daemonNativeToolsDeps, state 
 	deps.Loops = func() core.LoopService { return state.deps.Loops }
 	deps.Resources = state.deps.Resources
 	deps.WindowManagers = state.windowManagers
+}
+
+func nativeGatewayDependency(state *bootState) func() core.GatewayService {
+	return func() core.GatewayService {
+		if state.deps.Gateway == nil {
+			return nil
+		}
+		return state.deps.Gateway
+	}
 }
 
 func nativeAgentCatalogDependency(state *bootState) *resourceAgentCatalog {

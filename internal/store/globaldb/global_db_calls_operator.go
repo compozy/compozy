@@ -43,7 +43,7 @@ func (g *CallRepo) ReopenOperatorCaller(
 		if !drainingAt.Valid {
 			return nil
 		}
-		if state != "stopped" {
+		if state != globalDBSessionStateStopped {
 			return fmt.Errorf("store: operator caller %q must be stopped before reopen", sessionID)
 		}
 		if openCalls != 0 {
@@ -84,7 +84,7 @@ func (g *CallRepo) ResolveOperatorCaller(
 			candidate.Scope == callspkg.ScopeWorkspace && workspaceID != candidate.WorkspaceID {
 			return fmt.Errorf("store: operator caller candidate owner does not match requested scope")
 		}
-		if state == "stopped" {
+		if state == globalDBSessionStateStopped {
 			return fmt.Errorf("store: operator caller candidate must be live")
 		}
 		result, err := exec.ExecContext(ctx, `INSERT INTO operator_caller_sessions

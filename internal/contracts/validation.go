@@ -14,7 +14,8 @@ import (
 
 const maxVerdictIssues = 25
 
-// ValidateSchemaDefinition validates one authored JSON Schema object without treating it as a result contract shorthand.
+// ValidateSchemaDefinition validates one authored JSON Schema object without treating it as a result contract
+// shorthand.
 func ValidateSchemaDefinition(schema json.RawMessage) error {
 	trimmed := bytes.TrimSpace(schema)
 	if len(trimmed) == 0 {

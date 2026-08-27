@@ -105,7 +105,8 @@ func (c *sessionSQLiteConnector) verifyOpenedConnection(
 	if err != nil {
 		return nil, err
 	}
-	if connectionDatabaseID != databaseID {
+	identityEstablishedByMigration := !c.readOnly && databaseID == "" && connectionDatabaseID != ""
+	if connectionDatabaseID != databaseID && !identityEstablishedByMigration {
 		return nil, fmt.Errorf("%w: physical database identity changed", ErrSessionDBFamilyChanged)
 	}
 	if err := pinned.RequireFamilyUnchanged(familyStamp); err != nil {

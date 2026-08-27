@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -45,10 +46,8 @@ func (m *Manager) acceptSessionStart(
 			return nil, err
 		}
 	}
-	if spec.creationIdentityPinned {
-		if err := prepareStartCreationIdentityIfEnabled(spec, runtime.agent); err != nil {
-			return nil, fmt.Errorf("session: prepare creation identity for %q: %w", spec.sessionID, err)
-		}
+	if err := preparePinnedStartCreationIdentity(spec, runtime.agent); err != nil {
+		return nil, err
 	}
 	releaseLifecycle, err := m.reserveStartLifecycle(
 		acceptCtx,
@@ -103,4 +102,14 @@ func (m *Manager) acceptSessionStart(
 	return &acceptedSessionStart{
 		spec: spec, runtime: runtime, session: session, storage: storage, run: run,
 	}, nil
+}
+
+func preparePinnedStartCreationIdentity(spec *sessionStartSpec, agent compozyconfig.ResolvedAgent) error {
+	if !spec.creationIdentityPinned {
+		return nil
+	}
+	if err := prepareStartCreationIdentityIfEnabled(spec, agent); err != nil {
+		return fmt.Errorf("session: prepare creation identity for %q: %w", spec.sessionID, err)
+	}
+	return nil
 }

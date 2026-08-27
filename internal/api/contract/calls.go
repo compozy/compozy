@@ -41,7 +41,7 @@ type CreateCallItemRequest struct {
 	ResultOverflow  string                         `json:"result_overflow,omitempty"`
 	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
 	Runtime         *CallRuntimeRequest            `json:"runtime,omitempty"`
-	Narrow          CallPermissionNarrowingRequest `json:"narrow,omitempty"`
+	Narrow          CallPermissionNarrowingRequest `json:"narrow,omitzero"`
 }
 
 // CreateCallRequest accepts either one item inline or a bounded batch.

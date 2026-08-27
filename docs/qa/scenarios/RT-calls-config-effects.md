@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-contain-and-audit-delegation
 expected: Config get/set exposes every calls key and new calls honor depth, batch, child, idle, result budget, message, and overflow limits without changing in-flight snapshots.
 entry_points: compozy config get calls.max_depth and compozy config set calls.max_depth 2, repeated for calls.max_batch, calls.max_children, calls.max_active_per_root, calls.idle_ttl, calls.results.default_budget, calls.results.max_budget, calls.results.overflow, calls.messages.rate_limit_per_minute, calls.messages.dedup_window, calls.messages.pending_cap, and calls.messages.max_bytes; the [calls], [calls.results], and [calls.messages] sections of config.toml; compozy__config_get and compozy__config_set with {"key":"calls.max_depth"} and {"key":"calls.max_depth","value":2}
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-delegation-depth-and-caps; RT-message-limits-typed-rejections; TA-task-result-contract
 ---
 

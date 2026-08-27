@@ -6,12 +6,12 @@ persona: Ada
 journey: J-15
 expected: compozy session wait returns immediately for an already-satisfied state, reports the first requested transition across --until, distinguishes timeout and gone outcomes by exit code, and --unbounded resumes bounded server registrations without losing an intervening edge.
 entry_points: compozy session wait --until/--timeout/--unbounded; POST /api/workspaces/{workspace_id}/sessions/{session_id}/wait over HTTP and UDS; compozy__session_wait
-qa_status: fail
+qa_status: pass
 bug_ids: BUG-20260826-bounded-wait-client-timeout
 fix_status: fixed
-retest_status: pending
-fix_commits: cf46ed340
-evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/bounded-wait-client-timeout-reproduction.md; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md
+retest_status: pass
+fix_commits: 73e48d5ff
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/bounded-wait-client-timeout-reproduction.md; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/qa-remediation-public-retest.md; /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-session-attention-catalog
 ---

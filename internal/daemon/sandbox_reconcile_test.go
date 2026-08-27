@@ -571,16 +571,19 @@ func writeSandboxReconcileMeta(t *testing.T, daemon *Daemon, spec sandboxReconci
 		networkSpec = participation.LocalSpec()
 	}
 	meta := store.SessionMeta{
-		ID:                   spec.id,
-		AgentName:            spec.agent,
-		WorkspaceID:          spec.worker,
-		NetworkParticipation: participation.CloneSpec(networkSpec),
-		SessionType:          string(session.SessionTypeUser),
-		State:                string(spec.state),
-		RuntimeStatus:        store.SessionRuntimeUnbound,
-		Sandbox:              spec.env,
-		CreatedAt:            time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
-		UpdatedAt:            time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
+		ID:          spec.id,
+		AgentName:   spec.agent,
+		WorkspaceID: spec.worker,
+		SessionMetaPlacementState: store.NewSessionMetaPlacement(
+			store.SessionScopeWorkspace,
+			networkSpec,
+		),
+		SessionType:   string(session.SessionTypeUser),
+		State:         string(spec.state),
+		RuntimeStatus: store.SessionRuntimeUnbound,
+		Sandbox:       spec.env,
+		CreatedAt:     time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
+		UpdatedAt:     time.Date(2026, 4, 16, 10, 0, 0, 0, time.UTC),
 	}
 	path := store.SessionMetaFile(filepath.Join(daemon.homePaths.SessionsDir, spec.id))
 	if err := store.WriteSessionMeta(path, meta); err != nil {

@@ -34,11 +34,11 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CallRecord, er
 	if result.Replayed {
 		return result.Record, nil
 	}
-	s.emitHook(ctx, HookCallCreated, hookPayloadForCall(result.Record))
+	s.emitHook(ctx, HookCallCreated, hookPayloadForCall(&result.Record))
 	if result.Record.ActivationRunID == "" {
 		return result.Record, nil
 	}
-	activated, err := s.activateFastPath(ctx, result.Record, prepared)
+	activated, err := s.activateFastPath(ctx, &result.Record, prepared)
 	if err != nil {
 		return CallRecord{}, err
 	}
@@ -271,7 +271,7 @@ func (s *Service) prepareAdmission(in CreateInput, target TargetContext) (Admiss
 	if in.Deadline != nil {
 		record.DeadlineAt = *in.Deadline
 	}
-	activation, followUp, err := s.activationFor(record, target)
+	activation, followUp, err := s.activationFor(&record, target)
 	if err != nil {
 		return Admission{}, err
 	}
@@ -282,18 +282,18 @@ func (s *Service) prepareAdmission(in CreateInput, target TargetContext) (Admiss
 		record.StartedAt = now
 		followUp.Body = in.Prompt
 	}
-	record.RequestDigest, err = requestDigest(record, in.Prompt, in.Narrow)
+	record.RequestDigest, err = requestDigest(&record, in.Prompt, in.Narrow)
 	if err != nil {
 		return Admission{}, err
 	}
 	return Admission{
-		Record: record, Contract: contract, Prompt: []byte(in.Prompt), MaxChildren: s.config.MaxChildren,
+		Record: &record, Contract: contract, Prompt: []byte(in.Prompt), MaxChildren: s.config.MaxChildren,
 		Permissions: EncodePermissionAtoms(in.Narrow), Narrow: in.Narrow,
 		Activation: activation, FollowUp: followUp,
 	}, nil
 }
 
-func requestDigest(record CallRecord, prompt string, narrow PermissionAtoms) (string, error) {
+func requestDigest(record *CallRecord, prompt string, narrow PermissionAtoms) (string, error) {
 	identity := struct {
 		ProfileID, Scope, WorkspaceID, CallerKind, CallerID string
 		TargetAgent, TargetSession, Prompt, ExpectDigest    string
@@ -329,11 +329,11 @@ func EncodePermissionAtoms(atoms PermissionAtoms) []string {
 		name   string
 		values []string
 	}{
-		{name: "tools", values: atoms.Tools}, {name: "skills", values: atoms.Skills},
-		{name: "mcp_servers", values: atoms.MCPServers},
-		{name: "workspace_paths", values: atoms.WorkspacePaths},
-		{name: "network_channels", values: atoms.NetworkChannels},
-		{name: "sandbox_profiles", values: atoms.SandboxProfiles},
+		{name: permissionKindTools, values: atoms.Tools}, {name: permissionKindSkills, values: atoms.Skills},
+		{name: permissionKindMCPServers, values: atoms.MCPServers},
+		{name: permissionKindWorkspacePaths, values: atoms.WorkspacePaths},
+		{name: permissionKindNetwork, values: atoms.NetworkChannels},
+		{name: permissionKindSandbox, values: atoms.SandboxProfiles},
 	}
 	result := make([]string, 0)
 	for _, group := range groups {
@@ -357,17 +357,17 @@ func DecodePermissionAtoms(encoded []string) (PermissionAtoms, error) {
 			return PermissionAtoms{}, fmt.Errorf("invalid call permission atom %q", atom)
 		}
 		switch kind {
-		case "tools":
+		case permissionKindTools:
 			result.Tools = append(result.Tools, value)
-		case "skills":
+		case permissionKindSkills:
 			result.Skills = append(result.Skills, value)
-		case "mcp_servers":
+		case permissionKindMCPServers:
 			result.MCPServers = append(result.MCPServers, value)
-		case "workspace_paths":
+		case permissionKindWorkspacePaths:
 			result.WorkspacePaths = append(result.WorkspacePaths, value)
-		case "network_channels":
+		case permissionKindNetwork:
 			result.NetworkChannels = append(result.NetworkChannels, value)
-		case "sandbox_profiles":
+		case permissionKindSandbox:
 			result.SandboxProfiles = append(result.SandboxProfiles, value)
 		default:
 			return PermissionAtoms{}, fmt.Errorf("unknown call permission kind %q", kind)
@@ -376,7 +376,7 @@ func DecodePermissionAtoms(encoded []string) (PermissionAtoms, error) {
 	return result, nil
 }
 
-func (s *Service) activationFor(record CallRecord, target TargetContext) (*ActivationSpec, *Delivery, error) {
+func (s *Service) activationFor(record *CallRecord, target TargetContext) (*ActivationSpec, *Delivery, error) {
 	if record.AgentName == "" && TargetState(strings.TrimSpace(string(target.State))) == TargetStateActive {
 		return nil, &Delivery{
 			CallID:             record.CallID,
@@ -402,11 +402,11 @@ func (s *Service) activationFor(record CallRecord, target TargetContext) (*Activ
 
 func (s *Service) activateFastPath(
 	ctx context.Context,
-	record CallRecord,
+	record *CallRecord,
 	admission Admission,
 ) (CallRecord, error) {
 	if s.claimer == nil || s.invoker == nil || admission.Activation == nil {
-		return record, nil
+		return *record, nil
 	}
 	actor := activationDaemonActor(record.WorkspaceID)
 	claim, err := s.claimer.ClaimNextRun(ctx, task.ClaimCriteria{
@@ -415,7 +415,7 @@ func (s *Service) activateFastPath(
 	}, actor)
 	if err != nil {
 		if errors.Is(err, task.ErrNoClaimableRun) {
-			return record, nil
+			return *record, nil
 		}
 		return CallRecord{}, fmt.Errorf("calls: claim activation %q: %w", record.ActivationRunID, err)
 	}

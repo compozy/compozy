@@ -126,7 +126,7 @@ type ReapedSession struct {
 
 // Admission contains the atomic durable state for one accepted call.
 type Admission struct {
-	Record      CallRecord
+	Record      *CallRecord
 	Contract    *contracts.Contract
 	Prompt      []byte
 	MaxChildren int

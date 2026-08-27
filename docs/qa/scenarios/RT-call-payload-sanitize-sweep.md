@@ -6,13 +6,13 @@ persona: Dora
 journey: J-contain-and-audit-delegation
 expected: A planted claim-token-shaped value survives nowhere — not in the stored payload, projection, daemon log, SSE, canonical event, hook payload or repair prompt — while correlation ids and hashes stay intact and validator errors read verbatim from the sanitized output.
 entry_points: compozy call reviewer "Inspect token ghp_fixture_secret"; compozy__call_return with {"result":{"token":"ghp_fixture_secret"}}; compozy message send ses_01JBD8G2MZTX "token ghp_fixture_secret"; compozy call show call_01JBD8G2K7Q9 and compozy call result call_01JBD8G2K7Q9; compozy logs; HTTP and UDS GET /api/logs; extension hook payloads; the repair prompt shown to the child
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-secret-redaction-boundary; RT-compozy-claim-token-redaction; ET-call-hooks-host-api-reads
 ---
 

@@ -170,7 +170,7 @@ func (g *TaskRepo) createQueuedRunWithExecutor(
 		Status:             taskpkg.TaskRunStatusQueued,
 		Attempt:            runAttempt,
 		Origin:             input.origin,
-		IdempotencyKey:     input.idempotencyKey,
+		RunContractState:   &taskpkg.RunContractState{IdempotencyKey: input.idempotencyKey},
 		DesignationGroupID: input.designationGroupID,
 		RunWorktreeState: &taskpkg.RunWorktreeState{
 			WorktreeID:           input.worktreeID,
@@ -224,12 +224,13 @@ func (g *TaskRepo) saveQueuedRunIdempotencyWithExecutor(
 	exec taskSQLExecutor,
 	run taskpkg.Run,
 ) error {
-	if strings.TrimSpace(run.IdempotencyKey) == "" {
+	idempotencyKey := run.IdempotencyKeyValue()
+	if strings.TrimSpace(idempotencyKey) == "" {
 		return nil
 	}
 
 	idempotency := taskpkg.RunIdempotency{
-		IdempotencyKey: run.IdempotencyKey,
+		IdempotencyKey: idempotencyKey,
 		RunID:          run.ID,
 		Origin:         run.Origin,
 		CreatedAt:      run.QueuedAt,

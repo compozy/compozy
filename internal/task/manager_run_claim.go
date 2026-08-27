@@ -209,7 +209,7 @@ func (m *Service) finishEnqueuedRunWithStore(
 		Attempt:        int(run.Attempt),
 		Status:         run.Status,
 		TaskStatus:     reconciledTask.Status,
-		IdempotencyKey: run.IdempotencyKey,
+		IdempotencyKey: run.IdempotencyKeyValue(),
 	})
 	if err != nil {
 		return enqueueRunCommandResult{}, err

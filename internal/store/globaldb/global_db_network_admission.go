@@ -344,10 +344,12 @@ func (g *NetworkRepo) insertNetworkWakeRun(
 	run := taskpkg.Run{
 		ID: input.TaskRunID, RunKind: taskpkg.RunKindNetworkWake,
 		Status: taskpkg.TaskRunStatusQueued, Attempt: 1,
-		WorkspaceID:    strings.TrimSpace(message.WorkspaceID),
-		Origin:         taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept:" + message.MessageID},
-		IdempotencyKey: fmt.Sprintf("network:%s:%s:%d", input.OwnerKey, message.MessageID, acceptanceSeq),
-		QueuedAt:       now,
+		WorkspaceID: strings.TrimSpace(message.WorkspaceID),
+		Origin:      taskpkg.Origin{Kind: taskpkg.OriginKindNetwork, Ref: "network.accept:" + message.MessageID},
+		RunContractState: &taskpkg.RunContractState{
+			IdempotencyKey: fmt.Sprintf("network:%s:%s:%d", input.OwnerKey, message.MessageID, acceptanceSeq),
+		},
+		QueuedAt: now,
 	}
 	run.SetNetworkState(input.Spec, input.WakeID, input.RecipientSessionID, input.OwnerKey)
 	normalized, err := g.tasks.normalizeTaskRunForCreate(run)

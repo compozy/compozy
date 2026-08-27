@@ -13,7 +13,7 @@ func sessionPromptCancelBundle(result SessionPromptCancelRecord) outputBundle {
 			if result.TurnID != "" {
 				values = append([]keyValue{{Label: "Canceled", Value: "turn " + result.TurnID}}, values...)
 			} else {
-				values = append([]keyValue{{Label: "Outcome", Value: "nothing in flight"}}, values...)
+				values = append([]keyValue{{Label: taskOutcomeValue, Value: "nothing in flight"}}, values...)
 			}
 			return renderHumanSection("Prompt Cancel", values), nil
 		},

@@ -11,17 +11,14 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sessionStartSpec, error) {
-	opts, err := m.dispatchSessionPreCreate(ctx, opts)
+	opts, sessionType, err := m.prepareCreateOptions(ctx, opts)
 	if err != nil {
-		return sessionStartSpec{}, err
-	}
-	sessionType := normalizeSessionType(opts.Type)
-	if err := validateCoordinatorExecutionTarget(opts, sessionType); err != nil {
 		return sessionStartSpec{}, err
 	}
 
@@ -97,6 +94,26 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		startAction:              sessionStartActionCreate,
 		cleanupSessionDir:        true,
 	}, nil
+}
+
+func (m *Manager) prepareCreateOptions(ctx context.Context, opts CreateOpts) (CreateOpts, Type, error) {
+	prepared, err := m.dispatchSessionPreCreate(ctx, opts)
+	if err != nil {
+		return CreateOpts{}, "", err
+	}
+	sessionType := normalizeSessionType(prepared.Type)
+	if err := validateCoordinatorExecutionTarget(prepared, sessionType); err != nil {
+		return CreateOpts{}, "", err
+	}
+	return prepared, sessionType, nil
+}
+
+func normalizeCreateSpeed(raw speedpkg.Speed) (speed speedpkg.Speed, err error) {
+	speed, err = normalizeRequestedSpeed(raw)
+	if err != nil {
+		return speed, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+	}
+	return speed, nil
 }
 
 func createSessionScope(global bool) store.SessionScope {

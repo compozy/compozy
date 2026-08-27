@@ -332,7 +332,8 @@ func TestCallsHandlers(t *testing.T) {
 		cancelCalls := 0
 		service := callsServiceStub{
 			list: func(_ context.Context, query callspkg.CallListQuery) (callspkg.CallPage, error) {
-				if query.Cursor != "after-0" || query.Limit != 7 || query.ReadScope.ProfileID != store.DefaultProfileID ||
+				if query.Cursor != "after-0" || query.Limit != 7 ||
+					query.ReadScope.ProfileID != store.DefaultProfileID ||
 					!query.Attention || query.ChildSessionID != "child-1" ||
 					query.RootSessionID != "root-1" ||
 					query.Agent != "reviewer" {

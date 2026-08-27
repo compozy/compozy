@@ -56,11 +56,11 @@ func (g *CallRepo) AcceptMessage(
 			return fmt.Errorf("store: insert call message %q: %w", admission.Record.MessageID, err)
 		}
 		state, reason := "pending", ""
-		if target.state == "stopped" && !target.parkedAt.Valid {
+		if target.state == globalDBSessionStateStopped && !target.parkedAt.Valid {
 			state, reason = "failed", "target_stopped"
 		}
 		ownerKey := "session:" + target.id
-		if admission.Record.From.Kind == "session" {
+		if admission.Record.From.Kind == callActorKindSession {
 			ownerKey = "session:" + from.id
 		}
 		_, err = exec.ExecContext(ctx, `INSERT INTO call_deliveries (
@@ -99,7 +99,7 @@ func resolveMessageEdge(
 ) (messageSession, messageSession, error) {
 	record := admission.Record
 	var from messageSession
-	if record.From.Kind == "session" {
+	if record.From.Kind == callActorKindSession {
 		loaded, err := loadMessageSession(ctx, exec, record.From.ID)
 		if err != nil {
 			return messageSession{}, messageSession{}, messageTargetError(err, "sender")
@@ -118,7 +118,7 @@ func resolveMessageEdge(
 	}
 	targetID := strings.TrimSpace(admission.Target)
 	if targetID == "parent" {
-		if record.From.Kind != "session" || from.parentID == "" {
+		if record.From.Kind != callActorKindSession || from.parentID == "" {
 			return messageSession{}, messageSession{}, &callspkg.Error{
 				Code: callspkg.CodeMessageTargetDenied, Message: "sender has no parent target",
 			}

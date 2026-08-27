@@ -6,13 +6,13 @@ persona: Ada
 journey: J-contract-a-task-result
 expected: A task result larger than 64 KiB and no larger than the configured 256 KiB default budget completes successfully, retains the exact result bytes, and remains readable after daemon restart.
 entry_points: compozy config get calls.results.default_budget, compozy config get calls.results.max_budget, and compozy config get calls.results.overflow; HTTP and UDS POST /api/tasks then POST /api/tasks/{id}/runs and POST /api/agent/tasks/{run_id}/complete; HTTP and UDS GET /api/task-runs/{run_id}; daemon restart
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: TA-task-result-contract; LP-loop-contract-regime-adoption
 ---
 

@@ -12,12 +12,12 @@ func callCreateBundle(record contract.CallCreatePayload) outputBundle {
 	return recordBundle(record, "Call", []keyValue{
 		{Label: "Call", Value: stringOrDash(record.CallID)},
 		{Label: "Child", Value: stringOrDash(record.ChildSessionID)},
-		{Label: "State", Value: stringOrDash(record.State)},
+		{Label: authoredContextStateValue, Value: stringOrDash(record.State)},
 		{Label: "Replayed", Value: fmt.Sprintf("%t", record.Replayed)},
 	})
 }
 
-func callDetailBundle(record contract.CallPayload) outputBundle {
+func callDetailBundle(record *contract.CallPayload) outputBundle {
 	return recordBundle(record, "Call", callDetailRows(record))
 }
 
@@ -26,7 +26,7 @@ func callListBundle(response contract.CallsResponse) outputBundle {
 		response,
 		response.Items,
 		"Calls",
-		[]string{"CALL", "AGENT", "CHILD", "STATE", "RESULT"},
+		[]string{"CALL", cliAgentHeader, "CHILD", "STATE", "RESULT"},
 		"calls",
 		[]string{"call_id", "agent", "child_session_id", "state", "verdict"},
 		func(item contract.CallPayload) []string {
@@ -58,7 +58,7 @@ func callResultBundle(result contract.CallResultResponse) outputBundle {
 
 func callAwaitBundle(response contract.AwaitCallsResponse) outputBundle {
 	rows := []keyValue{
-		{Label: "Outcome", Value: stringOrDash(response.Outcome)},
+		{Label: taskOutcomeValue, Value: stringOrDash(response.Outcome)},
 		{Label: "Pending", Value: fmt.Sprintf("%d", len(response.Pending))},
 		{Label: "Settled", Value: fmt.Sprintf("%d", len(response.Settled))},
 		{Label: "Resume", Value: stringOrDash(response.Resume)},
@@ -114,13 +114,13 @@ func recordBundle(value any, title string, rows []keyValue) outputBundle {
 	}
 }
 
-func callDetailRows(record contract.CallPayload) []keyValue {
+func callDetailRows(record *contract.CallPayload) []keyValue {
 	rows := []keyValue{
 		{Label: "Call", Value: stringOrDash(record.CallID)},
 		{Label: "Agent", Value: stringOrDash(record.Agent)},
 		{Label: "Caller", Value: stringOrDash(record.Caller.ID)},
 		{Label: "Child", Value: stringOrDash(record.ChildSessionID)},
-		{Label: "State", Value: stringOrDash(record.State)},
+		{Label: authoredContextStateValue, Value: stringOrDash(record.State)},
 		{Label: "Verdict", Value: stringOrDash(record.Verdict)},
 		{Label: "Contract", Value: stringOrDash(record.ExpectDigest)},
 		{Label: "Result", Value: fmt.Sprintf("%d B", record.ResultBytes)},

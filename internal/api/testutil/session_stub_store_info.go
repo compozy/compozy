@@ -35,10 +35,16 @@ func storeSessionInfoFromRuntime(info *session.Info) store.SessionInfo {
 		SoulDigest:       info.SoulDigest,
 		ParentSoulDigest: info.ParentSoulDigest,
 		AttachedTo:       info.AttachedTo,
-		AttachExpiresAt:  info.AttachExpiresAt,
-		TranscriptEpoch:  info.TranscriptEpoch,
-		CreatedAt:        info.CreatedAt,
-		UpdatedAt:        info.UpdatedAt,
+		Lifecycle: &store.SessionLifecycleTimes{
+			AttachExpiresAt: info.AttachExpiresAt,
+			ArchivedAt:      info.ArchivedAt,
+			ParkedAt:        info.ParkedAt,
+			IdleExpiresAt:   info.IdleExpiresAt,
+			DrainingAt:      info.DrainingAt,
+		},
+		TranscriptEpoch: info.TranscriptEpoch,
+		CreatedAt:       info.CreatedAt,
+		UpdatedAt:       info.UpdatedAt,
 	}
 	if info.ACPSessionID != "" {
 		acpSessionID := info.ACPSessionID

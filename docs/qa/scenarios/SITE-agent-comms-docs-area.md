@@ -6,13 +6,13 @@ persona: Lea
 journey: J-build-a-subagent-roster
 expected: The agent-comms docs area and the official skill describe calls, mailbox, subagents and budgets exactly as the runtime behaves, its tutorials run end to end against a live daemon, and no spawn vocabulary survives anywhere in docs, CLI reference or API reference.
 entry_points: /docs/agent-comms; /docs/agent-comms/calls; /docs/agent-comms/mailbox; /docs/agent-comms/subagents; /docs/agent-comms/budgets-and-safety; /docs/configuration/config-toml; /docs/sessions/orchestration; the generated CLI reference for call and message; the generated API reference for calls and messages; skills/compozy/SKILL.md and references/agent-comms.md
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-subagent-roster-injection; RT-session-spawn-removed; RT-calls-config-effects
 ---
 

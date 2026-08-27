@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-complete-partial-loop
 expected: A run-agent node's output_schema is still validated both when the result is produced and when it settles, an invalid payload still cannot settle as succeeded, the validator text matches what a call contract produces for the same payload, and no Loop node creates a call record.
 entry_points: Loop DSL run-agent output_schema; compozy loop run --name contract-canary and compozy loop status run_01JBD9AAAA; compozy loop nodes --run run_01JBD9AAAA; web /loop-runs/run_01JBD9AAAA; compozy call list --caller ses_loop_root --limit 25 (expected empty); compozy config get calls.results.default_budget
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
+last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-call-return-contract-repair; TA-task-result-contract
 ---
 

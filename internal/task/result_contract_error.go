@@ -14,7 +14,7 @@ type ResultContractValidationError struct {
 
 func (e *ResultContractValidationError) Error() string {
 	if e == nil {
-		return "<nil>"
+		return nilStringValue
 	}
 	return "task result does not satisfy its contract: " + contracts.BuildRepairPrompt(e.Issues)
 }

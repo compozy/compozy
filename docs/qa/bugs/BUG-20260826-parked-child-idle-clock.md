@@ -1,7 +1,7 @@
 # BUG-20260826-parked-child-idle-clock: Parked child idle clocks disappeared after settlement
 
-- **Status:** fixed and publicly verified
-- **Impact (user-side):** Breaks-Flow
+- **Status:** verified
+- **Impact (user-side):** Blocks-Completion
 - **Severity:** High · **Priority:** P1
 - **Persona Affected:** Bruno
 - **Journey Step:** J-message-a-running-agent — park, inspect, and expire a completed call child
@@ -36,7 +36,7 @@ the requested TTL.
 - **Regression:** The canonical call settlement suite proves the idle clock survives cancellation
   of the return request. The canonical session query suite proves stopped children project the
   durable parking lifecycle.
-- **Fix commits:** `ed9c5ac`; `8181f49`.
+- **Fix commits:** `22e982fc6`; `76dcc3d5a`.
 
 ## Verification
 

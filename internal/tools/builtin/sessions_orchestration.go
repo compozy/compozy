@@ -108,7 +108,13 @@ const sessionWaitOutputSchema = `{
 const sessionStopOutputSchema = `{
 	"type":"object",
 	"required":["session_id","state"],
-	"properties":{"session_id":{"type":"string"},"state":{"const":"stopped"},"outcome":{"const":"already-stopped"},"stopped_children":{"type":"integer","minimum":0},"closed_calls":{"type":"integer","minimum":0},"preserved_results":{"type":"integer","minimum":0}},
+	"properties":{
+		"session_id":{"type":"string"},"state":{"const":"stopped"},
+		"outcome":{"const":"already-stopped"},
+		"stopped_children":{"type":"integer","minimum":0},
+		"closed_calls":{"type":"integer","minimum":0},
+		"preserved_results":{"type":"integer","minimum":0}
+	},
 	"additionalProperties":false
 }`
 

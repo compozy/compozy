@@ -61,14 +61,20 @@ func (m PromptSyntheticMeta) Normalize() PromptSyntheticMeta {
 // IsZero reports whether the synthetic metadata carries any fields.
 func (m PromptSyntheticMeta) IsZero() bool {
 	normalized := m.Normalize()
-	return normalized.TaskID == "" && normalized.TaskRunID == "" && normalized.WorkflowID == "" &&
-		normalized.ClaimTokenHash == "" && normalized.CoordinatorSessionID == "" &&
-		normalized.ChildSessionID == "" && normalized.ChildAgentName == "" && normalized.Badge == "" &&
-		normalized.CallID == "" && normalized.CallState == "" && normalized.ResultRef == "" &&
-		normalized.ResultBytes == 0 && normalized.ContractDigest == "" && normalized.MessageID == "" &&
-		normalized.DeliveryKind == "" && normalized.Reason == "" &&
-		normalized.Summary == "" && normalized.WakeEventID == "" && normalized.PolicySnapshotID == "" &&
-		normalized.PolicyDigest == "" && normalized.ConfigDigest == "" && normalized.Goal == nil
+	return normalized.identityFieldsZero() && normalized.deliveryFieldsZero() && normalized.Goal == nil
+}
+
+func (m PromptSyntheticMeta) identityFieldsZero() bool {
+	return m.TaskID == "" && m.TaskRunID == "" && m.WorkflowID == "" &&
+		m.ClaimTokenHash == "" && m.CoordinatorSessionID == "" &&
+		m.ChildSessionID == "" && m.ChildAgentName == "" && m.Badge == "" &&
+		m.PolicySnapshotID == "" && m.PolicyDigest == "" && m.ConfigDigest == ""
+}
+
+func (m PromptSyntheticMeta) deliveryFieldsZero() bool {
+	return m.CallID == "" && m.CallState == "" && m.ResultRef == "" &&
+		m.ResultBytes == 0 && m.ContractDigest == "" && m.MessageID == "" &&
+		m.DeliveryKind == "" && m.Reason == "" && m.Summary == "" && m.WakeEventID == ""
 }
 
 // Validate ensures the synthetic metadata carries the minimum wake-up identity.
