@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -20,6 +21,18 @@ import (
 
 	"golang.org/x/sys/windows"
 )
+
+const windowsSleepTestRunArg = "-test.run=^TestWindowsPTYSleepHelper$"
+
+func TestWindowsPTYSleepHelper(t *testing.T) {
+	t.Run("Should remain silent while the terminal process is alive", func(t *testing.T) {
+		t.Parallel()
+		if len(os.Args) != 2 || os.Args[1] != windowsSleepTestRunArg {
+			return
+		}
+		time.Sleep(5 * time.Minute)
+	})
+}
 
 func TestWindowsPTYHardening(t *testing.T) { // IT-038
 	t.Run("Should unblock a parked read within 200ms while the child is alive", func(t *testing.T) {
@@ -193,14 +206,7 @@ func assertWindowsSignaledExit(t *testing.T, proc Proc, want Signal) {
 }
 
 func windowsSleepCommand() []string {
-	return []string{
-		"powershell.exe",
-		"-NoLogo",
-		"-NoProfile",
-		"-NonInteractive",
-		"-Command",
-		"Start-Sleep -Seconds 300",
-	}
+	return []string{os.Args[0], windowsSleepTestRunArg}
 }
 
 func windowsGrandchildCommand() []string {
