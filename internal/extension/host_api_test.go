@@ -7578,6 +7578,27 @@ func (r *hostAPIFakeWorkspaceResolver) ResolveOrRegister(
 	return r.Resolve(ctx, path)
 }
 
+func (r *hostAPIFakeWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	idOrPath string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.Resolve(ctx, idOrPath)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(profileName)
+	return resolved, nil
+}
+
+func (r *hostAPIFakeWorkspaceResolver) ResolveOrRegisterForProfile(
+	ctx context.Context,
+	path string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return r.ResolveForProfile(ctx, path, profileName)
+}
+
 func (r *hostAPIFakeWorkspaceResolver) upsert(workspace *workspacepkg.ResolvedWorkspace) {
 	if workspace == nil {
 		return

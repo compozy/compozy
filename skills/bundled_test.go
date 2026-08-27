@@ -24,6 +24,7 @@ var expectedCompozyReferences = []string{
 	"references/profiles.md",
 	"references/runtime-operations.md",
 	"references/tasks-and-orchestration.md",
+	"references/terminal.md",
 	"references/tools-and-skills.md",
 	"references/window-management.md",
 	"references/worktrees.md",

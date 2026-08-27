@@ -1063,7 +1063,7 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   });
   const product = await desktop.product();
   await completeOnboarding(product);
-  await firstWorkspaceID(desktop);
+  await ensureProjectWorkspaceID(desktop, product);
 
   await product.locator('[data-slot="os-dock-item"][data-app="terminal"]').click();
   const terminalWindow = product.getByTestId("terminal-window");

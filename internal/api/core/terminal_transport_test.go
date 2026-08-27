@@ -175,7 +175,12 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 		httpHandlers := NewBaseHandlers(&BaseHandlerConfig{
 			TransportName: "httpapi", Config: compozyconfig.Config{HTTP: compozyconfig.HTTPConfig{Host: "localhost"}},
 		})
-		request := httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "http://localhost/stream", http.NoBody)
+		request := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"http://localhost/stream",
+			http.NoBody,
+		)
 		if httpHandlers.terminalOriginAllowed(request) {
 			t.Fatal("TCP request without Origin was accepted")
 		}
@@ -200,7 +205,12 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 			t.Fatal("spoofed Host was accepted")
 		}
 		udsHandlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi"})
-		udsRequest := httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "http://localhost/stream", http.NoBody)
+		udsRequest := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"http://localhost/stream",
+			http.NoBody,
+		)
 		if !udsHandlers.terminalOriginAllowed(udsRequest) {
 			t.Fatal("UDS request without Origin was rejected")
 		}
@@ -293,7 +303,12 @@ func TestTerminalHandlersShouldKeepProfileScopesClosed(t *testing.T) {
 	list := httptest.NewRecorder()
 	router.ServeHTTP(
 		list,
-		httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "/api/workspaces/workspace-a/terminals?all_profiles=true", http.NoBody),
+		httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"/api/workspaces/workspace-a/terminals?all_profiles=true",
+			http.NoBody,
+		),
 	)
 	if list.Code != http.StatusOK || !manager.scope.AllProfiles {
 		t.Fatalf("aggregate list status/scope = %d/%#v", list.Code, manager.scope)
@@ -353,7 +368,12 @@ func TestTerminalDownloadsShouldStreamOnlyProfileScopedArtifacts(t *testing.T) {
 	artifact := httptest.NewRecorder()
 	router.ServeHTTP(
 		artifact,
-		httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "/api/workspaces/workspace-a/terminals/artifacts/artifact-a", http.NoBody),
+		httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"/api/workspaces/workspace-a/terminals/artifacts/artifact-a",
+			http.NoBody,
+		),
 	)
 	if artifact.Code != http.StatusOK || artifact.Body.String() != "artifact bytes" {
 		t.Fatalf("artifact status/body = %d/%q, want 200/artifact bytes", artifact.Code, artifact.Body.String())
@@ -365,7 +385,12 @@ func TestTerminalDownloadsShouldStreamOnlyProfileScopedArtifacts(t *testing.T) {
 	missing := httptest.NewRecorder()
 	router.ServeHTTP(
 		missing,
-		httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "/api/workspaces/workspace-a/terminals/recordings/foreign", http.NoBody),
+		httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"/api/workspaces/workspace-a/terminals/recordings/foreign",
+			http.NoBody,
+		),
 	)
 	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), `"code":"terminal_not_found"`) {
 		t.Fatalf("foreign recording status/body = %d/%s, want typed 404", missing.Code, missing.Body.String())
@@ -392,7 +417,12 @@ func TestTerminalAgentHandlersShouldPreserveUntrustedAndRedactedContracts(t *tes
 	read := httptest.NewRecorder()
 	router.ServeHTTP(
 		read,
-		httptest.NewRequestWithContext(testutil.Context(t), http.MethodGet, "/api/workspaces/workspace-a/terminals/term-a/read?view=tail", http.NoBody),
+		httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"/api/workspaces/workspace-a/terminals/term-a/read?view=tail",
+			http.NoBody,
+		),
 	)
 	if read.Code != http.StatusOK || !strings.Contains(read.Body.String(), `"untrusted":true`) {
 		t.Fatalf("read status/body = %d/%s", read.Code, read.Body.String())
@@ -519,7 +549,12 @@ func TestTerminalAgentHandlersShouldExecuteEveryUnregisteredBody(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run("Should execute "+testCase.name, func(t *testing.T) {
-			request := httptest.NewRequestWithContext(testutil.Context(t), testCase.method, testCase.path, strings.NewReader(testCase.body))
+			request := httptest.NewRequestWithContext(
+				testutil.Context(t),
+				testCase.method,
+				testCase.path,
+				strings.NewReader(testCase.body),
+			)
 			if testCase.body != "" {
 				request.Header.Set("Content-Type", "application/json")
 			}

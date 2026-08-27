@@ -158,7 +158,7 @@ describe("useSessionPageControls", () => {
       mutation.mutate.mockReset();
     }
     routeHookMocks.deleteMutation.isPending = false;
-    routeHookMocks.deleteMutation.mutateAsync.mockReset();
+    routeHookMocks.deleteMutation.mutate.mockReset();
     routeHookMocks.resumeMutation.isPending = false;
     routeHookMocks.resumeMutation.mutateAsync.mockReset();
     routeHookMocks.renameMutation.isPending = false;
@@ -194,7 +194,7 @@ describe("useSessionPageControls", () => {
     });
 
     expect(routeHookMocks.cancelSessionPrompt).toHaveBeenCalledOnce();
-    expect(routeHookMocks.deleteMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
     await act(async () => {
       cancellation.resolve();
       await cancellation.promise;
