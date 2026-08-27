@@ -10,6 +10,7 @@ import { resolveApiProxyOrigin, resolveApiProxyTarget } from "./src/lib/vite-api
 
 const reactRuntimePattern =
   /[\\/]node_modules[\\/](?:\.bun[\\/][^\\/]+[\\/]node_modules[\\/])?(?:react|react-dom|scheduler|use-sync-external-store)[\\/]/;
+const fontAssetPattern = /\.(?:eot|otf|ttf|woff2?)$/iu;
 
 const apiProxyTarget = resolveApiProxyTarget(process.env);
 const apiProxyOrigin = resolveApiProxyOrigin(process.env);
@@ -46,6 +47,7 @@ export default defineConfig(({ command }) => ({
     },
   },
   build: {
+    assetsInlineLimit: filePath => (fontAssetPattern.test(filePath) ? false : undefined),
     rolldownOptions: {
       output: {
         codeSplitting: {

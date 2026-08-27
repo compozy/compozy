@@ -151,7 +151,13 @@ func resolveWorkspaceForProfile(
 ) (workspacepkg.ResolvedWorkspace, error) {
 	profileID = strings.TrimSpace(profileID)
 	if profileID == "" || profileID == store.DefaultProfileID {
-		resolved, err := resolver.Resolve(ctx, workspaceRef)
+		var resolved workspacepkg.ResolvedWorkspace
+		var err error
+		if profileResolver, ok := resolver.(workspacepkg.ProfileRuntimeResolver); ok {
+			resolved, err = profileResolver.ResolveForProfile(ctx, workspaceRef, sessionDefaultProfileName)
+		} else {
+			resolved, err = resolver.Resolve(ctx, workspaceRef)
+		}
 		if err != nil {
 			return workspacepkg.ResolvedWorkspace{}, err
 		}

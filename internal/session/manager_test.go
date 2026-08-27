@@ -1175,6 +1175,51 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 	})
 }
 
+func TestCreateUsesProfileWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a session with an agent from the default profile layer", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.resolver.mu.Lock()
+		profileWorkspace := h.resolver.byRef[h.workspaceID]
+		profileWorkspace.Agents = append(profileWorkspace.Agents, compozyconfig.AgentDef{
+			Name:     "marketing",
+			Provider: "claude",
+			Prompt:   "You are a marketing assistant.",
+		})
+		h.resolver.byProfile[sessionDefaultProfileName] = profileWorkspace
+		h.resolver.mu.Unlock()
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "marketing",
+			Name:      "marketing-session",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create(default profile agent) error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		h.resolver.mu.Lock()
+		profileNames := append([]string(nil), h.resolver.profileResolveNames...)
+		h.resolver.mu.Unlock()
+		if len(profileNames) == 0 || profileNames[0] != sessionDefaultProfileName {
+			t.Fatalf(
+				"ResolveForProfile() names = %v, want first lookup for %q",
+				profileNames,
+				sessionDefaultProfileName,
+			)
+		}
+		if got := session.Info().AgentName; got != "marketing" {
+			t.Fatalf("session agent = %q, want marketing", got)
+		}
+	})
+}
+
 func TestJoinNetworkPeerHandlesNoOpConditionsAndCapabilityProjection(t *testing.T) {
 	t.Parallel()
 

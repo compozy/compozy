@@ -14,7 +14,6 @@ import (
 	"github.com/Masterminds/semver/v3"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	compozyupdate "github.com/compozy/compozy/internal/update"
-	compozyversion "github.com/compozy/compozy/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -141,7 +140,15 @@ type bootstrapExecution struct {
 func (e *bootstrapExecution) resolveAndStart() error {
 	status, running, err := probeBootstrapDaemon(e.cmd.Context(), e.deps, e.homePaths)
 	if err == nil && running {
-		return writeAttachedBootstrap(e.cmd, e.options, status)
+		replaced, replaceErr := e.replaceOutdatedDesktopRuntime(status)
+		if replaceErr != nil {
+			return writeBootstrapFailure(
+				e.cmd, bootstrapPhaseProvision, bootstrapProbeListeningUnhealthy, replaceErr,
+			)
+		}
+		if !replaced {
+			return writeAttachedBootstrap(e.cmd, e.options, status)
+		}
 	}
 	if err := cleanupStaleBootstrapDaemonRecord(e.homePaths, e.deps); err != nil {
 		return writeBootstrapFailure(e.cmd, bootstrapPhaseResolve, bootstrapProbeStaleRecord, err)
@@ -150,16 +157,25 @@ func (e *bootstrapExecution) resolveAndStart() error {
 	runtimePath, owned := resolveBootstrapRuntime(e.deps, e.homePaths, e.installedPath)
 	installed := regularFileExists(runtimePath)
 	resolution := resolveBootstrapAction(bootstrapProbe{Installed: installed})
+	if installed && owned {
+		matches, matchErr := compozyupdate.DesktopRuntimeMatchesBundle(
+			e.homePaths, runtimePath, e.bundlePath, e.provenance(),
+		)
+		if matchErr != nil {
+			return writeBootstrapFailure(
+				e.cmd, bootstrapPhaseResolve, bootstrapProbeUnavailable, matchErr,
+			)
+		}
+		if !matches {
+			resolution = bootstrapResolutionProvision
+		}
+	}
 	if err := provisionBootstrapRuntime(e.cmd, &bootstrapProvisionRequest{
 		resolution:    resolution,
 		homePaths:     e.homePaths,
 		bundlePath:    e.bundlePath,
 		installedPath: e.installedPath,
-		provenance: compozyupdate.DesktopProvenanceMetadata{
-			AppVersion:     e.options.appVersion,
-			Channel:        e.options.channel,
-			RuntimeVersion: compozyversion.Current().Version,
-		},
+		provenance:    e.provenance(),
 	}); err != nil {
 		return err
 	}

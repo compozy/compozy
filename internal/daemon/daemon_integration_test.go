@@ -3202,6 +3202,40 @@ func TestBootSkillsWatcherRefreshesWorkspaceSkillsWithoutRestart(t *testing.T) {
 			}
 		})
 
+		profileAgentFile := filepath.Join(
+			workspaceRoot,
+			compozyconfig.DirName,
+			compozyconfig.ProfilesDirName,
+			compozyconfig.DefaultProfileDirName,
+			compozyconfig.AgentsDirName,
+			"marketing",
+			"AGENT.md",
+		)
+		writeDaemonFile(t, profileAgentFile, `---
+name: marketing
+provider: claude
+---
+
+You are a marketing assistant.
+`)
+		profileResolver, ok := d.workspaceResolver.(workspacepkg.ProfileRuntimeResolver)
+		if !ok {
+			t.Fatal("workspace resolver does not support profile layers")
+		}
+		waitForCondition(t, "default profile agent refresh after watcher sync", func() bool {
+			resolved, err := profileResolver.ResolveForProfile(
+				testutil.Context(t),
+				resolvedWorkspace.ID,
+				compozyconfig.DefaultProfileDirName,
+			)
+			if err != nil {
+				return false
+			}
+			return slices.ContainsFunc(resolved.Agents, func(agent compozyconfig.AgentDef) bool {
+				return agent.Name == "marketing"
+			})
+		})
+
 		skillRoot := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.SkillsDirName)
 		skillFile := filepath.Join(skillRoot, "marketing", "watched-workspace-skill", "SKILL.md")
 		writeDaemonFile(

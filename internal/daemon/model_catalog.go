@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -28,6 +29,7 @@ type modelCatalogRuntime struct {
 
 	ctx     context.Context
 	workers *ownedWorkerGroup
+	warmup  func()
 }
 
 var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)
@@ -60,14 +62,16 @@ func newModelCatalogRuntime(
 	}
 	// #nosec G118 -- cancel is owned by modelCatalogRuntime and invoked from Shutdown.
 	runtimeCtx, cancel := context.WithCancel(ctx)
-	return &modelCatalogRuntime{
+	runtime := &modelCatalogRuntime{
 		service: service,
 		logger:  logger,
 		now:     now,
 		timeout: timeout,
 		ctx:     runtimeCtx,
 		workers: newOwnedWorkerGroup(cancel),
-	}, nil
+	}
+	runtime.warmup = sync.OnceFunc(runtime.warmLiveSources)
+	return runtime, nil
 }
 
 func (r *modelCatalogRuntime) ListModels(
@@ -94,6 +98,7 @@ func (r *modelCatalogRuntime) ListModels(
 		_, refreshErr := r.Refresh(ctx, refreshOpts)
 		listOpts := opts
 		listOpts.Refresh = false
+		listOpts.SkipRefreshIfEmpty = true
 		listOpts.Now = now
 		models, listErr := r.listModelsInGeneration(ctx, listOpts)
 		if listErr != nil {
@@ -102,10 +107,44 @@ func (r *modelCatalogRuntime) ListModels(
 		if len(models) == 0 && refreshErr != nil {
 			return nil, refreshErr
 		}
+		r.warmup()
 		return models, nil
 	}
 	opts.Now = now
-	return r.listModelsInGeneration(ctx, opts)
+	opts.SkipRefreshIfEmpty = true
+	models, err := r.listModelsInGeneration(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+	r.warmup()
+	return models, nil
+}
+
+func (r *modelCatalogRuntime) warmLiveSources() {
+	if r == nil || len(r.liveSources) == 0 {
+		return
+	}
+	complete, admitted := r.workers.Begin()
+	if !admitted {
+		return
+	}
+	go func() {
+		defer complete()
+		var warmups sync.WaitGroup
+		for providerID, source := range r.liveSources {
+			warmups.Go(func() {
+				if _, err := r.Refresh(r.ctx, modelcatalog.RefreshOptions{
+					ProviderID: providerID,
+					SourceID:   source.ID(),
+					RequestID:  "model-catalog-warmup-" + providerID,
+				}); err != nil {
+					// Refresh owns source-failure logging; warmup has no synchronous caller.
+					return
+				}
+			})
+		}
+		warmups.Wait()
+	}()
 }
 
 func (r *modelCatalogRuntime) listModelsInGeneration(

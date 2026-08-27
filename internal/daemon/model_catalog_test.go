@@ -836,7 +836,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		waitForCatalogTestSignal(t, service.released, "refresh release")
 	})
 
-	t.Run("Should cancel and join list discovery on shutdown", func(t *testing.T) {
+	t.Run("Should return persisted models while live warmup is still running", func(t *testing.T) {
 		t.Parallel()
 
 		service := newBlockingModelCatalogListService()
@@ -850,22 +850,39 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newModelCatalogRuntime() error = %v", err)
 		}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			&modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:      homePaths,
+				ACPProbe:       &configReloadACPProbe{},
+				DefaultTimeout: 5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
 
-		listErrCh := make(chan error, 1)
-		go func() {
-			_, listErr := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
-			listErrCh <- listErr
-		}()
-		waitForCatalogTestSignal(t, service.started, "list discovery start")
+		models, err := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if !containsCatalogModel(models, "codex", "persisted-model") {
+			t.Fatalf("ListModels() = %#v, want persisted model before warmup completes", models)
+		}
+		waitForCatalogTestSignal(t, service.started, "live warmup start")
 
 		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
-		waitForCatalogTestSignal(t, service.released, "list discovery release")
-		listErr := waitForCatalogTestError(t, listErrCh, "list shutdown cancellation")
-		if !errors.Is(listErr, context.Canceled) {
-			t.Fatalf("ListModels(shutdown) error = %v, want context.Canceled", listErr)
-		}
+		waitForCatalogTestSignal(t, service.released, "live warmup release")
 		if _, err := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{}); err == nil {
 			t.Fatal("ListModels(after shutdown) error = nil, want admission failure")
 		}
@@ -1004,6 +1021,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 		if service.lastList.Refresh {
 			t.Fatalf("List opts Refresh = true, want false after daemon refresh handoff")
+		}
+		if !service.lastList.SkipRefreshIfEmpty {
+			t.Fatal("List opts SkipRefreshIfEmpty = false, want persisted read without implicit discovery")
 		}
 		if _, err := runtime.ListSourceStatus(testutil.Context(t), "codex"); err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
@@ -1664,8 +1684,11 @@ func (s *blockingModelCatalogService) ListSourceStatus(
 
 func (s *blockingModelCatalogListService) ListModels(
 	ctx context.Context,
-	_ modelcatalog.ListOptions,
+	opts modelcatalog.ListOptions,
 ) ([]modelcatalog.Model, error) {
+	if opts.SkipRefreshIfEmpty {
+		return []modelcatalog.Model{{ProviderID: "codex", ModelID: "persisted-model"}}, nil
+	}
 	s.startOnce.Do(func() { close(s.started) })
 	<-ctx.Done()
 	s.releasedOnce.Do(func() { close(s.released) })
@@ -1673,10 +1696,13 @@ func (s *blockingModelCatalogListService) ListModels(
 }
 
 func (s *blockingModelCatalogListService) Refresh(
-	context.Context,
-	modelcatalog.RefreshOptions,
+	ctx context.Context,
+	_ modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
+	s.startOnce.Do(func() { close(s.started) })
+	<-ctx.Done()
+	s.releasedOnce.Do(func() { close(s.released) })
+	return nil, ctx.Err()
 }
 
 func (s *blockingModelCatalogListService) ListSourceStatus(

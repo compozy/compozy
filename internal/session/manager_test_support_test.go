@@ -809,7 +809,9 @@ type fakeWorkspaceResolver struct {
 	mu                     sync.Mutex
 	byRef                  map[string]workspacepkg.ResolvedWorkspace
 	byPath                 map[string]workspacepkg.ResolvedWorkspace
+	byProfile              map[string]workspacepkg.ResolvedWorkspace
 	resolveCalls           []string
+	profileResolveNames    []string
 	resolveOrRegisterCalls []string
 	profileRegisterNames   []string
 	resolveErr             error
@@ -872,6 +874,7 @@ func newFakeWorkspaceResolver(resolved *workspacepkg.ResolvedWorkspace) *fakeWor
 	r := &fakeWorkspaceResolver{
 		byRef:              make(map[string]workspacepkg.ResolvedWorkspace),
 		byPath:             make(map[string]workspacepkg.ResolvedWorkspace),
+		byProfile:          make(map[string]workspacepkg.ResolvedWorkspace),
 		autoRegisterConfig: resolved.Config,
 		autoRegisterAgents: append([]compozyconfig.AgentDef(nil), resolved.Agents...),
 	}
@@ -1023,11 +1026,21 @@ func (r *fakeWorkspaceResolver) ResolveForProfile(
 	idOrPath string,
 	profileName string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	profileName = strings.TrimSpace(profileName)
+	r.mu.Lock()
+	r.profileResolveNames = append(r.profileResolveNames, profileName)
+	if resolved, ok := r.byProfile[profileName]; ok {
+		r.mu.Unlock()
+		resolved.ProfileName = profileName
+		return cloneResolvedWorkspaceForTests(&resolved), nil
+	}
+	r.mu.Unlock()
+
 	resolved, err := r.Resolve(ctx, idOrPath)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
-	resolved.ProfileName = strings.TrimSpace(profileName)
+	resolved.ProfileName = profileName
 	return resolved, nil
 }
 

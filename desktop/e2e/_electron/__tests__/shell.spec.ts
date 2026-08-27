@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { cp, chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -15,6 +16,7 @@ import {
 } from "../fixtures";
 import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
+import { executableSha256File } from "../../../src/bootstrap/executable-digest";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const repositoryRoot = resolve(testDirectory, "../../../..");
@@ -275,6 +277,26 @@ async function buildRuntimeFixture(
   if (process.platform !== "win32") await chmod(output, 0o700);
 }
 
+async function prepareRuntimeBundle(
+  context: {
+    readonly environment: Record<string, string>;
+    readonly home: string;
+  },
+  version: string
+): Promise<void> {
+  const bundleRoot = join(context.home, `runtime-bundle-${version}`);
+  const runtimeName = process.platform === "win32" ? "compozy.exe" : "compozy";
+  const runtime = join(bundleRoot, runtimeName);
+  await buildRuntimeFixture(runtime, version, context.environment);
+  const digest = (await executableSha256File(runtime)).toString("hex");
+  await writeFile(
+    join(bundleRoot, "runtime-manifest.json"),
+    `${JSON.stringify({ schema_version: 1, asset: runtimeName, sha256: digest }, null, 2)}\n`,
+    { mode: 0o600 }
+  );
+  context.environment.COMPOZY_DESKTOP_BUNDLE_ROOT = bundleRoot;
+}
+
 async function startRuntimeFixture(runtime: string, environment: NodeJS.ProcessEnv): Promise<void> {
   const started = await runCommand(runtime, ["daemon", "start"], { env: environment });
   if (started.exitCode !== 0) {
@@ -473,6 +495,55 @@ test("E2E-005 E2E-007: relaunch attaches, stopped runtime starts once, and shell
   expect(startEvents.at(-1)).toMatchObject({ phase: "ready", resolution: "start" });
   const restarted = await jsonCommand(started, ["status", "-o", "json"]);
   expect((restarted.daemon as Record<string, unknown>).pid).not.toBe(initialDaemon.pid);
+});
+
+test("an updated app replaces its stale app-owned runtime without deleting home state", async ({
+  launchDesktop,
+}) => {
+  const first = await launchDesktop({
+    prepare: async context => await prepareRuntimeBundle(context, "0.3.0-beta.20"),
+  });
+  await first.product();
+  const sentinel = join(first.home, "runtime-coherence-sentinel.txt");
+  await writeFile(sentinel, "preserve me\n", { mode: 0o600 });
+  const before = await jsonCommand(first, ["status", "-o", "json"]);
+  const beforeDaemon = before.daemon as Record<string, unknown>;
+  const installedRuntime = join(
+    first.home,
+    "bin",
+    process.platform === "win32" ? "compozy.exe" : "compozy"
+  );
+  await first.closeShell();
+
+  const updated = await launchDesktop({ home: first.home });
+  await updated.product();
+  const after = await jsonCommand(updated, ["status", "-o", "json"]);
+  const afterDaemon = after.daemon as Record<string, unknown>;
+  expect(afterDaemon.status).toBe("running");
+  expect(afterDaemon.pid).not.toBe(beforeDaemon.pid);
+  expect(afterDaemon.version).not.toBe(beforeDaemon.version);
+  expect(await readFile(sentinel, "utf8")).toBe("preserve me\n");
+
+  const [installedDigest, bundledDigest] = await Promise.all(
+    [installedRuntime, updated.bundleRuntimePath].map(async path =>
+      createHash("sha256")
+        .update(await readFile(path))
+        .digest("hex")
+    )
+  );
+  expect(installedDigest).toBe(bundledDigest);
+  const provenance = JSON.parse(
+    await readFile(join(first.home, "bin", ".desktop-provenance.json"), "utf8")
+  ) as Record<string, unknown>;
+  expect(provenance).toMatchObject({
+    installed_by: "desktop-app",
+    binary_sha256: installedDigest,
+    runtime_version: afterDaemon.version,
+  });
+  expect((await bootstrapEvents(first.home)).at(-1)).toMatchObject({
+    phase: "ready",
+    resolution: "provision",
+  });
 });
 
 test("E2E-006: bounded startup failure exposes retry, logs, quit, and recovers after repair", async ({
@@ -1069,6 +1140,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
   const productCSP = productResponse.headers()["content-security-policy"] ?? "";
   for (const directive of [
     "connect-src 'self'",
+    "font-src 'self'",
     "worker-src 'self' blob:",
     "frame-src 'none'",
     "frame-ancestors 'none'",
@@ -1079,6 +1151,20 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     expect(productCSP).toContain(directive);
   }
   expect(productCSP).not.toContain("'unsafe-eval'");
+  await product.addInitScript(() => {
+    Reflect.set(globalThis, "__compozyCSPViolations", [] as string[]);
+    document.addEventListener("securitypolicyviolation", event => {
+      const violations = Reflect.get(globalThis, "__compozyCSPViolations");
+      if (Array.isArray(violations)) violations.push(event.violatedDirective);
+    });
+  });
+  await product.reload({ waitUntil: "domcontentloaded" });
+  const initialCSPViolations = await product.evaluate(async () => {
+    await document.fonts.ready;
+    const violations = Reflect.get(globalThis, "__compozyCSPViolations");
+    return Array.isArray(violations) ? violations : [];
+  });
+  expect(initialCSPViolations.filter(directive => directive.startsWith("font-src"))).toEqual([]);
   const cspProbe = await product.evaluate(async () => {
     const directives: string[] = [];
     const onViolation = (event: SecurityPolicyViolationEvent) => {

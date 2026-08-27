@@ -369,7 +369,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}
 	})
 
-	t.Run("Should emit skills load failed for invalid agent local layers", func(t *testing.T) {
+	t.Run("Should omit one malformed agent local skill without blocking valid siblings", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -401,13 +401,19 @@ func TestRegistryEventSummaries(t *testing.T) {
 		); err != nil {
 			t.Fatalf("WriteFile(SKILL.md) error = %v", err)
 		}
+		writeSkillFile(
+			t,
+			filepath.Join(agentsDir, "writer", "skills"),
+			filepath.Join("valid", skillFileName),
+			skillWithDescription("valid", "Valid agent skill"),
+		)
 
 		registry := newTestRegistry(t, RegistryConfig{
 			GlobalSkillRoots: testGlobalSkillRoots(userDir),
 			GlobalAgentsDir:  agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
-		_, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
+		skillList, err := registry.ForAgent(context.Background(), &workspacepkg.ResolvedWorkspace{
 			Workspace: workspacepkg.Workspace{ID: "ws-load-failed"},
 			ProfileID: "01ARZ3NDEKTSV4RRFFQ69G5FAV",
 			Agents: []compozyconfig.AgentDef{{
@@ -415,11 +421,14 @@ func TestRegistryEventSummaries(t *testing.T) {
 				SourcePath: writeFilePath,
 			}},
 		}, "writer")
-		if err == nil {
-			t.Fatal("ForAgent() error = nil, want invalid agent-local layer")
+		if err != nil {
+			t.Fatalf("ForAgent() error = %v", err)
 		}
-		if !errors.Is(err, ErrAgentLocalInvalid) {
-			t.Fatalf("ForAgent() error = %v, want ErrAgentLocalInvalid", err)
+		if got, want := len(skillList), 1; got != want {
+			t.Fatalf("len(ForAgent()) = %d, want %d", got, want)
+		}
+		if got := findSkill(t, skillList, "valid"); got.Source != SourceAgentLocal {
+			t.Fatalf("valid Source = %v, want %v", got.Source, SourceAgentLocal)
 		}
 
 		summaries := eventStore.Summaries()
@@ -448,7 +457,7 @@ func TestRegistryEventSummaries(t *testing.T) {
 		}
 	})
 
-	t.Run("Should classify critical agent local verification failures as verification", func(t *testing.T) {
+	t.Run("Should omit a critical agent local skill and retain its verification diagnostic", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -486,12 +495,12 @@ func TestRegistryEventSummaries(t *testing.T) {
 			GlobalAgentsDir:  agentsDir,
 		}, WithEventSummaryStore(eventStore))
 
-		_, err := registry.ForAgent(context.Background(), nil, "writer")
-		if err == nil {
-			t.Fatal("ForAgent() error = nil, want invalid agent-local layer")
+		skillList, err := registry.ForAgent(context.Background(), nil, "writer")
+		if err != nil {
+			t.Fatalf("ForAgent() error = %v", err)
 		}
-		if !errors.Is(err, ErrAgentLocalInvalid) {
-			t.Fatalf("ForAgent() error = %v, want ErrAgentLocalInvalid", err)
+		if got := len(skillList); got != 0 {
+			t.Fatalf("len(ForAgent()) = %d, want 0", got)
 		}
 
 		summaries := eventStore.Summaries()

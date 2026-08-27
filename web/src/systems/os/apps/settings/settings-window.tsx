@@ -162,7 +162,10 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
   // resolve a container query against itself, so the flex switch sits one
   // level down where the Settings takeover container query reads this wrapper's inline size.
   return (
-    <div className="@container flex min-h-full flex-col" onKeyDown={handleKeyDown}>
+    <div
+      className="@container flex min-h-0 flex-1 flex-col overflow-hidden"
+      onKeyDown={handleKeyDown}
+    >
       <div
         className="flex min-h-0 flex-1 flex-col @min-settings-takeover:flex-row"
         data-testid="settings-shell"
@@ -172,7 +175,10 @@ export function SettingsWindow({ windowId }: { windowId: string }) {
           connection={connection}
           searchInputRef={searchInputRef}
         />
-        <div className="relative flex min-w-0 flex-1 flex-col" data-testid="settings-shell-outlet">
+        <div
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+          data-testid="settings-shell-outlet"
+        >
           <Suspense
             fallback={
               <div className="flex flex-1 items-center justify-center py-12">
