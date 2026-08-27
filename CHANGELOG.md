@@ -161,6 +161,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Publish npm packages with trusted identity (#495)
 - Accept setup-node OIDC placeholder
 - Preserve web assets in release module
+- Remove npm token from release recovery
 
 ### 🔧 Miscellaneous Tasks
 
