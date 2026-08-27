@@ -1,5 +1,10 @@
 import type { AgentCatalogItem, AgentPayload } from "../types";
 import { AGENT_CATEGORY_LABEL_SEPARATOR, formatCategoryLabel } from "./agent-category";
+import {
+  emptyAgentFleetCallInstances,
+  formatAgentFleetCallInstanceLabel,
+  type AgentFleetCallInstances,
+} from "./agent-fleet-call-instances";
 import type { AgentFleetStatus } from "./fleet-signals";
 
 const META_SEPARATOR = " · ";
@@ -8,6 +13,8 @@ const CATEGORY_ELLIPSIS_LIMIT = 40;
 export interface AgentFleetRowModel {
   agent: AgentPayload;
   signals: AgentFleetSessionSignals | null;
+  /** Daemon call-instance counts. Null until the running population is complete. */
+  callInstances: AgentFleetCallInstances | null;
   meta: string;
   cardCategory: string | null;
   cardOrigin: string;
@@ -93,19 +100,16 @@ export function formatAgentFleetCardCategory(agent: AgentPayload): string | null
 
 export function formatAgentFleetAriaLabel(
   agent: AgentPayload,
-  signals: AgentFleetSessionSignals | null,
-  sessionsAvailable: boolean
+  callInstances: AgentFleetCallInstances | null
 ): string {
-  if (!sessionsAvailable || signals === null) {
-    return `${agent.name}, session status unavailable`;
-  }
-  const statusLabel = signals.status === "active" ? "Active" : "Idle";
-  return `${agent.name}, ${statusLabel}, ${signals.active} of ${signals.total} sessions active`;
+  const instanceLabel = callInstances ? formatAgentFleetCallInstanceLabel(callInstances) : null;
+  return instanceLabel ? `${agent.name}, ${instanceLabel}` : agent.name;
 }
 
 export function projectAgentFleetRows(input: {
   items: readonly AgentCatalogItem[];
   sessionsAvailable: boolean;
+  callInstances?: ReadonlyMap<string, AgentFleetCallInstances> | null;
 }): AgentFleetRowModel[] {
   return input.items.map(item => {
     const agent = item.agent;
@@ -118,16 +122,21 @@ export function projectAgentFleetRows(input: {
           }
         : null;
     const shadowLayers = agentShadowLayers(agent);
+    const callInstances =
+      input.callInstances == null
+        ? null
+        : (input.callInstances.get(agent.name) ?? emptyAgentFleetCallInstances());
     return {
       agent,
       signals,
+      callInstances,
       meta: formatAgentFleetMeta(agent),
       cardCategory: formatAgentFleetCardCategory(agent),
       cardOrigin: formatAgentOriginLabel(agent.origin),
       layer: formatAgentLayer(agent),
       shadowLayers,
       hasShadowing: agent.shadowed || shadowLayers.length > 0,
-      ariaLabel: formatAgentFleetAriaLabel(agent, signals, input.sessionsAvailable),
+      ariaLabel: formatAgentFleetAriaLabel(agent, callInstances),
       hasDiagnostics: Array.isArray(agent.diagnostics) && agent.diagnostics.length > 0,
       sessionsAvailable: input.sessionsAvailable,
       canStartSession: !agent.shadowed,

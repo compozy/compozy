@@ -4,6 +4,7 @@ import { Link } from "@tanstack/react-router";
 import { KindIcon, ListingRow, Pill, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { AgentFleetCallInstancePills } from "./agent-fleet-call-instance-pills";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 import { AgentLayerProvenance } from "./agent-layer-provenance";
 
@@ -25,7 +26,7 @@ function agentFleetMetaSegments(
 }
 
 function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentFleetRowProps) {
-  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardOrigin } = row;
+  const { agent, ariaLabel, hasDiagnostics, cardOrigin } = row;
   const metaSegments = agentFleetMetaSegments(agent);
 
   return (
@@ -72,9 +73,11 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
             output, which is why it renders as plain text inside the row rather
             than as anything that could carry a link or a control.
           */}
-          <ListingRow.Description data-testid={`agent-fleet-description-${agent.name}`}>
-            {agent.description.trim() || "No description yet"}
-          </ListingRow.Description>
+          {agent.description.trim() ? (
+            <ListingRow.Description data-testid={`agent-fleet-description-${agent.name}`}>
+              {agent.description.trim()}
+            </ListingRow.Description>
+          ) : null}
           <AgentLayerProvenance
             data-testid={`agent-fleet-provenance-${agent.name}`}
             layer={row.layer}
@@ -89,16 +92,7 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
             Shadowed
           </Pill>
         ) : null}
-        {sessionsAvailable && signals ? (
-          <Pill
-            size="sm"
-            tone={signals.status === "active" ? "success" : "neutral"}
-            data-testid={`agent-fleet-status-${agent.name}`}
-          >
-            <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
-            {signals.status === "active" ? "Active" : "Idle"}
-          </Pill>
-        ) : null}
+        <AgentFleetCallInstancePills agentName={agent.name} instances={row.callInstances} />
         {hasDiagnostics ? (
           <Pill tone="warning" size="sm" data-testid={`agent-fleet-invalid-${agent.name}`}>
             Invalid

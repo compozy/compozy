@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { CatalogCard, KindIcon, Pill, providerKindIconRegistry } from "@compozy/ui";
 
 import { formatCategoryMetaSegment, type AgentFleetRowModel } from "../lib/agent-fleet-projection";
+import { AgentFleetCallInstancePills } from "./agent-fleet-call-instance-pills";
 import { AgentFleetNewSessionButton } from "./agent-fleet-new-session-button";
 import { AgentLayerProvenance } from "./agent-layer-provenance";
 
@@ -13,7 +14,7 @@ export interface AgentFleetCardProps {
 }
 
 function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: AgentFleetCardProps) {
-  const { agent, signals, ariaLabel, hasDiagnostics, sessionsAvailable, cardOrigin } = row;
+  const { agent, ariaLabel, hasDiagnostics, cardOrigin } = row;
   const category = formatCategoryMetaSegment(agent.category_path);
   const model = agent.model?.trim() || null;
 
@@ -55,9 +56,11 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
             />
           </div>
         </div>
-        <CatalogCard.Description className="line-clamp-2">
-          {agent.description.trim() || "No description yet"}
-        </CatalogCard.Description>
+        {agent.description.trim() ? (
+          <CatalogCard.Description className="line-clamp-2">
+            {agent.description.trim()}
+          </CatalogCard.Description>
+        ) : null}
       </Link>
       <CatalogCard.Actions className="justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -66,16 +69,7 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
               Shadowed
             </Pill>
           ) : null}
-          {sessionsAvailable && signals ? (
-            <Pill
-              size="sm"
-              tone={signals.status === "active" ? "success" : "neutral"}
-              data-testid={`agent-fleet-status-${agent.name}`}
-            >
-              <Pill.Dot tone={signals.status === "active" ? "success" : "neutral"} size="sm" />
-              {signals.status === "active" ? "Active" : "Idle"}
-            </Pill>
-          ) : null}
+          <AgentFleetCallInstancePills agentName={agent.name} instances={row.callInstances} />
           {hasDiagnostics ? (
             <Pill tone="warning" size="sm" data-testid={`agent-fleet-invalid-${agent.name}`}>
               Invalid

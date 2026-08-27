@@ -22,7 +22,6 @@ import { useAgentCallTree } from "../hooks/use-agent-call-tree";
 import { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "../lib/agent-call-tree-constants";
 import type { CallTreeGroupCounts } from "../lib/agent-comms-tree-counts";
 import type { CallCommsTree } from "../lib/agent-comms-tree";
-import type { ChildState } from "../types";
 
 export type { CallTreeGroupCounts };
 
@@ -32,13 +31,6 @@ export interface AgentCallTreeProps {
   rootLabels?: ReadonlyMap<string, string>;
   /** Counts per tree — derived from a complete loaded population, or absent. */
   countsByRoot?: ReadonlyMap<string, CallTreeGroupCounts>;
-  /**
-   * What became of each child, keyed by child session id.
-   *
-   * Sparse on purpose: a child whose tree catalog has not finished loading has
-   * no entry, and its row shows no child-state pill rather than a guess.
-   */
-  childStates?: ReadonlyMap<string, ChildState>;
   selectedCallId?: string | null;
   onSelectCall: (callId: string) => void;
   /** Absent when the operator cannot drain trees. */
@@ -51,7 +43,6 @@ export function AgentCallTree({
   tree,
   rootLabels,
   countsByRoot,
-  childStates,
   selectedCallId = null,
   onSelectCall,
   onStopSubtree,
@@ -64,7 +55,6 @@ export function AgentCallTree({
   const itemProps = {
     ...(rootLabels === undefined ? {} : { rootLabels }),
     ...(countsByRoot === undefined ? {} : { countsByRoot }),
-    ...(childStates === undefined ? {} : { childStates }),
     selectedCallId,
     ...(onStopSubtree === undefined ? {} : { onStopSubtree }),
     pendingStopRootSessionId,

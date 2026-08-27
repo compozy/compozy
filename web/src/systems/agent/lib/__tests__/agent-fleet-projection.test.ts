@@ -8,6 +8,10 @@ import {
   buildAgentFleetFilterFields,
 } from "../agent-fleet-filters";
 import {
+  countAgentFleetCallInstances,
+  formatAgentFleetCallInstanceLabel,
+} from "../agent-fleet-call-instances";
+import {
   formatAgentFleetAriaLabel,
   formatAgentFleetCardCategory,
   formatAgentFleetMeta,
@@ -129,7 +133,8 @@ describe("agent fleet projection", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]?.signals).toBeNull();
     expect(rows[0]?.sessionsAvailable).toBe(false);
-    expect(rows[0]?.ariaLabel).toBe("coder, session status unavailable");
+    expect(rows[0]?.ariaLabel).toBe("coder");
+    expect(rows[0]?.callInstances).toBeNull();
     expect(rows[0]?.hasDiagnostics).toBe(true);
   });
 
@@ -186,17 +191,12 @@ describe("agent fleet projection", () => {
       ])
     ).toMatch(/…/);
 
+    expect(formatAgentFleetAriaLabel(agent({ name: "release-captain" }), null)).toBe(
+      "release-captain"
+    );
     expect(
-      formatAgentFleetAriaLabel(
-        agent({ name: "release-captain" }),
-        {
-          status: "active",
-          active: 2,
-          total: 6,
-        },
-        true
-      )
-    ).toBe("release-captain, Active, 2 of 6 sessions active");
+      formatAgentFleetAriaLabel(agent({ name: "release-captain" }), { running: 2, parked: 1 })
+    ).toBe("release-captain, 2 running, 1 parked");
   });
 
   it("Should attach shared aria and card meta on projected rows", () => {
@@ -214,7 +214,38 @@ describe("agent fleet projection", () => {
     });
     expect(rows[0]?.cardCategory).toBe("openai");
     expect(rows[0]?.cardOrigin).toBe("Workspace");
-    expect(rows[0]?.ariaLabel).toBe("triage-bot, Idle, 0 of 0 sessions active");
+    expect(rows[0]?.ariaLabel).toBe("triage-bot");
+  });
+
+  it("Should attach running and parked call-instance counts and omit zeros", () => {
+    const rows = projectAgentFleetRows({
+      items: [
+        catalogItem(agent({ name: "reviewer" })),
+        catalogItem(agent({ name: "scout" })),
+        catalogItem(agent({ name: "docs-writer" })),
+      ],
+      sessionsAvailable: true,
+      callInstances: new Map([
+        ["reviewer", { running: 2, parked: 0 }],
+        ["scout", { running: 0, parked: 1 }],
+      ]),
+    });
+
+    expect(rows[0]?.callInstances).toEqual({ running: 2, parked: 0 });
+    expect(rows[0]?.ariaLabel).toBe("reviewer, 2 running");
+    expect(rows[1]?.callInstances).toEqual({ running: 0, parked: 1 });
+    expect(rows[1]?.ariaLabel).toBe("scout, 1 parked");
+    expect(rows[2]?.callInstances).toEqual({ running: 0, parked: 0 });
+    expect(rows[2]?.ariaLabel).toBe("docs-writer");
+    expect(formatAgentFleetCallInstanceLabel({ running: 0, parked: 0 })).toBeNull();
+    expect(
+      countAgentFleetCallInstances([
+        { agent: "reviewer", state: "running" },
+        { agent: "reviewer", state: "running" },
+        { agent: "reviewer", state: "completed" },
+        { agent: "scout", state: "queued" },
+      ]).get("reviewer")
+    ).toEqual({ running: 2, parked: 0 });
   });
 
   it("Should preserve the effective layer and every unique shadow layer", () => {

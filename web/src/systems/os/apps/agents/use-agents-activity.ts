@@ -23,7 +23,6 @@ import {
 import { useSessionCatalogStreamStatus } from "@/systems/session";
 
 import { useWindowLiveDataEnabled } from "../../hooks/use-window-live-data-enabled";
-import { useActivityChildStates } from "./use-activity-child-states";
 import type { AgentActivitySearch } from "./agent-activity-search";
 
 export function useAgentsActivity(windowId: string, search: AgentActivitySearch = {}) {
@@ -41,20 +40,9 @@ export function useAgentsActivity(windowId: string, search: AgentActivitySearch 
     ...(search.root && activity.total !== undefined ? { scopedTotal: activity.total } : {}),
   });
 
-  const rootChildren = activity.tree.groups.map(group => {
-    const childSessionIds: string[] = [];
-    for (const row of group.rows) {
-      const childId = row.call.child_session_id ?? "";
-      if (childId !== "") childSessionIds.push(childId);
-    }
-    return { rootSessionId: group.rootSessionId, childSessionIds };
-  });
-  const childStates = useActivityChildStates(activity.scope, rootChildren, live);
-
   return {
     ...activity,
     countsByRoot,
-    childStates,
     /** The stream is down: rows stay, counts stop. */
     stale: streamStatus === "stale",
     openCall: (callId: string) => {

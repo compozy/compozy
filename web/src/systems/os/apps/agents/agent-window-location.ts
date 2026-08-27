@@ -6,6 +6,8 @@ import {
 } from "@/systems/agent";
 import { validateAgentActivitySearch } from "./agent-activity-search";
 
+export type AgentsAppTab = "catalog" | "activity";
+
 export type AgentWindowLocation =
   | { kind: "catalog"; search: ReturnType<typeof validateAgentsFleetSearch> }
   /** Delegation trees across the workspace, live. */
@@ -22,6 +24,11 @@ export type AgentWindowLocation =
       name: string;
       search: ReturnType<typeof validateAgentSettingsSearch>;
     };
+
+/** Catalog and Activity are sibling window locations, not nested pages. */
+export function agentsAppTabPath(tab: AgentsAppTab): "/agents" | "/agents/activity" {
+  return tab === "activity" ? "/agents/activity" : "/agents";
+}
 
 function decodePathSegment(value: string): string {
   try {

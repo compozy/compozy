@@ -6,7 +6,7 @@ persona: Ada
 journey: J-supervise-delegation-trees
 expected: /agents/activity groups calls by governed root, indents each row by the daemon's own depth, escalates the worst state onto a folded header, and opens the call record from a row. Per-tree counts come from CallsResponse.total on root_session_id-filtered reads, never from the loaded page.
 entry_points: web /agents/activity; HTTP and UDS GET /api/workspaces/{workspace_id}/calls?root_session_id=ses_01JBD7ZZAAAA&limit=200; compozy call list --caller ses_01JBD7ZZAAAA --state queued,running,completed --limit 200
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -15,6 +15,8 @@ evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-06
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-session-calls-inspector-panel; RT-session-stop-subtree; RT-call-record-terminal-states
 ---
+
+Reset to untested: Catalog | Activity is now a first-class Agents window tab. The walk must start at Dock → Agents → Activity, not at the `/agents/activity` URL.
 
 Added by task_06. The walk must prove a folded tree still shows its worst state, that the header count equals the daemon count for the same filter, and that keyboard traversal reaches every row.
 

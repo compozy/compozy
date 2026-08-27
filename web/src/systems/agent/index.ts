@@ -191,6 +191,11 @@ export {
   type AgentFleetSessionSignals,
 } from "./lib/agent-fleet-projection";
 export {
+  countAgentFleetCallInstances,
+  formatAgentFleetCallInstanceLabel,
+  type AgentFleetCallInstances,
+} from "./lib/agent-fleet-call-instances";
+export {
   agentFleetFiltersToChips,
   agentFleetChipsToFilters,
   buildAgentFleetFilterFields,
@@ -217,6 +222,7 @@ export {
   type AgentCreateDialogState,
 } from "./hooks/use-agent-create-dialog";
 export { useAgentSessions } from "./hooks/use-agent-sessions";
+export { useAgentFleetCallInstances } from "./hooks/use-agent-fleet-call-instances";
 export {
   useAgentCatalogMetrics,
   type AgentCatalogMetrics,

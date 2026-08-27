@@ -1,7 +1,8 @@
 import { AlertCircle, Plus, RefreshCw, Users2 } from "lucide-react";
 
-import { Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
+import { Button, Empty, ListingPage, PAGE_CONTENT_GUTTER, useTopbarSlot } from "@compozy/ui";
 
+import { AgentsAppTabs } from "./agents-app-tabs";
 import { useAgentsFleetPage } from "./use-agents-catalog";
 import { AgentFleetList, AgentFleetToolbar, type AgentsFleetSearch } from "@/systems/agent";
 
@@ -50,21 +51,36 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
 
   if (page.workspaceId === "") {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
+      <ListingPage
+        banner={
+          <div className={`${PAGE_CONTENT_GUTTER} pt-7`}>
+            <AgentsAppTabs value="catalog" />
+          </div>
+        }
+        bodyClassName="pt-5"
         data-testid="agents-no-workspace"
       >
-        <Empty
-          description="Select a workspace to browse its agents."
-          icon={Users2}
-          title="No workspace selected"
-        />
-      </div>
+        <div className="flex min-h-0 flex-1 items-center justify-center py-10">
+          <Empty
+            description="Select a workspace to browse its agents."
+            icon={Users2}
+            title="No workspace selected"
+          />
+        </div>
+      </ListingPage>
     );
   }
 
   return (
-    <ListingPage data-testid="agent-fleet-page">
+    <ListingPage
+      banner={
+        <div className={`${PAGE_CONTENT_GUTTER} pt-7`}>
+          <AgentsAppTabs value="catalog" />
+        </div>
+      }
+      bodyClassName="pt-5"
+      data-testid="agent-fleet-page"
+    >
       {agentsErrorEmpty ? (
         <div
           className="flex min-h-0 flex-1 items-center justify-center py-10"

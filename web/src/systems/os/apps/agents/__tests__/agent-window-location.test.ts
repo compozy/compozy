@@ -5,7 +5,7 @@
 // Owning layer: OS app window-location parser. Canonical suite: this file.
 import { describe, expect, it } from "vitest";
 
-import { parseAgentWindowLocation } from "../agent-window-location";
+import { agentsAppTabPath, parseAgentWindowLocation } from "../agent-window-location";
 
 function at(pathname: string, search: Record<string, unknown> = {}) {
   return parseAgentWindowLocation({ pathname, search });
@@ -56,5 +56,12 @@ describe("parseAgentWindowLocation", () => {
   it("Should keep resolving the locations that existed before", () => {
     expect(at("/agents/reviewer")).toMatchObject({ kind: "detail", name: "reviewer" });
     expect(at("/agents/reviewer/settings")).toMatchObject({ kind: "settings", name: "reviewer" });
+  });
+
+  it("Should map the Catalog and Activity tabs to those same locations", () => {
+    expect(agentsAppTabPath("catalog")).toBe("/agents");
+    expect(agentsAppTabPath("activity")).toBe("/agents/activity");
+    expect(at(agentsAppTabPath("catalog")).kind).toBe("catalog");
+    expect(at(agentsAppTabPath("activity")).kind).toBe("activity");
   });
 });

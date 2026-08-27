@@ -9,12 +9,24 @@
  */
 import { AlertCircle, GitBranch, RefreshCw, WifiOff } from "lucide-react";
 
-import { ActionResultBanner, Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
+import {
+  ActionResultBanner,
+  Alert,
+  AlertDescription,
+  Button,
+  DataSurface,
+  ListingPage,
+  PAGE_CONTENT_GUTTER,
+  useTopbarSlot,
+} from "@compozy/ui";
 
 import { AgentCallTree } from "@/systems/agent-comms";
 
+import { AgentsAppTabs } from "./agents-app-tabs";
 import { useAgentsActivity } from "./use-agents-activity";
 import type { AgentActivitySearch } from "./agent-activity-search";
+
+const ACTIVITY_EMPTY_HINT = `compozy call reviewer "…" --expect @contract.json`;
 
 export function AgentsActivityLocation({
   windowId,
@@ -32,6 +44,7 @@ export function AgentsActivityLocation({
     count: page.total,
     actions: (
       <Button
+        aria-label="Refresh"
         data-testid="agents-activity-refresh"
         onClick={page.refetch}
         size="sm"
@@ -39,130 +52,125 @@ export function AgentsActivityLocation({
         variant="ghost"
       >
         <RefreshCw aria-hidden="true" className="size-3" />
-        Refresh
       </Button>
     ),
   });
 
-  if (page.surface.status === "error") {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="agents-activity-error"
-      >
-        <Empty
+  const emptyTitle =
+    page.surface.emptyReason === "no-matches"
+      ? "No calls match"
+      : "No agent is delegating work right now";
+  const emptyDescription =
+    page.surface.emptyReason === "no-matches"
+      ? "Nothing in this filter is delegating work."
+      : "When an agent hands work to a specialist, the whole exchange shows up here.";
+
+  return (
+    <ListingPage
+      banner={
+        <div className={`${PAGE_CONTENT_GUTTER} pt-7`}>
+          <AgentsAppTabs value="activity" />
+        </div>
+      }
+      bodyClassName="pt-5"
+      data-testid="agents-activity-page"
+    >
+      <DataSurface className="flex min-h-0 flex-1 flex-col" state={page.surface.status}>
+        <DataSurface.Loading data-testid="agents-activity-loading" label="Loading activity" />
+        <DataSurface.Error
           action={
             <Button onClick={page.refetch} size="sm" type="button" variant="ghost">
               <RefreshCw aria-hidden="true" className="size-3" />
               Retry
             </Button>
           }
+          data-testid="agents-activity-error"
           description="The calls request failed. Check that CompozyOS is running and try again."
           icon={AlertCircle}
           title="Couldn't load activity"
         />
-      </div>
-    );
-  }
-
-  if (page.surface.status === "empty") {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="agents-activity-empty"
-      >
-        <Empty
+        <DataSurface.Empty
           action={
             <Button onClick={page.openCatalog} size="sm" type="button" variant="ghost">
               Browse agents
             </Button>
           }
-          description="When an agent hands work to a specialist, the whole exchange shows up here, live."
+          data-testid="agents-activity-empty"
+          description={emptyDescription}
+          hint={
+            page.surface.emptyReason === "no-calls" ? (
+              <span className="font-mono text-badge">{ACTIVITY_EMPTY_HINT}</span>
+            ) : undefined
+          }
           icon={GitBranch}
-          title="No agent is delegating work right now"
+          title={emptyTitle}
         />
-      </div>
-    );
-  }
+        <DataSurface.Content className="flex min-h-0 flex-1 flex-col gap-2">
+          {page.stale ? (
+            <Alert data-testid="agents-activity-stale" role="status" variant="warning">
+              <WifiOff aria-hidden="true" className="size-4" />
+              <AlertDescription>
+                Live updates disconnected — showing the last known state. Rows still open.
+              </AlertDescription>
+            </Alert>
+          ) : null}
 
-  return (
-    <ListingPage data-testid="agents-activity-page">
-      {/*
-        Out of date is stated, never silent. Rows stay clickable while the stream
-        is down — an old jump target beats no target — but their numbers stop
-        counting toward badges.
-      */}
-      {page.stale ? (
-        <p
-          className="mb-2 flex items-center gap-1.5 rounded-md border border-line-soft bg-canvas-soft px-3 py-1.5 text-form text-muted"
-          data-testid="agents-activity-stale"
-        >
-          <WifiOff className="size-3 shrink-0" aria-hidden="true" />
-          Live updates disconnected — showing the last known state. Rows still open.
-        </p>
-      ) : null}
+          {page.drainFailure ? (
+            <ActionResultBanner
+              actions={
+                <Button size="xs" type="button" variant="outline" onClick={page.retryStopSubtree}>
+                  Retry
+                </Button>
+              }
+              data-testid="agents-activity-drain-failure"
+              description={
+                <span>
+                  {page.drainFailure.message}
+                  {page.drainFailure.code ? (
+                    <span className="ml-1 font-mono text-form">{page.drainFailure.code}</span>
+                  ) : null}
+                </span>
+              }
+              title="Couldn't stop this subtree."
+              tone="danger"
+            />
+          ) : null}
 
-      {page.drainFailure ? (
-        <ActionResultBanner
-          data-testid="agents-activity-drain-failure"
-          title="Couldn't stop this subtree."
-          description={
-            <span>
-              {page.drainFailure.message}
-              {page.drainFailure.code ? (
-                <span className="ml-1 font-mono text-form">{page.drainFailure.code}</span>
-              ) : null}
-            </span>
-          }
-          tone="danger"
-          actions={
-            <Button size="xs" type="button" variant="outline" onClick={page.retryStopSubtree}>
-              Retry
-            </Button>
-          }
-        />
-      ) : null}
+          {page.drainOutcome ? (
+            <ActionResultBanner
+              data-testid="agents-activity-drain-outcome"
+              description={`${page.drainOutcome.stopped_children} children stopped · ${page.drainOutcome.closed_calls} calls closed · ${page.drainOutcome.preserved_results} results preserved`}
+              title="Subtree stopped."
+              tone="success"
+            />
+          ) : null}
 
-      {page.drainOutcome ? (
-        <ActionResultBanner
-          data-testid="agents-activity-drain-outcome"
-          title="Subtree stopped."
-          description={`${page.drainOutcome.stopped_children} children stopped · ${page.drainOutcome.closed_calls} calls closed · ${page.drainOutcome.preserved_results} results preserved`}
-          tone="success"
-        />
-      ) : null}
+          <AgentCallTree
+            countsByRoot={page.countsByRoot}
+            data-testid="agents-activity-tree"
+            onSelectCall={page.openCall}
+            onStopSubtree={page.stopSubtree}
+            pendingStopRootSessionId={page.pendingStopRootSessionId}
+            selectedCallId={search.call ?? null}
+            tree={page.tree}
+          />
 
-      <AgentCallTree
-        data-testid="agents-activity-tree"
-        tree={page.tree}
-        countsByRoot={page.countsByRoot}
-        childStates={page.childStates}
-        onSelectCall={page.openCall}
-        onStopSubtree={page.stopSubtree}
-        pendingStopRootSessionId={page.pendingStopRootSessionId}
-        selectedCallId={search.call ?? null}
-      />
-
-      {page.hasMore ? (
-        <div className="flex items-center gap-2 pt-2">
-          <span className="text-form text-muted">
-            {page.total === undefined
-              ? `${page.calls.length} loaded`
-              : `${page.calls.length} of ${page.total} loaded`}
-          </span>
-          <span className="flex-1" />
-          <Button
-            data-testid="agents-activity-more"
-            disabled={page.loadingMore}
-            onClick={page.loadMore}
-            size="xs"
-            type="button"
-            variant="outline"
-          >
-            Load older
-          </Button>
-        </div>
-      ) : null}
+          {page.hasMore ? (
+            <div className="flex justify-end pt-2">
+              <Button
+                data-testid="agents-activity-more"
+                disabled={page.loadingMore}
+                onClick={page.loadMore}
+                size="xs"
+                type="button"
+                variant="outline"
+              >
+                Load older
+              </Button>
+            </div>
+          ) : null}
+        </DataSurface.Content>
+      </DataSurface>
     </ListingPage>
   );
 }

@@ -3,12 +3,35 @@ import { delay, HttpResponse } from "msw";
 
 import { compozyApiMock } from "@/storybook/openapi-msw";
 import { storybookMswParameters } from "@/storybook/msw";
+import { storyAgentNames } from "@/storybook/fintech-scenario";
 import { agentCatalogMockResponse, agentFixtures } from "@/systems/agent/mocks";
+import { buildCallFixture, createAgentCommsHandlers } from "@/systems/agent-comms/mocks";
 import {
   StorybookRouteCanvas,
   StorybookWorkspaceSetup,
   appRouteParameters,
 } from "@/storybook/route-story-meta";
+
+const fleetRunningCallHandlers = createAgentCommsHandlers({
+  calls: [
+    buildCallFixture({
+      call_id: "call_fleet_cto_1",
+      agent: storyAgentNames.cto,
+      state: "running",
+    }),
+    buildCallFixture({
+      call_id: "call_fleet_cto_2",
+      agent: storyAgentNames.cto,
+      state: "running",
+    }),
+    buildCallFixture({
+      call_id: "call_fleet_frontend_1",
+      agent: storyAgentNames.frontend,
+      state: "running",
+    }),
+  ],
+  messages: [],
+});
 
 function fleetCategoryPath(index: number): string[] | undefined {
   if (index % 3 === 0) return ["Engineering", "Platform", "Release"];
@@ -70,20 +93,28 @@ const meta: Meta<typeof StorybookRouteCanvas> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** Catalog rows with workspace-scoped running-call pills and Catalog | Activity tabs. */
 export const Loaded: Story = {
   args: {},
   parameters: {
     ...appRouteParameters("/agents"),
-    ...storybookMswParameters({ agent: loadedAgentHandlers }),
+    ...storybookMswParameters({
+      agent: loadedAgentHandlers,
+      "agent-comms": fleetRunningCallHandlers,
+    }),
   },
   render: () => <StorybookWorkspaceSetup />,
 };
 
+/** Card view of the same catalog population. */
 export const LoadedCards: Story = {
   args: {},
   parameters: {
     ...appRouteParameters("/agents?view=cards"),
-    ...storybookMswParameters({ agent: loadedAgentHandlers }),
+    ...storybookMswParameters({
+      agent: loadedAgentHandlers,
+      "agent-comms": fleetRunningCallHandlers,
+    }),
   },
   render: () => <StorybookWorkspaceSetup />,
 };

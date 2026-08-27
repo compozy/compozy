@@ -267,25 +267,19 @@ describe("AgentCallTree — windowing", () => {
 });
 
 /**
- * Invariant: a row shows what became of its child only when the catalog can
- * answer. Owning layer: `AgentCallTree` / `AgentCallTreeRow`. Canonical suite:
- * this file.
+ * Invariant: the default Activity row keeps to five facts and never prints
+ * child lifecycle. Owning layer: `AgentCallTree` / `AgentCallTreeRow`.
+ * Canonical suite: this file.
  */
-describe("AgentCallTree — child state", () => {
-  it("Should show a child-state pill for the children the catalog resolved", () => {
-    const child = completedCallFixture.child_session_id!;
-    renderTree(activityTreeCallsFixture, {
-      childStates: new Map([[child, "parked" as const]]),
-    });
-
-    const pill = screen.getAllByTestId("agent-call-tree-child-state")[0]!;
-    expect(pill).toHaveAttribute("data-child-state", "parked");
+describe("AgentCallTree — five facts", () => {
+  it("Should keep child lifecycle off the default tree", () => {
+    renderTree();
+    expect(screen.queryByTestId("agent-call-tree-child-state")).not.toBeInTheDocument();
   });
 
-  it("Should show no pill at all when the catalog has not answered", () => {
-    // Absence of a pill is the honest rendering of "not known yet" — an
-    // unresolved child must never borrow another child's state.
-    renderTree(activityTreeCallsFixture, { childStates: new Map() });
-    expect(screen.queryAllByTestId("agent-call-tree-child-state")).toHaveLength(0);
+  it("Should print issue counts on invalid-result rows", () => {
+    renderTree();
+    expect(screen.getByText("2 issues")).toBeInTheDocument();
+    expect(screen.queryByText(/tries/)).not.toBeInTheDocument();
   });
 });

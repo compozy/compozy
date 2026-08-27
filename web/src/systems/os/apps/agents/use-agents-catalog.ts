@@ -12,6 +12,7 @@ import {
   projectAgentFleetRows,
   useAgentCatalog,
   useAgentCreateHost,
+  useAgentFleetCallInstances,
 } from "@/systems/agent";
 import { useSessionCreateActions, useSessionCreateHasActiveWorkspace } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -75,9 +76,11 @@ function useAgentsFleetPage(search: AgentsFleetSearch = {}) {
     openForAgent(agentName);
   };
 
+  const callInstances = useAgentFleetCallInstances(liveDataEnabled, agentsEnabled);
   const rows = projectAgentFleetRows({
     items: catalogQuery.agents,
     sessionsAvailable: catalogQuery.sessionsAvailable,
+    callInstances,
   });
 
   const filtersActive = hasActiveAgentFleetFilters(search);
