@@ -650,6 +650,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			logLoopRunTimeoutDebug(t, harness, quarantinedRun.ID, compozycontract.LoopRunPayload{})
 		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
+		waitForLoopRunStatus(t, ctx, harness, quarantinedRun.ID, compozycontract.LoopRunStatusDone)
 	})
 	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
