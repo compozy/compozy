@@ -7,7 +7,7 @@
  */
 import { AlertCircle, ArrowLeft, GitBranch } from "lucide-react";
 
-import { Button, Empty, ListingPage, useTopbarSlot } from "@compozy/ui";
+import { Button, Empty, MonoId, PageContent, SkeletonRows, useTopbarSlot } from "@compozy/ui";
 
 import { AgentCallCompose, AgentCallDetail, AgentComposeMessage } from "@/systems/agent-comms";
 
@@ -19,8 +19,22 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
   useTopbarSlot({
     glyph: <GitBranch />,
     onBack: page.openActivity,
-    crumbs: [{ id: "activity", label: "Activity", onSelect: page.openActivity }],
-    crumb: page.view?.agentName ?? callId,
+    crumbs: [{ id: "activity", label: "Activity tree", onSelect: page.openActivity }],
+    crumb: (
+      <span className="flex items-center gap-1.5">
+        <span className="text-muted">Agents /</span>
+        <MonoId value={callId} />
+      </span>
+    ),
+    ...(page.view
+      ? {
+          actions: (
+            <Button size="xs" type="button" variant="ghost" onClick={page.openCaller}>
+              Session panel
+            </Button>
+          ),
+        }
+      : {}),
   });
 
   if (page.error) {
@@ -33,7 +47,7 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
           action={
             <Button onClick={page.openActivity} size="sm" type="button" variant="ghost">
               <ArrowLeft aria-hidden="true" className="size-3" />
-              Back to Activity
+              Activity tree
             </Button>
           }
           description="This call is not in the current profile, or it no longer exists."
@@ -46,17 +60,14 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
 
   if (!page.view) {
     return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="agent-call-loading"
-      >
-        <Empty description="Loading the call record." icon={GitBranch} title="One moment" />
-      </div>
+      <PageContent density="compact" data-testid="agent-call-loading">
+        <SkeletonRows count={4} />
+      </PageContent>
     );
   }
 
   return (
-    <ListingPage data-testid="agent-call-page">
+    <PageContent density="compact" data-testid="agent-call-page">
       <AgentCallDetail
         data-testid="agent-call-detail"
         view={page.view}
@@ -84,10 +95,6 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
         onOpenChildSession={page.openChildSession}
       />
 
-      {/*
-        These are the two compose disclosures on this screen. Their open state
-        belongs to the location and is mutually exclusive.
-      */}
       {page.composing === "call-again" ? (
         <AgentCallCompose
           data-testid="agent-call-again-compose"
@@ -118,6 +125,6 @@ export function AgentCallLocation({ callId, windowId }: { callId: string; window
           accepted={page.messageAccepted}
         />
       ) : null}
-    </ListingPage>
+    </PageContent>
   );
 }

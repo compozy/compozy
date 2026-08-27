@@ -14,13 +14,21 @@
  */
 import { CornerUpRight } from "lucide-react";
 
-import { ActionResultBanner, Button, Eyebrow, Panel, Textarea } from "@compozy/ui";
+import {
+  ActionResultBanner,
+  Button,
+  Eyebrow,
+  Field,
+  FieldLabel,
+  Panel,
+  Textarea,
+} from "@compozy/ui";
 
 /**
  * Who the call goes to, and therefore what the operator is about to start.
  *
  * The difference is not cosmetic. A call aimed at a session revives that exact
- * helper with everything it already knows; a call aimed at a definition starts a
+ * child with everything it already knows; a call aimed at a definition starts a
  * new one that knows nothing. Saying which is a fact the operator needs before
  * pressing the button, not after.
  */
@@ -73,14 +81,12 @@ export function AgentCallCompose({
   const contractMissing = contractRequired && expect.trim().length === 0;
   return (
     <Panel
+      className="border border-line"
       data-testid={testId}
       title={<Eyebrow>Call {agentName}</Eyebrow>}
+      bodyClassName="px-3 py-3"
       foot={
-        <span className="flex w-full items-center gap-2">
-          <span className="text-form text-muted">
-            Rests after finishing · no deadline unless you set one
-          </span>
-          <span className="flex-1" />
+        <span className="flex w-full items-center justify-end">
           <Button
             data-testid="agent-call-compose-submit"
             disabled={empty || contractMissing || pending}
@@ -105,39 +111,39 @@ export function AgentCallCompose({
         </p>
       )}
 
-      <Textarea
-        aria-label={`What ${agentName} should do`}
-        data-testid="agent-call-compose-prompt"
-        disabled={pending}
-        onChange={event => onPromptChange(event.target.value)}
-        rows={2}
-        value={prompt}
-      />
+      <Field>
+        <FieldLabel htmlFor="agent-call-compose-prompt">Ask</FieldLabel>
+        <Textarea
+          id="agent-call-compose-prompt"
+          data-testid="agent-call-compose-prompt"
+          disabled={pending}
+          onChange={event => onPromptChange(event.target.value)}
+          rows={2}
+          value={prompt}
+        />
+      </Field>
 
-      <div className="mt-2">
-        <label className="mb-1 block text-form text-muted" htmlFor="agent-call-compose-expect">
-          {contractRequired
-            ? "What the answer must look like — an example or a JSON Schema"
-            : "What the answer must look like (optional) — an example or a JSON Schema"}
-        </label>
+      <Field className="mt-2">
+        <FieldLabel htmlFor="agent-call-compose-expect">
+          {contractRequired ? "Result contract" : "Result contract (optional)"}
+        </FieldLabel>
         {contractRequired ? (
-          <p className="mb-1 text-form text-warning" data-testid="agent-call-compose-contract-note">
+          <p className="text-form text-warning" data-testid="agent-call-compose-contract-note">
             The earlier call checked its answer against a contract, but only the contract&apos;s
             fingerprint was kept — the shape itself cannot be rebuilt from it. Write it again to
             keep the answer checked.
           </p>
         ) : null}
         <Textarea
-          aria-label="Result contract"
+          id="agent-call-compose-expect"
           data-testid="agent-call-compose-expect"
           disabled={pending}
-          id="agent-call-compose-expect"
           onChange={event => onExpectChange(event.target.value)}
           rows={3}
           value={expect}
           className="font-mono text-form"
         />
-      </div>
+      </Field>
 
       {failure ? (
         <ActionResultBanner

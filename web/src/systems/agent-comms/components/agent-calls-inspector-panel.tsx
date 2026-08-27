@@ -12,12 +12,9 @@
  * from `rows.length` would quietly turn a page size into a fact — the exact
  * failure the truthful-count rule exists to prevent.
  */
-import { ArrowDownLeft, ArrowUpRight } from "lucide-react";
+import { ActionResultBanner, Button, Empty, ItemGroup, ListGroup } from "@compozy/ui";
 
-import { ActionResultBanner, Button, Empty, Eyebrow, OwnerAvatar, Time } from "@compozy/ui";
-
-import { AgentCallStatePill, AgentCallVerdictChip } from "./agent-call-state-pill";
-import { toCallState, toCallVerdict } from "../lib/call-state";
+import { AgentCallsInspectorRow } from "./agent-calls-inspector-row";
 import type { CallPayload } from "../types";
 
 export interface CallDirectionSection {
@@ -44,61 +41,14 @@ export interface AgentCallsInspectorPanelProps {
   "data-testid"?: string;
 }
 
-function CallRow({
-  call,
-  direction,
-  pruned,
-  onOpenCall,
-}: {
-  call: CallPayload;
-  direction: "made" | "received";
-  pruned: boolean;
-  onOpenCall: (callId: string) => void;
-}) {
-  const Arrow = direction === "made" ? ArrowUpRight : ArrowDownLeft;
-  const counterpart =
-    direction === "made" ? (call.agent ?? call.child_session_id ?? "") : call.caller.id;
-  return (
-    <li
-      data-testid="agent-calls-panel-row"
-      data-call-id={call.call_id}
-      data-pruned={pruned || undefined}
-      className="flex items-center gap-2 py-1"
-    >
-      <Arrow className="size-3 shrink-0 text-muted" aria-hidden="true" />
-      <OwnerAvatar ownerKind="agent" ownerId={counterpart || call.call_id} size="sm" />
-      {pruned ? (
-        // Identity stays; the link is absent, and the row says why.
-        <span className="min-w-0 flex-1 truncate text-form text-fg">{counterpart}</span>
-      ) : (
-        <button
-          type="button"
-          className="min-w-0 flex-1 truncate text-left text-form text-fg hover:underline"
-          onClick={() => onOpenCall(call.call_id)}
-        >
-          {counterpart}
-        </button>
-      )}
-      <AgentCallStatePill state={toCallState(call.state)} fallbackLabel={call.state} />
-      <AgentCallVerdictChip verdict={toCallVerdict(call.verdict)} />
-      {pruned ? (
-        <span className="shrink-0 text-form text-muted">session pruned — record retained</span>
-      ) : null}
-      <Time iso={call.updated_at} className="shrink-0 text-form text-muted" />
-    </li>
-  );
-}
-
 function Section({
   label,
-  icon: Icon,
   section,
   direction,
   prunedSessionIds,
   onOpenCall,
 }: {
   label: string;
-  icon: typeof ArrowUpRight;
   section: CallDirectionSection;
   direction: "made" | "received";
   prunedSessionIds: ReadonlySet<string>;
@@ -106,21 +56,18 @@ function Section({
 }) {
   const loaded = section.calls.length;
   return (
-    <section data-testid={`agent-calls-panel-${direction}`} className="flex flex-col gap-1">
-      <header className="flex items-center gap-1.5">
-        <Icon className="size-3 shrink-0 text-muted" aria-hidden="true" />
-        <Eyebrow>{label}</Eyebrow>
-        <span className="flex-1" />
-        {section.total !== undefined ? (
-          <span
-            className="font-mono text-form text-muted"
-            data-testid={`agent-calls-panel-${direction}-count`}
-          >
-            {section.total}
-          </span>
-        ) : null}
-      </header>
-
+    <ListGroup
+      data-testid={`agent-calls-panel-${direction}`}
+      label={label}
+      {...(section.total === undefined
+        ? {}
+        : {
+            count: (
+              <span data-testid={`agent-calls-panel-${direction}-count`}>{section.total}</span>
+            ),
+          })}
+      headerProps={{ className: "border-line-soft bg-transparent px-0 py-1" }}
+    >
       {section.error ? (
         <ActionResultBanner
           data-testid={`agent-calls-panel-${direction}-error`}
@@ -142,12 +89,12 @@ function Section({
           {section.total === 0 ? "None yet." : "Loading…"}
         </p>
       ) : loaded > 0 ? (
-        <ul className="flex flex-col divide-y divide-line-soft">
+        <ItemGroup className="gap-0">
           {section.calls.map(call => {
             const counterpartId =
               direction === "made" ? (call.child_session_id ?? "") : call.caller.id;
             return (
-              <CallRow
+              <AgentCallsInspectorRow
                 key={call.call_id}
                 call={call}
                 direction={direction}
@@ -156,15 +103,11 @@ function Section({
               />
             );
           })}
-        </ul>
+        </ItemGroup>
       ) : null}
 
       {section.hasMore ? (
         <div className="flex items-center gap-2 pt-1">
-          {/*
-            The pager states what it knows: how many are loaded out of the real
-            total. It never claims more precision than the daemon gave it.
-          */}
           <span className="text-form text-muted">
             {section.total === undefined
               ? `${loaded} loaded`
@@ -183,11 +126,22 @@ function Section({
           </Button>
         </div>
       ) : null}
-    </section>
+    </ListGroup>
   );
 }
 
 const NO_PRUNED_SESSIONS: ReadonlySet<string> = new Set();
+
+function hasPopulation(section: CallDirectionSection): boolean {
+  return (section.total ?? section.calls.length) > 0;
+}
+
+function showDirection(section: CallDirectionSection, other: CallDirectionSection): boolean {
+  if (section.error) return true;
+  if (section.total === 0 && !hasPopulation(other)) return true;
+  if (section.total === 0) return false;
+  return true;
+}
 
 export function AgentCallsInspectorPanel({
   made,
@@ -198,32 +152,28 @@ export function AgentCallsInspectorPanel({
 }: AgentCallsInspectorPanelProps) {
   const empty = made.total === 0 && received.total === 0;
   if (empty) {
-    return (
-      <Empty
-        data-testid={testId}
-        title="No calls yet"
-        description="When this session delegates work — or is delegated to — the exchange shows up here."
-      />
-    );
+    return <Empty data-testid={testId} title="No calls yet" />;
   }
   return (
     <div data-testid={testId} className="flex flex-col gap-4">
-      <Section
-        label="Made"
-        icon={ArrowUpRight}
-        section={made}
-        direction="made"
-        prunedSessionIds={prunedSessionIds}
-        onOpenCall={onOpenCall}
-      />
-      <Section
-        label="Received"
-        icon={ArrowDownLeft}
-        section={received}
-        direction="received"
-        prunedSessionIds={prunedSessionIds}
-        onOpenCall={onOpenCall}
-      />
+      {showDirection(made, received) ? (
+        <Section
+          label="Made"
+          section={made}
+          direction="made"
+          prunedSessionIds={prunedSessionIds}
+          onOpenCall={onOpenCall}
+        />
+      ) : null}
+      {showDirection(received, made) ? (
+        <Section
+          label="Received"
+          section={received}
+          direction="received"
+          prunedSessionIds={prunedSessionIds}
+          onOpenCall={onOpenCall}
+        />
+      ) : null}
     </div>
   );
 }

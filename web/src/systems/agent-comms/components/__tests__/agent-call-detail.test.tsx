@@ -106,7 +106,8 @@ describe("AgentCallDetail — outcomes", () => {
 
     expect(screen.getByTestId("agent-call-result-rows")).toBeInTheDocument();
     expect(screen.getByText('"needs-changes"')).toBeInTheDocument();
-    expect(screen.getByText(/312 B stored/)).toBeInTheDocument();
+    expect(screen.getByText(/312 B/)).toBeInTheDocument();
+    expect(screen.getByText(/contract sha256:9f2c4d1a8b3e/)).toBeInTheDocument();
   });
 
   it("Should render extracted as extracted, not as returned", () => {
@@ -151,7 +152,7 @@ describe("AgentCallDetail — outcomes", () => {
     expect(screen.getByText(/bounded preview/i)).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /fetch full payload/i }));
     expect(onFetchFullPayload).toHaveBeenCalledOnce();
-    expect(screen.getByText(/812 KiB stored · budget 512 KiB/)).toBeInTheDocument();
+    expect(screen.getByText(/812 KiB/)).toBeInTheDocument();
 
     rerender(
       <AgentCallDetail
@@ -234,6 +235,11 @@ describe("AgentCallDetail — clocks", () => {
   it("Should say the idle clock is suspended while the call runs", () => {
     renderDetail(runningCallFixture);
     expect(screen.getByText("suspended while running")).toBeInTheDocument();
+  });
+
+  it("Should stamp timeline hours as UTC clocks from the record", () => {
+    renderDetail(completedCallFixture);
+    expect(screen.getByTestId("agent-call-timeline-created")).toHaveTextContent("18:12:04");
   });
 });
 

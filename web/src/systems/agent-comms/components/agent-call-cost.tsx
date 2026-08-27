@@ -13,7 +13,7 @@
  * provider data is never rendered as `0` — a fabricated zero is the one failure
  * mode that makes a cost display worse than no cost display.
  */
-import { Metric } from "@compozy/ui";
+import { Eyebrow, PropertyRow } from "@compozy/ui";
 
 import { describeCost, type CostInput } from "@/lib/cost-provenance";
 
@@ -31,14 +31,14 @@ export function AgentCallCost({
 }: AgentCallCostProps) {
   const cost = describeCost(usage);
   return (
-    <Metric
-      data-testid={testId}
-      data-cost-status={cost.status ?? "none"}
-      label={label}
-      labelCase="eyebrow"
-      size="compact"
-      value={cost.value}
-      subtext={cost.note ?? undefined}
-    />
+    <section data-testid={testId} data-cost-status={cost.status ?? "none"}>
+      <Eyebrow className="mb-1.5 block">Cost</Eyebrow>
+      <PropertyRow label={label} mono>
+        <span className="flex min-w-0 flex-col items-end">
+          <span>{cost.value}</span>
+          {cost.note ? <span className="font-sans text-form text-muted">{cost.note}</span> : null}
+        </span>
+      </PropertyRow>
+    </section>
   );
 }

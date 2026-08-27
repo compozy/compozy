@@ -12,7 +12,15 @@
  */
 import { Send } from "lucide-react";
 
-import { ActionResultBanner, Button, Eyebrow, Panel, Textarea } from "@compozy/ui";
+import {
+  ActionResultBanner,
+  Button,
+  Eyebrow,
+  Field,
+  FieldLabel,
+  Panel,
+  Textarea,
+} from "@compozy/ui";
 
 import { callMessageFailureCopy } from "../lib/call-failure-copy";
 
@@ -43,14 +51,12 @@ export function AgentComposeMessage({
   const empty = value.trim().length === 0;
   return (
     <Panel
+      className="border border-line"
       data-testid={testId}
       title={<Eyebrow>Message {targetLabel}</Eyebrow>}
+      bodyClassName="px-3 py-3"
       foot={
-        <span className="flex w-full items-center gap-2">
-          <span className="text-form text-muted">
-            Writing to a resting helper is what wakes it.
-          </span>
-          <span className="flex-1" />
+        <span className="flex w-full items-center justify-end">
           <Button
             size="sm"
             type="button"
@@ -64,14 +70,17 @@ export function AgentComposeMessage({
         </span>
       }
     >
-      <Textarea
-        aria-label={`Message to ${targetLabel}`}
-        rows={2}
-        value={value}
-        disabled={pending}
-        onChange={event => onChange(event.target.value)}
-        data-testid="agent-compose-message-input"
-      />
+      <Field>
+        <FieldLabel htmlFor="agent-compose-message-input">Message</FieldLabel>
+        <Textarea
+          id="agent-compose-message-input"
+          rows={2}
+          value={value}
+          disabled={pending}
+          onChange={event => onChange(event.target.value)}
+          data-testid="agent-compose-message-input"
+        />
+      </Field>
       {failureCode ? (
         <ActionResultBanner
           className="mt-2"

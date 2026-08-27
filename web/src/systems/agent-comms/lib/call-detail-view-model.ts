@@ -71,9 +71,14 @@ export interface CallDetailView {
   verdict: CallVerdict | null;
   terminal: boolean;
   callerId: string;
+  /** Wire `caller.kind` — shown as `(session)` when the caller is a session. */
+  callerKind: CallPayload["caller"]["kind"];
   childSessionId: string | null;
   depth: number;
   expectDigest: string | null;
+  /** Admission budget from the record — lives on the contract, not the result. */
+  resultBudgetBytes: number;
+  resultOverflow: string;
   idleTtl: CallIdleTtl;
   /** Present only when someone opted into a deadline. */
   deadlineAt: string | null;
@@ -266,9 +271,12 @@ export function buildCallDetailView(input: CallDetailInput): CallDetailView {
     verdict: toCallVerdict(call.verdict),
     terminal: state === null ? false : isTerminalCallState(state),
     callerId: call.caller.id,
+    callerKind: call.caller.kind,
     childSessionId: call.child_session_id ?? null,
     depth: call.depth,
     expectDigest: call.expect_digest ?? null,
+    resultBudgetBytes: call.result_budget_bytes,
+    resultOverflow: call.result_overflow,
     idleTtl: buildIdleTtl(call, state),
     deadlineAt: call.deadline_at ?? null,
     settledAt: call.settled_at ?? null,

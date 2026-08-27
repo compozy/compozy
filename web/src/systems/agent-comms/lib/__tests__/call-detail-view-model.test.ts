@@ -65,6 +65,9 @@ describe("buildCallDetailView — controls", () => {
     const view = buildCallDetailView({ call: call(), counterpartExists: false });
     expect(view.controls.openChildSession).toBe(false);
     expect(view.childSessionId).toBe("ses_01JBD8G2MZTX");
+    expect(view.callerKind).toBe("session");
+    expect(view.resultBudgetBytes).toBe(262_144);
+    expect(view.resultOverflow).toBe("store");
   });
 
   it("Should expose exactly the four supported controls", () => {

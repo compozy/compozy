@@ -152,6 +152,7 @@ export { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "./lib/agent-call-tree-consta
 export { AgentCallTreeRow } from "./components/agent-call-tree-row";
 export { AgentCallTreeRootRow } from "./components/agent-call-tree-root-row";
 export { AgentCallDetail } from "./components/agent-call-detail";
+export { AgentCallContract } from "./components/agent-call-contract";
 export { AgentCallDetailHeader } from "./components/agent-call-detail-header";
 export { AgentCallDetailTimeline } from "./components/agent-call-detail-timeline";
 export { AgentCallAttempts } from "./components/agent-call-attempts";

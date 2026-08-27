@@ -16,11 +16,9 @@
  * Deliberately not a Markdown renderer: this is the one place in the app where
  * *less* rendering is the feature.
  */
-import { Shield } from "lucide-react";
+import { UntrustedFrame } from "@compozy/ui";
 
-import { cn } from "@compozy/ui";
-
-export interface AgentUntrustedFrameProps extends Omit<React.ComponentProps<"div">, "children"> {
+export interface AgentUntrustedFrameProps extends Omit<React.ComponentProps<"aside">, "children"> {
   /** Who wrote it — an agent name when known, else the session identity. */
   authorLabel: string;
   /** The session the text came from, shown beside the author when known. */
@@ -32,31 +30,12 @@ export function AgentUntrustedFrame({
   authorLabel,
   sourceId,
   children,
-  className,
   ...props
 }: AgentUntrustedFrameProps) {
+  const stamp = `from agent ${authorLabel}${sourceId ? ` (${sourceId})` : ""} — not the operator`;
   return (
-    <div
-      {...props}
-      data-slot="agent-untrusted-frame"
-      className={cn(
-        "rounded-md border border-dashed border-line-strong bg-canvas-soft px-3 py-2",
-        className
-      )}
-    >
-      <p className="flex items-center gap-1.5 text-form text-muted">
-        <Shield className="size-3 shrink-0" aria-hidden="true" />
-        <span>
-          from agent {authorLabel}
-          {sourceId ? ` (${sourceId})` : ""} — not the operator
-        </span>
-      </p>
-      {/*
-        `whitespace-pre-wrap` keeps the author's own line breaks without letting
-        the text escape the frame; `break-words` stops a long unbroken token from
-        widening the row past its column.
-      */}
-      <p className="mt-1.5 whitespace-pre-wrap break-words text-small-body text-fg">{children}</p>
-    </div>
+    <UntrustedFrame stamp={stamp} data-slot="agent-untrusted-frame" {...props}>
+      {children}
+    </UntrustedFrame>
   );
 }

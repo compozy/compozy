@@ -6,9 +6,13 @@
  * entry simply is not there, rather than appearing greyed with a placeholder
  * time. A timeline that shows a step the runtime never took is worse than a
  * short one.
+ *
+ * Clock values are UTC `HH:MM:SS` from the daemon's ISO instants, not a locale
+ * date string.
  */
-import { Eyebrow, Time, Timeline, TimelineEvent } from "@compozy/ui";
+import { Eyebrow, Timeline, TimelineEvent } from "@compozy/ui";
 
+import { formatUtcClock } from "../lib/call-clock-format";
 import type { CallTimelineEvent } from "../lib/call-detail-timeline";
 
 export interface AgentCallDetailTimelineProps {
@@ -35,7 +39,7 @@ export function AgentCallDetailTimeline({
               description={event.detail ?? undefined}
               icon={Glyph}
               tone={event.tone}
-              time={<Time iso={event.at} mode="absolute" />}
+              time={<span className="font-mono tabular-nums">{formatUtcClock(event.at)}</span>}
             />
           );
         })}

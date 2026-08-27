@@ -12,35 +12,14 @@
  * countdown, because "suspended while running" is the fact that stops an
  * operator worrying about a clock that is not running.
  */
-import {
-  Ban,
-  Calendar,
-  CornerUpRight,
-  GitBranch,
-  Layers,
-  Mail,
-  Timer,
-  User,
-  type LucideIcon,
-} from "lucide-react";
+import { Ban, CornerUpRight, Mail } from "lucide-react";
 
-import { Button, MonoId, OwnerAvatar, Time, cn } from "@compozy/ui";
+import { Button, MetadataList, MonoId, OwnerAvatar, Pill, cn } from "@compozy/ui";
 
-import {
-  AgentCallLiveness,
-  AgentCallStatePill,
-  AgentCallVerdictChip,
-} from "./agent-call-state-pill";
+import { AgentCallLiveness, AgentCallStatePill } from "./agent-call-state-pill";
+import { formatIdleTtlCopy, formatSettledDuration } from "../lib/call-clock-format";
 import type { CallDetailView } from "../lib/call-detail-view-model";
-
-function Fact({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
-  return (
-    <span className="flex items-center gap-1.5 text-form text-muted">
-      <Icon className="size-3 shrink-0" aria-hidden="true" />
-      {children}
-    </span>
-  );
-}
+import { CALL_VERDICT_SIGNAL } from "../lib/call-state";
 
 export interface AgentCallDetailHeaderProps extends React.ComponentProps<"header"> {
   view: CallDetailView;
@@ -64,13 +43,28 @@ export function AgentCallDetailHeader({
   ...props
 }: AgentCallDetailHeaderProps) {
   const title = view.agentName ?? view.callId;
+  const ownerId = view.agentName ?? view.callId;
+  const idleCopy = formatIdleTtlCopy(view.idleTtl);
+  const settledDuration = view.settledAt
+    ? formatSettledDuration(view.createdAt, view.settledAt)
+    : null;
   return (
     <header {...props} className={cn("border-b border-line-soft pb-3", className)}>
       <div className="flex flex-wrap items-center gap-2">
-        <OwnerAvatar ownerKind="agent" ownerId={title} size="default" />
-        <h2 className="text-item-title text-fg-strong">{title}</h2>
+        <OwnerAvatar ownerKind="agent" ownerId={ownerId} size="default" />
+        <h1 className="text-detail-h1 font-medium tracking-detail-h1 text-fg-strong">{title}</h1>
         <AgentCallStatePill state={view.state} fallbackLabel={view.stateLabel} />
-        <AgentCallVerdictChip verdict={view.verdict} data-testid="agent-call-verdict" />
+        {view.verdict ? (
+          <Pill
+            size="xs"
+            tone="neutral"
+            mono
+            data-testid="agent-call-verdict"
+            data-verdict={view.verdict}
+          >
+            {CALL_VERDICT_SIGNAL[view.verdict].label}
+          </Pill>
+        ) : null}
         <AgentCallLiveness state={view.state} />
         <span className="flex-1" />
         <div className="flex items-center gap-1.5">
@@ -114,9 +108,8 @@ export function AgentCallDetailHeader({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5">
-        <Fact icon={User}>
-          caller{" "}
+      <MetadataList className="mt-2">
+        <MetadataList.Row label="caller">
           {onOpenCaller ? (
             <Button variant="link" size="xs" type="button" onClick={onOpenCaller}>
               <MonoId value={view.callerId} />
@@ -124,42 +117,41 @@ export function AgentCallDetailHeader({
           ) : (
             <MonoId value={view.callerId} />
           )}
-        </Fact>
+          {view.callerKind === "session" ? <span className="text-muted">(session)</span> : null}
+        </MetadataList.Row>
         {view.childSessionId ? (
-          <Fact icon={GitBranch}>
-            child{" "}
+          <MetadataList.Row label="child">
             {view.controls.openChildSession && onOpenChildSession ? (
               <Button variant="link" size="xs" type="button" onClick={onOpenChildSession}>
                 <MonoId value={view.childSessionId} />
               </Button>
             ) : (
-              // Retention pruned the session: identity stays, while the unavailable jump is omitted.
               <MonoId value={view.childSessionId} />
             )}
-          </Fact>
+          </MetadataList.Row>
         ) : null}
-        <Fact icon={Layers}>depth {view.depth}</Fact>
-        {view.idleTtl.kind === "suspended" ? (
-          <Fact icon={Timer}>
-            idle TTL <span className="font-mono">suspended while running</span>
-          </Fact>
-        ) : null}
-        {view.idleTtl.kind === "counting" ? (
-          <Fact icon={Timer}>
-            idle TTL <Time iso={view.idleTtl.expiresAt} />
-          </Fact>
+        <MetadataList.Row label="depth">{view.depth}</MetadataList.Row>
+        {idleCopy ? (
+          <MetadataList.Row label="idle TTL">
+            <span className="text-small-body text-fg">{idleCopy}</span>
+          </MetadataList.Row>
         ) : null}
         {view.deadlineAt ? (
-          <Fact icon={Timer}>
-            deadline <Time iso={view.deadlineAt} mode="absolute" /> (opt-in)
-          </Fact>
+          <MetadataList.Row label="deadline">
+            <span className="font-mono text-form">
+              {view.deadlineAt} <span className="font-sans text-muted">(opt-in)</span>
+            </span>
+          </MetadataList.Row>
         ) : null}
         {view.settledAt ? (
-          <Fact icon={Calendar}>
-            settled <Time iso={view.settledAt} mode="absolute" />
-          </Fact>
+          <MetadataList.Row label="settled">
+            <span className="font-mono text-form">
+              {view.settledAt}
+              {settledDuration ? <span className="text-muted"> ({settledDuration})</span> : null}
+            </span>
+          </MetadataList.Row>
         ) : null}
-      </div>
+      </MetadataList>
     </header>
   );
 }

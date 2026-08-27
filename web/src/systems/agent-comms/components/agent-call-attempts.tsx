@@ -80,7 +80,12 @@ export function AgentCallAttempts({
   // No repair round means there was only ever one answer to reject.
   const showFirst = repairAttempts > 0;
   return (
-    <Panel data-testid={testId} title={<Eyebrow>Attempts</Eyebrow>}>
+    <Panel
+      className="border border-line"
+      bodyClassName="px-3 py-3"
+      data-testid={testId}
+      title={<Eyebrow>Attempts</Eyebrow>}
+    >
       {showFirst ? (
         <Attempt
           testId="agent-call-attempt-1"

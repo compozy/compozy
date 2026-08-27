@@ -81,7 +81,7 @@ describe("AgentCallsInspectorPanel — directions", () => {
       <AgentCallsInspectorPanel made={made} received={section([], 0)} onOpenCall={onOpenCall} />
     );
 
-    await user.click(screen.getByRole("button", { name: completedCallFixture.agent }));
+    await user.click(screen.getByRole("button", { name: completedCallFixture.agent ?? "" }));
     await user.click(screen.getByTestId("agent-calls-panel-made-more"));
 
     expect(onOpenCall).toHaveBeenCalledWith(completedCallFixture.call_id);
@@ -136,25 +136,72 @@ describe("AgentCallsInspectorPanel — directions", () => {
     );
 
     expect(screen.getByText("No calls yet")).toBeInTheDocument();
+    expect(screen.queryByText(/When this session delegates work/)).not.toBeInTheDocument();
   });
-});
 
-describe("AgentCallsInspectorPanel — pruned counterpart", () => {
-  it("Should keep the record and drop only the jump when the session is gone", () => {
+  it("Should hide an empty direction when the other side has calls", () => {
     render(
       <AgentCallsInspectorPanel
         made={section([completedCallFixture], 1)}
         received={section([], 0)}
         onOpenCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getByTestId("agent-calls-panel-made")).toBeInTheDocument();
+    expect(screen.queryByTestId("agent-calls-panel-received")).not.toBeInTheDocument();
+  });
+
+  it("Should name a Received row from the caller kind, never the session id", () => {
+    render(
+      <AgentCallsInspectorPanel
+        made={section([], 0)}
+        received={section(
+          [{ ...completedCallFixture, caller: { id: "ses_operator_hidden", kind: "operator" } }],
+          1
+        )}
+        onOpenCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "operator" })).toBeInTheDocument();
+    expect(screen.queryByText("ses_operator_hidden")).not.toBeInTheDocument();
+  });
+
+  it("Should name a Made row without an agent instead of showing a session id", () => {
+    render(
+      <AgentCallsInspectorPanel
+        made={section([{ ...completedCallFixture, agent: undefined }], 1)}
+        received={section([], 0)}
+        onOpenCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "unknown agent" })).toBeInTheDocument();
+    expect(screen.queryByText(completedCallFixture.child_session_id ?? "")).not.toBeInTheDocument();
+  });
+});
+
+describe("AgentCallsInspectorPanel — pruned counterpart", () => {
+  it("Should keep the record openable and drop only the session hop when the counterpart is gone", async () => {
+    const user = userEvent.setup();
+    const onOpenCall = vi.fn();
+    render(
+      <AgentCallsInspectorPanel
+        made={section([completedCallFixture], 1)}
+        received={section([], 0)}
+        onOpenCall={onOpenCall}
         prunedSessionIds={new Set([completedCallFixture.child_session_id!])}
       />
     );
 
     const row = screen.getByTestId("agent-calls-panel-row");
     expect(row).toHaveAttribute("data-pruned", "true");
-    expect(within(row).queryByRole("button")).toBeNull();
+    expect(row.tagName).toBe("BUTTON");
     expect(within(row).getByText("session pruned — record retained")).toBeInTheDocument();
-    // The state it reached is still on the record.
     expect(within(row).getByText("completed")).toBeInTheDocument();
+
+    await user.click(row);
+    expect(onOpenCall).toHaveBeenCalledWith(completedCallFixture.call_id);
   });
 });

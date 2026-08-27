@@ -12,11 +12,12 @@
  */
 import { Archive } from "lucide-react";
 
-import { ActionResultBanner, Button, Eyebrow, JsonViewer, MonoId, Panel } from "@compozy/ui";
+import { ActionResultBanner, Button, Eyebrow, JsonViewer, Panel } from "@compozy/ui";
 
 import type { CostInput } from "@/lib/cost-provenance";
 
 import { AgentCallAttempts } from "./agent-call-attempts";
+import { AgentCallContract } from "./agent-call-contract";
 import { AgentCallCost } from "./agent-call-cost";
 import { AgentCallDetailHeader } from "./agent-call-detail-header";
 import { AgentCallDetailTimeline } from "./agent-call-detail-timeline";
@@ -106,11 +107,6 @@ export function AgentCallDetail({
         {...(cancelPending === undefined ? {} : { cancelPending })}
       />
 
-      {/*
-        The cancel receipt lives here, not in the header: the header's Cancel
-        button unmounts the moment the re-read lands, and a banner beside it
-        would vanish in the same tick that produced it.
-      */}
       {cancelOutcome ? (
         <ActionResultBanner
           data-testid="agent-call-cancel-outcome"
@@ -151,12 +147,16 @@ export function AgentCallDetail({
         <div className="flex min-w-0 flex-col gap-3">
           {view.prompt ? (
             <Panel
+              className="border border-line"
               title={<Eyebrow>Prompt</Eyebrow>}
               meta={
-                <span className="font-mono text-form">
-                  {formatAgentCallBytes(view.prompt.bytes)}
-                </span>
+                view.prompt.bounded ? (
+                  <span className="font-mono text-form">
+                    {formatAgentCallBytes(view.prompt.bytes)}
+                  </span>
+                ) : undefined
               }
+              bodyClassName="px-3 py-3"
               data-testid="agent-call-prompt"
               {...(view.prompt.bounded && onFetchFullPrompt && fullPrompt === undefined
                 ? {
@@ -201,21 +201,19 @@ export function AgentCallDetail({
           ) : null}
 
           {view.expectDigest ? (
-            <Panel
-              title={<Eyebrow>Result contract</Eyebrow>}
-              meta={<MonoId value={view.expectDigest} copy />}
+            <AgentCallContract
+              digest={view.expectDigest}
+              budgetBytes={view.resultBudgetBytes}
+              overflow={view.resultOverflow}
               data-testid="agent-call-contract"
-            >
-              <p className="text-form text-muted">
-                The answer had to match this shape before it could be admitted.
-              </p>
-            </Panel>
+            />
           ) : null}
 
           <AgentCallResultView
             data-testid="agent-call-result"
             result={view.result}
             verdict={view.verdict}
+            contractDigest={view.expectDigest}
             {...(fullPayload === undefined ? {} : { fullPayload })}
             {...(onFetchFullPayload ? { onFetchFullPayload } : {})}
             {...(fullPayloadPending === undefined ? {} : { fullPayloadPending })}
@@ -234,12 +232,14 @@ export function AgentCallDetail({
 
           {view.superseded ? (
             <Panel
+              className="border border-dashed border-line"
               title={
                 <span className="flex items-center gap-1.5">
-                  <Archive className="size-3" aria-hidden="true" />
+                  <Archive className="size-3 text-muted" aria-hidden="true" />
                   <Eyebrow>Superseded late result</Eyebrow>
                 </span>
               }
+              bodyClassName="px-3 py-3"
               data-testid="agent-call-superseded"
             >
               <p className="text-small-body text-fg">
