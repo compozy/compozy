@@ -736,6 +736,8 @@ type harnessIntegrationWorkspaceResolver struct {
 	resolved workspacepkg.ResolvedWorkspace
 }
 
+var _ workspacepkg.ProfileRegistrationResolver = (*harnessIntegrationWorkspaceResolver)(nil)
+
 func (r *harnessIntegrationWorkspaceResolver) Resolve(
 	_ context.Context,
 	idOrPath string,
@@ -749,6 +751,19 @@ func (r *harnessIntegrationWorkspaceResolver) Resolve(
 	}
 }
 
+func (r *harnessIntegrationWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	idOrPath string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.Resolve(ctx, idOrPath)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(profileName)
+	return resolved, nil
+}
+
 func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegister(
 	_ context.Context,
 	path string,
@@ -757,6 +772,19 @@ func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegister(
 		return r.resolved, nil
 	}
 	return workspacepkg.ResolvedWorkspace{}, workspacepkg.ErrWorkspaceNotFound
+}
+
+func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegisterForProfile(
+	ctx context.Context,
+	path string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.ResolveOrRegister(ctx, path)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(profileName)
+	return resolved, nil
 }
 
 type harnessIntegrationDriver struct {
