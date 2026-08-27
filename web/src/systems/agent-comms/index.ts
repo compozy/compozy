@@ -120,8 +120,14 @@ export {
   type SyntheticTurnKind,
 } from "./lib/synthetic-turn";
 export {
+  AGENT_CALL_RETURN_TOOL_NAME,
   AGENT_CALL_TOOL_NAME,
+  agentCallArgsFromTool,
   callIdsFromToolResult,
+  isAgentCallToolName,
+  isCallReturnToolName,
+  verdictFromReturnResult,
+  type AgentCallToolArgs,
   type AgentCallToolInvocation,
 } from "./lib/agent-call-tool-parts";
 
@@ -161,6 +167,9 @@ export { AgentComposeMessage } from "./components/agent-compose-message";
 export { AgentCallCompose, type AgentCallTarget } from "./components/agent-call-compose";
 export { AgentCallTurnCard } from "./components/agent-call-turn-card";
 export { AgentCallTurnFanout } from "./components/agent-call-turn-fanout";
+export { AgentCallTurnStack } from "./components/agent-call-turn-stack";
+export { AgentCallBoundTurn } from "./components/agent-call-bound-turn";
+export { AgentCallReturnTurn } from "./components/agent-call-return-turn";
 export { AgentSyntheticTurn } from "./components/agent-synthetic-turn";
 export { AgentCallInvocationCard } from "./components/agent-call-invocation-card";
 export {

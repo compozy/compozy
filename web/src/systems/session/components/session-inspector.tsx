@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { DetailInspector, cn } from "@compozy/ui";
 
@@ -19,6 +19,7 @@ import {
   SESSION_INSPECTOR_TAB_TESTIDS,
   SESSION_INSPECTOR_TABS,
   isInspectorTabId,
+  subscribeSessionInspectorTab,
   type InspectorTabId,
 } from "../lib/session-inspector-tabs";
 
@@ -102,6 +103,12 @@ export function SessionInspector({
   const handleTabChange = (id: string) => {
     if (isInspectorTabId(id)) setActiveTab(id);
   };
+  useEffect(() => {
+    return subscribeSessionInspectorTab(tab => {
+      setActiveTab(tab);
+      onDrawerOpenChange?.(true);
+    });
+  }, [onDrawerOpenChange]);
   const tabs = SESSION_INSPECTOR_TABS.map(tab => ({
     id: tab.id,
     label: <span data-testid={SESSION_INSPECTOR_TAB_TESTIDS[tab.id]}>{tab.label}</span>,

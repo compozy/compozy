@@ -12,6 +12,7 @@ import {
   buildLargeTreeFixture,
   childMessageFixture,
   completedCallFixture,
+  extractedCallFixture,
   failedMessageFixture,
   invalidResultCallFixture,
   operatorMessageFixture,
@@ -26,37 +27,47 @@ import type { CallMessagePayload, CallPayload } from "../../types";
  * through a different component would capture a surface the product does not
  * have.
  */
-function messageTurn(message: CallMessagePayload): SyntheticTurn {
+function emptySynthetic(kind: SyntheticTurn["kind"]): SyntheticTurn {
   return {
-    kind: "message",
-    callId: message.call_id ?? null,
+    kind,
+    callId: null,
     callState: null,
     childSessionId: null,
     childAgentName: null,
+    callerAgentName: null,
     resultBytes: null,
     contractDigest: null,
+    requiredKeyCount: null,
+    messageId: null,
+    deliveryKind: null,
+    reason: null,
+    summary: null,
+    verdict: null,
+    wakeEventId: null,
+  };
+}
+
+function messageTurn(message: CallMessagePayload): SyntheticTurn {
+  return {
+    ...emptySynthetic("message"),
+    callId: message.call_id ?? null,
     messageId: message.message_id,
     deliveryKind: message.delivery,
     reason: message.reason ?? null,
-    summary: null,
-    wakeEventId: null,
+    childAgentName: message.from_agent_name ?? null,
   };
 }
 
 function wakeTurn(call: CallPayload): SyntheticTurn {
   return {
-    kind: "call-wake",
+    ...emptySynthetic("call-wake"),
     callId: call.call_id,
     callState: call.state,
     childSessionId: call.child_session_id ?? null,
     childAgentName: call.agent ?? null,
     resultBytes: call.result_bytes ?? null,
     contractDigest: call.expect_digest ?? null,
-    messageId: null,
-    deliveryKind: null,
-    reason: call.failure_code ?? null,
-    summary: null,
-    wakeEventId: null,
+    summary: `Call completed: ${call.agent ?? "agent"} (${call.call_id}) → ${call.state}.`,
   };
 }
 
@@ -107,7 +118,12 @@ export const CallTurnCards: Story = {
       <div className="flex w-full max-w-2xl flex-col gap-2">
         <AgentCallTurnCard call={completedCallFixture} onOpenCall={() => undefined} />
         <AgentCallTurnCard call={runningCallFixture} onOpenCall={() => undefined} />
-        <AgentCallTurnCard call={invalidResultCallFixture} onOpenCall={() => undefined} />
+        <AgentCallTurnCard
+          call={invalidResultCallFixture}
+          defaultOpen
+          onOpenCall={() => undefined}
+        />
+        <AgentCallTurnCard call={extractedCallFixture} defaultOpen onOpenCall={() => undefined} />
         <AgentCallTurnCard
           call={completedCallFixture}
           defaultOpen
@@ -119,7 +135,7 @@ export const CallTurnCards: Story = {
   ),
 };
 
-/** Many helpers at once stay one card, with the worst state escalated to the head. */
+/** Many agents at once stay one row, with the worst state escalated to the head. */
 export const FanOut: Story = {
   render: () => (
     <PanelSurface>
@@ -145,10 +161,39 @@ export const WakeCards: Story = {
           <AgentSyntheticTurn
             key={call.call_id}
             turn={wakeTurn(call)}
-            text={`${call.agent} finished: ${call.state}`}
-            onOpenCall={() => undefined}
+            text={`Call completed: ${call.agent ?? "agent"} (${call.call_id}) → ${call.state}.`}
           />
         ))}
+      </div>
+    </PanelSurface>
+  ),
+};
+
+/** The child's bound plate and the return receipt. */
+export const HelperSession: Story = {
+  render: () => (
+    <PanelSurface>
+      <div className="flex w-full max-w-2xl flex-col gap-3">
+        <AgentSyntheticTurn
+          text={`Call context: stay in the asked files
+Review the checkout retry path in HEAD~1..HEAD`}
+          turn={{
+            ...emptySynthetic("call-request"),
+            callId: completedCallFixture.call_id,
+            callerAgentName: "planner",
+            contractDigest: "sha256:9f2c",
+            requiredKeyCount: 2,
+          }}
+        />
+        <AgentSyntheticTurn
+          text=""
+          turn={{
+            ...emptySynthetic("call-return"),
+            callId: completedCallFixture.call_id,
+            callerAgentName: "planner",
+            verdict: "returned",
+          }}
+        />
       </div>
     </PanelSurface>
   ),

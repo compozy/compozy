@@ -13,13 +13,10 @@
 // `./session-row-equality`; the run summarizer in `./session-timeline-summary`.
 
 import { foldSettledTurns } from "./session-timeline-fold";
-import { workGroupId, type SessionWorkGroupAnchor } from "./session-timeline-group-identity";
+import { type SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 import { markerClusterKey } from "./session-timeline-markers";
-import {
-  MIN_COLLAPSIBLE_TOOL_GROUP_SIZE,
-  summarizeToolGroup,
-  type SessionToolGroupSummary,
-} from "./session-timeline-summary";
+import { type SessionToolGroupSummary } from "./session-timeline-summary";
+import { findLiveTailClusterStart, workRowsFromCluster } from "./session-timeline-work-rows";
 
 export { markerClusterKey } from "./session-timeline-markers";
 
@@ -190,8 +187,6 @@ export interface DeriveSessionRowsOptions {
 }
 export type { SessionWorkGroupAnchor } from "./session-timeline-group-identity";
 
-const ACTIVE_WORK_VISIBLE_LIMIT = 4;
-
 // A streaming/live part state. The runtime emits `streaming` on the wire
 // (`internal/transcript/ui_messages.go`) while assistant-ui's own status object
 // reads `running`; both mark a live turn. Shared by the turn-fold active check
@@ -323,138 +318,6 @@ function dataRowFromCluster(parts: SessionTimelineDataPart[]): SessionDataRow {
     part: first,
     parts: [...parts],
     count: parts.length,
-  };
-}
-
-// The live tail is the trailing tool run of the part list — the run new calls
-// still append to. It stays open while every earlier run collapses the moment
-// it settles, even mid-turn. A trailing run qualifies when (ignoring the
-// working indicator) it ends the transcript and either belongs to the active
-// turn or still has running calls.
-function findLiveTailClusterStart(
-  parts: readonly SessionTimelinePart[],
-  activeTurnId: string | undefined
-): string | null {
-  let index = parts.length - 1;
-  while (index >= 0 && parts[index]!.kind === "working") index -= 1;
-  const last = index >= 0 ? parts[index] : undefined;
-  if (!last || last.kind !== "tool") return null;
-  const cluster: SessionTimelineToolPart[] = [last];
-  for (let scan = index - 1; scan >= 0; scan -= 1) {
-    const previous = parts[scan]!;
-    if (previous.kind !== "tool" || previous.turnId !== last.turnId) break;
-    cluster.unshift(previous);
-  }
-  const hasRunning = cluster.some(tool => tool.status === "running");
-  const activeTurn =
-    activeTurnId !== undefined && activeTurnId !== "" && last.turnId === activeTurnId;
-  return hasRunning || activeTurn ? (cluster[0]?.id ?? null) : null;
-}
-
-function workRowsFromCluster(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  liveTailStartId: string | null,
-  usedGroupIds: Set<string>
-): SessionRow[] {
-  const first = tools[0];
-  if (!first) return [];
-  const live = first.id === liveTailStartId || tools.some(tool => tool.status === "running");
-  return live
-    ? liveWorkRows(tools, options, usedGroupIds)
-    : settledWorkRows(tools, options, usedGroupIds);
-}
-
-// The live tail: one open run, the newest ACTIVE_WORK_VISIBLE_LIMIT rows
-// visible, a "+N previous tool calls" toggle above them when the run overflows.
-function liveWorkRows(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  usedGroupIds: Set<string>
-): SessionRow[] {
-  const first = tools[0]!;
-  const groupId = workGroupId(tools, { ...options, usedGroupIds });
-  usedGroupIds.add(groupId);
-  const grouped = tools.length > ACTIVE_WORK_VISIBLE_LIMIT;
-  const expanded = grouped ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false;
-  const workRow: SessionWorkRow = {
-    kind: "work",
-    id: groupId,
-    groupId,
-    turnId: first.turnId,
-    timestamp: first.timestamp,
-    entries: [...tools],
-    summary: null,
-    visibleCount: grouped ? ACTIVE_WORK_VISIBLE_LIMIT : tools.length,
-    grouped,
-    expanded,
-    active: true,
-  };
-  if (!grouped) {
-    return [workRow];
-  }
-  return [
-    {
-      kind: "work-toggle",
-      id: `${groupId}:toggle`,
-      groupId,
-      turnId: first.turnId,
-      timestamp: first.timestamp,
-      hiddenCount: tools.length - ACTIVE_WORK_VISIBLE_LIMIT,
-      expanded,
-    },
-    workRow,
-  ];
-}
-
-// Settled runs rest collapsed: summarizable stretches of 2+ fold into one
-// semantic summary row, while failed/interrupted calls (and lone survivors
-// between them) stay individually visible — a summary never hides a failure.
-function settledWorkRows(
-  tools: SessionTimelineToolPart[],
-  options: DeriveSessionRowsOptions,
-  usedGroupIds: Set<string>
-): SessionRow[] {
-  const chunks: { summarizable: boolean; entries: SessionTimelineToolPart[] }[] = [];
-  for (const tool of tools) {
-    const summarizable = tool.isError !== true && tool.status !== "interrupted";
-    const lastChunk = chunks.at(-1);
-    if (lastChunk && lastChunk.summarizable === summarizable) {
-      lastChunk.entries.push(tool);
-    } else {
-      chunks.push({ summarizable, entries: [tool] });
-    }
-  }
-  return chunks.map(chunk => {
-    const summary =
-      chunk.summarizable && chunk.entries.length >= MIN_COLLAPSIBLE_TOOL_GROUP_SIZE
-        ? summarizeToolGroup(chunk.entries)
-        : null;
-    const groupId = workGroupId(chunk.entries, { ...options, usedGroupIds });
-    usedGroupIds.add(groupId);
-    return settledWorkRow(chunk.entries, summary, groupId, options);
-  });
-}
-
-function settledWorkRow(
-  entries: SessionTimelineToolPart[],
-  summary: SessionToolGroupSummary | null,
-  groupId: string,
-  options: DeriveSessionRowsOptions
-): SessionWorkRow {
-  const first = entries[0]!;
-  return {
-    kind: "work",
-    id: groupId,
-    groupId,
-    turnId: first.turnId,
-    timestamp: first.timestamp,
-    entries: [...entries],
-    summary,
-    visibleCount: entries.length,
-    grouped: false,
-    expanded: summary ? (options.expandedWorkGroupIds?.has(groupId) ?? false) : false,
-    active: false,
   };
 }
 

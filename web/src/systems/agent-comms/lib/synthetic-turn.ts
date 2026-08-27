@@ -24,6 +24,8 @@ export type SyntheticTurnKind =
   | "call-follow-up"
   /** A call settled and woke its caller, carrying the outcome. */
   | "call-wake"
+  /** The child closed the call with an answer. */
+  | "call-return"
   /** A message delivered into this session's turn. */
   | "message";
 
@@ -34,8 +36,11 @@ export interface SyntheticTurn {
   callState: string | null;
   childSessionId: string | null;
   childAgentName: string | null;
+  /** Display name of the session that asked, when the daemon sent one. */
+  callerAgentName: string | null;
   resultBytes: number | null;
   contractDigest: string | null;
+  requiredKeyCount: number | null;
   messageId: string | null;
   /** Public delivery receipt for a message turn. */
   deliveryKind: string | null;
@@ -43,6 +48,8 @@ export interface SyntheticTurn {
   reason: string | null;
   /** The daemon's own summary line — rendered verbatim, never rephrased. */
   summary: string | null;
+  /** Payload verdict from a return, when the daemon sent one. */
+  verdict: string | null;
   wakeEventId: string | null;
 }
 
@@ -72,6 +79,7 @@ function classify(source: Record<string, unknown>): SyntheticTurnKind | null {
   const reason = text(source, "reason");
   if (reason === "call_request") return "call-request";
   if (reason === "call_follow_up") return "call-follow-up";
+  if (reason === "call_return") return "call-return";
 
   const messageId = text(source, "message_id");
   const callId = text(source, "call_id");
@@ -104,12 +112,18 @@ export function readSyntheticTurn(metadata: unknown): SyntheticTurn | null {
     callState: text(source, "call_state"),
     childSessionId: text(source, "child_session_id"),
     childAgentName: text(source, "child_agent_name"),
+    callerAgentName:
+      text(source, "caller_agent_name") ??
+      text(source, "parent_agent_name") ??
+      text(source, "caller_name"),
     resultBytes: count(source, "result_bytes"),
     contractDigest: text(source, "contract_digest"),
+    requiredKeyCount: count(source, "required_key_count"),
     messageId: text(source, "message_id"),
     deliveryKind: text(source, "delivery_kind"),
     reason: text(source, "reason"),
     summary: text(source, "summary"),
+    verdict: text(source, "verdict"),
     wakeEventId: text(source, "wake_event_id"),
   };
 }

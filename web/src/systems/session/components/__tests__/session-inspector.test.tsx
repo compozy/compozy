@@ -7,8 +7,10 @@ import { SessionLedgerUnavailableError } from "../../adapters/session-api";
 import type { SessionLedgerResponse } from "../../types";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import {
+  requestSessionInspectorTab,
   SESSION_INSPECTOR_TAB_IDS,
   SESSION_INSPECTOR_TAB_TESTIDS,
+  subscribeSessionInspectorTab,
 } from "../../lib/session-inspector-tabs";
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
@@ -110,6 +112,16 @@ describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
       "usage"
     );
     expect(screen.getByTestId("session-inspector-usage")).toBeInTheDocument();
+  });
+
+  it("Should notify subscribers when a transcript row requests a tab", () => {
+    const seen: string[] = [];
+    const stop = subscribeSessionInspectorTab(tab => {
+      seen.push(tab);
+    });
+    requestSessionInspectorTab("calls");
+    stop();
+    expect(seen).toEqual(["calls"]);
   });
 
   it("Should render inline at >= 1440 px viewport (data-mode=inline) at 320 px width", () => {

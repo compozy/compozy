@@ -7,15 +7,20 @@ import { cn } from "@/lib/utils";
 
 import { getToolIcon, resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 import { Marker, MarkerMeta } from "@compozy/ui";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 
 import {
-  AGENT_CALL_TOOL_NAME,
-  AgentCallInvocationCard,
   callIdsFromToolResult,
-  useCallsById,
+  isAgentCallToolName,
+  isCallReturnToolName,
 } from "@/systems/agent-comms";
 import { useAssistantMessageTimeline } from "./hooks/use-assistant-message-timeline";
+import {
+  SessionCallInvocation,
+  SessionCallReturnRow,
+  SessionSettledCallStack,
+} from "./session-call-invocation";
+import { isSettledDelegationStack } from "./session-timeline-delegation";
 import {
   TimelineRowContext,
   toggleTimelineExpansion,
@@ -109,37 +114,16 @@ function SessionWorkToolRow({
   tool: SessionTimelineToolPart;
   turnSettled: boolean;
 }) {
-  if (tool.toolName === AGENT_CALL_TOOL_NAME) {
+  if (isCallReturnToolName(tool.toolName)) {
+    return <SessionCallReturnRow tool={tool} />;
+  }
+  if (isAgentCallToolName(tool.toolName)) {
+    if (turnSettled && tool.isError === true && callIdsFromToolResult(tool.result).length === 0) {
+      return <SessionToolCallRow message={toolMessageFromPart(tool)} turnSettled={turnSettled} />;
+    }
     return <SessionCallInvocation tool={tool} turnSettled={turnSettled} />;
   }
   return <SessionToolCallRow message={toolMessageFromPart(tool)} turnSettled={turnSettled} />;
-}
-
-function SessionCallInvocation({
-  tool,
-  turnSettled,
-}: {
-  tool: SessionTimelineToolPart;
-  turnSettled: boolean;
-}) {
-  const navigate = useNavigate();
-  const callIds = callIdsFromToolResult(tool.result);
-  const { calls, loading } = useCallsById(callIds, !turnSettled);
-  return (
-    <AgentCallInvocationCard
-      data-testid="session-call-invocation"
-      invocation={{
-        toolCallId: tool.toolCallId,
-        callIds,
-        pending: tool.status === "running",
-      }}
-      calls={calls}
-      loading={loading}
-      onOpenCall={callId => {
-        void navigate({ to: "/agents/calls/$callId", params: { callId } });
-      }}
-    />
-  );
 }
 
 function workToggleLabel(row: SessionWorkToggleRow): string {
@@ -232,6 +216,9 @@ function SessionWorkRowView({ row }: { row: SessionWorkRow }) {
   }
   const tools = visibleWorkEntries(row);
   const detailsId = row.grouped ? `${row.groupId}:entries` : undefined;
+  if (isSettledDelegationStack(tools)) {
+    return <SessionSettledCallStack tools={tools} />;
+  }
   return (
     <div id={detailsId} data-testid="work-row" className="flex min-w-0 flex-col gap-0.5">
       {tools.map(tool => (

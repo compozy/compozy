@@ -335,6 +335,56 @@ describe("session timeline derivation", () => {
     expect(after.summary?.label).toBe("Read 2 files");
   });
 
+  it("Should keep a settled agent_call visible beside a tool summary, never folded into Used N tools", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, {
+        toolName: "compozy__agent_call",
+        args: { agent: "reviewer", prompt: "Check HEAD" },
+        result: { call_id: "call_1" },
+      }),
+      tool(2, { toolName: "Bash", args: { command: "true" } }),
+      tool(3, { toolName: "Bash", args: { command: "true" } }),
+    ];
+
+    const rows = deriveSessionRows(parts);
+    expect(rows.map(row => row.kind)).toEqual(["work", "work"]);
+    const [delegation, commands] = rows;
+    if (delegation?.kind !== "work" || commands?.kind !== "work") {
+      throw new Error("expected work rows");
+    }
+    expect(delegation.summary).toBeNull();
+    expect(delegation.entries).toHaveLength(1);
+    expect(delegation.entries[0]?.toolName).toBe("compozy__agent_call");
+    expect(commands.summary?.label).toBe("Ran 2 commands");
+  });
+
+  it("Should stack consecutive settled agent_call parts as one work row without a summary", () => {
+    const parts: SessionTimelinePart[] = [
+      tool(1, {
+        toolName: "compozy__agent_call",
+        args: { agent: "a" },
+        result: { call_id: "call_1" },
+      }),
+      tool(2, {
+        toolName: "Agent Call",
+        args: { agent: "b" },
+        result: { call_id: "call_2" },
+      }),
+      tool(3, {
+        toolName: "compozy__agent_call",
+        args: { agent: "c" },
+        result: { call_id: "call_3" },
+      }),
+    ];
+
+    const rows = deriveSessionRows(parts);
+    expect(rows).toHaveLength(1);
+    const work = rows[0];
+    if (work?.kind !== "work") throw new Error("expected work row");
+    expect(work.summary).toBeNull();
+    expect(work.entries).toHaveLength(3);
+  });
+
   it("Should order summary categories Ran, Edited, Read, Searched, agent, Used with distinct-file counts", () => {
     const parts: SessionTimelinePart[] = [
       tool(1, { toolName: "mcp__linear__list_issues", args: {} }),

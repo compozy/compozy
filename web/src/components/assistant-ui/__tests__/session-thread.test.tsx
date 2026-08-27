@@ -768,8 +768,41 @@ describe("SessionThread transcript states", () => {
     const synthetic = await screen.findByTestId("session-synthetic-turn");
     expect(synthetic).toHaveAttribute("data-synthetic-kind", "call-wake");
     expect(synthetic).toHaveAttribute("data-call-id", "call_system_wake");
+    expect(synthetic).toHaveTextContent("Woke because a call completed");
     expect(synthetic).toHaveTextContent("Result preview: the review passed.");
     expect(screen.queryByText("Internal transport note")).not.toBeInTheDocument();
+  });
+
+  it("Should render a running agent_call as Asked {agent}, never as a generic tool row", async () => {
+    const transcript = [
+      {
+        id: "assistant-agent-call",
+        role: "assistant",
+        status: { type: "running" },
+        parts: [
+          {
+            type: "tool-compozy__agent_call",
+            toolCallId: "tc_agent_call",
+            state: "input-available",
+            input: { agent: "reviewer", prompt: "Review the retry path" },
+            turn_id: "turn-call",
+            timestamp: "2026-07-07T12:00:00Z",
+          },
+        ] as unknown as SessionMessage["parts"],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({
+      status: "success",
+      messages: toReadonlyThreadMessages(transcript),
+      isSessionRunning: true,
+    });
+
+    const invocation = await screen.findByTestId("session-call-invocation");
+    expect(invocation).toHaveTextContent("Asked");
+    expect(invocation).toHaveTextContent("reviewer");
+    expect(screen.queryByText(/Asking a helper/)).not.toBeInTheDocument();
+    expect(screen.queryByTestId("tool-call-row")).not.toBeInTheDocument();
   });
 
   it("Should render only the server-admitted skill occurrence", async () => {

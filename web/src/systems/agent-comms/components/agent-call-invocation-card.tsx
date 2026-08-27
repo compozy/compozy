@@ -1,73 +1,95 @@
 /**
  * The caller's side of a delegation, in the turn that made it.
  *
- * The transcript already holds the `compozy__agent_call` tool part, ordered by
- * the daemon among the turn's other work. This renders that part as a call card
- * instead of a generic tool row. Records arrive from the parent — this card
- * does not fetch.
- *
- * One invocation is one card, whether it started one call or twelve. A batch
- * that rendered as twelve sibling cards would turn a single "ask twelve helpers"
- * into twelve transcript entries and bury the conversation around it.
+ * One invocation is one card, whether it started one call or twelve. While the
+ * tool is still open, the ask is already known from the tool args — that is
+ * enough to render an honest asked row.
  */
+import { OwnerAvatar, ToolCallRow } from "@compozy/ui";
+
+import { AgentCallLiveness, AgentCallStatePill } from "./agent-call-state-pill";
 import { AgentCallTurnCard } from "./agent-call-turn-card";
 import { AgentCallTurnFanout } from "./agent-call-turn-fanout";
-import type { AgentCallToolInvocation } from "../lib/agent-call-tool-parts";
+import { agentCallArgsFromTool, type AgentCallToolInvocation } from "../lib/agent-call-tool-parts";
 import type { CallPayload } from "../types";
 
 export interface AgentCallInvocationCardProps {
   invocation: AgentCallToolInvocation;
   calls: readonly CallPayload[];
   loading: boolean;
+  args?: Record<string, unknown>;
   onOpenCall: (callId: string) => void;
   onOpenCallsPanel?: () => void;
   "data-testid"?: string;
+}
+
+function AgentCallPendingRow({
+  agent,
+  prompt,
+  testId,
+}: {
+  agent: string | null;
+  prompt: string | null;
+  testId?: string;
+}) {
+  const name = agent ?? "an agent";
+  return (
+    <ToolCallRow
+      data-testid={testId}
+      icon={<OwnerAvatar ownerId={name} ownerKind="agent" size="sm" />}
+      preview={prompt}
+      status="running"
+      statusSlot={
+        <span className="flex items-center gap-1">
+          <AgentCallStatePill state="running" />
+          <AgentCallLiveness state="running" />
+        </span>
+      }
+      toolName={
+        <>
+          Asked <span className="font-medium text-fg">{name}</span>
+        </>
+      }
+    />
+  );
 }
 
 export function AgentCallInvocationCard({
   invocation,
   calls,
   loading,
+  args,
   onOpenCall,
   onOpenCallsPanel,
   "data-testid": testId,
 }: AgentCallInvocationCardProps) {
-  // The tool has not returned yet, so there is no record to read. Saying the ask
-  // is in flight is honest; rendering an empty card would not be.
-  if (invocation.callIds.length === 0) {
-    return (
-      <p
-        className="text-form text-muted"
-        data-testid={testId}
-        data-tool-call-id={invocation.toolCallId}
-      >
-        {invocation.pending ? "Asking a helper…" : "This call left no record."}
-      </p>
-    );
-  }
+  const parsed = agentCallArgsFromTool(args);
 
-  if (loading || calls.length !== invocation.callIds.length) {
-    return (
-      <p
-        className="text-form text-muted"
-        data-testid={testId}
-        data-tool-call-id={invocation.toolCallId}
-      >
-        {loading ? "Loading call records…" : "The call records are unavailable."}
-      </p>
-    );
+  if (invocation.callIds.length === 0 || (loading && calls.length === 0)) {
+    return <AgentCallPendingRow agent={parsed.agent} prompt={parsed.prompt} testId={testId} />;
   }
 
   if (calls.length === 1) {
-    return <AgentCallTurnCard call={calls[0]!} data-testid={testId} onOpenCall={onOpenCall} />;
+    return (
+      <AgentCallTurnCard
+        call={calls[0]!}
+        data-testid={testId}
+        onOpenCall={onOpenCall}
+        prompt={calls[0]!.prompt_preview ?? parsed.prompt}
+      />
+    );
   }
 
-  return (
-    <AgentCallTurnFanout
-      calls={calls}
-      data-testid={testId}
-      onOpenCall={onOpenCall}
-      {...(onOpenCallsPanel ? { onOpenCallsPanel } : {})}
-    />
-  );
+  if (calls.length > 1) {
+    return (
+      <AgentCallTurnFanout
+        calls={calls}
+        data-testid={testId}
+        onOpenCall={onOpenCall}
+        {...(onOpenCallsPanel ? { onOpenCallsPanel } : {})}
+      />
+    );
+  }
+
+  return <AgentCallPendingRow agent={parsed.agent} prompt={parsed.prompt} testId={testId} />;
 }

@@ -1,5 +1,6 @@
 import {
   Ban,
+  Bell,
   Check,
   Circle,
   CircleOff,
@@ -29,7 +30,7 @@ export const CALL_STATE_GLYPH = {
 
 export const CALL_DELIVERY_GLYPH = {
   "delivered-into-turn": Check,
-  woke: Check,
+  woke: Bell,
   queued: Clock,
   failed: X,
 } as const satisfies Record<CallDelivery, LucideIcon>;

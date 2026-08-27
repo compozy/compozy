@@ -32,3 +32,21 @@ export const SESSION_INSPECTOR_TAB_IDS: readonly InspectorTabId[] = SESSION_INSP
 export function isInspectorTabId(value: string): value is InspectorTabId {
   return SESSION_INSPECTOR_TAB_IDS.includes(value as InspectorTabId);
 }
+
+type InspectorTabListener = (tab: InspectorTabId) => void;
+
+const inspectorTabListeners = new Set<InspectorTabListener>();
+
+/** Ask the open inspector to switch tab. Transcript rows use this for Calls. */
+export function requestSessionInspectorTab(tab: InspectorTabId): void {
+  for (const listener of inspectorTabListeners) {
+    listener(tab);
+  }
+}
+
+export function subscribeSessionInspectorTab(listener: InspectorTabListener): () => void {
+  inspectorTabListeners.add(listener);
+  return () => {
+    inspectorTabListeners.delete(listener);
+  };
+}

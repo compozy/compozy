@@ -15,6 +15,57 @@
 /** The one tool that starts a delegation. */
 export const AGENT_CALL_TOOL_NAME = "compozy__agent_call";
 
+/** The tool that closes a child call. Rendered as the return bookend, not a row. */
+export const AGENT_CALL_RETURN_TOOL_NAME = "compozy__call_return";
+
+/** ACP title some streams use instead of the native tool id. */
+const AGENT_CALL_TOOL_TITLE = "Agent Call";
+
+export interface AgentCallToolArgs {
+  agent: string | null;
+  prompt: string | null;
+}
+
+/**
+ * Whether this part is a delegation, including the ACP title form.
+ * Title match is prefix-based so "Agent Call reviewer" still counts.
+ */
+export function isAgentCallToolName(toolName: string): boolean {
+  const trimmed = toolName.trim();
+  return (
+    trimmed === AGENT_CALL_TOOL_NAME ||
+    trimmed === AGENT_CALL_TOOL_TITLE ||
+    trimmed.startsWith(`${AGENT_CALL_TOOL_TITLE} `)
+  );
+}
+
+export function isCallReturnToolName(toolName: string): boolean {
+  return toolName.trim() === AGENT_CALL_RETURN_TOOL_NAME;
+}
+
+function textArg(source: Record<string, unknown>, key: string): string | null {
+  const value = source[key];
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+/** The ask the tool was invoked with — used while the record is still hydrating. */
+export function agentCallArgsFromTool(
+  args: Record<string, unknown> | undefined
+): AgentCallToolArgs {
+  if (args === undefined) return { agent: null, prompt: null };
+  return {
+    agent: textArg(args, "agent") ?? textArg(args, "target"),
+    prompt: textArg(args, "prompt"),
+  };
+}
+
+export function verdictFromReturnResult(result: unknown): string | null {
+  const unwrapped = unwrapToolResult(result);
+  if (!isRecord(unwrapped)) return null;
+  const verdict = unwrapped.verdict;
+  return typeof verdict === "string" && verdict.trim() !== "" ? verdict : null;
+}
+
 export interface AgentCallToolInvocation {
   /** The tool call's own id — stable across re-renders, so it keys the card. */
   toolCallId: string;

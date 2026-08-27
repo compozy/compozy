@@ -333,6 +333,10 @@ export {
   type UseSessionInspectorStateResult,
 } from "./hooks/use-session-inspector-state";
 export {
+  requestSessionInspectorTab,
+  subscribeSessionInspectorTab,
+} from "./lib/session-inspector-tabs";
+export {
   toggleSessionSidebar,
   useSessionSidebarState,
   type UseSessionSidebarStateResult,

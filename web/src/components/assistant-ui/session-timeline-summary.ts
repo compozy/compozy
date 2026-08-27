@@ -5,6 +5,10 @@
 // layer stays authoritative — categories derive from the registered tool name,
 // file identity from the tool args the renderers already read.
 
+import {
+  isAgentCallToolName,
+  isCallReturnToolName,
+} from "@/systems/agent-comms/lib/agent-call-tool-parts";
 import { resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 
 import type { SessionTimelineToolPart } from "./session-timeline.logic";
@@ -49,7 +53,12 @@ const CATEGORY_ORDER: readonly SessionToolSummaryCategory[] = [
  * calls belong to the live tail — a summary must never hide either.
  */
 export function isSummarizableToolPart(part: SessionTimelineToolPart): boolean {
-  return part.status === "settled" && part.isError !== true;
+  return (
+    part.status === "settled" &&
+    part.isError !== true &&
+    !isAgentCallToolName(part.toolName) &&
+    !isCallReturnToolName(part.toolName)
+  );
 }
 
 export function classifyToolSummaryCategory(

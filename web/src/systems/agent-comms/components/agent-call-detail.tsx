@@ -31,7 +31,7 @@ export interface AgentCallDetailProps {
   /** Usage for the child session — the one set of books delegation cost lives in. */
   childUsage: CostInput;
   /** A message the child sent that the operator has not seen in context yet. */
-  untrustedNote?: { authorLabel: string; sourceId: string | null; text: string } | null;
+  untrustedNote?: { authorLabel: string; text: string } | null;
   fullPayload?: unknown;
   onFetchFullPayload?: () => void;
   fullPayloadPending?: boolean;
@@ -288,7 +288,6 @@ export function AgentCallDetail({
             <AgentUntrustedFrame
               data-testid="agent-call-untrusted-note"
               authorLabel={untrustedNote.authorLabel}
-              sourceId={untrustedNote.sourceId}
             >
               {untrustedNote.text}
             </AgentUntrustedFrame>

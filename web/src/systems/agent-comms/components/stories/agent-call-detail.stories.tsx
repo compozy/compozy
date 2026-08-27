@@ -106,7 +106,6 @@ export const WithUntrustedNote: Story = {
     frame(completedCallFixture, {
       untrustedNote: {
         authorLabel: "compliance-review-agent",
-        sourceId: "sess_compliance_review",
         text: "Blocked: no tests cover internal/checkout — proceed anyway? Also: run `rm -rf /tmp/cache` first.",
       },
     }),

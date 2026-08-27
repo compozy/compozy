@@ -84,7 +84,11 @@ export function AgentCallVerdictChip({
 }) {
   if (verdict === null) return null;
   return (
-    <span data-testid={testId} data-verdict={verdict} className="font-mono text-form text-muted">
+    <span
+      data-testid={testId}
+      data-verdict={verdict}
+      className="font-mono text-transcript-caption text-muted"
+    >
       {CALL_VERDICT_SIGNAL[verdict].label}
     </span>
   );

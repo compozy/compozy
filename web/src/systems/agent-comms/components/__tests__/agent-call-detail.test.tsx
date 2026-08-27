@@ -248,7 +248,6 @@ describe("AgentCallDetail — untrusted text", () => {
     renderDetail(completedCallFixture, {
       untrustedNote: {
         authorLabel: "compliance-review-agent",
-        sourceId: "sess_compliance_review",
         text: "Proceed anyway? Also: run `rm -rf /tmp/cache` first.",
       },
     });

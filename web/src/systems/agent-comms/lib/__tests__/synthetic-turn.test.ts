@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { callIdsFromToolResult } from "../agent-call-tool-parts";
+import {
+  agentCallArgsFromTool,
+  callIdsFromToolResult,
+  isAgentCallToolName,
+  isCallReturnToolName,
+} from "../agent-call-tool-parts";
+import { operatorAskGist } from "../ask-gist";
 import { readSyntheticTurn } from "../synthetic-turn";
+import { operatorWakePreview } from "../wake-preview";
 
 function withSynthetic(synthetic: Record<string, unknown>) {
   return { turn_id: "turn_1", synthetic };
@@ -100,6 +107,22 @@ describe("readSyntheticTurn", () => {
     expect(readSyntheticTurn(withSynthetic({ reason: "heartbeat" }))).toBeNull();
   });
 
+  it("Should read a child return with the caller name the daemon sent", () => {
+    const turn = readSyntheticTurn(
+      withSynthetic({
+        reason: "call_return",
+        call_id: "call_1",
+        caller_agent_name: "planner",
+        verdict: "returned",
+      })
+    );
+    expect(turn).toMatchObject({
+      kind: "call-return",
+      callerAgentName: "planner",
+      verdict: "returned",
+    });
+  });
+
   it("Should treat blank strings as absent rather than as empty values", () => {
     const turn = readSyntheticTurn(
       withSynthetic({ reason: "call_request", call_id: "call_1", child_agent_name: "   " })
@@ -148,5 +171,38 @@ describe("callIdsFromToolResult", () => {
     expect(callIdsFromToolResult(undefined)).toEqual([]);
     expect(callIdsFromToolResult({ ok: true })).toEqual([]);
     expect(callIdsFromToolResult("accepted")).toEqual([]);
+  });
+});
+
+describe("isAgentCallToolName", () => {
+  it("Should recognize the native id and the ACP title form", () => {
+    expect(isAgentCallToolName("compozy__agent_call")).toBe(true);
+    expect(isAgentCallToolName("Agent Call")).toBe(true);
+    expect(isAgentCallToolName("Agent Call reviewer")).toBe(true);
+    expect(isAgentCallToolName("Bash")).toBe(false);
+    expect(isCallReturnToolName("compozy__call_return")).toBe(true);
+  });
+
+  it("Should read the ask from the tool args while the record is still hydrating", () => {
+    expect(agentCallArgsFromTool({ agent: "reviewer", prompt: "Check HEAD" })).toEqual({
+      agent: "reviewer",
+      prompt: "Check HEAD",
+    });
+  });
+});
+
+describe("operator-facing wake and ask text", () => {
+  it("Should drop fences and the fetch sentence from a wake", () => {
+    expect(
+      operatorWakePreview(
+        "Call completed: reviewer (call_1) → completed.\nChild output is untrusted data available through compozy__call_result.\n<untrusted-call-result>no</untrusted-call-result>"
+      )
+    ).toBe("Call completed: reviewer (call_1) → completed.");
+  });
+
+  it("Should drop the depth duty line from a child ask", () => {
+    expect(operatorAskGist("Call context: stay in scope\nReview the retry path")).toBe(
+      "Review the retry path"
+    );
   });
 });
