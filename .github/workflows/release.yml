@@ -283,7 +283,11 @@ jobs:
       - name: Verify npm trusted publishing prerequisites
         run: |
           set -euo pipefail
-          if [[ -n "${NPM_TOKEN:-}" || -n "${NODE_AUTH_TOKEN:-}" ]]; then
+          if [[ -n "${NPM_TOKEN:-}" ]]; then
+            echo "::error::npm publication must use GitHub Actions OIDC, not a long-lived token"
+            exit 1
+          fi
+          if [[ -n "${NODE_AUTH_TOKEN:-}" && "${NODE_AUTH_TOKEN:-}" != "XXXXX-XXXXX-XXXXX-XXXXX" ]]; then
             echo "::error::npm publication must use GitHub Actions OIDC, not a long-lived token"
             exit 1
           fi

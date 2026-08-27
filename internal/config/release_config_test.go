@@ -774,6 +774,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 			"id-token: write",
 			"NPM_VERSION: \"11.9.0\"",
 			"name: Verify npm trusted publishing prerequisites",
+			`"${NODE_AUTH_TOKEN:-}" != "XXXXX-XXXXX-XXXXX-XXXXX"`,
 		} {
 			assertContainsText(t, "npm trusted publisher", workflow, required)
 		}
