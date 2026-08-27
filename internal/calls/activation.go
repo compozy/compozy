@@ -40,7 +40,9 @@ func (s *Service) invokeClaimedActivation(
 	}
 	var cleanupErr error
 	if createdChild {
-		cleanupErr = s.invoker.StopManaged(ctx, childID, "call activation persistence failed")
+		cleanupCtx, cancel := s.detachedOperationContext(ctx)
+		cleanupErr = s.invoker.StopManaged(cleanupCtx, childID, "call activation persistence failed")
+		cancel()
 	}
 	if latest, handled, raceErr := s.resolveActivationSettlementRace(ctx, record.CallID, err, cleanupErr); handled {
 		return latest, raceErr
@@ -143,6 +145,12 @@ func (s *Service) resolveActivationSettlementRace(
 
 // DispatchQueued claims call activations from the durable task queue and invokes them.
 func (s *Service) DispatchQueued(ctx context.Context, limit int) (int, error) {
+	if s.claimer == nil {
+		return 0, errors.New("calls: activation claimer is required")
+	}
+	if s.invoker == nil {
+		return 0, errors.New("calls: session invoker is required")
+	}
 	runIDs, err := s.store.ListQueuedActivationRunIDs(ctx, limit)
 	if err != nil {
 		return 0, err
@@ -200,8 +208,11 @@ func (s *Service) releaseActivationClaim(
 	claim *task.ClaimResult,
 	reason string,
 ) error {
-	if s.claimer == nil || claim == nil {
+	if claim == nil {
 		return nil
+	}
+	if s.claimer == nil {
+		return errors.New("calls: activation claimer is required to release a claim")
 	}
 	actor := activationDaemonActor(claim.Run.WorkspaceID)
 	_, err := s.claimer.ReleaseRunLease(ctx, task.LeaseRelease{

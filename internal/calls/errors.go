@@ -35,6 +35,8 @@ const (
 	CodeResultInvalid          ErrorCode = "call_result_invalid"
 	CodeResultOverBudget       ErrorCode = "call_result_over_budget"
 	CodeDeadlineInvalid        ErrorCode = "call_deadline_invalid"
+	CodeCanceled               ErrorCode = "call_canceled"
+	CodeTimedOut               ErrorCode = "call_timed_out"
 	CodeSettlementDenied       ErrorCode = "call_settlement_denied"
 	CodeMessageTooLarge        ErrorCode = "message_too_large"
 	CodeMessageTargetBlocked   ErrorCode = "message_target_blocked"
@@ -45,6 +47,7 @@ const (
 	CodeMessageNotFound        ErrorCode = "message_not_found"
 	CodePublishNoParticipation ErrorCode = "call_publish_no_participation"
 	CodePublishNotSettled      ErrorCode = "call_publish_not_settled"
+	CodePublishFailed          ErrorCode = "call_publish_failed"
 )
 
 // Error carries a stable code plus safe diagnostic detail.
@@ -72,6 +75,14 @@ func (e *Error) Error() string {
 	return fmt.Sprintf("%s: %s", e.Code, message)
 }
 
+// PublicErrorCode returns the stable code preserved by generic public adapters.
+func (e *Error) PublicErrorCode() string {
+	if e == nil {
+		return ""
+	}
+	return string(e.Code)
+}
+
 // Unwrap exposes the preserved internal cause.
 func (e *Error) Unwrap() error { return e.Cause }
 
@@ -85,8 +96,8 @@ func (e *Error) DiagnosticCode() string {
 
 // IsCode reports whether an error carries the requested public code.
 func IsCode(err error, code ErrorCode) bool {
-	var callErr *Error
-	return errors.As(err, &callErr) && callErr.Code == code
+	callErr, ok := errors.AsType[*Error](err)
+	return ok && callErr.Code == code
 }
 
 func newError(code ErrorCode, message string, cause error) error {

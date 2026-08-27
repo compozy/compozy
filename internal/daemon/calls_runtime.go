@@ -36,7 +36,6 @@ type callRuntime struct {
 	service        *callspkg.Service
 	turnEndService callTurnEndService
 	sessions       callTurnEndSessionReader
-	ctx            context.Context
 	logger         *slog.Logger
 	cancel         context.CancelFunc
 	done           chan struct{}
@@ -59,6 +58,10 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 		sessions: callSessions, isOperatorCallerSession: callStore.IsOperatorCallerSession,
 		maxChildren: state.cfg.Calls.MaxChildren, maxDepth: state.cfg.Calls.MaxDepth,
 	}
+	operationTimeout, err := state.cfg.Calls.OperationTimeoutDuration()
+	if err != nil {
+		return fmt.Errorf("daemon: resolve call operation timeout: %w", err)
+	}
 	service, err := callspkg.NewService(
 		callspkg.WithStore(callStore),
 		callspkg.WithDirectory(directory),
@@ -69,8 +72,9 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 			return state.network
 		}}),
 		callspkg.WithHookDispatcher(daemonCallHookDispatcher{
-			state: state, logger: state.logger, now: d.now,
+			state: state, logger: state.logger, now: d.now, operationTimeout: operationTimeout,
 		}),
+		callspkg.WithLogger(runtimeLogger(state.logger)),
 		callspkg.WithConfig(state.cfg.Calls),
 		callspkg.WithClock(d.now),
 		callspkg.WithIDGenerator(store.NewID),
@@ -90,7 +94,7 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	runtime := &callRuntime{
-		service: service, turnEndService: service, ctx: runCtx, logger: state.logger,
+		service: service, turnEndService: service, logger: state.logger,
 		cancel: cancel, done: make(chan struct{}),
 	}
 	if sessions, supported := state.sessions.(callTurnEndSessionReader); supported {
@@ -99,7 +103,7 @@ func (d *Daemon) bootCalls(ctx context.Context, state *bootState, cleanup *bootC
 	state.calls = runtime
 	state.deps.Calls = newCallSurfaceService(service, state.sessions)
 	if registrar, ok := state.sessions.(turnEndNotifierRegistrar); ok {
-		registrar.AddTurnEndNotifier(runtime.onTurnEnd)
+		registrar.AddTurnEndNotifier(func(sessionID string) { runtime.onTurnEnd(runCtx, sessionID) })
 	}
 	go runtime.run(runCtx, state.logger)
 	cleanup.add(runtime.shutdown)
@@ -131,11 +135,11 @@ func (r *callRuntime) run(ctx context.Context, logger *slog.Logger) {
 	}
 }
 
-func (r *callRuntime) onTurnEnd(sessionID string) {
-	if r == nil || r.turnEndService == nil || r.ctx == nil {
+func (r *callRuntime) onTurnEnd(ctx context.Context, sessionID string) {
+	if r == nil || r.turnEndService == nil || ctx == nil {
 		return
 	}
-	turnCtx, cancel := context.WithTimeout(r.ctx, callTurnEndTimeout)
+	turnCtx, cancel := context.WithTimeout(ctx, callTurnEndTimeout)
 	defer cancel()
 	if err := r.turnEndService.DrainDeliveries(turnCtx, sessionID, 100); err != nil {
 		if !errors.Is(err, context.Canceled) {
@@ -151,7 +155,22 @@ func (r *callRuntime) onTurnEnd(sessionID string) {
 		return
 	}
 	info, err := r.sessions.Status(turnCtx, sessionID)
-	if err != nil || info == nil || info.State != session.StateActive {
+	if err != nil {
+		runtimeLogger(r.logger).Warn(
+			"daemon: inspect child status at call boundary failed",
+			"session_id", sessionID,
+			"error", err,
+		)
+		return
+	}
+	if info == nil {
+		runtimeLogger(r.logger).Warn(
+			"daemon: inspect child status at call boundary returned no session",
+			"session_id", sessionID,
+		)
+		return
+	}
+	if info.State != session.StateActive {
 		return
 	}
 	callID, finalText, err := r.finalCallTurn(turnCtx, sessionID)

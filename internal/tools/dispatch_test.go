@@ -10,9 +10,18 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
+
+type dispatchDomainError struct {
+	code    string
+	message string
+}
+
+func (e *dispatchDomainError) Error() string           { return e.message }
+func (e *dispatchDomainError) PublicErrorCode() string { return e.code }
 
 type recordingHookRunner struct {
 	pre       func(context.Context, CallRequest) (CallRequest, EffectiveToolDecision, error)
@@ -937,6 +946,98 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		}
 		if !slices.Contains(eventSnapshot[1].ReasonCodes, ReasonCallCanceled) {
 			t.Fatalf("failed event reasons = %#v, want call_canceled", eventSnapshot[1].ReasonCodes)
+		}
+	})
+
+	t.Run("Should preserve a typed domain error through dispatch", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		domainErr := &dispatchDomainError{
+			code:    "call_children_cap",
+			message: "caller reached its child cap",
+		}
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			callErr:      domainErr,
+		})
+		registry := mustDispatchRegistry(t, provider)
+
+		_, err := registry.Call(
+			t.Context(),
+			Scope{},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		var toolErr *ToolError
+		if !errors.As(err, &toolErr) || toolErr.Code != ErrorCode(domainErr.code) {
+			t.Fatalf("RuntimeRegistry.Call() error = %#v, want code %q", err, domainErr.code)
+		}
+		var preserved *dispatchDomainError
+		if !errors.As(err, &preserved) || preserved != domainErr {
+			t.Fatalf("RuntimeRegistry.Call() cause = %#v, want original calls error", err)
+		}
+		if slices.Contains(toolErr.ReasonCodes, ReasonBackendUnhealthy) {
+			t.Fatalf("RuntimeRegistry.Call() reasons = %#v, must preserve domain identity", toolErr.ReasonCodes)
+		}
+	})
+
+	t.Run("Should preserve provider success after the request context expires", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		ctx, cancel := context.WithCancel(t.Context())
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				cancel()
+				return ToolResult{Structured: json.RawMessage(`{"admitted":true}`)}, nil
+			},
+		})
+		registry := mustDispatchRegistry(t, provider, WithCompletionTimeout(time.Second))
+
+		result, err := registry.Call(
+			ctx,
+			Scope{},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want committed provider result", err)
+		}
+		if got, want := string(result.Structured), `{"admitted":true}`; got != want {
+			t.Fatalf("RuntimeRegistry.Call() structured = %s, want %s", got, want)
+		}
+	})
+
+	t.Run("Should reject cancellation before provider admission", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := validDispatchDescriptor()
+		called := false
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			call: func(context.Context, CallRequest) (ToolResult, error) {
+				called = true
+				return ToolResult{}, nil
+			},
+		})
+		registry := mustDispatchRegistry(t, provider, WithCompletionTimeout(time.Second))
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		_, err := registry.Call(
+			ctx,
+			Scope{},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+
+		if !errors.Is(err, ErrToolCanceled) {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want ErrToolCanceled", err)
+		}
+		if called {
+			t.Fatal("provider was invoked after cancellation before admission")
 		}
 	})
 }

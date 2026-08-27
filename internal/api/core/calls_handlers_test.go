@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
 	callspkg "github.com/compozy/compozy/internal/calls"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -165,6 +166,7 @@ func newCallsHandlerRouter(service core.CallsService) *gin.Engine {
 	handlers := &core.BaseHandlers{
 		TransportName: "api-core-test",
 		Calls:         service,
+		Config:        compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
 		Now: func() time.Time {
 			return time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 		},
@@ -263,6 +265,52 @@ func TestCallsHandlers(t *testing.T) {
 		if unknown.Code != http.StatusNotFound || unknownError.Code != string(callspkg.CodeAgentUnknown) ||
 			len(unknownError.Available) != 1 || unknownError.Available[0].Name != "reviewer" {
 			t.Fatalf("unknown agent response = %d %s", unknown.Code, unknown.Body.String())
+		}
+	})
+
+	t.Run("Should preserve publication failure identity and transport status", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range []struct {
+			name       string
+			code       callspkg.ErrorCode
+			wantStatus int
+		}{
+			{
+				name:       "Should report missing participation as a conflict",
+				code:       callspkg.CodePublishNoParticipation,
+				wantStatus: http.StatusConflict,
+			},
+			{
+				name:       "Should report a Network failure as a bad gateway",
+				code:       callspkg.CodePublishFailed,
+				wantStatus: http.StatusBadGateway,
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				service := callsServiceStub{publish: func(
+					context.Context,
+					callspkg.PublishInput,
+				) (callspkg.PublishReceipt, error) {
+					return callspkg.PublishReceipt{}, &callspkg.Error{
+						Code: tc.code, Message: "publication failed",
+					}
+				}}
+				response := performCallsRequest(
+					t,
+					newCallsHandlerRouter(service),
+					http.MethodPost,
+					"/workspaces/ws-1/calls/call-1/publish",
+					`{"channel":"reviews","thread_id":"thread-1"}`,
+				)
+				var payload contract.CallErrorResponse
+				if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+					t.Fatalf("decode publication error: %v", err)
+				}
+				if response.Code != tc.wantStatus || payload.Code != string(tc.code) {
+					t.Fatalf("publication error response = %d %s", response.Code, response.Body.String())
+				}
+			})
 		}
 	})
 

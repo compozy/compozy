@@ -277,16 +277,44 @@ func hostAPITimePointer(value time.Time) *time.Time {
 }
 
 func mapHostAPICallRPCError(resource string, id string, err error) error {
-	switch {
-	case callspkg.IsCode(err, callspkg.CodeValidation), callspkg.IsCode(err, callspkg.CodeDeadlineInvalid):
-		return invalidParamsRPCError(err)
-	case callspkg.IsCode(err, callspkg.CodeNotFound), callspkg.IsCode(err, callspkg.CodeMessageNotFound):
-		return notFoundRPCError(resource, id, err)
-	case callspkg.IsCode(err, callspkg.CodeWorkspaceDenied), callspkg.IsCode(err, callspkg.CodeTargetDenied):
-		return hostAPIStatusRPCError(403, "Forbidden", map[string]any{extensionStateError: err.Error()})
-	case callspkg.IsCode(err, callspkg.CodeNotSettled):
-		return hostAPIStatusRPCError(409, "Conflict", map[string]any{extensionStateError: err.Error()})
-	default:
+	callErr, ok := errors.AsType[*callspkg.Error](err)
+	if !ok {
 		return unavailableRPCError(err)
+	}
+	data := map[string]any{
+		extensionStateError: err.Error(),
+		"code":              callErr.Code,
+		hostAPIResourceKey:  strings.TrimSpace(resource),
+		"id":                strings.TrimSpace(id),
+	}
+	status, message := hostAPICallErrorStatus(callErr.Code)
+	return hostAPIStatusRPCError(status, message, data)
+}
+
+func hostAPICallErrorStatus(code callspkg.ErrorCode) (int, string) {
+	switch code {
+	case callspkg.CodeValidation, callspkg.CodeAgentUnknown, callspkg.CodeExpectInvalid,
+		callspkg.CodePromptRequired, callspkg.CodeChildrenCap, callspkg.CodeWideningRejected,
+		callspkg.CodeDepthExceeded, callspkg.CodeBatchEmpty, callspkg.CodeBatchOverCap,
+		callspkg.CodeResultInvalid, callspkg.CodeResultOverBudget, callspkg.CodeDeadlineInvalid,
+		callspkg.CodeMessageTooLarge:
+		return 400, "Invalid call"
+	case callspkg.CodeTargetDenied, callspkg.CodeWorkspaceDenied, callspkg.CodeSettlementDenied,
+		callspkg.CodeMessageTargetBlocked, callspkg.CodeMessageTargetDenied:
+		return 403, "Forbidden"
+	case callspkg.CodeNotFound, callspkg.CodeTargetExpired, callspkg.CodeMessageNotFound:
+		return HostAPINotFoundCode, "Not found"
+	case callspkg.CodeCanceled, callspkg.CodeTimedOut:
+		return 408, "Call timed out"
+	case callspkg.CodeParentTerminal, callspkg.CodeIdempotencyConflict, callspkg.CodeNotSettled,
+		callspkg.CodeAlreadySettled, callspkg.CodeReturnUnbound, callspkg.CodeMessageDuplicate,
+		callspkg.CodePublishNoParticipation, callspkg.CodePublishNotSettled:
+		return 409, "Conflict"
+	case callspkg.CodeMessageRateLimited, callspkg.CodeMessagePendingCap:
+		return 429, "Rate limited"
+	case callspkg.CodePublishFailed:
+		return 502, "Publication failed"
+	default:
+		return 500, "Call failed"
 	}
 }

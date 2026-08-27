@@ -11800,6 +11800,42 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 
 	scope := toolspkg.Scope{ProfileID: "default", WorkspaceID: "ws-1", SessionID: "ses-parent"}
 
+	t.Run("Should detach admitted work from request cancellation with a deadline", func(t *testing.T) {
+		t.Parallel()
+		requestCtx, cancelRequest := context.WithCancel(t.Context())
+		cancelRequest()
+		observed := false
+		service := nativeCallsServiceStub{create: func(
+			ctx context.Context,
+			_ callspkg.CreateInput,
+		) (callspkg.CallRecord, error) {
+			observed = true
+			if err := ctx.Err(); err != nil {
+				t.Fatalf("Create context error = %v, want detached live operation", err)
+			}
+			deadline, ok := ctx.Deadline()
+			if !ok || time.Until(deadline) <= 0 || time.Until(deadline) > time.Second {
+				t.Fatalf("Create context deadline = %s, %t, want bounded operation", deadline, ok)
+			}
+			return callspkg.CallRecord{CallID: "call-1", State: callspkg.StateQueued}, nil
+		}}
+		cfg := compozyconfig.DefaultCallsConfig()
+		cfg.OperationTimeout = "1s"
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: cfg},
+			Calls:  func() core.CallsService { return service },
+		}}
+
+		result, err := native.agentCall(requestCtx, scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCall,
+			Input:  json.RawMessage(`{"agent":"reviewer","prompt":"Review"}`),
+		})
+
+		if err != nil || !observed || !strings.Contains(string(result.Structured), `"call_id":"call-1"`) {
+			t.Fatalf("agentCall() result/error/observed = %s/%v/%t", result.Structured, err, observed)
+		}
+	})
+
 	t.Run("Should preserve the unknown-agent code and bounded roster", func(t *testing.T) {
 		t.Parallel()
 
@@ -11878,7 +11914,7 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 	t.Run("Should derive the immutable native owner and a future deadline", func(t *testing.T) {
 		t.Parallel()
 
-		before := time.Now().UTC()
+		now := time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC)
 		service := nativeCallsServiceStub{create: func(
 			_ context.Context,
 			input callspkg.CreateInput,
@@ -11886,7 +11922,7 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 			if input.ProfileID != "default" || input.Scope != callspkg.ScopeWorkspace ||
 				input.WorkspaceID != "ws-1" || input.Caller.ID != "ses-parent" ||
 				input.Actor.Kind != "agent_session" || input.Actor.ID != "ses-parent" || input.Deadline == nil ||
-				input.Deadline.Before(before.Add(2*time.Second)) || input.Deadline.After(before.Add(4*time.Second)) {
+				!input.Deadline.Equal(now.Add(3*time.Second)) {
 				t.Fatalf("Create input = %#v", input)
 			}
 			return callspkg.CallRecord{CallID: "call-1", State: callspkg.StateQueued}, nil
@@ -11894,6 +11930,7 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
 			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
 			Calls:  func() core.CallsService { return service },
+			Now:    func() time.Time { return now },
 		}}
 		result, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCall,

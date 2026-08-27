@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
@@ -31,6 +32,7 @@ type RuntimeRegistry struct {
 	projectionInvalidator func()
 	projectionGeneration  ProjectionGenerationResolver
 	defaultMaxResultBytes int64
+	completionTimeout     time.Duration
 	sensitiveFields       []string
 	usePolicyInput        bool
 }
@@ -137,6 +139,13 @@ func WithResultProcessor(processor ResultProcessor) RegistryOption {
 func WithDefaultMaxResultBytes(maxBytes int64) RegistryOption {
 	return func(registry *RuntimeRegistry) {
 		registry.defaultMaxResultBytes = maxBytes
+	}
+}
+
+// WithCompletionTimeout bounds post-provider work after request cancellation.
+func WithCompletionTimeout(timeout time.Duration) RegistryOption {
+	return func(registry *RuntimeRegistry) {
+		registry.completionTimeout = timeout
 	}
 }
 

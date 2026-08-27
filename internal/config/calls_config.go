@@ -21,6 +21,7 @@ type CallsConfig struct {
 	MaxChildren      int                 `toml:"max_children"`
 	MaxActivePerRoot int                 `toml:"max_active_per_root"`
 	IdleTTL          string              `toml:"idle_ttl"`
+	OperationTimeout string              `toml:"operation_timeout"`
 	Results          CallsResultsConfig  `toml:"results"`
 	Messages         CallsMessagesConfig `toml:"messages"`
 }
@@ -49,6 +50,7 @@ func DefaultCallsConfig() CallsConfig {
 		MaxChildren:      5,
 		MaxActivePerRoot: 32,
 		IdleTTL:          "1h",
+		OperationTimeout: "30s",
 		Results: CallsResultsConfig{
 			DefaultBudget: fmt.Sprintf("%dKiB", resultPolicy.DefaultBudget.MaxBytes>>10),
 			MaxBudget:     fmt.Sprintf("%dMiB", resultPolicy.MaxBudget>>20),
@@ -81,6 +83,9 @@ func (c CallsConfig) Validate() error {
 	}
 	if _, err := parsePositiveDuration(c.IdleTTL); err != nil {
 		return fmt.Errorf("calls.idle_ttl: %w", err)
+	}
+	if _, err := parsePositiveDuration(c.OperationTimeout); err != nil {
+		return fmt.Errorf("calls.operation_timeout: %w", err)
 	}
 	if err := c.Results.Validate(); err != nil {
 		return err
@@ -153,6 +158,15 @@ func (c CallsConfig) IdleTTLDuration() (time.Duration, error) {
 	duration, err := parsePositiveDuration(c.IdleTTL)
 	if err != nil {
 		return 0, fmt.Errorf("calls.idle_ttl: %w", err)
+	}
+	return duration, nil
+}
+
+// OperationTimeoutDuration returns the bound for detached call mutations and completion work.
+func (c CallsConfig) OperationTimeoutDuration() (time.Duration, error) {
+	duration, err := parsePositiveDuration(c.OperationTimeout)
+	if err != nil {
+		return 0, fmt.Errorf("calls.operation_timeout: %w", err)
 	}
 	return duration, nil
 }

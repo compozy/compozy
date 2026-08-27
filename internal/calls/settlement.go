@@ -6,12 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/compozy/compozy/internal/contracts"
 )
-
-const settledChildStopTimeout = 30 * time.Second
 
 // RequireCallSettlementActor accepts only the child session bound to the call.
 func RequireCallSettlementActor(record *CallRecord, actor SettlementActor) error {
@@ -231,7 +228,13 @@ func (s *Service) settleTerminal(
 		s.notifyWaiters(record.CallID)
 		s.emitTerminalTransition(ctx, record.State, &settled)
 		if parkErr := s.parkSettledChild(ctx, &settled); parkErr != nil {
-			return settled, parkErr
+			s.logger.WarnContext(
+				ctx,
+				"calls: settled child parking failed after durable settlement",
+				"call_id", settled.CallID,
+				"child_session_id", settled.ChildSessionID,
+				"error", sanitizeDiagnostic(parkErr.Error(), "child parking failed"),
+			)
 		}
 	}
 	return settled, err
@@ -239,12 +242,15 @@ func (s *Service) settleTerminal(
 
 func (s *Service) parkSettledChild(ctx context.Context, record *CallRecord) error {
 	childID := strings.TrimSpace(record.ChildSessionID)
-	if childID == "" || s.invoker == nil {
+	if childID == "" {
 		return nil
 	}
-	mailbox, ok := s.store.(MailboxStore)
-	if !ok {
-		return nil
+	if s.invoker == nil {
+		return errors.New("calls: session invoker is required for child parking")
+	}
+	mailbox, err := s.mailboxStore()
+	if err != nil {
+		return err
 	}
 	now := s.now().UTC()
 	eligible, err := mailbox.ParkCallChild(ctx, childID, now, now.Add(record.IdleTTL))
@@ -254,10 +260,10 @@ func (s *Service) parkSettledChild(ctx context.Context, record *CallRecord) erro
 	if !eligible {
 		return nil
 	}
-	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), settledChildStopTimeout)
+	stopCtx, cancel := s.detachedOperationContext(ctx)
 	defer cancel()
 	if err := s.invoker.StopManaged(stopCtx, childID, "call child parked"); err != nil {
-		clearCtx, clearCancel := context.WithTimeout(context.WithoutCancel(ctx), settledChildStopTimeout)
+		clearCtx, clearCancel := s.detachedOperationContext(ctx)
 		defer clearCancel()
 		clearErr := mailbox.ClearCallChildIdleClock(clearCtx, childID, now)
 		return errors.Join(fmt.Errorf("calls: park child runtime %q: %w", childID, err), clearErr)

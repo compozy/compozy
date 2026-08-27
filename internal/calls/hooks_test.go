@@ -178,6 +178,7 @@ func TestCallHookTransitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
+		created = activateCreatedCall(t, service, &created)
 		settled, err := service.Return(context.Background(), ReturnInput{
 			CallID: created.CallID, Result: json.RawMessage(`{"answer":"secret result"}`),
 			Actor: SettlementActor{Kind: "agent_session", ID: created.ChildSessionID},
@@ -199,6 +200,7 @@ func TestCallHookTransitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(cancel) error = %v", err)
 		}
+		cancelRecord = activateCreatedCall(t, service, &cancelRecord)
 		if _, err := service.Cancel(
 			context.Background(),
 			cancelRecord.CallID,
@@ -214,6 +216,7 @@ func TestCallHookTransitions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(drain) error = %v", err)
 		}
+		drainRecord = activateCreatedCall(t, service, &drainRecord)
 		store.subtree = []CallRecord{drainRecord}
 		store.preservedResults = 1
 		if _, err := service.DrainSubtree(
@@ -268,9 +271,11 @@ func TestCallHookTransitions(t *testing.T) {
 		reviveInput := validCreateInput("resume the parked child", nil, nil)
 		reviveInput.Target = Target{SessionID: parkedTarget.ChildSessionID}
 		reviveInput.IdempotencyKey = "revive-key"
-		if _, err := reviveService.Create(context.Background(), reviveInput); err != nil {
+		revived, err := reviveService.Create(context.Background(), reviveInput)
+		if err != nil {
 			t.Fatalf("Create(revive) error = %v", err)
 		}
+		activateCreatedCall(t, reviveService, &revived)
 		if err := service.FinalizeReapedSession(context.Background(), ReapedSession{
 			ProfileID: "default", Scope: ScopeWorkspace, WorkspaceID: "ws-1",
 			SessionID: "parked-child", ParentSessionID: "parent-1", RootSessionID: "root-1",

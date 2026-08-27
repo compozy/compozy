@@ -98,17 +98,23 @@ func (r *RuntimeRegistry) executeDispatchTarget(
 		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, err, ToolCallDenied)
 	}
 	providerResult, err := target.handle.Call(ctx, patchedReq)
-	if contextError := contextErr(ctx, target.descriptor.ID); contextError != nil {
-		err = contextError
-	}
+	completionCtx, cancelCompletion := r.postDispatchContext(ctx)
+	defer cancelCompletion()
 	if err != nil {
 		normalized := normalizeBackendError(target.descriptor.ID, err)
-		if hookErr := r.runPostErrorHook(ctx, target, patchedReq, normalized); hookErr != nil {
+		if hookErr := r.runPostErrorHook(completionCtx, target, patchedReq, normalized); hookErr != nil {
 			normalized = hookErr
 		}
-		return ToolResult{}, r.failDispatch(ctx, target, patchedReq, started, normalized, ToolCallFailed)
+		return ToolResult{}, r.failDispatch(completionCtx, target, patchedReq, started, normalized, ToolCallFailed)
 	}
-	return r.completeDispatch(ctx, scope, target, patchedReq, started, providerResult)
+	return r.completeDispatch(completionCtx, scope, target, patchedReq, started, providerResult)
+}
+
+func (r *RuntimeRegistry) postDispatchContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil || ctx.Err() == nil || r.completionTimeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(context.WithoutCancel(ctx), r.completionTimeout)
 }
 
 func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {

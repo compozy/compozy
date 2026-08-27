@@ -2,12 +2,15 @@ package calls
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/compozy/compozy/internal/contracts"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const publicationPreviewBytes = 4096
@@ -18,14 +21,42 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	if err := validatePublishInput(input); err != nil {
 		return PublishReceipt{}, err
 	}
+	unlock := s.lockPublication(publicationKey(input))
+	defer unlock()
+	return s.publishOnce(ctx, input)
+}
+
+type publicationLock struct {
+	mu   sync.Mutex
+	refs int
+}
+
+func (s *Service) lockPublication(key string) func() {
+	s.publicationMu.Lock()
+	lock := s.publicationLocks[key]
+	if lock == nil {
+		lock = &publicationLock{}
+		s.publicationLocks[key] = lock
+	}
+	lock.refs++
+	s.publicationMu.Unlock()
+	lock.mu.Lock()
+	return func() {
+		lock.mu.Unlock()
+		s.publicationMu.Lock()
+		defer s.publicationMu.Unlock()
+		lock.refs--
+		if lock.refs == 0 {
+			delete(s.publicationLocks, key)
+		}
+	}
+}
+
+func (s *Service) publishOnce(ctx context.Context, input PublishInput) (PublishReceipt, error) {
 	publicationStore, err := s.publicationStore()
 	if err != nil {
 		return PublishReceipt{}, err
 	}
-
-	// The daemon is the sole writer. Serializing check/post/record prevents duplicate bridge calls.
-	s.publishMu.Lock()
-	defer s.publishMu.Unlock()
 	if existing, getErr := publicationStore.GetPublication(
 		ctx,
 		input.CallID,
@@ -61,10 +92,17 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 	if err != nil {
 		return PublishReceipt{}, err
 	}
-	messageID, err := s.newID("msg")
-	if err != nil {
-		return PublishReceipt{}, fmt.Errorf("calls: allocate publication message: %w", err)
-	}
+	return s.sendPublication(ctx, input, &record, payload, publicationStore)
+}
+
+func (s *Service) sendPublication(
+	ctx context.Context,
+	input PublishInput,
+	record *CallRecord,
+	payload json.RawMessage,
+	publicationStore PublicationStore,
+) (PublishReceipt, error) {
+	messageID := publicationMessageID(input)
 	if s.publisher == nil {
 		return PublishReceipt{}, newError(CodePublishNoParticipation, "active Network participation is required", nil)
 	}
@@ -76,21 +114,52 @@ func (s *Service) Publish(ctx context.Context, input PublishInput) (PublishRecei
 		CallID: record.CallID, WorkspaceID: record.WorkspaceID, SourceSessionID: publisherSessionID,
 		Channel: input.Channel, ThreadID: input.ThreadID, MessageID: messageID,
 		ResultPreview: payload, ResultBytes: record.ResultBytes,
-		FetchPath: "/api/workspaces/" + record.WorkspaceID + "/calls/" + record.CallID + "/result",
 	}
 	networkMessageID, err := s.publisher.PublishResultEvidence(ctx, evidence)
 	if err != nil {
-		return PublishReceipt{}, newError(CodePublishNoParticipation, "active Network participation is required", err)
+		if errors.Is(err, participation.ErrNotParticipating) || errors.Is(err, participation.ErrUnavailable) {
+			return PublishReceipt{}, newError(
+				CodePublishNoParticipation,
+				"active Network participation is required",
+				err,
+			)
+		}
+		return PublishReceipt{}, newError(CodePublishFailed, "Network publication failed", err)
 	}
 	publication, inserted, err := publicationStore.RecordPublication(ctx, Publication{
 		CallID: record.CallID, Channel: input.Channel, ThreadID: input.ThreadID,
 		NetworkMessageID: networkMessageID, CreatedAt: s.now().UTC(),
 	})
 	if err != nil {
-		return PublishReceipt{}, err
+		s.logger.WarnContext(
+			ctx,
+			"calls: Network publication committed before receipt persistence failed",
+			"call_id", record.CallID,
+			"channel", input.Channel,
+			"thread_id", input.ThreadID,
+			"network_message_id", networkMessageID,
+			"error", sanitizeDiagnostic(err.Error(), "publication receipt persistence failed"),
+		)
+		return PublishReceipt{NetworkMessageID: networkMessageID, Published: true}, nil
 	}
-	s.emitHook(ctx, HookCallPublished, publicationHookPayload(&record, input, publication.NetworkMessageID))
+	s.emitHook(ctx, HookCallPublished, publicationHookPayload(record, input, publication.NetworkMessageID))
 	return PublishReceipt{NetworkMessageID: publication.NetworkMessageID, Published: inserted}, nil
+}
+
+func publicationMessageID(input PublishInput) string {
+	digest := sha256.Sum256([]byte(publicationKey(input)))
+	return fmt.Sprintf("msg-%x", digest[:16])
+}
+
+func publicationKey(input PublishInput) string {
+	return strings.Join([]string{
+		input.ProfileID,
+		string(input.Scope),
+		input.WorkspaceID,
+		input.CallID,
+		input.Channel,
+		input.ThreadID,
+	}, "\x00")
 }
 
 func publicationHookPayload(record *CallRecord, input PublishInput, networkMessageID string) HookPayload {

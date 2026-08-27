@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -13,10 +12,9 @@ import (
 
 	"github.com/compozy/compozy/internal/contracts"
 	"github.com/compozy/compozy/internal/network/participation"
-	"github.com/compozy/compozy/internal/task"
 )
 
-// Create admits one durable call and starts its activation when capacity is available.
+// Create admits one durable call. The owned runtime dispatcher activates queued calls.
 func (s *Service) Create(ctx context.Context, input CreateInput) (CallRecord, error) {
 	normalized, target, err := s.normalizeCreate(ctx, input)
 	if err != nil {
@@ -35,14 +33,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (CallRecord, er
 		return result.Record, nil
 	}
 	s.emitHook(ctx, HookCallCreated, hookPayloadForCall(&result.Record))
-	if result.Record.ActivationRunID == "" {
-		return result.Record, nil
-	}
-	activated, err := s.activateFastPath(ctx, &result.Record, prepared)
-	if err != nil {
-		return CallRecord{}, err
-	}
-	return activated, nil
+	return result.Record, nil
 }
 
 // CreateBatch admits a bounded collection and reports each item independently.
@@ -398,26 +389,4 @@ func (s *Service) activationFor(record *CallRecord, target TargetContext) (*Acti
 		ParentSessionID: record.ParentSessionID, TargetSessionID: record.ChildSessionID,
 		AgentName: record.AgentName, Depth: record.Depth, IdleTTL: record.IdleTTL, Runtime: record.Runtime,
 	}, nil, nil
-}
-
-func (s *Service) activateFastPath(
-	ctx context.Context,
-	record *CallRecord,
-	admission Admission,
-) (CallRecord, error) {
-	if s.claimer == nil || s.invoker == nil || admission.Activation == nil {
-		return *record, nil
-	}
-	actor := activationDaemonActor(record.WorkspaceID)
-	claim, err := s.claimer.ClaimNextRun(ctx, task.ClaimCriteria{
-		RunID: record.ActivationRunID, RunKind: task.RunKindCallActivation,
-		Scope: task.Scope(record.Scope), WorkspaceID: record.WorkspaceID,
-	}, actor)
-	if err != nil {
-		if errors.Is(err, task.ErrNoClaimableRun) {
-			return *record, nil
-		}
-		return CallRecord{}, fmt.Errorf("calls: claim activation %q: %w", record.ActivationRunID, err)
-	}
-	return s.invokeClaimedActivation(ctx, record, admission, claim)
 }

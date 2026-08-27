@@ -7,6 +7,7 @@ func callsToolPathKinds() map[string]ValueKind {
 		"calls.max_children":                   ConfigValueInt,
 		"calls.max_active_per_root":            ConfigValueInt,
 		"calls.idle_ttl":                       ConfigValueString,
+		"calls.operation_timeout":              ConfigValueString,
 		"calls.results.default_budget":         ConfigValueString,
 		"calls.results.max_budget":             ConfigValueString,
 		"calls.results.overflow":               ConfigValueString,

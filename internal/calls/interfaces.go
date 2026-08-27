@@ -22,6 +22,7 @@ type Store interface {
 	SettleCall(context.Context, SettlementMutation) (CallRecord, error)
 	ListDueCalls(context.Context, time.Time, int) ([]CallRecord, error)
 	FenceSessionDrain(context.Context, string, time.Time) error
+	UnfenceSessionDrain(context.Context, string, time.Time) error
 	ListOpenSubtreeCalls(context.Context, string) ([]CallRecord, error)
 	CountPreservedSubtreeResults(context.Context, string) (int, error)
 	ListQueuedActivationRunIDs(context.Context, int) ([]string, error)

@@ -83,8 +83,11 @@ func (s *Service) SweepDeadlines(ctx context.Context, now time.Time) (SweepRepor
 		settled, settledNow, settleErr := s.settleControlledCall(ctx, record, controlledSettlement{
 			fenceReason: "call deadline elapsed",
 			stop: func(current CallRecord) error {
-				if current.State != StateRunning || current.ChildSessionID == "" || s.invoker == nil {
+				if current.State != StateRunning || current.ChildSessionID == "" {
 					return nil
+				}
+				if s.invoker == nil {
+					return errors.New("calls: session invoker is required for deadline cleanup")
 				}
 				if err := s.invoker.StopManaged(ctx, current.ChildSessionID, "call deadline elapsed"); err != nil {
 					return fmt.Errorf("calls: stop timed out child %q: %w", current.ChildSessionID, err)
@@ -123,16 +126,17 @@ func (s *Service) DrainSubtree(
 	if strings.TrimSpace(actor.Kind) == "" || strings.TrimSpace(actor.ID) == "" {
 		return DrainReport{}, newError(CodeSettlementDenied, "drain actor is required", nil)
 	}
-	if err := s.store.FenceSessionDrain(ctx, rootID, s.now().UTC()); err != nil {
+	fencedAt := s.now().UTC()
+	if err := s.store.FenceSessionDrain(ctx, rootID, fencedAt); err != nil {
 		return DrainReport{}, err
 	}
 	openCalls, err := s.store.ListOpenSubtreeCalls(ctx, rootID)
 	if err != nil {
-		return DrainReport{}, err
+		return DrainReport{}, errors.Join(err, s.unfenceSessionDrain(ctx, rootID, fencedAt))
 	}
 	preservedResults, err := s.store.CountPreservedSubtreeResults(ctx, rootID)
 	if err != nil {
-		return DrainReport{}, err
+		return DrainReport{}, errors.Join(err, s.unfenceSessionDrain(ctx, rootID, fencedAt))
 	}
 	report := DrainReport{RootSessionID: rootID, PreservedResults: preservedResults}
 	detail := sanitizeDiagnostic(reason, "subtree drained")
@@ -150,8 +154,11 @@ func (s *Service) DrainSubtree(
 			fenceReason: "subtree drain",
 			stop: func(current CallRecord) error {
 				childID := strings.TrimSpace(current.ChildSessionID)
-				if childID == "" || s.invoker == nil {
+				if childID == "" {
 					return nil
+				}
+				if s.invoker == nil {
+					return errors.New("calls: session invoker is required for subtree cleanup")
 				}
 				if _, seen := stopped[childID]; seen {
 					return nil
@@ -211,12 +218,26 @@ func (s *Service) settleControlledCall(
 	if current.State.Terminal() {
 		return current, false, nil
 	}
+	childStopped := options.stop != nil && current.State == StateRunning &&
+		strings.TrimSpace(current.ChildSessionID) != ""
 	if options.stop != nil {
 		if err := options.stop(current); err != nil {
 			return CallRecord{}, false, err
 		}
 	}
-	settled, err := s.store.SettleCall(ctx, options.mutation(current))
+	mutation := options.mutation(current)
+	settled, err := s.store.SettleCall(ctx, mutation)
+	if err != nil && childStopped {
+		compensationCtx, cancel := s.detachedOperationContext(ctx)
+		var compensationErr error
+		settled, compensationErr = s.store.SettleCall(compensationCtx, mutation)
+		cancel()
+		if compensationErr == nil {
+			err = nil
+		} else {
+			err = errors.Join(err, fmt.Errorf("calls: compensate stopped child settlement: %w", compensationErr))
+		}
+	}
 	if IsCode(err, CodeAlreadySettled) {
 		latest, loadErr := s.store.GetCallForSettlement(ctx, current.CallID)
 		if loadErr != nil {
@@ -232,4 +253,10 @@ func (s *Service) settleControlledCall(
 	s.notifyWaiters(settled.CallID)
 	s.emitTerminalTransition(ctx, current.State, &settled)
 	return settled, true, nil
+}
+
+func (s *Service) unfenceSessionDrain(ctx context.Context, rootID string, fencedAt time.Time) error {
+	rollbackCtx, cancel := s.detachedOperationContext(ctx)
+	defer cancel()
+	return s.store.UnfenceSessionDrain(rollbackCtx, rootID, fencedAt)
 }

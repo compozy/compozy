@@ -209,17 +209,19 @@ Loop observability is durable runtime state, not a transient UI stream. `loop_ru
 ## Calls And Mailbox
 
 `[calls]` bounds agent-to-agent delegation. Defaults are `max_depth = 3`, `max_batch = 8`,
-`max_children = 5`, `max_active_per_root = 32`, and `idle_ttl = "1h"`. `[calls.results]` sets
+`max_children = 5`, `max_active_per_root = 32`, `idle_ttl = "1h"`, and
+`operation_timeout = "30s"`. `[calls.results]` sets
 `default_budget = "256KiB"`, `max_budget = "4MiB"`, and `overflow = "store"`. `[calls.messages]` sets
 `rate_limit_per_minute = 30`, `dedup_window = "30s"`, `pending_cap = 50`, and `max_bytes = "64KiB"`.
 Validation rejects non-positive integers and durations at load, requires `overflow` to be `store` or
-`reject`, and rejects a `default_budget` above `max_budget`. All twelve paths are agent-mutable
+`reject`, and rejects a `default_budget` above `max_budget`. All thirteen paths are agent-mutable
 through `compozy config get|set|unset` and the native config tools, and resolve through the user,
 profile, workspace, and workspace-profile layers.
 
 `max_children` is an admission wall that rejects; `max_active_per_root` is an execution budget that
 queues visibly. `max_depth` changes apply to new calls. `idle_ttl` applies at call time and suspends
-while a call is in flight, so a working child is never clock-reaped. There is no default deadline —
+while a call is in flight, so a working child is never clock-reaped. `operation_timeout` bounds
+daemon-owned call mutations and post-dispatch completion after a client request ends. There is no default deadline —
 `deadline_seconds` is per-call opt-in. `overflow = "reject"` turns over-budget results into
 `call_result_over_budget`. Read `references/agent-comms.md` for the behavior these bound.
 

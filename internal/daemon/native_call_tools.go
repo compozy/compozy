@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	core "github.com/compozy/compozy/internal/api/core"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/contracts"
@@ -17,73 +18,9 @@ import (
 
 const daemonAgentSessionActorKind = "agent_session"
 
-type nativeCallTask struct {
-	Agent           string              `json:"agent"`
-	SessionID       string              `json:"session_id"`
-	Prompt          string              `json:"prompt"`
-	Expect          json.RawMessage     `json:"expect"`
-	IdleTTLSeconds  int64               `json:"idle_ttl_seconds"`
-	DeadlineSeconds json.RawMessage     `json:"deadline_seconds"`
-	Strict          bool                `json:"strict"`
-	ResultBudget    string              `json:"result_budget"`
-	ResultOverflow  string              `json:"result_overflow"`
-	IdempotencyKey  string              `json:"idempotency_key"`
-	Runtime         *nativeCallRuntime  `json:"runtime"`
-	Narrow          nativeCallNarrowing `json:"narrow"`
-}
-
-type nativeCallInput struct {
-	nativeCallTask
-	Tasks *[]nativeCallTask `json:"tasks"`
-}
-
-type nativeCallRuntime struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	ReasoningEffort string `json:"reasoning_effort"`
-	Speed           string `json:"speed"`
-}
-
-type nativeCallNarrowing struct {
-	Tools           []string `json:"tools"`
-	Skills          []string `json:"skills"`
-	MCPServers      []string `json:"mcp_servers"`
-	WorkspacePaths  []string `json:"workspace_paths"`
-	NetworkChannels []string `json:"network_channels"`
-	SandboxProfiles []string `json:"sandbox_profiles"`
-}
-
-type nativeCallReturnInput struct {
-	CallID    string          `json:"call_id"`
-	Result    json.RawMessage `json:"result"`
-	FinalText string          `json:"final_text"`
-}
-
-type nativeCallAwaitInput struct {
-	CallIDs   []string `json:"call_ids"`
-	TimeoutMS int64    `json:"timeout_ms"`
-	Resume    string   `json:"resume"`
-}
-
-type nativeCallCancelInput struct {
-	CallID string `json:"call_id"`
-	Reason string `json:"reason"`
-}
-
-type nativeCallIDInput struct {
-	CallID string `json:"call_id"`
-}
-
-type nativeCallPublishInput struct {
-	CallID   string `json:"call_id"`
-	Channel  string `json:"channel"`
-	ThreadID string `json:"thread_id"`
-}
-
-type nativeAgentMessageInput struct {
-	To     string `json:"to"`
-	Text   string `json:"text"`
-	CallID string `json:"call_id"`
+type nativeCallsService interface {
+	core.CallsService
+	Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
 }
 
 func (n *daemonNativeTools) agentCall(
@@ -91,7 +28,11 @@ func (n *daemonNativeTools) agentCall(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	operationCtx := context.WithoutCancel(ctx)
+	operationCtx, cancel, err := n.callOperationContext(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	defer cancel()
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -172,7 +113,7 @@ func (n *daemonNativeTools) nativeCreateCallInput(
 				Code: callspkg.CodeDeadlineInvalid, Message: "deadline_seconds must be a positive integer",
 			}
 		}
-		deadline := time.Now().UTC().Add(time.Duration(seconds) * time.Second)
+		deadline := n.now().Add(time.Duration(seconds) * time.Second)
 		create.Deadline = &deadline
 	}
 	if input.ResultBudget != "" || input.ResultOverflow != "" {
@@ -207,6 +148,13 @@ func (n *daemonNativeTools) nativeCreateCallInput(
 	return create, nil
 }
 
+func (n *daemonNativeTools) now() time.Time {
+	if n != nil && n.deps != nil && n.deps.Now != nil {
+		return n.deps.Now().UTC()
+	}
+	return time.Now().UTC()
+}
+
 func hasNativeInlineCall(input nativeCallTask) bool {
 	return strings.TrimSpace(input.Agent) != "" || strings.TrimSpace(input.SessionID) != "" ||
 		strings.TrimSpace(input.Prompt) != "" || len(input.Expect) > 0 || input.IdleTTLSeconds != 0 ||
@@ -222,7 +170,11 @@ func (n *daemonNativeTools) callReturn(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	operationCtx := context.WithoutCancel(ctx)
+	operationCtx, cancel, err := n.callOperationContext(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	defer cancel()
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -298,7 +250,11 @@ func (n *daemonNativeTools) callCancel(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	operationCtx := context.WithoutCancel(ctx)
+	operationCtx, cancel, err := n.callOperationContext(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	defer cancel()
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -362,7 +318,11 @@ func (n *daemonNativeTools) agentMessage(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	operationCtx := context.WithoutCancel(ctx)
+	operationCtx, cancel, err := n.callOperationContext(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	defer cancel()
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -390,7 +350,11 @@ func (n *daemonNativeTools) callPublish(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	operationCtx := context.WithoutCancel(ctx)
+	operationCtx, cancel, err := n.callOperationContext(ctx)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	defer cancel()
 	service, err := n.requireCallsService(req.ToolID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -414,28 +378,16 @@ func (n *daemonNativeTools) callPublish(
 	}, receipt.NetworkMessageID)
 }
 
-func (n *daemonNativeTools) requireCallsService(toolID toolspkg.ToolID) (coreCallsService, error) {
+func (n *daemonNativeTools) requireCallsService(toolID toolspkg.ToolID) (nativeCallsService, error) {
 	service := n.callsService()
 	if service == nil {
 		return nil, nativeUnavailableError(toolID, "calls service is unavailable")
 	}
-	combined, ok := service.(coreCallsService)
+	nativeService, ok := service.(nativeCallsService)
 	if !ok {
-		return nil, nativeUnavailableError(toolID, "daemon calls service does not support settlement")
+		return nil, nativeUnavailableError(toolID, "calls service does not support native settlement")
 	}
-	return combined, nil
-}
-
-type coreCallsService interface {
-	Create(context.Context, callspkg.CreateInput) (callspkg.CallRecord, error)
-	CreateBatch(context.Context, []callspkg.CreateInput) ([]callspkg.BatchOutcome, error)
-	Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
-	GetRead(context.Context, callspkg.CallReadQuery, string) (callspkg.CallRecord, error)
-	Result(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
-	Await(context.Context, callspkg.AwaitInput) (callspkg.AwaitOutcome, error)
-	Cancel(context.Context, string, string, callspkg.Actor) (callspkg.CallRecord, error)
-	SendMessage(context.Context, callspkg.SendMessageInput) (callspkg.MessageRecord, error)
-	Publish(context.Context, callspkg.PublishInput) (callspkg.PublishReceipt, error)
+	return nativeService, nil
 }
 
 func nativeCallsScope(scope toolspkg.Scope) callspkg.CallScope {

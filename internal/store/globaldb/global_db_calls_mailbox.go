@@ -174,7 +174,7 @@ func loadMessageSession(ctx context.Context, exec taskSQLExecutor, sessionID str
 
 func messageTargetError(err error, subject string) error {
 	if errors.Is(err, sql.ErrNoRows) {
-		return &callspkg.Error{Code: callspkg.CodeMessageTargetDenied, Message: subject + " was not found"}
+		return &callspkg.Error{Code: callspkg.CodeNotFound, Message: subject + " was not found"}
 	}
 	return fmt.Errorf("store: inspect message %s: %w", subject, err)
 }

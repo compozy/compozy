@@ -3747,6 +3747,37 @@ func TestNormalizeHostAPIRPCErrorMapsResourceStatuses(t *testing.T) {
 	}
 }
 
+func TestMapHostAPICallRPCErrorPreservesCallIdentity(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		code       callspkg.ErrorCode
+		wantStatus int
+	}{
+		{name: "Should preserve an admission refusal", code: callspkg.CodeChildrenCap, wantStatus: 400},
+		{name: "Should preserve a publication failure", code: callspkg.CodePublishFailed, wantStatus: 502},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := mapHostAPICallRPCError("call", "call-1", &callspkg.Error{
+				Code: tc.code, Message: "call operation failed",
+			})
+			rpcErr, ok := errors.AsType[*subprocess.RPCError](err)
+			if !ok || rpcErr.Code != tc.wantStatus {
+				t.Fatalf("mapHostAPICallRPCError() = %#v, want status %d", err, tc.wantStatus)
+			}
+			var data map[string]any
+			if err := json.Unmarshal(rpcErr.Data, &data); err != nil {
+				t.Fatalf("decode RPC error data = %v", err)
+			}
+			if data["code"] != string(tc.code) || data[hostAPIResourceKey] != "call" || data["id"] != "call-1" {
+				t.Fatalf("RPC error data = %#v, want preserved call identity", data)
+			}
+		})
+	}
+}
+
 func TestRPCCapabilityDeniedUsesHTTPStatusForResourceMethods(t *testing.T) {
 	t.Parallel()
 

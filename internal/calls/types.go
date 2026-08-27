@@ -403,7 +403,6 @@ type ResultEvidence struct {
 	MessageID       string
 	ResultPreview   json.RawMessage
 	ResultBytes     int
-	FetchPath       string
 }
 
 // PublishReceipt records whether this request created or replayed a publication.

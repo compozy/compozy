@@ -2,6 +2,7 @@ package calls
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -63,25 +64,22 @@ func (s *Service) Await(ctx context.Context, input AwaitInput) (AwaitOutcome, er
 	}
 	outcome, err := snapshot()
 	if err != nil || len(outcome.Settled) > 0 || timeout == 0 {
-		return s.withResume(outcome), err
+		return s.withResume(outcome, err)
 	}
 	timer := time.NewTimer(timeout)
 	defer timer.Stop()
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			return AwaitOutcome{}, ctx.Err()
+			return AwaitOutcome{}, awaitContextError(ctx.Err())
 		case <-timer.C:
 			outcome, err = snapshot()
-			return s.withResume(outcome), err
+			return s.withResume(outcome, err)
 		case <-wake:
-		case <-ticker.C:
 		}
 		outcome, err = snapshot()
 		if err != nil || len(outcome.Settled) > 0 {
-			return s.withResume(outcome), err
+			return s.withResume(outcome, err)
 		}
 	}
 }
@@ -162,15 +160,25 @@ func (s *Service) notifyWaiters(callID string) {
 	}
 }
 
-func (s *Service) withResume(outcome AwaitOutcome) AwaitOutcome {
-	if len(outcome.Pending) == 0 {
-		return outcome
+func (s *Service) withResume(outcome AwaitOutcome, outcomeErr error) (AwaitOutcome, error) {
+	if outcomeErr != nil || len(outcome.Pending) == 0 {
+		return outcome, outcomeErr
 	}
 	resume, err := s.newID("cawait")
 	if err != nil {
-		outcome.Resume = fmt.Sprintf("cawait_error_%d", s.now().UnixNano())
-		return outcome
+		return AwaitOutcome{}, fmt.Errorf("calls: allocate await resume: %w", err)
 	}
 	outcome.Resume = resume
-	return outcome
+	return outcome, nil
+}
+
+func awaitContextError(err error) error {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return newError(CodeTimedOut, "call await timed out", err)
+	case errors.Is(err, context.Canceled):
+		return newError(CodeCanceled, "call await canceled", err)
+	default:
+		return err
+	}
 }

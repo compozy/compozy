@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -19,7 +20,7 @@ import (
 func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist byte-exact contracted prompt and activate through exact queue claim", func(t *testing.T) {
+	t.Run("Should persist byte-exact contracted prompt before dispatcher activation", func(t *testing.T) {
 		t.Parallel()
 		service, database, claimer, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		prompt := strings.Repeat("review carefully; ", 4096) + "  "
@@ -31,8 +32,8 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
-		if record.State != StateRunning || record.ChildSessionID == "" || record.ExpectDigest == "" {
-			t.Fatalf("Create() = %#v, want running contracted child", record)
+		if record.State != StateQueued || record.ChildSessionID != "" || record.ExpectDigest == "" {
+			t.Fatalf("Create() = %#v, want durable queued admission", record)
 		}
 		if got := string(database.payloads[callPayloadKey(record.WorkspaceID, record.PromptRef)]); got != prompt {
 			suffix := got
@@ -48,6 +49,17 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if record.IdleTTL != time.Hour || record.Runtime != runtime {
 			t.Fatalf("record snapshots = ttl %s runtime %#v", record.IdleTTL, record.Runtime)
 		}
+		if len(claimer.criteria) != 0 || len(invoker.spawns) != 0 {
+			t.Fatalf("Create() claims=%#v spawns=%#v, want admission only", claimer.criteria, invoker.spawns)
+		}
+		dispatched, err := service.DispatchQueued(t.Context(), 1)
+		if err != nil {
+			t.Fatalf("DispatchQueued() error = %v", err)
+		}
+		activated := database.calls[record.CallID]
+		if dispatched != 1 || activated.State != StateRunning || activated.ChildSessionID == "" {
+			t.Fatalf("DispatchQueued() = %d, call = %#v, want one running child", dispatched, activated)
+		}
 		if len(claimer.criteria) != 1 || claimer.criteria[0].RunID != record.ActivationRunID ||
 			claimer.criteria[0].RunKind != task.RunKindCallActivation {
 			t.Fatalf("claim criteria = %#v, want exact call activation", claimer.criteria)
@@ -56,6 +68,45 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			invoker.spawns[0].Permissions.Skills[0] != "review" {
 			t.Fatalf("spawn specs = %#v, want narrowed skills", invoker.spawns)
 		}
+	})
+
+	t.Run("Should distinguish cancellation before admission from cancellation after commit", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("Should reject cancellation before durable admission", func(t *testing.T) {
+			t.Parallel()
+			service, database, _, _ := newCallServiceHarness(
+				t,
+				config.DefaultCallsConfig(),
+				validAgentTarget(),
+			)
+			ctx, cancel := context.WithCancel(t.Context())
+			cancel()
+
+			_, err := service.Create(ctx, validCreateInput("canceled before commit", nil, nil))
+
+			if !errors.Is(err, context.Canceled) || len(database.calls) != 0 {
+				t.Fatalf("Create(pre-admission cancel) error/calls = %v/%d", err, len(database.calls))
+			}
+		})
+
+		t.Run("Should return the durable identity when cancellation follows commit", func(t *testing.T) {
+			t.Parallel()
+			service, database, _, _ := newCallServiceHarness(
+				t,
+				config.DefaultCallsConfig(),
+				validAgentTarget(),
+			)
+			ctx, cancel := context.WithCancel(t.Context())
+			database.afterAdmit = cancel
+
+			record, err := service.Create(ctx, validCreateInput("canceled after commit", nil, nil))
+
+			if err != nil || ctx.Err() == nil || record.State != StateQueued ||
+				database.calls[record.CallID].CallID != record.CallID {
+				t.Fatalf("Create(post-admission cancel) record/error = %#v/%v", record, err)
+			}
+		})
 	})
 
 	t.Run("Should inherit omitted permission categories from the caller", func(t *testing.T) {
@@ -76,8 +127,9 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
+		record = activateCreatedCall(t, service, &record)
 		if record.State != StateRunning || len(invoker.spawns) != 1 {
-			t.Fatalf("Create() = %#v spawns=%d, want one running child", record, len(invoker.spawns))
+			t.Fatalf("activated call = %#v spawns=%d, want one running child", record, len(invoker.spawns))
 		}
 		want := store.NormalizeSessionPermissionPolicy(target.CallerPolicy)
 		got := invoker.spawns[0].Permissions.Policy()
@@ -105,8 +157,12 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if first.CallID == second.CallID || first.ExpectDigest != "" || second.ExpectDigest != "" {
 			t.Fatalf("keyless records = %#v / %#v", first, second)
 		}
-		if len(database.calls) != 2 || len(invoker.spawns) != 2 {
-			t.Fatalf("side effects = %d calls, %d spawns; want 2 each", len(database.calls), len(invoker.spawns))
+		if len(database.calls) != 2 || len(invoker.spawns) != 0 {
+			t.Fatalf(
+				"side effects = %d calls, %d spawns; want admission only",
+				len(database.calls),
+				len(invoker.spawns),
+			)
 		}
 	})
 
@@ -118,6 +174,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(first) error = %v", err)
 		}
+		first = activateCreatedCall(t, service, &first)
 		replay, err := service.Create(context.Background(), input)
 		if err != nil {
 			t.Fatalf("Create(replay) error = %v", err)
@@ -155,6 +212,10 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
 		}
+		if _, err := service.DispatchQueued(t.Context(), 1); err != nil {
+			t.Fatalf("DispatchQueued() error = %v", err)
+		}
+		record = database.calls[record.CallID]
 		if record.State != StateFailed || record.FailureCode != string(CodeWideningRejected) ||
 			database.calls[record.CallID].State != StateFailed {
 			t.Fatalf("failed activation = %#v", record)
@@ -168,6 +229,10 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		record, err := service.Create(context.Background(), validCreateInput("work", nil, nil))
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
+		}
+		dispatched, err := service.DispatchQueued(t.Context(), 1)
+		if err != nil || dispatched != 0 {
+			t.Fatalf("DispatchQueued() = %d, %v, want queued race", dispatched, err)
 		}
 		if record.State != StateQueued || database.calls[record.CallID].State != StateQueued ||
 			len(invoker.spawns) != 0 {
@@ -233,7 +298,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		if !IsCode(err, CodeWideningRejected) {
 			t.Fatalf("Create(second) error = %v, want %s", err, CodeWideningRejected)
 		}
-		if database.calls[first.CallID].State != StateRunning || len(database.calls) != 1 {
+		if database.calls[first.CallID].State != StateQueued || len(database.calls) != 1 {
 			t.Fatalf("first call changed after caller policy update: %#v", database.calls[first.CallID])
 		}
 	})
@@ -377,6 +442,54 @@ func TestServiceCreateRejectsBeforeAdmission(t *testing.T) {
 func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should admit parallel prompts without synchronous activation", func(t *testing.T) {
+		t.Parallel()
+		service, database, claimer, invoker := newCallServiceHarness(
+			t,
+			config.DefaultCallsConfig(),
+			validAgentTarget(),
+		)
+		const total = 8
+		start := make(chan struct{})
+		outcomes := make(chan CallRecord, total)
+		errorsCh := make(chan error, total)
+		var group sync.WaitGroup
+		for index := range total {
+			group.Go(func() {
+				<-start
+				input := validCreateInput("parallel prompt "+fmt.Sprint(index), nil, nil)
+				input.IdempotencyKey = "parallel-" + fmt.Sprint(index)
+				record, err := service.Create(t.Context(), input)
+				outcomes <- record
+				errorsCh <- err
+			})
+		}
+		close(start)
+		group.Wait()
+		close(outcomes)
+		close(errorsCh)
+
+		for err := range errorsCh {
+			if err != nil {
+				t.Fatalf("Create(parallel) error = %v", err)
+			}
+		}
+		for record := range outcomes {
+			if record.State != StateQueued || record.CallID == "" || record.ActivationRunID == "" {
+				t.Fatalf("Create(parallel) = %#v, want durable queued identity", record)
+			}
+		}
+		if len(database.calls) != total || len(claimer.criteria) != 0 || len(invoker.spawns) != 0 {
+			t.Fatalf(
+				"parallel admission = calls %d claims %d spawns %d, want %d/0/0",
+				len(database.calls),
+				len(claimer.criteria),
+				len(invoker.spawns),
+				total,
+			)
+		}
+	})
+
 	t.Run("Should preserve ordered isolated batch outcomes", func(t *testing.T) {
 		t.Parallel()
 		cfg := config.DefaultCallsConfig()
@@ -454,8 +567,12 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		if outcomes[0].Call == nil || !IsCode(outcomes[1].Error, CodeAgentUnknown) || outcomes[2].Call == nil {
 			t.Fatalf("CreateBatch() outcomes = %#v", outcomes)
 		}
-		if len(database.calls) != 2 || len(invoker.spawns) != 2 {
-			t.Fatalf("isolated batch side effects = calls %d spawns %d", len(database.calls), len(invoker.spawns))
+		if len(database.calls) != 2 || len(invoker.spawns) != 0 {
+			t.Fatalf(
+				"isolated batch side effects = calls %d spawns %d, want admission without spawn",
+				len(database.calls),
+				len(invoker.spawns),
+			)
 		}
 	})
 
@@ -496,7 +613,7 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 				!IsCode(outcomes[2].Error, CodeChildrenCap) || !IsCode(outcomes[3].Error, CodeChildrenCap) {
 				t.Fatalf("CreateBatch() outcomes = %#v", outcomes)
 			}
-			if len(database.calls) != 2 || len(invoker.spawns) != 2 {
+			if len(database.calls) != 2 || len(invoker.spawns) != 0 {
 				t.Fatalf("child-wall side effects = calls %d spawns %d", len(database.calls), len(invoker.spawns))
 			}
 		},
@@ -542,6 +659,7 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(parked follow-up) error = %v", err)
 		}
+		record = activateCreatedCall(t, service, &record)
 		if record.State != StateRunning || len(invoker.revives) != 1 || invoker.revives[0] != parked.ChildSessionID {
 			t.Fatalf("parked follow-up = %#v, revives=%#v", record, invoker.revives)
 		}

@@ -7,6 +7,11 @@ import (
 	"fmt"
 )
 
+type publicCodedError interface {
+	error
+	PublicErrorCode() string
+}
+
 func contextErr(ctx context.Context, id ToolID) error {
 	if ctx == nil {
 		return NewToolError(
@@ -33,6 +38,14 @@ func normalizeBackendError(id ToolID, err error) error {
 	}
 	if toolErr, ok := errors.AsType[*ToolError](err); ok {
 		return normalizeToolError(id, toolErr)
+	}
+	if coded, ok := errors.AsType[publicCodedError](err); ok && coded.PublicErrorCode() != "" {
+		return NewToolError(
+			ErrorCode(coded.PublicErrorCode()),
+			id,
+			coded.Error(),
+			fmt.Errorf("%w: %w", ErrToolBackendFailed, err),
+		)
 	}
 	return normalizeToolError(id, NewToolError(
 		ErrorCodeBackendFailed,

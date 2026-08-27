@@ -1,9 +1,11 @@
 package daemon
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -280,9 +282,9 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 			},
 		}
 		service := &callRuntimeServiceStub{}
-		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions}
 
-		runtime.onTurnEnd("ses-child")
+		runtime.onTurnEnd(t.Context(), "ses-child")
 
 		if service.drainCalls != 1 || service.returnCalls != 1 {
 			t.Fatalf(
@@ -304,9 +306,9 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 
 		sessions := &callSessionManagerStub{info: &session.Info{ID: "ses-child", State: session.StateActive}}
 		service := &callRuntimeServiceStub{drain: func() { sessions.prompting = true }}
-		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions}
 
-		runtime.onTurnEnd("ses-child")
+		runtime.onTurnEnd(t.Context(), "ses-child")
 
 		if service.drainCalls != 1 || service.returnCalls != 0 {
 			t.Fatalf(
@@ -330,9 +332,9 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 			}}},
 		}
 		service := &callRuntimeServiceStub{}
-		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions}
 
-		runtime.onTurnEnd("ses-child")
+		runtime.onTurnEnd(t.Context(), "ses-child")
 
 		if service.drainCalls != 1 || service.returnCalls != 0 {
 			t.Fatalf(
@@ -340,6 +342,30 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 				service.drainCalls,
 				service.returnCalls,
 			)
+		}
+	})
+
+	t.Run("Should report status failures without attempting settlement", func(t *testing.T) {
+		t.Parallel()
+
+		statusErr := errors.New("session status unavailable")
+		sessions := &callSessionManagerStub{statusErr: statusErr}
+		service := &callRuntimeServiceStub{}
+		var logs bytes.Buffer
+		runtime := &callRuntime{
+			turnEndService: service,
+			sessions:       sessions,
+			logger:         slog.New(slog.NewTextHandler(&logs, nil)),
+		}
+
+		runtime.onTurnEnd(t.Context(), "ses-child")
+
+		if service.returnCalls != 0 {
+			t.Fatalf("Return() calls = %d, want none after status failure", service.returnCalls)
+		}
+		if output := logs.String(); !strings.Contains(output, statusErr.Error()) ||
+			!strings.Contains(output, "ses-child") {
+			t.Fatalf("status failure log = %q, want session and cause", output)
 		}
 	})
 }
@@ -381,6 +407,7 @@ func (s *callRuntimeServiceStub) Return(
 
 type callSessionManagerStub struct {
 	info           *session.Info
+	statusErr      error
 	statusCalls    int
 	resumeErr      error
 	resumeCalls    int
@@ -397,7 +424,7 @@ type callSessionManagerStub struct {
 
 func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
 	s.statusCalls++
-	return s.info, nil
+	return s.info, s.statusErr
 }
 
 func (s *callSessionManagerStub) IsPrompting(string) bool { return s.prompting }

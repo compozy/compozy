@@ -6,6 +6,7 @@ type callsOverlay struct {
 	MaxChildren      *int                 `toml:"max_children"`
 	MaxActivePerRoot *int                 `toml:"max_active_per_root"`
 	IdleTTL          *string              `toml:"idle_ttl"`
+	OperationTimeout *string              `toml:"operation_timeout"`
 	Results          callsResultsOverlay  `toml:"results"`
 	Messages         callsMessagesOverlay `toml:"messages"`
 }
@@ -29,6 +30,7 @@ func (o callsOverlay) Apply(dst *CallsConfig) {
 	applyOptional(o.MaxChildren, &dst.MaxChildren)
 	applyOptional(o.MaxActivePerRoot, &dst.MaxActivePerRoot)
 	applyOptional(o.IdleTTL, &dst.IdleTTL)
+	applyOptional(o.OperationTimeout, &dst.OperationTimeout)
 	o.Results.Apply(&dst.Results)
 	o.Messages.Apply(&dst.Messages)
 }

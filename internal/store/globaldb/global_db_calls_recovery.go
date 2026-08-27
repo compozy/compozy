@@ -62,6 +62,20 @@ func (g *CallRepo) FenceSessionDrain(ctx context.Context, rootSessionID string, 
 	return nil
 }
 
+// UnfenceSessionDrain rolls back only the fence acquired by the matching drain attempt.
+func (g *CallRepo) UnfenceSessionDrain(ctx context.Context, rootSessionID string, fencedAt time.Time) error {
+	if err := g.checkReady(ctx, "unfence session drain"); err != nil {
+		return err
+	}
+	_, err := g.db.ExecContext(ctx, `UPDATE sessions SET draining_at = NULL, updated_at = ?
+		WHERE id = ? AND draining_at = ?`, store.FormatTimestamp(fencedAt),
+		strings.TrimSpace(rootSessionID), store.FormatTimestamp(fencedAt))
+	if err != nil {
+		return fmt.Errorf("store: unfence session drain %q: %w", rootSessionID, err)
+	}
+	return nil
+}
+
 func (g *CallRepo) ListOpenSubtreeCalls(
 	ctx context.Context,
 	rootSessionID string,

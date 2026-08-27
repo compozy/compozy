@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"log/slog"
+	"time"
 
 	core "github.com/compozy/compozy/internal/api/core"
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
@@ -46,6 +47,7 @@ type nativeProfileReader interface {
 
 type daemonNativeToolsDeps struct {
 	Logger                     *slog.Logger
+	Now                        func() time.Time
 	Registry                   func() toolspkg.Registry
 	CmdPalette                 func() cmdpalette.Registry
 	ToolArtifacts              toolspkg.ToolArtifactStore

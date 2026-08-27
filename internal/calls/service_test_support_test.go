@@ -30,23 +30,67 @@ type memoryCallStore struct {
 	preservedResults     int
 	admissions           []Admission
 	settlements          []SettlementMutation
+	settleErrors         []error
 	repairDeliveries     []DeliveryRecord
 	completionDeliveries []DeliveryRecord
 	operators            map[string]OperatorCallerBinding
 	drainFences          []string
 	operations           []string
+	listSubtreeErr       error
+	countSubtreeErr      error
 	payloadBatchReads    int
 	beforeBindActivation func(ActivationBinding)
+	afterAdmit           func()
 }
 
 var (
 	_ Store                 = (*memoryCallStore)(nil)
+	_ MailboxStore          = (*memoryCallStore)(nil)
 	_ Directory             = staticCallDirectory{}
 	_ Directory             = routedCallDirectory(nil)
 	_ ActivationClaimer     = (*fakeActivationClaimer)(nil)
 	_ ActivationRunCanceler = (*fakeActivationCanceler)(nil)
 	_ SessionInvoker        = (*fakeSessionInvoker)(nil)
 )
+
+func (s *memoryCallStore) AcceptMessage(_ context.Context, admission MessageAdmission) (MessageRecord, error) {
+	record := admission.Record
+	record.ToSessionID = admission.Target
+	record.Delivery = MessageDeliveryQueued
+	return record, nil
+}
+
+func (*memoryCallStore) GetMessage(context.Context, CallScope, string) (MessageRecord, error) {
+	return MessageRecord{}, newError(CodeMessageNotFound, "message not found", nil)
+}
+
+func (*memoryCallStore) ListPendingDeliveries(context.Context, string, int) ([]DeliveryRecord, error) {
+	return nil, nil
+}
+
+func (*memoryCallStore) RecordDelivery(context.Context, DeliveryUpdate) (DeliveryRecord, error) {
+	return DeliveryRecord{}, errors.New("delivery not found")
+}
+
+func (*memoryCallStore) ParkCallChild(context.Context, string, time.Time, time.Time) (bool, error) {
+	return false, nil
+}
+
+func (*memoryCallStore) ClearCallChildIdleClock(context.Context, string, time.Time) error {
+	return nil
+}
+
+func (*memoryCallStore) FailPendingDeliveriesForRecipient(context.Context, string, string, time.Time) error {
+	return nil
+}
+
+func (*memoryCallStore) FenceSessionReap(context.Context, string, time.Time) (bool, error) {
+	return false, nil
+}
+
+func (*memoryCallStore) FinalizeReapedSession(context.Context, string, string, time.Time) error {
+	return nil
+}
 
 func callPayloadKey(workspaceID, ref string) string {
 	return workspaceID + "\x00" + ref
@@ -145,7 +189,10 @@ func (s *memoryCallStore) GetContract(_ context.Context, digest string) (contrac
 	return contract, nil
 }
 
-func (s *memoryCallStore) AdmitCall(_ context.Context, admission Admission) (AdmissionResult, error) {
+func (s *memoryCallStore) AdmitCall(ctx context.Context, admission Admission) (AdmissionResult, error) {
+	if err := ctx.Err(); err != nil {
+		return AdmissionResult{}, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if admission.Record == nil {
@@ -173,6 +220,9 @@ func (s *memoryCallStore) AdmitCall(_ context.Context, admission Admission) (Adm
 		admission.Prompt...)
 	s.calls[record.CallID] = record
 	s.admissions = append(s.admissions, admission)
+	if s.afterAdmit != nil {
+		s.afterAdmit()
+	}
 	return AdmissionResult{Record: record}, nil
 }
 
@@ -350,6 +400,11 @@ func (s *memoryCallStore) RecordRepair(_ context.Context, mutation RepairMutatio
 func (s *memoryCallStore) SettleCall(_ context.Context, mutation SettlementMutation) (CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if len(s.settleErrors) > 0 {
+		err := s.settleErrors[0]
+		s.settleErrors = s.settleErrors[1:]
+		return CallRecord{}, err
+	}
 	record, ok := s.calls[mutation.CallID]
 	if !ok {
 		return CallRecord{}, newError(CodeNotFound, "call was not found", nil)
@@ -429,27 +484,62 @@ func (s *memoryCallStore) FenceSessionDrain(_ context.Context, rootSessionID str
 	return nil
 }
 
+func (s *memoryCallStore) UnfenceSessionDrain(_ context.Context, rootSessionID string, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.operations = append(s.operations, "unfence:"+rootSessionID)
+	return nil
+}
+
 func (s *memoryCallStore) ListOpenSubtreeCalls(_ context.Context, rootSessionID string) ([]CallRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.operations = append(s.operations, "list:"+rootSessionID)
+	if s.listSubtreeErr != nil {
+		return nil, s.listSubtreeErr
+	}
 	return append([]CallRecord(nil), s.subtree...), nil
 }
 
-func (s *memoryCallStore) CountPreservedSubtreeResults(_ context.Context, _ string) (int, error) {
+func (s *memoryCallStore) CountPreservedSubtreeResults(_ context.Context, rootSessionID string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.operations = append(s.operations, "count:"+rootSessionID)
+	if s.countSubtreeErr != nil {
+		return 0, s.countSubtreeErr
+	}
 	return s.preservedResults, nil
 }
 
-func (s *memoryCallStore) ListQueuedActivationRunIDs(context.Context, int) ([]string, error) {
-	return nil, nil
+func (s *memoryCallStore) ListQueuedActivationRunIDs(_ context.Context, limit int) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	runIDs := make([]string, 0)
+	for callID := range s.calls {
+		if s.calls[callID].State == StateQueued && s.calls[callID].ActivationRunID != "" {
+			runIDs = append(runIDs, s.calls[callID].ActivationRunID)
+		}
+	}
+	sort.Strings(runIDs)
+	if limit > 0 && len(runIDs) > limit {
+		runIDs = runIDs[:limit]
+	}
+	return runIDs, nil
 }
 
 func (s *memoryCallStore) LoadActivation(
-	context.Context,
-	string,
+	_ context.Context,
+	runID string,
 ) (CallRecord, ActivationSpec, []byte, PermissionAtoms, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for index := range s.admissions {
+		admission := s.admissions[index]
+		if admission.Activation != nil && admission.Activation.RunID == runID && admission.Record != nil {
+			return *admission.Record, *admission.Activation, append([]byte(nil), admission.Prompt...),
+				admission.Narrow, nil
+		}
+	}
 	return CallRecord{}, ActivationSpec{}, nil, PermissionAtoms{}, errors.New("activation is not configured")
 }
 

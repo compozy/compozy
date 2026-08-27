@@ -15,7 +15,15 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 )
 
-var _ callspkg.Store = (*CallRepo)(nil)
+var (
+	_ callspkg.Store            = (*CallRepo)(nil)
+	_ callspkg.MailboxStore     = (*CallRepo)(nil)
+	_ callspkg.PayloadStore     = (*CallRepo)(nil)
+	_ callspkg.CallListStore    = (*CallRepo)(nil)
+	_ callspkg.CallReadStore    = (*CallRepo)(nil)
+	_ callspkg.MessageReadStore = (*CallRepo)(nil)
+	_ callspkg.PublicationStore = (*CallRepo)(nil)
+)
 
 func (g *CallRepo) PutContract(ctx context.Context, contract contracts.Contract) error {
 	if err := g.checkReady(ctx, "put call contract"); err != nil {

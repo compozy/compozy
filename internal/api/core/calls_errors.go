@@ -61,12 +61,17 @@ func statusForCallsError(err error) int {
 	case callspkg.CodeTargetExpired:
 		return http.StatusGone
 	case callspkg.CodeIdempotencyConflict, callspkg.CodeAlreadySettled, callspkg.CodeNotSettled,
-		callspkg.CodePublishNotSettled, callspkg.CodeMessageTargetBlocked, callspkg.CodeMessageDuplicate:
+		callspkg.CodePublishNoParticipation, callspkg.CodePublishNotSettled,
+		callspkg.CodeMessageTargetBlocked, callspkg.CodeMessageDuplicate:
 		return http.StatusConflict
+	case callspkg.CodePublishFailed:
+		return http.StatusBadGateway
 	case callspkg.CodeMessageTooLarge:
 		return http.StatusRequestEntityTooLarge
 	case callspkg.CodeMessageRateLimited:
 		return http.StatusTooManyRequests
+	case callspkg.CodeCanceled, callspkg.CodeTimedOut:
+		return http.StatusRequestTimeout
 	default:
 		return http.StatusUnprocessableEntity
 	}

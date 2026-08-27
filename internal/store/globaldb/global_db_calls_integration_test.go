@@ -1935,6 +1935,19 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 		}
 	})
 
+	t.Run("Should distinguish a missing mailbox target from policy denial", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		input := fixture.input
+		input.To = "ses_mailbox_missing"
+		input.Body = "missing target probe"
+
+		_, err := fixture.service.SendMessage(fixture.ctx, input)
+
+		if !callspkg.IsCode(err, callspkg.CodeNotFound) {
+			t.Fatalf("SendMessage(missing target) error = %v, want %s", err, callspkg.CodeNotFound)
+		}
+	})
+
 	t.Run("Should reject a target outside the sender lineage", func(t *testing.T) {
 		fixture := newGlobalDBCallMailboxFixture(t)
 		outsideID := "ses_mailbox_outside"
@@ -2014,6 +2027,104 @@ func TestGlobalDBCallMailboxPendingCapIsPerRecipient(t *testing.T) {
 	if !callspkg.IsCode(err, callspkg.CodeMessagePendingCap) {
 		t.Fatalf("AcceptMessage(third recipient delivery) error = %v, want %s", err, callspkg.CodeMessagePendingCap)
 	}
+}
+
+func TestGlobalDBCallReapCleanupMatrix(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t)
+	database := openFreshTestGlobalDB(t)
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-reap-cleanup",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
+	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+
+	t.Run("Should fail every pending delivery kind for the reaped recipient", func(t *testing.T) {
+		recipientID := "ses_reap_delivery_recipient"
+		registerCallSession(ctx, t, database, store.SessionInfo{
+			ID: recipientID, ProfileID: store.DefaultProfileID, AgentName: "worker",
+			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				RootSessionID: recipientID, SpawnBudget: store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			}, CreatedAt: now, UpdatedAt: now,
+		})
+		for _, kind := range []callspkg.DeliveryKind{
+			callspkg.DeliveryKindMessage,
+			callspkg.DeliveryKindCompletion,
+			callspkg.DeliveryKindRepair,
+		} {
+			if _, err := database.db.ExecContext(ctx, `INSERT INTO call_deliveries (
+				delivery_id, kind, subject_id, recipient_session_id, owner_key, wake_event_id,
+				state, created_at, updated_at
+			) VALUES (?, ?, ?, ?, 'session:sender', ?, 'pending', ?, ?)`,
+				"delivery_reap_"+string(kind), kind, "subject_"+string(kind), recipientID,
+				"wake_reap_"+string(kind), store.FormatTimestamp(now), store.FormatTimestamp(now),
+			); err != nil {
+				t.Fatalf("insert %s delivery error = %v", kind, err)
+			}
+		}
+
+		if err := database.FailPendingDeliveriesForRecipient(
+			ctx,
+			recipientID,
+			"session reaped",
+			now.Add(time.Second),
+		); err != nil {
+			t.Fatalf("FailPendingDeliveriesForRecipient() error = %v", err)
+		}
+		var failed int
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
+			WHERE recipient_session_id = ? AND state = 'failed' AND reason = 'session reaped'`, recipientID).
+			Scan(&failed); err != nil {
+			t.Fatalf("count failed reap deliveries error = %v", err)
+		}
+		if failed != 3 {
+			t.Fatalf("failed reap deliveries = %d, want all three kinds", failed)
+		}
+	})
+
+	t.Run("Should preserve exact reap detail while mapping runtime stop reasons", func(t *testing.T) {
+		cases := []struct {
+			reason string
+			want   string
+		}{
+			{reason: "ttl_expired", want: "timeout"},
+			{reason: "parent_stopped", want: "user_canceled"},
+			{reason: "runtime_unavailable", want: "error"},
+		}
+		for index, tc := range cases {
+			sessionID := fmt.Sprintf("ses_reap_reason_%d", index)
+			registerCallSession(ctx, t, database, store.SessionInfo{
+				ID: sessionID, ProfileID: store.DefaultProfileID, AgentName: "worker",
+				WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+				Lineage: &store.SessionLineage{
+					RootSessionID: sessionID,
+					SpawnBudget:   store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+				}, CreatedAt: now, UpdatedAt: now,
+			})
+			if err := database.FinalizeReapedSession(ctx, sessionID, tc.reason, now.Add(time.Second)); err != nil {
+				t.Fatalf("FinalizeReapedSession(%q) error = %v", tc.reason, err)
+			}
+			var state, stopReason, stopDetail string
+			if err := database.db.QueryRowContext(ctx, `SELECT state, stop_reason, stop_detail
+				FROM sessions WHERE id = ?`, sessionID).Scan(&state, &stopReason, &stopDetail); err != nil {
+				t.Fatalf("read reaped session %q error = %v", tc.reason, err)
+			}
+			if state != "stopped" || stopReason != tc.want || stopDetail != tc.reason {
+				t.Fatalf(
+					"reaped session %q = state %q reason %q detail %q, want stopped/%s/%s",
+					tc.reason,
+					state,
+					stopReason,
+					stopDetail,
+					tc.want,
+					tc.reason,
+				)
+			}
+		}
+	})
 }
 
 func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {

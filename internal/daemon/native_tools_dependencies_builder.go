@@ -17,6 +17,7 @@ func (d *Daemon) nativeToolsDeps(
 	marketplaceSkills := d.nativeMarketplaceSkills(state)
 	deps := daemonNativeToolsDeps{
 		Logger:                     state.logger,
+		Now:                        d.now,
 		Registry:                   registryRef,
 		CmdPalette:                 func() cmdpalette.Registry { return state.cmdPalette },
 		ToolArtifacts:              state.toolArtifacts,

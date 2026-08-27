@@ -9,18 +9,10 @@ import (
 	builtintools "github.com/compozy/compozy/internal/tools/builtin"
 )
 
-func (d *Daemon) bootToolRegistry(
-	ctx context.Context,
-	state *bootState,
-	cleanup *bootCleanup,
-) error {
-	if state == nil {
-		return errors.New("daemon: tool registry state is required")
+func (d *Daemon) bootToolRegistry(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
+	if err := prepareToolRegistryState(state); err != nil {
+		return err
 	}
-	if state.mcpServerCatalog == nil {
-		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
-	}
-	bindToolProjectionCatalogInvalidation(state)
 	if err := d.bootToolArtifacts(ctx, state, cleanup); err != nil {
 		return err
 	}
@@ -42,6 +34,10 @@ func (d *Daemon) bootToolRegistry(
 	if err != nil {
 		return fmt.Errorf("daemon: build native tool policy resolver: %w", err)
 	}
+	callOperationTimeout, err := state.cfg.Calls.OperationTimeoutDuration()
+	if err != nil {
+		return fmt.Errorf("daemon: parse call operation timeout: %w", err)
+	}
 	registryOptions := []toolspkg.RegistryOption{
 		toolspkg.WithProviders(providers...),
 		toolspkg.WithPolicyInputResolver(policyResolver, toolsets),
@@ -61,6 +57,7 @@ func (d *Daemon) bootToolRegistry(
 		toolspkg.WithCallInputBinder(workspaceBinder),
 		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
+		toolspkg.WithCompletionTimeout(callOperationTimeout),
 		toolspkg.WithResultProcessor(toolspkg.NewResultProcessor(
 			state.cfg.Tools.DefaultMaxResultBytes,
 			state.toolArtifacts,
@@ -89,6 +86,17 @@ func (d *Daemon) bootToolRegistry(
 	state.deps.ToolRegistry = registry
 	state.deps.Toolsets = registry
 	state.deps.ToolApprovals = approvalTokens
+	return nil
+}
+
+func prepareToolRegistryState(state *bootState) error {
+	if state == nil {
+		return errors.New("daemon: tool registry state is required")
+	}
+	if state.mcpServerCatalog == nil {
+		state.mcpServerCatalog = newResourceCatalog(cloneDaemonMCPServer)
+	}
+	bindToolProjectionCatalogInvalidation(state)
 	return nil
 }
 

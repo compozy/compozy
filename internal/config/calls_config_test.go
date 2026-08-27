@@ -14,7 +14,7 @@ func TestCallsConfig(t *testing.T) {
 
 		config := DefaultCallsConfig()
 		if config.MaxDepth != 3 || config.MaxBatch != 8 || config.MaxChildren != 5 ||
-			config.MaxActivePerRoot != 32 || config.IdleTTL != "1h" {
+			config.MaxActivePerRoot != 32 || config.IdleTTL != "1h" || config.OperationTimeout != "30s" {
 			t.Fatalf("DefaultCallsConfig() admission defaults = %#v", config)
 		}
 		if config.Results.DefaultBudget != "256KiB" || config.Results.MaxBudget != "4MiB" ||
@@ -44,6 +44,13 @@ func TestCallsConfig(t *testing.T) {
 					config.MaxBatch = 0
 				},
 				wantError: "calls.max_batch must be positive: 0",
+			},
+			{
+				name: "Should reject a non-positive operation timeout",
+				mutate: func(config *CallsConfig) {
+					config.OperationTimeout = "0s"
+				},
+				wantError: `calls.operation_timeout: must be a positive duration: "0s"`,
 			},
 			{
 				name: "Should reject a default budget above max",
@@ -100,8 +107,8 @@ func TestCallsToolSurface(t *testing.T) {
 	t.Parallel()
 
 	expected := callsToolPathKinds()
-	if len(expected) != 12 {
-		t.Fatalf("calls tool paths = %d, want 12", len(expected))
+	if len(expected) != 13 {
+		t.Fatalf("calls tool paths = %d, want 13", len(expected))
 	}
 	for path, wantKind := range expected {
 		t.Run("Should classify "+path, func(t *testing.T) {

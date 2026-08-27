@@ -8,6 +8,7 @@ import (
 
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 const defaultCallPublicationThread = "thread_calls"
@@ -27,7 +28,7 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 	evidence callspkg.ResultEvidence,
 ) (string, error) {
 	if b == nil || b.network == nil || b.network() == nil {
-		return "", fmt.Errorf("daemon: Network is unavailable")
+		return "", fmt.Errorf("daemon: Network is unavailable: %w", participation.ErrUnavailable)
 	}
 	threadID := strings.TrimSpace(evidence.ThreadID)
 	if threadID == "" {
@@ -40,7 +41,7 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 			evidence.CallID,
 			evidence.ResultBytes,
 			strings.TrimSpace(string(evidence.ResultPreview)),
-			evidence.FetchPath,
+			callResultFetchPath(evidence.WorkspaceID, evidence.CallID),
 		),
 		Intent: "result",
 	})
@@ -58,4 +59,8 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 		Body:        body,
 		ID:          &messageID,
 	})
+}
+
+func callResultFetchPath(workspaceID, callID string) string {
+	return "/api/workspaces/" + strings.TrimSpace(workspaceID) + "/calls/" + strings.TrimSpace(callID) + "/result"
 }

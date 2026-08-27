@@ -186,7 +186,7 @@ func (g *CallRepo) FailPendingDeliveriesForRecipient(
 	}
 	_, err := g.db.ExecContext(ctx, `UPDATE call_deliveries
 		SET state = 'failed', reason = ?, updated_at = ?, delivered_at = ?
-		WHERE recipient_session_id = ? AND state = 'pending' AND kind = 'message'`,
+		WHERE recipient_session_id = ? AND state = 'pending'`,
 		strings.TrimSpace(reason), store.FormatTimestamp(at), store.FormatTimestamp(at),
 		strings.TrimSpace(sessionID))
 	if err != nil {
@@ -206,7 +206,11 @@ func (g *CallRepo) FinalizeReapedSession(
 	}
 	_, err := g.db.ExecContext(ctx, `UPDATE sessions
 		SET parked_at = NULL, idle_expires_at = NULL, draining_at = NULL, state = 'stopped',
-		stop_reason = CASE WHEN ? = 'ttl_expired' THEN 'timeout' ELSE 'user_canceled' END,
+		stop_reason = CASE ?
+			WHEN 'ttl_expired' THEN 'timeout'
+			WHEN 'parent_stopped' THEN 'user_canceled'
+			ELSE 'error'
+		END,
 		stop_detail = ?, updated_at = ? WHERE id = ?`, strings.TrimSpace(reason), strings.TrimSpace(reason),
 		store.FormatTimestamp(at), strings.TrimSpace(sessionID))
 	if err != nil {

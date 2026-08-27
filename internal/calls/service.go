@@ -3,6 +3,7 @@ package calls
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -31,6 +32,7 @@ type serviceOptions struct {
 	invoker   SessionInvoker
 	publisher PublishBridge
 	hooks     HookDispatcher
+	logger    *slog.Logger
 	config    config.CallsConfig
 	now       func() time.Time
 	newID     func(string) (string, error)
@@ -38,25 +40,29 @@ type serviceOptions struct {
 
 // Service owns durable agent-call admission, lifecycle, reads, and delivery.
 type Service struct {
-	store           Store
-	directory       Directory
-	claimer         ActivationClaimer
-	canceler        ActivationRunCanceler
-	invoker         SessionInvoker
-	publisher       PublishBridge
-	hooks           HookDispatcher
-	config          config.CallsConfig
-	resultPolicy    contracts.CallsResultsConfig
-	registry        contracts.Registry
-	idleTTL         time.Duration
-	messageDedup    time.Duration
-	messageMaxBytes int
-	now             func() time.Time
-	newID           func(string) (string, error)
-	waitMu          sync.Mutex
-	waiters         map[string]map[uint64]chan struct{}
-	nextWaiterID    uint64
-	publishMu       sync.Mutex
+	store            Store
+	mailbox          MailboxStore
+	directory        Directory
+	claimer          ActivationClaimer
+	canceler         ActivationRunCanceler
+	invoker          SessionInvoker
+	publisher        PublishBridge
+	hooks            HookDispatcher
+	logger           *slog.Logger
+	config           config.CallsConfig
+	resultPolicy     contracts.CallsResultsConfig
+	registry         contracts.Registry
+	idleTTL          time.Duration
+	operationTimeout time.Duration
+	messageDedup     time.Duration
+	messageMaxBytes  int
+	now              func() time.Time
+	newID            func(string) (string, error)
+	waitMu           sync.Mutex
+	waiters          map[string]map[uint64]chan struct{}
+	nextWaiterID     uint64
+	publicationMu    sync.Mutex
+	publicationLocks map[string]*publicationLock
 }
 
 // WithStore configures durable call persistence.
@@ -92,6 +98,11 @@ func WithHookDispatcher(value HookDispatcher) Option {
 	return func(opts *serviceOptions) { opts.hooks = value }
 }
 
+// WithLogger configures structured operational diagnostics.
+func WithLogger(value *slog.Logger) Option {
+	return func(opts *serviceOptions) { opts.logger = value }
+}
+
 // WithConfig configures call limits and result policies.
 func WithConfig(value config.CallsConfig) Option {
 	return func(opts *serviceOptions) { opts.config = value }
@@ -113,6 +124,7 @@ func NewService(options ...Option) (*Service, error) {
 		config: config.DefaultCallsConfig(),
 		now:    func() time.Time { return time.Now().UTC() },
 		newID:  prefixedID,
+		logger: slog.Default(),
 	}
 	for _, option := range options {
 		if option != nil {
@@ -125,11 +137,18 @@ func NewService(options ...Option) (*Service, error) {
 	if opts.directory == nil {
 		return nil, errors.New("calls: directory is required")
 	}
+	mailbox, ok := opts.store.(MailboxStore)
+	if !ok {
+		return nil, errors.New("calls: store must implement mailbox persistence")
+	}
 	if opts.now == nil {
 		return nil, errors.New("calls: clock is required")
 	}
 	if opts.newID == nil {
 		return nil, errors.New("calls: id generator is required")
+	}
+	if opts.logger == nil {
+		return nil, errors.New("calls: logger is required")
 	}
 	if err := opts.config.Validate(); err != nil {
 		return nil, fmt.Errorf("calls: validate config: %w", err)
@@ -142,6 +161,10 @@ func NewService(options ...Option) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("calls: resolve idle ttl: %w", err)
 	}
+	operationTimeout, err := opts.config.OperationTimeoutDuration()
+	if err != nil {
+		return nil, fmt.Errorf("calls: resolve operation timeout: %w", err)
+	}
 	messageDedup, err := opts.config.Messages.DedupWindowDuration()
 	if err != nil {
 		return nil, fmt.Errorf("calls: resolve message dedup window: %w", err)
@@ -151,20 +174,22 @@ func NewService(options ...Option) (*Service, error) {
 		return nil, fmt.Errorf("calls: resolve message byte limit: %w", err)
 	}
 	return &Service{
-		store: opts.store, directory: opts.directory, claimer: opts.claimer,
+		store: opts.store, mailbox: mailbox, directory: opts.directory, claimer: opts.claimer,
 		canceler: opts.canceler, invoker: opts.invoker, publisher: opts.publisher, hooks: opts.hooks,
+		logger:       opts.logger,
 		config:       opts.config,
-		resultPolicy: resultPolicy, idleTTL: idleTTL, messageDedup: messageDedup,
+		resultPolicy: resultPolicy, idleTTL: idleTTL, operationTimeout: operationTimeout, messageDedup: messageDedup,
 		messageMaxBytes: messageMaxBytes, now: opts.now, newID: opts.newID,
-		registry: contracts.NewRegistry(opts.store),
-		waiters:  make(map[string]map[uint64]chan struct{}),
+		registry:         contracts.NewRegistry(opts.store),
+		waiters:          make(map[string]map[uint64]chan struct{}),
+		publicationLocks: make(map[string]*publicationLock),
 	}, nil
 }
 
 func prefixedID(prefix string) (string, error) {
 	id, err := store.NewID("")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("calls: generate %s id: %w", strings.TrimSpace(prefix), err)
 	}
 	return strings.TrimSpace(prefix) + "_" + id, nil
 }

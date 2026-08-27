@@ -1,7 +1,6 @@
 package core
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
@@ -38,7 +37,13 @@ func (h *BaseHandlers) CallMessagesCreate(c *gin.Context) {
 		return
 	}
 	actor := h.callsOperatorActor()
-	message, err := h.Calls.SendMessage(context.WithoutCancel(c.Request.Context()), callspkg.SendMessageInput{
+	operationCtx, cancel, err := h.callsOperationContext(c.Request.Context())
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	defer cancel()
+	message, err := h.Calls.SendMessage(operationCtx, callspkg.SendMessageInput{
 		ProfileID: selection.Scope.ProfileID, Scope: scope, WorkspaceID: workspaceID,
 		From: callspkg.MessageSender{Kind: "operator", ID: actor.ID},
 		To:   req.To.SessionID, CallID: req.CallID, Body: req.Text,

@@ -386,11 +386,10 @@ func deliverySyntheticMetadata(
 }
 
 func (s *Service) mailboxStore() (MailboxStore, error) {
-	mailbox, ok := s.store.(MailboxStore)
-	if !ok {
+	if s.mailbox == nil {
 		return nil, errors.New("calls: store does not implement mailbox persistence")
 	}
-	return mailbox, nil
+	return s.mailbox, nil
 }
 
 // FenceReapSession prevents new work from racing with session reaping.

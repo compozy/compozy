@@ -1,10 +1,12 @@
 package calls
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/network/participation"
 )
 
 func TestServicePublish(t *testing.T) {
@@ -48,8 +51,7 @@ func TestServicePublish(t *testing.T) {
 		}
 		for _, evidence := range bridge.evidence {
 			if evidence.SourceSessionID != "ses_publisher" || len(evidence.ResultPreview) >= 1<<20 ||
-				strings.Contains(string(evidence.ResultPreview), "private-token") ||
-				evidence.FetchPath != "/api/workspaces/ws-1/calls/call-publish/result" {
+				strings.Contains(string(evidence.ResultPreview), "private-token") {
 				t.Fatalf("published evidence = %#v", evidence)
 			}
 		}
@@ -96,12 +98,142 @@ func TestServicePublish(t *testing.T) {
 			)
 		}
 	})
+
+	t.Run("Should distinguish participation absence from publication failure", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name string
+			err  error
+			code ErrorCode
+		}{
+			{name: "Should preserve participation absence", err: participation.ErrNotParticipating, code: CodePublishNoParticipation},
+			{name: "Should preserve bridge failure", err: errors.New("network send rejected"), code: CodePublishFailed},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				service, store, bridge := newPublishHarness(t, true)
+				store.seedCompletedCall(json.RawMessage(`{"verdict":"approved"}`))
+				bridge.err = test.err
+
+				_, err := service.Publish(t.Context(), validPublishInput())
+
+				if !IsCode(err, test.code) || !errors.Is(err, test.err) {
+					t.Fatalf("Publish() error = %v, want %s preserving cause", err, test.code)
+				}
+			})
+		}
+	})
+
+	t.Run("Should return the committed Network receipt and recover receipt persistence", func(t *testing.T) {
+		t.Parallel()
+		service, store, bridge := newPublishHarness(t, true)
+		store.seedCompletedCall(json.RawMessage(`{"verdict":"approved"}`))
+		persistErr := errors.New("publication receipt database unavailable")
+		store.recordErrors = []error{persistErr}
+		var logs bytes.Buffer
+		service.logger = slog.New(slog.NewTextHandler(&logs, nil))
+
+		first, err := service.Publish(t.Context(), validPublishInput())
+		if err != nil || !first.Published || first.NetworkMessageID == "" {
+			t.Fatalf("Publish(committed) = %#v, %v, want truthful Network receipt", first, err)
+		}
+		if len(store.publications) != 0 || len(bridge.evidence) != 1 ||
+			!strings.Contains(logs.String(), persistErr.Error()) {
+			t.Fatalf(
+				"post-commit recovery state = publications %d bridge %d logs %q",
+				len(store.publications),
+				len(bridge.evidence),
+				logs.String(),
+			)
+		}
+
+		recovered, err := service.Publish(t.Context(), validPublishInput())
+		if err != nil || !recovered.Published || recovered.NetworkMessageID != first.NetworkMessageID {
+			t.Fatalf("Publish(recovery) = %#v, %v, want same deterministic Network identity", recovered, err)
+		}
+		replay, err := service.Publish(t.Context(), validPublishInput())
+		if err != nil || replay.Published || replay.NetworkMessageID != first.NetworkMessageID ||
+			len(store.publications) != 1 || len(bridge.evidence) != 2 ||
+			bridge.evidence[0].MessageID != bridge.evidence[1].MessageID {
+			t.Fatalf(
+				"Publish(replay) = %#v, %v publications=%d bridge=%#v",
+				replay,
+				err,
+				len(store.publications),
+				bridge.evidence,
+			)
+		}
+	})
+
+	t.Run("Should serialize one conversation without blocking an unrelated publication", func(t *testing.T) {
+		t.Parallel()
+		service, store, bridge := newPublishHarness(t, true)
+		store.seedCompletedCall(json.RawMessage(`{"verdict":"approved"}`))
+		other := publishCallRecord(StateCompleted)
+		other.CallID = "call-other"
+		other.ResultRef = "result-other"
+		other.ResultBytes = 20
+		store.calls[other.CallID] = other
+		store.payloads[callPayloadKey(other.WorkspaceID, other.ResultRef)] =
+			json.RawMessage(`{"verdict":"changes"}`)
+		firstEntered := make(chan struct{})
+		secondEntered := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		bridge.publish = func(evidence ResultEvidence) (string, error) {
+			switch evidence.CallID {
+			case "call-publish":
+				close(firstEntered)
+				<-releaseFirst
+			case "call-other":
+				close(secondEntered)
+			}
+			return evidence.MessageID, nil
+		}
+		type outcome struct {
+			receipt PublishReceipt
+			err     error
+		}
+		firstResult := make(chan outcome, 1)
+		secondResult := make(chan outcome, 1)
+		ctx := t.Context()
+		go func() {
+			receipt, err := service.Publish(ctx, validPublishInput())
+			firstResult <- outcome{receipt: receipt, err: err}
+		}()
+		<-firstEntered
+		otherInput := validPublishInput()
+		otherInput.CallID = other.CallID
+		go func() {
+			receipt, err := service.Publish(ctx, otherInput)
+			secondResult <- outcome{receipt: receipt, err: err}
+		}()
+
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
+		timedOut := false
+		select {
+		case <-secondEntered:
+			close(releaseFirst)
+		case <-timer.C:
+			close(releaseFirst)
+			timedOut = true
+		}
+		first, second := <-firstResult, <-secondResult
+		if timedOut {
+			t.Fatal("unrelated publication waited behind blocked Network I/O")
+		}
+		if first.err != nil || second.err != nil || !first.receipt.Published || !second.receipt.Published {
+			t.Fatalf("publication outcomes = %#v / %#v", first, second)
+		}
+	})
 }
 
 type publishTestStore struct {
 	*memoryCallStore
 	muPublications sync.Mutex
 	publications   map[string]Publication
+	recordErrors   []error
 }
 
 func (s *publishTestStore) seedCompletedCall(payload []byte) {
@@ -125,6 +257,11 @@ func (s *publishTestStore) GetPublication(_ context.Context, callID, channel, th
 func (s *publishTestStore) RecordPublication(_ context.Context, publication Publication) (Publication, bool, error) {
 	s.muPublications.Lock()
 	defer s.muPublications.Unlock()
+	if len(s.recordErrors) > 0 {
+		err := s.recordErrors[0]
+		s.recordErrors = s.recordErrors[1:]
+		return Publication{}, false, err
+	}
 	key := publication.CallID + "\x00" + publication.Channel + "\x00" + publication.ThreadID
 	if existing, ok := s.publications[key]; ok {
 		return existing, false, nil
@@ -164,13 +301,23 @@ func (s *publishTestStore) FinalizeReapedSession(context.Context, string, string
 type publishTestBridge struct {
 	mu       sync.Mutex
 	evidence []ResultEvidence
+	err      error
+	publish  func(ResultEvidence) (string, error)
 }
 
 func (b *publishTestBridge) PublishResultEvidence(_ context.Context, evidence ResultEvidence) (string, error) {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	b.evidence = append(b.evidence, evidence)
-	return fmt.Sprintf("network-message-%d", len(b.evidence)), nil
+	err := b.err
+	publish := b.publish
+	b.mu.Unlock()
+	if err != nil {
+		return "", err
+	}
+	if publish != nil {
+		return publish(evidence)
+	}
+	return evidence.MessageID, nil
 }
 
 func newPublishHarness(t *testing.T, withBridge bool) (*Service, *publishTestStore, *publishTestBridge) {

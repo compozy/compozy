@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 
+	core "github.com/compozy/compozy/internal/api/core"
 	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
@@ -17,6 +18,9 @@ type callSurfaceService struct {
 	*callspkg.Service
 	sessions SessionManager
 }
+
+var _ core.CallsService = (*callSurfaceService)(nil)
+var _ nativeCallsService = (*callSurfaceService)(nil)
 
 func newCallSurfaceService(service *callspkg.Service, sessions SessionManager) *callSurfaceService {
 	return &callSurfaceService{Service: service, sessions: sessions}

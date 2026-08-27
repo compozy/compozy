@@ -38,7 +38,12 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		return
 	}
 	actor := h.callsOperatorActor()
-	operationCtx := context.WithoutCancel(c.Request.Context())
+	operationCtx, cancel, err := h.callsOperationContext(c.Request.Context())
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	defer cancel()
 	caller, err := h.Calls.ResolveOperatorCaller(operationCtx, callspkg.CallScope{
 		ProfileID: selection.Scope.ProfileID, Scope: scope, WorkspaceID: workspaceID,
 	}, actor)
@@ -52,7 +57,7 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		return
 	}
 	if batch {
-		h.createCallBatch(c, inputs)
+		h.createCallBatch(operationCtx, c, inputs)
 		return
 	}
 	record, err := h.Calls.Create(operationCtx, inputs[0])
@@ -68,8 +73,11 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 	c.JSON(http.StatusCreated, payload)
 }
 
-func (h *BaseHandlers) createCallBatch(c *gin.Context, inputs []callspkg.CreateInput) {
-	operationCtx := context.WithoutCancel(c.Request.Context())
+func (h *BaseHandlers) createCallBatch(
+	operationCtx context.Context,
+	c *gin.Context,
+	inputs []callspkg.CreateInput,
+) {
 	outcomes, err := h.Calls.CreateBatch(operationCtx, inputs)
 	if err != nil {
 		h.respondCallsError(c, err)
@@ -287,8 +295,14 @@ func (h *BaseHandlers) CallsCancel(c *gin.Context) {
 			return
 		}
 	}
+	operationCtx, cancel, err := h.callsOperationContext(c.Request.Context())
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	defer cancel()
 	record, err := h.Calls.Cancel(
-		context.WithoutCancel(c.Request.Context()),
+		operationCtx,
 		callID,
 		req.Reason,
 		h.callsOperatorActor(),
@@ -314,7 +328,13 @@ func (h *BaseHandlers) CallsPublish(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
-	receipt, err := h.Calls.Publish(context.WithoutCancel(c.Request.Context()), callspkg.PublishInput{
+	operationCtx, cancel, err := h.callsOperationContext(c.Request.Context())
+	if err != nil {
+		h.respondCallsError(c, err)
+		return
+	}
+	defer cancel()
+	receipt, err := h.Calls.Publish(operationCtx, callspkg.PublishInput{
 		ProfileID: query.ReadScope.ProfileID, Scope: query.Scope, WorkspaceID: query.WorkspaceID,
 		CallID: strings.TrimSpace(c.Param("call_id")), Actor: h.callsOperatorActor(),
 		Channel: req.Channel, ThreadID: req.ThreadID,

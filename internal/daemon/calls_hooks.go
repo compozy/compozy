@@ -10,9 +10,10 @@ import (
 )
 
 type daemonCallHookDispatcher struct {
-	state  *bootState
-	logger *slog.Logger
-	now    func() time.Time
+	state            *bootState
+	logger           *slog.Logger
+	now              func() time.Time
+	operationTimeout time.Duration
 }
 
 func (d daemonCallHookDispatcher) ObserveCall(
@@ -24,7 +25,8 @@ func (d daemonCallHookDispatcher) ObserveCall(
 		return
 	}
 	hooks := d.state.hookDispatcher
-	dispatchCtx := context.WithoutCancel(ctx)
+	dispatchCtx, cancel := detachedDaemonOperationContext(ctx, d.operationTimeout)
+	defer cancel()
 	hookEvent := hookspkg.HookEvent(event)
 	now := time.Now().UTC()
 	if d.now != nil {
