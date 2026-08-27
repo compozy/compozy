@@ -7,10 +7,10 @@ journey: J-supervise-delegation-trees
 expected: An invalid-result or completed-without-result call, and a child blocked on a decision, raise needs-you rows on the Agents tile and in the bell under the existing grammar. A failing fan-out coalesces into one row per tree carrying the real count. Rows clear when their cause resolves; no dismiss, snooze, or clear-all exists.
 entry_points: web OS dock and attention bell from /agents/activity; HTTP and UDS GET /api/workspaces/{workspace_id}/calls?state=invalid-result,completed-without-result&attention=true&limit=1
 qa_status: pass
-bug_ids: 
-fix_status: 
-retest_status: 
-fix_commits: 
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-delegation-activity-tree; RT-agent-call-batch; RT-call-record-terminal-states

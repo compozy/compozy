@@ -7,10 +7,10 @@ journey: J-supervise-delegation-trees
 expected: A child session shows the ask that started it, the mailbox messages it received with provenance stamps and delivery receipts inside an inert untrusted frame, and the completion wake carrying the daemon's own wake line verbatim. A caller's turn shows its compozy__agent_call as a call card, and a batch as one fan-out card. No read or seen state renders anywhere.
 entry_points: web /agents/reviewer/sessions/ses_01JBD8G2MZTX transcript; HTTP and UDS GET /api/workspaces/{workspace_id}/messages?session=ses_01JBD8G2MZTX&limit=25; the provenance-stamped synthetic turn metadata for message_id msg_01JBD8M2R4V7
 qa_status: pass
-bug_ids: 
-fix_status: 
-retest_status: 
-fix_commits: 
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-agent-mailbox-send-list; RT-call-wake-delivery-exactly-once; RT-session-calls-inspector-panel

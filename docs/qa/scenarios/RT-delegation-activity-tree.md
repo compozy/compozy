@@ -7,10 +7,10 @@ journey: J-supervise-delegation-trees
 expected: /agents/activity groups calls by governed root, indents each row by the daemon's own depth, escalates the worst state onto a folded header, and opens the call record from a row. Per-tree counts come from CallsResponse.total on root_session_id-filtered reads, never from the loaded page.
 entry_points: web /agents/activity; HTTP and UDS GET /api/workspaces/{workspace_id}/calls?root_session_id=ses_01JBD7ZZAAAA&limit=200; compozy call list --caller ses_01JBD7ZZAAAA --state queued,running,completed --limit 200
 qa_status: pass
-bug_ids: 
-fix_status: 
-retest_status: 
-fix_commits: 
+bug_ids:
+fix_status:
+retest_status:
+fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-agent-comms-20260826-20260826-065104-728050-lab/qa-artifacts/qa/scenario-walk-matrix.md
 last_report: docs/qa/reports/2026-08-26-agent-comms.md
 overlaps: RT-session-calls-inspector-panel; RT-session-stop-subtree; RT-call-record-terminal-states
