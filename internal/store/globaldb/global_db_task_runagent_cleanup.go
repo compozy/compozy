@@ -63,6 +63,9 @@ func closeTerminalRunAgentBinding(
 	if binding.Ownership != goal.BindingOwnershipRunOwned {
 		return nil
 	}
+	if binding.State == goal.BindingStateFailed {
+		return nil
+	}
 	return closeGoalBindingWithCleanup(
 		ctx,
 		exec,
