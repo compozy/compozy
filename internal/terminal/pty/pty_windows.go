@@ -15,6 +15,8 @@ import (
 	"github.com/charmbracelet/x/conpty"
 	"github.com/compozy/compozy/internal/procutil"
 	"golang.org/x/sys/windows"
+	"mvdan.cc/sh/v3/expand"
+	"mvdan.cc/sh/v3/interp"
 )
 
 const windowsJobExitCode = 1
@@ -37,6 +39,13 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 	if len(spec.Argv) == 0 || spec.Argv[0] == "" {
 		return nil, errors.New("terminal pty: command is required")
 	}
+	environmentList := environment(spec.Env)
+	path, err := interp.LookPathDir(spec.Cwd, expand.ListEnviron(environmentList...), spec.Argv[0])
+	if err != nil {
+		return nil, fmt.Errorf("terminal pty: resolve %q: %w", spec.Argv[0], err)
+	}
+	argv := append([]string(nil), spec.Argv...)
+	argv[0] = path
 	cols, rows := normalizedSize(spec.Cols, spec.Rows)
 	job, err := newWindowsJob()
 	if err != nil {
@@ -46,9 +55,9 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("terminal pty: open ConPTY: %w", err), job.close())
 	}
-	pid, rawHandle, err := device.Spawn(spec.Argv[0], append([]string(nil), spec.Argv...), &syscall.ProcAttr{
+	pid, rawHandle, err := device.Spawn(path, argv, &syscall.ProcAttr{
 		Dir: spec.Cwd,
-		Env: environment(spec.Env),
+		Env: environmentList,
 		Sys: &syscall.SysProcAttr{CreationFlags: windows.CREATE_NEW_PROCESS_GROUP | windows.CREATE_SUSPENDED},
 	})
 	if err != nil {
