@@ -13,7 +13,9 @@ import { expect, type Locator, type Page } from "@playwright/test";
 
 /** Locate the active member for an app without reconstructing its opaque window ID. */
 export function appWindow(page: Page, app: string): Locator {
-  return page.locator(`[data-slot="os-window-surface"][data-app="${app}"][data-stack-active]`);
+  return page.locator(
+    `[data-slot="os-window-surface"][data-app="${app}"][data-stack-active]:visible`
+  );
 }
 
 /**

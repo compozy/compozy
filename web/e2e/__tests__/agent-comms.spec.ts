@@ -284,7 +284,10 @@ async function openAgents(page: Page, url: string) {
 async function openSession(page: Page, url: string, sessionId: string) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
-  const win = sessionWindow(page, sessionId);
+  const win = page.locator(
+    `[data-slot="os-window-surface"][data-app="session"]` +
+      `[data-instance-key="${sessionId}"]:visible`
+  );
   await expect(win).toBeVisible();
   return agentCommsSelectors(win);
 }
@@ -375,7 +378,7 @@ test.describe("E2E-015 Activity tree", () => {
     await expect(group).toHaveAttribute("aria-expanded", "true");
 
     await calls.treeRows.first().click();
-    await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/agents\/calls\/call_/);
+    await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/agents\/calls\/call-/);
     await expect(calls.callDetail).toBeVisible();
 
     // Parked is not gone, and the daemon draws that line at insert time: a
@@ -606,7 +609,7 @@ test.describe("E2E-018 liveness and stale actions", () => {
     // boundary. The call can then settle out of band while the exact action the
     // operator already made remains in flight, without pinning stale reads or
     // racing a control that correctly disappears on a live update.
-    const cancelRequest = /\/api\/workspaces\/[^/]+\/calls\/call_[^/?]+\/cancel$/;
+    const cancelRequest = /\/api\/workspaces\/[^/]+\/calls\/call-[^/?]+\/cancel$/;
     let releaseCancel!: () => void;
     let markCancelReached!: () => void;
     const cancelReached = new Promise<void>(resolve => {
@@ -910,7 +913,7 @@ test.describe("E2E-022 scale and keyboard", () => {
     await appPage.keyboard.press("ArrowLeft");
     await appPage.keyboard.press("ArrowRight");
     await appPage.keyboard.press("Enter");
-    await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/agents\/calls\/call_/);
+    await expect.poll(() => new URL(appPage.url()).pathname).toMatch(/^\/agents\/calls\/call-/);
   });
 });
 
@@ -954,9 +957,9 @@ test.describe("E2E-030 roster journey", () => {
     // Describe the seeded agent without breaking it: read the definition the
     // seeder wrote, then write it back with a description and its digest, so
     // `command` and `provider` survive and the agent stays executable.
-    const current = await runtime.requestJSON<{ agent: Record<string, unknown>; digest: string }>(
-      `/api/agents/${encodeURIComponent(HELPER)}`
-    );
+    const current = await runtime.requestJSON<{
+      agent: Record<string, unknown> & { definition_digest: string };
+    }>(`/api/agents/${encodeURIComponent(HELPER)}`);
     await runtime.requestJSON(`/api/agents/${encodeURIComponent(HELPER)}`, {
       method: "PUT",
       body: JSON.stringify({
@@ -975,7 +978,7 @@ test.describe("E2E-030 roster journey", () => {
           skills: current.agent.skills,
           prompt: current.agent.prompt,
         },
-        expected_digest: current.digest,
+        expected_digest: current.agent.definition_digest,
       }),
     });
 
