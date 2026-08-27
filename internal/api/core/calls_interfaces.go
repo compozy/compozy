@@ -18,7 +18,7 @@ type CallsService interface {
 	Prompt(context.Context, callspkg.CallReadQuery, string) (callspkg.PromptPayload, error)
 	Superseded(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
 	Await(context.Context, callspkg.AwaitInput) (callspkg.AwaitOutcome, error)
-	Cancel(context.Context, string, string, callspkg.Actor) (callspkg.CallRecord, error)
+	Cancel(context.Context, callspkg.CancelInput) (callspkg.CallRecord, error)
 	SendMessage(context.Context, callspkg.SendMessageInput) (callspkg.MessageRecord, error)
 	Publish(context.Context, callspkg.PublishInput) (callspkg.PublishReceipt, error)
 	Message(context.Context, callspkg.CallScope, string) (callspkg.MessageRecord, error)

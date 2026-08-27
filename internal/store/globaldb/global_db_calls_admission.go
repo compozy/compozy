@@ -342,11 +342,11 @@ func insertCallFollowUpDelivery(
 	record *callspkg.CallRecord,
 	delivery callspkg.Delivery,
 ) error {
-	identity := callDeliveryIdentityFor("message", record.CallID)
+	identity := callDeliveryIdentityFor("follow_up", record.CallID)
 	_, err := exec.ExecContext(ctx, `INSERT INTO call_deliveries (
 		delivery_id, kind, subject_id, recipient_session_id, owner_key, wake_event_id,
 		state, created_at, updated_at
-	) VALUES (?, 'message', ?, ?, ?, ?, 'pending', ?, ?)`,
+	) VALUES (?, 'follow-up', ?, ?, ?, ?, 'pending', ?, ?)`,
 		identity.deliveryID, record.CallID, delivery.RecipientSessionID,
 		participation.OwnerKey(record.Caller), identity.wakeID,
 		store.FormatTimestamp(record.CreatedAt), store.FormatTimestamp(record.CreatedAt),

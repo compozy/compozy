@@ -183,12 +183,22 @@ func (n *daemonNativeTools) callReturn(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	resultText := strings.TrimSpace(string(input.Result))
+	if resultText == "null" || (resultText == "" && strings.TrimSpace(input.FinalText) == "") {
+		return toolspkg.ToolResult{}, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput,
+			req.ToolID,
+			"call_return requires a non-null result or non-empty final_text",
+			toolspkg.ErrToolInvalidInput,
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
 	settlement, err := service.Return(operationCtx, callspkg.ReturnInput{
-		CallID: input.CallID, ChildSessionID: scope.SessionID, Result: input.Result,
+		Scope: nativeCallsScope(scope), CallID: input.CallID, ChildSessionID: scope.SessionID, Result: input.Result,
 		FinalText: input.FinalText, ChildLive: true,
 		Actor: callspkg.SettlementActor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 	})
-	if err != nil {
+	if err != nil && settlement.Call.CallID == "" {
 		return toolspkg.ToolResult{}, err
 	}
 	payload := map[string]any{
@@ -199,7 +209,18 @@ func (n *daemonNativeTools) callReturn(
 		payload["repair_prompt"] = settlement.RepairPrompt
 		payload["issues"] = settlement.Issues
 	}
-	return structuredNetworkResult(payload, settlement.Call.CallID+" "+string(settlement.Call.State))
+	result, resultErr := structuredNetworkResult(payload, settlement.Call.CallID+" "+string(settlement.Call.State))
+	if resultErr != nil {
+		return toolspkg.ToolResult{}, resultErr
+	}
+	if err != nil {
+		toolErr, ok := nativeCallToolError(req.ToolID, err).(*toolspkg.ToolError)
+		if !ok {
+			return toolspkg.ToolResult{}, err
+		}
+		return toolspkg.ToolResult{}, toolErr.WithPartialResult(result)
+	}
+	return result, nil
 }
 
 func (n *daemonNativeTools) callAwait(
@@ -231,6 +252,7 @@ func (n *daemonNativeTools) callAwait(
 			result, resultErr := service.Result(ctx, callspkg.CallReadQuery{
 				ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
 				WorkspaceID: callScope.WorkspaceID,
+				Actor:       callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 			}, record.CallID)
 			if resultErr != nil {
 				return toolspkg.ToolResult{}, resultErr
@@ -263,15 +285,9 @@ func (n *daemonNativeTools) callCancel(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	callScope := nativeCallsScope(scope)
-	if _, err := service.GetRead(operationCtx, callspkg.CallReadQuery{
-		ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
-		WorkspaceID: callScope.WorkspaceID,
-	}, input.CallID); err != nil {
-		return toolspkg.ToolResult{}, err
-	}
-	record, err := service.Cancel(operationCtx, input.CallID, input.Reason, callspkg.Actor{
-		Kind: daemonAgentSessionActorKind, ID: scope.SessionID,
+	record, err := service.Cancel(operationCtx, callspkg.CancelInput{
+		Scope: nativeCallsScope(scope), CallID: input.CallID, Reason: input.Reason,
+		Actor: callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, err
@@ -296,6 +312,7 @@ func (n *daemonNativeTools) callResult(
 	result, err := service.Result(ctx, callspkg.CallReadQuery{
 		ReadScope: store.ReadScope{ProfileID: callScope.ProfileID}, Scope: callScope.Scope,
 		WorkspaceID: callScope.WorkspaceID,
+		Actor:       callspkg.Actor{Kind: daemonAgentSessionActorKind, ID: scope.SessionID},
 	}, input.CallID)
 	if err != nil {
 		return toolspkg.ToolResult{}, err

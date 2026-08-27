@@ -157,8 +157,11 @@ func validAgentTarget() TargetContext {
 	return TargetContext{
 		ProfileID: "default", WorkspaceID: "ws-1", ParentSessionID: "parent-1",
 		AgentName: "reviewer", GovernedRootID: "root-1", Depth: 1, Allowed: true,
-		Runtime:      RuntimeSpec{Provider: "anthropic", Model: "sonnet", Speed: speed.SpeedNormal},
-		CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review", "code"}},
+		Runtime: RuntimeSpec{Provider: "anthropic", Model: "sonnet", Speed: speed.SpeedNormal},
+		CallerPolicy: store.SessionPermissionPolicy{
+			Tools:  append(boundChildBaseTools(), boundChildDelegationTools()...),
+			Skills: []string{"review", "code"},
+		},
 	}
 }
 
@@ -392,6 +395,7 @@ func (s *memoryCallStore) RecordRepair(_ context.Context, mutation RepairMutatio
 	s.repairDeliveries = append(s.repairDeliveries, DeliveryRecord{
 		DeliveryID: "delivery_repair_" + mutation.CallID,
 		Kind:       "repair", SubjectID: mutation.CallID,
+		ProfileID: record.ProfileID, Scope: record.Scope, WorkspaceID: record.WorkspaceID,
 		RecipientSessionID: record.ChildSessionID, State: "pending", CreatedAt: mutation.At,
 	})
 	return record, nil
@@ -446,6 +450,7 @@ func (s *memoryCallStore) appendCompletionDelivery(record *CallRecord, at time.T
 	s.completionDeliveries = append(s.completionDeliveries, DeliveryRecord{
 		DeliveryID: "delivery_completion_" + record.CallID,
 		Kind:       DeliveryKindCompletion, SubjectID: record.CallID,
+		ProfileID: record.ProfileID, Scope: record.Scope, WorkspaceID: record.WorkspaceID,
 		RecipientSessionID: record.ParentSessionID, State: DeliveryStatePending, CreatedAt: at,
 	})
 }

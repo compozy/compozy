@@ -246,11 +246,11 @@ func (g *CallRepo) GetMessage(
 		FROM call_messages message
 		JOIN call_deliveries delivery ON delivery.kind = 'message' AND delivery.subject_id = message.message_id
 		LEFT JOIN sessions sender ON message.from_kind = 'session' AND sender.id = message.from_id
-		WHERE message.message_id = ?`
-	args := []any{strings.TrimSpace(messageID)}
-	if strings.TrimSpace(scope.ProfileID) != "" {
-		query += ` AND message.profile_id = ? AND message.scope = ? AND message.workspace_id = ?`
-		args = append(args, scope.ProfileID, string(scope.Scope), scope.WorkspaceID)
+		WHERE message.message_id = ?
+		AND message.profile_id = ? AND message.scope = ? AND message.workspace_id = ?`
+	args := []any{
+		strings.TrimSpace(messageID), strings.TrimSpace(scope.ProfileID),
+		string(scope.Scope), strings.TrimSpace(scope.WorkspaceID),
 	}
 	return scanCallMessage(g.db.QueryRowContext(ctx, query, args...))
 }

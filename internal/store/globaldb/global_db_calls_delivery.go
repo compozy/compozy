@@ -22,15 +22,24 @@ func (g *CallRepo) ListPendingDeliveries(
 	if limit <= 0 {
 		limit = 100
 	}
-	query := `SELECT delivery_id, kind, subject_id, recipient_session_id, owner_key,
-		wake_event_id, state, reason, attempts, created_at
-		FROM call_deliveries WHERE state = 'pending'`
+	query := `SELECT delivery.delivery_id, delivery.kind, delivery.subject_id,
+		delivery.recipient_session_id,
+		COALESCE(message.profile_id, call.profile_id, ''),
+		COALESCE(message.scope, call.scope, ''),
+		COALESCE(message.workspace_id, call.workspace_id, ''),
+		delivery.owner_key, delivery.wake_event_id, delivery.state, delivery.reason,
+		delivery.attempts, delivery.created_at
+		FROM call_deliveries delivery
+		LEFT JOIN call_messages message
+			ON delivery.kind = 'message' AND delivery.subject_id = message.message_id
+		LEFT JOIN calls call ON delivery.subject_id = call.call_id
+		WHERE delivery.state = 'pending'`
 	args := make([]any, 0, 2)
 	if recipientSessionID = strings.TrimSpace(recipientSessionID); recipientSessionID != "" {
-		query += ` AND recipient_session_id = ?`
+		query += ` AND delivery.recipient_session_id = ?`
 		args = append(args, recipientSessionID)
 	}
-	query += ` ORDER BY created_at, delivery_id LIMIT ?`
+	query += ` ORDER BY delivery.created_at, delivery.delivery_id LIMIT ?`
 	args = append(args, limit)
 	rows, err := g.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -101,19 +110,30 @@ func (g *CallRepo) RecordDelivery(
 	return record, err
 }
 
-const deliveryRecordSelectSQL = `SELECT delivery_id, kind, subject_id, recipient_session_id,
-	owner_key, wake_event_id, state, reason, attempts, created_at
-	FROM call_deliveries WHERE delivery_id = ?`
+const deliveryRecordSelectSQL = `SELECT delivery.delivery_id, delivery.kind, delivery.subject_id,
+	delivery.recipient_session_id,
+	COALESCE(message.profile_id, call.profile_id, ''),
+	COALESCE(message.scope, call.scope, ''),
+	COALESCE(message.workspace_id, call.workspace_id, ''),
+	delivery.owner_key, delivery.wake_event_id, delivery.state, delivery.reason,
+	delivery.attempts, delivery.created_at
+	FROM call_deliveries delivery
+	LEFT JOIN call_messages message
+		ON delivery.kind = 'message' AND delivery.subject_id = message.message_id
+	LEFT JOIN calls call ON delivery.subject_id = call.call_id
+	WHERE delivery.delivery_id = ?`
 
 func scanDeliveryRecord(scanner rowScanner, record *callspkg.DeliveryRecord) error {
-	var createdAt string
+	var createdAt, scope string
 	if err := scanner.Scan(
 		&record.DeliveryID, &record.Kind, &record.SubjectID, &record.RecipientSessionID,
+		&record.ProfileID, &scope, &record.WorkspaceID,
 		&record.OwnerKey, &record.WakeEventID, &record.State, &record.Reason,
 		&record.Attempts, &createdAt,
 	); err != nil {
 		return fmt.Errorf("store: scan call delivery: %w", err)
 	}
+	record.Scope = callspkg.Scope(scope)
 	parsed, err := store.ParseTimestamp(createdAt)
 	if err != nil {
 		return fmt.Errorf("store: parse call delivery created_at: %w", err)

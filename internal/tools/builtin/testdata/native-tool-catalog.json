@@ -452,7 +452,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "5240532e8734dffe73ba4f06488a364e2da817a5d57cee0ad78b948c9004fe82",
+    "input_schema_digest": "830fa1871eb7cb397ed2211fa5f4d7bfca7dc741f71c501e5678bcf379d6450a",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {

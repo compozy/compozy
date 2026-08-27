@@ -32,6 +32,9 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 	fixture := mockFixturePath(t, "agent_calls_fixture.json")
 	tools := []string{
 		toolspkg.ToolIDAgentCall.String(),
+		toolspkg.ToolIDCallAwait.String(),
+		toolspkg.ToolIDCallCancel.String(),
+		toolspkg.ToolIDCallResult.String(),
 		toolspkg.ToolIDCallReturn.String(),
 		toolspkg.ToolIDAgentMessage.String(),
 	}
@@ -177,8 +180,8 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 			// not parallel: journeys share the daemon's deterministic calls budget.
 			silent := createAgentCallCLI(t, ctx, harness, "silent", "finish silently")
 			silentSettled := waitForAgentCallState(t, ctx, harness, silent.CallID, callspkg.StateCompletedWithoutResult)
-			if !strings.Contains(silentSettled.FinalProsePreview, "Reviewed the change") {
-				t.Fatalf("silent call = %#v, want prose preview", silentSettled)
+			if silentSettled.FinalProsePreview != "" {
+				t.Fatalf("silent call = %#v, want true empty omission", silentSettled)
 			}
 
 			extracted := createAgentCallCLI(
@@ -520,6 +523,9 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 	fixture := mockFixturePath(t, "agent_calls_fixture.json")
 	tools := []string{
 		toolspkg.ToolIDAgentCall.String(),
+		toolspkg.ToolIDCallAwait.String(),
+		toolspkg.ToolIDCallCancel.String(),
+		toolspkg.ToolIDCallResult.String(),
 		toolspkg.ToolIDCallReturn.String(),
 	}
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{

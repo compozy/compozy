@@ -48,6 +48,8 @@ func NormalizeReadQuery(query CallReadQuery) (CallReadQuery, error) {
 	}
 	query.Scope = scope
 	query.WorkspaceID = workspaceID
+	query.Actor.Kind = strings.TrimSpace(query.Actor.Kind)
+	query.Actor.ID = strings.TrimSpace(query.Actor.ID)
 	return query, nil
 }
 
@@ -56,6 +58,7 @@ type CallReadQuery struct {
 	ReadScope   store.ReadScope
 	Scope       Scope
 	WorkspaceID string
+	Actor       Actor
 }
 
 // CallListQuery selects a stable page of call records.
@@ -141,6 +144,9 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 	if err != nil {
 		return ResultPayload{}, err
 	}
+	if err := authorizeResultReader(&record, query.Actor); err != nil {
+		return ResultPayload{}, err
+	}
 	if record.State != StateCompleted || strings.TrimSpace(record.ResultRef) == "" {
 		return ResultPayload{}, newError(
 			CodeNotSettled,
@@ -153,6 +159,22 @@ func (s *Service) Result(ctx context.Context, query CallReadQuery, callID string
 		return ResultPayload{}, err
 	}
 	return ResultPayload{CallID: record.CallID, Bytes: append([]byte(nil), payload...)}, nil
+}
+
+func authorizeResultReader(record *CallRecord, actor Actor) error {
+	switch strings.TrimSpace(actor.Kind) {
+	case "human":
+		if strings.TrimSpace(actor.ID) != "" {
+			return nil
+		}
+	case actorKindAgentSession:
+		actorID := strings.TrimSpace(actor.ID)
+		if actorID != "" && (actorID == strings.TrimSpace(record.ParentSessionID) ||
+			actorID == strings.TrimSpace(record.ChildSessionID)) {
+			return nil
+		}
+	}
+	return newError(CodeTargetDenied, "result is available only to the caller, bound child, or operator", nil)
 }
 
 // Prompt returns the exact authored prompt without exposing its storage reference.

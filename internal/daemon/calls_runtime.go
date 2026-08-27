@@ -185,7 +185,11 @@ func (r *callRuntime) onTurnEnd(ctx context.Context, sessionID string) {
 	if callID == "" {
 		return
 	}
+	if strings.TrimSpace(finalText) != "" {
+		return
+	}
 	_, err = r.turnEndService.Return(turnCtx, callspkg.ReturnInput{
+		Scope:          callspkg.CallScope{ProfileID: info.ProfileID, WorkspaceID: info.WorkspaceID},
 		CallID:         callID,
 		ChildSessionID: sessionID,
 		FinalText:      finalText,

@@ -77,8 +77,10 @@
                     "match": { "user_text_contains": "finish silently" },
                     "steps": [
                         {
-                            "kind": "assistant",
-                            "chunks": ["Reviewed the change without a structured result."]
+                            "kind": "thought",
+                            "chunks": [
+                                "Checked the request without producing an assistant response."
+                            ]
                         }
                     ]
                 }
@@ -93,7 +95,12 @@
                     "name": "extract",
                     "match": { "user_text_contains": "extract result" },
                     "steps": [
-                        { "kind": "assistant", "chunks": ["Done.\n```json\n{\"answer\":11}\n```"] }
+                        {
+                            "kind": "call_return",
+                            "raw_input": {
+                                "final_text": "Done.\n```json\n{\"answer\":11}\n```"
+                            }
+                        }
                     ]
                 }
             ]

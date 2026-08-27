@@ -76,7 +76,7 @@ func (s *Service) invokeActivation(
 		return childID, false, s.invoker.Revive(
 			ctx,
 			childID,
-			CallPromptWithRemainingDepth(string(admission.Prompt), remainingDepth),
+			CallPromptWithRemainingDepth(record.CallID, string(admission.Prompt), remainingDepth),
 			record.CallID,
 		)
 	default:

@@ -124,7 +124,8 @@ func (s *Service) normalizeCreate(
 	if err := validateTargetContext(in, target, roster, limits); err != nil {
 		return CreateInput{}, TargetContext{}, err
 	}
-	in.Narrow = resolvePermissionNarrowing(target.CallerPolicy, in.Narrow)
+	remainingDepth := max(s.config.MaxDepth-target.Depth, 0)
+	in.Narrow = resolvePermissionNarrowing(target.CallerPolicy, in.Narrow, remainingDepth)
 	if widening := wideningPermissionAtoms(target.CallerPolicy, in.Narrow.Policy()); len(widening) > 0 {
 		return CreateInput{}, TargetContext{}, &Error{
 			Code: CodeWideningRejected, Message: "permission narrowing widens the caller set",
@@ -372,7 +373,7 @@ func (s *Service) activationFor(record *CallRecord, target TargetContext) (*Acti
 		return nil, &Delivery{
 			CallID:             record.CallID,
 			RecipientSessionID: record.ChildSessionID,
-			Kind:               DeliveryKindMessage,
+			Kind:               DeliveryKindFollowUp,
 		}, nil
 	}
 	runID, err := s.newID("run")

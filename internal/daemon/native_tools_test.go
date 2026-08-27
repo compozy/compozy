@@ -106,6 +106,7 @@ type nativeProfileReaderStub struct {
 
 type nativeCallsServiceStub struct {
 	create func(context.Context, callspkg.CreateInput) (callspkg.CallRecord, error)
+	ret    func(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
 }
 
 func (s nativeCallsServiceStub) Create(
@@ -125,7 +126,13 @@ func (nativeCallsServiceStub) CreateBatch(
 	return nil, errors.New("unexpected CreateBatch call")
 }
 
-func (nativeCallsServiceStub) Return(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error) {
+func (s nativeCallsServiceStub) Return(
+	ctx context.Context,
+	input callspkg.ReturnInput,
+) (callspkg.Settlement, error) {
+	if s.ret != nil {
+		return s.ret(ctx, input)
+	}
 	return callspkg.Settlement{}, errors.New("unexpected Return call")
 }
 
@@ -181,9 +188,7 @@ func (nativeCallsServiceStub) Await(context.Context, callspkg.AwaitInput) (calls
 
 func (nativeCallsServiceStub) Cancel(
 	context.Context,
-	string,
-	string,
-	callspkg.Actor,
+	callspkg.CancelInput,
 ) (callspkg.CallRecord, error) {
 	return callspkg.CallRecord{}, errors.New("unexpected Cancel call")
 }
@@ -11833,6 +11838,98 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 
 		if err != nil || !observed || !strings.Contains(string(result.Structured), `"call_id":"call-1"`) {
 			t.Fatalf("agentCall() result/error/observed = %s/%v/%t", result.Structured, err, observed)
+		}
+	})
+
+	t.Run("Should refuse resultless returns before settlement", func(t *testing.T) {
+		t.Parallel()
+
+		service := nativeCallsServiceStub{ret: func(
+			context.Context,
+			callspkg.ReturnInput,
+		) (callspkg.Settlement, error) {
+			t.Fatal("Return() called for a resultless native request")
+			return callspkg.Settlement{}, nil
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+			Calls:  func() core.CallsService { return service },
+		}}
+		binding := native.callToolBindings(func(context.Context, toolspkg.Scope) toolspkg.Availability {
+			return toolspkg.Availability{}
+		})[toolspkg.ToolIDCallReturn]
+		for _, input := range []string{`{"final_text":"   "}`, `{"result":null}`} {
+			_, err := binding.call(t.Context(), scope, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDCallReturn, Input: json.RawMessage(input),
+			})
+			toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+			if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+				!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSchemaInvalid) {
+				t.Fatalf("call_return(%s) error = %#v, want schema refusal", input, err)
+			}
+		}
+	})
+
+	t.Run("Should expose a settled call as the partial result when parking fails", func(t *testing.T) {
+		t.Parallel()
+
+		service := nativeCallsServiceStub{ret: func(
+			context.Context,
+			callspkg.ReturnInput,
+		) (callspkg.Settlement, error) {
+			return callspkg.Settlement{Call: callspkg.CallRecord{
+					CallID: "call-parked", State: callspkg.StateCompleted,
+				}}, &callspkg.Error{
+					Code:    callspkg.CodeParkFailed,
+					Message: "call settled, but the child runtime could not be parked; do not return the result again",
+				}
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+			Calls:  func() core.CallsService { return service },
+		}}
+		binding := native.callToolBindings(func(context.Context, toolspkg.Scope) toolspkg.Availability {
+			return toolspkg.Availability{}
+		})[toolspkg.ToolIDCallReturn]
+		_, err := binding.call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDCallReturn,
+			Input:  json.RawMessage(`{"result":{"answer":42}}`),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.PartialResult == nil ||
+			!strings.Contains(string(toolErr.PartialResult.Structured), `"call_id":"call-parked"`) ||
+			!strings.Contains(toolErr.Message, string(callspkg.CodeParkFailed)) {
+			t.Fatalf("call_return binding error = %#v, want typed park failure with settled partial result", err)
+		}
+	})
+
+	t.Run("Should expose typed call refusals instead of backend health failures", func(t *testing.T) {
+		t.Parallel()
+
+		service := nativeCallsServiceStub{create: func(
+			context.Context,
+			callspkg.CreateInput,
+		) (callspkg.CallRecord, error) {
+			return callspkg.CallRecord{}, &callspkg.Error{
+				Code: callspkg.CodeResultInvalid, Message: "result contains unsafe secret material",
+			}
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+			Calls:  func() core.CallsService { return service },
+		}}
+		binding := native.callToolBindings(func(context.Context, toolspkg.Scope) toolspkg.Availability {
+			return toolspkg.Availability{}
+		})[toolspkg.ToolIDAgentCall]
+		_, err := binding.call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCall,
+			Input:  json.RawMessage(`{"agent":"reviewer","prompt":"Review"}`),
+		})
+		toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
+		if !ok || toolErr.Code != toolspkg.ErrorCodeInvalidInput ||
+			!slices.Contains(toolErr.ReasonCodes, toolspkg.ReasonSchemaInvalid) ||
+			!strings.Contains(toolErr.Message, string(callspkg.CodeResultInvalid)) {
+			t.Fatalf("call binding error = %#v, want typed invalid-result refusal", err)
 		}
 	})
 

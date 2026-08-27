@@ -9,21 +9,23 @@ import (
 )
 
 // Cancel terminalizes one call when the actor owns its control boundary.
-func (s *Service) Cancel(
-	ctx context.Context,
-	callID string,
-	reason string,
-	actor Actor,
-) (CallRecord, error) {
-	record, err := s.store.GetCallForSettlement(ctx, strings.TrimSpace(callID))
+func (s *Service) Cancel(ctx context.Context, input CancelInput) (CallRecord, error) {
+	scope, err := NormalizeCallScope(input.Scope)
 	if err != nil {
 		return CallRecord{}, err
 	}
-	if err := requireCallControlActor(&record, actor); err != nil {
+	if scope.ProfileID == "" {
+		return CallRecord{}, newError(CodeValidation, "profile_id is required", nil)
+	}
+	record, err := s.store.GetCall(ctx, scope, strings.TrimSpace(input.CallID))
+	if err != nil {
 		return CallRecord{}, err
 	}
-	detail := sanitizeDiagnostic(reason, "canceled")
-	failureDetail := sanitizeDiagnostic(actor.Kind+":"+actor.ID+": "+detail, detail)
+	if err := requireCallControlActor(&record, input.Actor); err != nil {
+		return CallRecord{}, err
+	}
+	detail := sanitizeDiagnostic(input.Reason, "canceled")
+	failureDetail := sanitizeDiagnostic(input.Actor.Kind+":"+input.Actor.ID+": "+detail, detail)
 	settled, settledNow, err := s.settleControlledCall(ctx, &record, controlledSettlement{
 		fenceReason: "call canceled",
 		stop: func(current CallRecord) error {

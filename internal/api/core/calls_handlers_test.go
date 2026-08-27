@@ -32,7 +32,7 @@ type callsServiceStub struct {
 	prompt        func(context.Context, callspkg.CallReadQuery, string) (callspkg.PromptPayload, error)
 	superseded    func(context.Context, callspkg.CallReadQuery, string) (callspkg.ResultPayload, error)
 	await         func(context.Context, callspkg.AwaitInput) (callspkg.AwaitOutcome, error)
-	cancel        func(context.Context, string, string, callspkg.Actor) (callspkg.CallRecord, error)
+	cancel        func(context.Context, callspkg.CancelInput) (callspkg.CallRecord, error)
 	sendMessage   func(context.Context, callspkg.SendMessageInput) (callspkg.MessageRecord, error)
 	publish       func(context.Context, callspkg.PublishInput) (callspkg.PublishReceipt, error)
 	message       func(context.Context, callspkg.CallScope, string) (callspkg.MessageRecord, error)
@@ -108,11 +108,9 @@ func (s callsServiceStub) Await(ctx context.Context, input callspkg.AwaitInput) 
 
 func (s callsServiceStub) Cancel(
 	ctx context.Context,
-	callID string,
-	reason string,
-	actor callspkg.Actor,
+	input callspkg.CancelInput,
 ) (callspkg.CallRecord, error) {
-	return s.cancel(ctx, callID, reason, actor)
+	return s.cancel(ctx, input)
 }
 
 func (s callsServiceStub) SendMessage(
@@ -425,10 +423,12 @@ func TestCallsHandlers(t *testing.T) {
 					Outcome: "partial", Resume: "resume-1", ClampedTimeout: 250 * time.Millisecond,
 				}, nil
 			},
-			cancel: func(_ context.Context, callID, reason string, _ callspkg.Actor) (callspkg.CallRecord, error) {
+			cancel: func(_ context.Context, input callspkg.CancelInput) (callspkg.CallRecord, error) {
 				cancelCalls++
-				if callID != "call-1" || reason != "stop" {
-					t.Fatalf("Cancel = %q %q", callID, reason)
+				if input.CallID != "call-1" || input.Reason != "stop" ||
+					input.Scope.ProfileID != store.DefaultProfileID || input.Scope.Scope != callspkg.ScopeGlobal ||
+					input.Scope.WorkspaceID != "" || input.Actor.Kind != "human" || input.Actor.ID == "" {
+					t.Fatalf("Cancel = %#v", input)
 				}
 				return callspkg.CallRecord{State: callspkg.StateCanceled}, nil
 			},

@@ -301,12 +301,12 @@ func (h *BaseHandlers) CallsCancel(c *gin.Context) {
 		return
 	}
 	defer cancel()
-	record, err := h.Calls.Cancel(
-		operationCtx,
-		callID,
-		req.Reason,
-		h.callsOperatorActor(),
-	)
+	record, err := h.Calls.Cancel(operationCtx, callspkg.CancelInput{
+		Scope: callspkg.CallScope{
+			ProfileID: query.ReadScope.ProfileID, Scope: query.Scope, WorkspaceID: query.WorkspaceID,
+		},
+		CallID: callID, Reason: req.Reason, Actor: h.callsOperatorActor(),
+	})
 	if err != nil {
 		h.respondCallsError(c, err)
 		return
@@ -387,6 +387,7 @@ func (h *BaseHandlers) resolvedCallReadQuery(c *gin.Context) (callspkg.CallReadQ
 		h.respondCallsError(c, err)
 		return callspkg.CallReadQuery{}, false
 	}
+	query.Actor = h.callsOperatorActor()
 	return query, true
 }
 

@@ -77,7 +77,8 @@ When an agent session creates a task, CompozyOS wakes that creator session on th
 
 Governed child sessions have the parallel session-level feedback path. A managed caller using
 `compozy__agent_call` receives one sanitized synthetic turn when the call settles, carrying the
-terminal state and its result reference — the wake and the outcome are one delivery. Delivery never
+terminal state and its result reference — the wake and the outcome are one delivery. The wake contains
+trusted daemon facts only; untrusted child output stays behind the reference. Delivery never
 interrupts the caller's active prompt, is suppressed when the caller is not live or the child would
 wake itself, and carries no raw interaction content or claim token. Operator CLI calls use
 `compozy call await`. Read `references/agent-comms.md` before delegating or returning a result.

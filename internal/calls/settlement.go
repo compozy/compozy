@@ -21,17 +21,26 @@ func RequireCallSettlementActor(record *CallRecord, actor SettlementActor) error
 
 // Return validates and settles one result from its bound child session.
 func (s *Service) Return(ctx context.Context, input ReturnInput) (Settlement, error) {
+	scope, err := NormalizeCallScope(input.Scope)
+	if err != nil {
+		return Settlement{}, err
+	}
+	if scope.ProfileID == "" {
+		return Settlement{}, newError(CodeValidation, "profile_id is required", nil)
+	}
 	callID := strings.TrimSpace(input.CallID)
 	childID := strings.TrimSpace(input.ChildSessionID)
 	if childID == "" {
 		childID = strings.TrimSpace(input.Actor.ID)
 	}
 	var record CallRecord
-	var err error
 	if callID == "" {
-		record, err = s.store.GetOpenCallForChild(ctx, childID)
+		record, err = s.store.GetCallByChild(ctx, scope, childID)
+		if IsCode(err, CodeNotFound) {
+			err = newError(CodeReturnUnbound, fmt.Sprintf("session %q has no open call", childID), nil)
+		}
 	} else {
-		record, err = s.store.GetCallForSettlement(ctx, callID)
+		record, err = s.store.GetCall(ctx, scope, callID)
 	}
 	if err != nil {
 		return Settlement{}, err
@@ -75,6 +84,11 @@ func (s *Service) validateReturnedPayload(
 	if !json.Valid(raw) {
 		return nil, "", []contracts.ValidationIssue{{Path: "$", Message: "result must be valid JSON"}}, nil
 	}
+	cleanText, redactions, reject := contracts.SanitizeText(string(raw))
+	if reject || len(redactions) > 0 {
+		return nil, "", nil, newError(CodeResultInvalid, "result contains unsafe secret material", nil)
+	}
+	raw = json.RawMessage(cleanText)
 	if record.ExpectDigest == "" {
 		clean, issues := sanitizeJSONResult(raw)
 		return clean, VerdictReturned, issues, nil
@@ -84,6 +98,9 @@ func (s *Service) validateReturnedPayload(
 		return nil, "", nil, err
 	}
 	redacted, redactions, redactErr := contracts.RedactPreservingContract(contract, raw)
+	if len(redactions) > 0 {
+		return nil, "", nil, newError(CodeResultInvalid, "result contains unsafe secret material", nil)
+	}
 	if redactErr == nil {
 		verdict, validateErr := s.registry.Validate(ctx, record.ExpectDigest, redacted)
 		if validateErr != nil {
@@ -93,12 +110,6 @@ func (s *Service) validateReturnedPayload(
 			redacted = contracts.UnwrapSingleObject(redacted)
 		}
 		return redacted, VerdictReturned, nil, nil
-	}
-	if len(redactions) > 0 {
-		return nil, "", []contracts.ValidationIssue{{
-			Path:    "$",
-			Message: "result contains secret material in a contract-constrained field",
-		}}, nil
 	}
 	clean, issues := sanitizeJSONResult(raw)
 	if len(issues) > 0 {
@@ -169,7 +180,7 @@ func (s *Service) settleWithPayload(
 		Result: outcome.Payload, ResultRef: ref, ResultBytes: len(outcome.Payload), SettledAt: s.now().UTC(),
 	})
 	if IsCode(err, CodeAlreadySettled) {
-		current, loadErr := s.store.GetCallForSettlement(ctx, record.CallID)
+		current, loadErr := s.store.GetCall(ctx, record.OwnerScope(), record.CallID)
 		if loadErr != nil {
 			return Settlement{}, errors.Join(err, loadErr)
 		}
@@ -186,9 +197,9 @@ func (s *Service) returnFinalText(
 	finalText string,
 	childLive bool,
 ) (Settlement, error) {
-	clean, _, reject := contracts.SanitizeText(finalText)
-	if reject {
-		clean = ""
+	clean, redactions, reject := contracts.SanitizeText(finalText)
+	if reject || len(redactions) > 0 {
+		return Settlement{}, newError(CodeResultInvalid, "result contains unsafe secret material", nil)
 	}
 	if !record.Strict {
 		var newestIssues []contracts.ValidationIssue
@@ -228,12 +239,10 @@ func (s *Service) settleTerminal(
 		s.notifyWaiters(record.CallID)
 		s.emitTerminalTransition(ctx, record.State, &settled)
 		if parkErr := s.parkSettledChild(ctx, &settled); parkErr != nil {
-			s.logger.WarnContext(
-				ctx,
-				"calls: settled child parking failed after durable settlement",
-				"call_id", settled.CallID,
-				"child_session_id", settled.ChildSessionID,
-				"error", sanitizeDiagnostic(parkErr.Error(), "child parking failed"),
+			return settled, newError(
+				CodeParkFailed,
+				"call settled, but the child runtime could not be parked; do not return the result again",
+				parkErr,
 			)
 		}
 	}

@@ -290,6 +290,7 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 				NetworkChannels: []string{"builders"},
 				SandboxProfiles: []string{"default"},
 			},
+			AllowedToolsOverride: []string{testToolRead},
 		})
 		if err != nil {
 			t.Fatalf("Spawn() error = %v", err)
@@ -324,6 +325,10 @@ func TestManagerSpawnCreatesChildWithDurableLineageAndNarrowPermissions(t *testi
 		meta := readMeta(t, child.MetaPath())
 		if meta.Lineage == nil || meta.Lineage.ParentSessionID != parent.ID || !meta.Lineage.NotifyCreator {
 			t.Fatalf("persisted lineage = %#v, want parent %q", meta.Lineage, parent.ID)
+		}
+		if meta.CreationProfile == nil || len(meta.CreationProfile.AllowedTools) != 1 ||
+			meta.CreationProfile.AllowedTools[0] != testToolRead {
+			t.Fatalf("persisted allowed tools = %#v, want narrowed read", meta.CreationProfile)
 		}
 		if len(h.driver.startCalls) < 2 ||
 			!strings.Contains(h.driver.startCalls[len(h.driver.startCalls)-1].SystemPrompt, "Focus only on tests.") {

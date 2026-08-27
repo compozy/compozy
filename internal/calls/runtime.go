@@ -1,12 +1,35 @@
 package calls
 
 import (
+	"slices"
 	"sort"
 	"strings"
 
 	"github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
+
+const (
+	boundChildToolAgentCall    = "compozy__agent_call"
+	boundChildToolAgentMessage = "compozy__agent_message"
+	boundChildToolCallAwait    = "compozy__call_await"
+	boundChildToolCallCancel   = "compozy__call_cancel"
+	boundChildToolCallResult   = "compozy__call_result"
+	boundChildToolCallReturn   = "compozy__call_return"
+)
+
+func boundChildBaseTools() []string {
+	return []string{boundChildToolAgentMessage, boundChildToolCallReturn}
+}
+
+func boundChildDelegationTools() []string {
+	return []string{
+		boundChildToolAgentCall,
+		boundChildToolCallAwait,
+		boundChildToolCallCancel,
+		boundChildToolCallResult,
+	}
+}
 
 // RuntimeSpec selects the provider runtime for a child activation.
 type RuntimeSpec struct {
@@ -48,11 +71,26 @@ func (p PermissionAtoms) Policy() store.SessionPermissionPolicy {
 func resolvePermissionNarrowing(
 	parent store.SessionPermissionPolicy,
 	requested PermissionAtoms,
+	remainingDepth int,
 ) PermissionAtoms {
 	parent = store.NormalizeSessionPermissionPolicy(parent)
 	request := requested.Policy()
+	tools := request.Tools
+	if len(tools) == 0 {
+		tools = boundChildBaseTools()
+		if remainingDepth > 0 {
+			tools = append(tools, boundChildDelegationTools()...)
+		}
+	} else if !slices.Contains(tools, boundChildToolCallReturn) {
+		tools = append(tools, boundChildToolCallReturn)
+	}
+	if remainingDepth <= 0 {
+		tools = slices.DeleteFunc(tools, func(tool string) bool {
+			return slices.Contains(boundChildDelegationTools(), strings.TrimSpace(tool))
+		})
+	}
 	return PermissionAtoms{
-		Tools:           inheritPermissionCategory(parent.Tools, request.Tools),
+		Tools:           store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{Tools: tools}).Tools,
 		Skills:          inheritPermissionCategory(parent.Skills, request.Skills),
 		MCPServers:      inheritPermissionCategory(parent.MCPServers, request.MCPServers),
 		WorkspacePaths:  inheritPermissionCategory(parent.WorkspacePaths, request.WorkspacePaths),

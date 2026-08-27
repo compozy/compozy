@@ -5,11 +5,18 @@ import toolspkg "github.com/compozy/compozy/internal/tools"
 func callDescriptors() []toolspkg.Descriptor {
 	return []toolspkg.Descriptor{
 		callDescriptor(toolspkg.ToolIDAgentCall, "agent_call", "Agent Call",
-			"Call one named agent or existing child asynchronously. Use agent_list for the current roster.",
+			"Delegate further work to one named agent or existing child. This never settles your current bound call.",
 			callCreateInputSchema, toolspkg.RiskMutating, false),
-		callDescriptor(toolspkg.ToolIDCallReturn, "call_return", "Call Return",
-			"Return one structured JSON result from the child session bound to a call.",
-			callReturnInputSchema, toolspkg.RiskMutating, false),
+		callDescriptor(
+			toolspkg.ToolIDCallReturn,
+			"call_return",
+			"Call Return",
+			"Mandatory terminal act for a bound child. Return a real JSON result or final text; "+
+				"a truly empty omission settles completed-without-result.",
+			callReturnInputSchema,
+			toolspkg.RiskMutating,
+			false,
+		),
 		callDescriptor(toolspkg.ToolIDCallAwait, "call_await", "Call Await",
 			"Wait for one or more calls for a bounded interval.", callAwaitInputSchema, toolspkg.RiskRead, true),
 		callDescriptor(toolspkg.ToolIDCallCancel, "call_cancel", "Call Cancel",
@@ -100,7 +107,12 @@ const callCreateInputSchema = `{
 
 const callReturnInputSchema = `{
 	"type":"object",
-	"properties":{"call_id":{"type":"string"},"result":{},"final_text":{"type":"string"}},
+	"properties":{
+		"call_id":{"type":"string","minLength":1},
+		"result":{"not":{"type":"null"}},
+		"final_text":{"type":"string","minLength":1,"pattern":"\\S"}
+	},
+	"not":{"properties":{"result":{"type":"null"},"final_text":{"enum":[""]}}},
 	"additionalProperties":false
 }`
 

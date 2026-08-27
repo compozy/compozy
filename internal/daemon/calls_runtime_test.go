@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -49,7 +50,7 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 		if manager.resumeCalls != 1 {
 			t.Fatalf("Resume() calls = %d, want 1", manager.resumeCalls)
 		}
-		wantPrompt := callspkg.CallPromptWithRemainingDepth("Review the patch.", 0)
+		wantPrompt := callspkg.CallPromptWithRemainingDepth(callID, "Review the patch.", 0)
 		if manager.sentSessionID != childID || manager.sent.Message != wantPrompt ||
 			manager.sent.MessageID != "msg_"+callID || manager.sent.IdempotencyKey != "call:"+callID {
 			t.Fatalf("SendPrompt() = %q %#v, want deterministic recovery delivery", manager.sentSessionID, manager.sent)
@@ -60,6 +61,36 @@ func TestDaemonCallSessionInvokerRecovery(t *testing.T) {
 			manager.sent.Synthetic.ChildAgentName != "reviewer" ||
 			manager.sent.Synthetic.Reason != "call_request" {
 			t.Fatalf("SendPrompt() synthetic metadata = %#v, want call request identity", manager.sent.Synthetic)
+		}
+	})
+}
+
+func TestDaemonCallSessionInvokerToolPolicy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should expose exactly the governed bound-child tool allowlist", func(t *testing.T) {
+		t.Parallel()
+
+		manager := &callSessionManagerStub{statusErr: session.ErrSessionNotFound}
+		invoker := &daemonCallSessionInvoker{sessions: manager, maxChildren: 4, maxDepth: 3}
+		tools := []string{
+			"compozy__agent_call",
+			"compozy__agent_message",
+			"compozy__call_await",
+			"compozy__call_result",
+			"compozy__call_return",
+		}
+
+		ref, err := invoker.SpawnChild(t.Context(), callspkg.ChildSpec{
+			CallID: "call_policy", ParentSessionID: "ses-parent", AgentName: "reviewer",
+			Prompt: "Review the patch.", Permissions: callspkg.PermissionAtoms{Tools: tools},
+		})
+		if err != nil {
+			t.Fatalf("SpawnChild() error = %v", err)
+		}
+		if ref.ID != "ses_call_policy" || !slices.Equal(manager.spawnOpts.AllowedToolsOverride, tools) ||
+			!slices.Equal(manager.spawnOpts.PermissionPolicy.Tools, tools) {
+			t.Fatalf("SpawnChild() = %q opts=%#v, want exact tool allowlist", ref.ID, manager.spawnOpts)
 		}
 	})
 }
@@ -163,8 +194,8 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 		if err != nil {
 			t.Fatalf("DeliverAtBoundary(operator) error = %v", err)
 		}
-		if outcome.State != callspkg.DeliveryStateInjected || outcome.Reason != "operator_attention" {
-			t.Fatalf("DeliverAtBoundary(operator) = %#v, want injected operator attention", outcome)
+		if outcome.State != callspkg.DeliveryStateAttention || outcome.Reason != "operator_attention" {
+			t.Fatalf("DeliverAtBoundary(operator) = %#v, want operator attention", outcome)
 		}
 		if manager.statusCalls != 0 || manager.resumeCalls != 0 || manager.sendCalls != 0 {
 			t.Fatalf(
@@ -259,7 +290,7 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should settle an omitted return from the final assistant text", func(t *testing.T) {
+	t.Run("Should leave ordinary assistant prose unsettled until call return", func(t *testing.T) {
 		t.Parallel()
 
 		sessions := &callSessionManagerStub{
@@ -286,6 +317,32 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 
 		runtime.onTurnEnd(t.Context(), "ses-child")
 
+		if service.drainCalls != 1 || service.returnCalls != 0 {
+			t.Fatalf(
+				"turn-end calls = drain %d return %d, want delivery only",
+				service.drainCalls,
+				service.returnCalls,
+			)
+		}
+	})
+
+	t.Run("Should settle a truly empty omitted return as completed without result", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &callSessionManagerStub{
+			info: &session.Info{ID: "ses-child", State: session.StateActive},
+			transcriptPage: transcript.Page{Entries: []transcript.Entry{{
+				Message: transcript.UIMessage{
+					Role:     transcript.UIRoleSystem,
+					Metadata: json.RawMessage(`{"synthetic":{"call_id":"call-1"}}`),
+				},
+			}}},
+		}
+		service := &callRuntimeServiceStub{}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions}
+
+		runtime.onTurnEnd(t.Context(), "ses-child")
+
 		if service.drainCalls != 1 || service.returnCalls != 1 {
 			t.Fatalf(
 				"turn-end calls = drain %d return %d, want one each",
@@ -295,9 +352,8 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 		}
 		if service.returnInput.CallID != "call-1" ||
 			service.returnInput.ChildSessionID != "ses-child" ||
-			service.returnInput.Actor.ID != "ses-child" ||
-			service.returnInput.FinalText != "Reviewed the change without a structured result." {
-			t.Fatalf("Return() input = %#v, want child-owned final prose", service.returnInput)
+			service.returnInput.Actor.ID != "ses-child" || service.returnInput.FinalText != "" {
+			t.Fatalf("Return() input = %#v, want child-owned empty omission", service.returnInput)
 		}
 	})
 
@@ -420,11 +476,17 @@ type callSessionManagerStub struct {
 	sendErrs       []error
 	transcriptPage transcript.Page
 	transcriptErr  error
+	spawnOpts      session.SpawnOpts
 }
 
 func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
 	s.statusCalls++
 	return s.info, s.statusErr
+}
+
+func (s *callSessionManagerStub) Spawn(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
+	s.spawnOpts = opts
+	return &session.Session{ID: opts.DesiredSessionID}, nil
 }
 
 func (s *callSessionManagerStub) IsPrompting(string) bool { return s.prompting }

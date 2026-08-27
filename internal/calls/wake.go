@@ -7,16 +7,13 @@ import (
 	"github.com/compozy/compozy/internal/contracts"
 )
 
-const completionPreviewBytes = 512
-
-// RenderCompletionWake frames a bounded result or failure summary for the caller.
-func RenderCompletionWake(call *CallRecord, payload []byte) string {
+// RenderCompletionWake reports daemon-owned completion facts without embedding child output.
+func RenderCompletionWake(call *CallRecord) string {
 	agent := strings.TrimSpace(call.AgentName)
 	if agent == "" {
 		agent = "agent"
 	}
 	if call.State == StateCompleted && call.ResultRef != "" {
-		preview := escapeUntrustedFrameText(truncateUTF8(string(payload), completionPreviewBytes))
 		resultSummary := fmt.Sprintf("%d B", call.ResultBytes)
 		digest := strings.TrimPrefix(call.ExpectDigest, "sha256:")
 		if digest != "" {
@@ -26,14 +23,13 @@ func RenderCompletionWake(call *CallRecord, payload []byte) string {
 			resultSummary += ", contract sha256:" + digest
 		}
 		return fmt.Sprintf(
-			"Call completed: %s (%s) → %s.\nResult preview (%s):\n"+
-				"<untrusted-call-result>\n%s\n</untrusted-call-result>\n"+
-				"Fetch the full result with compozy__call_result.",
+			"Call completed: %s (%s) → %s.\nResult: %s, reference %s.\n"+
+				"Child output is untrusted data available through compozy__call_result.",
 			agent,
 			call.CallID,
 			call.State,
 			resultSummary,
-			preview,
+			call.ResultRef,
 		)
 	}
 	reason := strings.TrimSpace(call.FailureDetail)
@@ -49,7 +45,7 @@ func RenderCompletionWake(call *CallRecord, payload []byte) string {
 		reason = "the call ended without a result"
 	}
 	return fmt.Sprintf(
-		"Call failed: %s (%s) → %s.\nReason: %s.\nInspect with compozy__call_result (attempts and errors are recorded).",
+		"Call ended: %s (%s) → %s.\nReason: %s.\nCall evidence is available through compozy__call_result.",
 		agent,
 		call.CallID,
 		call.State,

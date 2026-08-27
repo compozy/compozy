@@ -41,12 +41,11 @@ func (s *Service) SendMessage(ctx context.Context, input SendMessageInput) (Mess
 		if input.From.Kind != "session" {
 			return MessageRecord{}, newError(CodeTargetDenied, "only a child session may address parent", nil)
 		}
-		call, resolveErr := s.store.GetOpenCallForChild(ctx, input.From.ID)
+		call, resolveErr := s.store.GetCallByChild(ctx, CallScope{
+			ProfileID: input.ProfileID, Scope: input.Scope, WorkspaceID: input.WorkspaceID,
+		}, input.From.ID)
 		if resolveErr != nil {
 			return MessageRecord{}, resolveErr
-		}
-		if call.ProfileID != input.ProfileID || call.Scope != input.Scope || call.WorkspaceID != input.WorkspaceID {
-			return MessageRecord{}, newError(CodeWorkspaceDenied, "parent belongs to another call scope", nil)
 		}
 		input.To = call.ParentSessionID
 		if input.CallID == "" {
@@ -145,6 +144,13 @@ func (s *Service) Message(ctx context.Context, scope CallScope, messageID string
 	if err != nil {
 		return MessageRecord{}, err
 	}
+	scope, err = NormalizeCallScope(scope)
+	if err != nil {
+		return MessageRecord{}, err
+	}
+	if scope.ProfileID == "" {
+		return MessageRecord{}, newError(CodeValidation, "profile_id is required", nil)
+	}
 	return mailbox.GetMessage(ctx, scope, strings.TrimSpace(messageID))
 }
 
@@ -223,7 +229,8 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 		if outcome.State == DeliveryStatePending {
 			continue
 		}
-		if outcome.State != DeliveryStateInjected && outcome.State != DeliveryStateWoken {
+		if outcome.State != DeliveryStateAttention && outcome.State != DeliveryStateInjected &&
+			outcome.State != DeliveryStateWoken {
 			errs = append(errs, s.failDelivery(
 				ctx,
 				item,
@@ -251,14 +258,8 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 			continue
 		}
 		if item.Kind == DeliveryKindMessage {
-			message, loadErr := mailbox.GetMessage(ctx, CallScope{}, item.SubjectID)
+			message, loadErr := mailbox.GetMessage(ctx, item.OwnerScope(), item.SubjectID)
 			if loadErr != nil {
-				// Follow-up call deliveries share the message delivery kind so they can
-				// use the same recipient-boundary injection path. Their subject is a
-				// call, not a mailbox message, and the call lifecycle emits its hooks.
-				if IsCode(loadErr, CodeMessageNotFound) {
-					continue
-				}
 				errs = append(errs, loadErr)
 				continue
 			}
@@ -316,20 +317,19 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 	}
 	switch delivery.Kind {
 	case DeliveryKindMessage:
-		message, err := mailbox.GetMessage(ctx, CallScope{}, delivery.SubjectID)
-		if err == nil {
-			return durableDeliveryContent{
-				body: RenderPeerMessage(message, s.messageMaxBytes),
-				metadata: acp.PromptSyntheticMeta{
-					MessageID: message.MessageID, CallID: message.CallID,
-					DeliveryKind: string(delivery.Kind), Reason: "call_message", WakeEventID: delivery.WakeEventID,
-				},
-			}, nil
-		}
-		if !IsCode(err, CodeMessageNotFound) {
+		message, err := mailbox.GetMessage(ctx, delivery.OwnerScope(), delivery.SubjectID)
+		if err != nil {
 			return durableDeliveryContent{}, err
 		}
-		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
+		return durableDeliveryContent{
+			body: RenderPeerMessage(message, s.messageMaxBytes),
+			metadata: acp.PromptSyntheticMeta{
+				MessageID: message.MessageID, CallID: message.CallID,
+				DeliveryKind: string(delivery.Kind), Reason: "call_message", WakeEventID: delivery.WakeEventID,
+			},
+		}, nil
+	case DeliveryKindFollowUp:
+		call, err := s.store.GetCall(ctx, delivery.OwnerScope(), delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
 		}
@@ -341,23 +341,16 @@ func (s *Service) deliveryContent(ctx context.Context, delivery DeliveryRecord) 
 			body: string(prompt), metadata: deliverySyntheticMetadata(delivery, &call, "call_follow_up"),
 		}, nil
 	case DeliveryKindCompletion:
-		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
+		call, err := s.store.GetCall(ctx, delivery.OwnerScope(), delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
 		}
-		var payload []byte
-		if call.ResultRef != "" {
-			payload, err = mailbox.GetCallPayload(ctx, call.WorkspaceID, call.ResultRef)
-			if err != nil {
-				return durableDeliveryContent{}, err
-			}
-		}
 		return durableDeliveryContent{
-			body:     RenderCompletionWake(&call, payload),
+			body:     RenderCompletionWake(&call),
 			metadata: deliverySyntheticMetadata(delivery, &call, "call_completion"),
 		}, nil
 	case DeliveryKindRepair:
-		call, err := s.store.GetCallForSettlement(ctx, delivery.SubjectID)
+		call, err := s.store.GetCall(ctx, delivery.OwnerScope(), delivery.SubjectID)
 		if err != nil {
 			return durableDeliveryContent{}, err
 		}

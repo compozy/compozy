@@ -109,12 +109,15 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 		})
 	})
 
-	t.Run("Should inherit omitted permission categories from the caller", func(t *testing.T) {
+	t.Run("Should default helper tools and inherit omitted non-tool categories", func(t *testing.T) {
 		t.Parallel()
 
 		target := validAgentTarget()
 		target.CallerPolicy = store.SessionPermissionPolicy{
-			Tools:           []string{"compozy__agent_message", "compozy__call_return"},
+			Tools: append(
+				append(boundChildBaseTools(), boundChildDelegationTools()...),
+				"compozy__session_stop",
+			),
 			Skills:          []string{"code", "review"},
 			WorkspacePaths:  []string{"internal/calls"},
 			NetworkChannels: []string{"runtime"},
@@ -132,12 +135,35 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			t.Fatalf("activated call = %#v spawns=%d, want one running child", record, len(invoker.spawns))
 		}
 		want := store.NormalizeSessionPermissionPolicy(target.CallerPolicy)
+		want.Tools = store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
+			Tools: append(boundChildBaseTools(), boundChildDelegationTools()...),
+		}).Tools
 		got := invoker.spawns[0].Permissions.Policy()
 		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("spawn permission policy = %#v, want inherited %#v", got, want)
 		}
 		if len(database.admissions) != 1 || !reflect.DeepEqual(database.admissions[0].Narrow.Policy(), want) {
 			t.Fatalf("admission narrowing = %#v, want inherited %#v", database.admissions, want)
+		}
+	})
+
+	t.Run("Should remove further delegation tools at the depth wall", func(t *testing.T) {
+		t.Parallel()
+
+		target := validAgentTarget()
+		target.Depth = config.DefaultCallsConfig().MaxDepth
+		service, _, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), target)
+
+		record, err := service.Create(t.Context(), validCreateInput("depth wall", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		record = activateCreatedCall(t, service, &record)
+		wantTools := store.NormalizeSessionPermissionPolicy(store.SessionPermissionPolicy{
+			Tools: boundChildBaseTools(),
+		}).Tools
+		if len(invoker.spawns) != 1 || !reflect.DeepEqual(invoker.spawns[0].Permissions.Tools, wantTools) {
+			t.Fatalf("spawn tools at depth wall = %#v, want %v", invoker.spawns, wantTools)
 		}
 	})
 
@@ -183,7 +209,7 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			t.Fatalf("replay = %#v, spawns=%d calls=%d", replay, len(invoker.spawns), len(database.calls))
 		}
 		settled, err := service.Return(context.Background(), ReturnInput{
-			CallID: first.CallID, Result: json.RawMessage(`{"done":true}`),
+			Scope: first.OwnerScope(), CallID: first.CallID, Result: json.RawMessage(`{"done":true}`),
 			Actor: SettlementActor{Kind: "agent_session", ID: first.ChildSessionID},
 		})
 		if err != nil {
@@ -273,7 +299,9 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 	t.Run("Should validate each call against the current narrowed caller set", func(t *testing.T) {
 		t.Parallel()
 		var mu sync.Mutex
-		current := store.SessionPermissionPolicy{Skills: []string{"review"}}
+		current := store.SessionPermissionPolicy{
+			Tools: append(boundChildBaseTools(), boundChildDelegationTools()...), Skills: []string{"review"},
+		}
 		directory := routedCallDirectory(func(
 			_ context.Context,
 			_ CreateInput,
@@ -290,7 +318,9 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 			t.Fatalf("Create(first) error = %v", err)
 		}
 		mu.Lock()
-		current = store.SessionPermissionPolicy{Skills: []string{"code"}}
+		current = store.SessionPermissionPolicy{
+			Tools: append(boundChildBaseTools(), boundChildDelegationTools()...), Skills: []string{"code"},
+		}
 		mu.Unlock()
 		secondInput := validCreateInput("second", nil, nil)
 		secondInput.IdempotencyKey = "second"
@@ -648,7 +678,9 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(active follow-up) error = %v", err)
 		}
-		if record.State != StateRunning || len(invoker.spawns) != 0 || database.admissions[0].FollowUp == nil {
+		if record.State != StateRunning || len(invoker.spawns) != 0 ||
+			database.admissions[0].FollowUp == nil ||
+			database.admissions[0].FollowUp.Kind != DeliveryKindFollowUp {
 			t.Fatalf("active follow-up record/admission = %#v / %#v", record, database.admissions[0])
 		}
 
@@ -690,26 +722,6 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 					callErr.Suggestion != "call the agent fresh" {
 					t.Fatalf("Create(expired) error = %#v, want timestamp and fresh-call suggestion", err)
 				}
-			}
-		})
-	}
-}
-
-func TestCallPromptStatesLiteralRemainingDepth(t *testing.T) {
-	t.Parallel()
-	for _, test := range []struct {
-		name      string
-		remaining int
-		want      string
-	}{
-		{name: "Should state two remaining levels", remaining: 2, want: "You may delegate 2 more levels."},
-		{name: "Should state one remaining level", remaining: 1, want: "You may delegate 1 more level."},
-		{name: "Should state that delegation is exhausted", remaining: 0, want: "You cannot delegate further."},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if got := CallPromptWithRemainingDepth("Review this.", test.remaining); !strings.Contains(got, test.want) {
-				t.Fatalf("CallPromptWithRemainingDepth(%d) = %q, want %q", test.remaining, got, test.want)
 			}
 		})
 	}

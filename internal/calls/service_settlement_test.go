@@ -1,11 +1,9 @@
 package calls
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"log/slog"
 	"reflect"
 	"strings"
 	"testing"
@@ -18,6 +16,33 @@ import (
 
 func TestServiceReturnSettlementPipeline(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve the terminal settlement when parking the child fails", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		parkingStore := newSettlementParkingStore(database)
+		parkErr := errors.New("child stop unavailable")
+		service.store = parkingStore
+		service.mailbox = parkingStore
+		service.invoker = invoker
+		invoker.stopErr = parkErr
+
+		record := createContractedCall(t, service)
+		settlement, err := service.Return(context.Background(), ReturnInput{
+			Scope: record.OwnerScope(), CallID: record.CallID, ChildSessionID: record.ChildSessionID,
+			Result: json.RawMessage(`{"answer":42}`), ChildLive: true,
+			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if !IsCode(err, CodeParkFailed) || !errors.Is(err, parkErr) {
+			t.Fatalf("Return() error = %v, want %s wrapping %v", err, CodeParkFailed, parkErr)
+		}
+		if settlement.Call.State != StateCompleted || database.calls[record.CallID].State != StateCompleted {
+			t.Fatalf("Return() = %#v stored=%#v", settlement, database.calls[record.CallID])
+		}
+		if parkingStore.clearCount != 1 {
+			t.Fatalf("idle clock clears = %d, want 1", parkingStore.clearCount)
+		}
+	})
 
 	t.Run("Should preserve the idle clock when stopping the child cancels the return request", func(t *testing.T) {
 		t.Parallel()
@@ -35,7 +60,7 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 
 		record := createContractedCall(t, service)
 		settlement, err := service.Return(requestCtx, ReturnInput{
-			CallID: record.CallID, ChildSessionID: record.ChildSessionID,
+			Scope: record.OwnerScope(), CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 			Result: json.RawMessage(`{"answer":42}`), ChildLive: true,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
@@ -55,39 +80,12 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		}
 	})
 
-	t.Run("Should return the durable settlement when child parking fails", func(t *testing.T) {
-		t.Parallel()
-		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
-		parkingStore := newSettlementParkingStore(database)
-		service.store = parkingStore
-		service.mailbox = parkingStore
-		parkErr := errors.New("child stop unavailable")
-		invoker.stopErr = parkErr
-		var logs bytes.Buffer
-		service.logger = slog.New(slog.NewTextHandler(&logs, nil))
-		record := createContractedCall(t, service)
-
-		settlement, err := service.Return(t.Context(), ReturnInput{
-			CallID: record.CallID, ChildSessionID: record.ChildSessionID,
-			Result: json.RawMessage(`{"answer":42}`), ChildLive: true,
-			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
-		})
-
-		if err != nil || settlement.Call.State != StateCompleted {
-			t.Fatalf("Return() = %#v, %v, want durable completed settlement", settlement, err)
-		}
-		if output := logs.String(); !strings.Contains(output, parkErr.Error()) ||
-			!strings.Contains(output, record.CallID) {
-			t.Fatalf("parking diagnostic = %q, want call and cause", output)
-		}
-	})
-
 	t.Run("Should settle a valid typed return and preserve the first result", func(t *testing.T) {
 		t.Parallel()
 		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		record := createContractedCall(t, service)
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, ChildSessionID: record.ChildSessionID,
+			Scope: record.OwnerScope(), CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 			Result: json.RawMessage(`{"answer":42}`), ChildLive: true,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
@@ -100,7 +98,7 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		}
 		firstRef := settlement.Call.ResultRef
 		_, err = service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"answer":99}`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"answer":99}`),
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if !IsCode(err, CodeAlreadySettled) {
@@ -139,6 +137,7 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		t.Parallel()
 		service, _, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		_, err := service.Return(context.Background(), ReturnInput{
+			Scope:  CallScope{ProfileID: store.DefaultProfileID, Scope: ScopeGlobal},
 			Result: json.RawMessage(`{"answer":1}`),
 			Actor:  SettlementActor{Kind: "agent_session", ID: "missing-child"},
 		})
@@ -147,11 +146,21 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		}
 		record := createContractedCall(t, service)
 		_, err = service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"answer":1}`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"answer":1}`),
 			Actor: SettlementActor{Kind: "agent_session", ID: "other-child"},
 		})
 		if !IsCode(err, CodeSettlementDenied) {
 			t.Fatalf("Return(other child) error = %v, want %s", err, CodeSettlementDenied)
+		}
+		_, err = service.Return(context.Background(), ReturnInput{
+			Scope: CallScope{
+				ProfileID: record.ProfileID, Scope: ScopeWorkspace, WorkspaceID: "ws-other",
+			},
+			CallID: record.CallID, Result: json.RawMessage(`{"answer":1}`),
+			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if !IsCode(err, CodeNotFound) {
+			t.Fatalf("Return(other workspace) error = %v, want %s", err, CodeNotFound)
 		}
 	})
 
@@ -160,8 +169,11 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		record := createContractedCall(t, service)
 		first, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"wrong":true}`), ChildLive: true,
-			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+			Scope:     record.OwnerScope(),
+			CallID:    record.CallID,
+			Result:    json.RawMessage(`{"wrong":true}`),
+			ChildLive: true,
+			Actor:     SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
 			t.Fatalf("Return(first invalid) error = %v", err)
@@ -172,8 +184,11 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 				first, database.repairDeliveries, invoker.deliveries)
 		}
 		second, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"still":"wrong"}`), ChildLive: true,
-			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+			Scope:     record.OwnerScope(),
+			CallID:    record.CallID,
+			Result:    json.RawMessage(`{"still":"wrong"}`),
+			ChildLive: true,
+			Actor:     SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
 			t.Fatalf("Return(second invalid) error = %v", err)
@@ -191,8 +206,11 @@ func TestServiceReturnSettlementPipeline(t *testing.T) {
 		record := createContractedCall(t, service)
 		invoker.deliverErr = errors.New("delivery unavailable")
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"wrong":true}`), ChildLive: true,
-			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+			Scope:     record.OwnerScope(),
+			CallID:    record.CallID,
+			Result:    json.RawMessage(`{"wrong":true}`),
+			ChildLive: true,
+			Actor:     SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil || settlement.Call.RepairAttempts != 1 || settlement.Call.State != StateRunning ||
 			len(database.repairDeliveries) != 1 || len(invoker.deliveries) != 0 {
@@ -257,7 +275,8 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		service, _, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		record := createContractedCall(t, service)
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, FinalText: "Done.\n```json\n{\"answer\":7}\n```", ChildLive: false,
+			Scope: record.OwnerScope(), CallID: record.CallID,
+			FinalText: "Done.\n```json\n{\"answer\":7}\n```", ChildLive: false,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -273,7 +292,8 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		service, _, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		record := createContractedCall(t, service)
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, FinalText: "{\"answer\":7}\nthen\n{\"wrong\":true}", ChildLive: true,
+			Scope: record.OwnerScope(), CallID: record.CallID,
+			FinalText: "{\"answer\":7}\nthen\n{\"wrong\":true}", ChildLive: true,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -290,7 +310,8 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
 		record := createContractedCall(t, service)
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, FinalText: "Done. {\"wrong\":true}", ChildLive: false,
+			Scope: record.OwnerScope(), CallID: record.CallID,
+			FinalText: "Done. {\"wrong\":true}", ChildLive: false,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -302,7 +323,7 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		}
 	})
 
-	t.Run("Should complete without result when strict or prose has no candidate", func(t *testing.T) {
+	t.Run("Should complete without result for a true empty or strict omission", func(t *testing.T) {
 		t.Parallel()
 		for _, strict := range []bool{false, true} {
 			service, _, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
@@ -317,12 +338,12 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 				t.Fatalf("Create(strict=%t) error = %v", strict, err)
 			}
 			record = activateCreatedCall(t, service, &record)
-			text := "No structured result is available."
+			text := ""
 			if strict {
 				text = `{"answer":7}`
 			}
 			settlement, err := service.Return(context.Background(), ReturnInput{
-				CallID: record.CallID, FinalText: text,
+				Scope: record.OwnerScope(), CallID: record.CallID, FinalText: text,
 				Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 			})
 			if err != nil {
@@ -331,6 +352,38 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 			if settlement.Call.State != StateCompletedWithoutResult {
 				t.Fatalf("Return(strict=%t) state = %s", strict, settlement.Call.State)
 			}
+		}
+	})
+
+	t.Run("Should refuse unsafe result inputs without settling the call", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, _ := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		record := createContractedCall(t, service)
+		_, err := service.Return(t.Context(), ReturnInput{
+			Scope: record.OwnerScope(), CallID: record.CallID, FinalText: "COMPOZY_CLAIM_private-token",
+			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if !IsCode(err, CodeResultInvalid) {
+			t.Fatalf("Return(unsafe final text) error = %v, want %s", err, CodeResultInvalid)
+		}
+		_, err = service.Return(t.Context(), ReturnInput{
+			Scope: record.OwnerScope(), CallID: record.CallID,
+			FinalText: "completed with COMPOZY_CLAIM_private-token inside prose",
+			Actor:     SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if !IsCode(err, CodeResultInvalid) {
+			t.Fatalf("Return(redacted final text) error = %v, want %s", err, CodeResultInvalid)
+		}
+		_, err = service.Return(t.Context(), ReturnInput{
+			Scope: record.OwnerScope(), CallID: record.CallID,
+			Result: json.RawMessage(`{"answer":"COMPOZY_CLAIM_private-token"}`),
+			Actor:  SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
+		})
+		if !IsCode(err, CodeResultInvalid) {
+			t.Fatalf("Return(unsafe result) error = %v, want %s", err, CodeResultInvalid)
+		}
+		if got := database.calls[record.CallID].State; got != StateRunning {
+			t.Fatalf("Return(unsafe final text) state = %s, want %s", got, StateRunning)
 		}
 	})
 
@@ -345,7 +398,7 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		}
 		record = activateCreatedCall(t, service, &record)
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`"too long"`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`"too long"`),
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -367,7 +420,7 @@ func TestServiceReturnExtractionStrictAndBudget(t *testing.T) {
 		}
 		record = activateCreatedCall(t, service, &record)
 		settlement, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, FinalText: `Done: {"answer":"long value"}`,
+			Scope: record.OwnerScope(), CallID: record.CallID, FinalText: `Done: {"answer":"long value"}`,
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -418,16 +471,38 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 			t.Fatalf("Create() error = %v", err)
 		}
 		record = activateCreatedCall(t, service, &record)
-		canceled, err := service.Cancel(context.Background(), record.CallID, "operator stopped it", record.Actor)
+		canceled, err := service.Cancel(context.Background(), scopedCancelInput(&record, "operator stopped it"))
 		if err != nil {
 			t.Fatalf("Cancel() error = %v", err)
 		}
 		if canceled.State != StateCanceled || len(invoker.stops) != 1 || invoker.stops[0] != record.ChildSessionID {
 			t.Fatalf("Cancel() = %#v stops=%#v", canceled, invoker.stops)
 		}
-		repeated, err := service.Cancel(context.Background(), record.CallID, "again", record.Actor)
+		repeated, err := service.Cancel(context.Background(), scopedCancelInput(&record, "again"))
 		if err != nil || repeated.State != StateCanceled || len(invoker.stops) != 1 {
 			t.Fatalf("Cancel(repeated) = %#v error=%v stops=%d", repeated, err, len(invoker.stops))
+		}
+	})
+
+	t.Run("Should refuse cancellation outside the call owner workspace", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, invoker := newCallServiceHarness(t, config.DefaultCallsConfig(), validAgentTarget())
+		record, err := service.Create(t.Context(), validCreateInput("work", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		record = activateCreatedCall(t, service, &record)
+		input := scopedCancelInput(&record, "stop")
+		input.Scope.WorkspaceID = "ws-other"
+		if _, err := service.Cancel(t.Context(), input); !IsCode(err, CodeNotFound) {
+			t.Fatalf("Cancel(other workspace) error = %v, want %s", err, CodeNotFound)
+		}
+		if database.calls[record.CallID].State != StateRunning || len(invoker.stops) != 0 {
+			t.Fatalf(
+				"Cancel(other workspace) changed state=%s stops=%d",
+				database.calls[record.CallID].State,
+				len(invoker.stops),
+			)
 		}
 	})
 
@@ -439,12 +514,10 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 			t.Fatalf("Create() error = %v", err)
 		}
 		record = activateCreatedCall(t, service, &record)
-		canceled, err := service.Cancel(
-			context.Background(),
-			record.CallID,
+		canceled, err := service.Cancel(context.Background(), scopedCancelInput(
+			&record,
 			"operator supplied COMPOZY_CLAIM_secret-value",
-			record.Actor,
-		)
+		))
 		if err != nil {
 			t.Fatalf("Cancel() error = %v", err)
 		}
@@ -468,12 +541,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		record = activateCreatedCall(t, service, &record)
 		fenceErr := errors.New("activation fence unavailable")
 		service.canceler.(*fakeActivationCanceler).err = fenceErr
-		if _, err := service.Cancel(
-			context.Background(),
-			record.CallID,
-			"stop",
-			record.Actor,
-		); !errors.Is(
+		if _, err := service.Cancel(context.Background(), scopedCancelInput(&record, "stop")); !errors.Is(
 			err,
 			fenceErr,
 		) {
@@ -494,12 +562,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		record = activateCreatedCall(t, service, &record)
 		stopErr := errors.New("child stop failed")
 		invoker.stopErr = stopErr
-		if _, err := service.Cancel(
-			context.Background(),
-			record.CallID,
-			"stop",
-			record.Actor,
-		); !errors.Is(
+		if _, err := service.Cancel(context.Background(), scopedCancelInput(&record, "stop")); !errors.Is(
 			err,
 			stopErr,
 		) {
@@ -520,7 +583,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		record = activateCreatedCall(t, service, &record)
 		database.settleErrors = []error{errors.New("primary settlement unavailable")}
 
-		canceled, err := service.Cancel(t.Context(), record.CallID, "stop", record.Actor)
+		canceled, err := service.Cancel(t.Context(), scopedCancelInput(&record, "stop"))
 
 		if err != nil || canceled.State != StateCanceled {
 			t.Fatalf("Cancel() = %#v, %v, want compensated cancellation", canceled, err)
@@ -546,7 +609,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		compensationErr := errors.New("compensation settlement unavailable")
 		database.settleErrors = []error{primaryErr, compensationErr}
 
-		_, err = service.Cancel(t.Context(), record.CallID, "stop", record.Actor)
+		_, err = service.Cancel(t.Context(), scopedCancelInput(&record, "stop"))
 
 		if !errors.Is(err, primaryErr) || !errors.Is(err, compensationErr) {
 			t.Fatalf("Cancel() error = %v, want both settlement failures", err)
@@ -568,7 +631,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		if record.State != StateQueued {
 			t.Fatalf("Create() state = %s, want queued", record.State)
 		}
-		canceled, err := service.Cancel(context.Background(), record.CallID, "batch item removed", record.Actor)
+		canceled, err := service.Cancel(context.Background(), scopedCancelInput(&record, "batch item removed"))
 		if err != nil {
 			t.Fatalf("Cancel() error = %v", err)
 		}
@@ -591,7 +654,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Create(second) error = %v", err)
 		}
-		if _, err := service.Cancel(context.Background(), first.CallID, "done", first.Actor); err != nil {
+		if _, err := service.Cancel(context.Background(), scopedCancelInput(&first, "done")); err != nil {
 			t.Fatalf("Cancel(first) error = %v", err)
 		}
 		outcome, err := service.Await(context.Background(), AwaitInput{
@@ -696,7 +759,7 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 		defer unregister()
 		record = activateCreatedCall(t, service, &record)
 		if _, err := service.Return(context.Background(), ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"done":true}`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"done":true}`),
 			Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		}); err != nil {
 			t.Fatalf("Return() error = %v", err)
@@ -866,6 +929,10 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 	})
 }
 
+func scopedCancelInput(record *CallRecord, reason string) CancelInput {
+	return CancelInput{Scope: record.OwnerScope(), CallID: record.CallID, Reason: reason, Actor: record.Actor}
+}
+
 func TestServiceReturnRacingDeadlinePreservesLateEvidence(t *testing.T) {
 	t.Run("Should preserve the losing return as late evidence", func(t *testing.T) {
 		t.Parallel()
@@ -881,7 +948,7 @@ func TestServiceReturnRacingDeadlinePreservesLateEvidence(t *testing.T) {
 			go func() {
 				<-start
 				_, err := service.Return(context.Background(), ReturnInput{
-					CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
+					Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
 					Actor: SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 				})
 				returnResult <- err

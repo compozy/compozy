@@ -38,6 +38,7 @@ const (
 	CodeCanceled               ErrorCode = "call_canceled"
 	CodeTimedOut               ErrorCode = "call_timed_out"
 	CodeSettlementDenied       ErrorCode = "call_settlement_denied"
+	CodeParkFailed             ErrorCode = "call_park_failed"
 	CodeMessageTooLarge        ErrorCode = "message_too_large"
 	CodeMessageTargetBlocked   ErrorCode = "message_target_blocked"
 	CodeMessageTargetDenied    ErrorCode = "message_target_denied"

@@ -23,6 +23,7 @@ import (
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
 const callIntegrationRaceIterations = 50
@@ -41,7 +42,7 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 			t.Fatalf("install result blob failure trigger error = %v", err)
 		}
 		_, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err == nil || !strings.Contains(err.Error(), "injected_result_blob_failure") {
@@ -66,14 +67,14 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 			t.Fatalf("drop result blob failure trigger error = %v", err)
 		}
 		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"answer":42}`),
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
 			t.Fatalf("Return(valid) error = %v", err)
 		}
 		_, secondErr := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
-			CallID: record.CallID, Result: json.RawMessage(`{"answer":99}`),
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"answer":99}`),
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if !callspkg.IsCode(secondErr, callspkg.CodeAlreadySettled) {
@@ -99,7 +100,7 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 			t.Fatalf("json.Marshal(overflow payload) error = %v", err)
 		}
 		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
-			CallID: record.CallID, Result: payload,
+			Scope: record.OwnerScope(), CallID: record.CallID, Result: payload,
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -133,7 +134,7 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 		fixture := newCallSettlementFixture(t)
 		record := fixture.create(t, "extracted", callSettlementExpectSchema, nil)
 		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
-			CallID: record.CallID, FinalText: "Done. ```json\n{\"answer\":7}\n```",
+			Scope: record.OwnerScope(), CallID: record.CallID, FinalText: "Done. ```json\n{\"answer\":7}\n```",
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
@@ -158,19 +159,19 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 		}
 	})
 
-	t.Run("Should resolve attention without removing resultless history", func(t *testing.T) {
+	t.Run("Should resolve attention without removing truly resultless history", func(t *testing.T) {
 		t.Parallel()
 
 		fixture := newCallSettlementFixture(t)
 		record := fixture.create(t, "silent", callSettlementExpectSchema, nil)
 		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
-			CallID: record.CallID, FinalText: strings.Repeat("plain prose ", 500),
+			Scope: record.OwnerScope(), CallID: record.CallID, FinalText: "",
 			Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 		})
 		if err != nil {
 			t.Fatalf("Return(silent) error = %v", err)
 		}
-		if settled.Call.State != callspkg.StateCompletedWithoutResult || len(settled.Call.FinalProsePreview) != 4096 {
+		if settled.Call.State != callspkg.StateCompletedWithoutResult || settled.Call.FinalProsePreview != "" {
 			t.Fatalf(
 				"Return(silent) = state %s preview bytes %d",
 				settled.Call.State,
@@ -294,7 +295,20 @@ func (f callSettlementFixture) create(
 	if err != nil {
 		t.Fatalf("Create(%q) error = %v", key, err)
 	}
-	return record
+	if record.State != callspkg.StateQueued || record.ActivationRunID == "" {
+		t.Fatalf("Create(%q) = %#v, want queued activation", key, record)
+	}
+	if dispatched, dispatchErr := f.service.DispatchQueued(f.ctx, 1); dispatchErr != nil || dispatched != 1 {
+		t.Fatalf("DispatchQueued(%q) = %d, %v, want one activation", key, dispatched, dispatchErr)
+	}
+	activated, err := f.database.GetCall(f.ctx, record.OwnerScope(), record.CallID)
+	if err != nil {
+		t.Fatalf("GetCall(%q, activated) error = %v", key, err)
+	}
+	if activated.State != callspkg.StateRunning || activated.ChildSessionID == "" {
+		t.Fatalf("GetCall(%q, activated) = %#v, want running child", key, activated)
+	}
+	return activated
 }
 
 func (f callSettlementFixture) scope() callspkg.CallScope {
@@ -396,7 +410,7 @@ func TestGlobalDBCallRuntimeRecoversClaimedActivationAndDurableAwait(t *testing.
 		t.Fatalf("recovered call = %#v run=%s spawns=%d", recovered, runStatus, invoker.spawnCount())
 	}
 	if _, err := recoveredService.Return(ctx, callspkg.ReturnInput{
-		CallID: recovered.CallID, Result: json.RawMessage(`{"done":true}`),
+		Scope: recovered.OwnerScope(), CallID: recovered.CallID, Result: json.RawMessage(`{"done":true}`),
 		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: recovered.ChildSessionID},
 	}); err != nil {
 		t.Fatalf("Return(recovered) error = %v", err)
@@ -490,7 +504,7 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		return callspkg.TargetContext{
 			ProfileID: input.ProfileID, WorkspaceID: workspaceID, ParentSessionID: parentID,
 			AgentName: "reviewer", GovernedRootID: parentID, Depth: 1, Allowed: true,
-			CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+			CallerPolicy: callIntegrationPermissionPolicy(),
 		}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
 	})
 	tasks, err := taskpkg.NewManager(
@@ -594,7 +608,7 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 				ProfileID: secondProfileID, WorkspaceID: workspaceID,
 				ParentSessionID: parents[secondProfileID], AgentName: "reviewer",
 				GovernedRootID: parents[secondProfileID], Depth: 1, Allowed: true,
-				CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+				CallerPolicy: callIntegrationPermissionPolicy(),
 			}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
 		})
 		foreignService, err := callspkg.NewService(
@@ -714,7 +728,7 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 				GovernedRootID:  nodes[0],
 				Depth:           cycleDepths[input.Target.Agent],
 				Allowed:         true,
-				CallerPolicy:    store.SessionPermissionPolicy{Skills: []string{"review"}},
+				CallerPolicy:    callIntegrationPermissionPolicy(),
 			}, []callspkg.AgentRosterEntry{{Name: input.Target.Agent}}, nil
 		})
 		cycleService, err := callspkg.NewService(
@@ -1244,7 +1258,7 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 		t.Fatalf("Create(follow-up) = %#v", record)
 	}
 	settlement, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: record.CallID, Result: json.RawMessage(`{"done":true}`),
+		Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"done":true}`),
 		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: childID},
 	})
 	if err != nil {
@@ -1284,8 +1298,8 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 	if err := rows.Err(); err != nil {
 		t.Fatalf("iterate follow-up deliveries error = %v", err)
 	}
-	if rowCount != 2 || len(seen) != 2 || seen["message"] == "" || seen["completion"] == "" ||
-		seen["message"] == seen["completion"] {
+	if rowCount != 2 || len(seen) != 2 || seen["follow-up"] == "" || seen["completion"] == "" ||
+		seen["follow-up"] == seen["completion"] {
 		t.Fatalf("follow-up deliveries = %#v", seen)
 	}
 }
@@ -1362,7 +1376,9 @@ func TestGlobalDBCallActivationClaimCancelRaceHasOneFencedOutcome(t *testing.T) 
 		}()
 		go func() {
 			<-start
-			_, cancelErr := service.Cancel(ctx, record.CallID, "race cancellation", record.Actor)
+			_, cancelErr := service.Cancel(ctx, callspkg.CancelInput{
+				Scope: record.OwnerScope(), CallID: record.CallID, Reason: "race cancellation", Actor: record.Actor,
+			})
 			cancelResult <- cancelErr
 		}()
 		close(start)
@@ -1452,13 +1468,15 @@ func TestGlobalDBCallCancelReturnRacePreservesOneTerminalOutcome(t *testing.T) {
 		returnResult := make(chan error, 1)
 		go func() {
 			<-start
-			_, cancelErr := service.Cancel(ctx, record.CallID, "operator race", record.Actor)
+			_, cancelErr := service.Cancel(ctx, callspkg.CancelInput{
+				Scope: record.OwnerScope(), CallID: record.CallID, Reason: "operator race", Actor: record.Actor,
+			})
 			cancelResult <- cancelErr
 		}()
 		go func() {
 			<-start
 			_, returnErr := service.Return(ctx, callspkg.ReturnInput{
-				CallID: record.CallID, Result: json.RawMessage(`{"done":true}`),
+				Scope: record.OwnerScope(), CallID: record.CallID, Result: json.RawMessage(`{"done":true}`),
 				Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 			})
 			returnResult <- returnErr
@@ -1557,8 +1575,21 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if record.State != callspkg.StateRunning || record.ChildSessionID == "" || record.ExpectDigest == "" {
-		t.Fatalf("Create() = %#v, want running contracted child", record)
+	if record.State != callspkg.StateQueued || record.ActivationRunID == "" || record.ExpectDigest == "" {
+		t.Fatalf("Create() = %#v, want queued contracted activation", record)
+	}
+	if got := invoker.spawnCount(); got != 0 {
+		t.Fatalf("SpawnChild() calls before dispatch = %d, want 0", got)
+	}
+	if dispatched, dispatchErr := service.DispatchQueued(ctx, 1); dispatchErr != nil || dispatched != 1 {
+		t.Fatalf("DispatchQueued() = %d, %v, want one activation", dispatched, dispatchErr)
+	}
+	record, err = database.GetCall(ctx, record.OwnerScope(), record.CallID)
+	if err != nil {
+		t.Fatalf("GetCall(activated) error = %v", err)
+	}
+	if record.State != callspkg.StateRunning || record.ChildSessionID == "" {
+		t.Fatalf("GetCall(activated) = %#v, want running child", record)
 	}
 	if got := invoker.spawnCount(); got != 1 {
 		t.Fatalf("SpawnChild() calls = %d, want 1", got)
@@ -1596,12 +1627,13 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	}
 	delivered := invoker.recordedDeliveries()
 	if len(delivered) != 1 || delivered[0].Body != followUpInput.Prompt ||
+		delivered[0].Kind != callspkg.DeliveryKindFollowUp ||
 		delivered[0].Metadata.CallID != followUp.CallID ||
 		delivered[0].Metadata.Reason != "call_follow_up" {
 		t.Fatalf("follow-up deliveries = %#v, want persisted prompt with structured identity", delivered)
 	}
 	repair, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
+		Scope: record.OwnerScope(), CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		Result: json.RawMessage(`{"wrong":true}`), ChildLive: true,
 		Actor: callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 	})
@@ -1624,7 +1656,7 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 		t.Fatalf("DrainDeliveries(repair) error = %v", err)
 	}
 	followUpSettlement, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: followUp.CallID, ChildSessionID: record.ChildSessionID,
+		Scope: followUp.OwnerScope(), CallID: followUp.CallID, ChildSessionID: record.ChildSessionID,
 		Result: json.RawMessage(`{"answer":7}`),
 		Actor:  callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 	})
@@ -1633,7 +1665,7 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	}
 
 	settlement, err := service.Return(ctx, callspkg.ReturnInput{
-		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
+		Scope: record.OwnerScope(), CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		Result: json.RawMessage(`{"answer":42}`),
 		Actor:  callspkg.SettlementActor{Kind: "agent_session", ID: record.ChildSessionID},
 	})
@@ -1674,8 +1706,31 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 
 func registerCallSession(ctx context.Context, t *testing.T, database *GlobalDB, info store.SessionInfo) {
 	t.Helper()
+	if info.Lineage != nil && len(info.Lineage.PermissionPolicy.Tools) == 0 {
+		lineage := *info.Lineage
+		lineage.PermissionPolicy.Tools = callIntegrationHelperTools()
+		info.Lineage = &lineage
+	}
 	if err := database.RegisterSession(ctx, info); err != nil {
 		t.Fatalf("RegisterSession(%q) error = %v", info.ID, err)
+	}
+}
+
+func callIntegrationPermissionPolicy() store.SessionPermissionPolicy {
+	return store.SessionPermissionPolicy{
+		Tools:  callIntegrationHelperTools(),
+		Skills: []string{"review"},
+	}
+}
+
+func callIntegrationHelperTools() []string {
+	return []string{
+		toolspkg.ToolIDAgentCall.String(),
+		toolspkg.ToolIDAgentMessage.String(),
+		toolspkg.ToolIDCallAwait.String(),
+		toolspkg.ToolIDCallCancel.String(),
+		toolspkg.ToolIDCallResult.String(),
+		toolspkg.ToolIDCallReturn.String(),
 	}
 }
 
@@ -1809,8 +1864,9 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 		if err != nil || len(pending) != 1 {
 			t.Fatalf("ListPendingDeliveries() = %#v, %v, want one", pending, err)
 		}
-		if pending[0].OwnerKey != "session:"+childID {
-			t.Fatalf("message activation owner_key = %q, want sender owner", pending[0].OwnerKey)
+		if pending[0].OwnerKey != "session:"+childID || pending[0].ProfileID != store.DefaultProfileID ||
+			pending[0].Scope != callspkg.ScopeWorkspace || pending[0].WorkspaceID != workspaceID {
+			t.Fatalf("message delivery ownership = %#v, want sender and exact workspace", pending[0])
 		}
 		if err := service.DrainDeliveries(ctx, parentID, 10); err != nil {
 			t.Fatalf("DrainDeliveries() error = %v", err)
@@ -1820,6 +1876,11 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 		}, record.MessageID)
 		if err != nil || receipt.Delivery != "woke" {
 			t.Fatalf("Message() = %#v, %v, want woke", receipt, err)
+		}
+		if _, err := service.Message(ctx, callspkg.CallScope{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: "ws-other",
+		}, record.MessageID); !callspkg.IsCode(err, callspkg.CodeMessageNotFound) {
+			t.Fatalf("Message(other workspace) error = %v, want %s", err, callspkg.CodeMessageNotFound)
 		}
 		if err := database.db.QueryRowContext(ctx, `SELECT parked_at, idle_expires_at FROM sessions WHERE id = ?`,
 			parentID).Scan(&parkedAt, &idleExpiresAt); err != nil {

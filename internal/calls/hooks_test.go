@@ -180,7 +180,7 @@ func TestCallHookTransitions(t *testing.T) {
 		}
 		created = activateCreatedCall(t, service, &created)
 		settled, err := service.Return(context.Background(), ReturnInput{
-			CallID: created.CallID, Result: json.RawMessage(`{"answer":"secret result"}`),
+			Scope: created.OwnerScope(), CallID: created.CallID, Result: json.RawMessage(`{"answer":"secret result"}`),
 			Actor: SettlementActor{Kind: "agent_session", ID: created.ChildSessionID},
 		})
 		if err != nil {
@@ -203,9 +203,7 @@ func TestCallHookTransitions(t *testing.T) {
 		cancelRecord = activateCreatedCall(t, service, &cancelRecord)
 		if _, err := service.Cancel(
 			context.Background(),
-			cancelRecord.CallID,
-			"operator canceled",
-			cancelRecord.Actor,
+			scopedCancelInput(&cancelRecord, "operator canceled"),
 		); err != nil {
 			t.Fatalf("Cancel() error = %v", err)
 		}

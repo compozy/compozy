@@ -141,6 +141,11 @@ type CallRecord struct {
 	Replayed          bool
 }
 
+// OwnerScope returns the exact profile and workspace boundary that owns the call.
+func (r *CallRecord) OwnerScope() CallScope {
+	return CallScope{ProfileID: r.ProfileID, Scope: r.Scope, WorkspaceID: r.WorkspaceID}
+}
+
 // BatchOutcome contains either one admitted call or its typed admission error.
 type BatchOutcome struct {
 	Call  *CallRecord
@@ -149,12 +154,21 @@ type BatchOutcome struct {
 
 // ReturnInput carries a child-owned settlement attempt.
 type ReturnInput struct {
+	Scope          CallScope
 	CallID         string
 	ChildSessionID string
 	Result         json.RawMessage
 	FinalText      string
 	ChildLive      bool
 	Actor          SettlementActor
+}
+
+// CancelInput identifies one scoped call and the actor requesting its cancellation.
+type CancelInput struct {
+	Scope  CallScope
+	CallID string
+	Reason string
+	Actor  Actor
 }
 
 // Settlement contains a settled call or one repair round.
@@ -223,6 +237,7 @@ type DeliveryKind string
 // Durable delivery kinds.
 const (
 	DeliveryKindMessage    DeliveryKind = "message"
+	DeliveryKindFollowUp   DeliveryKind = "follow-up"
 	DeliveryKindCompletion DeliveryKind = "completion"
 	DeliveryKindRepair     DeliveryKind = "repair"
 )
@@ -232,16 +247,17 @@ type DeliveryState string
 
 // Durable delivery states.
 const (
-	DeliveryStatePending  DeliveryState = "pending"
-	DeliveryStateInjected DeliveryState = "injected"
-	DeliveryStateWoken    DeliveryState = "woken"
-	DeliveryStateFailed   DeliveryState = "failed"
+	DeliveryStatePending   DeliveryState = "pending"
+	DeliveryStateAttention DeliveryState = "attention"
+	DeliveryStateInjected  DeliveryState = "injected"
+	DeliveryStateWoken     DeliveryState = "woken"
+	DeliveryStateFailed    DeliveryState = "failed"
 )
 
 // Valid reports whether the state belongs to the durable delivery vocabulary.
 func (s DeliveryState) Valid() bool {
 	switch s {
-	case DeliveryStatePending, DeliveryStateInjected, DeliveryStateWoken, DeliveryStateFailed:
+	case DeliveryStatePending, DeliveryStateAttention, DeliveryStateInjected, DeliveryStateWoken, DeliveryStateFailed:
 		return true
 	default:
 		return false
@@ -326,12 +342,20 @@ type DeliveryRecord struct {
 	Kind               DeliveryKind
 	SubjectID          string
 	RecipientSessionID string
+	ProfileID          string
+	Scope              Scope
+	WorkspaceID        string
 	OwnerKey           string
 	WakeEventID        string
 	State              DeliveryState
 	Reason             string
 	Attempts           int
 	CreatedAt          time.Time
+}
+
+// OwnerScope returns the exact profile and workspace boundary that owns the delivery subject.
+func (r *DeliveryRecord) OwnerScope() CallScope {
+	return CallScope{ProfileID: r.ProfileID, Scope: r.Scope, WorkspaceID: r.WorkspaceID}
 }
 
 // DeliveryUpdate advances one durable delivery attempt.

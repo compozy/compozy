@@ -187,6 +187,33 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				t.Fatalf("toolset %q still contains compozy__session_spawn", toolset.ID)
 			}
 		}
+
+		returnDescriptor := descriptors[toolspkg.ToolIDCallReturn]
+		returnSchema := compileNativeSchema(t, returnDescriptor, returnDescriptor.InputSchema, "input")
+		for _, payload := range []string{
+			`{}`,
+			`{"call_id":"call_01JBD8G2K7Q9"}`,
+			`{"result":null}`,
+			`{"final_text":""}`,
+			`{"final_text":"   "}`,
+		} {
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+			if err != nil {
+				t.Fatalf("%s input parse error = %v", returnDescriptor.ID, err)
+			}
+			if err := returnSchema.Validate(instance); err == nil {
+				t.Fatalf("%s input schema accepted resultless payload %s", returnDescriptor.ID, payload)
+			}
+		}
+		for _, payload := range []string{`{"result":{}}`, `{"final_text":"done"}`} {
+			instance, err := jsonschema.UnmarshalJSON(strings.NewReader(payload))
+			if err != nil {
+				t.Fatalf("%s input parse error = %v", returnDescriptor.ID, err)
+			}
+			if err := returnSchema.Validate(instance); err != nil {
+				t.Fatalf("%s input schema rejected terminal payload %s: %v", returnDescriptor.ID, payload, err)
+			}
+		}
 	})
 
 	t.Run("Should expose typed participation on execution management tools", func(t *testing.T) {

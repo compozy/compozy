@@ -67,6 +67,7 @@ func (i *daemonCallSessionInvoker) SpawnChild(
 		ReasoningEffort: spec.Runtime.ReasoningEffort, Speed: spec.Runtime.Speed,
 		TTL: spec.IdleTTL, AutoStopOnParent: true, NotifyCreator: false, NotifyCreatorSet: true,
 		PermissionPolicy: spec.Permissions.Policy(), GovernanceBudget: budget,
+		AllowedToolsOverride: append([]string(nil), spec.Permissions.Tools...),
 	})
 	if err != nil {
 		if errors.Is(err, session.ErrSpawnPermissionDenied) {
@@ -112,7 +113,7 @@ func (i *daemonCallSessionInvoker) sendCallRequest(
 	_, err := i.send(
 		ctx,
 		sessionID,
-		callspkg.CallPromptWithRemainingDepth(spec.Prompt, spec.RemainingDepth),
+		callspkg.CallPromptWithRemainingDepth(spec.CallID, spec.Prompt, spec.RemainingDepth),
 		spec.CallID,
 		callRequestSyntheticMetadata(spec, sessionID, "call_request"),
 	)
@@ -141,7 +142,7 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 		}
 		if operatorCaller {
 			return callspkg.DeliveryOutcome{
-				State:  callspkg.DeliveryStateInjected,
+				State:  callspkg.DeliveryStateAttention,
 				Reason: "operator_attention",
 			}, nil
 		}

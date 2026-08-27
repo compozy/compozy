@@ -59,6 +59,8 @@ type SpawnOpts struct {
 	NotifyCreator        bool
 	NotifyCreatorSet     bool
 	PermissionPolicy     store.SessionPermissionPolicy
+	// AllowedToolsOverride is a concrete subset exposed to this spawned runtime.
+	AllowedToolsOverride []string
 	AllowStoppedParent   bool
 	// DiscardStartFailure is reserved for ephemeral internal role attempts.
 	DiscardStartFailure bool
@@ -119,11 +121,12 @@ func (m *Manager) Spawn(ctx context.Context, opts SpawnOpts) (*Session, error) {
 			Enforced:   true,
 			ChannelIDs: append([]string(nil), normalized.PermissionPolicy.NetworkChannels...),
 		},
-		PromptOverlay:       normalized.PromptOverlay,
-		Type:                SessionTypeSpawned,
-		Lineage:             lineage,
-		ParentSoulDigest:    strings.TrimSpace(parent.SoulDigest),
-		DiscardStartFailure: normalized.DiscardStartFailure,
+		PromptOverlay:        normalized.PromptOverlay,
+		Type:                 SessionTypeSpawned,
+		Lineage:              lineage,
+		AllowedToolsOverride: append([]string(nil), normalized.AllowedToolsOverride...),
+		ParentSoulDigest:     strings.TrimSpace(parent.SoulDigest),
+		DiscardStartFailure:  normalized.DiscardStartFailure,
 	})
 	if err != nil {
 		return nil, err
@@ -177,6 +180,13 @@ func (m *Manager) prepareSpawn(
 	if err := ValidatePermissionSubset(parent.Lineage.PermissionPolicy, normalized.PermissionPolicy); err != nil {
 		return SpawnOpts{}, nil, nil, err
 	}
+	if err := validatePermissionAtoms(
+		"tools",
+		normalized.PermissionPolicy.Tools,
+		normalized.AllowedToolsOverride,
+	); err != nil {
+		return SpawnOpts{}, nil, nil, fmt.Errorf("%w: allowed tools override: %w", ErrSpawnPermissionDenied, err)
+	}
 	return normalized, parent, lineage, nil
 }
 
@@ -219,6 +229,11 @@ func normalizeSpawnOpts(opts SpawnOpts) (SpawnOpts, error) {
 		normalized.NotifyCreator = true
 	}
 	normalized.PermissionPolicy = store.NormalizeSessionPermissionPolicy(normalized.PermissionPolicy)
+	allowedTools, _, err := normalizeAllowedToolsOverride(normalized.AllowedToolsOverride)
+	if err != nil {
+		return SpawnOpts{}, err
+	}
+	normalized.AllowedToolsOverride = allowedTools
 	switch {
 	case normalized.ParentSessionID == "":
 		return SpawnOpts{}, spawnValidation("parent_session_id is required")

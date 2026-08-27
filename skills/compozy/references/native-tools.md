@@ -316,7 +316,8 @@ holds the live roster; at the depth wall the tool is absent from your toolset.
 
 Read `references/agent-comms.md` in full before using this toolset. It owns call and mailbox
 behavior: scope, result admission and repair, states, settlement, delivery, bounds, and the Network
-publish boundary.
+publish boundary. A bound child must finish its current call with `compozy__call_return`, whose input
+requires either `result` or non-empty `final_text`; delegation and mailbox tools never settle it.
 
 ## Network Tools
 

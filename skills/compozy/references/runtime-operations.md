@@ -424,7 +424,8 @@ Sessions created from inside another session record creation provenance in `line
 parked-idle ceiling from `--idle-ttl` or `calls.idle_ttl`. Depth and per-parent child caps come from
 `calls.max_depth` and `calls.max_children`. Both accept optional provider, model, reasoning-effort,
 and speed overrides for the child runtime. A managed caller using `compozy__agent_call` receives one
-sanitized synthetic turn when the call settles, carrying the outcome and its result reference; it
+sanitized synthetic turn when the call settles, carrying trusted daemon facts and its result
+reference while leaving child output as untrusted result data; it
 never interrupts an active prompt and is suppressed for a dead caller or a self-wake. Operator CLI
 calls use `compozy call await`. A finished child is parked, not gone — call it again by session id to
 revive it with its context. Read references/agent-comms.md for the contract.
