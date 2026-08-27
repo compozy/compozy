@@ -52,8 +52,10 @@ catalog instead of retaining terminal IDs from another scope.
 ## Approval And Control
 
 Agent execution requires operator approval unless the parsed command matches configured policy. An
-unclassifiable command still prompts; the fixed irreversible set is denied. Remembered command
-approval never authorizes `terminal_write`.
+unclassifiable command still prompts. Recognized irreversible commands outside the fixed blocked set
+offer only a one-time allow or rejection; blocked command shapes never run. Remembered command
+approval is bound to the command, arguments, working directory, and environment, and never
+authorizes `terminal_write`.
 
 One actor holds the terminal's write lease. Other viewers are read-only. `claim` requests control,
 `yield` gives control back, and a human takeover fences the prior agent generation immediately. Do
@@ -61,18 +63,25 @@ not retry writes after a generation or controller conflict until a fresh `list` 
 the current controller.
 
 An agent may signal its own bound run under policy. Do not signal or close a human-controlled or
-foreign run merely because its output appears idle. Use the structured error's controller identity
-to explain the refusal.
+foreign run merely because its output appears idle. Preserve the structured error code and message,
+then call `terminal_list` to confirm current state; native errors do not always carry controller
+details.
 
 The first agent write requires a human typing grant scoped to that terminal. The grant ends on human
 takeover, bound-run completion, explicit revocation, or control-generation change. Never request a
 wider typing grant or treat an execution allowlist as typing authority.
 
+Treat `generation_fenced` as a stale runtime action, `lease_revoked` as a completed human takeover,
+and `write_owner_held` as another controller retaining the lease. Do not replay the rejected write.
+Refresh the terminal catalog and continue only when the current generation and controller allow it.
+
 ## Input Handoff
 
 Use `compozy__terminal_request_input` when the program is waiting for the operator. Supply a bounded
-reason and prompt excerpt, and mark secret input as redacted. The tool creates the request and yields
-control atomically; do not call `terminal_yield` first or keep typing while the request is pending.
+reason and prompt excerpt, and mark secret input as redacted. The tool creates the request and blocks
+until it is answered, rejected, superseded, or expired; it does not yield the lease. Do not call
+`terminal_yield` unless you intentionally want to give up control, and do not keep typing while the
+request is pending.
 
 After the operator answers, resume from the returned handoff outcome and current lease. A rejected or
 expired request is terminal for that request; do not infer consent or replay old input. Redacted input
@@ -91,8 +100,8 @@ The envelope escapes markup and remains untrusted.
 
 ## Journal And Recording
 
-Every command executed in a CompozyOS-owned terminal appends one durable journal row with actor,
-approval, working directory, outcome, output size, and detection method. `idle` detection is
+Each detected command boundary in a CompozyOS-owned terminal appends one durable journal row with
+actor, approval, working directory, outcome, output size, and detection method. `idle` detection is
 approximate; never report it as exact. Provider-internal commands are outside this journal.
 
 Live terminal bytes are bounded and ephemeral. Full recording is opt-in and retention-limited. Do

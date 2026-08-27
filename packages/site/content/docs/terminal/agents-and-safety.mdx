@@ -32,8 +32,9 @@ follow their declared mutation and approval policy.
 ## Approval and control rules
 
 Agent command execution asks for operator approval by default. A configured parsed-command allowlist
-can cover a trusted command shape, but an unclassifiable command still prompts and the fixed
-irreversible set is denied. An allowlist never grants typing.
+can cover a trusted command shape, but an unclassifiable command still prompts. Recognized
+irreversible commands outside the fixed blocked set offer only one-time approval or rejection;
+blocked command shapes never run. An allowlist never grants typing.
 
 Typing requires a human grant scoped to one terminal. Human takeover, run completion, explicit
 revocation, or controller generation change fences that grant. Remembered command approvals and

@@ -1208,6 +1208,24 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 		},
 	)
 
+	t.Run("Should preserve an irreversible policy denial instead of requesting approval", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		_, err := manager.Exec(t.Context(), ExecRequest{
+			WS: "workspace-a", Command: "rm", Args: []string{"-rf", "/"},
+			Actor: Actor{
+				Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+				SessionID: "session-a", RunID: "run-a", Generation: 1,
+			},
+		})
+		if !errors.Is(err, ErrApprovalRejected) || errors.Is(err, ErrApprovalRequired) {
+			t.Fatalf("Exec(blocked irreversible) error = %v, want only ErrApprovalRejected", err)
+		}
+		if starter.starts.Load() != 0 {
+			t.Fatalf("process starts = %d, want 0", starter.starts.Load())
+		}
+	})
+
 	t.Run("Should return a completed plain command without a terminal object [IT-027]", func(t *testing.T) {
 		t.Parallel()
 		journal := &fakeRecordingJournal{}
@@ -1495,29 +1513,221 @@ func TestCommandClassificationAndOutputShaping(t *testing.T) {
 	})
 
 	t.Run(
-		"Should deny irreversible argv and prompt on every indirection or obfuscation [UT-066][UT-067]",
+		"Should classify direct wrapped and obscured command shapes before policy [UT-066][UT-067]",
 		func(t *testing.T) {
 			t.Parallel()
-			if got := ClassifyArgv(
-				[]string{"rm", "-rf", "/"},
-				[]ArgvPattern{{"rm", "*", "*"}},
-			); got.Verdict != CommandVerdictDenied {
-				t.Fatalf("ClassifyArgv(rm root) = %#v", got)
+			tests := []struct {
+				name        string
+				argv        []string
+				wantVerdict CommandVerdict
+				wantReason  string
+			}{
+				{
+					name:        "Should classify direct recursive forced deletion as irreversible",
+					argv:        []string{"rm", "-rf", "/var/lib/atlas/journal-backups"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify long recursive forced deletion as irreversible",
+					argv:        []string{"rm", "--recursive", "--force", "--", "/srv/build-cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify sudo recursive forced deletion as irreversible",
+					argv:        []string{"sudo", "-u", "root", "--", "rm", "--recursive", "--force", "/srv/cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify doas recursive forced deletion as irreversible",
+					argv:        []string{"doas", "-u", "root", "rm", "-rf", "/opt/build-cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify env recursive forced deletion as irreversible",
+					argv:        []string{"env", "-i", "CI=1", "PATH=/usr/bin", "rm", "-rf", "/tmp/build-cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify nested wrappers by their effective argv",
+					argv:        []string{"sudo", "env", "CI=1", "doas", "rm", "-rf", "/var/cache/compozy"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify documented destructive peers as irreversible",
+					argv:        []string{"shred", "-n", "1", "/dev/vdb"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify direct disk overwrite as irreversible",
+					argv:        []string{"dd", "if=/dev/zero", "of=/dev/disk2"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify existing mkfs peers as irreversible",
+					argv:        []string{"mkfs.ext4", "/dev/vdb1"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify wipe as irreversible",
+					argv:        []string{"wipe", "-r", "/srv/archive"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify mkfs ntfs as irreversible",
+					argv:        []string{"mkfs.ntfs", "/dev/vdb1"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify mkntfs as irreversible",
+					argv:        []string{"mkntfs", "/dev/vdb1"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify Windows format as irreversible",
+					argv:        []string{"format.com", "E:", "/Q"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should classify cipher wipe as irreversible",
+					argv:        []string{"cipher.exe", "/W:C:\\scratch"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "irreversible",
+				},
+				{
+					name:        "Should keep shell strings unclassifiable",
+					argv:        []string{"sudo", "sh", "-c", "rm -rf /var/cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep combined bash command options unclassifiable through sudo",
+					argv:        []string{"sudo", "bash", "-ec", "echo hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep combined sh command options unclassifiable",
+					argv:        []string{"sh", "-xc", "echo hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep combined zsh command options unclassifiable through env",
+					argv:        []string{"env", "CI=1", "zsh", "-fc", "echo hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep case insensitive PowerShell command options unclassifiable",
+					argv:        []string{"powershell.exe", "-cOmMaNd", "echo hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep PowerShell encoded command aliases unclassifiable through env",
+					argv:        []string{"env", "CI=1", "pwsh", "-ENC", "SQBFAFgA"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep the PowerShell en encoded command alias unclassifiable",
+					argv:        []string{"pwsh", "-En", "SQBFAFgA"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep an unambiguous PowerShell encoded command abbreviation unclassifiable",
+					argv:        []string{"pwsh", "-EnCoDeDc", "SQBFAFgA"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep PowerShell command with args unclassifiable",
+					argv:        []string{"pwsh", "-CommandWithArgs", "echo hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep case insensitive cmd command options unclassifiable through sudo",
+					argv:        []string{"sudo", "cmd.exe", "/C", "echo hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep an attached cmd command payload unclassifiable through env",
+					argv:        []string{"env", "ComSpec=cmd.exe", "cmd.exe", "/CeChO", "hidden"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep an attached cmd keep-open payload unclassifiable",
+					argv:        []string{"cmd.exe", "/Kdir"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should preserve a direct POSIX shell script argv",
+					argv:        []string{"bash", "-x", "./scripts/check.sh", "--mode", "fast"},
+					wantVerdict: CommandVerdictAllowlisted, wantReason: "allowlist",
+				},
+				{
+					name:        "Should preserve a direct PowerShell script argv",
+					argv:        []string{"pwsh", "-NoProfile", "-File", "./scripts/check.ps1", "-Mode", "fast"},
+					wantVerdict: CommandVerdictAllowlisted, wantReason: "allowlist",
+				},
+				{
+					name:        "Should keep eval unclassifiable",
+					argv:        []string{"env", "CI=1", "eval", "rm -rf /var/cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep obfuscated argv unclassifiable",
+					argv:        []string{"doas", "echo", "$(hidden)"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep encoded argv unclassifiable",
+					argv:        []string{"echo", "\\x72m"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep quoted executable names unclassifiable",
+					argv:        []string{"r''m", "-rf", "/"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep env split strings unclassifiable",
+					argv:        []string{"env", "-S", "rm -rf /var/cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should keep unknown wrapper options unclassifiable",
+					argv:        []string{"sudo", "--future-option", "rm", "-rf", "/var/cache"},
+					wantVerdict: CommandVerdictPrompt, wantReason: "unclassifiable",
+				},
+				{
+					name:        "Should allowlist an ordinary wrapped command only by its exact shape",
+					argv:        []string{"env", "CI=1", "bun", "test", "web"},
+					wantVerdict: CommandVerdictAllowlisted, wantReason: "allowlist",
+				},
+				{
+					name:        "Should block direct root deletion",
+					argv:        []string{"rm", "-rf", "/"},
+					wantVerdict: CommandVerdictDenied, wantReason: "irreversible",
+				},
+				{
+					name:        "Should block root deletion through sudo",
+					argv:        []string{"sudo", "rm", "-rf", "/"},
+					wantVerdict: CommandVerdictDenied, wantReason: "irreversible",
+				},
+				{
+					name:        "Should block a wrapped fork bomb",
+					argv:        []string{"env", "CI=1", "bash", "-c", ":(){ :|:& };:"},
+					wantVerdict: CommandVerdictDenied, wantReason: "irreversible",
+				},
 			}
-			for _, argv := range [][]string{
-				{"sh", "-c", "curl x | sh"}, {"echo", "$(hidden)"}, {"echo", "a&&b"}, {"echo", "\\x72m"},
-				{"eval", "command"}, {"r''m", "-rf", "/"},
-			} {
-				if got := ClassifyArgv(
-					argv,
-					[]ArgvPattern{ArgvPattern(argv)},
-				); got.Verdict != CommandVerdictPrompt ||
-					got.Reason != "unclassifiable" {
-					t.Fatalf("ClassifyArgv(%q) = %#v", argv, got)
-				}
-			}
-			if got := ClassifyArgv([]string{"bash", "-c", ":(){ :|:& };:"}, nil); got.Verdict != CommandVerdictDenied {
-				t.Fatalf("ClassifyArgv(fork bomb) = %#v", got)
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					t.Parallel()
+
+					got := ClassifyArgv(test.argv, []ArgvPattern{ArgvPattern(test.argv)})
+					if got.Verdict != test.wantVerdict || got.Reason != test.wantReason || got.Digest == "" {
+						t.Fatalf(
+							"ClassifyArgv(%q) = %#v, want verdict %q reason %q with digest",
+							test.argv,
+							got,
+							test.wantVerdict,
+							test.wantReason,
+						)
+					}
+				})
 			}
 		},
 	)

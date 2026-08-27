@@ -45,6 +45,7 @@ var (
 	ErrSubscriberLimit    = errors.New("terminal subscriber limit reached")
 	ErrInvalidCwd         = errors.New("terminal invalid cwd")
 	ErrInteractive        = errors.New("terminal interactive unavailable")
+	ErrApprovalRejected   = errors.New("terminal approval rejected")
 	ErrRecording          = errors.New("terminal recording unavailable")
 	ErrJournalUnavailable = errors.New("terminal journal unavailable")
 	ErrShuttingDown       = errors.New("terminal manager shutting down")

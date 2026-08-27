@@ -260,6 +260,7 @@ and local staging state before performing manual cleanup.
 ## Native CompozyOS Tool Map
 
 Inside CompozyOS, read references/native-tools.md before choosing a tool or CLI fallback. It lists daemon-native toolsets and stable `compozy__*` IDs, but parameters and availability come from the live descriptor returned by canonical `compozy__tool_info`.
+Terminal discovery starts from its complete toolset entry there; operating rules stay in references/terminal.md.
 
 ## Management-Surface Exceptions
 

@@ -239,7 +239,7 @@ compozy status [flags]
 	t.Run("Should distinguish accepted values from result renderers", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileResult, "compozy status")
+		result := renderOutputFormatsSection(body, OutputProfileResult)
 		if !strings.Contains(result, "## Output Formats") {
 			t.Fatal("expected output formats section heading")
 		}
@@ -270,7 +270,7 @@ compozy status [flags]
 			{profile: OutputProfileResult, format: "json"},
 			{profile: OutputProfileHumanJSONL, format: "jsonl"},
 		} {
-			result := renderOutputFormatsSection(executableBody, test.profile, "compozy window resize")
+			result := renderOutputFormatsSection(executableBody, test.profile)
 			want := "compozy window resize --id \"$WINDOW_ID\" --rect 0.10,0.10,0.80,0.80 -o " + test.format
 			if !strings.Contains(result, want) {
 				t.Fatalf("output example = %q, want command %q", result, want)
@@ -290,7 +290,7 @@ compozy status [flags]
 			1,
 		)
 		for _, profile := range []OutputProfile{OutputProfileResult, OutputProfileHumanJSONL} {
-			result := renderOutputFormatsSection(markedBody, profile, "compozy status")
+			result := renderOutputFormatsSection(markedBody, profile)
 			for _, ignored := range []string{
 				"compozy prose-only",
 				"compozy outside-examples",
@@ -306,7 +306,7 @@ compozy status [flags]
 	t.Run("Should keep help-only groups human-readable", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileHelp, "compozy status")
+		result := renderOutputFormatsSection(body, OutputProfileHelp)
 		if !strings.Contains(result, "Not emitted for help") {
 			t.Fatal("expected help-only output matrix")
 		}
@@ -318,7 +318,7 @@ compozy status [flags]
 	t.Run("Should document human and JSONL streams precisely", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileHumanJSONL, "compozy status")
+		result := renderOutputFormatsSection(body, OutputProfileHumanJSONL)
 		if !strings.Contains(result, "`jsonl` | One JSON event per line") {
 			t.Fatal("expected JSONL stream contract")
 		}
@@ -333,7 +333,7 @@ compozy status [flags]
 	t.Run("Should keep attached terminal streams human-only", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileTerminalInteractive, "compozy terminal attach")
+		result := renderOutputFormatsSection(body, OutputProfileTerminalInteractive)
 		if !strings.Contains(result, "do not serialize attached terminal bytes") {
 			t.Fatal("expected attached terminal stream warning")
 		}
@@ -345,7 +345,7 @@ compozy status [flags]
 	t.Run("Should require detach before structured terminal-open output", func(t *testing.T) {
 		t.Parallel()
 
-		result := renderOutputFormatsSection(body, OutputProfileTerminalOpen, "compozy terminal open")
+		result := renderOutputFormatsSection(body, OutputProfileTerminalOpen)
 		if !strings.Contains(result, "compozy status --detach -o json") {
 			t.Fatalf("terminal-open output example = %q, want detached JSON command", result)
 		}
@@ -355,9 +355,19 @@ compozy status [flags]
 		t.Parallel()
 
 		quoteBody := strings.ReplaceAll(body, "compozy status", "compozy terminal quote")
-		result := renderOutputFormatsSection(quoteBody, OutputProfileResult, "compozy terminal quote")
+		result := renderOutputFormatsSection(quoteBody, OutputProfileTerminalQuote)
 		if !strings.Contains(result, "compozy terminal quote --lines 1-5 -o json") {
 			t.Fatalf("terminal quote output example = %q, want an explicit line range", result)
+		}
+		if !strings.Contains(result, "Escaped `<terminal_context>` quote block") ||
+			strings.Contains(result, "Interactive terminal rendering") {
+			t.Fatalf("terminal quote output profile = %q, want truthful quote rendering", result)
+		}
+		if got := strings.Count(result, "`jsonl` | Not supported"); got != 1 {
+			t.Fatalf("terminal quote JSONL profile count = %d, want one unsupported row", got)
+		}
+		if got := strings.Count(result, "`toon` | Not supported"); got != 1 {
+			t.Fatalf("terminal quote TOON profile count = %d, want one unsupported row", got)
 		}
 	})
 

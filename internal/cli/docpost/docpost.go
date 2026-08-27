@@ -50,6 +50,8 @@ const (
 	OutputProfileTerminalInteractive OutputProfile = "terminal-interactive"
 	// OutputProfileTerminalOpen identifies a command that renders a result only when detached.
 	OutputProfileTerminalOpen OutputProfile = "terminal-open"
+	// OutputProfileTerminalQuote identifies a bounded terminal quote with human and JSON renderers.
+	OutputProfileTerminalQuote OutputProfile = "terminal-quote"
 )
 
 // Options supplies command-tree facts that Cobra's Markdown generator does

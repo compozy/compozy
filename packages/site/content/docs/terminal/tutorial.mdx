@@ -71,7 +71,8 @@ the OS shell or attach through the CLI to keep watching it. See
 
 From the agent session that controls this terminal, call `compozy__terminal_request_input` with the
 returned terminal ID, a reason, and the visible `Continue?` prompt excerpt. That operation creates
-the pending request and atomically yields control. Then list requests in the selected profile:
+the pending request and blocks until the request is answered, rejected, superseded, or expires. It
+does not yield the terminal lease. Then list requests in the selected profile:
 
 ```bash
 compozy terminal input-requests --workspace my-project -o json

@@ -4,7 +4,8 @@ import "github.com/compozy/compozy/internal/cmdpalette"
 
 var appOnlyDefinitions = []domainDefinition{
 	{id: "dashboard", title: "Home", icon: "home"},
-	{id: "session", title: "Session", icon: coreIconTerminal, keywords: []string{"agent", "terminal"}},
+	{id: "session", title: "Session", icon: coreIconTerminal, keywords: []string{"agent"}},
+	{id: "terminal", title: "Terminal", icon: coreIconTerminal, keywords: []string{"terminal", "journal", "pty"}},
 	{id: "new-tab", title: "New tab", icon: coreIconPlus},
 	{id: coreNetworkKey, title: "Network", icon: coreIconGlobe},
 	{id: "sandbox", title: "Sandbox", icon: "boxes"},

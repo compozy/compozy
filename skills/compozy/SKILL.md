@@ -1,6 +1,6 @@
 ---
 name: compozy
-description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
+description: Operate CompozyOS. Use when working with CompozyOS sessions, agents, native tools, skills, memory, Network, tasks, Loops, Goals, Terminal, desktops and windows, bridges, automation, extensions, or configuration. Don't use for unrelated projects.
 metadata:
   compozy:
     version: 1

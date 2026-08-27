@@ -29,14 +29,14 @@ compozy terminal quote <id> [flags]
 
 ## Output Formats
 
-The root `-o, --output` flag accepts these values. A renderer is supported only when this command writes that result; `jsonl` is for commands that emit one JSON record per line.
+This command renders a bounded terminal excerpt as an escaped quote block or a JSON record. It does not provide JSONL or TOON renderers.
 
-| Format  | Command result                          |
-| ------- | --------------------------------------- |
-| `human` | Interactive terminal rendering          |
-| `json`  | Machine-readable JSON rendering         |
-| `jsonl` | One JSON record per line when supported |
-| `toon`  | Compact agent-readable rendering        |
+| Format  | Command result                           |
+| ------- | ---------------------------------------- |
+| `human` | Escaped `<terminal_context>` quote block |
+| `json`  | Terminal quote record                    |
+| `jsonl` | Not supported                            |
+| `toon`  | Not supported                            |
 
 Example:
 

@@ -112,16 +112,16 @@ func (m *Service) authorizeExec(ctx context.Context, request ExecRequest, argv [
 	case "approved_once", "approved_always", "allowlisted":
 		return request, nil
 	}
-	if m.execApprovals == nil {
-		return ExecRequest{}, &Error{
-			Code: errorCodeApprovalRequired, Message: "agent terminal execution requires approval",
-			Err: ErrApprovalRequired,
-		}
-	}
 	classification := ClassifyArgv(argv, nil)
 	if classification.Verdict == CommandVerdictDenied {
 		return ExecRequest{}, &Error{
 			Code: "approval_rejected", Message: "terminal command is blocked by the irreversible-operation policy",
+			Err: ErrApprovalRejected,
+		}
+	}
+	if m.execApprovals == nil {
+		return ExecRequest{}, &Error{
+			Code: errorCodeApprovalRequired, Message: "agent terminal execution requires approval",
 			Err: ErrApprovalRequired,
 		}
 	}

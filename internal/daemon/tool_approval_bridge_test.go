@@ -16,6 +16,7 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/workspaceaccess"
+	"github.com/jonboulle/clockwork"
 )
 
 func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
@@ -86,6 +87,121 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		)
 		err := bridge.RequestToolApproval(
 			t.Context(),
+			toolspkg.Scope{SessionID: "sess-1"},
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			&view,
+		)
+		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
+	})
+
+	t.Run(
+		"Should keep terminal approval pending beyond four minutes and stop at an authorized end",
+		func(t *testing.T) {
+			t.Parallel()
+
+			tests := []struct {
+				name       string
+				toolID     toolspkg.ToolID
+				finish     func(*clockwork.FakeClock, context.CancelFunc)
+				wantReason toolspkg.ReasonCode
+			}{
+				{
+					name:   "Should expire terminal exec at the terminal approval limit",
+					toolID: toolspkg.ToolIDTerminalExec,
+					finish: func(clock *clockwork.FakeClock, _ context.CancelFunc) {
+						clock.Advance(11 * time.Minute)
+					},
+					wantReason: toolspkg.ReasonApprovalTimedOut,
+				},
+				{
+					name:   "Should stop another terminal approval when the caller cancels",
+					toolID: toolspkg.ToolIDTerminalOpen,
+					finish: func(_ *clockwork.FakeClock, cancel context.CancelFunc) {
+						cancel()
+					},
+					wantReason: toolspkg.ReasonApprovalCanceled,
+				},
+			}
+			for _, test := range tests {
+				t.Run(test.name, func(t *testing.T) {
+					t.Parallel()
+
+					clock := clockwork.NewFakeClock()
+					started := make(chan struct{})
+					stopped := make(chan struct{})
+					requester := permissionRequesterFunc(func(
+						ctx context.Context,
+						_ string,
+						_ acp.RequestPermissionRequest,
+					) (acp.RequestPermissionResponse, error) {
+						close(started)
+						<-ctx.Done()
+						close(stopped)
+						return acp.RequestPermissionResponse{}, ctx.Err()
+					})
+					bridge := newToolApprovalBridge(
+						func() sessionPermissionRequester { return requester },
+						2*time.Minute,
+						nil,
+						nil,
+						nil,
+					)
+					bridge.clock = clock
+					view := toolApprovalTestView()
+					view.Descriptor.ID = test.toolID
+					call := toolApprovalTestCall(test.toolID, "ws-1")
+					if test.toolID == toolspkg.ToolIDTerminalExec {
+						call.Input = json.RawMessage(`{"command":"bun","args":["test"]}`)
+					}
+					ctx, cancel := context.WithCancel(t.Context())
+					t.Cleanup(cancel)
+					result := make(chan error, 1)
+					go func() {
+						result <- bridge.RequestToolApproval(ctx, toolspkg.Scope{}, &call, &view)
+					}()
+					<-started
+
+					clock.Advance(4 * time.Minute)
+					select {
+					case err := <-result:
+						t.Fatalf("terminal approval ended after four minutes: %v", err)
+					default:
+					}
+
+					test.finish(clock, cancel)
+					err := <-result
+					requireToolApprovalReason(t, err, test.wantReason)
+					select {
+					case <-stopped:
+					default:
+						t.Fatal("permission requester remained blocked after approval ended")
+					}
+				})
+			}
+		},
+	)
+
+	t.Run("Should return approval_timed_out when the caller deadline has expired", func(t *testing.T) {
+		t.Parallel()
+
+		requester := permissionRequesterFunc(func(
+			ctx context.Context,
+			_ string,
+			_ acp.RequestPermissionRequest,
+		) (acp.RequestPermissionResponse, error) {
+			return acp.RequestPermissionResponse{}, ctx.Err()
+		})
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			nil,
+			nil,
+		)
+		ctx, cancel := context.WithDeadline(t.Context(), time.Unix(1, 0))
+		t.Cleanup(cancel)
+		err := bridge.RequestToolApproval(
+			ctx,
 			toolspkg.Scope{SessionID: "sess-1"},
 			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
@@ -499,41 +615,285 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 
 	view := toolApprovalTestView()
 
-	t.Run("Should prompt again for an unclassifiable terminal command despite a durable allow", func(t *testing.T) {
+	t.Run("Should prompt again for shell command strings despite a durable allow", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			input json.RawMessage
+		}{
+			{
+				name:  "Should ignore a grant for combined POSIX options through sudo",
+				input: json.RawMessage(`{"command":"sudo","args":["bash","-ec","echo hidden"]}`),
+			},
+			{
+				name:  "Should ignore a grant for encoded PowerShell through env",
+				input: json.RawMessage(`{"command":"env","args":["CI=1","pwsh","-ENC","SQBFAFgA"]}`),
+			},
+			{
+				name:  "Should ignore a grant for mixed case cmd options through env",
+				input: json.RawMessage(`{"command":"env","args":["ComSpec=cmd.exe","cmd.exe","/C","echo hidden"]}`),
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				terminalView := toolApprovalTestView()
+				terminalView.Descriptor.ID = toolspkg.ToolIDTerminalExec
+				call := toolApprovalTestCall(toolspkg.ToolIDTerminalExec, "ws-1")
+				call.Input = test.input
+				scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+				key, err := toolApprovalGrantKey(scope, call, toolspkg.ToolIDTerminalExec)
+				if err != nil {
+					t.Fatalf("toolApprovalGrantKey() error = %v", err)
+				}
+				grants := &recordingApprovalGrantStore{grants: []toolspkg.ApprovalGrant{
+					materializedApprovalGrant("grant-terminal", key, toolspkg.ApprovalGrantAllow),
+				}}
+				requester := selectedPermissionRequester(toolApprovalAllowOnceID)
+				bridge := newToolApprovalBridge(
+					func() sessionPermissionRequester { return requester },
+					time.Second,
+					nil,
+					grants,
+					nil,
+				)
+				if err := bridge.RequestToolApproval(t.Context(), scope, &call, &terminalView); err != nil {
+					t.Fatalf("RequestToolApproval() error = %v", err)
+				}
+				if got := len(requester.requests); got != 1 {
+					t.Fatalf("permission requests = %d, want 1 despite durable allow", got)
+				}
+				request := requester.lastRequest(t)
+				if got := request.Meta[acp.PermissionToolIDMetaKey]; got != toolspkg.ToolIDTerminalExec.String() {
+					t.Fatalf("permission tool id metadata = %#v, want %q", got, toolspkg.ToolIDTerminalExec)
+				}
+				if call.ApprovalLabel != "approved_once" {
+					t.Fatalf("approval label = %q, want approved_once", call.ApprovalLabel)
+				}
+				if got := request.Options; len(got) != 2 || got[0].OptionId != toolApprovalAllowOnceID ||
+					got[1].OptionId != toolApprovalRejectOnceID {
+					t.Fatalf("unclassifiable options = %#v, want allow-once and reject-once", got)
+				}
+			})
+		}
+	})
+
+	t.Run("Should offer no durable choice for a wrapped irreversible terminal command", func(t *testing.T) {
 		t.Parallel()
 
 		terminalView := toolApprovalTestView()
 		terminalView.Descriptor.ID = toolspkg.ToolIDTerminalExec
 		call := toolApprovalTestCall(toolspkg.ToolIDTerminalExec, "ws-1")
-		call.Input = json.RawMessage(`{"command":"sh","args":["-c","echo hidden"]}`)
-		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
-		key, err := toolApprovalGrantKey(scope, call, toolspkg.ToolIDTerminalExec)
-		if err != nil {
-			t.Fatalf("toolApprovalGrantKey() error = %v", err)
-		}
-		grants := &recordingApprovalGrantStore{grants: []toolspkg.ApprovalGrant{
-			materializedApprovalGrant("grant-terminal", key, toolspkg.ApprovalGrantAllow),
-		}}
+		call.Input = json.RawMessage(
+			`{"command":"sudo","args":["-u","root","rm","-rf","/var/lib/atlas/journal-backups"]}`,
+		)
 		requester := selectedPermissionRequester(toolApprovalAllowOnceID)
 		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			&recordingApprovalGrantStore{},
+			nil,
+		)
+		if err := bridge.RequestToolApproval(
+			t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, &call, &terminalView,
+		); err != nil {
+			t.Fatalf("RequestToolApproval() error = %v", err)
+		}
+		options := requester.lastRequest(t).Options
+		if len(options) != 2 || options[0].OptionId != toolApprovalAllowOnceID ||
+			options[1].OptionId != toolApprovalRejectOnceID {
+			t.Fatalf("irreversible options = %#v, want allow-once and reject-once", options)
+		}
+	})
+
+	t.Run("Should ignore wider terminal grants returned by the store", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct {
+			toolID toolspkg.ToolID
+			input  json.RawMessage
+		}{
+			{toolID: toolspkg.ToolIDTerminalExec, input: json.RawMessage(`{"command":"bun","args":["test"]}`)},
+			{toolID: toolspkg.ToolIDTerminalWrite, input: json.RawMessage(
+				`{"terminal_id":"term-aaaaaaaaaaaa","grant_generation":3}`,
+			)},
+		}
+		for _, testCase := range cases {
+			terminalView := toolApprovalTestView()
+			terminalView.Descriptor.ID = testCase.toolID
+			call := toolApprovalTestCall(testCase.toolID, "ws-1")
+			call.Input = testCase.input
+			broad := materializedApprovalGrant("grant-broad", toolspkg.ApprovalGrantKey{
+				ProfileID: store.DefaultProfileID, WorkspaceID: "ws-1", AgentName: "codex",
+				ToolID: testCase.toolID,
+			}, toolspkg.ApprovalGrantAllow)
+			requester := selectedPermissionRequester(toolApprovalAllowOnceID)
+			bridge := newToolApprovalBridge(
+				func() sessionPermissionRequester { return requester },
+				time.Second,
+				nil,
+				&recordingApprovalGrantStore{lookupGrant: &broad},
+				nil,
+			)
+			if err := bridge.RequestToolApproval(
+				t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, &call, &terminalView,
+			); err != nil {
+				t.Fatalf("RequestToolApproval(%s) error = %v", testCase.toolID, err)
+			}
+			if len(requester.requests) != 1 {
+				t.Fatalf(
+					"permission requests for %s = %d, want prompt after wider grant",
+					testCase.toolID,
+					len(requester.requests),
+				)
+			}
+		}
+	})
+
+	t.Run("Should reject an unavailable durable answer for an irreversible command", func(t *testing.T) {
+		t.Parallel()
+
+		terminalView := toolApprovalTestView()
+		terminalView.Descriptor.ID = toolspkg.ToolIDTerminalExec
+		call := toolApprovalTestCall(toolspkg.ToolIDTerminalExec, "ws-1")
+		call.Input = json.RawMessage(`{"command":"rm","args":["-rf","/var/lib/atlas/journal-backups"]}`)
+		grants := &recordingApprovalGrantStore{}
+		bridge := newToolApprovalBridge(
+			func() sessionPermissionRequester { return selectedPermissionRequester(toolApprovalAllowAlwaysID) },
+			time.Second,
+			nil,
+			grants,
+			nil,
+		)
+		err := bridge.RequestToolApproval(
+			t.Context(), toolspkg.Scope{ProfileID: store.DefaultProfileID}, &call, &terminalView,
+		)
+		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalUnreachable)
+		if len(grants.grants) != 0 {
+			t.Fatalf("durable grants = %#v, want none", grants.grants)
+		}
+	})
+
+	t.Run("Should digest terminal command shape and typing identity", func(t *testing.T) {
+		t.Parallel()
+
+		scope := toolspkg.Scope{ProfileID: store.DefaultProfileID}
+		first := toolApprovalTestCall(toolspkg.ToolIDTerminalExec, "ws-1")
+		first.Input = json.RawMessage(
+			`{"command":"bun","args":["test"],"cwd":"web","env":{"CI":"1"},"visible":true,"yield_ms":1000}`,
+		)
+		second := first
+		second.Input = json.RawMessage(
+			`{"yield_ms":30000,"output":{"max_bytes":10},"env":{"CI":"1"},"cwd":"web","args":["test"],"command":"bun","visible":false}`,
+		)
+		changed := first
+		changed.Input = json.RawMessage(`{"command":"bun","args":["test","unit"],"cwd":"web","env":{"CI":"1"}}`)
+		firstKey, err := toolApprovalGrantKey(scope, first, toolspkg.ToolIDTerminalExec)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(first) error = %v", err)
+		}
+		secondKey, err := toolApprovalGrantKey(scope, second, toolspkg.ToolIDTerminalExec)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(second) error = %v", err)
+		}
+		changedKey, err := toolApprovalGrantKey(scope, changed, toolspkg.ToolIDTerminalExec)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(changed) error = %v", err)
+		}
+		if firstKey.InputDigest != secondKey.InputDigest || firstKey.InputDigest == changedKey.InputDigest {
+			t.Fatalf(
+				"terminal exec digests = %q, %q, %q, want presentation-independent command shape",
+				firstKey.InputDigest,
+				secondKey.InputDigest,
+				changedKey.InputDigest,
+			)
+		}
+
+		writeA := toolApprovalTestCall(toolspkg.ToolIDTerminalWrite, "ws-1")
+		writeA.Input = json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","grant_generation":3}`)
+		writeB := writeA
+		writeB.Input = json.RawMessage(`{"grant_generation":3,"terminal_id":"term-aaaaaaaaaaaa"}`)
+		writeC := writeA
+		writeC.Input = json.RawMessage(`{"terminal_id":"term-bbbbbbbbbbbb","grant_generation":3}`)
+		writeD := writeA
+		writeD.Input = json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","grant_generation":4}`)
+		writeKeyA, err := toolApprovalGrantKey(scope, writeA, toolspkg.ToolIDTerminalWrite)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(write A) error = %v", err)
+		}
+		writeKeyB, err := toolApprovalGrantKey(scope, writeB, toolspkg.ToolIDTerminalWrite)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(write B) error = %v", err)
+		}
+		writeKeyC, err := toolApprovalGrantKey(scope, writeC, toolspkg.ToolIDTerminalWrite)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(write C) error = %v", err)
+		}
+		writeKeyD, err := toolApprovalGrantKey(scope, writeD, toolspkg.ToolIDTerminalWrite)
+		if err != nil {
+			t.Fatalf("toolApprovalGrantKey(write D) error = %v", err)
+		}
+		if writeKeyA.InputDigest != writeKeyB.InputDigest || writeKeyA.InputDigest == writeKeyC.InputDigest ||
+			writeKeyA.InputDigest == writeKeyD.InputDigest {
+			t.Fatalf(
+				"terminal write digests = %q, %q, %q, %q, want exact terminal generation identity",
+				writeKeyA.InputDigest,
+				writeKeyB.InputDigest,
+				writeKeyC.InputDigest,
+				writeKeyD.InputDigest,
+			)
+		}
+	})
+
+	t.Run("Should preserve terminal environment in prompt-origin grant identity", func(t *testing.T) {
+		t.Parallel()
+
+		requester := selectedPermissionRequester(toolApprovalAllowAlwaysID)
+		grants := &recordingApprovalGrantStore{}
+		approval := newToolApprovalBridge(
 			func() sessionPermissionRequester { return requester },
 			time.Second,
 			nil,
 			grants,
 			nil,
 		)
-		if err := bridge.RequestToolApproval(t.Context(), scope, &call, &terminalView); err != nil {
-			t.Fatalf("RequestToolApproval() error = %v", err)
+		terminalApproval := newTerminalPermissionBridge()
+		terminalApproval.bind(approval)
+		request := terminalpkg.ExecRequest{
+			WS: "ws-1", Command: "bun", Args: []string{"test"}, Cwd: "web", Env: map[string]string{"CI": "1"},
+			Actor: terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindAgent, ID: "codex", ProfileID: store.DefaultProfileID,
+				SessionID: "sess-1",
+			},
+		}
+		classification := terminalpkg.CommandClassification{
+			Verdict: terminalpkg.CommandVerdictPrompt,
+			Reason:  "approval_required",
+		}
+		for attempt := range 2 {
+			if _, err := terminalApproval.AuthorizeTerminalExec(t.Context(), request, classification); err != nil {
+				t.Fatalf("AuthorizeTerminalExec(same env, attempt %d) error = %v", attempt, err)
+			}
 		}
 		if got := len(requester.requests); got != 1 {
-			t.Fatalf("permission requests = %d, want 1 despite durable allow", got)
+			t.Fatalf("permission requests for repeated environment = %d, want 1", got)
 		}
-		request := requester.lastRequest(t)
-		if got := request.Meta[acp.PermissionToolIDMetaKey]; got != toolspkg.ToolIDTerminalExec.String() {
-			t.Fatalf("permission tool id metadata = %#v, want %q", got, toolspkg.ToolIDTerminalExec)
+
+		request.Env = map[string]string{"CI": "0"}
+		if _, err := terminalApproval.AuthorizeTerminalExec(t.Context(), request, classification); err != nil {
+			t.Fatalf("AuthorizeTerminalExec(changed env) error = %v", err)
 		}
-		if call.ApprovalLabel != "approved_once" {
-			t.Fatalf("approval label = %q, want approved_once", call.ApprovalLabel)
+		if got := len(requester.requests); got != 2 {
+			t.Fatalf("permission requests after environment change = %d, want 2", got)
+		}
+		if got := len(grants.grants); got != 2 {
+			t.Fatalf("durable grants = %#v, want two environment-specific grants", grants.grants)
+		}
+		if grants.grants[0].InputDigest == grants.grants[1].InputDigest {
+			t.Fatalf("environment-specific input digests = %q, want distinct values", grants.grants[0].InputDigest)
 		}
 	})
 
@@ -810,9 +1170,10 @@ func (r *recordingPermissionRequester) lastRequest(t *testing.T) acp.RequestPerm
 }
 
 type recordingApprovalGrantStore struct {
-	grants    []toolspkg.ApprovalGrant
-	lookupErr error
-	putErr    error
+	grants      []toolspkg.ApprovalGrant
+	lookupGrant *toolspkg.ApprovalGrant
+	lookupErr   error
+	putErr      error
 }
 
 var _ toolspkg.ApprovalGrantStore = (*recordingApprovalGrantStore)(nil)
@@ -823,6 +1184,9 @@ func (s *recordingApprovalGrantStore) LookupApprovalGrant(
 ) (toolspkg.ApprovalGrant, bool, error) {
 	if s.lookupErr != nil {
 		return toolspkg.ApprovalGrant{}, false, s.lookupErr
+	}
+	if s.lookupGrant != nil {
+		return *s.lookupGrant, true, nil
 	}
 	for _, grant := range s.grants {
 		if grant.ApprovalGrantKey == key {

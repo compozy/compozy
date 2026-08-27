@@ -107,6 +107,9 @@ func TestDocOutputProfilesReflectCommandBehavior(t *testing.T) {
 			want: docpost.OutputProfileHelp,
 		},
 		"compozy layout watch": {want: docpost.OutputProfileHumanJSONL},
+		"compozy terminal quote": {
+			want: docpost.OutputProfileTerminalQuote,
+		},
 		"compozy completion bash": {
 			want: docpost.OutputProfileRaw,
 		},

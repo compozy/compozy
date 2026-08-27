@@ -33,6 +33,7 @@ Unknown TOML keys are errors. Sandbox profiles are implemented under `[sandboxes
 | `[http]`                             | HTTP and SSE bind address.                                                           | `host = "localhost"`, `port = 2123`                                                                   |
 | `[app]`                              | Desktop app update-check policy.                                                     | checks enabled every 6 hours                                                                          |
 | `[attention]`                        | Live operator notification delivery and per-workspace mute policy.                   | toasts and sound on, system notifications off, no muted workspaces                                    |
+| `[terminal]`                         | Live terminal process, retention, recording, and capacity policy.                    | user shell, 1 MiB scrollback, 24h idle TTL, recording off, caps 8/32/16                               |
 | `[shell.sessions]`                   | Live operator preferences for the session list.                                      | last-activity order, recent sessions                                                                  |
 | `[cmd_palette]`                      | Command fallback targets, personalization, and workspace aliases.                    | agent fallback target, personalization on, no aliases                                                 |
 | `[window_manager]`                   | Live virtual-desktop, focus, snap, layout, transition, and shortcut defaults.        | floating windows, adaptive stacks, 50-entry history, slide transition                                 |
@@ -156,6 +157,18 @@ update_check_interval = "6h"
 toasts = true
 sound = true
 system = false
+
+[terminal]
+default_shell = ""
+shell_integration = true
+scrollback_bytes = 1048576
+detached_ttl = "24h"
+exit_retention = "15m"
+recording = false
+recording_retention_days = 30
+max_per_workspace = 8
+max_per_daemon = 32
+max_subscribers = 16
 
 [shell.sessions]
 # Session ordering: "last_activity" or "attention".
@@ -982,6 +995,30 @@ Workspace mutes are profile-owned rows, not `config.toml` fields. Read or replac
 profile's set with `GET/PATCH /api/settings/attention?scope=user`; use
 `scope=profile&profile=<name>` for another profile. Removing a workspace deletes its mute rows from
 every profile. Unmuting never replays notifications that were suppressed.
+
+## `[terminal]`
+
+Terminal settings apply live as one validated candidate. Operators and agents can read or change
+them with `compozy config get|set|unset terminal.<key> -o json`; the native `compozy__config_*`
+mutation surface does not expose these paths.
+
+| Field                      | Type     | Default   | Validation                                          | Description                                                                                                                  |
+| -------------------------- | -------- | --------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `default_shell`            | string   | `""`      | Empty, a bare executable name, or an absolute path. | Shell selected for later interactive terminals.                                                                              |
+| `shell_integration`        | boolean  | `true`    | `true` or `false`                                   | Enables authenticated command-boundary markers.                                                                              |
+| `scrollback_bytes`         | integer  | `1048576` | Positive.                                           | Bounded in-memory scrollback bytes per terminal.                                                                             |
+| `detached_ttl`             | duration | `24h`     | Positive.                                           | Reclaims an idle terminal with no viewers.                                                                                   |
+| `exit_retention`           | duration | `15m`     | Positive.                                           | Keeps an exited terminal readable before expiry.                                                                             |
+| `recording`                | boolean  | `false`   | `true` or `false`                                   | Starts recording for new terminals created by terminal open operations through supported CLI, API, and native-tool surfaces. |
+| `recording_retention_days` | integer  | `30`      | Positive.                                           | Retains saved recordings for this many days.                                                                                 |
+| `max_per_workspace`        | integer  | `8`       | Positive.                                           | Per-profile, per-workspace live-terminal cap.                                                                                |
+| `max_per_daemon`           | integer  | `32`      | Positive.                                           | Daemon-global live-terminal cap.                                                                                             |
+| `max_subscribers`          | integer  | `16`      | Positive.                                           | Concurrent viewer cap per terminal.                                                                                          |
+
+Workspace overlays may set all ten keys. Profile overlays may set nine; they reject
+`terminal.max_per_daemon` with `profile_config_key_denied` because one daemon owns that global cap.
+Changing `recording` affects new terminals created by later terminal open operations and does not
+start recording an existing terminal.
 
 ## `[shell.sessions]`
 

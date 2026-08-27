@@ -37,7 +37,7 @@ func enrichDocument(
 	body = strings.TrimSpace(body)
 
 	var sections []string
-	if section := renderOutputFormatsSection(body, outputProfile, current.commandName()); section != "" {
+	if section := renderOutputFormatsSection(body, outputProfile); section != "" {
 		sections = append(sections, section)
 	}
 	if section := renderSubcommandsSection(current, inputs, targets); section != "" {
@@ -87,7 +87,7 @@ func extractDescription(raw string) string {
 	return ""
 }
 
-func renderOutputFormatsSection(body string, outputProfile OutputProfile, commandName string) string {
+func renderOutputFormatsSection(body string, outputProfile OutputProfile) string {
 	if !strings.Contains(body, "--output string") {
 		return ""
 	}
@@ -101,7 +101,8 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile, comman
 
 	if outputProfile == OutputProfileResult ||
 		outputProfile == OutputProfileHumanJSONL ||
-		outputProfile == OutputProfileTerminalOpen {
+		outputProfile == OutputProfileTerminalOpen ||
+		outputProfile == OutputProfileTerminalQuote {
 		usage := extractOutputExampleLine(body)
 		if usage == "" {
 			usage = extractUsageLine(body)
@@ -109,7 +110,7 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile, comman
 		if usage == "" {
 			return b.String()
 		}
-		if commandName == "compozy terminal quote" {
+		if outputProfile == OutputProfileTerminalQuote {
 			usage += " --lines 1-5"
 		}
 		b.WriteString("\nExample:\n\n```bash\n")
@@ -229,6 +230,8 @@ func renderOutputFormatProfile(outputProfile OutputProfile) string {
 				"Detached terminal record",
 				"Detached terminal record",
 			)
+	case OutputProfileTerminalQuote:
+		return renderTerminalQuoteOutputProfile()
 	default:
 		return "The root `-o, --output` flag accepts these values. A renderer is supported only when " +
 			"this command writes that result; `jsonl` is for commands that emit one JSON record per line.\n\n" +
@@ -240,6 +243,18 @@ func renderOutputFormatProfile(outputProfile OutputProfile) string {
 				"Compact agent-readable rendering",
 			)
 	}
+}
+
+func renderTerminalQuoteOutputProfile() string {
+	return "This command renders a bounded terminal excerpt as an escaped quote block or a JSON record. " +
+		"It does not provide JSONL or TOON renderers.\n\n" +
+		renderOutputFormatTable(
+			"Command result",
+			"Escaped `<terminal_context>` quote block",
+			"Terminal quote record",
+			"Not supported",
+			"Not supported",
+		)
 }
 
 func renderOutputFormatTable(header, human, jsonOutput, jsonl, toon string) string {

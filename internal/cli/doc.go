@@ -93,6 +93,8 @@ func docOutputProfiles(root *cobra.Command) map[string]docpost.OutputProfile {
 			profile = docpost.OutputProfileTerminalInteractive
 		case "compozy terminal open":
 			profile = docpost.OutputProfileTerminalOpen
+		case "compozy terminal quote":
+			profile = docpost.OutputProfileTerminalQuote
 		}
 		if strings.HasPrefix(command.CommandPath(), "compozy completion ") {
 			profile = docpost.OutputProfileRaw

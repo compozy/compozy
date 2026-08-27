@@ -105,13 +105,15 @@ func TestApprovalGrantSetRequestBuildGrant(t *testing.T) {
 	t.Run("Should reject wider terminal write grants", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := (ApprovalGrantSetRequest{
-			ToolID: ToolIDTerminalWrite, Decision: ApprovalGrantAllow, Scope: ApprovalGrantScopeAgent,
-			AgentName: "codex",
-		}).BuildGrant(store.DefaultProfileID, "ws-1")
-		if !errors.Is(err, ErrApprovalGrantInvalid) ||
-			!strings.Contains(err.Error(), "requires an exact input grant") {
-			t.Fatalf("BuildGrant(terminal_write) error = %v, want exact-input refusal", err)
+		for _, toolID := range []ToolID{ToolIDTerminalWrite, ToolIDTerminalExec} {
+			_, err := (ApprovalGrantSetRequest{
+				ToolID: toolID, Decision: ApprovalGrantAllow, Scope: ApprovalGrantScopeAgent,
+				AgentName: "codex",
+			}).BuildGrant(store.DefaultProfileID, "ws-1")
+			if !errors.Is(err, ErrApprovalGrantInvalid) ||
+				!strings.Contains(err.Error(), "requires an exact prompt-origin grant") {
+				t.Fatalf("BuildGrant(%s) error = %v, want exact prompt-origin refusal", toolID, err)
+			}
 		}
 	})
 }
