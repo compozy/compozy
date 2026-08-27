@@ -145,7 +145,7 @@ export function TerminalView({
   return (
     <div
       className={cn("relative min-h-0 min-w-0 flex-1 overflow-hidden", className)}
-      data-readonly={readOnly ? "true" : undefined}
+      data-readonly={readOnly ? "true" : "false"}
       data-renderer={renderer ?? undefined}
       data-slot="terminal-view"
       ref={containerRef}

@@ -48,11 +48,19 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if err != nil {
 		return nil, errors.Join(err, reader.Close(), closeUnixDevice(device))
 	}
+	// The context bounds startup only. The returned Proc owns the interactive
+	// process lifetime after an HTTP create request has completed.
 	// #nosec G204 -- argv is the resolved shell command from the validated terminal request.
-	command := exec.CommandContext(ctx, setup.argv[0], setup.argv[1:]...)
+	command := exec.CommandContext(context.WithoutCancel(ctx), setup.argv[0], setup.argv[1:]...)
 	command.Dir = spec.Cwd
 	command.Env = environment(setup.env)
 	procutil.ConfigureCommandTerminalSession(command)
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start context: %w", err),
+			setup.cleanup(), reader.Close(), closeUnixDevice(device),
+		)
+	}
 	if err := device.Start(command); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err),
@@ -67,6 +75,13 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 				reader.Close(), device.Master().Close(), setup.cleanup(),
 			)
 		}
+	}
+	if err := ctx.Err(); err != nil {
+		cleanupErr := terminateStartedCommand(command)
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start context: %w", err),
+			cleanupErr, reader.Close(), closeUnixDevice(device), setup.cleanup(),
+		)
 	}
 	proc := &unixProc{
 		device: device, reader: reader, command: command, waiter: newProcessWaiter(),

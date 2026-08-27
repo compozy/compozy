@@ -240,6 +240,7 @@ function createInstance(
  * reattached buffer wired to the pane on screen.
  */
 function bindInstanceEvents(instance: TerminalInstance): void {
+  instance.terminal.attachCustomKeyEventHandler(event => !isHostAccelerator(event));
   const data = instance.terminal.onData(payload => {
     notifyTerminalInstance(instance, listener => listener.onData(payload));
   });
@@ -253,6 +254,21 @@ function bindInstanceEvents(instance: TerminalInstance): void {
     () => selection.dispose(),
     theme
   );
+}
+
+/** Lets product shortcuts reach the browser or desktop shell while the terminal owns focus. */
+function isHostAccelerator(event: KeyboardEvent): boolean {
+  if ((!event.metaKey && !event.ctrlKey) || event.altKey) return false;
+  switch (event.key.toLowerCase()) {
+    case "+":
+    case "=":
+    case "-":
+    case "0":
+    case "k":
+      return true;
+    default:
+      return false;
+  }
 }
 
 /** Re-resolves palette and metrics from live CSS, writing only on drift. */

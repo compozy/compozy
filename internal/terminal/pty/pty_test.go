@@ -26,6 +26,28 @@ import (
 )
 
 func TestUnixPTYHardening(t *testing.T) {
+	t.Run("Should keep a started interactive process alive after startup context cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		proc, err := New().Start(ctx, ProcSpec{
+			Argv: []string{"sh", "-c", "sleep 300"}, Cwd: t.TempDir(),
+			Mode: ModePTY, Cols: 80, Rows: 24,
+		})
+		if err != nil {
+			cancel()
+			t.Fatalf("Start() error = %v", err)
+		}
+		defer stopTestProc(t, proc)
+
+		cancel()
+		waitCtx, stopWaiting := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer stopWaiting()
+		if exit, waitErr := proc.Wait(waitCtx); !errors.Is(waitErr, context.DeadlineExceeded) {
+			t.Fatalf("Wait() = %#v error=%v, want live process after startup context cancellation", exit, waitErr)
+		}
+	})
+
 	t.Run("Should distinguish visible shell editing from hidden input [UT-092]", func(t *testing.T) {
 		proc := startTestProc(
 			t,

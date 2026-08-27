@@ -173,6 +173,7 @@ function createFakeTerminal(
         dispose: () => selectionListeners.splice(selectionListeners.indexOf(listener), 1),
       };
     },
+    attachCustomKeyEventHandler: () => undefined,
     emitData: (payload: string) => {
       for (const listener of Array.from(dataListeners)) listener(payload);
     },

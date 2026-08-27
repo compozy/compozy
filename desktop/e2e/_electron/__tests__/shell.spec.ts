@@ -120,6 +120,20 @@ async function invokeGlobalShortcut(desktop: DesktopInstance, accelerator: strin
   if (!invoked) throw new Error(`Global shortcut ${accelerator} is not registered.`);
 }
 
+async function pressProductAccelerator(desktop: DesktopInstance, keyCode: string): Promise<void> {
+  await desktop.app.evaluate(({ BrowserWindow }, key) => {
+    const productWindow = BrowserWindow.getAllWindows().find(window =>
+      /^https?:/u.test(window.webContents.getURL())
+    );
+    if (!productWindow) throw new Error("Product window missing before accelerator input.");
+    const modifiers: Electron.InputEvent["modifiers"] = [
+      process.platform === "darwin" ? "meta" : "control",
+    ];
+    productWindow.webContents.sendInputEvent({ type: "keyDown", keyCode: key, modifiers });
+    productWindow.webContents.sendInputEvent({ type: "keyUp", keyCode: key, modifiers });
+  }, keyCode);
+}
+
 async function copyPaletteExtensionFixture(home: string): Promise<string> {
   const source = join(home, "fixtures", "palette-fixture-go");
   await cp(
@@ -1085,14 +1099,14 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   await product.keyboard.press(`${acceleratorModifier}+V`);
   await product.keyboard.press("Enter");
   const pastedRow = terminalWindow
-    .locator(".xterm-rows > div", { hasText: "desktop-clipboard-paste" })
+    .locator(".xterm-accessibility-tree > div", { hasText: "desktop-clipboard-paste" })
     .last();
   await expect(pastedRow).toBeVisible();
   const pastedBox = await pastedRow.boundingBox();
   if (!pastedBox) throw new Error("Pasted terminal output has no layout box.");
-  await product.mouse.move(pastedBox.x + 4, pastedBox.y + pastedBox.height / 2);
+  await product.mouse.move(pastedBox.x - 1, pastedBox.y + pastedBox.height / 2);
   await product.mouse.down();
-  await product.mouse.move(pastedBox.x + pastedBox.width - 4, pastedBox.y + pastedBox.height / 2, {
+  await product.mouse.move(pastedBox.x + pastedBox.width + 1, pastedBox.y + pastedBox.height / 2, {
     steps: 8,
   });
   await product.mouse.up();
@@ -1101,24 +1115,32 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
     .poll(async () => await desktop.app.evaluate(({ clipboard }) => clipboard.readText()))
     .toContain("desktop-clipboard-paste");
 
-  const cellRow = terminalWindow.locator(".xterm-rows > div").first();
-  const initialCellHeight = (await cellRow.boundingBox())?.height;
-  if (!initialCellHeight) throw new Error("Terminal cell metrics were unavailable before zoom.");
+  const productZoomFactor = async () =>
+    await desktop.app.evaluate(({ BrowserWindow }) => {
+      const productWindow = BrowserWindow.getAllWindows().find(window =>
+        /^https?:/u.test(window.webContents.getURL())
+      );
+      if (!productWindow) throw new Error("Product window missing before terminal zoom probe.");
+      return productWindow.webContents.getZoomFactor();
+    });
+  const initialZoomFactor = await productZoomFactor();
   const initialGrid = await terminalWindow.getByTestId("terminal-size-vote").textContent();
-  await product.keyboard.press(`${acceleratorModifier}++`);
-  await expect.poll(async () => (await cellRow.boundingBox())?.height).not.toBe(initialCellHeight);
+  await pressProductAccelerator(desktop, "=");
+  await expect.poll(productZoomFactor).not.toBe(initialZoomFactor);
   await expect
     .poll(async () => await terminalWindow.getByTestId("terminal-size-vote").textContent())
     .not.toBe(initialGrid);
-  await product.keyboard.press(`${acceleratorModifier}+-`);
+  await pressProductAccelerator(desktop, "-");
 
   await product.keyboard.press(`${acceleratorModifier}+K`);
   await expect(product.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   await expect(terminalGrid).toContainText("desktop-shell-echo");
   await product.keyboard.press("Escape");
+  await expect(product.getByRole("dialog", { name: "Command palette" })).toBeHidden();
 
   await terminalWindow.locator(".xterm-helper-textarea").focus();
-  const imePayload = `node -e "process.stdout.write('\\x1b[2J\\x1b[H漢字\\n')"`;
+  const imeEvidencePath = join(desktop.home, "terminal-ime-evidence.txt");
+  const imePayload = `node -e "require('node:fs').appendFileSync(process.argv[1], '漢字\\n'); process.stdout.write('\\x1b[2J\\x1b[H漢字\\n')" ${JSON.stringify(imeEvidencePath)}`;
   const cdp = await product.context().newCDPSession(product);
   await cdp.send("Input.imeSetComposition", {
     text: imePayload,
@@ -1128,8 +1150,16 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   await cdp.send("Input.insertText", { text: imePayload });
   await product.keyboard.press("Enter");
   await expect(terminalGrid).toContainText("漢字");
-  const renderedCJK = await terminalWindow.locator(".xterm-rows").innerText();
-  expect(renderedCJK.match(/漢字/gu)).toHaveLength(1);
+  await expect
+    .poll(async () => {
+      try {
+        return await readFile(imeEvidencePath, "utf8");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") return "";
+        throw error;
+      }
+    })
+    .toBe("漢字\n");
 });
 
 test("E2E-034: packaged windows enforce security boundaries and intentional debugging", async ({

@@ -171,6 +171,7 @@ export const stubEngineLoader = (): Promise<TerminalEngine> =>
         dispose: () => undefined,
         getSelection: () => "",
         getSelectionPosition: () => undefined,
+        attachCustomKeyEventHandler: () => undefined,
         onData: () => ({ dispose: () => undefined }),
         onSelectionChange: () => ({ dispose: () => undefined }),
       }) as unknown as ReturnType<TerminalEngine["createTerminal"]>,
