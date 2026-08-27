@@ -581,6 +581,37 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			t.Fatalf("timeline branch response = status %d body %q", status, body)
 		}
 	})
+	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
+		ctx := loopReadJourneyContext(t)
+		needsYou := runLoopWithHumanGate(t, ctx, harness)
+		waitForLoopRunStatus(t, ctx, harness, needsYou.ID, compozycontract.LoopRunStatusNeedsApproval)
+		activeIDs := make([]string, 0, 3)
+		for range 3 {
+			active := runLoopViaHTTP(t, ctx, harness, loopReadWaitingLoopName)
+			activeIDs = append(activeIDs, active.ID)
+			waitForLoopRunStatus(t, ctx, harness, active.ID, compozycontract.LoopRunStatusWatching)
+		}
+
+		httpRuns := drainLoopRunsTransport(t, ctx, harness, "http", 2)
+		udsRuns := drainLoopRunsTransport(t, ctx, harness, "uds", 2)
+		cliRuns := drainLoopRunsCLI(t, ctx, harness, 2)
+		want := loopRunReadProjections(httpRuns)
+		if got := loopRunReadProjections(udsRuns); !reflect.DeepEqual(got, want) {
+			t.Fatalf("UDS run projections = %#v, want HTTP %#v", got, want)
+		}
+		if got := loopRunReadProjections(cliRuns); !reflect.DeepEqual(got, want) {
+			t.Fatalf("CLI run projections = %#v, want HTTP %#v", got, want)
+		}
+		repeated := loopRunReadProjections(drainLoopRunsTransport(t, ctx, harness, "http", 2))
+		if !reflect.DeepEqual(repeated, want) {
+			t.Fatalf("repeated HTTP cursor walk = %#v, want %#v", repeated, want)
+		}
+		assertLoopRunReadOrdering(t, httpRuns)
+		assertLoopRunReadSummary(t, httpRuns, needsYou.ID, "approval", 1, 1, 2)
+		for _, activeID := range activeIDs {
+			assertLoopRunReadSummary(t, httpRuns, activeID, "", 0, 0, 1)
+		}
+	})
 	t.Run("Should reflect a real node verb in the roster and reject its stale replay IT-027", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
 		quarantinedRun := runLoopViaHTTP(t, ctx, harness, loopReadQuarantineLoopName)
@@ -650,52 +681,6 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			logLoopRunTimeoutDebug(t, harness, quarantinedRun.ID, compozycontract.LoopRunPayload{})
 		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
-
-		var killed compozycontract.LoopMutationResponse
-		if err := harness.HTTPJSON(
-			ctx,
-			http.MethodPost,
-			loopReadRunPath(harness.WorkspaceID, quarantinedRun.ID)+"/kill",
-			nil,
-			&killed,
-		); err != nil {
-			t.Fatalf("kill quarantined Loop after requeue journey error = %v", err)
-		}
-		if !killed.OK || killed.RunID != quarantinedRun.ID {
-			t.Fatalf("kill quarantined Loop response = %#v", killed)
-		}
-		waitForLoopRunStatus(t, ctx, harness, quarantinedRun.ID, compozycontract.LoopRunStatusCanceled)
-	})
-	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
-		ctx := loopReadJourneyContext(t)
-		needsYou := runLoopWithHumanGate(t, ctx, harness)
-		waitForLoopRunStatus(t, ctx, harness, needsYou.ID, compozycontract.LoopRunStatusNeedsApproval)
-		activeIDs := make([]string, 0, 3)
-		for range 3 {
-			active := runLoopViaHTTP(t, ctx, harness, loopReadWaitingLoopName)
-			activeIDs = append(activeIDs, active.ID)
-			waitForLoopRunStatus(t, ctx, harness, active.ID, compozycontract.LoopRunStatusWatching)
-		}
-
-		httpRuns := drainLoopRunsTransport(t, ctx, harness, "http", 2)
-		udsRuns := drainLoopRunsTransport(t, ctx, harness, "uds", 2)
-		cliRuns := drainLoopRunsCLI(t, ctx, harness, 2)
-		want := loopRunReadProjections(httpRuns)
-		if got := loopRunReadProjections(udsRuns); !reflect.DeepEqual(got, want) {
-			t.Fatalf("UDS run projections = %#v, want HTTP %#v", got, want)
-		}
-		if got := loopRunReadProjections(cliRuns); !reflect.DeepEqual(got, want) {
-			t.Fatalf("CLI run projections = %#v, want HTTP %#v", got, want)
-		}
-		repeated := loopRunReadProjections(drainLoopRunsTransport(t, ctx, harness, "http", 2))
-		if !reflect.DeepEqual(repeated, want) {
-			t.Fatalf("repeated HTTP cursor walk = %#v, want %#v", repeated, want)
-		}
-		assertLoopRunReadOrdering(t, httpRuns)
-		assertLoopRunReadSummary(t, httpRuns, needsYou.ID, "approval", 1, 1, 2)
-		for _, activeID := range activeIDs {
-			assertLoopRunReadSummary(t, httpRuns, activeID, "", 0, 0, 1)
-		}
 	})
 }
 
