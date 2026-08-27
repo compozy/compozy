@@ -653,7 +653,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			logLoopRunTimeoutDebug(t, harness, quarantinedRun.ID, compozycontract.LoopRunPayload{})
 		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
-		cancelLoopReadRun(t, ctx, harness, quarantinedRun.ID)
+		killLoopReadRun(t, ctx, harness, quarantinedRun.ID)
 	})
 	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
@@ -712,6 +712,27 @@ func cancelLoopReadRun(
 		harness.WorkspaceRoot,
 	); err != nil {
 		t.Fatalf("cancel Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
+	}
+	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
+}
+
+func killLoopReadRun(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) {
+	t.Helper()
+	if _, stderr, err := harness.CLI.Run(
+		ctx,
+		"loop",
+		"kill",
+		"--run-id",
+		runID,
+		"--workspace",
+		harness.WorkspaceRoot,
+	); err != nil {
+		t.Fatalf("kill Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
 	}
 	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
 }
