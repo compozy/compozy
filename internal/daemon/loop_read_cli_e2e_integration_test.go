@@ -651,18 +651,18 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
 
-		var canceled compozycontract.LoopMutationResponse
+		var killed compozycontract.LoopMutationResponse
 		if err := harness.HTTPJSON(
 			ctx,
 			http.MethodPost,
-			loopReadRunPath(harness.WorkspaceID, quarantinedRun.ID)+"/cancel",
+			loopReadRunPath(harness.WorkspaceID, quarantinedRun.ID)+"/kill",
 			nil,
-			&canceled,
+			&killed,
 		); err != nil {
-			t.Fatalf("cancel quarantined Loop after requeue journey error = %v", err)
+			t.Fatalf("kill quarantined Loop after requeue journey error = %v", err)
 		}
-		if !canceled.OK || canceled.RunID != quarantinedRun.ID {
-			t.Fatalf("cancel quarantined Loop response = %#v", canceled)
+		if !killed.OK || killed.RunID != quarantinedRun.ID {
+			t.Fatalf("kill quarantined Loop response = %#v", killed)
 		}
 		waitForLoopRunStatus(t, ctx, harness, quarantinedRun.ID, compozycontract.LoopRunStatusCanceled)
 	})
