@@ -3,7 +3,7 @@
 - **Scope:** Working-tree fixes for desktop runtime coherence, strict-CSP font loading, Settings scroll ownership, cold model-catalog latency, and default-profile agent launch
 - **Cadence tier:** targeted
 - **Build:** `459100d95` + working tree · **Environment:** isolated local macOS lab; daemon-served production web bundle and packaged Electron shell
-- **Started:** 2026-08-27T15:53:12Z · **Status:** in-progress
+- **Started:** 2026-08-27T15:53:12Z · **Completed:** 2026-08-27T16:36:00Z · **Status:** pass
 
 ## Personas
 
@@ -72,7 +72,7 @@ None identified yet.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** pending `make gate`
-- **Issues by user impact:** pending
+- **Exit gate (full automated suite):** PASS — `make gate`, fingerprint `6160882da6fc6c2fe098e0622551e765ea726299`; current `go-lint`, `go-test`, `js-desktop`, and `js-web` records under `.cache/gate/logs/`
+- **Issues by user impact:** 0 blocking, 0 non-blocking
 - **Coverage:** 5/5 scenarios walked and passed
-- **Verdict:** behavioral QA passed; final local gate remains pending.
+- **Verdict:** PASS locally. Exact-head PR CI remains outside this uncommitted working-tree run.
