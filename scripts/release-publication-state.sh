@@ -98,11 +98,10 @@ verify_release_assets() {
 for command in gh jq npm; do
   command -v "$command" >/dev/null 2>&1 || fail "${command} is required"
 done
-for name in GITHUB_OUTPUT GITHUB_REPOSITORY NPM_TOKEN RELEASE_COMMIT RELEASE_TAG RELEASE_VERSION RUNNER_TEMP; do
+for name in GITHUB_OUTPUT GITHUB_REPOSITORY RELEASE_COMMIT RELEASE_TAG RELEASE_VERSION RUNNER_TEMP; do
   require_env "$name"
 done
 
-npm whoami --registry=https://registry.npmjs.org >/dev/null
 work_dir="$(mktemp -d "${RUNNER_TEMP}/release-publication-state.XXXXXX")"
 cli_state="$(package_state "@compozy/cli" "cli")"
 extension_sdk_state="$(package_state "@compozy/extension-sdk" "extension-sdk")"

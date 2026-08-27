@@ -1250,7 +1250,10 @@ func TestReleasePublicationStateKeepsImmutableRegistryVersionsRecoverable(t *tes
 			binDir := t.TempDir()
 			npmStub := `#!/usr/bin/env bash
 set -euo pipefail
-if [[ "$1" == "whoami" ]]; then exit 0; fi
+if [[ "$1" != "view" ]]; then
+  echo "unexpected authenticated npm command: $*" >&2
+  exit 1
+fi
 package="$2"
 state="${CLI_STATE}"
 if [[ "${package}" == @compozy/extension-sdk@* ]]; then state="${EXTENSION_STATE}"; fi
@@ -1279,19 +1282,22 @@ printf '[%s]\n' "${GH_RELEASES}"
 				filepath.Join(root, "scripts", "release-publication-state.sh"),
 			)
 			cmd.Dir = root
-			cmd.Env = append(os.Environ(),
+			baseEnv := slices.DeleteFunc(os.Environ(), func(entry string) bool {
+				return strings.HasPrefix(entry, "NPM_TOKEN=") || strings.HasPrefix(entry, "NODE_AUTH_TOKEN=")
+			})
+			baseEnv = append(baseEnv,
 				"PATH="+binDir+string(os.PathListSeparator)+os.Getenv("PATH"),
 				"CLI_STATE="+tt.cliState,
 				"EXTENSION_STATE="+tt.extensionState,
 				"GH_RELEASES="+tt.releases,
 				"GITHUB_OUTPUT="+outputPath,
 				"GITHUB_REPOSITORY=compozy/compozy",
-				"NPM_TOKEN=fixture",
 				"RELEASE_COMMIT=release-commit",
 				"RELEASE_TAG=v0.3.0-beta.15",
 				"RELEASE_VERSION=0.3.0-beta.15",
 				"RUNNER_TEMP="+t.TempDir(),
 			)
+			cmd.Env = baseEnv
 			if output, err := cmd.CombinedOutput(); err != nil {
 				t.Fatalf("release-publication-state.sh error = %v, output = %s", err, output)
 			}
