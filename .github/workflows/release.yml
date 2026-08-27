@@ -43,11 +43,10 @@ env:
   CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
   NODE_VERSION: "22"
+  NPM_VERSION: "11.9.0"
   COSIGN_VERSION: "v3.1.3"
   INITIAL_VERSION: "v0.0.2"
   PR_RELEASE_MODULE: github.com/compozy/releasepr@v0.0.29
-  NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
 permissions:
   contents: write
@@ -245,6 +244,7 @@ jobs:
       - uses: ./.github/actions/setup-node
         with:
           node-version: ${{ env.NODE_VERSION }}
+          npm-version: ${{ env.NPM_VERSION }}
 
       - uses: ./.github/actions/setup-bun
         with:
@@ -280,18 +280,26 @@ jobs:
       - name: Verify explicit release plan contract
         run: scripts/release-plan-contract.sh "${{ env.PR_RELEASE_MODULE }}"
 
-      - name: Verify npm publish authentication
-        if: ${{ env.ACT != 'true' }}
+      - name: Verify npm trusted publishing prerequisites
         run: |
-          if [ -z "${NPM_TOKEN:-}" ]; then
-            echo "::error::NPM_TOKEN is required to publish @compozy/cli and @compozy/extension-sdk"
+          set -euo pipefail
+          if [[ -n "${NPM_TOKEN:-}" || -n "${NODE_AUTH_TOKEN:-}" ]]; then
+            echo "::error::npm publication must use GitHub Actions OIDC, not a long-lived token"
             exit 1
           fi
-          npm whoami --registry=https://registry.npmjs.org
-
-      - name: Verify npm secret is available for local act
-        if: ${{ env.ACT == 'true' }}
-        run: test -n "${NPM_TOKEN:-}"
+          node -e '
+            const actual = process.argv[1].split(".").map(Number)
+            const minimum = [11, 5, 1]
+            const comparison = actual.reduce(
+              (result, part, index) => result || Math.sign(part - minimum[index]),
+              0,
+            )
+            if (comparison < 0) {
+              console.error("npm " + process.argv[1] + " does not support trusted publishing; require >=11.5.1")
+              process.exit(1)
+            }
+          ' "$(npm --version)"
+          npm ping --registry=https://registry.npmjs.org --userconfig=/dev/null
 
       - name: Validate TypeScript extension SDK package
         run: scripts/publish-extension-sdk.sh --dry-run 0.0.0-beta.0 beta
@@ -1527,6 +1535,7 @@ jobs:
       - uses: ./.github/actions/setup-node
         with:
           node-version: ${{ env.NODE_VERSION }}
+          npm-version: ${{ env.NPM_VERSION }}
 
       - uses: ./.github/actions/setup-bun
         with:
