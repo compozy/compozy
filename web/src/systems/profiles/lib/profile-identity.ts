@@ -8,7 +8,7 @@ import type { ProfilePayload } from "../types";
 export const PROFILE_SPRITE_URL = spriteUrl;
 
 /** Emojibase JSON copied into the build by vite.config.ts (works offline). */
-export const PROFILE_EMOJIBASE_URL = "/vendor/emojibase";
+export const PROFILE_EMOJIBASE_URL = "/assets/emojibase";
 
 /**
  * The full Lucide catalog with search keywords, loaded lazily so no icon data

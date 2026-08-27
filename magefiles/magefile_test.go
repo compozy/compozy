@@ -840,6 +840,30 @@ func TestWebAssetsPrepare(t *testing.T) {
 			t.Fatalf("repo digest changed for identical metadata: %s != %s", firstDigest, secondDigest)
 		}
 	})
+
+	t.Run("Should reject bundle paths omitted from Go modules", func(t *testing.T) {
+		t.Parallel()
+
+		srcDist := t.TempDir()
+		writeTestFile(t, srcDist, "index.html", "<!doctype html><div id=\"app\"></div>")
+		writeTestFile(t, srcDist, "vendor/emojibase/en/data.json", "{}")
+		buildDigest, err := directoryDigest(srcDist)
+		if err != nil {
+			t.Fatalf("directoryDigest(srcDist) error = %v", err)
+		}
+		metadata := webAssetsMetadata{
+			BuildDigest:      buildDigest,
+			SourceRepository: webAssetsSourceRepository,
+			SourceCommit:     "source-commit-1",
+		}
+
+		repoDir := t.TempDir()
+		writeTestFile(t, repoDir, "go.mod", "module example.com/webassets\n\ngo 1.26.4\n")
+		err = prepareWebAssetsRepo(srcDist, repoDir, metadata)
+		if err == nil {
+			t.Fatal("prepareWebAssetsRepo() error = nil, want omitted bundle path error")
+		}
+	})
 }
 
 func TestWebAssetsDeterminismCheck(t *testing.T) {

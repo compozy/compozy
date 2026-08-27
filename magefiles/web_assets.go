@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	modzip "golang.org/x/mod/zip"
 )
 
 func WebAssetsCheck() error {
@@ -178,7 +180,30 @@ func prepareWebAssetsRepo(srcDistDir string, assetsRepoDir string, metadata webA
 	if err := copyWebAssetsDist(srcDistDir, destDistDir); err != nil {
 		return err
 	}
-	return writeWebAssetsMetadata(assetsRepoDir, metadata)
+	if err := writeWebAssetsMetadata(assetsRepoDir, metadata); err != nil {
+		return err
+	}
+	return validateWebAssetsModuleBundle(assetsRepoDir)
+}
+
+func validateWebAssetsModuleBundle(assetsRepoDir string) error {
+	checkedFiles, err := modzip.CheckDir(assetsRepoDir)
+	if err != nil {
+		return fmt.Errorf("check web assets module files: %w", err)
+	}
+	distPrefix := webAssetsModuleDistDir + "/"
+	for _, omitted := range checkedFiles.Omitted {
+		relativePath, err := filepath.Rel(assetsRepoDir, omitted.Path)
+		if err != nil {
+			return fmt.Errorf("resolve omitted web assets module path %q: %w", omitted.Path, err)
+		}
+		modulePath := filepath.ToSlash(relativePath)
+		isBundlePath := modulePath == webAssetsModuleDistDir || strings.HasPrefix(modulePath, distPrefix)
+		if isBundlePath {
+			return fmt.Errorf("web assets module omits bundle path %q: %w", modulePath, omitted.Err)
+		}
+	}
+	return nil
 }
 
 func copyWebAssetsDist(srcDir string, destDir string) error {

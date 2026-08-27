@@ -11,10 +11,10 @@ const root = process.cwd();
 const args = new Set(process.argv.slice(2));
 const resolve = createRequire(join(root, "web/package.json")).resolve;
 const files = [
-  { source: "emojibase-data/en/data.json", output: "web/public/vendor/emojibase/en/data.json" },
+  { source: "emojibase-data/en/data.json", output: "web/public/assets/emojibase/en/data.json" },
   {
     source: "emojibase-data/en/messages.json",
-    output: "web/public/vendor/emojibase/en/messages.json",
+    output: "web/public/assets/emojibase/en/messages.json",
   },
 ];
 
@@ -32,7 +32,7 @@ for (const file of files) {
 
 if (args.has("--write") || drifted.length === 0) process.exit(0);
 process.stdout.write(
-  "web/public/vendor/emojibase is out of sync with emojibase-data:\n" +
+  "web/public/assets/emojibase is out of sync with emojibase-data:\n" +
     drifted.map(file => "  " + file + "\n").join("") +
     "Run make codegen or scripts/sync-emojibase.mjs --write.\n"
 );
