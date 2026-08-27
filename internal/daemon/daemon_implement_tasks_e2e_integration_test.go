@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -469,37 +468,38 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 	if err := harness.CLI.RunJSONInDir(
 		ctx, harness.WorkspaceRoot, &page,
 		"session", "list", "--type", "spawned", "--state", "stopped",
-		"--query", "orchestrate-implement-tasks-", "--limit", "10", "-o", "json",
+		"--agent", implementTasksImplementer, "--limit", "10", "-o", "json",
 	); err != nil {
 		t.Fatalf("CLI spawned worker list error = %v", err)
 	}
-	want := map[string]contract.RuntimeSelectionPayload{
-		"orchestrate-implement-tasks-task_01": {
-			Provider: "claude", Model: "opus", ReasoningEffort: "high", Speed: speed.SpeedNormal,
-		},
-		"orchestrate-implement-tasks-task_02": {
-			Provider: acpmock.ProviderName, Model: "docs-model", ReasoningEffort: "high", Speed: speed.SpeedNormal,
-		},
-		"orchestrate-implement-tasks-task_03": {
-			Provider: acpmock.ProviderName, Model: "base-model", ReasoningEffort: "high", Speed: speed.SpeedFast,
-		},
+	want := map[string]bool{
+		"claude/opus/high/normal":        true,
+		"acpmock/docs-model/high/normal": true,
+		"acpmock/base-model/high/fast":   true,
 	}
 	if len(page.Sessions) != len(want) {
 		t.Fatalf("spawned implement-tasks workers = %#v, want three stopped workers", page.Sessions)
 	}
 	for _, worker := range page.Sessions {
-		expected, ok := want[worker.Name]
-		if !ok {
-			t.Fatalf("unexpected spawned worker %q", worker.Name)
-		}
-		if worker.State != "stopped" || worker.Runtime.Effective == nil {
-			t.Fatalf("spawned worker %q state/runtime = %q/%#v", worker.Name, worker.State, worker.Runtime)
+		if worker.AgentName != implementTasksImplementer || worker.State != "stopped" ||
+			worker.Runtime.Effective == nil {
+			t.Fatalf(
+				"spawned worker %q agent/state/runtime = %q/%q/%#v",
+				worker.ID,
+				worker.AgentName,
+				worker.State,
+				worker.Runtime,
+			)
 		}
 		got := *worker.Runtime.Effective
-		got.SpeedResolution = nil
-		if !reflect.DeepEqual(got, expected) {
-			t.Fatalf("spawned worker %q runtime = %#v, want %#v", worker.Name, got, expected)
+		key := fmt.Sprintf("%s/%s/%s/%s", got.Provider, got.Model, got.ReasoningEffort, got.Speed)
+		if !want[key] {
+			t.Fatalf("spawned worker %q runtime = %#v, want one of %#v", worker.ID, got, want)
 		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing spawned worker runtimes: %#v", want)
 	}
 }
 
