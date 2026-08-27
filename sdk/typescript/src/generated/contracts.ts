@@ -3139,6 +3139,43 @@ export interface ModelSourceListParams {
 
 export type ReasoningEffort = "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
 
+export type ModelSourceOptionKind = string;
+
+export interface ModelSourceOptionValue {
+  value_id: string;
+  label?: string;
+  description?: string;
+  group_id?: string;
+  group_label?: string;
+  order?: number;
+}
+
+export interface ModelSourceOptionDescriptor {
+  id: string;
+  label?: string;
+  description?: string;
+  category?: string;
+  kind: ModelSourceOptionKind;
+  current_value_id?: string;
+  current_bool?: boolean;
+  values?: ModelSourceOptionValue[];
+}
+
+export interface ModelSourceOptionSelection {
+  id: string;
+  value_id?: string;
+  bool_value?: boolean;
+}
+
+export interface ModelSourceTransportBinding {
+  transport_model_id: string;
+  label?: string;
+  reasoning_effort?: ReasoningEffort;
+  fast?: boolean;
+  thinking?: boolean;
+  option_selections?: ModelSourceOptionSelection[];
+}
+
 export interface ModelCatalogCostPayload {
   input_per_million?: number;
   output_per_million?: number;
@@ -3164,6 +3201,8 @@ export interface ModelSourceRow {
   supports_reasoning?: boolean;
   reasoning_efforts?: ReasoningEffort[];
   default_reasoning_effort?: ReasoningEffort;
+  config_options?: ModelSourceOptionDescriptor[];
+  transport_bindings?: ModelSourceTransportBinding[];
   cost?: ModelCatalogCostPayload;
   deprecated?: boolean;
   hidden?: boolean;
@@ -4216,6 +4255,31 @@ export interface ModelCatalogSourceRefPayload {
   last_error?: string;
 }
 
+export interface SessionConfigOptionValuePayload {
+  value: string;
+  label?: string;
+  description?: string;
+  group_id?: string;
+  group_label?: string;
+}
+
+export interface SessionConfigOptionPayload {
+  id: string;
+  label?: string;
+  description?: string;
+  category?: string;
+  kind: string;
+  current_value_id?: string;
+  current_bool?: boolean;
+  values?: SessionConfigOptionValuePayload[];
+}
+
+export interface ProviderModelConfigurationPayload {
+  reasoning_effort?: ReasoningEffort;
+  fast?: boolean;
+  thinking?: boolean;
+}
+
 export type ReasoningSource = "acp" | "catalog";
 
 export interface ProviderModelPayload {
@@ -4234,6 +4298,8 @@ export interface ProviderModelPayload {
   supports_reasoning?: boolean;
   reasoning_efforts?: ReasoningEffort[];
   default_reasoning_effort?: ReasoningEffort;
+  config_options?: SessionConfigOptionPayload[];
+  configurations?: ProviderModelConfigurationPayload[];
   cost?: ModelCatalogCostPayload;
   curated: boolean;
   deprecated: boolean;
@@ -4690,11 +4756,18 @@ export type PromptDelivery = string;
 
 export type Speed = string;
 
+export interface AgentACPOptionSelection {
+  id: string;
+  value_id?: string;
+  bool_value?: boolean;
+}
+
 export interface PromptRuntimeSelectionPayload {
   provider: string;
   model?: string;
   reasoning_effort?: ReasoningEffort;
   speed?: Speed;
+  acp_options?: AgentACPOptionSelection[];
 }
 
 export interface SessionInput {
@@ -5125,22 +5198,8 @@ export interface RuntimeSelectionPayload {
   model?: string;
   reasoning_effort?: ReasoningEffort;
   speed?: Speed;
+  acp_options?: AgentACPOptionSelection[];
   speed_resolution?: Resolution;
-}
-
-export interface SessionConfigOptionValuePayload {
-  value: string;
-  label?: string;
-  description?: string;
-}
-
-export interface SessionConfigOptionPayload {
-  id: string;
-  label?: string;
-  description?: string;
-  kind: string;
-  current?: string;
-  values?: SessionConfigOptionValuePayload[];
 }
 
 export interface ACPCapsPayload {

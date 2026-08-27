@@ -113,8 +113,8 @@ the logical session to that runtime; later prompts can choose a different snapsh
 
 ```bash
 compozy session prompt sess-1234 "Review the current changes and report correctness risks." \
-  --provider codex \
-  --model gpt-5.6-sol \
+  --provider cursor \
+  --model grok-4.6 \
   --reasoning-effort high \
   --speed fast
 ```
@@ -127,23 +127,41 @@ curl -N -X POST http://localhost:2123/api/workspaces/ws_alpha/sessions/sess-1234
     "message_id": "msg_1234",
     "idempotency_key": "idem_1234",
     "runtime": {
-      "provider": "codex",
-      "model": "gpt-5.6-sol",
+      "provider": "cursor",
+      "model": "grok-4.6",
       "reasoning_effort": "high",
       "speed": "fast"
     }
   }'
 ```
 
+Pass other advertised select and boolean options with repeatable typed flags. For example, Cursor's
+Opus 5 variants can expose a Thinking toggle:
+
+```bash
+compozy session prompt sess-1234 "Review with extended thinking." \
+  --provider cursor \
+  --model claude-opus-5 \
+  --reasoning-effort high \
+  --speed fast \
+  --acp-toggle thinking=true
+```
+
+Use `--acp-option id=value` for selects and `--acp-toggle id=true|false` for booleans. HTTP and UDS
+send the same data as `runtime.acp_options`, with exactly one of `value_id` or `bool_value` per entry.
+
 Two operational details matter here:
 
 - `message_id` identifies the authored transcript row, while `idempotency_key` identifies the
   submission. Keep both values and reuse them together only when retrying the exact same request.
-- `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, and `speed`. The
+- `runtime` is a prompt-bound snapshot of `provider`, `model`, `reasoning_effort`, `speed`, and typed
+  ACP options. The
   accepted snapshot is retained with the turn and is not rewritten by later runtime changes.
 - If a snapshot keeps the same provider, CompozyOS configures the existing ACP session in place when
   the provider exposes the needed live options. A provider or harness change replaces the process
   and replays the canonical stored transcript into the replacement ACP session.
+- A Cursor model, Reasoning, Fast, or Thinking change resolves a different private launch alias and
+  atomically replaces the process. Public session data continues to expose only the logical model ID.
 - CompozyOS records `user_message` only after runtime binding or reconfiguration succeeds. If binding,
   replacement, or its rollback fails, the authored message is not persisted as a user turn.
 - One session processes one prompt turn at a time. Stop logic waits for in-flight prompt setup to finish before it asks the ACP driver to stop the subprocess.
@@ -193,15 +211,17 @@ Persist next-prompt runtime intent without starting or reconfiguring ACP:
 
 ```bash
 compozy session runtime set sess-1234 \
-  --provider claude \
-  --model claude-fable-5 \
-  --reasoning-effort max
+  --provider cursor \
+  --model claude-opus-5 \
+  --reasoning-effort high \
+  --speed fast \
+  --acp-toggle thinking=true
 ```
 
 Session reads expose `runtime.selected`, `runtime.selection_revision`, and `runtime.effective`.
 `selected` survives stops and daemon restarts; `effective` describes the runtime already applied to
-the current process. A normal prompt uses its explicit runtime first, then `selected`, then
-`effective`.
+the current process. Runtime fields resolve from provider/project and agent defaults, then durable
+`selected`, then the prompt snapshot. Each higher layer replaces only the fields or option IDs it sets.
 
 HTTP and UDS use `PUT /api/workspaces/:workspace/sessions/:id/runtime` with the complete `runtime`
 and current `expected_revision`. Clear the selection with

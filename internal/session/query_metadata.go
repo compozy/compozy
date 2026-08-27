@@ -146,6 +146,7 @@ func sessionInfoFromMeta(meta store.SessionMeta) *Info {
 		Model:                    strings.TrimSpace(meta.Model),
 		ReasoningEffort:          strings.TrimSpace(meta.ReasoningEffort),
 		Speed:                    requestedSpeed,
+		ACPOptions:               acpSessionACPOptionSelections(meta.ACPOptions),
 		SpeedResolution:          speedpkg.CloneResolution(meta.SpeedResolution),
 		RuntimeStatus:            meta.RuntimeStatus,
 		RuntimeTransition:        meta.RuntimeTransition,

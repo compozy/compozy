@@ -54,6 +54,8 @@ func (r *defaultCoordinatorRoleResolver) ResolveCoordinatorRole(
 		Provider:                      resolvedRole.Provider,
 		Model:                         resolvedRole.Model,
 		ReasoningEffort:               resolvedRole.ReasoningEffort,
+		Speed:                         resolvedRole.Speed,
+		ACPOptions:                    compozyconfig.CloneACPOptionSelections(resolvedRole.ACPOptions),
 		Fallbacks:                     append([]compozyconfig.RoleFallback(nil), resolvedRole.Fallbacks...),
 		TTL:                           effective.TTL,
 		MaxChildren:                   effective.MaxChildren,

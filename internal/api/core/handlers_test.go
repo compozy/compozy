@@ -1071,7 +1071,10 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 			expectedRevision int64,
 		) (*session.Info, error) {
 			if id != base.ID || expectedRevision != 0 || selection.Provider != "claude" ||
-				selection.Model != "claude-fable-5" || selection.ReasoningEffort != "max" {
+				selection.Model != "claude-fable-5" || selection.ReasoningEffort != "max" ||
+				len(selection.ACPOptions) != 2 || selection.ACPOptions[0].ID != "context" ||
+				selection.ACPOptions[0].ValueID != "1m" || selection.ACPOptions[1].ID != "thinking" ||
+				selection.ACPOptions[1].BoolValue == nil || !*selection.ACPOptions[1].BoolValue {
 				t.Fatalf("SetRuntimeSelection() = id %q selection %#v revision %d", id, selection, expectedRevision)
 			}
 			updated := *base
@@ -1097,7 +1100,7 @@ func TestSessionRuntimeSelectionHandlers(t *testing.T) {
 
 	t.Run("Should set a durable runtime selection", func(t *testing.T) {
 		body := []byte(
-			`{"runtime":{"provider":"claude","model":"claude-fable-5","reasoning_effort":"max"},"expected_revision":0}`,
+			`{"runtime":{"provider":"claude","model":"claude-fable-5","reasoning_effort":"max","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}]},"expected_revision":0}`,
 		)
 		response := performRequest(
 			t,
@@ -2460,11 +2463,15 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 				Provider:        "claude",
 				Model:           "claude-sonnet-5",
 				ReasoningEffort: "max",
-				Tools:           []string{"builtin__shell"},
-				Permissions:     contract.SettingsPermissionModeApproveReads,
-				CategoryPath:    []string{"Strategy"},
-				Skills:          &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-skill"}},
-				Prompt:          "You own pricing strategy.",
+				Speed:           contract.SpeedFast,
+				ACPOptions: []contract.AgentACPOptionSelection{
+					{ID: "context", ValueID: "1m"}, {ID: "thinking", BoolValue: new(true)},
+				},
+				Tools:        []string{"builtin__shell"},
+				Permissions:  contract.SettingsPermissionModeApproveReads,
+				CategoryPath: []string{"Strategy"},
+				Skills:       &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy-skill"}},
+				Prompt:       "You own pricing strategy.",
 			},
 		})
 
@@ -2480,7 +2487,8 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		var payload contract.AgentResponse
 		decodeJSON(t, resp.Body.Bytes(), &payload)
 		if payload.Agent.Name != "pricing_strategist" || payload.Agent.Provider != "claude" ||
-			payload.Agent.ReasoningEffort != "max" {
+			payload.Agent.ReasoningEffort != "max" || payload.Agent.Speed != contract.SpeedFast ||
+			len(payload.Agent.ACPOptions) != 2 {
 			t.Fatalf("created agent payload = %#v, want pricing strategist", payload.Agent)
 		}
 		path := filepath.Join(
@@ -2500,7 +2508,10 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
 		}
 		if loaded.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
-			loaded.ReasoningEffort != "max" ||
+			loaded.ReasoningEffort != "max" || loaded.Speed != contract.SpeedFast || len(loaded.ACPOptions) != 2 ||
+			loaded.ACPOptions[0].ID != "context" || loaded.ACPOptions[0].ValueID != "1m" ||
+			loaded.ACPOptions[1].ID != "thinking" || loaded.ACPOptions[1].BoolValue == nil ||
+			!*loaded.ACPOptions[1].BoolValue ||
 			len(loaded.Skills.Disabled) != 1 || loaded.Skills.Disabled[0] != "legacy-skill" {
 			t.Fatalf("loaded agent = %#v, want permissions and disabled skill", loaded)
 		}
@@ -3613,13 +3624,17 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 					Command:         "claude --print",
 					Model:           "claude-opus",
 					ReasoningEffort: contract.ReasoningEffort("high"),
-					Tools:           []string{"compozy__skill_view"},
-					Toolsets:        []string{"compozy__catalog"},
-					DenyTools:       []string{"compozy__delete_*"},
-					Permissions:     contract.SettingsPermissionModeApproveReads,
-					CategoryPath:    []string{"Engineering", "Review"},
-					Skills:          &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
-					Prompt:          "Review.",
+					Speed:           contract.SpeedFast,
+					ACPOptions: []contract.AgentACPOptionSelection{
+						{ID: "context", ValueID: "1m"}, {ID: "thinking", BoolValue: new(true)},
+					},
+					Tools:        []string{"compozy__skill_view"},
+					Toolsets:     []string{"compozy__catalog"},
+					DenyTools:    []string{"compozy__delete_*"},
+					Permissions:  contract.SettingsPermissionModeApproveReads,
+					CategoryPath: []string{"Engineering", "Review"},
+					Skills:       &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
+					Prompt:       "Review.",
 				},
 			}
 			resp := performRequest(t, fixture.Engine, http.MethodPost, "/agents/coder/duplicate", mustJSON(t, request))
@@ -3631,6 +3646,10 @@ func TestBaseHandlersAgentDefinitionMutations(t *testing.T) {
 			if payload.Agent.Name != "reviewer" || payload.Agent.Provider != "claude" ||
 				payload.Agent.Command != "claude --print" || payload.Agent.Model != "claude-opus" ||
 				payload.Agent.ReasoningEffort != contract.ReasoningEffort("high") ||
+				payload.Agent.Speed != contract.SpeedFast || len(payload.Agent.ACPOptions) != 2 ||
+				payload.Agent.ACPOptions[0].ID != "context" || payload.Agent.ACPOptions[0].ValueID != "1m" ||
+				payload.Agent.ACPOptions[1].ID != "thinking" || payload.Agent.ACPOptions[1].BoolValue == nil ||
+				!*payload.Agent.ACPOptions[1].BoolValue ||
 				!slices.Equal(payload.Agent.Tools, []string{"compozy__skill_view"}) ||
 				!slices.Equal(payload.Agent.Toolsets, []string{"compozy__catalog"}) ||
 				!slices.Equal(payload.Agent.DenyTools, []string{"compozy__delete_*"}) ||

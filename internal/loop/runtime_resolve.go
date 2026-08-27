@@ -3,6 +3,8 @@ package loop
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -90,6 +92,7 @@ func ValidateResolvedRuntime(
 
 func resolveMatchingRuntime(rules []RuntimeRule, item ItemRuntime) RuntimeSpec {
 	fields := [4]runtimeCandidate{}
+	options := make(map[string]runtimeOptionCandidate)
 	for index, rule := range rules {
 		specificity, matches := runtimeRuleSpecificity(rule.Match, item)
 		if !matches {
@@ -112,13 +115,36 @@ func resolveMatchingRuntime(rules []RuntimeRule, item ItemRuntime) RuntimeSpec {
 				fields[field] = candidate
 			}
 		}
+		for _, option := range rule.Runtime.ACPOptions {
+			option.ID = strings.TrimSpace(option.ID)
+			if option.ID == "" {
+				continue
+			}
+			candidate := runtimeOptionCandidate{
+				selection:   option,
+				specificity: specificity,
+				index:       index,
+			}
+			previous, exists := options[option.ID]
+			if !exists || candidate.specificity > previous.specificity ||
+				(candidate.specificity == previous.specificity && candidate.index > previous.index) {
+				options[option.ID] = candidate
+			}
+		}
 	}
-	return RuntimeSpec{
+	resolved := RuntimeSpec{
 		Provider:  fields[0].value,
 		Model:     fields[1].value,
 		Reasoning: fields[2].value,
 		Speed:     speedpkg.Speed(fields[3].value),
 	}
+	for _, candidate := range options {
+		resolved.ACPOptions = append(resolved.ACPOptions, candidate.selection)
+	}
+	slices.SortFunc(resolved.ACPOptions, func(left ACPOptionSelection, right ACPOptionSelection) int {
+		return strings.Compare(left.ID, right.ID)
+	})
+	return resolved
 }
 
 type runtimeCandidate struct {
@@ -126,6 +152,12 @@ type runtimeCandidate struct {
 	specificity int
 	index       int
 	set         bool
+}
+
+type runtimeOptionCandidate struct {
+	selection   ACPOptionSelection
+	specificity int
+	index       int
 }
 
 func runtimeRuleSpecificity(match RuntimeMatch, item ItemRuntime) (int, bool) {
@@ -166,6 +198,29 @@ func applyRuntime(resolved *ResolvedRuntime, runtime RuntimeSpec, source Runtime
 		resolved.Runtime.Speed = speedpkg.Speed(value)
 		resolved.Source.Speed = source
 	}
+	for _, option := range runtime.ACPOptions {
+		option.ID = strings.TrimSpace(option.ID)
+		if option.ID == "" {
+			continue
+		}
+		option.ValueID = strings.TrimSpace(option.ValueID)
+		updated := false
+		for index := range resolved.Runtime.ACPOptions {
+			if strings.TrimSpace(resolved.Runtime.ACPOptions[index].ID) != option.ID {
+				continue
+			}
+			resolved.Runtime.ACPOptions[index] = option
+			updated = true
+			break
+		}
+		if !updated {
+			resolved.Runtime.ACPOptions = append(resolved.Runtime.ACPOptions, option)
+		}
+		if resolved.Source.ACPOptions == nil {
+			resolved.Source.ACPOptions = make(map[string]RuntimeSource)
+		}
+		resolved.Source.ACPOptions[option.ID] = source
+	}
 }
 
 func normalizeResolvedRuntime(resolved ResolvedRuntime) ResolvedRuntime {
@@ -173,6 +228,18 @@ func normalizeResolvedRuntime(resolved ResolvedRuntime) ResolvedRuntime {
 	resolved.Runtime.Model = strings.TrimSpace(resolved.Runtime.Model)
 	resolved.Runtime.Reasoning = strings.TrimSpace(resolved.Runtime.Reasoning)
 	resolved.Runtime.Speed = speedpkg.Speed(strings.TrimSpace(string(resolved.Runtime.Speed)))
+	for index := range resolved.Runtime.ACPOptions {
+		resolved.Runtime.ACPOptions[index].ID = strings.TrimSpace(resolved.Runtime.ACPOptions[index].ID)
+		resolved.Runtime.ACPOptions[index].ValueID = strings.TrimSpace(resolved.Runtime.ACPOptions[index].ValueID)
+	}
+	slices.SortFunc(resolved.Runtime.ACPOptions, func(left ACPOptionSelection, right ACPOptionSelection) int {
+		return strings.Compare(left.ID, right.ID)
+	})
+	if len(resolved.Source.ACPOptions) == 0 {
+		resolved.Source.ACPOptions = nil
+	} else {
+		resolved.Source.ACPOptions = maps.Clone(resolved.Source.ACPOptions)
+	}
 	resolved.SpeedResolution = speedpkg.CloneResolution(resolved.SpeedResolution)
 	return resolved
 }
@@ -181,5 +248,6 @@ func runtimeSpecHasValue(runtime RuntimeSpec) bool {
 	return strings.TrimSpace(runtime.Provider) != "" ||
 		strings.TrimSpace(runtime.Model) != "" ||
 		strings.TrimSpace(runtime.Reasoning) != "" ||
-		strings.TrimSpace(string(runtime.Speed)) != ""
+		strings.TrimSpace(string(runtime.Speed)) != "" ||
+		len(runtime.ACPOptions) > 0
 }

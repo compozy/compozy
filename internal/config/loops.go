@@ -205,22 +205,16 @@ func (c LoopDefaultConfig) Validate(path string) error {
 	if err := c.Budget.Validate(path + ".budget"); err != nil {
 		return err
 	}
-	if err := validateLoopRuntimeSpeed(
-		path+".runtime_defaults.worker.speed",
-		c.RuntimeDefaults.Worker.Speed,
-	); err != nil {
+	if err := validateLoopRuntimeSpec(path+".runtime_defaults.worker", c.RuntimeDefaults.Worker); err != nil {
 		return err
 	}
-	if err := validateLoopRuntimeSpeed(
-		path+".runtime_defaults.judge.speed",
-		c.RuntimeDefaults.Judge.Speed,
-	); err != nil {
+	if err := validateLoopRuntimeSpec(path+".runtime_defaults.judge", c.RuntimeDefaults.Judge); err != nil {
 		return err
 	}
 	for index, rule := range c.RuntimeRules {
-		if err := validateLoopRuntimeSpeed(
-			fmt.Sprintf("%s.runtime_rules[%d].runtime.speed", path, index),
-			rule.Runtime.Speed,
+		if err := validateLoopRuntimeSpec(
+			fmt.Sprintf("%s.runtime_rules[%d].runtime", path, index),
+			rule.Runtime,
 		); err != nil {
 			return err
 		}
@@ -257,6 +251,20 @@ func validateLoopRuntimeSpeed(path string, value speedpkg.Speed) error {
 		return nil
 	}
 	if _, err := speedpkg.Parse(string(value)); err != nil {
+		return ValidationError{Path: path, Message: err.Error()}
+	}
+	return nil
+}
+
+func validateLoopRuntimeSpec(path string, runtime dsl.RuntimeSpec) error {
+	if err := validateLoopRuntimeSpeed(path+".speed", runtime.Speed); err != nil {
+		return err
+	}
+	return validateLoopACPOptions(path+".acp_options", runtime.ACPOptions)
+}
+
+func validateLoopACPOptions(path string, options []dsl.ACPOptionSelection) error {
+	if _, err := dsl.NormalizeACPOptionSelections(options); err != nil {
 		return ValidationError{Path: path, Message: err.Error()}
 	}
 	return nil

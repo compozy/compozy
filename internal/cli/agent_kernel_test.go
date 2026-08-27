@@ -246,6 +246,10 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			"high",
 			"--speed",
 			"fast",
+			"--acp-option",
+			"context=1m",
+			"--acp-toggle",
+			"thinking=true",
 			"--name",
 			"child",
 			"--workspace",
@@ -281,6 +285,7 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			gotRequest.Model != "gpt-test" ||
 			gotRequest.ReasoningEffort != "high" ||
 			gotRequest.Speed != speedpkg.SpeedFast ||
+			len(gotRequest.ACPOptions) != 2 ||
 			gotRequest.Name != "child" ||
 			gotRequest.Workspace != "ws-target" ||
 			gotRequest.PromptOverlay != "focus" ||
@@ -290,6 +295,11 @@ func TestSpawnCommandMapsBoundedChildRequest(t *testing.T) {
 			gotRequest.NotifyCreator != nil ||
 			gotRequest.IdempotencyKey != "spawn-1" {
 			t.Fatalf("spawn request = %#v, want parsed bounded spawn request", gotRequest)
+		}
+		if gotRequest.ACPOptions[0].ID != "context" || gotRequest.ACPOptions[0].ValueID != "1m" ||
+			gotRequest.ACPOptions[1].ID != "thinking" || gotRequest.ACPOptions[1].BoolValue == nil ||
+			!*gotRequest.ACPOptions[1].BoolValue {
+			t.Fatalf("spawn ACP options = %#v, want typed select and boolean", gotRequest.ACPOptions)
 		}
 		if len(gotRequest.Permissions.Tools) != 1 ||
 			gotRequest.Permissions.Tools[0] != "read" ||

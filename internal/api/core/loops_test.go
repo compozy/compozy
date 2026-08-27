@@ -986,7 +986,10 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 			}
 			if command.Verb != session.GoalCommandVerbReplace || command.ExpectedRunID != "run-1" ||
 				command.Objective != "Ship the replacement" || command.Runtime == nil ||
-				command.Runtime.Provider != "cursor" {
+				command.Runtime.Provider != "cursor" || len(command.Runtime.ACPOptions) != 2 ||
+				command.Runtime.ACPOptions[0].ID != "context" || command.Runtime.ACPOptions[0].ValueID != "1m" ||
+				command.Runtime.ACPOptions[1].ID != "thinking" || command.Runtime.ACPOptions[1].BoolValue == nil ||
+				!*command.Runtime.ACPOptions[1].BoolValue {
 				t.Fatalf("Handle() command = %#v", command)
 			}
 			return session.GoalDispatchDecision{
@@ -1038,7 +1041,7 @@ func TestGoalReadHandlersExposeSnapshotAndTurnContracts(t *testing.T) {
 			http.MethodPost,
 			"/workspaces/workspace-alias/sessions/sess-1/goal",
 			[]byte(
-				`{"operation":"replace","objective":"Ship the replacement","expected_run_id":"run-1","runtime":{"provider":"cursor","model":"grok-4.5","reasoning_effort":"high","speed":"fast"}}`,
+				`{"operation":"replace","objective":"Ship the replacement","expected_run_id":"run-1","runtime":{"provider":"cursor","model":"grok-4.5","reasoning_effort":"high","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}]}}`,
 			),
 		)
 		assertLoopStatus(t, response.Code, http.StatusAccepted, response.Body.String())

@@ -10,11 +10,12 @@ import (
 
 // RuntimeSpec selects one provider runtime without owning provider policy.
 type RuntimeSpec struct {
-	Provider  string         `json:"provider,omitempty"  yaml:"provider,omitempty"  toml:"provider"`
-	Model     string         `json:"model,omitempty"     yaml:"model,omitempty"     toml:"model"`
-	Reasoning string         `json:"reasoning,omitempty" yaml:"reasoning,omitempty" toml:"reasoning"`
-	Speed     speedpkg.Speed `json:"speed,omitempty"     yaml:"speed,omitempty"     toml:"speed"`
-	Extra     map[string]any `json:"-"                   yaml:",inline"`
+	Provider   string               `json:"provider,omitempty"    yaml:"provider,omitempty"    toml:"provider"`
+	Model      string               `json:"model,omitempty"       yaml:"model,omitempty"       toml:"model"`
+	Reasoning  string               `json:"reasoning,omitempty"   yaml:"reasoning,omitempty"   toml:"reasoning"`
+	Speed      speedpkg.Speed       `json:"speed,omitempty"       yaml:"speed,omitempty"       toml:"speed"`
+	ACPOptions []ACPOptionSelection `json:"acp_options,omitempty" yaml:"acp_options,omitempty" toml:"acp_options,omitempty"`
+	Extra      map[string]any       `json:"-"                     yaml:",inline"`
 }
 
 // UnmarshalYAML keeps runtime authoring closed and type-safe at every YAML ingress.
@@ -32,6 +33,17 @@ func (r *RuntimeSpec) UnmarshalYAML(value *yaml.Node) error {
 			return fmt.Errorf("runtime.%s is duplicated", key)
 		}
 		seen[key] = struct{}{}
+		if key == "acp_options" {
+			if err := valueNode.Decode(&r.ACPOptions); err != nil {
+				return fmt.Errorf("runtime.acp_options: %w", err)
+			}
+			options, err := NormalizeACPOptionSelections(r.ACPOptions)
+			if err != nil {
+				return fmt.Errorf("runtime.acp_options: %w", err)
+			}
+			r.ACPOptions = options
+			continue
+		}
 		if valueNode.Kind != yaml.ScalarNode || valueNode.Tag != "!!str" {
 			return fmt.Errorf("runtime.%s must be a string", key)
 		}

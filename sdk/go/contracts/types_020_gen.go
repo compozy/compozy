@@ -4,6 +4,72 @@ package contracts
 
 import "time"
 
+type RowAction struct {
+	Title        string            `json:"title"`
+	Icon         string            `json:"icon,omitempty"`
+	Section      string            `json:"section,omitempty"`
+	Primary      bool              `json:"primary,omitempty"`
+	Destructive  bool              `json:"destructive,omitempty"`
+	Confirmation *Confirmation     `json:"confirmation,omitempty"`
+	Shortcut     string            `json:"shortcut,omitempty"`
+	Action       *Action           `json:"action,omitempty"`
+	Handler      string            `json:"handler,omitempty"`
+	SubmitForm   bool              `json:"submit_form,omitempty"`
+	Requires     map[string]string `json:"requires,omitempty"`
+	Fallback     string            `json:"fallback,omitempty"`
+}
+
+type Run struct {
+	ID                   string         `json:"id"`
+	ProfileID            string         `json:"profile_id,omitempty"`
+	JobID                string         `json:"job_id,omitempty"`
+	TriggerID            string         `json:"trigger_id,omitempty"`
+	SessionID            string         `json:"session_id,omitempty"`
+	TaskID               string         `json:"task_id,omitempty"`
+	TaskRunID            string         `json:"task_run_id,omitempty"`
+	LoopRunID            string         `json:"loop_run_id,omitempty"`
+	FireID               string         `json:"fire_id,omitempty"`
+	Status               RunStatus      `json:"status"`
+	Attempt              int            `json:"attempt"`
+	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
+	StartedAt            *time.Time     `json:"started_at,omitempty"`
+	EndedAt              *time.Time     `json:"ended_at,omitempty"`
+	Error                string         `json:"error,omitempty"`
+	DeliveryError        string         `json:"delivery_error,omitempty"`
+	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
+	NetworkParticipation *Request       `json:"network_participation,omitempty"`
+	Metadata             map[string]any `json:"metadata,omitempty"`
+}
+
+type RunDesignationSummary struct {
+	Index int    `json:"index"`
+	Brief string `json:"brief,omitempty"`
+}
+
+type RunStatus string
+
+type RuntimeSelectionPayload struct {
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *Resolution               `json:"speed_resolution,omitempty"`
+}
+
+type SandboxExecParams struct {
+	WorkspaceID string `json:"workspace_id"`
+	SessionID   string `json:"session_id"`
+	Command     string `json:"command"`
+	Timeout     int    `json:"timeout,omitempty"`
+}
+
+type SandboxExecResult struct {
+	ExitCode int    `json:"exit_code"`
+	Stdout   string `json:"stdout,omitempty"`
+	Stderr   string `json:"stderr,omitempty"`
+}
+
 type SandboxInfoParams struct {
 	WorkspaceID string `json:"workspace_id"`
 	SessionID   string `json:"session_id"`
@@ -213,67 +279,4 @@ type SandboxSyncBeforePayload struct {
 	ExcludePatterns []string  `json:"exclude_patterns,omitempty"`
 	Denied          bool      `json:"denied,omitempty"`
 	DenyReason      string    `json:"deny_reason,omitempty"`
-}
-
-type ScheduleMode string
-
-type ScheduleSpec struct {
-	Mode                ScheduleMode           `json:"mode"`
-	Expr                string                 `json:"expr,omitempty"`
-	Interval            string                 `json:"interval,omitempty"`
-	Time                string                 `json:"time,omitempty"`
-	CatchUpPolicy       SchedulerCatchUpPolicy `json:"catch_up_policy,omitempty"`
-	MisfireGraceSeconds int                    `json:"misfire_grace_seconds,omitempty"`
-}
-
-type SchedulerCatchUpPolicy string
-
-type Scope string
-
-type Section struct {
-	Title string `json:"title,omitempty"`
-	Rows  []Row  `json:"rows"`
-}
-
-type SessionActivityHealth struct {
-	SessionID          string     `json:"session_id"`
-	TurnID             string     `json:"turn_id,omitempty"`
-	TurnSource         string     `json:"turn_source,omitempty"`
-	TurnStartedAt      *time.Time `json:"turn_started_at,omitempty"`
-	LastActivityAt     *time.Time `json:"last_activity_at,omitempty"`
-	LastActivityKind   string     `json:"last_activity_kind,omitempty"`
-	LastActivityDetail string     `json:"last_activity_detail,omitempty"`
-	CurrentTool        string     `json:"current_tool,omitempty"`
-	ToolCallID         string     `json:"tool_call_id,omitempty"`
-	LastProgressAt     *time.Time `json:"last_progress_at,omitempty"`
-	IterationCurrent   int        `json:"iteration_current,omitempty"`
-	IterationMax       int        `json:"iteration_max,omitempty"`
-	IdleSeconds        int64      `json:"idle_seconds,omitempty"`
-	ElapsedSeconds     int64      `json:"elapsed_seconds,omitempty"`
-	Status             string     `json:"status"`
-	StallState         string     `json:"stall_state,omitempty"`
-	StallReason        string     `json:"stall_reason,omitempty"`
-}
-
-type SessionAttentionChangedPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	From           string    `json:"from"`
-	To             string    `json:"to"`
-	Class          string    `json:"class"`
-	At             time.Time `json:"at"`
 }

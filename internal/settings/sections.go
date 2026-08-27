@@ -39,6 +39,8 @@ const (
 	sectionsPolicyKey                 = "policy"
 	sectionsProviderKey               = "provider"
 	sectionsReasoningEffortKey        = "reasoning_effort"
+	sectionsSpeedKey                  = "speed"
+	sectionsACPOptionsKey             = "acp_options"
 	sectionsFallbackChainKey          = "fallback_chain"
 	sectionsQueueKey                  = "queue"
 	sectionsRecallKey                 = "recall"

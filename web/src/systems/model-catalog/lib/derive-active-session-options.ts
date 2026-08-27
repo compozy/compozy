@@ -179,8 +179,9 @@ function pickDefaultReasoning(
   acpOption: ACPConfigOption | undefined,
   selectedModel: string | null
 ): string | null {
-  if (acpOption?.current && acpOption.current.trim().length > 0) {
-    return acpOption.current.trim();
+  const currentValue = acpOption?.current_value_id?.trim();
+  if (currentValue) {
+    return currentValue;
   }
   const targetModel = selectedModel?.trim();
   if (!targetModel) {

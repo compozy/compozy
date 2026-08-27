@@ -29,6 +29,7 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		cacheWriteCost := 3.0
 		reasoningCost := 4.0
 		defaultEffort := modelcatalog.ReasoningEffortHigh
+		thinking := false
 		releaseDate := "2026-06-26"
 		service := &fakeHostAPIModelCatalogService{
 			models: []modelcatalog.Model{
@@ -48,8 +49,12 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 							LastError:   "source failed with OAUTH_TOKEN=oauth-host-secret-token",
 						},
 					},
-					ReasoningEfforts:         []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
-					DefaultReasoningEffort:   &defaultEffort,
+					ReasoningEfforts:       []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
+					DefaultReasoningEffort: &defaultEffort,
+					ConfigOptions: []modelcatalog.ModelOptionDescriptor{{
+						ID: "thinking", Kind: modelcatalog.ModelOptionKindBoolean, CurrentBool: &thinking,
+					}},
+					TransportBindings:        []modelcatalog.ModelTransportBinding{{Thinking: &thinking}},
 					CostInputPerMillion:      &inputCost,
 					CostOutputPerMillion:     &outputCost,
 					CostCacheReadPerMillion:  &cacheReadCost,
@@ -81,7 +86,9 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		)
 
 		result, err := handler.Handle(
-			testutil.Context(t),
+			withHostAPIInstanceKey(testutil.Context(t), InstanceKey{
+				Name: "ext", ProfileID: "profile-catalog", WorkspaceID: "workspace-catalog",
+			}),
 			"ext",
 			"models/list",
 			json.RawMessage(`{"provider_id":"codex","source_id":"extension:ext-models","include_stale":true}`),
@@ -114,6 +121,16 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 			model.ReleaseDate != releaseDate || model.ReasoningSource != modelcatalog.ReasoningSourceACP {
 			t.Fatalf("models/list curation metadata = %#v, want complete daemon projection", model)
 		}
+		if len(model.ConfigOptions) != 1 || model.ConfigOptions[0].ID != "thinking" ||
+			model.ConfigOptions[0].CurrentBool == nil || *model.ConfigOptions[0].CurrentBool ||
+			len(model.Configurations) != 1 || model.Configurations[0].Thinking == nil ||
+			*model.Configurations[0].Thinking {
+			t.Fatalf(
+				"models/list advanced configuration = %#v / %#v, want thinking=false",
+				model.ConfigOptions,
+				model.Configurations,
+			)
+		}
 		assertRedactedHostAPIModelPayload(t, model.LastError, "sk-host-secret-token")
 		assertRedactedHostAPIModelPayload(t, model.Sources[0].LastError, "oauth-host-secret-token")
 		if len(service.listOpts) != 1 {
@@ -122,6 +139,11 @@ func TestHostAPIModelsListShouldReturnDaemonProjection(t *testing.T) {
 		opts := service.listOpts[0]
 		if opts.ProviderID != "codex" || opts.SourceID != "extension:ext-models" || !opts.IncludeStale {
 			t.Fatalf("ListModels opts = %#v, want decoded Host API filters", opts)
+		}
+		if opts.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			opts.ExecutionContext.ProfileID != "profile-catalog" ||
+			opts.ExecutionContext.WorkspaceID != "workspace-catalog" {
+			t.Fatalf("ListModels execution context = %#v, want calling extension scope", opts.ExecutionContext)
 		}
 	})
 }
@@ -165,7 +187,9 @@ func TestHostAPIModelsRefreshShouldReturnStatusPayloadOnSourceFailure(t *testing
 		)
 
 		result, err := handler.Handle(
-			testutil.Context(t),
+			withHostAPIInstanceKey(testutil.Context(t), InstanceKey{
+				Name: "ext", ProfileID: "profile-refresh", WorkspaceID: "workspace-refresh",
+			}),
 			"ext",
 			"models/refresh",
 			json.RawMessage(`{"provider_id":"codex","source_id":"extension:ext-models","force":true}`),
@@ -184,6 +208,10 @@ func TestHostAPIModelsRefreshShouldReturnStatusPayloadOnSourceFailure(t *testing
 		assertRedactedHostAPIModelPayload(t, payload.Sources[0].LastError, secret)
 		if len(service.refreshOpts) != 1 || !service.refreshOpts[0].Force {
 			t.Fatalf("Refresh opts = %#v, want force refresh recorded", service.refreshOpts)
+		}
+		if got := service.refreshOpts[0].ExecutionContext; got.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			got.ProfileID != "profile-refresh" || got.WorkspaceID != "workspace-refresh" {
+			t.Fatalf("Refresh execution context = %#v, want calling extension scope", got)
 		}
 	})
 }
@@ -223,7 +251,9 @@ func TestHostAPIModelsRefreshShouldReturnSuccessfulSourceStatus(t *testing.T) {
 		)
 
 		result, err := handler.Handle(
-			testutil.Context(t),
+			withHostAPIInstanceKey(testutil.Context(t), InstanceKey{
+				Name: "ext", ProfileID: "profile-status", WorkspaceID: "workspace-status",
+			}),
 			"ext",
 			"models/refresh",
 			json.RawMessage(`{"provider_id":"codex"}`),
@@ -276,7 +306,9 @@ func TestHostAPIModelsStatusShouldReturnDaemonSourceStatus(t *testing.T) {
 		)
 
 		result, err := handler.Handle(
-			testutil.Context(t),
+			withHostAPIInstanceKey(testutil.Context(t), InstanceKey{
+				Name: "ext", ProfileID: "profile-status", WorkspaceID: "workspace-status",
+			}),
 			"ext",
 			"models/status",
 			json.RawMessage(`{"provider_id":"codex"}`),
@@ -291,8 +323,12 @@ func TestHostAPIModelsStatusShouldReturnDaemonSourceStatus(t *testing.T) {
 		if len(payload.Sources) != 1 || payload.Sources[0].SourceID != "extension:ext-models" {
 			t.Fatalf("models/status payload = %#v, want extension status", payload)
 		}
-		if len(service.statusProviderIDs) != 1 || service.statusProviderIDs[0] != "codex" {
-			t.Fatalf("ListSourceStatus provider ids = %#v, want [codex]", service.statusProviderIDs)
+		if len(service.statusOpts) != 1 || service.statusOpts[0].ProviderID != "codex" {
+			t.Fatalf("ListSourceStatus opts = %#v, want codex", service.statusOpts)
+		}
+		if got := service.statusOpts[0].ExecutionContext; got.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			got.ProfileID != "profile-status" || got.WorkspaceID != "workspace-status" {
+			t.Fatalf("Status execution context = %#v, want calling extension scope", got)
 		}
 	})
 }
@@ -483,14 +519,14 @@ func TestHostAPIModelHelpersShouldHandleEmptyValues(t *testing.T) {
 }
 
 type fakeHostAPIModelCatalogService struct {
-	models            []modelcatalog.Model
-	statuses          []modelcatalog.SourceStatus
-	listOpts          []modelcatalog.ListOptions
-	refreshOpts       []modelcatalog.RefreshOptions
-	statusProviderIDs []string
-	listErr           error
-	refreshErr        error
-	statusErr         error
+	models      []modelcatalog.Model
+	statuses    []modelcatalog.SourceStatus
+	listOpts    []modelcatalog.ListOptions
+	refreshOpts []modelcatalog.RefreshOptions
+	statusOpts  []modelcatalog.StatusOptions
+	listErr     error
+	refreshErr  error
+	statusErr   error
 }
 
 func (s *fakeHostAPIModelCatalogService) ListModels(
@@ -511,9 +547,9 @@ func (s *fakeHostAPIModelCatalogService) Refresh(
 
 func (s *fakeHostAPIModelCatalogService) ListSourceStatus(
 	_ context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
-	s.statusProviderIDs = append(s.statusProviderIDs, providerID)
+	s.statusOpts = append(s.statusOpts, opts)
 	return append([]modelcatalog.SourceStatus(nil), s.statuses...), s.statusErr
 }
 

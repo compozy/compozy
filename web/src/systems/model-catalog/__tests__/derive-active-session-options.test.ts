@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import { deriveActiveSessionOptions } from "../lib/derive-active-session-options";
 import type { ProviderModelPayload } from "../types";
 
+// Invariant: session option defaults come from the typed public descriptor and
+// are never read from private/legacy transport fields.
+// Owning layer: model-catalog session-option derivation.
+// Canonical suite: derive-active-session-options unit suite.
+
 const visibleCatalogFlags = {
   curated: true,
   deprecated: false,
@@ -100,7 +105,7 @@ describe("deriveActiveSessionOptions", () => {
         {
           id: "model",
           kind: "enum",
-          current: "gpt-5.4",
+          current_value_id: "gpt-5.4",
           values: [
             { value: "gpt-5.4", label: "Active default" },
             { value: "experimental-routing", label: "Experimental" },
@@ -219,7 +224,7 @@ describe("deriveActiveSessionOptions", () => {
         {
           id: "reasoning_effort",
           kind: "enum",
-          current: "high",
+          current_value_id: "high",
           values: [
             { value: "low", label: "Low" },
             { value: "high", label: "High" },

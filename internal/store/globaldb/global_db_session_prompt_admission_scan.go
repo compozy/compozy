@@ -14,24 +14,23 @@ import (
 func sessionPromptAdmissionFromGenerated(
 	row *sqlcgen.SessionPromptAdmission,
 ) (store.SessionPromptAdmission, error) {
+	runtime, err := sessionPromptAdmissionRuntimeFromGenerated(row)
+	if err != nil {
+		return store.SessionPromptAdmission{}, err
+	}
 	admission := store.SessionPromptAdmission{
-		ID:                 strings.TrimSpace(row.ID),
-		WorkspaceID:        strings.TrimSpace(row.WorkspaceID),
-		SessionID:          strings.TrimSpace(row.SessionID),
-		MessageID:          strings.TrimSpace(row.MessageID),
-		IdempotencyKey:     strings.TrimSpace(row.IdempotencyKey),
-		Operation:          strings.TrimSpace(row.Operation),
-		FingerprintVersion: strings.TrimSpace(row.FingerprintVersion),
-		RequestFingerprint: strings.TrimSpace(row.RequestFingerprint),
-		State:              strings.TrimSpace(row.State),
-		Mode:               strings.TrimSpace(row.Mode),
-		AuthoredText:       row.AuthoredText,
-		Runtime: store.SessionInputRuntime{
-			Provider:        strings.TrimSpace(row.RuntimeProvider),
-			Model:           strings.TrimSpace(row.RuntimeModel),
-			ReasoningEffort: strings.TrimSpace(row.RuntimeReasoningEffort),
-			Speed:           strings.TrimSpace(row.RuntimeSpeed),
-		},
+		ID:                  strings.TrimSpace(row.ID),
+		WorkspaceID:         strings.TrimSpace(row.WorkspaceID),
+		SessionID:           strings.TrimSpace(row.SessionID),
+		MessageID:           strings.TrimSpace(row.MessageID),
+		IdempotencyKey:      strings.TrimSpace(row.IdempotencyKey),
+		Operation:           strings.TrimSpace(row.Operation),
+		FingerprintVersion:  strings.TrimSpace(row.FingerprintVersion),
+		RequestFingerprint:  strings.TrimSpace(row.RequestFingerprint),
+		State:               strings.TrimSpace(row.State),
+		Mode:                strings.TrimSpace(row.Mode),
+		AuthoredText:        row.AuthoredText,
+		Runtime:             runtime,
 		TurnID:              strings.TrimSpace(row.TurnID),
 		EventID:             strings.TrimSpace(row.EventID),
 		IndeterminateReason: strings.TrimSpace(row.IndeterminateReason),
@@ -88,6 +87,25 @@ func sessionPromptAdmissionFromGenerated(
 		)
 	}
 	return admission, nil
+}
+
+func sessionPromptAdmissionRuntimeFromGenerated(
+	row *sqlcgen.SessionPromptAdmission,
+) (store.SessionInputRuntime, error) {
+	runtimeOptions, err := decodeSessionACPOptions(
+		row.RuntimeAcpOptionsJson,
+		"session prompt admission runtime ACP options",
+	)
+	if err != nil {
+		return store.SessionInputRuntime{}, err
+	}
+	return store.SessionInputRuntime{
+		Provider:        strings.TrimSpace(row.RuntimeProvider),
+		Model:           strings.TrimSpace(row.RuntimeModel),
+		ReasoningEffort: strings.TrimSpace(row.RuntimeReasoningEffort),
+		Speed:           strings.TrimSpace(row.RuntimeSpeed),
+		ACPOptions:      runtimeOptions,
+	}, nil
 }
 
 func parsePromptAdmissionTime(value sql.NullString) (*time.Time, error) {

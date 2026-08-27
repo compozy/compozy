@@ -1,0 +1,5 @@
+-- +goose Up
+-- create "model_catalog_transport_bindings" table
+CREATE TABLE `model_catalog_transport_bindings` (`source_id` text NOT NULL, `provider_id` text NOT NULL, `model_id` text NOT NULL, `transport_model_id` text NOT NULL, `label` text NOT NULL DEFAULT '', `reasoning_effort` text NULL, `fast` integer NULL, `thinking` integer NULL, `rank` integer NOT NULL, PRIMARY KEY (`source_id`, `provider_id`, `model_id`, `transport_model_id`), CONSTRAINT `0` FOREIGN KEY (`source_id`, `provider_id`, `model_id`) REFERENCES `model_catalog_rows` (`source_id`, `provider_id`, `model_id`) ON UPDATE NO ACTION ON DELETE CASCADE, CHECK (trim(source_id) <> ''), CHECK (trim(provider_id) <> ''), CHECK (trim(model_id) <> ''), CHECK (trim(transport_model_id) <> ''), CHECK (fast IN (0, 1) OR fast IS NULL), CHECK (thinking IN (0, 1) OR thinking IS NULL), CHECK (rank >= 0));
+-- create index "idx_model_catalog_transport_bindings_row" to table: "model_catalog_transport_bindings"
+CREATE INDEX `idx_model_catalog_transport_bindings_row` ON `model_catalog_transport_bindings` (`source_id`, `provider_id`, `model_id`, `rank`, `transport_model_id`);

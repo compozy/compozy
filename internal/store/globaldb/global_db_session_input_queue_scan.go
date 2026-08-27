@@ -14,6 +14,13 @@ import (
 )
 
 func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.SessionInputQueueEntry, error) {
+	runtimeOptions, err := decodeSessionACPOptions(
+		row.RuntimeAcpOptionsJson,
+		"session input runtime ACP options",
+	)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 	entry := store.SessionInputQueueEntry{
 		ID:                row.ID,
 		SessionID:         row.SessionID,
@@ -32,6 +39,7 @@ func sessionInputQueueFromGenerated(row *sqlcgen.SessionInputQueue) (store.Sessi
 			Model:           row.RuntimeModel,
 			ReasoningEffort: row.RuntimeReasoningEffort,
 			Speed:           row.RuntimeSpeed,
+			ACPOptions:      runtimeOptions,
 		},
 		SessionGeneration:        row.SessionGeneration,
 		TaskRunID:                row.TaskRunID,

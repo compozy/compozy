@@ -60,10 +60,16 @@ func (h *BaseHandlers) OpenAIModels(c *gin.Context) {
 		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h != nil && h.MaskInternalErrors)
 		return
 	}
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
 	models, err := service.ListModels(c.Request.Context(), modelcatalog.ListOptions{
-		ProviderID:   providerID,
-		IncludeStale: true,
-		Now:          h.nowUTC(),
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+		IncludeStale:     true,
+		Now:              h.nowUTC(),
 	})
 	if err != nil {
 		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
@@ -217,7 +223,15 @@ func (h *BaseHandlers) providerModelStatus(c *gin.Context, providerParam string)
 		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
 		return
 	}
-	statuses, err := service.ListSourceStatus(c.Request.Context(), providerID)
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
+	statuses, err := service.ListSourceStatus(c.Request.Context(), modelcatalog.StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+	})
 	if err != nil {
 		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
 		return
@@ -260,13 +274,18 @@ func (h *BaseHandlers) modelCatalogListOptions(
 			View: string(view),
 		})
 	}
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		return modelcatalog.ListOptions{}, err
+	}
 	return modelcatalog.ListOptions{
-		ProviderID:   trimmedProvider,
-		SourceID:     sourceID,
-		View:         view,
-		Refresh:      refresh,
-		IncludeStale: includeStale,
-		Now:          h.nowUTC(),
+		ProviderID:       trimmedProvider,
+		SourceID:         sourceID,
+		View:             view,
+		ExecutionContext: executionContext,
+		Refresh:          refresh,
+		IncludeStale:     includeStale,
+		Now:              h.nowUTC(),
 	}, nil
 }
 
@@ -288,12 +307,44 @@ func (h *BaseHandlers) modelCatalogRefreshOptions(
 	if err != nil {
 		return modelcatalog.RefreshOptions{}, err
 	}
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		return modelcatalog.RefreshOptions{}, err
+	}
 	return modelcatalog.RefreshOptions{
-		ProviderID: providerID,
-		SourceID:   sourceID,
-		Force:      request.Force,
-		RequestID:  strings.TrimSpace(request.RequestID),
-		Now:        h.nowUTC(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		ExecutionContext: executionContext,
+		Force:            request.Force,
+		RequestID:        strings.TrimSpace(request.RequestID),
+		Now:              h.nowUTC(),
+	}, nil
+}
+
+func (h *BaseHandlers) modelCatalogExecutionContext(
+	c *gin.Context,
+) (modelcatalog.CatalogExecutionContext, error) {
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		return modelcatalog.CatalogExecutionContext{}, NewModelCatalogValidationError(err)
+	}
+	if selection.Scope.AllProfiles {
+		return modelcatalog.CatalogExecutionContext{}, NewModelCatalogValidationError(
+			errors.New("model catalog requires one profile"),
+		)
+	}
+	profileID := strings.TrimSpace(selection.Scope.ProfileID)
+	workspaceID := strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace")))
+	if workspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: profileID,
+		}, nil
+	}
+	return modelcatalog.CatalogExecutionContext{
+		Scope:       modelcatalog.ExecutionScopeWorkspace,
+		ProfileID:   profileID,
+		WorkspaceID: workspaceID,
 	}, nil
 }
 

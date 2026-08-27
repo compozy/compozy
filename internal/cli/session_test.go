@@ -121,6 +121,10 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 			"high",
 			"--speed",
 			"fast",
+			"--acp-option",
+			"context=1m",
+			"--acp-toggle",
+			"thinking=true",
 			"-o",
 			"json",
 		)
@@ -138,8 +142,16 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 			)
 		}
 		if gotRequest.Runtime.Provider != "codex" || gotRequest.Runtime.Model != "gpt-5.6-sol" ||
-			gotRequest.Runtime.ReasoningEffort != "high" || gotRequest.Runtime.Speed != contract.SpeedFast {
+			gotRequest.Runtime.ReasoningEffort != "high" || gotRequest.Runtime.Speed != contract.SpeedFast ||
+			len(gotRequest.Runtime.ACPOptions) != 2 {
 			t.Fatalf("SendSessionPrompt() Runtime = %#v", gotRequest.Runtime)
+		}
+		if gotRequest.Runtime.ACPOptions[0].ID != "context" ||
+			gotRequest.Runtime.ACPOptions[0].ValueID != "1m" ||
+			gotRequest.Runtime.ACPOptions[1].ID != "thinking" ||
+			gotRequest.Runtime.ACPOptions[1].BoolValue == nil ||
+			!*gotRequest.Runtime.ACPOptions[1].BoolValue {
+			t.Fatalf("SendSessionPrompt() ACP options = %#v", gotRequest.Runtime.ACPOptions)
 		}
 		var decoded SessionPromptRecord
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
@@ -233,6 +245,8 @@ func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
 			"--model", "grok-4.5",
 			"--reasoning-effort", "high",
 			"--speed", "fast",
+			"--acp-option", "context=1m",
+			"--acp-toggle", "thinking=true",
 			"-o", "json",
 		)
 		if err != nil {
@@ -245,7 +259,7 @@ func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
 		}
 		if gotRequest.Runtime.Provider != "cursor" || gotRequest.Runtime.Model != "grok-4.5" ||
 			gotRequest.Runtime.ReasoningEffort != contract.ReasoningEffort("high") ||
-			gotRequest.Runtime.Speed != contract.SpeedFast {
+			gotRequest.Runtime.Speed != contract.SpeedFast || len(gotRequest.Runtime.ACPOptions) != 2 {
 			t.Fatalf("MutateSessionGoal() runtime = %#v", gotRequest.Runtime)
 		}
 		var decoded contract.GoalCommandResult
@@ -372,7 +386,8 @@ func TestSessionRuntimeCommandsPersistSelection(t *testing.T) {
 			) (SessionRecord, error) {
 				if id != "sess-1" || request.ExpectedRevision == nil || *request.ExpectedRevision != 5 ||
 					request.Runtime.Provider != "claude" || request.Runtime.Model != "claude-fable-5" ||
-					request.Runtime.ReasoningEffort != "max" || request.Runtime.Speed != contract.SpeedNormal {
+					request.Runtime.ReasoningEffort != "max" || request.Runtime.Speed != contract.SpeedNormal ||
+					len(request.Runtime.ACPOptions) != 2 {
 					t.Fatalf("SetSessionRuntime() id = %q request = %#v", id, request)
 				}
 				return SessionRecord{
@@ -390,6 +405,7 @@ func TestSessionRuntimeCommandsPersistSelection(t *testing.T) {
 			deps,
 			"session", "runtime", "set", "sess-1",
 			"--provider", "claude", "--model", "claude-fable-5", "--reasoning-effort", "max",
+			"--acp-option", "context=1m", "--acp-toggle", "thinking=false",
 			"-o", "json",
 		)
 		if err != nil {

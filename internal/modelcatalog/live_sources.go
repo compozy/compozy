@@ -37,6 +37,7 @@ const (
 
 const (
 	defaultLiveDiscoveryTimeout = 10 * time.Second
+	defaultLiveDiscoveryTTL     = 5 * time.Minute
 	maxLiveDiscoveryPayloadSize = 8 << 20
 )
 
@@ -84,6 +85,7 @@ type DiscoveryCommandRequest struct {
 	ProviderID string
 	Command    string
 	Args       []string
+	Dir        string
 	Env        []string
 	Timeout    time.Duration
 }
@@ -118,6 +120,7 @@ func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
 	}
 	// #nosec G204 -- discovery commands come from validated provider model discovery config.
 	cmd := exec.CommandContext(ctx, req.Command, req.Args...)
+	cmd.Dir = strings.TrimSpace(req.Dir)
 	cmd.Env = append([]string(nil), req.Env...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -150,6 +153,8 @@ type LiveProviderSourcesConfig struct {
 	CommandExecutor DiscoveryCommandExecutor
 	ACPProbe        ACPModelProbe
 	DefaultTimeout  time.Duration
+	RefreshTTL      time.Duration
+	WorkingDir      string
 }
 
 // NewLiveProviderSources creates provider_live sources for known provider adapters.
@@ -196,6 +201,10 @@ func NewLiveProviderSource(
 	if timeout <= 0 {
 		timeout = defaultLiveDiscoveryTimeout
 	}
+	refreshTTL := cfg.RefreshTTL
+	if refreshTTL <= 0 {
+		refreshTTL = defaultLiveDiscoveryTTL
+	}
 	executor := cfg.CommandExecutor
 	if executor == nil {
 		executor = ExecDiscoveryCommandExecutor{}
@@ -207,6 +216,14 @@ func NewLiveProviderSource(
 	secretResolver := cfg.SecretResolver
 	if secretResolver == nil {
 		secretResolver = EnvSecretResolver{}
+	}
+	workingDir := strings.TrimSpace(cfg.WorkingDir)
+	if workingDir == "" {
+		resolvedDir, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("model catalog: resolve discovery working directory: %w", err)
+		}
+		workingDir = resolvedDir
 	}
 	return &LiveProviderSource{
 		providerID:      trimmedProviderID,
@@ -220,6 +237,8 @@ func NewLiveProviderSource(
 		commandExecutor: executor,
 		acpProbe:        acpProbe,
 		defaultTimeout:  timeout,
+		refreshTTL:      refreshTTL,
+		workingDir:      workingDir,
 	}, nil
 }
 
@@ -240,12 +259,23 @@ type LiveProviderSource struct {
 	commandExecutor DiscoveryCommandExecutor
 	acpProbe        ACPModelProbe
 	defaultTimeout  time.Duration
+	refreshTTL      time.Duration
+	workingDir      string
 
 	providerMu sync.RWMutex
 	provider   compozyconfig.ProviderConfig
 }
 
 var _ Source = (*LiveProviderSource)(nil)
+
+// TTL returns the interval after which a catalog read should revalidate this
+// live source in the background.
+func (s *LiveProviderSource) TTL() time.Duration {
+	if s == nil || s.refreshTTL <= 0 {
+		return defaultLiveDiscoveryTTL
+	}
+	return s.refreshTTL
+}
 
 // BootstrapOnList reports whether the source should discover once before its first catalog projection.
 func (s *LiveProviderSource) BootstrapOnList() bool {
@@ -299,6 +329,8 @@ func (s *LiveProviderSource) CloneWithProvider(
 		CommandExecutor: s.commandExecutor,
 		ACPProbe:        s.acpProbe,
 		DefaultTimeout:  s.defaultTimeout,
+		RefreshTTL:      s.refreshTTL,
+		WorkingDir:      s.workingDir,
 	})
 	if err != nil {
 		return nil, false, err

@@ -96,6 +96,7 @@ export function useLoopInputCatalogValue(
       name: provider.display_name || provider.name,
       harness: provider.harness,
       runtime_provider: provider.runtime_provider,
+      runtime_strategy: provider.runtime_strategy,
     })
   );
   const runtimeCatalog = useRuntimeModelCatalog(runtimeProviders, {

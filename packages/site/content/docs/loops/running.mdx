@@ -11,8 +11,9 @@ plan, then watch the run stream live until it reaches one named outcome.
 The run form is generated from the Loop's [declared inputs](/docs/loops/dsl-reference#declared-inputs)
 — a typed field per input, each with a type badge, a required marker, and inline validation. An
 `agent` or `ref` input renders the matching workspace catalog, a `secret` ref lists redacted Vault
-metadata, a `runtime` input offers provider models and `normal|fast` speed while accepting exact custom model IDs, and a
-`boolean` renders a switch. An authored `enum` always replaces catalog choices. If a saved reference
+metadata, a `runtime` input offers provider models, Reasoning, `normal|fast` speed, and other advertised
+ACP options while accepting exact custom model IDs, and a `boolean` renders a switch. An authored `enum`
+always replaces catalog choices. If a saved reference
 is no longer listed, the field keeps the exact value visible so the daemon can return the field-level
 error instead of silently replacing it. `file` remains a text field; the form does not browse or
 check the path. A sticky preview beside the form shows
@@ -39,7 +40,8 @@ surface submits the exact stored identifier; display labels are never treated as
 
 From the CLI, repeat `--input key=value`. Number, boolean, and JSON values are decoded normally;
 runtime inputs also accept `provider/model@reasoning:speed=normal|fast`, with `-` leaving provider
-or model unset and `-/-:speed=fast` selecting speed alone. In
+or model unset and `-/-:speed=fast` selecting speed alone. Use a JSON runtime object with
+`acp_options: [{"id":"thinking","bool_value":true}]` when a run needs another advertised control. In
 an interactive terminal, `compozy loop run` prompts only for supported required inputs that remain
 missing after defaults. Use `--no-prompt` to fail instead. Structured output and non-interactive
 input never prompt, so scripts keep deterministic behavior.

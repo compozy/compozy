@@ -35,6 +35,8 @@ func validateAgentResourceSpec(
 		Command:         strings.TrimSpace(spec.Command),
 		Model:           strings.TrimSpace(spec.Model),
 		ReasoningEffort: strings.TrimSpace(spec.ReasoningEffort),
+		Speed:           normalizeAgentSpeed(spec.Speed),
+		ACPOptions:      CloneACPOptionSelections(spec.ACPOptions),
 		Tools:           normalizeAgentToolPatterns(spec.Tools),
 		Toolsets:        normalizeAgentToolsetRefs(spec.Toolsets),
 		DenyTools:       normalizeAgentToolPatterns(spec.DenyTools),
@@ -55,6 +57,11 @@ func validateAgentResourceSpec(
 	for idx, server := range normalized.MCPServers {
 		normalized.MCPServers[idx] = normalizeMCPServerResourceSpec(server)
 	}
+	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", normalized.ACPOptions)
+	if err != nil {
+		return AgentDef{}, errors.Join(resources.ErrValidation, err)
+	}
+	normalized.ACPOptions = normalizedOptions
 
 	if err := normalized.Validate(); err != nil {
 		return AgentDef{}, errors.Join(resources.ErrValidation, err)

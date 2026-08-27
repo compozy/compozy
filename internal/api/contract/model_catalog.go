@@ -40,29 +40,39 @@ type ProviderModelStatusResponse struct {
 
 // ProviderModelPayload is one merged provider model catalog projection.
 type ProviderModelPayload struct {
-	ProviderID             string                         `json:"provider_id"`
-	ModelID                string                         `json:"model_id"`
-	DisplayName            string                         `json:"display_name,omitempty"`
-	Sources                []ModelCatalogSourceRefPayload `json:"sources"`
-	Available              *bool                          `json:"available"`
-	AvailabilityState      string                         `json:"availability_state"`
-	Stale                  bool                           `json:"stale"`
-	RefreshedAt            string                         `json:"refreshed_at,omitempty"`
-	ContextWindow          *int64                         `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                         `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                         `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                          `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                          `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []ReasoningEffort              `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *ReasoningEffort               `json:"default_reasoning_effort,omitempty"`
-	Cost                   *ModelCatalogCostPayload       `json:"cost,omitempty"`
-	Curated                bool                           `json:"curated"`
-	Deprecated             bool                           `json:"deprecated"`
-	Hidden                 bool                           `json:"hidden"`
-	Featured               bool                           `json:"featured"`
-	ReleaseDate            string                         `json:"release_date,omitempty"`
-	ReasoningSource        ReasoningSource                `json:"reasoning_source,omitempty"`
-	LastError              string                         `json:"last_error,omitempty"`
+	ProviderID             string                              `json:"provider_id"`
+	ModelID                string                              `json:"model_id"`
+	DisplayName            string                              `json:"display_name,omitempty"`
+	Sources                []ModelCatalogSourceRefPayload      `json:"sources"`
+	Available              *bool                               `json:"available"`
+	AvailabilityState      string                              `json:"availability_state"`
+	Stale                  bool                                `json:"stale"`
+	RefreshedAt            string                              `json:"refreshed_at,omitempty"`
+	ContextWindow          *int64                              `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                              `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                              `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                               `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                               `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []ReasoningEffort                   `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *ReasoningEffort                    `json:"default_reasoning_effort,omitempty"`
+	ConfigOptions          []SessionConfigOptionPayload        `json:"config_options,omitempty"`
+	Configurations         []ProviderModelConfigurationPayload `json:"configurations,omitempty"`
+	Cost                   *ModelCatalogCostPayload            `json:"cost,omitempty"`
+	Curated                bool                                `json:"curated"`
+	Deprecated             bool                                `json:"deprecated"`
+	Hidden                 bool                                `json:"hidden"`
+	Featured               bool                                `json:"featured"`
+	ReleaseDate            string                              `json:"release_date,omitempty"`
+	ReasoningSource        ReasoningSource                     `json:"reasoning_source,omitempty"`
+	LastError              string                              `json:"last_error,omitempty"`
+}
+
+// ProviderModelConfigurationPayload is one public valid runtime-option combination.
+// Provider transport identifiers remain daemon-private.
+type ProviderModelConfigurationPayload struct {
+	ReasoningEffort *ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Fast            *bool            `json:"fast,omitempty"`
+	Thinking        *bool            `json:"thinking,omitempty"`
 }
 
 // ModelCatalogSourceRefPayload identifies one source used by a merged model.

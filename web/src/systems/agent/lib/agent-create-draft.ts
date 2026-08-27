@@ -1,8 +1,9 @@
-import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import { joinAgentCategorySegments } from "./agent-category";
+import { runtimeACPSelections } from "./agent-effective-runtime";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
-import type { RuntimeProviderOption } from "@/systems/runtime";
+import type { RuntimeACPOptionSelection, RuntimeProviderOption } from "@/systems/runtime";
 
 const agentNameMaxLength = 106;
 const agentNamePattern = /^[a-z][a-z0-9_-]{0,105}$/;
@@ -19,6 +20,9 @@ export interface AgentCreateDialogDraft {
   provider: string;
   model: string;
   reasoningEffort: ReasoningEffort | "";
+  speed: RuntimeSpeed | "";
+  /** Typed ACP overrides preserved when duplicating or prefilling an agent. */
+  acpOptions?: RuntimeACPOptionSelection[];
   command: string;
   prompt: string;
   permissions: AgentCreatePermissionChoice;
@@ -84,6 +88,8 @@ export function createDefaultAgentCreateDraft(hasActiveWorkspace: boolean): Agen
     provider: "",
     model: "",
     reasoningEffort: "",
+    speed: "",
+    acpOptions: undefined,
     command: "",
     prompt: "",
     permissions: "",
@@ -105,6 +111,8 @@ export function updateAgentCreateScope(
     provider: "",
     model: "",
     reasoningEffort: "",
+    speed: "",
+    acpOptions: undefined,
   };
 }
 
@@ -265,6 +273,8 @@ export function buildCreateAgentParams(
       ...(command.length > 0 ? { command } : {}),
       ...(model.length > 0 ? { model } : {}),
       ...(reasoningEffort !== "" ? { reasoning_effort: reasoningEffort } : {}),
+      ...(draft.speed !== "" ? { speed: draft.speed } : {}),
+      ...(draft.acpOptions !== undefined ? { acp_options: [...draft.acpOptions] } : {}),
       ...(tools.length > 0 ? { tools } : {}),
       ...(toolsets.length > 0 ? { toolsets } : {}),
       ...(denyTools.length > 0 ? { deny_tools: denyTools } : {}),
@@ -308,6 +318,8 @@ export function buildDraftFromAgentPayload(
     provider: agent.provider ?? "",
     model: agent.model ?? "",
     reasoningEffort: reasoning,
+    speed: agentRuntimeSpeed(agent.speed),
+    acpOptions: runtimeACPSelections(agent.acp_options),
     command: agent.command ?? "",
     prompt: agent.prompt ?? "",
     permissions: mapPermissionsChoice(agent.permissions),
@@ -363,6 +375,8 @@ export function buildDuplicateAgentParams(
     source.reasoning_effort && isReasoningEffort(source.reasoning_effort)
       ? source.reasoning_effort
       : "";
+  const sourceACPOptions = runtimeACPSelections(source.acp_options);
+  const sourceSpeed = agentRuntimeSpeed(source.speed);
 
   const overrides: NonNullable<DuplicateAgentParams["overrides"]> = {};
   if (provider !== (source.provider ?? "")) overrides.provider = provider;
@@ -371,6 +385,10 @@ export function buildDuplicateAgentParams(
   if (command !== (source.command ?? "")) overrides.command = command || undefined;
   if (reasoningEffort !== sourceReasoning) {
     overrides.reasoning_effort = reasoningEffort || undefined;
+  }
+  if (draft.speed !== sourceSpeed) overrides.speed = draft.speed || undefined;
+  if (!sameACPSelections(draft.acpOptions, sourceACPOptions)) {
+    overrides.acp_options = draft.acpOptions ? [...draft.acpOptions] : [];
   }
   if (permissions !== sourcePermissions) overrides.permissions = permissions;
   if (!sameTokenList(tools, sourceTools)) overrides.tools = tools;
@@ -395,6 +413,10 @@ export function buildDuplicateAgentParams(
   };
 }
 
+function agentRuntimeSpeed(value: string | null | undefined): RuntimeSpeed | "" {
+  return value === "normal" || value === "fast" ? value : "";
+}
+
 function normalizeOrderedTokens(values: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -405,6 +427,20 @@ function normalizeOrderedTokens(values: readonly string[]): string[] {
     normalized.push(trimmed);
   }
   return normalized;
+}
+
+function sameACPSelections(
+  left: readonly RuntimeACPOptionSelection[] | undefined,
+  right: readonly RuntimeACPOptionSelection[] | undefined
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  if (left.length !== right.length) return false;
+  return left.every(
+    (selection, index) =>
+      selection.id === right[index]?.id &&
+      selection.value_id === right[index]?.value_id &&
+      selection.bool_value === right[index]?.bool_value
+  );
 }
 
 function validateToolPatternList(values: readonly string[], label: string): string | null {

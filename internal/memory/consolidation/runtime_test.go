@@ -18,6 +18,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -977,8 +978,15 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 				Provider:        "primary",
 				Model:           "m1",
 				ReasoningEffort: "low",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []acp.SessionConfigOptionSelection{{
+					ID: "thinking", BoolValue: new(true),
+				}},
 				Fallbacks: []compozyconfig.RoleFallback{
-					{Provider: "secondary", Model: "m2", ReasoningEffort: "high"},
+					{
+						Provider: "secondary", Model: "m2", ReasoningEffort: "high", Speed: speedpkg.SpeedNormal,
+						ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}},
+					},
 					{Provider: "tertiary", Model: "m3"},
 				},
 				BeforeFallback: func(_ context.Context, attempt int, fallback compozyconfig.RoleFallback) error {
@@ -999,8 +1007,13 @@ func TestSpawnSessionWrapsPromptAndStopErrors(t *testing.T) {
 		}
 		calls := sessions.createdOptions()
 		if len(calls) != 2 || calls[0].Provider != "primary" || calls[0].Model != "m1" ||
-			calls[0].ReasoningEffort != "low" || calls[1].Provider != "secondary" ||
-			calls[1].Model != "m2" || calls[1].ReasoningEffort != "high" {
+			calls[0].ReasoningEffort != "low" || calls[0].Speed != speedpkg.SpeedFast ||
+			len(calls[0].ACPOptions) != 1 || calls[0].ACPOptions[0].ID != "thinking" ||
+			calls[0].ACPOptions[0].BoolValue == nil || !*calls[0].ACPOptions[0].BoolValue ||
+			calls[1].Provider != "secondary" || calls[1].Model != "m2" ||
+			calls[1].ReasoningEffort != "high" || calls[1].Speed != speedpkg.SpeedNormal ||
+			len(calls[1].ACPOptions) != 1 || calls[1].ACPOptions[0].ID != "context" ||
+			calls[1].ACPOptions[0].ValueID != "1m" {
 			t.Fatalf("Create() calls = %#v", calls)
 		}
 		if events != 1 || sessions.stopCount() != 1 {
@@ -1071,6 +1084,8 @@ func testDreamRouteResolver(cfg *compozyconfig.Config) SessionRouteResolver {
 			Provider:        role.Provider,
 			Model:           role.Model,
 			ReasoningEffort: role.ReasoningEffort,
+			Speed:           role.Speed,
+			ACPOptions:      dreamACPOptionsForSession(role.ACPOptions),
 			Fallbacks:       append([]compozyconfig.RoleFallback(nil), role.FallbackChain...),
 		}, nil
 	}

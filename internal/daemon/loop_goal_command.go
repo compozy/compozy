@@ -98,10 +98,11 @@ func goalCommandRuntime(runtime *session.RuntimeSelection) (*looppkg.RuntimeSpec
 		return nil, err
 	}
 	return &looppkg.RuntimeSpec{
-		Provider:  normalized.Provider,
-		Model:     normalized.Model,
-		Reasoning: normalized.ReasoningEffort,
-		Speed:     normalized.Speed,
+		Provider:   normalized.Provider,
+		Model:      normalized.Model,
+		Reasoning:  normalized.ReasoningEffort,
+		Speed:      normalized.Speed,
+		ACPOptions: loopACPOptionsFromSession(normalized.ACPOptions),
 	}, nil
 }
 

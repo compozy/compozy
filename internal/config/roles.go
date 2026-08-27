@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/reasoning"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 type providerResolver interface {
@@ -52,7 +53,16 @@ type RolesConfig struct {
 
 // CloneRolesConfig returns an ownership-safe copy of the roles configuration.
 func CloneRolesConfig(source *RolesConfig) RolesConfig {
+	if source == nil {
+		return RolesConfig{}
+	}
 	cloned := *source
+	cloned.Coordinator.ACPOptions = CloneACPOptionSelections(source.Coordinator.ACPOptions)
+	cloned.Dream.ACPOptions = CloneACPOptionSelections(source.Dream.ACPOptions)
+	cloned.CheckpointSummary.ACPOptions = CloneACPOptionSelections(source.CheckpointSummary.ACPOptions)
+	cloned.MemoryExtractor.ACPOptions = CloneACPOptionSelections(source.MemoryExtractor.ACPOptions)
+	cloned.AutoTitle.ACPOptions = CloneACPOptionSelections(source.AutoTitle.ACPOptions)
+	cloned.MemoryController.ACPOptions = CloneACPOptionSelections(source.MemoryController.ACPOptions)
 	cloned.Coordinator.FallbackChain = cloneRoleFallbacks(source.Coordinator.FallbackChain)
 	cloned.Dream.FallbackChain = cloneRoleFallbacks(source.Dream.FallbackChain)
 	cloned.CheckpointSummary.FallbackChain = cloneRoleFallbacks(source.CheckpointSummary.FallbackChain)
@@ -63,24 +73,36 @@ func CloneRolesConfig(source *RolesConfig) RolesConfig {
 }
 
 func cloneRoleFallbacks(source []RoleFallback) []RoleFallback {
-	return append([]RoleFallback(nil), source...)
+	if len(source) == 0 {
+		return nil
+	}
+	cloned := make([]RoleFallback, len(source))
+	for index, fallback := range source {
+		cloned[index] = fallback
+		cloned[index].ACPOptions = CloneACPOptionSelections(fallback.ACPOptions)
+	}
+	return cloned
 }
 
 // RoleConfig controls one session-backed role.
 type RoleConfig struct {
-	Enabled         bool           `toml:"enabled"`
-	Agent           string         `toml:"agent,omitempty"`
-	Provider        string         `toml:"provider,omitempty"`
-	Model           string         `toml:"model,omitempty"`
-	ReasoningEffort string         `toml:"reasoning_effort,omitempty"`
-	FallbackChain   []RoleFallback `toml:"fallback_chain,omitempty"`
+	Enabled         bool                 `toml:"enabled"`
+	Agent           string               `toml:"agent,omitempty"`
+	Provider        string               `toml:"provider,omitempty"`
+	Model           string               `toml:"model,omitempty"`
+	ReasoningEffort string               `toml:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed       `toml:"speed,omitempty"`
+	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"`
+	FallbackChain   []RoleFallback       `toml:"fallback_chain,omitempty"`
 }
 
 // RoleFallback is one ordered invocation fallback route.
 type RoleFallback struct {
-	Provider        string `toml:"provider"`
-	Model           string `toml:"model"`
-	ReasoningEffort string `toml:"reasoning_effort,omitempty"`
+	Provider        string               `toml:"provider"`
+	Model           string               `toml:"model"`
+	ReasoningEffort string               `toml:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed       `toml:"speed,omitempty"`
+	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"`
 }
 
 // CoordinatorRoleConfig combines routing with coordinator safety policy.
@@ -108,15 +130,17 @@ const (
 
 // MemoryControllerRoleConfig controls the in-process memory-controller model call.
 type MemoryControllerRoleConfig struct {
-	Enabled         bool           `toml:"enabled"`
-	Provider        string         `toml:"provider,omitempty"`
-	Model           string         `toml:"model"`
-	ReasoningEffort string         `toml:"reasoning_effort,omitempty"`
-	Timeout         time.Duration  `toml:"timeout"`
-	TopK            int            `toml:"top_k"`
-	PromptVersion   string         `toml:"prompt_version"`
-	MaxTokensOut    int            `toml:"max_tokens_out"`
-	FallbackChain   []RoleFallback `toml:"fallback_chain,omitempty"`
+	Enabled         bool                 `toml:"enabled"`
+	Provider        string               `toml:"provider,omitempty"`
+	Model           string               `toml:"model"`
+	ReasoningEffort string               `toml:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed       `toml:"speed,omitempty"`
+	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"`
+	Timeout         time.Duration        `toml:"timeout"`
+	TopK            int                  `toml:"top_k"`
+	PromptVersion   string               `toml:"prompt_version"`
+	MaxTokensOut    int                  `toml:"max_tokens_out"`
+	FallbackChain   []RoleFallback       `toml:"fallback_chain,omitempty"`
 }
 
 // ResolvedCoordinatorRole is the coordinator runtime policy assembled from a resolved role.
@@ -126,6 +150,8 @@ type ResolvedCoordinatorRole struct {
 	Provider                      string
 	Model                         string
 	ReasoningEffort               string
+	Speed                         speedpkg.Speed
+	ACPOptions                    []ACPOptionSelection
 	Fallbacks                     []RoleFallback
 	TTL                           time.Duration
 	MaxChildren                   int
@@ -138,7 +164,9 @@ func DefaultResolvedCoordinatorRole() ResolvedCoordinatorRole {
 	return ResolvedCoordinatorRole{
 		Enabled:                       defaults.Enabled,
 		AgentName:                     BuiltinCoordinatorAgentName,
-		Fallbacks:                     append([]RoleFallback(nil), defaults.FallbackChain...),
+		Speed:                         normalizeAgentSpeed(defaults.Speed),
+		ACPOptions:                    CloneACPOptionSelections(defaults.ACPOptions),
+		Fallbacks:                     cloneRoleFallbacks(defaults.FallbackChain),
 		TTL:                           defaults.TTL,
 		MaxChildren:                   defaults.MaxChildren,
 		MaxActiveSessionsPerWorkspace: defaults.MaxActiveSessionsPerWorkspace,
@@ -226,6 +254,20 @@ func (c RoleConfig) validate(path string, resolver providerResolver) error {
 	if err := validateRoleReasoningEffort(path+".reasoning_effort", c.ReasoningEffort); err != nil {
 		return err
 	}
+	if err := validateAgentSpeed(c.Speed, path+".speed"); err != nil {
+		return err
+	}
+	if err := validateRoleACPOptions(path+".acp_options", c.ACPOptions); err != nil {
+		return err
+	}
+	if err := validateRoleACPOptionConflicts(
+		path+".acp_options",
+		c.ACPOptions,
+		c.Speed,
+		c.ReasoningEffort,
+	); err != nil {
+		return err
+	}
 	if err := validateRoleProvider(path, c.Provider, resolver); err != nil {
 		return err
 	}
@@ -234,6 +276,20 @@ func (c RoleConfig) validate(path string, resolver providerResolver) error {
 
 func (c MemoryControllerRoleConfig) validate(path string, resolver providerResolver) error {
 	if err := validateRoleReasoningEffort(path+".reasoning_effort", c.ReasoningEffort); err != nil {
+		return err
+	}
+	if err := validateAgentSpeed(c.Speed, path+".speed"); err != nil {
+		return err
+	}
+	if err := validateRoleACPOptions(path+".acp_options", c.ACPOptions); err != nil {
+		return err
+	}
+	if err := validateRoleACPOptionConflicts(
+		path+".acp_options",
+		c.ACPOptions,
+		c.Speed,
+		c.ReasoningEffort,
+	); err != nil {
 		return err
 	}
 	if err := validateRoleProvider(path, c.Provider, resolver); err != nil {
@@ -291,11 +347,60 @@ func validateRoleFallbacks(path string, fallbacks []RoleFallback, resolver provi
 		if err := validateRoleReasoningEffort(fallbackPath+".reasoning_effort", fallback.ReasoningEffort); err != nil {
 			return err
 		}
+		if err := validateAgentSpeed(fallback.Speed, fallbackPath+".speed"); err != nil {
+			return err
+		}
+		if err := validateRoleACPOptions(fallbackPath+".acp_options", fallback.ACPOptions); err != nil {
+			return err
+		}
+		if err := validateRoleACPOptionConflicts(
+			fallbackPath+".acp_options",
+			fallback.ACPOptions,
+			fallback.Speed,
+			fallback.ReasoningEffort,
+		); err != nil {
+			return err
+		}
 		if resolver == nil {
 			return fmt.Errorf("%s.provider resolver is required", fallbackPath)
 		}
 		if _, err := resolver.ResolveProvider(providerName); err != nil {
 			return fmt.Errorf("%s.provider: %w", fallbackPath, err)
+		}
+	}
+	return nil
+}
+
+func validateRoleACPOptions(path string, options []ACPOptionSelection) error {
+	return validateACPOptionSelections(path, options)
+}
+
+func validateRoleACPOptionConflicts(
+	path string,
+	options []ACPOptionSelection,
+	speed speedpkg.Speed,
+	reasoningEffort string,
+) error {
+	for _, option := range options {
+		semanticID := strings.Map(func(r rune) rune {
+			switch {
+			case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+				return r
+			case r >= 'A' && r <= 'Z':
+				return r + ('a' - 'A')
+			default:
+				return -1
+			}
+		}, strings.TrimSpace(option.ID))
+		switch semanticID {
+		case "fast", "speed", "speedmode":
+			if strings.TrimSpace(string(speed)) != "" {
+				return fmt.Errorf("%s.%s duplicates speed", path, option.ID)
+			}
+		case "reasoning", "reasoningeffort", "effort":
+			if strings.TrimSpace(reasoningEffort) != "" {
+				return fmt.Errorf("%s.%s duplicates reasoning_effort", path, option.ID)
+			}
 		}
 	}
 	return nil

@@ -43,13 +43,25 @@ Higher-priority non-empty fields win; lower-priority sources fill missing fields
 fresher `refreshed_at`, then ascending `source_id`. `models.dev` and `builtin` rows can enrich
 metadata but never prove account-level availability.
 
-Providers with a safe ACP discovery adapter register `provider_live:<id>` sources backed by short-lived
-ACP inspection; this currently includes Claude, Codex, and Cursor. The first catalog read without
-recorded discovery status resolves the effective provider command and home
-policy, reads the exact values in its advertised `model` option, and stores those rows before returning
-the projection. Bridge-backed commands inject the same absolute native CLI path used by session launch;
-Cursor uses `cursor-agent acp`. Human-readable CLI aliases are not used. Later reads use the stored
-result. A failed first attempt is also stored as source status; use the normal refresh surfaces to retry.
+Providers with a safe live adapter register `provider_live:<id>` sources. Claude, Codex, and Hermes
+inspect a short-lived ACP session and preserve the exact model and configuration options it advertises.
+Cursor instead runs `cursor-agent models`, groups its transport aliases into logical model IDs, and
+stores the valid Reasoning, Fast, and Thinking combinations without exposing those aliases. The first
+catalog read with no recorded status bootstraps these sources before returning; later reads use persisted
+rows and refresh them in the background. A failed attempt is recorded as source status and never replaces
+the last successful rows with an empty catalog.
+
+## Automatic model updates
+
+Live provider catalogs have a five-minute freshness window. The daemon refreshes them periodically and
+schedules a non-blocking refresh when a read finds stale data. A newly released model therefore appears
+without a CompozyOS code change when the provider advertises it through ACP, `cursor-agent models`, a
+configured discovery source, or an extension `model.source`. The built-in catalog is only an offline
+fallback; it includes Claude Opus 5 so that model remains visible before the first successful live refresh.
+
+An explicit `models.curated` set still controls the default curated view. A newly discovered model may
+first appear only under `view=all` until it is featured or added to that set. OpenClaw is provider-managed:
+its Gateway owns model selection, so CompozyOS does not fabricate catalog controls for it.
 
 Input, output, cache-read, cache-write, and reasoning prices merge independently and retain the
 source of the winning field. A cost estimate is available only when every nonzero usage bucket has
@@ -156,6 +168,18 @@ The native list response shape is:
       "supports_reasoning": true,
       "reasoning_efforts": ["none", "low", "medium", "high", "xhigh", "max"],
       "default_reasoning_effort": "medium",
+      "config_options": [
+        {
+          "id": "thinking",
+          "label": "Thinking",
+          "category": "thought_level",
+          "kind": "boolean",
+          "current_bool": false
+        }
+      ],
+      "configurations": [
+        { "reasoning_effort": "high", "fast": true, "thinking": false }
+      ],
       "cost": { "input_per_million": 5, "output_per_million": 30 },
       "curated": true,
       "deprecated": false,
@@ -192,6 +216,7 @@ remain authoritative when a session starts.
 | Codex    | `gpt-5.6-terra`             | —                 | 1,050,000 / 128,000 | 2.5 / 15                  | `none, low, medium, high, xhigh, max`     |
 | Codex    | `gpt-5.6-luna`              | —                 | 1,050,000 / 128,000 | 1 / 6                     | `none, low, medium, high, xhigh, max`     |
 | Claude   | `claude-fable-5`            | featured          | 1,000,000 / 128,000 | 10 / 50                   | `low, medium, high, xhigh, max`           |
+| Claude   | `claude-opus-5`             | featured          | 1,000,000 / 128,000 | 5 / 25                    | `low, medium, high, xhigh, max`           |
 | Claude   | `claude-opus-4-8`           | —                 | 1,000,000 / 128,000 | 5 / 25                    | `low, medium, high, xhigh, max`           |
 | Claude   | `claude-sonnet-5`           | default           | 1,000,000 / 128,000 | 3 / 15                    | `low, medium, high, xhigh, max`           |
 | Claude   | `claude-haiku-4-5-20251001` | —                 | 200,000 / 64,000    | 1 / 5                     | none seeded; ACP live may advertise a set |

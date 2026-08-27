@@ -59,10 +59,11 @@ type ProviderListResponse struct {
 
 // ProviderSummaryPayload describes one canonical provider and its declared auth state.
 type ProviderSummaryPayload struct {
-	Name        string                    `json:"name"`
-	DisplayName string                    `json:"display_name,omitempty"`
-	Default     bool                      `json:"default"`
-	AuthStatus  ProviderAuthStatusPayload `json:"auth_status"`
+	Name            string                    `json:"name"`
+	DisplayName     string                    `json:"display_name,omitempty"`
+	RuntimeStrategy ProviderRuntimeStrategy   `json:"runtime_strategy,omitempty"`
+	Default         bool                      `json:"default"`
+	AuthStatus      ProviderAuthStatusPayload `json:"auth_status"`
 }
 
 // ProviderAuthStatusPayload is the shared provider-auth readiness payload.

@@ -192,10 +192,11 @@ func (h *BaseHandlers) providerSummaryPayload(
 		return contract.ProviderSummaryPayload{}, err
 	}
 	return contract.ProviderSummaryPayload{
-		Name:        providerName,
-		DisplayName: strings.TrimSpace(provider.DisplayName),
-		Default:     compozyconfig.CanonicalProviderName(h.Config.Defaults.Provider) == providerName,
-		AuthStatus:  authStatus,
+		Name:            providerName,
+		DisplayName:     strings.TrimSpace(provider.DisplayName),
+		RuntimeStrategy: providerRuntimeStrategy(providerName, provider.RuntimeProviderName(providerName)),
+		Default:         compozyconfig.CanonicalProviderName(h.Config.Defaults.Provider) == providerName,
+		AuthStatus:      authStatus,
 	}, nil
 }
 

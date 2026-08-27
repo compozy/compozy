@@ -13,6 +13,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	"github.com/compozy/compozy/internal/store"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -79,7 +80,7 @@ func (n *daemonNativeTools) providerModelMutationAvailability() toolspkg.NativeA
 
 func (n *daemonNativeTools) providerModelsList(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input providerModelsListInput
@@ -99,11 +100,12 @@ func (n *daemonNativeTools) providerModelsList(
 		return toolspkg.ToolResult{}, err
 	}
 	models, err := n.deps.ModelCatalog.ListModels(ctx, modelcatalog.ListOptions{
-		ProviderID:   providerID,
-		SourceID:     sourceID,
-		View:         view,
-		IncludeStale: input.IncludeStale,
-		Now:          time.Now().UTC(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		View:             view,
+		ExecutionContext: nativeModelCatalogExecutionContext(scope),
+		IncludeStale:     input.IncludeStale,
+		Now:              time.Now().UTC(),
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeProviderModelToolError(req.ToolID, err)
@@ -165,7 +167,7 @@ func (n *daemonNativeTools) settingsService() core.SettingsService {
 
 func (n *daemonNativeTools) providerModelsRefresh(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input providerModelsRefreshInput
@@ -181,11 +183,12 @@ func (n *daemonNativeTools) providerModelsRefresh(
 		return toolspkg.ToolResult{}, err
 	}
 	statuses, err := n.deps.ModelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
-		ProviderID: providerID,
-		SourceID:   sourceID,
-		Force:      input.Force,
-		RequestID:  strings.TrimSpace(input.RequestID),
-		Now:        time.Now().UTC(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		ExecutionContext: nativeModelCatalogExecutionContext(scope),
+		Force:            input.Force,
+		RequestID:        strings.TrimSpace(input.RequestID),
+		Now:              time.Now().UTC(),
 	})
 	payload := contract.ProviderModelRefreshResponse{
 		Sources: core.SourceStatusPayloadsFromStatuses(statuses),
@@ -201,7 +204,7 @@ func (n *daemonNativeTools) providerModelsRefresh(
 
 func (n *daemonNativeTools) providerModelsStatus(
 	ctx context.Context,
-	_ toolspkg.Scope,
+	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
 	var input providerModelsStatusInput
@@ -212,7 +215,10 @@ func (n *daemonNativeTools) providerModelsStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	statuses, err := n.deps.ModelCatalog.ListSourceStatus(ctx, providerID)
+	statuses, err := n.deps.ModelCatalog.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: nativeModelCatalogExecutionContext(scope),
+	})
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeProviderModelToolError(req.ToolID, err)
 	}
@@ -220,6 +226,25 @@ func (n *daemonNativeTools) providerModelsStatus(
 		Sources: core.SourceStatusPayloadsFromStatuses(statuses),
 	}
 	return structuredResult(payload, fmt.Sprintf("%d provider model sources", len(payload.Sources)))
+}
+
+func nativeModelCatalogExecutionContext(scope toolspkg.Scope) modelcatalog.CatalogExecutionContext {
+	profileID := strings.TrimSpace(scope.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	workspaceID := strings.TrimSpace(scope.WorkspaceID)
+	if workspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: profileID,
+		}
+	}
+	return modelcatalog.CatalogExecutionContext{
+		Scope:       modelcatalog.ExecutionScopeWorkspace,
+		ProfileID:   profileID,
+		WorkspaceID: workspaceID,
+	}
 }
 
 func nativeProviderModelProviderID(id toolspkg.ToolID, providerID string) (string, error) {

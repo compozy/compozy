@@ -71,6 +71,8 @@ func AgentPayloadFromEntry(entry AgentCatalogEntry) contract.AgentPayload {
 		Command:          agent.Command,
 		Model:            agent.Model,
 		ReasoningEffort:  contract.ReasoningEffort(agent.ReasoningEffort),
+		Speed:            contract.Speed(agent.Speed),
+		ACPOptions:       agentACPOptionsToContract(agent.ACPOptions),
 		Tools:            append([]string(nil), agent.Tools...),
 		Toolsets:         append([]string(nil), agent.Toolsets...),
 		DenyTools:        append([]string(nil), agent.DenyTools...),
@@ -106,6 +108,8 @@ func AgentPayloadFromEntryWithConfig(
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,
 		ReasoningEffort: contract.ReasoningEffort(resolved.ReasoningEffort),
+		Speed:           contract.Speed(resolved.Speed),
+		ACPOptions:      agentACPOptionsToContract(resolved.ACPOptions),
 		Sources: contract.AgentEffectiveRuntimeSources{
 			Provider:        contract.AgentRuntimeValueSource(resolved.RuntimeSources.Provider),
 			Model:           contract.AgentRuntimeValueSource(resolved.RuntimeSources.Model),
@@ -113,6 +117,44 @@ func AgentPayloadFromEntryWithConfig(
 		},
 	}
 	return payload
+}
+
+func agentACPOptionsToContract(
+	options []compozyconfig.ACPOptionSelection,
+) []contract.AgentACPOptionSelection {
+	if len(options) == 0 {
+		return nil
+	}
+	projected := make([]contract.AgentACPOptionSelection, len(options))
+	for index, option := range options {
+		projected[index] = contract.AgentACPOptionSelection{
+			ID:      option.ID,
+			ValueID: option.ValueID,
+		}
+		if option.BoolValue != nil {
+			projected[index].BoolValue = new(*option.BoolValue)
+		}
+	}
+	return projected
+}
+
+func agentACPOptionsFromContract(
+	options []contract.AgentACPOptionSelection,
+) []compozyconfig.ACPOptionSelection {
+	if len(options) == 0 {
+		return nil
+	}
+	projected := make([]compozyconfig.ACPOptionSelection, len(options))
+	for index, option := range options {
+		projected[index] = compozyconfig.ACPOptionSelection{
+			ID:      option.ID,
+			ValueID: option.ValueID,
+		}
+		if option.BoolValue != nil {
+			projected[index].BoolValue = new(*option.BoolValue)
+		}
+	}
+	return projected
 }
 
 // AgentPayloadsFromEntries converts origin-aware catalog entries into response payloads.

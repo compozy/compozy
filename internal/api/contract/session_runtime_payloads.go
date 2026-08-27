@@ -131,19 +131,21 @@ type SetSessionRuntimeRequest struct {
 
 // RuntimeSelectionPayload is the effective runtime bound to a logical session.
 type RuntimeSelectionPayload struct {
-	Provider        string           `json:"provider"`
-	Model           string           `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort  `json:"reasoning_effort,omitempty"`
-	Speed           Speed            `json:"speed,omitempty"`
-	SpeedResolution *SpeedResolution `json:"speed_resolution,omitempty"`
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *SpeedResolution          `json:"speed_resolution,omitempty"`
 }
 
 // PromptRuntimeSelectionPayload is the caller-selected runtime for one prompt.
 type PromptRuntimeSelectionPayload struct {
-	Provider        string          `json:"provider"`
-	Model           string          `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
-	Speed           Speed           `json:"speed,omitempty"`
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
 
 // SessionFailurePayload is the redacted lifecycle failure diagnostic shared by

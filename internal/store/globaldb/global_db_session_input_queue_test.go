@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -24,11 +25,26 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		sessionID := registerInputQueueSession(t, globalDB)
 		now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
+		thinkingEnabled := true
+		inputRuntime := store.SessionInputRuntime{
+			Provider:        "openai",
+			Model:           "gpt-5.6",
+			ReasoningEffort: "high",
+			Speed:           "fast",
+			ACPOptions: []store.SessionACPOptionSelection{
+				{ID: "thinking", BoolValue: &thinkingEnabled},
+				{ID: "context", ValueID: "large"},
+			},
+		}
 		wantRuntime := store.SessionInputRuntime{
 			Provider:        "openai",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
 			Speed:           "fast",
+			ACPOptions: []store.SessionACPOptionSelection{
+				{ID: "context", ValueID: "large"},
+				{ID: "thinking", BoolValue: &thinkingEnabled},
+			},
 		}
 
 		enqueued, _, err := globalDB.EnqueueSessionInput(ctx, store.SessionInputQueueInsert{
@@ -36,7 +52,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 			SessionID:         sessionID,
 			Mode:              store.SessionInputQueueModeQueue,
 			Text:              "queued input",
-			Runtime:           wantRuntime,
+			Runtime:           inputRuntime,
 			SessionGeneration: 0,
 			QueueCap:          10,
 			Now:               now,
@@ -44,7 +60,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("EnqueueSessionInput() error = %v", err)
 		}
-		if got, want := enqueued.Runtime, wantRuntime; got != want {
+		if got, want := enqueued.Runtime, wantRuntime; !reflect.DeepEqual(got, want) {
 			t.Fatalf("enqueued runtime = %#v, want %#v", got, want)
 		}
 
@@ -55,7 +71,7 @@ func TestGlobalDBSessionInputQueueGeneration(t *testing.T) {
 		if !ok {
 			t.Fatal("ClaimNextSessionInput() ok = false, want true")
 		}
-		if got, want := claimed.Runtime, wantRuntime; got != want {
+		if got, want := claimed.Runtime, wantRuntime; !reflect.DeepEqual(got, want) {
 			t.Fatalf("claimed runtime = %#v, want %#v", got, want)
 		}
 	})
@@ -739,7 +755,7 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 			}
 			if got, want := legacy.Runtime, (store.SessionInputRuntime{
 				Provider: "claude", Model: "sonnet", ReasoningEffort: "high", Speed: "fast",
-			}); got != want {
+			}); !reflect.DeepEqual(got, want) {
 				t.Fatalf("legacy queue runtime = %#v, want %#v", got, want)
 			}
 			orphaned, err := fixture.database.GetSessionInputQueueEntry(

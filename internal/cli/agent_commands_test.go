@@ -30,12 +30,16 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			Command:         "codex",
 			Model:           "gpt-5.4",
 			ReasoningEffort: "max",
-			Tools:           []string{"shell", "git"},
-			Permissions:     "standard",
-			CategoryPath:    []string{"Marketing", "Sales"},
-			Origin:          contract.AgentOriginWorkspace,
-			WorkspaceID:     "ws-1",
-			Layer:           "project_profile",
+			Speed:           contract.SpeedFast,
+			ACPOptions: []contract.AgentACPOptionSelection{
+				{ID: "context", ValueID: "1m"}, {ID: "thinking", BoolValue: new(true)},
+			},
+			Tools:        []string{"shell", "git"},
+			Permissions:  "standard",
+			CategoryPath: []string{"Marketing", "Sales"},
+			Origin:       contract.AgentOriginWorkspace,
+			WorkspaceID:  "ws-1",
+			Layer:        "project_profile",
 			Shadows: []contract.AgentDefinitionShadowPayload{
 				{Layer: "profile", Path: "/profiles/marketing/agents/coder/AGENT.md"},
 				{Layer: "user", Path: "/agents/coder/AGENT.md"},
@@ -125,7 +129,9 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 			!strings.Contains(human, "digest-coder") ||
 			!strings.Contains(human, "legacy-review") ||
 			!strings.Contains(human, "Reasoning Effort") ||
-			!strings.Contains(human, "max") {
+			!strings.Contains(human, "max") || !strings.Contains(human, "Speed") ||
+			!strings.Contains(human, "fast") || !strings.Contains(human, "ACP Options") ||
+			!strings.Contains(human, "context=1m, thinking=true") {
 			t.Fatalf("agent info human output = %q, want agent details", human)
 		}
 
@@ -135,10 +141,11 @@ func TestAgentListAndInfoCommands(t *testing.T) {
 		}
 		if !strings.Contains(
 			toon,
-			"agent{name,provider,command,model,reasoning_effort,category,origin,workspace_id,disabled_skills,layer,shadows,definition_digest,tools,permissions,prompt}:",
+			"agent{name,provider,command,model,reasoning_effort,speed,acp_options,category,origin,workspace_id,disabled_skills,layer,shadows,definition_digest,tools,permissions,prompt}:",
 		) ||
 			!strings.Contains(toon, agent.Name) ||
-			!strings.Contains(toon, "max") || !strings.Contains(toon, "project_profile") ||
+			!strings.Contains(toon, "max") || !strings.Contains(toon, "fast") ||
+			!strings.Contains(toon, "context=1m, thinking=true") || !strings.Contains(toon, "project_profile") ||
 			!strings.Contains(toon, "profile, user") {
 			t.Fatalf("agent info toon output = %q, want TOON agent object", toon)
 		}
@@ -250,6 +257,14 @@ func TestAgentCreateCommand(t *testing.T) {
 			},
 			want: "use either --prompt or --prompt-file",
 		},
+		{
+			name: "Should reject non-boolean ACP toggle values",
+			args: []string{
+				"agent", "create", "coder", "--provider", "claude",
+				"--prompt", "Code.", "--acp-toggle", "thinking=1",
+			},
+			want: "expected id=true|false",
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -278,7 +293,11 @@ func TestAgentCreateCommand(t *testing.T) {
 					t.Fatalf("CreateAgent() scope/workspace = %q/%q", request.Scope, request.Workspace)
 				}
 				if request.Agent.Name != "pricing_strategist" || request.Agent.Provider != "claude" ||
-					request.Agent.ReasoningEffort != "max" || len(request.Agent.Tools) != 1 ||
+					request.Agent.ReasoningEffort != "max" || request.Agent.Speed != contract.SpeedFast ||
+					len(request.Agent.ACPOptions) != 2 || request.Agent.ACPOptions[0].ID != "context" ||
+					request.Agent.ACPOptions[0].ValueID != "1m" || request.Agent.ACPOptions[1].ID != "thinking" ||
+					request.Agent.ACPOptions[1].BoolValue == nil || !*request.Agent.ACPOptions[1].BoolValue ||
+					len(request.Agent.Tools) != 1 ||
 					request.Agent.Skills == nil ||
 					!slices.Equal(request.Agent.Skills.Disabled, []string{"legacy-review"}) {
 					t.Fatalf("CreateAgent() request = %#v", request)
@@ -310,6 +329,12 @@ func TestAgentCreateCommand(t *testing.T) {
 			"claude-sonnet-5",
 			"--reasoning-effort",
 			"max",
+			"--speed",
+			"fast",
+			"--acp-option",
+			"context=1m",
+			"--acp-toggle",
+			"thinking=true",
 			"--prompt",
 			"You own Ad8 pricing strategy.",
 			"--tool",
@@ -401,7 +426,10 @@ func TestAgentUpdateCommand(t *testing.T) {
 			t.Fatalf("os.WriteFile(prompt) error = %v", err)
 		}
 		current := AgentRecord{
-			Name: "coder", Provider: "fake", Model: "old", Prompt: "Code.",
+			Name: "coder", Provider: "fake", Model: "old", Prompt: "Code.", Speed: contract.SpeedNormal,
+			ACPOptions: []contract.AgentACPOptionSelection{
+				{ID: "context", ValueID: "512k"}, {ID: "thinking", BoolValue: new(true)},
+			},
 			Origin: contract.AgentOriginWorkspace, WorkspaceID: "ws-1", DefinitionDigest: "digest-1",
 			Skills: &contract.CreateAgentSkillsConfig{Disabled: []string{"legacy"}},
 		}
@@ -417,6 +445,10 @@ func TestAgentUpdateCommand(t *testing.T) {
 					t.Fatalf("UpdateAgent() route/request = %q/%#v", name, request)
 				}
 				if request.Agent.Model != "new" || request.Agent.Prompt != "Review every edge." ||
+					request.Agent.Speed != contract.SpeedFast || len(request.Agent.ACPOptions) != 2 ||
+					request.Agent.ACPOptions[0].ID != "context" || request.Agent.ACPOptions[0].ValueID != "1m" ||
+					request.Agent.ACPOptions[1].ID != "thinking" || request.Agent.ACPOptions[1].BoolValue == nil ||
+					!*request.Agent.ACPOptions[1].BoolValue ||
 					request.Agent.Skills == nil ||
 					!slices.Equal(request.Agent.Skills.Disabled, []string{"security-audit"}) {
 					t.Fatalf("UpdateAgent() agent = %#v", request.Agent)
@@ -432,7 +464,8 @@ func TestAgentUpdateCommand(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t, deps, "agent", "update", "coder", "--workspace", "ws-1",
 			"--expected-digest", "digest-1", "--model", "new", "--prompt-file", promptPath, "-o", "json",
-			"--disable-skill", "security-audit",
+			"--disable-skill", "security-audit", "--speed", "fast", "--acp-option", "context=1m",
+			"--acp-toggle", "thinking=true",
 		)
 		if err != nil || !strings.Contains(stdout, `"definition_digest": "digest-2"`) {
 			t.Fatalf("agent update = %q, %v", stdout, err)
@@ -636,7 +669,10 @@ func TestAgentDuplicateCommand(t *testing.T) {
 					request.Scope != contract.AgentCreateScopeWorkspace ||
 					request.Workspace != "ws-1" ||
 					request.Overrides == nil ||
-					request.Overrides.Model != "new" ||
+					request.Overrides.Model != "new" || request.Overrides.Speed != contract.SpeedFast ||
+					len(request.Overrides.ACPOptions) != 2 || request.Overrides.ACPOptions[0].ID != "context" ||
+					request.Overrides.ACPOptions[0].ValueID != "1m" || request.Overrides.ACPOptions[1].ID != "thinking" ||
+					request.Overrides.ACPOptions[1].BoolValue == nil || !*request.Overrides.ACPOptions[1].BoolValue ||
 					request.Overrides.Prompt != "Review." ||
 					request.Overrides.Skills == nil ||
 					!slices.Equal(request.Overrides.Skills.Disabled, []string{"legacy-review"}) {
@@ -651,7 +687,8 @@ func TestAgentDuplicateCommand(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t, deps, "agent", "duplicate", "coder", "reviewer", "--scope", "workspace",
 			"--workspace", "ws-1", "--model", "new", "--prompt", "Review.",
-			"--disable-skill", "legacy-review", "-o", "json",
+			"--disable-skill", "legacy-review", "--speed", "fast", "--acp-option", "context=1m",
+			"--acp-toggle", "thinking=true", "-o", "json",
 		)
 		if err != nil || !strings.Contains(stdout, `"name": "reviewer"`) {
 			t.Fatalf("agent duplicate output/error = %q/%v", stdout, err)

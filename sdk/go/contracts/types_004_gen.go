@@ -2,6 +2,13 @@
 
 package contracts
 
+type AutomationRunsParams struct {
+	JobID     string    `json:"job_id,omitempty"`
+	TriggerID string    `json:"trigger_id,omitempty"`
+	Status    RunStatus `json:"status,omitempty"`
+	Limit     int       `json:"limit,omitempty"`
+}
+
 type AutomationSchedulePayload struct {
 	Mode     string `json:"mode,omitempty"`
 	Expr     string `json:"expr,omitempty"`
@@ -181,8 +188,4 @@ type BridgeCheckRecord struct {
 
 type BridgeCheckRequest struct {
 	BridgeInstanceID string `json:"bridge_instance_id"`
-}
-
-type BridgeCheckResponse struct {
-	Checks []BridgeCheckRecord `json:"checks"`
 }

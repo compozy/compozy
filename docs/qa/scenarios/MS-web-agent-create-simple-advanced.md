@@ -63,3 +63,6 @@ the session reached `active`, and Network reported one local peer and one channe
 `docs/qa/reports/2026-08-13-pr-367-agent-name-validation-rewalk.md`.
 
 2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.
+
+2026-08-27 qa-impact: the Runtime Selector now persists agent Fast and typed ACP-option defaults and
+shows provider-managed runtimes truthfully. Status remains untested for create/readback/inheritance.

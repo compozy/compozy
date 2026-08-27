@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/goccy/go-yaml"
 )
 
@@ -27,6 +28,8 @@ type AgentDefinitionDraft struct {
 	Command         string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []ACPOptionSelection
 	Tools           []string
 	Toolsets        []string
 	DenyTools       []string
@@ -79,6 +82,8 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		Command:         strings.TrimSpace(draft.Command),
 		Model:           strings.TrimSpace(draft.Model),
 		ReasoningEffort: strings.TrimSpace(draft.ReasoningEffort),
+		Speed:           normalizeAgentSpeed(draft.Speed),
+		ACPOptions:      CloneACPOptionSelections(draft.ACPOptions),
 		Tools:           trimAgentDefinitionAtoms(draft.Tools),
 		Toolsets:        trimAgentDefinitionAtoms(draft.Toolsets),
 		DenyTools:       trimAgentDefinitionAtoms(draft.DenyTools),
@@ -129,6 +134,8 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		Command:         canonical.Command,
 		Model:           canonical.Model,
 		ReasoningEffort: canonical.ReasoningEffort,
+		Speed:           canonical.Speed,
+		ACPOptions:      CloneACPOptionSelections(canonical.ACPOptions),
 		Tools:           cloneStrings(canonical.Tools),
 		Toolsets:        cloneStrings(canonical.Toolsets),
 		DenyTools:       cloneStrings(canonical.DenyTools),
@@ -152,6 +159,8 @@ func AgentDefinitionDigest(agent AgentDef) (string, error) {
 }
 
 func canonicalAgentDefinition(agent AgentDef) AgentDef {
+	agent.Speed = normalizeAgentSpeed(agent.Speed)
+	agent.ACPOptions = canonicalACPOptionSelections(agent.ACPOptions)
 	agent.Tools = sortedAgentDefinitionAtoms(agent.Tools)
 	agent.Toolsets = sortedAgentDefinitionAtoms(agent.Toolsets)
 	agent.DenyTools = sortedAgentDefinitionAtoms(agent.DenyTools)

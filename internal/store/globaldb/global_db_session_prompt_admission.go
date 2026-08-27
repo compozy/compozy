@@ -235,7 +235,7 @@ func claimSessionPromptAdmission(
 			err,
 		)
 	}
-	attachmentsJSON, err := encodeSessionInputAttachments(req.Attachments)
+	attachmentsJSON, runtimeOptionsJSON, err := encodeSessionPromptAdmissionPayload(req)
 	if err != nil {
 		return store.SessionPromptAdmission{}, false, err
 	}
@@ -248,7 +248,8 @@ func claimSessionPromptAdmission(
 		AttachmentsJson:      attachmentsJSON,
 		RuntimeProvider:      req.Runtime.Provider, RuntimeModel: req.Runtime.Model,
 		RuntimeReasoningEffort: req.Runtime.ReasoningEffort, RuntimeSpeed: req.Runtime.Speed,
-		TurnID: req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
+		RuntimeAcpOptionsJson: runtimeOptionsJSON,
+		TurnID:                req.TurnID, EventID: req.EventID, CreatedAt: nowRaw, UpdatedAt: nowRaw,
 	}); err != nil {
 		return store.SessionPromptAdmission{}, false, fmt.Errorf("store: insert session prompt admission: %w", err)
 	}
@@ -263,6 +264,23 @@ func claimSessionPromptAdmission(
 	}
 	admission, err := sessionPromptAdmissionFromGenerated(&created)
 	return admission, true, err
+}
+
+func encodeSessionPromptAdmissionPayload(
+	req store.SessionPromptAdmissionRequest,
+) (string, string, error) {
+	attachmentsJSON, err := encodeSessionInputAttachments(req.Attachments)
+	if err != nil {
+		return "", "", err
+	}
+	runtimeOptionsJSON, err := encodeSessionACPOptions(
+		req.Runtime.ACPOptions,
+		"session prompt admission runtime ACP options",
+	)
+	if err != nil {
+		return "", "", err
+	}
+	return attachmentsJSON, runtimeOptionsJSON, nil
 }
 
 func classifyPromptAdmissionReplay(

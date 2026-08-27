@@ -292,6 +292,12 @@ func duplicateAgentDraft(
 	if overrides.ReasoningEffort != "" {
 		draft.ReasoningEffort = string(overrides.ReasoningEffort)
 	}
+	if overrides.Speed != "" {
+		draft.Speed = overrides.Speed
+	}
+	if len(overrides.ACPOptions) > 0 {
+		draft.ACPOptions = agentACPOptionsFromContract(overrides.ACPOptions)
+	}
 	if len(overrides.Tools) > 0 {
 		draft.Tools = append([]string(nil), overrides.Tools...)
 	}

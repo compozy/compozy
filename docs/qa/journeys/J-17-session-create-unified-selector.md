@@ -3,8 +3,8 @@
 Session creation is a lightweight, durable launch boundary. The operator chooses the agent and
 optional launch details, creates one logical session, and lands in its composer. Runtime selection
 and the first message are not creation fields: the composer owns one **Next prompt** selector whose
-chosen provider, model, reasoning, and speed persist immediately as the session preference and apply
-when the next prompt is submitted.
+chosen provider, model, Reasoning, Fast, and typed ACP options persist immediately as the session
+preference and apply when the next prompt is submitted.
 
 ```mermaid
 flowchart TD
@@ -21,7 +21,7 @@ flowchart TD
     ACT --> NAV[Navigate and focus the created session composer]
     NAV --> SEL[Composer shows Next prompt runtime selector]
     SEL --> CHOICE{Catalog row or exact model ID?}
-    CHOICE -->|catalog row| PICK[Choose provider, model, reasoning, and speed or keep effective default]
+    CHOICE -->|catalog row| PICK[Choose provider, model, Reasoning, Fast, and advertised advanced options or keep effective default]
     CHOICE -->|exact ID| EXACT[Open the labelled exact-ID field and enter the provider value]
     EXACT --> PICK
     PICK --> SAVE[Selection persists immediately with a revision]
@@ -32,6 +32,7 @@ flowchart TD
     RESTORE --> SEND
     D -.->|close or cancel| ABORT[No session created]
     A -.->|invalid launch detail| FIX[Inline error; preserve valid launch input]
+    SEL -.->|provider managed| MANAGED[Show Provider managed and disable unavailable controls]
     SEL -.->|runtime unavailable| RECOVER[Choose a supported runtime; no prompt dispatched]
 ```
 
@@ -58,11 +59,11 @@ journey:
       expected_observable: "Create gives immediate truthful feedback, persists one durable logical session without queuing a prompt, activates the returned owner workspace, and navigates to the created session."
     - step: 4
       verb: "Choose the runtime for the next prompt in the composer"
-      expected_observable: "The destination composer exposes one accessible Next prompt selector; catalog rows and the clearly labelled exact-ID entry both preserve the chosen provider value, persist immediately, and are captured by the next prompt."
+      expected_observable: "The destination composer exposes one accessible Next prompt selector; catalog rows, Fast, advertised advanced options, and the clearly labelled exact-ID entry persist immediately and are captured by the next prompt. Provider-managed runtimes expose no fabricated controls."
   goal:
     observable: "A session launches once and its composer remains the durable place to choose or change the runtime for the next prompt."
     side_effects: [logical-session-created, owner-workspace-activated, session-runtime-selection-persisted, prompt-runtime-snapshotted-on-dispatch]
-  true_end_state: "After Stop, reopen, and daemon restart, a fresh read restores the selected runtime and revision; the next send uses that selection while earlier prompt history and the agent default remain unchanged."
+  true_end_state: "After Stop, reopen, and daemon restart, a fresh read restores the selected runtime, typed options, and revision; the next send uses that selection while earlier prompt history and the agent default remain unchanged."
   exit:
     natural: "Operator is in the created session composer and continues through J-13 to send, queue, or change prompt runtime."
   abandonment:

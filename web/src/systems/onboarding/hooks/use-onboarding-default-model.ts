@@ -129,6 +129,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     id: entry.name,
     name: entry.display_name?.trim() || entry.name,
     runtime_provider: entry.name,
+    runtime_strategy: entry.runtime_strategy,
     needs_auth: providerNeedsAuth(entry.auth_status?.state),
   }));
 

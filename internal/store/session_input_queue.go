@@ -59,6 +59,7 @@ type SessionInputRuntime struct {
 	Model           string
 	ReasoningEffort string
 	Speed           string
+	ACPOptions      []SessionACPOptionSelection
 }
 
 // Normalize returns the canonical persisted runtime selection.
@@ -67,6 +68,7 @@ func (r SessionInputRuntime) Normalize() SessionInputRuntime {
 	r.Model = strings.TrimSpace(r.Model)
 	r.ReasoningEffort = strings.TrimSpace(r.ReasoningEffort)
 	r.Speed = strings.TrimSpace(r.Speed)
+	r.ACPOptions = NormalizeSessionACPOptionSelections(r.ACPOptions)
 	return r
 }
 
@@ -189,6 +191,9 @@ func (r SessionInputQueueInsert) Normalize() SessionInputQueueInsert {
 // Validate ensures the insert request can be persisted.
 func (r SessionInputQueueInsert) Validate() error {
 	normalized := r.Normalize()
+	if err := ValidateSessionInputRuntime(normalized.Runtime); err != nil {
+		return err
+	}
 	switch {
 	case normalized.ID == "":
 		return errors.New("store: session input queue id is required")

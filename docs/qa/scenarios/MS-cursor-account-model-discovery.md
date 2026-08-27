@@ -1,12 +1,12 @@
 ---
 id: MS-cursor-account-model-discovery
 area: MS
-title: Discover the signed-in Cursor account model catalog
+title: Discover Cursor logical models and valid option combinations
 persona: Ada
 journey: J-20
-expected: Before any session, the first Cursor catalog list inspects the signed-in `cursor-agent acp` model option once, preserves its exact advertised values across CLI, HTTP, UDS, and native tools, records source status, and reruns only on explicit refresh.
+expected: Before any session, Cursor runs `cursor-agent models`, groups private aliases into logical models including Grok 4.5, Grok 4.6, and Opus 5, exposes valid Reasoning/Fast/Thinking combinations across CLI, HTTP, UDS, native tools, and Web, then refreshes after TTL or explicit request without exposing transport aliases.
 entry_points: compozy provider models list cursor --all; GET /api/model-catalog/providers/cursor/models?view=all; UDS model-catalog route; compozy provider models status cursor; compozy provider models refresh cursor
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -27,3 +27,7 @@ changed. Reset for a concurrent first-read and cross-surface lifecycle walk.
 
 QA 2026-08-05 (review remediation): simultaneous first CLI/UDS and HTTP reads returned the same 193
 Cursor account rows and one persisted live generation; cached read and explicit refresh behaved as specified.
+
+QA impact 2026-08-27: Cursor discovery now uses `cursor-agent models`, projects logical models and
+valid option combinations, and keeps launch aliases private. Reset for cross-surface catalog and
+five-minute refresh verification.

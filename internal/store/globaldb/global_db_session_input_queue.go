@@ -343,22 +343,41 @@ func insertSessionInputQueueEntry(
 	if err != nil {
 		return store.SessionInputQueueEntry{}, err
 	}
+	runtimeOptionsJSON, err := encodeSessionACPOptions(
+		normalized.Runtime.ACPOptions,
+		"session input runtime ACP options",
+	)
+	if err != nil {
+		return store.SessionInputQueueEntry{}, err
+	}
 	if err := sqlcgen.New(exec).InsertSessionInputQueueEntry(ctx, sqlcgen.InsertSessionInputQueueEntryParams{
-		ID: normalized.ID, SessionID: normalized.SessionID,
+		ID:        normalized.ID,
+		SessionID: normalized.SessionID,
 		PromptAdmissionID: sql.NullString{
 			String: normalized.PromptAdmissionID,
 			Valid:  normalized.PromptAdmissionID != "",
 		},
-		MessageID: normalized.MessageID, IdempotencyKey: normalized.IdempotencyKey,
-		TurnID: normalized.TurnID, TargetTurnID: normalized.TargetTurnID, EventID: normalized.EventID,
-		Status: store.SessionInputQueueStatusQueued,
-		Mode:   normalized.Mode, Delivery: normalized.Delivery, Text: normalized.Text,
-		SkillInvocationsJson: string(skillInvocationsJSON),
-		AttachmentsJson:      attachmentsJSON,
-		RuntimeProvider:      normalized.Runtime.Provider, RuntimeModel: normalized.Runtime.Model,
-		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort, RuntimeSpeed: normalized.Runtime.Speed,
-		SessionGeneration: normalized.SessionGeneration,
-		TaskRunID:         normalized.TaskRunID, RunGeneration: runGeneration, EnqueuedAt: nowRaw, UpdatedAt: nowRaw,
+		MessageID:              normalized.MessageID,
+		IdempotencyKey:         normalized.IdempotencyKey,
+		TurnID:                 normalized.TurnID,
+		TargetTurnID:           normalized.TargetTurnID,
+		EventID:                normalized.EventID,
+		Status:                 store.SessionInputQueueStatusQueued,
+		Mode:                   normalized.Mode,
+		Delivery:               normalized.Delivery,
+		Text:                   normalized.Text,
+		SkillInvocationsJson:   string(skillInvocationsJSON),
+		AttachmentsJson:        attachmentsJSON,
+		RuntimeProvider:        normalized.Runtime.Provider,
+		RuntimeModel:           normalized.Runtime.Model,
+		RuntimeReasoningEffort: normalized.Runtime.ReasoningEffort,
+		RuntimeSpeed:           normalized.Runtime.Speed,
+		RuntimeAcpOptionsJson:  runtimeOptionsJSON,
+		SessionGeneration:      normalized.SessionGeneration,
+		TaskRunID:              normalized.TaskRunID,
+		RunGeneration:          runGeneration,
+		EnqueuedAt:             nowRaw,
+		UpdatedAt:              nowRaw,
 	}); err != nil {
 		return store.SessionInputQueueEntry{}, fmt.Errorf("store: insert session input queue entry: %w", err)
 	}

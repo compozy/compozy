@@ -63,9 +63,14 @@ export function AgentCreateRuntimeFields({
     provider: draft.provider,
     model: draft.model,
     reasoning_effort: draft.reasoningEffort,
+    ...(draft.acpOptions ? { acp_options: draft.acpOptions } : {}),
   };
   const hasRuntimeOverride = Boolean(
-    draft.provider.trim() || draft.model.trim() || draft.reasoningEffort
+    draft.provider.trim() ||
+    draft.model.trim() ||
+    draft.reasoningEffort ||
+    draft.speed ||
+    (draft.acpOptions?.length ?? 0) > 0
   );
   return (
     <div
@@ -79,8 +84,8 @@ export function AgentCreateRuntimeFields({
             Runtime
           </FieldLabel>
           <HelpTip label="About runtime">
-            Provider, model, and reasoning effort come from the live catalogs. Leave them unchanged
-            to inherit the project defaults; picking any of them creates agent-level overrides.
+            Provider, model, Reasoning, Fast, and advanced options come from the live catalog. Leave
+            them unchanged to inherit project defaults.
           </HelpTip>
           {hasRuntimeOverride ? (
             <Button
@@ -92,6 +97,8 @@ export function AgentCreateRuntimeFields({
                   provider: "",
                   model: "",
                   reasoningEffort: "",
+                  speed: "",
+                  acpOptions: undefined,
                 })
               }
               size="sm"
@@ -118,12 +125,15 @@ export function AgentCreateRuntimeFields({
               provider: next.provider,
               model: next.model,
               reasoningEffort: next.reasoning_effort,
+              acpOptions: next.acp_options,
             })
           }
           onOpenProviderSettings={onOpenProviderSettings}
           onRefreshCatalog={onRefreshCatalog}
           providers={providerOptions}
           refreshing={modelCatalogRefreshing}
+          speed={draft.speed || "normal"}
+          onSpeedChange={speed => onDraftChange({ ...draft, speed })}
           triggerId="agent-create-runtime-trigger"
           triggerTestId="agent-create-runtime-select"
           value={runtimeValue}

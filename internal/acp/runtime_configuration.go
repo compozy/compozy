@@ -14,6 +14,7 @@ type RuntimeConfig struct {
 	Model           string
 	ReasoningEffort string
 	Speed           speedpkg.Speed
+	ACPOptions      []SessionConfigOptionSelection
 }
 
 func (c RuntimeConfig) normalize() (RuntimeConfig, error) {
@@ -22,6 +23,11 @@ func (c RuntimeConfig) normalize() (RuntimeConfig, error) {
 		ReasoningEffort: strings.TrimSpace(c.ReasoningEffort),
 		Speed:           c.Speed,
 	}
+	options, err := normalizeSessionConfigOptionSelections(c.ACPOptions)
+	if err != nil {
+		return RuntimeConfig{}, err
+	}
+	normalized.ACPOptions = options
 	if normalized.Speed == "" {
 		return normalized, nil
 	}
@@ -65,11 +71,17 @@ func (d *Driver) ConfigureRuntime(ctx context.Context, process *AgentProcess, co
 	if _, err := d.applySessionModel(ctx, process, normalized.Model); err != nil {
 		return fmt.Errorf("acp: configure runtime model: %w", err)
 	}
+	if err := validateDedicatedConfigOptionConflicts(process.CapsSnapshot().ConfigOptions, normalized); err != nil {
+		return err
+	}
 	if _, err := d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort); err != nil {
 		return fmt.Errorf("acp: configure runtime reasoning effort: %w", err)
 	}
 	if _, err := d.applySessionSpeed(ctx, process, normalized.Speed); err != nil {
 		return fmt.Errorf("acp: configure runtime speed: %w", err)
+	}
+	if err := d.applySessionConfigSelections(ctx, process, normalized.ACPOptions); err != nil {
+		return fmt.Errorf("acp: configure runtime ACP options: %w", err)
 	}
 	return nil
 }

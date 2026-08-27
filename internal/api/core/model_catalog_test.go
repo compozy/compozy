@@ -44,6 +44,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		t.Parallel()
 
 		effort := modelcatalog.ReasoningEffortHigh
+		fast := true
 		releaseDate := "2026-06-26"
 		model := modelcatalog.Model{
 			ProviderID:             "codex",
@@ -56,10 +57,21 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 			SupportsReasoning:      new(true),
 			ReasoningEfforts:       []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
 			DefaultReasoningEffort: &effort,
-			Curated:                true,
-			Featured:               true,
-			ReleaseDate:            &releaseDate,
-			ReasoningSource:        modelcatalog.ReasoningSourceACP,
+			ConfigOptions: []modelcatalog.ModelOptionDescriptor{{
+				ID: "thinking", Label: "Thinking", Kind: modelcatalog.ModelOptionKindBoolean,
+				CurrentBool: new(false),
+			}},
+			TransportBindings: []modelcatalog.ModelTransportBinding{
+				{
+					TransportModelID: "private-provider-alias",
+					ReasoningEffort:  &effort,
+					Fast:             &fast,
+				},
+			},
+			Curated:         true,
+			Featured:        true,
+			ReleaseDate:     &releaseDate,
+			ReasoningSource: modelcatalog.ReasoningSourceACP,
 			Sources: []modelcatalog.SourceRef{
 				{
 					SourceID:    modelcatalog.SourceIDConfig,
@@ -82,6 +94,16 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		if payload.DefaultReasoningEffort == nil || *payload.DefaultReasoningEffort != "high" {
 			t.Fatalf("DefaultReasoningEffort = %#v, want high", payload.DefaultReasoningEffort)
 		}
+		if len(payload.Configurations) != 1 || payload.Configurations[0].ReasoningEffort == nil ||
+			*payload.Configurations[0].ReasoningEffort != contract.ReasoningEffort("high") ||
+			payload.Configurations[0].Fast == nil || !*payload.Configurations[0].Fast {
+			t.Fatalf("Configurations = %#v, want high fast", payload.Configurations)
+		}
+		if len(payload.ConfigOptions) != 1 || payload.ConfigOptions[0].ID != "thinking" ||
+			payload.ConfigOptions[0].Kind != "boolean" || payload.ConfigOptions[0].CurrentBool == nil ||
+			*payload.ConfigOptions[0].CurrentBool {
+			t.Fatalf("ConfigOptions = %#v, want public thinking=false descriptor", payload.ConfigOptions)
+		}
 		if !payload.Curated || !payload.Featured || payload.ReleaseDate != releaseDate ||
 			payload.ReasoningSource != modelcatalog.ReasoningSourceACP {
 			t.Fatalf("curation/reasoning metadata = %#v, want curated featured ACP model", payload)
@@ -92,6 +114,10 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		}
 		if !strings.Contains(string(encoded), `"available":null`) {
 			t.Fatalf("payload JSON = %s, want nullable available field", encoded)
+		}
+		if strings.Contains(string(encoded), "private-provider-alias") ||
+			strings.Contains(string(encoded), "transport_model_id") {
+			t.Fatalf("payload JSON leaked private transport binding: %s", encoded)
 		}
 	})
 
@@ -497,7 +523,7 @@ func (coreModelCatalogServiceStub) Refresh(
 
 func (coreModelCatalogServiceStub) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -505,7 +531,7 @@ func (coreModelCatalogServiceStub) ListSourceStatus(
 type modelCatalogServiceSpy struct {
 	listModelsFn       func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	refreshFn          func(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	listSourceStatusFn func(context.Context, string) ([]modelcatalog.SourceStatus, error)
+	listSourceStatusFn func(context.Context, modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 func (s *modelCatalogServiceSpy) ListModels(
@@ -530,10 +556,10 @@ func (s *modelCatalogServiceSpy) Refresh(
 
 func (s *modelCatalogServiceSpy) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	if s.listSourceStatusFn != nil {
-		return s.listSourceStatusFn(ctx, providerID)
+		return s.listSourceStatusFn(ctx, opts)
 	}
 	return nil, errors.New("unexpected ListSourceStatus call")
 }

@@ -15,32 +15,35 @@ func (m *Manager) sessionStartOpts(
 	session *Session,
 	resolved compozyconfig.ResolvedAgent,
 	mcpServers []compozyconfig.MCPServer,
-) acp.StartOpts {
+) (acp.StartOpts, error) {
 	env := sessionStartEnvForProvider(
 		os.Environ(),
 		session,
 		resolved.EnvPolicy,
 		strings.TrimSpace(s.reasoningEffort),
 	)
-	return acp.StartOpts{
-		AgentName:       resolved.Name,
-		Command:         resolved.Command,
-		Cwd:             s.cwd,
-		AdditionalDirs:  s.executionAdditionalDirs(),
-		Env:             env,
-		MCPServers:      mcpServers,
-		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
-		SystemPrompt:    resolved.Prompt,
-		PreferredModel:  preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved)),
-		ReasoningEffort: strings.TrimSpace(s.reasoningEffort),
-		Speed:           s.speed,
-		ResumeSessionID: s.acpSessionID,
-		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
+	opts := acp.StartOpts{
+		AgentName:              resolved.Name,
+		Command:                resolved.Command,
+		Cwd:                    s.cwd,
+		AdditionalDirs:         s.executionAdditionalDirs(),
+		Env:                    env,
+		MCPServers:             mcpServers,
+		Permissions:            m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
+		SystemPrompt:           resolved.Prompt,
+		PreferredModel:         preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved)),
+		ExpectedTransportModel: strings.TrimSpace(s.transportModel),
+		ReasoningEffort:        strings.TrimSpace(s.reasoningEffort),
+		Speed:                  s.speed,
+		ACPOptions:             acp.CloneSessionConfigOptionSelections(s.acpOptions),
+		ResumeSessionID:        s.acpSessionID,
+		ToolGateway:            newProviderNativeToolGateway(m, session, s.runtimeMode),
 		ActivateMCPServers: m.sessionMCPServerActivator(
 			s.sessionID,
 			mcpServers,
 		),
 	}
+	return applyProviderRuntimeAdapter(resolved, opts)
 }
 
 func startModelSelectionIsExplicit(s *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {

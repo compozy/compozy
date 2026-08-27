@@ -31,6 +31,9 @@ func (m *Manager) resolveSessionStartRuntime(
 	if err := spec.applyResolvedReasoningEffort(resolved); err != nil {
 		return sessionStartRuntime{}, err
 	}
+	if err := spec.applyResolvedRuntimeDefaults(resolved); err != nil {
+		return sessionStartRuntime{}, err
+	}
 	if err := spec.applyAllowedToolsOverride(&resolved, m.toolsetCatalog); err != nil {
 		return sessionStartRuntime{}, fmt.Errorf("session: apply allowed tools for %q: %w", spec.sessionID, err)
 	}

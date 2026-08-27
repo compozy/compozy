@@ -15,21 +15,28 @@ import (
 	"github.com/compozy/compozy/internal/modelcatalog"
 )
 
-const defaultModelCatalogRefreshTimeout = 10 * time.Second
+const (
+	defaultModelCatalogRefreshTimeout = 10 * time.Second
+	modelCatalogRefreshCleanupGrace   = 10 * time.Second
+)
 
 type modelCatalogRuntime struct {
-	service      modelcatalog.Service
-	logger       *slog.Logger
-	now          func() time.Time
-	timeout      time.Duration
-	configSource *modelcatalog.ProviderConfigSource
-	liveSources  map[string]*modelcatalog.LiveProviderSource
+	service            modelcatalog.Service
+	logger             *slog.Logger
+	now                func() time.Time
+	timeout            time.Duration
+	configSource       *modelcatalog.ProviderConfigSource
+	liveSources        map[string]*modelcatalog.LiveProviderSource
+	executionContextMu sync.RWMutex
+	executionContexts  map[string]modelcatalog.CatalogExecutionContext
 	// generationGate keeps source snapshots and persisted rows in one public generation.
 	generationGate lifecycleRWGate
 
 	ctx     context.Context
 	workers *ownedWorkerGroup
-	warmup  func()
+
+	refreshLoopOnce  sync.Once
+	newRefreshTicker func(time.Duration) modelCatalogRefreshTicker
 }
 
 var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)
@@ -37,6 +44,10 @@ var _ modelcatalog.Service = (*modelCatalogRuntime)(nil)
 type modelCatalogRefreshResult struct {
 	statuses []modelcatalog.SourceStatus
 	err      error
+}
+
+type modelCatalogDefaultExecutionContextSetter interface {
+	SetDefaultExecutionContext(modelcatalog.CatalogExecutionContext) error
 }
 
 func newModelCatalogRuntime(
@@ -63,14 +74,24 @@ func newModelCatalogRuntime(
 	// #nosec G118 -- cancel is owned by modelCatalogRuntime and invoked from Shutdown.
 	runtimeCtx, cancel := context.WithCancel(ctx)
 	runtime := &modelCatalogRuntime{
-		service: service,
-		logger:  logger,
-		now:     now,
-		timeout: timeout,
-		ctx:     runtimeCtx,
-		workers: newOwnedWorkerGroup(cancel),
+		service:           service,
+		logger:            logger,
+		now:               now,
+		timeout:           timeout,
+		ctx:               runtimeCtx,
+		workers:           newOwnedWorkerGroup(cancel),
+		newRefreshTicker:  newRealModelCatalogRefreshTicker,
+		executionContexts: make(map[string]modelcatalog.CatalogExecutionContext),
 	}
-	runtime.warmup = sync.OnceFunc(runtime.warmLiveSources)
+	defaultExecutionContext, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{})
+	if err != nil {
+		return nil, err
+	}
+	if setter, ok := service.(modelCatalogDefaultExecutionContextSetter); ok {
+		if err := setter.SetDefaultExecutionContext(defaultExecutionContext); err != nil {
+			return nil, fmt.Errorf("daemon: configure model catalog default execution context: %w", err)
+		}
+	}
 	return runtime, nil
 }
 
@@ -84,16 +105,22 @@ func (r *modelCatalogRuntime) ListModels(
 	if ctx == nil {
 		return nil, errors.New("daemon: model catalog list context is required")
 	}
+	executionContext, err := r.resolveCatalogExecutionContext(opts.ExecutionContext)
+	if err != nil {
+		return nil, err
+	}
+	opts.ExecutionContext = executionContext
 	now := r.now().UTC()
 	if !opts.Now.IsZero() {
 		now = opts.Now
 	}
 	if opts.Refresh {
 		refreshOpts := modelcatalog.RefreshOptions{
-			ProviderID: opts.ProviderID,
-			SourceID:   opts.SourceID,
-			Force:      true,
-			Now:        now,
+			ProviderID:       opts.ProviderID,
+			SourceID:         opts.SourceID,
+			ExecutionContext: opts.ExecutionContext,
+			Force:            true,
+			Now:              now,
 		}
 		_, refreshErr := r.Refresh(ctx, refreshOpts)
 		listOpts := opts
@@ -107,7 +134,7 @@ func (r *modelCatalogRuntime) ListModels(
 		if len(models) == 0 && refreshErr != nil {
 			return nil, refreshErr
 		}
-		r.warmup()
+		r.refreshLiveSourcesInBackground()
 		return models, nil
 	}
 	opts.Now = now
@@ -116,11 +143,11 @@ func (r *modelCatalogRuntime) ListModels(
 	if err != nil {
 		return nil, err
 	}
-	r.warmup()
+	r.refreshLiveSourcesInBackground()
 	return models, nil
 }
 
-func (r *modelCatalogRuntime) warmLiveSources() {
+func (r *modelCatalogRuntime) refreshLiveSourcesInBackground() {
 	if r == nil || len(r.liveSources) == 0 {
 		return
 	}
@@ -131,17 +158,20 @@ func (r *modelCatalogRuntime) warmLiveSources() {
 	go func() {
 		defer complete()
 		var warmups sync.WaitGroup
-		for providerID, source := range r.liveSources {
-			warmups.Go(func() {
-				if _, err := r.Refresh(r.ctx, modelcatalog.RefreshOptions{
-					ProviderID: providerID,
-					SourceID:   source.ID(),
-					RequestID:  "model-catalog-warmup-" + providerID,
-				}); err != nil {
-					// Refresh owns source-failure logging; warmup has no synchronous caller.
-					return
-				}
-			})
+		for _, executionContext := range r.catalogExecutionContexts() {
+			for providerID, source := range r.liveSources {
+				warmups.Go(func() {
+					if _, err := r.Refresh(r.ctx, modelcatalog.RefreshOptions{
+						ProviderID:       providerID,
+						SourceID:         source.ID(),
+						ExecutionContext: executionContext,
+						RequestID:        "model-catalog-warmup-" + providerID,
+					}); err != nil {
+						// Refresh owns source-failure logging; warmup has no synchronous caller.
+						return
+					}
+				})
+			}
 		}
 		warmups.Wait()
 	}()
@@ -180,6 +210,11 @@ func (r *modelCatalogRuntime) Refresh(
 	if ctx == nil {
 		return nil, errors.New("daemon: model catalog refresh context is required")
 	}
+	executionContext, err := r.resolveCatalogExecutionContext(opts.ExecutionContext)
+	if err != nil {
+		return nil, err
+	}
+	opts.ExecutionContext = executionContext
 	release, err := r.generationGate.lock(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: wait to refresh model catalog generation: %w", err)
@@ -256,7 +291,7 @@ func (r *modelCatalogRuntime) refresh(
 
 func (r *modelCatalogRuntime) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	if r == nil || r.service == nil {
 		return nil, errors.New("daemon: model catalog service is unavailable")
@@ -264,12 +299,17 @@ func (r *modelCatalogRuntime) ListSourceStatus(
 	if ctx == nil {
 		return nil, errors.New("daemon: model catalog status context is required")
 	}
+	executionContext, err := r.resolveCatalogExecutionContext(opts.ExecutionContext)
+	if err != nil {
+		return nil, err
+	}
+	opts.ExecutionContext = executionContext
 	release, err := r.generationGate.lock(ctx, true)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: wait to list model catalog status generation: %w", err)
 	}
 	defer release()
-	return r.service.ListSourceStatus(ctx, providerID)
+	return r.service.ListSourceStatus(ctx, opts)
 }
 
 func (r *modelCatalogRuntime) Shutdown(ctx context.Context) error {
@@ -348,7 +388,13 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 	if err := rehydrateStaticModelCatalogSources(ctx, service, d.now); err != nil {
 		return err
 	}
-	runtime, err := newModelCatalogRuntime(ctx, service, state.logger, d.now, sourceTimeout)
+	runtime, err := newModelCatalogRuntime(
+		ctx,
+		service,
+		state.logger,
+		d.now,
+		sourceTimeout+modelCatalogRefreshCleanupGrace,
+	)
 	if err != nil {
 		return err
 	}
@@ -366,6 +412,7 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		}
 	}
 	state.modelCatalog = runtime
+	runtime.startLiveRefreshLoop()
 	if cleanup != nil {
 		cleanup.add(runtime.Shutdown)
 	}

@@ -6,12 +6,14 @@ import { cn, Popover, PopoverContent } from "@compozy/ui";
 
 import { ModelList } from "./model-list";
 import { ProviderChips } from "./provider-chips";
+import { RuntimeAdvancedOptions } from "./runtime-advanced-options";
 import { SelectorFooter } from "./selector-footer";
 import { RuntimeSelectorTrigger } from "./trigger";
 import { useRuntimeSelector } from "./use-runtime-selector";
 import { useRuntimeSelectorPopup } from "./use-runtime-selector-popup";
 import type {
   RuntimeModelOption,
+  RuntimeACPOption,
   RuntimeProviderOption,
   RuntimeSelectorValue,
   RuntimeSelectorVariant,
@@ -22,6 +24,8 @@ export interface RuntimeSelectorProps {
   onChange: (next: RuntimeSelectorValue) => void;
   providers: RuntimeProviderOption[];
   models: RuntimeModelOption[];
+  /** Live ACP descriptors for advanced select/boolean controls. */
+  acpOptions?: RuntimeACPOption[];
   variant?: RuntimeSelectorVariant;
   disabled?: boolean;
   /** Keeps the trigger focusable and visible while preventing edits. */
@@ -57,6 +61,7 @@ export function RuntimeSelector({
   onChange,
   providers,
   models,
+  acpOptions,
   variant = "default",
   disabled = false,
   readOnly = false,
@@ -79,6 +84,7 @@ export function RuntimeSelector({
     onChange,
     providers,
     models,
+    acpOptions,
     allowCustomProvider,
   });
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -124,7 +130,7 @@ export function RuntimeSelector({
         id={triggerId}
         data-testid={triggerTestId}
         className={className}
-        value={value}
+        value={controller.value}
         provider={controller.activeProvider}
         model={controller.selectedModel}
         variant={variant}
@@ -245,14 +251,25 @@ export function RuntimeSelector({
             onCustomCommit={handleCommitCustom}
             onStartExactEntry={handleStartExactEntry}
           />
+          <RuntimeAdvancedOptions
+            disabled={inert}
+            expanded={controller.advancedExpanded}
+            onChange={controller.setACPOption}
+            onExpandedChange={controller.setAdvancedExpanded}
+            options={controller.advancedOptions}
+            providerManaged={controller.providerManaged}
+            selections={controller.value.acp_options ?? []}
+          />
           <SelectorFooter
+            providerManaged={controller.providerManaged}
             reasoning={controller.reasoningState}
-            value={value.reasoning_effort}
-            modelName={modelName || value.provider}
+            reasoningDisabled={inert || controller.providerManaged}
+            value={controller.value.reasoning_effort}
+            modelName={modelName || controller.value.provider}
             onSelect={controller.setReasoning}
             speed={speed}
             onSpeedChange={onSpeedChange}
-            speedDisabled={inert}
+            speedDisabled={inert || controller.providerManaged || !controller.speedSupported}
           />
           {/* Polite status: favoriting never moves focus (pointer star or Alt+F
               in search), so speak the result. */}

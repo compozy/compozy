@@ -60,6 +60,8 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			Provider:                     route.Provider,
 			Model:                        route.Model,
 			ReasoningEffort:              route.ReasoningEffort,
+			Speed:                        route.Speed,
+			ACPOptions:                   roleACPOptionsForSession(route.ACPOptions),
 			Name:                         coordinatorSessionName(decision.WorkspaceID),
 			Workspace:                    decision.WorkspaceID,
 			ResolvedNetworkParticipation: &coordinatorParticipation,
@@ -112,6 +114,8 @@ func coordinatorInvocationRole(
 		Provider:        cfg.Provider,
 		Model:           cfg.Model,
 		ReasoningEffort: cfg.ReasoningEffort,
+		Speed:           cfg.Speed,
+		ACPOptions:      compozyconfig.CloneACPOptionSelections(cfg.ACPOptions),
 		Fallbacks:       append([]compozyconfig.RoleFallback(nil), cfg.Fallbacks...),
 		eventWriter:     events,
 	}

@@ -16,8 +16,8 @@ const (
 )
 
 type speedConfigMatch struct {
-	option SessionConfigOption
-	target string
+	option    SessionConfigOption
+	selection SessionConfigOptionSelection
 }
 
 func (d *Driver) applySessionSpeed(
@@ -50,11 +50,15 @@ func (d *Driver) applySessionSpeed(
 		return false, nil
 	}
 
+	request, err := match.request(acpsdk.SessionId(process.SessionID))
+	if err != nil {
+		return true, fmt.Errorf("acp: build speed config request: %w", err)
+	}
 	response, err := acpsdk.SendRequest[acpsdk.SetSessionConfigOptionResponse](
 		process.conn,
 		ctx,
 		acpsdk.AgentMethodSessionSetConfigOption,
-		match.request(acpsdk.SessionId(process.SessionID)),
+		request,
 	)
 	if err != nil {
 		process.setSpeedResolution(&speedpkg.Resolution{
@@ -123,13 +127,25 @@ func matchSpeedConfig(
 	}
 	switch option.Kind {
 	case SessionConfigOptionKindBoolean:
-		return nil, speedpkg.ReasonCapabilityAbsent
+		return &speedConfigMatch{
+			option: option,
+			selection: SessionConfigOptionSelection{
+				ID:        option.ID,
+				BoolValue: new(requested == speedpkg.SpeedFast),
+			},
+		}, ""
 	case SessionConfigOptionKindSelect:
 		target, ok := selectSpeedTarget(requested, option.Values)
 		if !ok {
 			return nil, speedpkg.ReasonValueAmbiguous
 		}
-		return &speedConfigMatch{option: option, target: target}, ""
+		return &speedConfigMatch{
+			option: option,
+			selection: SessionConfigOptionSelection{
+				ID:      option.ID,
+				ValueID: target,
+			},
+		}, ""
 	default:
 		return nil, speedpkg.ReasonValueAmbiguous
 	}
@@ -222,18 +238,17 @@ func normalizeSpeedToken(value string) string {
 }
 
 func (m speedConfigMatch) alreadyApplied() bool {
-	return m.option.Kind == SessionConfigOptionKindSelect &&
-		strings.TrimSpace(m.option.Current) == m.target
+	return m.selection.matches(m.option)
 }
 
-func (m speedConfigMatch) request(sessionID acpsdk.SessionId) acpsdk.SetSessionConfigOptionRequest {
-	return acpsdk.SetSessionConfigOptionRequest{
-		ValueId: &acpsdk.SetSessionConfigOptionValueId{
-			SessionId: sessionID,
-			ConfigId:  acpsdk.SessionConfigId(m.option.ID),
-			Value:     acpsdk.SessionConfigValueId(m.target),
-		},
+func (m speedConfigMatch) request(
+	sessionID acpsdk.SessionId,
+) (setSessionConfigOptionWireRequest, error) {
+	request, err := m.selection.request(sessionID)
+	if err != nil {
+		return setSessionConfigOptionWireRequest{}, err
 	}
+	return request, nil
 }
 
 func (m speedConfigMatch) confirmed(options []SessionConfigOption) bool {
@@ -241,11 +256,10 @@ func (m speedConfigMatch) confirmed(options []SessionConfigOption) bool {
 		return false
 	}
 	for _, option := range options {
-		if strings.TrimSpace(option.ID) != strings.TrimSpace(m.option.ID) ||
-			option.Kind != SessionConfigOptionKindSelect {
+		if strings.TrimSpace(option.ID) != strings.TrimSpace(m.option.ID) {
 			continue
 		}
-		return strings.TrimSpace(option.Current) == m.target
+		return m.selection.matches(option)
 	}
 	return false
 }

@@ -567,7 +567,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			{
 				toolspkg.ToolIDSessionSpawn,
-				`{"agent_name":"researcher","provider":"codex","model":"gpt-test","reasoning_effort":"high","speed":"fast","ttl_seconds":3600,"notify_creator":false}`,
+				`{"agent_name":"researcher","provider":"codex","model":"gpt-test","reasoning_effort":"high","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],"ttl_seconds":3600,"notify_creator":false}`,
 				`"session_id":"sess-child"`,
 			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
@@ -600,7 +600,8 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if spawnOpts.ParentSessionID != callerID || spawnOpts.Provider != "codex" ||
 			spawnOpts.Model != "gpt-test" || spawnOpts.ReasoningEffort != "high" ||
-			spawnOpts.Speed != speedpkg.SpeedFast || spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
+			spawnOpts.Speed != speedpkg.SpeedFast || len(spawnOpts.ACPOptions) != 2 ||
+			spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
 			t.Fatalf("Spawn() opts = %#v, want runtime overrides and explicit notify_creator=false", spawnOpts)
 		}
 		if stopTarget != targetID || approval.RequestID != "perm-1" ||
@@ -12057,10 +12058,10 @@ func (s *nativeModelCatalogService) Refresh(
 
 func (s *nativeModelCatalogService) ListSourceStatus(
 	_ context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	s.statusCalls++
-	s.lastStatusProviderID = providerID
+	s.lastStatusProviderID = opts.ProviderID
 	if s.statusErr != nil {
 		return nil, s.statusErr
 	}

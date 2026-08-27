@@ -104,6 +104,8 @@ func (g *forkedAutoTitleGenerator) Generate(
 			Provider:            route.Provider,
 			Model:               route.Model,
 			ReasoningEffort:     route.ReasoningEffort,
+			Speed:               route.Speed,
+			ACPOptions:          roleACPOptionsForSession(route.ACPOptions),
 			Name:                autoTitleSessionName,
 			PromptOverlay:       autoTitlePromptOverlay(),
 			SpawnRole:           session.SpawnRoleAutoTitle,

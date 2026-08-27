@@ -33,7 +33,7 @@ func preferredACPModel(resolved compozyconfig.ResolvedAgent, explicitOverride bo
 	}
 	if resolved.Harness == compozyconfig.ProviderHarnessACP {
 		if explicitOverride || runtimeProvider == runtimeProviderCodex || runtimeProvider == runtimeProviderClaude {
-			return compozyconfig.ACPModelTransportValue(runtimeProvider, model)
+			return model
 		}
 		return ""
 	}

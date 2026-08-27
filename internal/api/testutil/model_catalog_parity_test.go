@@ -284,7 +284,7 @@ func (*parityModelCatalogService) Refresh(
 
 func (*parityModelCatalogService) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }

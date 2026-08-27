@@ -1,7 +1,10 @@
 package acp
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -28,9 +31,11 @@ func TestACPHelperProcess(_ *testing.T) {
 		filePath: os.Getenv(testHelperFileKey),
 	}
 	input := io.Reader(os.Stdin)
+	var captureFile *os.File
 	capturePath := strings.TrimSpace(os.Getenv(testHelperCaptureKey))
 	if capturePath != "" {
-		captureFile, err := os.Create(capturePath)
+		var err error
+		captureFile, err = os.Create(capturePath)
 		if err != nil {
 			if _, printErr := fmt.Fprintf(os.Stderr, "create capture file: %v\n", err); printErr != nil {
 				os.Exit(1)
@@ -38,23 +43,94 @@ func TestACPHelperProcess(_ *testing.T) {
 			os.Exit(1)
 		}
 		input = io.TeeReader(os.Stdin, captureFile)
+	}
 
-		conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
-		agent.conn = conn
-		<-conn.Done()
+	input = newSDKConfigOptionCompatibilityReader(input)
+	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
+	agent.conn = conn
+	<-conn.Done()
+	if captureFile != nil {
 		if err := captureFile.Close(); err != nil {
 			if _, printErr := fmt.Fprintf(os.Stderr, "close capture file: %v\n", err); printErr != nil {
 				os.Exit(1)
 			}
 			os.Exit(1)
 		}
-		os.Exit(0)
+	}
+	os.Exit(0)
+}
+
+// sdkConfigOptionCompatibilityReader adapts the strict ACP select payload for
+// the test-only SDK receiver, whose generated union decoder currently rejects
+// string values whenever the select discriminator is present. The production
+// wire and capture file retain the required type: "id" field.
+type sdkConfigOptionCompatibilityReader struct {
+	reader      *bufio.Reader
+	buffered    []byte
+	terminalErr error
+}
+
+func newSDKConfigOptionCompatibilityReader(input io.Reader) io.Reader {
+	return &sdkConfigOptionCompatibilityReader{reader: bufio.NewReader(input)}
+}
+
+func (r *sdkConfigOptionCompatibilityReader) Read(target []byte) (int, error) {
+	if len(r.buffered) == 0 {
+		if r.terminalErr != nil {
+			err := r.terminalErr
+			r.terminalErr = nil
+			return 0, err
+		}
+		line, err := r.reader.ReadBytes('\n')
+		if len(line) == 0 {
+			return 0, err
+		}
+		transformed, transformErr := stripSDKUnsupportedSelectType(line)
+		if transformErr != nil {
+			return 0, transformErr
+		}
+		r.buffered = transformed
+		r.terminalErr = err
 	}
 
-	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
-	agent.conn = conn
-	<-conn.Done()
-	os.Exit(0)
+	n := copy(target, r.buffered)
+	r.buffered = r.buffered[n:]
+	return n, nil
+}
+
+func stripSDKUnsupportedSelectType(line []byte) ([]byte, error) {
+	hasNewline := bytes.HasSuffix(line, []byte{'\n'})
+	payload := bytes.TrimSuffix(line, []byte{'\n'})
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return nil, fmt.Errorf("decode ACP test request: %w", err)
+	}
+	var method string
+	if err := json.Unmarshal(envelope["method"], &method); err != nil || method != "session/set_config_option" {
+		return line, nil
+	}
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(envelope["params"], &params); err != nil {
+		return nil, fmt.Errorf("decode ACP config option params: %w", err)
+	}
+	var optionType string
+	if err := json.Unmarshal(params["type"], &optionType); err != nil || optionType != "id" {
+		return line, nil
+	}
+	delete(params, "type")
+	encodedParams, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("encode ACP config option params: %w", err)
+	}
+	envelope["params"] = encodedParams
+	transformed, err := json.Marshal(envelope)
+	if err != nil {
+		return nil, fmt.Errorf("encode ACP test request: %w", err)
+	}
+	if hasNewline {
+		transformed = append(transformed, '\n')
+	}
+	return transformed, nil
 }
 
 func TestACPWrapperProcess(_ *testing.T) {

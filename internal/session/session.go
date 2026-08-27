@@ -64,6 +64,7 @@ type Info struct {
 	Model                    string
 	ReasoningEffort          string
 	Speed                    speedpkg.Speed
+	ACPOptions               []acp.SessionConfigOptionSelection
 	SpeedResolution          *speedpkg.Resolution
 	RuntimeStatus            RuntimeStatus
 	RuntimeTransition        RuntimeTransitionStrategy
@@ -125,6 +126,7 @@ type Session struct {
 	Model                     string
 	ReasoningEffort           string
 	Speed                     speedpkg.Speed
+	ACPOptions                []acp.SessionConfigOptionSelection
 	SpeedResolution           *speedpkg.Resolution
 	RuntimeStatus             RuntimeStatus
 	RuntimeTransition         RuntimeTransitionStrategy

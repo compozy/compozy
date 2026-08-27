@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
@@ -22,6 +23,130 @@ var errRecordingCatalogMissingSession = errors.New("recording catalog missing se
 
 func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should pass prompt ACP options through live runtime configuration", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		driver := &runtimeConfigRecordingDriver{fakeDriver: h.driver}
+		h.manager.driver = driver
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		process, err := h.manager.ensurePromptRuntime(
+			testutil.Context(t),
+			active,
+			&selection,
+			snapshot.process,
+		)
+		if err != nil {
+			t.Fatalf("ensurePromptRuntime() error = %v", err)
+		}
+		if process != snapshot.process {
+			t.Fatal("ensurePromptRuntime() replaced a session-config process, want live reconfiguration")
+		}
+		configs := driver.configSnapshots()
+		if len(configs) != 1 || len(configs[0].ACPOptions) != 1 ||
+			configs[0].ACPOptions[0].ID != "thinking" || configs[0].ACPOptions[0].BoolValue == nil ||
+			!*configs[0].ACPOptions[0].BoolValue {
+			t.Fatalf("ConfigureRuntime() configs = %#v, want thinking=true", configs)
+		}
+		if got := active.Info().ACPOptions; len(got) != 1 || got[0].ID != "thinking" ||
+			got[0].BoolValue == nil || !*got[0].BoolValue {
+			t.Fatalf("active ACP options = %#v, want thinking=true", got)
+		}
+	})
+
+	t.Run("Should replace Cursor process when a launch-bound ACP option changes", func(t *testing.T) {
+		t.Parallel()
+
+		const logicalModel = "opus-5"
+		const regularTransport = "claude-opus-5-low"
+		const thinkingTransport = "claude-opus-5-thinking-high"
+		thinkingOff := false
+		thinkingOn := true
+		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        cursorRuntimeProvider,
+			ModelID:           logicalModel,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			ConfigOptions: []modelcatalog.ModelOptionDescriptor{{
+				ID: "thinking", Kind: modelcatalog.ModelOptionKindBoolean, CurrentBool: &thinkingOff,
+			}},
+			TransportBindings: []modelcatalog.ModelTransportBinding{
+				{
+					TransportModelID: regularTransport,
+					Thinking:         &thinkingOff,
+					OptionSelections: []modelcatalog.ModelOptionSelection{{ID: "thinking", BoolValue: &thinkingOff}},
+				},
+				{
+					TransportModelID: thinkingTransport,
+					Thinking:         &thinkingOn,
+					OptionSelections: []modelcatalog.ModelOptionSelection{{ID: "thinking", BoolValue: &thinkingOn}},
+				},
+			},
+			Sources: []modelcatalog.SourceRef{
+				{
+					SourceID: modelcatalog.SourceKindProviderLiveID(
+						cursorRuntimeProvider,
+					),
+					SourceKind: modelcatalog.SourceKindProviderLive,
+				},
+			},
+		}}}))
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[index].Name == "coder" {
+				resolvedWorkspace.Agents[index].Provider = cursorRuntimeProvider
+				resolvedWorkspace.Agents[index].Model = logicalModel
+			}
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+
+		active := createSession(t, h)
+		t.Cleanup(func() { reportSessionStop(t, h, active.ID) })
+		snapshot := active.runtimeBindingSnapshot()
+		selection := snapshot.selection
+		selection.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "thinking", BoolValue: &thinkingOn}}
+		replacement, err := h.manager.ensurePromptRuntime(
+			testutil.Context(t),
+			active,
+			&selection,
+			snapshot.process,
+		)
+		if err != nil {
+			t.Fatalf("ensurePromptRuntime() error = %v", err)
+		}
+		if replacement == snapshot.process {
+			t.Fatal("ensurePromptRuntime() reused process, want launch-bound replacement")
+		}
+
+		h.driver.mu.Lock()
+		startCalls := append([]acp.StartOpts(nil), h.driver.startCalls...)
+		stopCalls := h.driver.stopCalls
+		h.driver.mu.Unlock()
+		if len(startCalls) != 2 || startCalls[0].ExpectedTransportModel != regularTransport ||
+			startCalls[1].ExpectedTransportModel != thinkingTransport {
+			t.Fatalf("Cursor starts = %#v, want regular then thinking transport", startCalls)
+		}
+		if stopCalls != 1 {
+			t.Fatalf("Cursor replacement stop calls = %d, want 1", stopCalls)
+		}
+		info := active.Info()
+		if info.Model != logicalModel || len(info.ACPOptions) != 1 ||
+			info.ACPOptions[0].BoolValue == nil || !*info.ACPOptions[0].BoolValue {
+			t.Fatalf(
+				"active runtime = model %q options %#v, want logical model with thinking=true",
+				info.Model,
+				info.ACPOptions,
+			)
+		}
+	})
 
 	t.Run("Should atomically resolve an orphaned permission and preserve the first winner", func(t *testing.T) {
 		t.Parallel()
@@ -672,8 +797,23 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 	t.Run("Should persist only an advertised Cursor runtime selection", func(t *testing.T) {
 		t.Parallel()
 
-		const advertisedModel = "grok-4.5[effort=high,fast=true]"
-		h := newHarness(t)
+		const advertisedModel = "grok-4.5"
+		const transportModel = "cursor-grok-4.5-high"
+		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:             "cursor",
+			ModelID:                advertisedModel,
+			AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
+			DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+			TransportBindings: []modelcatalog.ModelTransportBinding{{
+				TransportModelID: transportModel,
+				ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+				Fast:             new(false),
+			}},
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}))
 		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -688,11 +828,11 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
 			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-runtime-selection")
 			proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
-				ID:       "model",
-				Category: "model",
-				Kind:     acp.SessionConfigOptionKindSelect,
-				Current:  advertisedModel,
-				Values:   []acp.SessionConfigOptionValue{{Value: advertisedModel}},
+				ID:             "model",
+				Category:       "model",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: transportModel,
+				Values:         []acp.SessionConfigOptionValue{{Value: transportModel}},
 			}}})
 			return proc, nil
 		}
@@ -942,6 +1082,34 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 			t.Fatalf("failed rename changed identity: memory=%q meta=%q", memoryName, metaName)
 		}
 	})
+}
+
+type runtimeConfigRecordingDriver struct {
+	*fakeDriver
+	configMu sync.Mutex
+	configs  []acp.RuntimeConfig
+}
+
+func (d *runtimeConfigRecordingDriver) ConfigureRuntime(
+	_ context.Context,
+	_ *AgentProcess,
+	config acp.RuntimeConfig,
+) error {
+	d.configMu.Lock()
+	defer d.configMu.Unlock()
+	config.ACPOptions = acp.CloneSessionConfigOptionSelections(config.ACPOptions)
+	d.configs = append(d.configs, config)
+	return nil
+}
+
+func (d *runtimeConfigRecordingDriver) configSnapshots() []acp.RuntimeConfig {
+	d.configMu.Lock()
+	defer d.configMu.Unlock()
+	result := append([]acp.RuntimeConfig(nil), d.configs...)
+	for index := range result {
+		result[index].ACPOptions = acp.CloneSessionConfigOptionSelections(result[index].ACPOptions)
+	}
+	return result
 }
 
 func newOrphanResolutionHarness(

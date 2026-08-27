@@ -700,7 +700,12 @@ func TestCatalogViews(t *testing.T) {
 				func(row *ModelRow) { row.Available = &available },
 			),
 		}
-		service := newTestService(t, store, nil)
+		service := newTestService(t, store, []Source{&fakeSource{
+			id:        "provider_live:cursor",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"cursor"},
+		}})
 		models, err := service.ListModels(testutil.Context(t), ListOptions{
 			ProviderID:   "cursor",
 			View:         CatalogViewCurated,
@@ -1126,7 +1131,12 @@ func TestCatalogViews(t *testing.T) {
 				func(row *ModelRow) { row.Available = &available },
 			),
 		}
-		service := newTestService(t, store, nil)
+		service := newTestService(t, store, []Source{&fakeSource{
+			id:        liveSourceID,
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+		}})
 		models, err := service.ListModels(testutil.Context(t), ListOptions{
 			ProviderID: "codex",
 			SourceID:   liveSourceID,
@@ -1353,7 +1363,8 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		if !errors.Is(owner.err, context.Canceled) {
 			t.Fatalf("owner ListModels() error = %v, want context.Canceled", owner.err)
 		}
-		source.waitForCalls(t, 2)
+		source.waitForCalls(t, 1)
+		source.requireCallCountStable(t, 1, 25*time.Millisecond)
 		source.release()
 
 		waiter := <-waiterResult
@@ -1523,7 +1534,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		if got, want := modelKeys(models), []string{"codex/gpt-5.4"}; !slices.Equal(got, want) {
 			t.Fatalf("model keys = %#v, want %#v", got, want)
 		}
-		statuses, err := service.ListSourceStatus(testutil.Context(t), "codex")
+		statuses, err := service.ListSourceStatus(testutil.Context(t), StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
@@ -1614,7 +1625,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		if got, want := statuses[0].SourceID, "provider_live:claude"; got != want {
 			t.Fatalf("status source = %q, want %q", got, want)
 		}
-		storedStatuses, err := service.ListSourceStatus(testutil.Context(t), "claude")
+		storedStatuses, err := service.ListSourceStatus(testutil.Context(t), StatusOptions{ProviderID: "claude"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus(claude) error = %v", err)
 		}
@@ -1700,7 +1711,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		if len(staleRows) != 0 {
 			t.Fatalf("ListRows(codex/claude) = %#v, want cleared", staleRows)
 		}
-		storedStatuses, err := service.ListSourceStatus(testutil.Context(t), "claude")
+		storedStatuses, err := service.ListSourceStatus(testutil.Context(t), StatusOptions{ProviderID: "claude"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus(claude) error = %v", err)
 		}
@@ -1774,7 +1785,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		if strings.Contains(model.LastError, "sk-secret-token") || !strings.Contains(model.LastError, "[REDACTED]") {
 			t.Fatalf("LastError = %q, want redacted stale error", model.LastError)
 		}
-		statuses, err := service.ListSourceStatus(testutil.Context(t), "codex")
+		statuses, err := service.ListSourceStatus(testutil.Context(t), StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
@@ -1856,7 +1867,17 @@ func TestCatalogServiceRefresh(t *testing.T) {
 				if len(statuses) != 0 {
 					t.Fatalf("Refresh() statuses = %#v, want no persisted failed status", statuses)
 				}
-				storedStatuses, err := backingStore.ListSourceStatus(testutil.Context(t), "codex")
+				storedStatuses, err := backingStore.ListSourceStatus(testutil.Context(t), StatusOptions{
+					ProviderID: "codex",
+					SourceContexts: map[string]CatalogExecutionContext{
+						source.ID(): {
+							Scope:              ExecutionScopeWorkspace,
+							ProfileID:          "profile-test",
+							WorkspaceID:        "workspace-test",
+							CommandFingerprint: CatalogExecutionFingerprint(source.ID(), string(source.Kind())),
+						},
+					},
+				})
 				if err != nil {
 					t.Fatalf("ListSourceStatus() error = %v", err)
 				}
@@ -2091,7 +2112,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 			t.Fatalf("Refresh(initial) error = %v", err)
 		}
 
-		statuses, err := service.ListSourceStatus(testutil.Context(t), "   ")
+		statuses, err := service.ListSourceStatus(testutil.Context(t), StatusOptions{ProviderID: "   "})
 		if err != nil {
 			t.Fatalf("ListSourceStatus(blank) error = %v", err)
 		}
@@ -2271,6 +2292,55 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 			if got, want := len(result.statuses), 1; got != want {
 				t.Fatalf("len(statuses) = %d, want %d: %#v", got, want, result.statuses)
 			}
+		}
+	})
+
+	t.Run("Should keep refresh flights separate across workspace scopes", func(t *testing.T) {
+		t.Parallel()
+
+		source := newBlockingRefreshSource(map[string][]ModelRow{
+			"codex": {
+				testRow(
+					"provider_live:codex",
+					SourceKindProviderLive,
+					PriorityProviderLive,
+					"codex",
+					"gpt-5.4",
+					testTime(30),
+					nil,
+				),
+			},
+		})
+		service := newTestService(t, newMemoryStore(), []Source{source})
+		ctx := testutil.Context(t)
+		contexts := []CatalogExecutionContext{
+			{Scope: ExecutionScopeWorkspace, ProfileID: "profile-a", WorkspaceID: "workspace-a"},
+			{Scope: ExecutionScopeWorkspace, ProfileID: "profile-a", WorkspaceID: "workspace-b"},
+		}
+		results := make(chan refreshTestResult, len(contexts))
+		for _, executionContext := range contexts {
+			go func(executionContext CatalogExecutionContext) {
+				statuses, err := service.Refresh(ctx, RefreshOptions{
+					ProviderID:       "codex",
+					SourceID:         source.ID(),
+					ExecutionContext: executionContext,
+					Force:            true,
+					Now:              testTime(30),
+				})
+				results <- refreshTestResult{statuses: statuses, err: err}
+			}(executionContext)
+		}
+		source.waitForCalls(t, 1)
+		source.requireCallCountStable(t, 1, 25*time.Millisecond)
+		source.release()
+		for range contexts {
+			result := <-results
+			if result.err != nil {
+				t.Fatalf("Refresh() error = %v", result.err)
+			}
+		}
+		if got, want := source.callCount(), 2; got != want {
+			t.Fatalf("source calls = %d, want %d independent workspace flights", got, want)
 		}
 	})
 
@@ -2556,8 +2626,11 @@ func TestCatalogServiceRefreshConcurrency(t *testing.T) {
 			}
 		}
 		rows, err := store.ListRows(ctx, ListOptions{
-			ProviderID:   "codex",
-			SourceID:     source.ID(),
+			ProviderID: "codex",
+			SourceID:   source.ID(),
+			SourceContexts: map[string]CatalogExecutionContext{
+				source.ID(): testExecutionContextForSource(source),
+			},
 			IncludeAll:   true,
 			IncludeStale: true,
 		})
@@ -2607,6 +2680,10 @@ func (s *sourceWithoutProviderIDs) Priority() int {
 	return s.priority
 }
 
+func (s *sourceWithoutProviderIDs) CatalogExecutionFingerprint() (string, error) {
+	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
+}
+
 func (s *sourceWithoutProviderIDs) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {
 	s.calls++
 	rows := make([]ModelRow, 0, len(s.rows))
@@ -2628,6 +2705,10 @@ func (s *fakeSource) Kind() SourceKind {
 
 func (s *fakeSource) Priority() int {
 	return s.priority
+}
+
+func (s *fakeSource) CatalogExecutionFingerprint() (string, error) {
+	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
 }
 
 func (s *fakeSource) ProviderIDs() []string {
@@ -2689,6 +2770,10 @@ func (s *blockingRefreshSource) Kind() SourceKind {
 
 func (s *blockingRefreshSource) Priority() int {
 	return PriorityProviderLive
+}
+
+func (s *blockingRefreshSource) CatalogExecutionFingerprint() (string, error) {
+	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
 }
 
 func (s *blockingRefreshSource) ProviderIDs() []string {
@@ -2812,6 +2897,9 @@ func (s *mutableRefreshSource) ID() string         { return "provider_live:share
 func (s *mutableRefreshSource) Kind() SourceKind   { return SourceKindProviderLive }
 func (s *mutableRefreshSource) Priority() int      { return PriorityProviderLive }
 func (s *mutableRefreshSource) TTL() time.Duration { return 0 }
+func (s *mutableRefreshSource) CatalogExecutionFingerprint() (string, error) {
+	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
+}
 
 func (s *mutableRefreshSource) ProviderIDs() []string {
 	s.mu.Lock()
@@ -2888,6 +2976,7 @@ func newBlockingProviderReplaceStore(store *memoryStore, providerID string) *blo
 
 func (s *blockingProviderReplaceStore) ReplaceSourceRows(
 	ctx context.Context,
+	executionContext CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 	rows []ModelRow,
@@ -2901,7 +2990,7 @@ func (s *blockingProviderReplaceStore) ReplaceSourceRows(
 			return ctx.Err()
 		}
 	}
-	return s.memoryStore.ReplaceSourceRows(ctx, sourceID, providerID, rows, status)
+	return s.memoryStore.ReplaceSourceRows(ctx, executionContext, sourceID, providerID, rows, status)
 }
 
 func (s *blockingProviderReplaceStore) waitUntilBlocked(t *testing.T) {
@@ -2929,7 +3018,7 @@ var _ Store = (*failOnSourceStatusReadStore)(nil)
 
 func (s *failOnSourceStatusReadStore) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts StatusOptions,
 ) ([]SourceStatus, error) {
 	s.mu.Lock()
 	s.calls++
@@ -2938,7 +3027,7 @@ func (s *failOnSourceStatusReadStore) ListSourceStatus(
 	if fail {
 		return nil, s.failErr
 	}
-	return s.Store.ListSourceStatus(ctx, providerID)
+	return s.Store.ListSourceStatus(ctx, opts)
 }
 
 func newMemoryStore() *memoryStore {
@@ -2950,6 +3039,7 @@ func newMemoryStore() *memoryStore {
 
 func (s *memoryStore) ReplaceSourceRows(
 	_ context.Context,
+	executionContext CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 	rows []ModelRow,
@@ -2958,7 +3048,10 @@ func (s *memoryStore) ReplaceSourceRows(
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.replaceCount++
-	key := sourceProviderKey(sourceID, providerID)
+	key, err := sourceProviderContextKey(executionContext, sourceID, providerID)
+	if err != nil {
+		return err
+	}
 	s.rows[key] = cloneModelRows(rows)
 	s.statuses[key] = status
 	return nil
@@ -2972,7 +3065,14 @@ func (s *memoryStore) ReplaceSourceRowsBatch(
 	defer s.mu.Unlock()
 	for _, replacement := range replacements {
 		s.replaceCount++
-		key := sourceProviderKey(replacement.SourceID, replacement.ProviderID)
+		key, err := sourceProviderContextKey(
+			replacement.ExecutionContext,
+			replacement.SourceID,
+			replacement.ProviderID,
+		)
+		if err != nil {
+			return err
+		}
 		s.rows[key] = cloneModelRows(replacement.Rows)
 		s.statuses[key] = replacement.Status
 	}
@@ -2983,8 +3083,19 @@ func (s *memoryStore) ListRows(_ context.Context, opts ListOptions) ([]ModelRow,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	rows := make([]ModelRow, 0)
-	for _, group := range s.rows {
+	for key, group := range s.rows {
 		for _, row := range group {
+			executionContext, ok := opts.SourceContexts[row.SourceID]
+			if !ok {
+				executionContext = opts.ExecutionContext
+				if executionContext.Scope == "" {
+					executionContext = GlobalCatalogExecutionContext()
+				}
+			}
+			wantKey, err := sourceProviderContextKey(executionContext, row.SourceID, row.ProviderID)
+			if err != nil || key != wantKey {
+				continue
+			}
 			if opts.ProviderID != "" && row.ProviderID != opts.ProviderID {
 				continue
 			}
@@ -3000,20 +3111,87 @@ func (s *memoryStore) ListRows(_ context.Context, opts ListOptions) ([]ModelRow,
 	return rows, nil
 }
 
-func (s *memoryStore) ListSourceStatus(_ context.Context, providerID string) ([]SourceStatus, error) {
+func (s *memoryStore) ListSourceStatus(_ context.Context, opts StatusOptions) ([]SourceStatus, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	statuses := make([]SourceStatus, 0, len(s.statuses))
-	for _, status := range s.statuses {
-		if providerID == "" || status.ProviderID == providerID {
+	for key, status := range s.statuses {
+		executionContext, ok := opts.SourceContexts[status.SourceID]
+		if !ok {
+			executionContext = opts.ExecutionContext
+			if executionContext.Scope == "" {
+				executionContext = GlobalCatalogExecutionContext()
+			}
+		}
+		wantKey, err := sourceProviderContextKey(executionContext, status.SourceID, status.ProviderID)
+		if err != nil || key != wantKey {
+			continue
+		}
+		if opts.ProviderID == "" || status.ProviderID == opts.ProviderID {
 			statuses = append(statuses, status)
 		}
 	}
 	return statuses, nil
 }
 
+func sourceProviderContextKey(
+	executionContext CatalogExecutionContext,
+	sourceID string,
+	providerID string,
+) (string, error) {
+	contextID, err := executionContext.ID()
+	if err != nil {
+		return "", err
+	}
+	return contextID + "\x00" + sourceID + "\x00" + providerID, nil
+}
+
 func sourceProviderKey(sourceID string, providerID string) string {
-	return sourceID + "\x00" + providerID
+	executionContext := GlobalCatalogExecutionContext()
+	kind := SourceKind("")
+	switch {
+	case strings.HasPrefix(sourceID, string(SourceKindProviderLive)+":"):
+		kind = SourceKindProviderLive
+	case strings.HasPrefix(sourceID, string(SourceKindExtension)+":"):
+		kind = SourceKindExtension
+	case strings.HasPrefix(sourceID, string(SourceKindACPSession)+":"):
+		kind = SourceKindACPSession
+	}
+	if kind != "" {
+		executionContext = CatalogExecutionContext{
+			Scope: ExecutionScopeWorkspace, ProfileID: "profile-test", WorkspaceID: "workspace-test",
+			CommandFingerprint: CatalogExecutionFingerprint(sourceID, string(kind)),
+		}
+	}
+	key, err := sourceProviderContextKey(executionContext, sourceID, providerID)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
+func testExecutionContextForSource(source Source) CatalogExecutionContext {
+	if source == nil {
+		panic("test source is required")
+	}
+	if source.Kind() == SourceKindBuiltin ||
+		source.Kind() == SourceKindConfig ||
+		source.Kind() == SourceKindModelsDev {
+		return GlobalCatalogExecutionContext()
+	}
+	fingerprint, err := source.(sourceExecutionFingerprinter).CatalogExecutionFingerprint()
+	if err != nil {
+		panic(err)
+	}
+	executionContext, err := (CatalogExecutionContext{
+		Scope:       ExecutionScopeWorkspace,
+		ProfileID:   "profile-test",
+		WorkspaceID: "workspace-test",
+	}).WithCommandFingerprint(fingerprint)
+	if err != nil {
+		panic(err)
+	}
+	return executionContext
 }
 
 func newTestService(t *testing.T, store Store, sources []Source) *CatalogService {
@@ -3022,6 +3200,11 @@ func newTestService(t *testing.T, store Store, sources []Source) *CatalogService
 	service, err := NewService(store, sources, MergeOptions{})
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
+	}
+	service.defaultExecutionContext = CatalogExecutionContext{
+		Scope:       ExecutionScopeWorkspace,
+		ProfileID:   "profile-test",
+		WorkspaceID: "workspace-test",
 	}
 	return service
 }

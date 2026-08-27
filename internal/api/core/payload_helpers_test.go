@@ -518,6 +518,29 @@ func TestSessionAndNetworkMappingHelpers(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve typed runtime options on pending input payload", func(t *testing.T) {
+		t.Parallel()
+
+		payload := SessionInputPayloadFromSession(session.PendingInput{
+			ID:        "queue-1",
+			SessionID: "sess-1",
+			Runtime: &session.RuntimeSelection{
+				Provider: "codex",
+				Model:    "gpt-5.6",
+				ACPOptions: []acp.SessionConfigOptionSelection{
+					{ID: "context", ValueID: "1m"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
+			},
+		})
+		if payload.Runtime == nil || payload.Runtime.Provider != "codex" || payload.Runtime.Model != "gpt-5.6" ||
+			len(payload.Runtime.ACPOptions) != 2 || payload.Runtime.ACPOptions[0].ID != "context" ||
+			payload.Runtime.ACPOptions[0].ValueID != "1m" || payload.Runtime.ACPOptions[1].ID != "thinking" ||
+			payload.Runtime.ACPOptions[1].BoolValue == nil || !*payload.Runtime.ACPOptions[1].BoolValue {
+			t.Fatalf("SessionInputPayloadFromSession() runtime = %#v", payload.Runtime)
+		}
+	})
+
 	t.Run("Should derive network message previews", func(t *testing.T) {
 		t.Parallel()
 

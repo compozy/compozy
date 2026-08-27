@@ -54,6 +54,7 @@ type SessionMeta struct {
 	Model             string                        `json:"model,omitempty"`
 	ReasoningEffort   string                        `json:"reasoning_effort,omitempty"`
 	Speed             speedpkg.Speed                `json:"speed,omitempty"`
+	ACPOptions        []SessionACPOptionSelection   `json:"acp_options,omitempty"`
 	SpeedResolution   *speedpkg.Resolution          `json:"speed_resolution,omitempty"`
 	RuntimeStatus     SessionRuntimeStatus          `json:"runtime_status"`
 	RuntimeTransition SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
@@ -308,6 +309,9 @@ func (m SessionMeta) NetworkOwnerKeySnapshot() string {
 }
 
 func validateSessionCreationMetadata(meta SessionMeta) error {
+	if err := ValidateSessionACPOptionSelections(meta.ACPOptions); err != nil {
+		return fmt.Errorf("store: validate session ACP options: %w", err)
+	}
 	identity := SessionCreationIdentity{
 		CreationProfileRef: meta.CreationProfileRef,
 		PolicySpecDigest:   meta.PolicySpecDigest,

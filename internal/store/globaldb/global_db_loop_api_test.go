@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -644,7 +645,7 @@ func TestGlobalDBLoopAPIEventsShouldResumeBySequenceAndWorkspace(t *testing.T) {
 		got := outputs[0].ResolvedRuntime
 		if got.Runtime.Provider != resolved.Runtime.Provider || got.Runtime.Model != resolved.Runtime.Model ||
 			got.Runtime.Reasoning != resolved.Runtime.Reasoning || got.Runtime.Speed != resolved.Runtime.Speed ||
-			got.Source != resolved.Source || got.SpeedResolution == nil ||
+			!reflect.DeepEqual(got.Source, resolved.Source) || got.SpeedResolution == nil ||
 			*got.SpeedResolution != *resolved.SpeedResolution {
 			t.Fatalf("resolved runtime after reopen = %#v, want %#v", got, resolved)
 		}

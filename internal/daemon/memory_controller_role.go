@@ -49,6 +49,8 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,
 		ReasoningEffort: resolved.ReasoningEffort,
+		Speed:           resolved.Speed,
+		ACPOptions:      compozyconfig.CloneACPOptionSelections(resolved.ACPOptions),
 		Prompt:          "Compozy memory controller transient runtime.",
 	})
 	if err != nil {
@@ -57,6 +59,8 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 	resolved.Provider = runtime.Provider
 	resolved.Model = runtime.Model
 	resolved.ReasoningEffort = runtime.ReasoningEffort
+	resolved.Speed = runtime.Speed
+	resolved.ACPOptions = compozyconfig.CloneACPOptionSelections(runtime.ACPOptions)
 	resolved.eventWriter = r.events
 	return memoryControllerCallOptions{
 		Timeout:       effective.Timeout,

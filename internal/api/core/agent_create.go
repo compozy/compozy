@@ -94,6 +94,8 @@ func createAgentDraftFromRequest(req contract.CreateAgentRequest) (compozyconfig
 		Command:         agent.Command,
 		Model:           agent.Model,
 		ReasoningEffort: string(agent.ReasoningEffort),
+		Speed:           agent.Speed,
+		ACPOptions:      agentACPOptionsFromContract(agent.ACPOptions),
 		Tools:           append([]string(nil), agent.Tools...),
 		Toolsets:        append([]string(nil), agent.Toolsets...),
 		DenyTools:       append([]string(nil), agent.DenyTools...),

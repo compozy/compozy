@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -65,11 +64,8 @@ func (s *LiveProviderSource) listACP(
 	if s.acpProbe == nil {
 		return nil, errors.New("model catalog: ACP model probe is required")
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("model catalog: resolve ACP discovery working directory: %w", err)
-	}
-	env, err = nativeCLIACPEnv(provider, env, cwd)
+	cwd := strings.TrimSpace(s.workingDir)
+	env, err := nativeCLIACPEnv(provider, env, cwd)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +86,7 @@ func (s *LiveProviderSource) listACP(
 			s.providerID,
 		)
 	}
-	rows := acpModelRows(s.providerID, modelOption, now)
+	rows := acpModelRows(s.providerID, provider.Models, s.adapter.parseACPModelRows, modelOption, now)
 	if len(rows) == 0 {
 		return nil, fmt.Errorf(
 			"model catalog: %s ACP model option did not advertise model values",
@@ -130,7 +126,16 @@ func setDiscoveryEnvValue(env []string, key string, value string) []string {
 	return append(result, prefix+strings.TrimSpace(value))
 }
 
-func acpModelRows(providerID string, modelOption acp.SessionConfigOption, now time.Time) []ModelRow {
+func acpModelRows(
+	providerID string,
+	models compozyconfig.ProviderModelsConfig,
+	parse func(string, compozyconfig.ProviderModelsConfig, acp.SessionConfigOption, time.Time) []ModelRow,
+	modelOption acp.SessionConfigOption,
+	now time.Time,
+) []ModelRow {
+	if parse != nil {
+		return parse(providerID, models, modelOption, now)
+	}
 	rows := make([]ModelRow, 0, len(modelOption.Values))
 	seen := make(map[string]struct{}, len(modelOption.Values))
 	for _, value := range modelOption.Values {

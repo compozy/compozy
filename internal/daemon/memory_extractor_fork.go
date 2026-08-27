@@ -220,6 +220,8 @@ func (e *forkedMemoryExtractor) spawnExtractorSession(
 			Provider:            route.Provider,
 			Model:               route.Model,
 			ReasoningEffort:     route.ReasoningEffort,
+			Speed:               route.Speed,
+			ACPOptions:          roleACPOptionsForSession(route.ACPOptions),
 			Name:                "Memory extractor",
 			PromptOverlay:       memoryExtractorOverlay(),
 			SpawnRole:           session.SpawnRoleMemoryExtractor,

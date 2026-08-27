@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -332,6 +333,7 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 				Verb: session.GoalCommandVerbSet, Objective: "Ship with the selected worker",
 				Runtime: &session.RuntimeSelection{
 					Provider: "cursor", Model: "grok-4.5", ReasoningEffort: "high", Speed: speedpkg.SpeedFast,
+					ACPOptions: []acp.SessionConfigOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 				},
 			},
 		)
@@ -357,7 +359,9 @@ func TestDaemonGoalCommandHandlerShouldExecuteCanonicalSessionLifecycle(t *testi
 		}
 		worker := resolved.EffectiveConfig.RuntimeDefaults.Worker
 		if worker.Provider != "cursor" || worker.Model != "grok-4.5" || worker.Reasoning != "high" ||
-			worker.Speed != speedpkg.SpeedFast {
+			worker.Speed != speedpkg.SpeedFast || len(worker.ACPOptions) != 1 ||
+			worker.ACPOptions[0].ID != "thinking" || worker.ACPOptions[0].BoolValue == nil ||
+			!*worker.ACPOptions[0].BoolValue {
 			t.Fatalf("run worker runtime = %#v, want selected runtime", worker)
 		}
 	})

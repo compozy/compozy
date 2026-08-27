@@ -211,6 +211,12 @@ func validateRuntimeSpec(
 		key := keys[0]
 		return runtimeValidation(path+"."+key, runtime.Extra[key], "unknown_field")
 	}
+	if _, err := dsl.NormalizeACPOptionSelections(runtime.ACPOptions); err != nil {
+		return runtimeValidation(path+"."+runtimeFieldACPOptions, err, "invalid_acp_option")
+	}
+	if err := validateRuntimeACPOptionConflicts(path, runtime); err != nil {
+		return err
+	}
 	if reasoning := strings.TrimSpace(runtime.Reasoning); reasoning != "" && !modelcatalog.IsValidEffort(reasoning) {
 		return NewRuntimeValidationError(RuntimeValidationItem{
 			Field:  runtimeFieldReasoning,
@@ -230,6 +236,31 @@ func validateRuntimeSpec(
 	}
 	_, err := ValidateResolvedRuntime(ctx, catalog, "", ResolvedRuntime{Runtime: runtime})
 	return err
+}
+
+func validateRuntimeACPOptionConflicts(path string, runtime RuntimeSpec) error {
+	for _, option := range runtime.ACPOptions {
+		id := strings.ToLower(strings.TrimSpace(option.ID))
+		switch id {
+		case "fast", "speed", "speedmode":
+			if strings.TrimSpace(string(runtime.Speed)) != "" {
+				return runtimeValidation(
+					path+"."+runtimeFieldACPOptions+"."+option.ID,
+					option.ValueID,
+					"duplicate_semantic_option",
+				)
+			}
+		case "reasoning", "reasoning_effort", "reasoning-effort", "effort":
+			if strings.TrimSpace(runtime.Reasoning) != "" {
+				return runtimeValidation(
+					path+"."+runtimeFieldACPOptions+"."+option.ID,
+					option.ValueID,
+					"duplicate_semantic_option",
+				)
+			}
+		}
+	}
+	return nil
 }
 
 func runtimeValidation(field string, value any, reason string) error {

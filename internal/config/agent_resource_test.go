@@ -158,7 +158,12 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		raw, err := codec.Encode(AgentDef{
 			Name:   " coder ",
 			Prompt: " Build things. ",
-			Tools:  []string{" mcp__github__search ", "mcp__github__search", " compozy__skill_* "},
+			Speed:  " fast ",
+			ACPOptions: []ACPOptionSelection{
+				{ID: " thinking ", BoolValue: new(true)},
+				{ID: " context ", ValueID: " 1m "},
+			},
+			Tools: []string{" mcp__github__search ", "mcp__github__search", " compozy__skill_* "},
 			Toolsets: []string{
 				" compozy__catalog ",
 				"compozy__catalog",
@@ -194,6 +199,11 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}
 		if got.Name != "coder" || got.Prompt != "Build things." {
 			t.Fatalf("decoded agent = %#v, want trimmed name and prompt", got)
+		}
+		if got.Speed != "fast" || len(got.ACPOptions) != 2 || got.ACPOptions[0].ID != "context" ||
+			got.ACPOptions[0].ValueID != "1m" || got.ACPOptions[1].ID != "thinking" ||
+			got.ACPOptions[1].BoolValue == nil || !*got.ACPOptions[1].BoolValue {
+			t.Fatalf("runtime defaults = %#v, want canonical speed and sorted ACP options", got)
 		}
 		if want := []string{
 			"mcp__github__search",
@@ -257,6 +267,11 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 			"name": " coder ",
 			"provider": " openai ",
 			"prompt": " Build things. ",
+			"speed": " fast ",
+			"acp_options": [
+				{"id": " thinking ", "bool_value": true},
+				{"id": " context ", "value_id": " 1m "}
+			],
 			"tools": [" mcp__github__search "],
 			"toolsets": [" compozy__catalog "],
 			"deny_tools": [" compozy__task_* ", "compozy__task_*"],
@@ -285,6 +300,11 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		}
 		if got.Name != "coder" || got.Provider != "openai" || got.Prompt != "Build things." {
 			t.Fatalf("decoded agent = %#v, want trimmed scalar fields", got)
+		}
+		if got.Speed != "fast" || len(got.ACPOptions) != 2 || got.ACPOptions[0].ID != "context" ||
+			got.ACPOptions[0].ValueID != "1m" || got.ACPOptions[1].ID != "thinking" ||
+			got.ACPOptions[1].BoolValue == nil || !*got.ACPOptions[1].BoolValue {
+			t.Fatalf("runtime defaults = %#v, want canonical speed and sorted ACP options", got)
 		}
 		if want := []string{"compozy__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {
 			t.Fatalf("DenyTools = %#v, want %#v", got.DenyTools, want)

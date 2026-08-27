@@ -19641,6 +19641,27 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "acp_options": {
+                    "items": {
+                      "properties": {
+                        "bool_value": {
+                          "nullable": true,
+                          "type": "boolean"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "value_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
                   "agent_name": {
                     "maxLength": 106,
                     "pattern": "^[a-z][a-z0-9_-]{0,105}$",
@@ -20501,7 +20522,14 @@
                                     "config_options": {
                                       "items": {
                                         "properties": {
-                                          "current": {
+                                          "category": {
+                                            "type": "string"
+                                          },
+                                          "current_bool": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "current_value_id": {
                                             "type": "string"
                                           },
                                           "description": {
@@ -20520,6 +20548,12 @@
                                             "items": {
                                               "properties": {
                                                 "description": {
+                                                  "type": "string"
+                                                },
+                                                "group_id": {
+                                                  "type": "string"
+                                                },
+                                                "group_label": {
                                                   "type": "string"
                                                 },
                                                 "label": {
@@ -20578,6 +20612,27 @@
                                 "effective": {
                                   "nullable": true,
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -20692,6 +20747,27 @@
                                 "selected": {
                                   "nullable": true,
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -27009,6 +27085,27 @@
                     "agents": {
                       "items": {
                         "properties": {
+                          "acp_options": {
+                            "items": {
+                              "properties": {
+                                "bool_value": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "value_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "category_path": {
                             "items": {
                               "type": "string"
@@ -27052,6 +27149,27 @@
                           "effective_runtime": {
                             "nullable": true,
                             "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
                               "model": {
                                 "type": "string"
                               },
@@ -27086,6 +27204,13 @@
                                   "provider"
                                 ],
                                 "type": "object"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -27229,6 +27354,13 @@
                             },
                             "type": "object"
                           },
+                          "speed": {
+                            "enum": [
+                              "normal",
+                              "fast"
+                            ],
+                            "type": "string"
+                          },
                           "tools": {
                             "items": {
                               "type": "string"
@@ -27358,6 +27490,27 @@
                 "properties": {
                   "agent": {
                     "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "category_path": {
                         "items": {
                           "type": "string"
@@ -27419,6 +27572,13 @@
                         },
                         "type": "object"
                       },
+                      "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
+                        "type": "string"
+                      },
                       "tools": {
                         "items": {
                           "type": "string"
@@ -27468,6 +27628,27 @@
                   "properties": {
                     "agent": {
                       "properties": {
+                        "acp_options": {
+                          "items": {
+                            "properties": {
+                              "bool_value": {
+                                "nullable": true,
+                                "type": "boolean"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "value_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "category_path": {
                           "items": {
                             "type": "string"
@@ -27511,6 +27692,27 @@
                         "effective_runtime": {
                           "nullable": true,
                           "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "model": {
                               "type": "string"
                             },
@@ -27545,6 +27747,13 @@
                                 "provider"
                               ],
                               "type": "object"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -27687,6 +27896,13 @@
                             }
                           },
                           "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
                         },
                         "tools": {
                           "items": {
@@ -28323,6 +28539,27 @@
                         "properties": {
                           "agent": {
                             "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
                               "category_path": {
                                 "items": {
                                   "type": "string"
@@ -28366,6 +28603,27 @@
                               "effective_runtime": {
                                 "nullable": true,
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -28400,6 +28658,13 @@
                                       "provider"
                                     ],
                                     "type": "object"
+                                  },
+                                  "speed": {
+                                    "enum": [
+                                      "normal",
+                                      "fast"
+                                    ],
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -28542,6 +28807,13 @@
                                   }
                                 },
                                 "type": "object"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
                               },
                               "tools": {
                                 "items": {
@@ -29433,6 +29705,27 @@
                   "properties": {
                     "agent": {
                       "properties": {
+                        "acp_options": {
+                          "items": {
+                            "properties": {
+                              "bool_value": {
+                                "nullable": true,
+                                "type": "boolean"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "value_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "category_path": {
                           "items": {
                             "type": "string"
@@ -29476,6 +29769,27 @@
                         "effective_runtime": {
                           "nullable": true,
                           "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "model": {
                               "type": "string"
                             },
@@ -29510,6 +29824,13 @@
                                 "provider"
                               ],
                               "type": "object"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -29652,6 +29973,13 @@
                             }
                           },
                           "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
                         },
                         "tools": {
                           "items": {
@@ -29864,6 +30192,27 @@
                 "properties": {
                   "agent": {
                     "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "category_path": {
                         "items": {
                           "type": "string"
@@ -29925,6 +30274,13 @@
                         },
                         "type": "object"
                       },
+                      "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
+                        "type": "string"
+                      },
                       "tools": {
                         "items": {
                           "type": "string"
@@ -29970,6 +30326,27 @@
                   "properties": {
                     "agent": {
                       "properties": {
+                        "acp_options": {
+                          "items": {
+                            "properties": {
+                              "bool_value": {
+                                "nullable": true,
+                                "type": "boolean"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "value_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "category_path": {
                           "items": {
                             "type": "string"
@@ -30013,6 +30390,27 @@
                         "effective_runtime": {
                           "nullable": true,
                           "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "model": {
                               "type": "string"
                             },
@@ -30047,6 +30445,13 @@
                                 "provider"
                               ],
                               "type": "object"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -30189,6 +30594,13 @@
                             }
                           },
                           "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
                         },
                         "tools": {
                           "items": {
@@ -30774,6 +31186,27 @@
                   "overrides": {
                     "nullable": true,
                     "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "category_path": {
                         "items": {
                           "type": "string"
@@ -30830,6 +31263,13 @@
                         },
                         "type": "object"
                       },
+                      "speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
+                        "type": "string"
+                      },
                       "tools": {
                         "items": {
                           "type": "string"
@@ -30874,6 +31314,27 @@
                   "properties": {
                     "agent": {
                       "properties": {
+                        "acp_options": {
+                          "items": {
+                            "properties": {
+                              "bool_value": {
+                                "nullable": true,
+                                "type": "boolean"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "value_id": {
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
                         "category_path": {
                           "items": {
                             "type": "string"
@@ -30917,6 +31378,27 @@
                         "effective_runtime": {
                           "nullable": true,
                           "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "model": {
                               "type": "string"
                             },
@@ -30951,6 +31433,13 @@
                                 "provider"
                               ],
                               "type": "object"
+                            },
+                            "speed": {
+                              "enum": [
+                                "normal",
+                                "fast"
+                              ],
+                              "type": "string"
                             }
                           },
                           "required": [
@@ -31093,6 +31582,13 @@
                             }
                           },
                           "type": "object"
+                        },
+                        "speed": {
+                          "enum": [
+                            "normal",
+                            "fast"
+                          ],
+                          "type": "string"
                         },
                         "tools": {
                           "items": {
@@ -107204,6 +107700,95 @@
                             "nullable": true,
                             "type": "boolean"
                           },
+                          "config_options": {
+                            "items": {
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "current_bool": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                },
+                                "current_value_id": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "values": {
+                                  "items": {
+                                    "properties": {
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "group_id": {
+                                        "type": "string"
+                                      },
+                                      "group_label": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "value"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "configurations": {
+                            "items": {
+                              "properties": {
+                                "fast": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "thinking": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "context_window": {
                             "format": "int64",
                             "nullable": true,
@@ -108145,6 +108730,95 @@
                             "nullable": true,
                             "type": "boolean"
                           },
+                          "config_options": {
+                            "items": {
+                              "properties": {
+                                "category": {
+                                  "type": "string"
+                                },
+                                "current_bool": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                },
+                                "current_value_id": {
+                                  "type": "string"
+                                },
+                                "description": {
+                                  "type": "string"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "label": {
+                                  "type": "string"
+                                },
+                                "values": {
+                                  "items": {
+                                    "properties": {
+                                      "description": {
+                                        "type": "string"
+                                      },
+                                      "group_id": {
+                                        "type": "string"
+                                      },
+                                      "group_label": {
+                                        "type": "string"
+                                      },
+                                      "label": {
+                                        "type": "string"
+                                      },
+                                      "value": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "value"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "kind"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "configurations": {
+                            "items": {
+                              "properties": {
+                                "fast": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                },
+                                "reasoning_effort": {
+                                  "enum": [
+                                    "none",
+                                    "minimal",
+                                    "low",
+                                    "medium",
+                                    "high",
+                                    "xhigh",
+                                    "max"
+                                  ],
+                                  "nullable": true,
+                                  "type": "string"
+                                },
+                                "thinking": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "context_window": {
                             "format": "int64",
                             "nullable": true,
@@ -108877,6 +109551,95 @@
                         "available": {
                           "nullable": true,
                           "type": "boolean"
+                        },
+                        "config_options": {
+                          "items": {
+                            "properties": {
+                              "category": {
+                                "type": "string"
+                              },
+                              "current_bool": {
+                                "nullable": true,
+                                "type": "boolean"
+                              },
+                              "current_value_id": {
+                                "type": "string"
+                              },
+                              "description": {
+                                "type": "string"
+                              },
+                              "id": {
+                                "type": "string"
+                              },
+                              "kind": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "values": {
+                                "items": {
+                                  "properties": {
+                                    "description": {
+                                      "type": "string"
+                                    },
+                                    "group_id": {
+                                      "type": "string"
+                                    },
+                                    "group_label": {
+                                      "type": "string"
+                                    },
+                                    "label": {
+                                      "type": "string"
+                                    },
+                                    "value": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "value"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              }
+                            },
+                            "required": [
+                              "id",
+                              "kind"
+                            ],
+                            "type": "object"
+                          },
+                          "type": "array"
+                        },
+                        "configurations": {
+                          "items": {
+                            "properties": {
+                              "fast": {
+                                "nullable": true,
+                                "type": "boolean"
+                              },
+                              "reasoning_effort": {
+                                "enum": [
+                                  "none",
+                                  "minimal",
+                                  "low",
+                                  "medium",
+                                  "high",
+                                  "xhigh",
+                                  "max"
+                                ],
+                                "nullable": true,
+                                "type": "string"
+                              },
+                              "thinking": {
+                                "nullable": true,
+                                "type": "boolean"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "type": "array"
                         },
                         "context_window": {
                           "format": "int64",
@@ -120905,6 +121668,14 @@
                           },
                           "name": {
                             "type": "string"
+                          },
+                          "runtime_strategy": {
+                            "enum": [
+                              "session_config",
+                              "launch_arg",
+                              "provider_managed"
+                            ],
+                            "type": "string"
                           }
                         },
                         "required": [
@@ -121115,6 +121886,14 @@
                       "type": "string"
                     },
                     "name": {
+                      "type": "string"
+                    },
+                    "runtime_strategy": {
+                      "enum": [
+                        "session_config",
+                        "launch_arg",
+                        "provider_managed"
+                      ],
                       "type": "string"
                     }
                   },
@@ -136829,7 +137608,14 @@
                                   "config_options": {
                                     "items": {
                                       "properties": {
-                                        "current": {
+                                        "category": {
+                                          "type": "string"
+                                        },
+                                        "current_bool": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "current_value_id": {
                                           "type": "string"
                                         },
                                         "description": {
@@ -136848,6 +137634,12 @@
                                           "items": {
                                             "properties": {
                                               "description": {
+                                                "type": "string"
+                                              },
+                                              "group_id": {
+                                                "type": "string"
+                                              },
+                                              "group_label": {
                                                 "type": "string"
                                               },
                                               "label": {
@@ -136906,6 +137698,27 @@
                               "effective": {
                                 "nullable": true,
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -137020,6 +137833,27 @@
                               "selected": {
                                 "nullable": true,
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -138392,7 +139226,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -138411,6 +139252,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -138469,6 +139316,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -138583,6 +139451,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -140334,7 +141223,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -140353,6 +141249,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -140411,6 +141313,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -140525,6 +141448,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -158755,6 +159699,14 @@
                           "name": {
                             "type": "string"
                           },
+                          "runtime_strategy": {
+                            "enum": [
+                              "session_config",
+                              "launch_arg",
+                              "provider_managed"
+                            ],
+                            "type": "string"
+                          },
                           "settings": {
                             "properties": {
                               "auth_mode": {
@@ -160024,6 +160976,14 @@
                           "type": "object"
                         },
                         "name": {
+                          "type": "string"
+                        },
+                        "runtime_strategy": {
+                          "enum": [
+                            "session_config",
+                            "launch_arg",
+                            "provider_managed"
+                          ],
                           "type": "string"
                         },
                         "settings": {
@@ -242791,6 +243751,27 @@
                     "agents": {
                       "items": {
                         "properties": {
+                          "acp_options": {
+                            "items": {
+                              "properties": {
+                                "bool_value": {
+                                  "nullable": true,
+                                  "type": "boolean"
+                                },
+                                "id": {
+                                  "type": "string"
+                                },
+                                "value_id": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "category_path": {
                             "items": {
                               "type": "string"
@@ -242834,6 +243815,27 @@
                           "effective_runtime": {
                             "nullable": true,
                             "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
                               "model": {
                                 "type": "string"
                               },
@@ -242868,6 +243870,13 @@
                                   "provider"
                                 ],
                                 "type": "object"
+                              },
+                              "speed": {
+                                "enum": [
+                                  "normal",
+                                  "fast"
+                                ],
+                                "type": "string"
                               }
                             },
                             "required": [
@@ -243011,6 +244020,13 @@
                             },
                             "type": "object"
                           },
+                          "speed": {
+                            "enum": [
+                              "normal",
+                              "fast"
+                            ],
+                            "type": "string"
+                          },
                           "tools": {
                             "items": {
                               "type": "string"
@@ -243086,6 +244102,14 @@
                             "type": "string"
                           },
                           "runtime_provider": {
+                            "type": "string"
+                          },
+                          "runtime_strategy": {
+                            "enum": [
+                              "session_config",
+                              "launch_arg",
+                              "provider_managed"
+                            ],
                             "type": "string"
                           }
                         },
@@ -243673,7 +244697,14 @@
                                   "config_options": {
                                     "items": {
                                       "properties": {
-                                        "current": {
+                                        "category": {
+                                          "type": "string"
+                                        },
+                                        "current_bool": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "current_value_id": {
                                           "type": "string"
                                         },
                                         "description": {
@@ -243692,6 +244723,12 @@
                                           "items": {
                                             "properties": {
                                               "description": {
+                                                "type": "string"
+                                              },
+                                              "group_id": {
+                                                "type": "string"
+                                              },
+                                              "group_label": {
                                                 "type": "string"
                                               },
                                               "label": {
@@ -243750,6 +244787,27 @@
                               "effective": {
                                 "nullable": true,
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -243864,6 +244922,27 @@
                               "selected": {
                                 "nullable": true,
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -251648,6 +252727,27 @@
                               "properties": {
                                 "judge": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -251669,6 +252769,27 @@
                                 },
                                 "worker": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -251710,6 +252831,27 @@
                                   },
                                   "runtime": {
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -251823,6 +252965,27 @@
                                   },
                                   "runtime": {
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -270515,6 +271678,27 @@
                             "properties": {
                               "judge": {
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -270536,6 +271720,27 @@
                               },
                               "worker": {
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -270577,6 +271782,27 @@
                                 },
                                 "runtime": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -270690,6 +271916,27 @@
                                 },
                                 "runtime": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -272433,6 +273680,27 @@
                                   "properties": {
                                     "judge": {
                                       "properties": {
+                                        "acp_options": {
+                                          "items": {
+                                            "properties": {
+                                              "bool_value": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "value_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
                                         "model": {
                                           "type": "string"
                                         },
@@ -272454,6 +273722,27 @@
                                     },
                                     "worker": {
                                       "properties": {
+                                        "acp_options": {
+                                          "items": {
+                                            "properties": {
+                                              "bool_value": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "value_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
                                         "model": {
                                           "type": "string"
                                         },
@@ -272495,6 +273784,27 @@
                                       },
                                       "runtime": {
                                         "properties": {
+                                          "acp_options": {
+                                            "items": {
+                                              "properties": {
+                                                "bool_value": {
+                                                  "nullable": true,
+                                                  "type": "boolean"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "value_id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          },
                                           "model": {
                                             "type": "string"
                                           },
@@ -272608,6 +273918,27 @@
                                       },
                                       "runtime": {
                                         "properties": {
+                                          "acp_options": {
+                                            "items": {
+                                              "properties": {
+                                                "bool_value": {
+                                                  "nullable": true,
+                                                  "type": "boolean"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "value_id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          },
                                           "model": {
                                             "type": "string"
                                           },
@@ -275599,6 +276930,27 @@
                                   "properties": {
                                     "judge": {
                                       "properties": {
+                                        "acp_options": {
+                                          "items": {
+                                            "properties": {
+                                              "bool_value": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "value_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
                                         "model": {
                                           "type": "string"
                                         },
@@ -275620,6 +276972,27 @@
                                     },
                                     "worker": {
                                       "properties": {
+                                        "acp_options": {
+                                          "items": {
+                                            "properties": {
+                                              "bool_value": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "value_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
                                         "model": {
                                           "type": "string"
                                         },
@@ -275661,6 +277034,27 @@
                                       },
                                       "runtime": {
                                         "properties": {
+                                          "acp_options": {
+                                            "items": {
+                                              "properties": {
+                                                "bool_value": {
+                                                  "nullable": true,
+                                                  "type": "boolean"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "value_id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          },
                                           "model": {
                                             "type": "string"
                                           },
@@ -275774,6 +277168,27 @@
                                       },
                                       "runtime": {
                                         "properties": {
+                                          "acp_options": {
+                                            "items": {
+                                              "properties": {
+                                                "bool_value": {
+                                                  "nullable": true,
+                                                  "type": "boolean"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "value_id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          },
                                           "model": {
                                             "type": "string"
                                           },
@@ -278148,6 +279563,27 @@
                             "properties": {
                               "judge": {
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -278169,6 +279605,27 @@
                               },
                               "worker": {
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -278210,6 +279667,27 @@
                                 },
                                 "runtime": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -278323,6 +279801,27 @@
                                 },
                                 "runtime": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -280070,6 +281569,27 @@
                                   "properties": {
                                     "judge": {
                                       "properties": {
+                                        "acp_options": {
+                                          "items": {
+                                            "properties": {
+                                              "bool_value": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "value_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
                                         "model": {
                                           "type": "string"
                                         },
@@ -280091,6 +281611,27 @@
                                     },
                                     "worker": {
                                       "properties": {
+                                        "acp_options": {
+                                          "items": {
+                                            "properties": {
+                                              "bool_value": {
+                                                "nullable": true,
+                                                "type": "boolean"
+                                              },
+                                              "id": {
+                                                "type": "string"
+                                              },
+                                              "value_id": {
+                                                "type": "string"
+                                              }
+                                            },
+                                            "required": [
+                                              "id"
+                                            ],
+                                            "type": "object"
+                                          },
+                                          "type": "array"
+                                        },
                                         "model": {
                                           "type": "string"
                                         },
@@ -280132,6 +281673,27 @@
                                       },
                                       "runtime": {
                                         "properties": {
+                                          "acp_options": {
+                                            "items": {
+                                              "properties": {
+                                                "bool_value": {
+                                                  "nullable": true,
+                                                  "type": "boolean"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "value_id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          },
                                           "model": {
                                             "type": "string"
                                           },
@@ -280245,6 +281807,27 @@
                                       },
                                       "runtime": {
                                         "properties": {
+                                          "acp_options": {
+                                            "items": {
+                                              "properties": {
+                                                "bool_value": {
+                                                  "nullable": true,
+                                                  "type": "boolean"
+                                                },
+                                                "id": {
+                                                  "type": "string"
+                                                },
+                                                "value_id": {
+                                                  "type": "string"
+                                                }
+                                              },
+                                              "required": [
+                                                "id"
+                                              ],
+                                              "type": "object"
+                                            },
+                                            "type": "array"
+                                          },
                                           "model": {
                                             "type": "string"
                                           },
@@ -292769,6 +294352,27 @@
                             "properties": {
                               "judge": {
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -292790,6 +294394,27 @@
                               },
                               "worker": {
                                 "properties": {
+                                  "acp_options": {
+                                    "items": {
+                                      "properties": {
+                                        "bool_value": {
+                                          "nullable": true,
+                                          "type": "boolean"
+                                        },
+                                        "id": {
+                                          "type": "string"
+                                        },
+                                        "value_id": {
+                                          "type": "string"
+                                        }
+                                      },
+                                      "required": [
+                                        "id"
+                                      ],
+                                      "type": "object"
+                                    },
+                                    "type": "array"
+                                  },
                                   "model": {
                                     "type": "string"
                                   },
@@ -292831,6 +294456,27 @@
                                 },
                                 "runtime": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -292944,6 +294590,27 @@
                                 },
                                 "runtime": {
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -298071,7 +299738,14 @@
                                       "config_options": {
                                         "items": {
                                           "properties": {
-                                            "current": {
+                                            "category": {
+                                              "type": "string"
+                                            },
+                                            "current_bool": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "current_value_id": {
                                               "type": "string"
                                             },
                                             "description": {
@@ -298090,6 +299764,12 @@
                                               "items": {
                                                 "properties": {
                                                   "description": {
+                                                    "type": "string"
+                                                  },
+                                                  "group_id": {
+                                                    "type": "string"
+                                                  },
+                                                  "group_label": {
                                                     "type": "string"
                                                   },
                                                   "label": {
@@ -298148,6 +299828,27 @@
                                   "effective": {
                                     "nullable": true,
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -298262,6 +299963,27 @@
                                   "selected": {
                                     "nullable": true,
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -299546,7 +301268,14 @@
                                       "config_options": {
                                         "items": {
                                           "properties": {
-                                            "current": {
+                                            "category": {
+                                              "type": "string"
+                                            },
+                                            "current_bool": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "current_value_id": {
                                               "type": "string"
                                             },
                                             "description": {
@@ -299565,6 +301294,12 @@
                                               "items": {
                                                 "properties": {
                                                   "description": {
+                                                    "type": "string"
+                                                  },
+                                                  "group_id": {
+                                                    "type": "string"
+                                                  },
+                                                  "group_label": {
                                                     "type": "string"
                                                   },
                                                   "label": {
@@ -299623,6 +301358,27 @@
                                   "effective": {
                                     "nullable": true,
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -299737,6 +301493,27 @@
                                   "selected": {
                                     "nullable": true,
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -301036,7 +302813,14 @@
                                       "config_options": {
                                         "items": {
                                           "properties": {
-                                            "current": {
+                                            "category": {
+                                              "type": "string"
+                                            },
+                                            "current_bool": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "current_value_id": {
                                               "type": "string"
                                             },
                                             "description": {
@@ -301055,6 +302839,12 @@
                                               "items": {
                                                 "properties": {
                                                   "description": {
+                                                    "type": "string"
+                                                  },
+                                                  "group_id": {
+                                                    "type": "string"
+                                                  },
+                                                  "group_label": {
                                                     "type": "string"
                                                   },
                                                   "label": {
@@ -301113,6 +302903,27 @@
                                   "effective": {
                                     "nullable": true,
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -301227,6 +303038,27 @@
                                   "selected": {
                                     "nullable": true,
                                     "properties": {
+                                      "acp_options": {
+                                        "items": {
+                                          "properties": {
+                                            "bool_value": {
+                                              "nullable": true,
+                                              "type": "boolean"
+                                            },
+                                            "id": {
+                                              "type": "string"
+                                            },
+                                            "value_id": {
+                                              "type": "string"
+                                            }
+                                          },
+                                          "required": [
+                                            "id"
+                                          ],
+                                          "type": "object"
+                                        },
+                                        "type": "array"
+                                      },
                                       "model": {
                                         "type": "string"
                                       },
@@ -310726,7 +312558,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -310745,6 +312584,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -310803,6 +312648,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -310917,6 +312783,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -311851,7 +313738,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -311870,6 +313764,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -311928,6 +313828,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -312042,6 +313963,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -313418,7 +315360,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -313437,6 +315386,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -313495,6 +315450,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -313609,6 +315585,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -314716,7 +316713,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -314735,6 +316739,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -314793,6 +316803,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -314907,6 +316938,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -317905,7 +319957,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -317924,6 +319983,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -317982,6 +320047,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -318096,6 +320182,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -320017,6 +322124,27 @@
                   "runtime": {
                     "nullable": true,
                     "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "model": {
                         "type": "string"
                       },
@@ -324584,6 +326712,27 @@
                   "runtime": {
                     "nullable": true,
                     "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "model": {
                         "type": "string"
                       },
@@ -327193,6 +329342,27 @@
                           "runtime": {
                             "nullable": true,
                             "properties": {
+                              "acp_options": {
+                                "items": {
+                                  "properties": {
+                                    "bool_value": {
+                                      "nullable": true,
+                                      "type": "boolean"
+                                    },
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "value_id": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "required": [
+                                    "id"
+                                  ],
+                                  "type": "object"
+                                },
+                                "type": "array"
+                              },
                               "model": {
                                 "type": "string"
                               },
@@ -328146,6 +330316,27 @@
                         "runtime": {
                           "nullable": true,
                           "properties": {
+                            "acp_options": {
+                              "items": {
+                                "properties": {
+                                  "bool_value": {
+                                    "nullable": true,
+                                    "type": "boolean"
+                                  },
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "value_id": {
+                                    "type": "string"
+                                  }
+                                },
+                                "required": [
+                                  "id"
+                                ],
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
                             "model": {
                               "type": "string"
                             },
@@ -330310,7 +332501,14 @@
                                     "config_options": {
                                       "items": {
                                         "properties": {
-                                          "current": {
+                                          "category": {
+                                            "type": "string"
+                                          },
+                                          "current_bool": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "current_value_id": {
                                             "type": "string"
                                           },
                                           "description": {
@@ -330329,6 +332527,12 @@
                                             "items": {
                                               "properties": {
                                                 "description": {
+                                                  "type": "string"
+                                                },
+                                                "group_id": {
+                                                  "type": "string"
+                                                },
+                                                "group_label": {
                                                   "type": "string"
                                                 },
                                                 "label": {
@@ -330387,6 +332591,27 @@
                                 "effective": {
                                   "nullable": true,
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -330501,6 +332726,27 @@
                                 "selected": {
                                   "nullable": true,
                                   "properties": {
+                                    "acp_options": {
+                                      "items": {
+                                        "properties": {
+                                          "bool_value": {
+                                            "nullable": true,
+                                            "type": "boolean"
+                                          },
+                                          "id": {
+                                            "type": "string"
+                                          },
+                                          "value_id": {
+                                            "type": "string"
+                                          }
+                                        },
+                                        "required": [
+                                          "id"
+                                        ],
+                                        "type": "object"
+                                      },
+                                      "type": "array"
+                                    },
                                     "model": {
                                       "type": "string"
                                     },
@@ -331983,7 +334229,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -332002,6 +334255,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -332060,6 +334319,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -332174,6 +334454,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -333321,7 +335622,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -333340,6 +335648,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -333398,6 +335712,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -333512,6 +335847,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -334003,6 +336359,27 @@
                   },
                   "runtime": {
                     "properties": {
+                      "acp_options": {
+                        "items": {
+                          "properties": {
+                            "bool_value": {
+                              "nullable": true,
+                              "type": "boolean"
+                            },
+                            "id": {
+                              "type": "string"
+                            },
+                            "value_id": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id"
+                          ],
+                          "type": "object"
+                        },
+                        "type": "array"
+                      },
                       "model": {
                         "type": "string"
                       },
@@ -334628,7 +337005,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -334647,6 +337031,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -334705,6 +337095,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -334819,6 +337230,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -341419,7 +343851,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -341438,6 +343877,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -341496,6 +343941,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -341610,6 +344076,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -343506,7 +345993,14 @@
                                 "config_options": {
                                   "items": {
                                     "properties": {
-                                      "current": {
+                                      "category": {
+                                        "type": "string"
+                                      },
+                                      "current_bool": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "current_value_id": {
                                         "type": "string"
                                       },
                                       "description": {
@@ -343525,6 +346019,12 @@
                                         "items": {
                                           "properties": {
                                             "description": {
+                                              "type": "string"
+                                            },
+                                            "group_id": {
+                                              "type": "string"
+                                            },
+                                            "group_label": {
                                               "type": "string"
                                             },
                                             "label": {
@@ -343583,6 +346083,27 @@
                             "effective": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },
@@ -343697,6 +346218,27 @@
                             "selected": {
                               "nullable": true,
                               "properties": {
+                                "acp_options": {
+                                  "items": {
+                                    "properties": {
+                                      "bool_value": {
+                                        "nullable": true,
+                                        "type": "boolean"
+                                      },
+                                      "id": {
+                                        "type": "string"
+                                      },
+                                      "value_id": {
+                                        "type": "string"
+                                      }
+                                    },
+                                    "required": [
+                                      "id"
+                                    ],
+                                    "type": "object"
+                                  },
+                                  "type": "array"
+                                },
                                 "model": {
                                   "type": "string"
                                 },

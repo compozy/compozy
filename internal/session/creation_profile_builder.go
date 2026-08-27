@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/compozy/compozy/internal/acp"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -12,6 +13,7 @@ type CreationProfileInput struct {
 	Model           string
 	ReasoningEffort string
 	Speed           speedpkg.Speed
+	ACPOptions      []acp.SessionConfigOptionSelection
 	ProfileID       string
 	WorkspaceID     string
 	CWD             string
@@ -37,6 +39,7 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		Model:           input.Model,
 		ReasoningEffort: input.ReasoningEffort,
 		Speed:           input.Speed,
+		ACPOptions:      storeSessionACPOptionSelections(input.ACPOptions),
 		ProfileID:       input.ProfileID,
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,

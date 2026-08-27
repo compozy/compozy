@@ -13559,6 +13559,11 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
+          acp_options?: {
+            bool_value?: boolean | null;
+            id: string;
+            value_id?: string;
+          }[];
           agent_name: string;
           auto_stop_on_parent: boolean;
           idempotency_key?: string;
@@ -13805,13 +13810,17 @@ export interface operations {
                 runtime: {
                   acp_caps?: {
                     config_options?: {
-                      current?: string;
+                      category?: string;
+                      current_bool?: boolean | null;
+                      current_value_id?: string;
                       description?: string;
                       id: string;
                       kind: string;
                       label?: string;
                       values?: {
                         description?: string;
+                        group_id?: string;
+                        group_label?: string;
                         label?: string;
                         value: string;
                       }[];
@@ -13824,6 +13833,11 @@ export interface operations {
                   } | null;
                   acp_session_id?: string;
                   effective?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -13867,6 +13881,11 @@ export interface operations {
                     started_at: string;
                   } | null;
                   selected?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -16370,6 +16389,11 @@ export interface operations {
         content: {
           "application/json": {
             agents: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               category_path?: string[];
               command?: string;
               definition_digest: string;
@@ -16380,6 +16404,11 @@ export interface operations {
                 path: string;
               }[];
               effective_runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -16389,6 +16418,8 @@ export interface operations {
                   provider: string;
                   reasoning_effort?: string;
                 };
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               } | null;
               layer?: string;
               mcp_servers?: {
@@ -16427,6 +16458,8 @@ export interface operations {
               skills?: {
                 disabled?: string[];
               } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
@@ -16477,6 +16510,11 @@ export interface operations {
       content: {
         "application/json": {
           agent: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             category_path?: string[];
             command?: string;
             deny_tools?: string[];
@@ -16491,6 +16529,8 @@ export interface operations {
             skills?: {
               disabled?: string[];
             } | null;
+            /** @enum {string} */
+            speed?: "normal" | "fast";
             tools?: string[];
             toolsets?: string[];
           };
@@ -16509,6 +16549,11 @@ export interface operations {
         content: {
           "application/json": {
             agent: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               category_path?: string[];
               command?: string;
               definition_digest: string;
@@ -16519,6 +16564,11 @@ export interface operations {
                 path: string;
               }[];
               effective_runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -16528,6 +16578,8 @@ export interface operations {
                   provider: string;
                   reasoning_effort?: string;
                 };
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               } | null;
               layer?: string;
               mcp_servers?: {
@@ -16566,6 +16618,8 @@ export interface operations {
               skills?: {
                 disabled?: string[];
               } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
@@ -16811,6 +16865,11 @@ export interface operations {
           "application/json": {
             agents: {
               agent: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 category_path?: string[];
                 command?: string;
                 definition_digest: string;
@@ -16821,6 +16880,11 @@ export interface operations {
                   path: string;
                 }[];
                 effective_runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -16837,6 +16901,8 @@ export interface operations {
                     provider: string;
                     reasoning_effort?: string;
                   };
+                  /** @enum {string} */
+                  speed?: "normal" | "fast";
                 } | null;
                 layer?: string;
                 mcp_servers?: {
@@ -16875,6 +16941,8 @@ export interface operations {
                 skills?: {
                   disabled?: string[];
                 } | null;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
                 tools?: string[];
                 toolsets?: string[];
                 workspace_id?: string;
@@ -17075,6 +17143,11 @@ export interface operations {
         content: {
           "application/json": {
             agent: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               category_path?: string[];
               command?: string;
               definition_digest: string;
@@ -17085,6 +17158,11 @@ export interface operations {
                 path: string;
               }[];
               effective_runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -17094,6 +17172,8 @@ export interface operations {
                   provider: string;
                   reasoning_effort?: string;
                 };
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               } | null;
               layer?: string;
               mcp_servers?: {
@@ -17132,6 +17212,8 @@ export interface operations {
               skills?: {
                 disabled?: string[];
               } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
@@ -17214,6 +17296,11 @@ export interface operations {
       content: {
         "application/json": {
           agent: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             category_path?: string[];
             command?: string;
             deny_tools?: string[];
@@ -17228,6 +17315,8 @@ export interface operations {
             skills?: {
               disabled?: string[];
             } | null;
+            /** @enum {string} */
+            speed?: "normal" | "fast";
             tools?: string[];
             toolsets?: string[];
           };
@@ -17245,6 +17334,11 @@ export interface operations {
         content: {
           "application/json": {
             agent: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               category_path?: string[];
               command?: string;
               definition_digest: string;
@@ -17255,6 +17349,11 @@ export interface operations {
                 path: string;
               }[];
               effective_runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -17264,6 +17363,8 @@ export interface operations {
                   provider: string;
                   reasoning_effort?: string;
                 };
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               } | null;
               layer?: string;
               mcp_servers?: {
@@ -17302,6 +17403,8 @@ export interface operations {
               skills?: {
                 disabled?: string[];
               } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
@@ -17678,6 +17781,11 @@ export interface operations {
         "application/json": {
           name: string;
           overrides?: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             category_path?: string[];
             command?: string;
             deny_tools?: string[];
@@ -17691,6 +17799,8 @@ export interface operations {
             skills?: {
               disabled?: string[];
             } | null;
+            /** @enum {string} */
+            speed?: "normal" | "fast";
             tools?: string[];
             toolsets?: string[];
           } | null;
@@ -17709,6 +17819,11 @@ export interface operations {
         content: {
           "application/json": {
             agent: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               category_path?: string[];
               command?: string;
               definition_digest: string;
@@ -17719,6 +17834,11 @@ export interface operations {
                 path: string;
               }[];
               effective_runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -17728,6 +17848,8 @@ export interface operations {
                   provider: string;
                   reasoning_effort?: string;
                 };
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               } | null;
               layer?: string;
               mcp_servers?: {
@@ -17766,6 +17888,8 @@ export interface operations {
               skills?: {
                 disabled?: string[];
               } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
@@ -45559,6 +45683,36 @@ export interface operations {
             models: {
               availability_state: string;
               available: boolean | null;
+              config_options?: {
+                category?: string;
+                current_bool?: boolean | null;
+                current_value_id?: string;
+                description?: string;
+                id: string;
+                kind: string;
+                label?: string;
+                values?: {
+                  description?: string;
+                  group_id?: string;
+                  group_label?: string;
+                  label?: string;
+                  value: string;
+                }[];
+              }[];
+              configurations?: {
+                fast?: boolean | null;
+                /** @enum {string|null} */
+                reasoning_effort?:
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max"
+                  | null;
+                thinking?: boolean | null;
+              }[];
               /** Format: int64 */
               context_window?: number | null;
               cost?: {
@@ -45927,6 +46081,36 @@ export interface operations {
             models: {
               availability_state: string;
               available: boolean | null;
+              config_options?: {
+                category?: string;
+                current_bool?: boolean | null;
+                current_value_id?: string;
+                description?: string;
+                id: string;
+                kind: string;
+                label?: string;
+                values?: {
+                  description?: string;
+                  group_id?: string;
+                  group_label?: string;
+                  label?: string;
+                  value: string;
+                }[];
+              }[];
+              configurations?: {
+                fast?: boolean | null;
+                /** @enum {string|null} */
+                reasoning_effort?:
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max"
+                  | null;
+                thinking?: boolean | null;
+              }[];
               /** Format: int64 */
               context_window?: number | null;
               cost?: {
@@ -46215,6 +46399,36 @@ export interface operations {
             model: {
               availability_state: string;
               available: boolean | null;
+              config_options?: {
+                category?: string;
+                current_bool?: boolean | null;
+                current_value_id?: string;
+                description?: string;
+                id: string;
+                kind: string;
+                label?: string;
+                values?: {
+                  description?: string;
+                  group_id?: string;
+                  group_label?: string;
+                  label?: string;
+                  value: string;
+                }[];
+              }[];
+              configurations?: {
+                fast?: boolean | null;
+                /** @enum {string|null} */
+                reasoning_effort?:
+                  | "none"
+                  | "minimal"
+                  | "low"
+                  | "medium"
+                  | "high"
+                  | "xhigh"
+                  | "max"
+                  | null;
+                thinking?: boolean | null;
+              }[];
               /** Format: int64 */
               context_window?: number | null;
               cost?: {
@@ -50993,6 +51207,8 @@ export interface operations {
               default: boolean;
               display_name?: string;
               name: string;
+              /** @enum {string} */
+              runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
             }[];
           };
         };
@@ -51077,6 +51293,8 @@ export interface operations {
             default: boolean;
             display_name?: string;
             name: string;
+            /** @enum {string} */
+            runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
           };
         };
       };
@@ -57105,13 +57323,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -57124,6 +57346,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -57167,6 +57394,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -57641,13 +57873,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -57660,6 +57896,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -57703,6 +57944,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -58343,13 +58589,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -58362,6 +58612,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -58405,6 +58660,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -65652,6 +65912,8 @@ export interface operations {
                 };
               } | null;
               name: string;
+              /** @enum {string} */
+              runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
               settings: {
                 auth_mode?: string;
                 auth_status_command?: string;
@@ -65970,6 +66232,8 @@ export interface operations {
                 };
               } | null;
               name: string;
+              /** @enum {string} */
+              runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
               settings: {
                 auth_mode?: string;
                 auth_status_command?: string;
@@ -99138,6 +99402,11 @@ export interface operations {
         content: {
           "application/json": {
             agents?: {
+              acp_options?: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               category_path?: string[];
               command?: string;
               definition_digest: string;
@@ -99148,6 +99417,11 @@ export interface operations {
                 path: string;
               }[];
               effective_runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -99157,6 +99431,8 @@ export interface operations {
                   provider: string;
                   reasoning_effort?: string;
                 };
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               } | null;
               layer?: string;
               mcp_servers?: {
@@ -99195,6 +99471,8 @@ export interface operations {
               skills?: {
                 disabled?: string[];
               } | null;
+              /** @enum {string} */
+              speed?: "normal" | "fast";
               tools?: string[];
               toolsets?: string[];
               workspace_id?: string;
@@ -99213,6 +99491,8 @@ export interface operations {
               home_policy?: string;
               name: string;
               runtime_provider?: string;
+              /** @enum {string} */
+              runtime_strategy?: "session_config" | "launch_arg" | "provider_managed";
             }[];
             sessions?: {
               activity?: {
@@ -99391,13 +99671,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -99410,6 +99694,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -99453,6 +99742,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -102281,6 +102575,11 @@ export interface operations {
                 )[];
                 runtime_defaults?: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -102288,6 +102587,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -102302,6 +102606,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -102335,6 +102644,11 @@ export interface operations {
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -109466,6 +109780,11 @@ export interface operations {
               )[];
               runtime_defaults?: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -109473,6 +109792,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -109487,6 +109811,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -109520,6 +109849,11 @@ export interface operations {
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -110096,6 +110430,11 @@ export interface operations {
                   )[];
                   runtime_defaults?: {
                     judge?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -110103,6 +110442,11 @@ export interface operations {
                       speed?: "normal" | "fast";
                     };
                     worker?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -110117,6 +110461,11 @@ export interface operations {
                       type?: string;
                     };
                     runtime: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -110150,6 +110499,11 @@ export interface operations {
                     prompt?: string;
                     rubric?: string;
                     runtime?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -111012,6 +111366,11 @@ export interface operations {
                   )[];
                   runtime_defaults?: {
                     judge?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -111019,6 +111378,11 @@ export interface operations {
                       speed?: "normal" | "fast";
                     };
                     worker?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -111033,6 +111397,11 @@ export interface operations {
                       type?: string;
                     };
                     runtime: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -111066,6 +111435,11 @@ export interface operations {
                     prompt?: string;
                     rubric?: string;
                     runtime?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -112024,6 +112398,11 @@ export interface operations {
               )[];
               runtime_defaults?: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -112031,6 +112410,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -112045,6 +112429,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -112078,6 +112467,11 @@ export interface operations {
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -112654,6 +113048,11 @@ export interface operations {
                   )[];
                   runtime_defaults?: {
                     judge?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -112661,6 +113060,11 @@ export interface operations {
                       speed?: "normal" | "fast";
                     };
                     worker?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -112675,6 +113079,11 @@ export interface operations {
                       type?: string;
                     };
                     runtime: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -112708,6 +113117,11 @@ export interface operations {
                     prompt?: string;
                     rubric?: string;
                     runtime?: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       model?: string;
                       provider?: string;
                       reasoning?: string;
@@ -117095,6 +117509,11 @@ export interface operations {
               )[];
               runtime_defaults?: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -117102,6 +117521,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -117116,6 +117540,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -117149,6 +117578,11 @@ export interface operations {
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -119001,13 +119435,17 @@ export interface operations {
                 runtime: {
                   acp_caps?: {
                     config_options?: {
-                      current?: string;
+                      category?: string;
+                      current_bool?: boolean | null;
+                      current_value_id?: string;
                       description?: string;
                       id: string;
                       kind: string;
                       label?: string;
                       values?: {
                         description?: string;
+                        group_id?: string;
+                        group_label?: string;
                         label?: string;
                         value: string;
                       }[];
@@ -119020,6 +119458,11 @@ export interface operations {
                   } | null;
                   acp_session_id?: string;
                   effective?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -119063,6 +119506,11 @@ export interface operations {
                     started_at: string;
                   } | null;
                   selected?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -119496,13 +119944,17 @@ export interface operations {
                 runtime: {
                   acp_caps?: {
                     config_options?: {
-                      current?: string;
+                      category?: string;
+                      current_bool?: boolean | null;
+                      current_value_id?: string;
                       description?: string;
                       id: string;
                       kind: string;
                       label?: string;
                       values?: {
                         description?: string;
+                        group_id?: string;
+                        group_label?: string;
                         label?: string;
                         value: string;
                       }[];
@@ -119515,6 +119967,11 @@ export interface operations {
                   } | null;
                   acp_session_id?: string;
                   effective?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -119558,6 +120015,11 @@ export interface operations {
                     started_at: string;
                   } | null;
                   selected?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -119998,13 +120460,17 @@ export interface operations {
                 runtime: {
                   acp_caps?: {
                     config_options?: {
-                      current?: string;
+                      category?: string;
+                      current_bool?: boolean | null;
+                      current_value_id?: string;
                       description?: string;
                       id: string;
                       kind: string;
                       label?: string;
                       values?: {
                         description?: string;
+                        group_id?: string;
+                        group_label?: string;
                         label?: string;
                         value: string;
                       }[];
@@ -120017,6 +120483,11 @@ export interface operations {
                   } | null;
                   acp_session_id?: string;
                   effective?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -120060,6 +120531,11 @@ export interface operations {
                     started_at: string;
                   } | null;
                   selected?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -123552,13 +124028,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -123571,6 +124051,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -123614,6 +124099,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -124016,13 +124506,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -124035,6 +124529,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -124078,6 +124577,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -124577,13 +125081,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -124596,6 +125104,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -124639,6 +125152,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -125027,13 +125545,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -125046,6 +125568,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -125089,6 +125616,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -126245,13 +126777,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -126264,6 +126800,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -126307,6 +126848,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -127068,6 +127614,11 @@ export interface operations {
           /** @enum {string} */
           operation: "set" | "replace" | "status" | "pause" | "resume" | "clear";
           runtime?: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             model?: string;
             provider: string;
             /** @enum {string} */
@@ -129086,6 +129637,11 @@ export interface operations {
           }[];
           mode?: string;
           runtime?: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             model?: string;
             provider: string;
             /** @enum {string} */
@@ -130301,6 +130857,11 @@ export interface operations {
               /** Format: int64 */
               queue_generation: number;
               runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -130444,6 +131005,11 @@ export interface operations {
               /** Format: int64 */
               queue_generation: number;
               runtime?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider: string;
                 /** @enum {string} */
@@ -131516,13 +132082,17 @@ export interface operations {
                 runtime: {
                   acp_caps?: {
                     config_options?: {
-                      current?: string;
+                      category?: string;
+                      current_bool?: boolean | null;
+                      current_value_id?: string;
                       description?: string;
                       id: string;
                       kind: string;
                       label?: string;
                       values?: {
                         description?: string;
+                        group_id?: string;
+                        group_label?: string;
                         label?: string;
                         value: string;
                       }[];
@@ -131535,6 +132105,11 @@ export interface operations {
                   } | null;
                   acp_session_id?: string;
                   effective?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -131578,6 +132153,11 @@ export interface operations {
                     started_at: string;
                   } | null;
                   selected?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider: string;
                     /** @enum {string} */
@@ -132101,13 +132681,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -132120,6 +132704,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -132163,6 +132752,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -132385,6 +132979,11 @@ export interface operations {
           /** Format: int64 */
           expected_revision: number | null;
           runtime: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             model?: string;
             provider: string;
             /** @enum {string} */
@@ -132580,13 +133179,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -132599,6 +133202,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -132642,6 +133250,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -133017,13 +133630,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -133036,6 +133653,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -133079,6 +133701,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -135853,13 +136480,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -135872,6 +136503,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -135915,6 +136551,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -136620,13 +137261,17 @@ export interface operations {
               runtime: {
                 acp_caps?: {
                   config_options?: {
-                    current?: string;
+                    category?: string;
+                    current_bool?: boolean | null;
+                    current_value_id?: string;
                     description?: string;
                     id: string;
                     kind: string;
                     label?: string;
                     values?: {
                       description?: string;
+                      group_id?: string;
+                      group_label?: string;
                       label?: string;
                       value: string;
                     }[];
@@ -136639,6 +137284,11 @@ export interface operations {
                 } | null;
                 acp_session_id?: string;
                 effective?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */
@@ -136682,6 +137332,11 @@ export interface operations {
                   started_at: string;
                 } | null;
                 selected?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider: string;
                   /** @enum {string} */

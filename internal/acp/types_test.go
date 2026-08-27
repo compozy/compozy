@@ -3,6 +3,7 @@ package acp
 import (
 	"encoding/json"
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -82,23 +83,32 @@ func TestAgentEventPromptRuntimePreservesValueSemantics(t *testing.T) {
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
 			Speed:           speedpkg.SpeedFast,
+			ACPOptions: []SessionConfigOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}},
 		}
 		event := (AgentEvent{Type: EventTypeAgentMessage}).WithPromptRuntime(runtime)
 		copied := event.WithTool("compozy__read", json.RawMessage(`{"path":"README.md"}`), false)
 
 		runtime.Provider = "mutated"
+		*runtime.ACPOptions[0].BoolValue = false
 		snapshot := event.PromptRuntimeSnapshot()
 		snapshot.Model = "mutated"
+		*snapshot.ACPOptions[0].BoolValue = false
 
 		if got, want := event.PromptRuntimeSnapshot(), (&PromptRuntime{
 			Provider:        "openai",
 			Model:           "gpt-5.6",
 			ReasoningEffort: "high",
 			Speed:           speedpkg.SpeedFast,
-		}); got == nil || *got != *want {
+			ACPOptions: []SessionConfigOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}},
+		}); got == nil || !reflect.DeepEqual(got, want) {
 			t.Fatalf("original prompt runtime = %#v, want %#v", got, want)
 		}
-		if got, want := copied.PromptRuntimeSnapshot(), event.PromptRuntimeSnapshot(); got == nil || *got != *want {
+		if got, want := copied.PromptRuntimeSnapshot(), event.PromptRuntimeSnapshot(); got == nil ||
+			!reflect.DeepEqual(got, want) {
 			t.Fatalf("copied prompt runtime = %#v, want %#v", got, want)
 		}
 	})
@@ -151,20 +161,21 @@ func TestAgentProcessCapsSnapshotClonesConfigOptions(t *testing.T) {
 		proc.setCaps(Caps{
 			ConfigOptions: []SessionConfigOption{
 				{
-					ID:      "model",
-					Kind:    SessionConfigOptionKindSelect,
-					Current: "model-a",
-					Values:  []SessionConfigOptionValue{{Value: "model-a"}},
+					ID:             "model",
+					Kind:           SessionConfigOptionKindSelect,
+					CurrentValueID: "model-a",
+					Values:         []SessionConfigOptionValue{{Value: "model-a"}},
 				},
 			},
 		})
 
 		first := proc.CapsSnapshot()
-		first.ConfigOptions[0].Current = "mutated"
+		first.ConfigOptions[0].CurrentValueID = "mutated"
 		first.ConfigOptions[0].Values[0].Value = "mutated"
 
 		second := proc.CapsSnapshot()
-		if second.ConfigOptions[0].Current != "model-a" || second.ConfigOptions[0].Values[0].Value != "model-a" {
+		if second.ConfigOptions[0].CurrentValueID != "model-a" ||
+			second.ConfigOptions[0].Values[0].Value != "model-a" {
 			t.Fatalf("CapsSnapshot() leaked mutable config options: %#v", second.ConfigOptions)
 		}
 	})
@@ -176,10 +187,10 @@ func TestAgentProcessCapsSnapshotClonesConfigOptions(t *testing.T) {
 		proc.setCaps(Caps{
 			ConfigOptions: []SessionConfigOption{
 				{
-					ID:      "model",
-					Kind:    SessionConfigOptionKindSelect,
-					Current: "model-a",
-					Values:  []SessionConfigOptionValue{{Value: "model-a"}},
+					ID:             "model",
+					Kind:           SessionConfigOptionKindSelect,
+					CurrentValueID: "model-a",
+					Values:         []SessionConfigOptionValue{{Value: "model-a"}},
 				},
 			},
 		})

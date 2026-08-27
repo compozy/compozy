@@ -1,8 +1,11 @@
 package session
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/participation"
@@ -21,8 +24,10 @@ type sessionStartSpec struct {
 	agentName                string
 	provider                 string
 	model                    string
+	transportModel           string
 	reasoningEffort          string
 	speed                    speedpkg.Speed
+	acpOptions               []acp.SessionConfigOptionSelection
 	selectedRuntime          *RuntimeSelection
 	runtimeSelectionRevision int64
 	permissions              compozyconfig.PermissionMode
@@ -74,4 +79,22 @@ func normalizeRequestedSpeed(requested speedpkg.Speed) (speedpkg.Speed, error) {
 		requested = speedpkg.SpeedNormal
 	}
 	return speedpkg.Parse(string(requested))
+}
+
+func normalizeCreateRuntimeOptions(
+	opts CreateOpts,
+) (speedpkg.Speed, []acp.SessionConfigOptionSelection, error) {
+	requestedSpeed := speedpkg.Speed(strings.TrimSpace(string(opts.Speed)))
+	if requestedSpeed != "" {
+		parsed, err := speedpkg.Parse(string(requestedSpeed))
+		if err != nil {
+			return "", nil, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+		}
+		requestedSpeed = parsed
+	}
+	acpOptions, err := acp.NormalizeSessionConfigOptionSelections(opts.ACPOptions)
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+	}
+	return requestedSpeed, acpOptions, nil
 }

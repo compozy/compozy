@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -65,6 +66,8 @@ type ResolvedRole struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []compozyconfig.ACPOptionSelection
 	Fallbacks       []compozyconfig.RoleFallback
 	Provenance      map[string]string
 	eventWriter     roleEventSummaryWriter
@@ -131,6 +134,8 @@ func (r *roleResolver) resolveEffective(
 		Provider:        strings.TrimSpace(common.Provider),
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
+		Speed:           speedpkg.Speed(strings.TrimSpace(string(common.Speed))),
+		ACPOptions:      compozyconfig.CloneACPOptionSelections(common.ACPOptions),
 	}
 	if !resolved.Enabled {
 		populateDisabledRoleIdentity(role, common, &resolved)
@@ -243,6 +248,14 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	route.Provider = firstRoleValue(common.Provider, route.Provider)
 	route.Model = firstRoleValue(common.Model, route.Model)
 	route.ReasoningEffort = firstRoleValue(common.ReasoningEffort, route.ReasoningEffort)
+	if strings.TrimSpace(string(common.Speed)) != "" {
+		route.Speed = common.Speed
+	}
+	if len(common.ACPOptions) > 0 {
+		route.ACPOptions = compozyconfig.CloneACPOptionSelections(common.ACPOptions)
+	}
+	resolved.Speed = route.Speed
+	resolved.ACPOptions = compozyconfig.CloneACPOptionSelections(route.ACPOptions)
 	if strings.TrimSpace(route.Provider) == "" && cfg != nil {
 		route.Provider = strings.TrimSpace(cfg.Defaults.Provider)
 	}
@@ -263,6 +276,8 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	resolved.Provider = runtime.Provider
 	resolved.Model = runtime.Model
 	resolved.ReasoningEffort = runtime.ReasoningEffort
+	resolved.Speed = runtime.Speed
+	resolved.ACPOptions = compozyconfig.CloneACPOptionSelections(runtime.ACPOptions)
 	return nil
 }
 
@@ -287,6 +302,8 @@ func roleConfig(roles *compozyconfig.RolesConfig, role compozyconfig.RoleName) (
 			Provider:        roles.MemoryController.Provider,
 			Model:           roles.MemoryController.Model,
 			ReasoningEffort: roles.MemoryController.ReasoningEffort,
+			Speed:           roles.MemoryController.Speed,
+			ACPOptions:      roles.MemoryController.ACPOptions,
 			FallbackChain:   roles.MemoryController.FallbackChain,
 		}, nil
 	default:
@@ -331,12 +348,14 @@ func roleFields(role compozyconfig.RoleName, roles *compozyconfig.RolesConfig) m
 		return nil
 	}
 	fields := map[string]any{
-		compozyconfig.RoleFieldEnabled:   common.Enabled,
-		daemonAgentField:                 common.Agent,
-		compozyconfig.RoleFieldProvider:  common.Provider,
-		compozyconfig.RoleFieldModel:     common.Model,
-		compozyconfig.RoleFieldReasoning: common.ReasoningEffort,
-		compozyconfig.RoleFieldFallbacks: common.FallbackChain,
+		compozyconfig.RoleFieldEnabled:    common.Enabled,
+		daemonAgentField:                  common.Agent,
+		compozyconfig.RoleFieldProvider:   common.Provider,
+		compozyconfig.RoleFieldModel:      common.Model,
+		compozyconfig.RoleFieldReasoning:  common.ReasoningEffort,
+		compozyconfig.RoleFieldSpeed:      common.Speed,
+		compozyconfig.RoleFieldACPOptions: common.ACPOptions,
+		compozyconfig.RoleFieldFallbacks:  common.FallbackChain,
 	}
 	if role == compozyconfig.RoleCoordinator {
 		fields["ttl"] = roles.Coordinator.TTL

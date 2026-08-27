@@ -87,7 +87,7 @@ func currentACPModel(options []acp.SessionConfigOption) string {
 	for _, option := range options {
 		if strings.TrimSpace(option.ID) == sessionModelConfigKey ||
 			strings.TrimSpace(option.Category) == sessionModelConfigKey {
-			return strings.TrimSpace(option.Current)
+			return strings.TrimSpace(option.CurrentValueID)
 		}
 	}
 	return ""

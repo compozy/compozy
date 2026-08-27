@@ -13,7 +13,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-const SessionCreationProfileVersion = 4
+const SessionCreationProfileVersion = 5
 
 const (
 	SessionCreationSandboxNone = "none"
@@ -23,26 +23,27 @@ const (
 // SessionCreationProfile is the immutable, secret-free runtime policy used to
 // create or reseed a session. New fields require a profile version bump.
 type SessionCreationProfile struct {
-	Version         int            `json:"version"`
-	AgentName       string         `json:"agent_name"`
-	Provider        string         `json:"provider"`
-	Model           string         `json:"model,omitempty"`
-	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed `json:"speed"`
-	ProfileID       string         `json:"profile_id"`
-	WorkspaceID     string         `json:"workspace_id"`
-	CWD             string         `json:"cwd"`
-	WorktreeRef     string         `json:"worktree_ref,omitempty"`
-	SandboxMode     string         `json:"sandbox_mode"`
-	SandboxRef      string         `json:"sandbox_ref,omitempty"`
-	Permissions     string         `json:"permissions"`
-	AllowedTools    []string       `json:"allowed_tools,omitempty"`
-	AgentTools      []string       `json:"agent_tools,omitempty"`
-	AgentToolsets   []string       `json:"agent_toolsets,omitempty"`
-	DeniedTools     []string       `json:"denied_tools,omitempty"`
-	RuntimeMode     string         `json:"runtime_mode,omitempty"`
-	PromptOverlay   string         `json:"prompt_overlay,omitempty"`
-	ContractOverlay string         `json:"contract_overlay,omitempty"`
+	Version         int                         `json:"version"`
+	AgentName       string                      `json:"agent_name"`
+	Provider        string                      `json:"provider"`
+	Model           string                      `json:"model,omitempty"`
+	ReasoningEffort string                      `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed              `json:"speed"`
+	ACPOptions      []SessionACPOptionSelection `json:"acp_options,omitempty"`
+	ProfileID       string                      `json:"profile_id"`
+	WorkspaceID     string                      `json:"workspace_id"`
+	CWD             string                      `json:"cwd"`
+	WorktreeRef     string                      `json:"worktree_ref,omitempty"`
+	SandboxMode     string                      `json:"sandbox_mode"`
+	SandboxRef      string                      `json:"sandbox_ref,omitempty"`
+	Permissions     string                      `json:"permissions"`
+	AllowedTools    []string                    `json:"allowed_tools,omitempty"`
+	AgentTools      []string                    `json:"agent_tools,omitempty"`
+	AgentToolsets   []string                    `json:"agent_toolsets,omitempty"`
+	DeniedTools     []string                    `json:"denied_tools,omitempty"`
+	RuntimeMode     string                      `json:"runtime_mode,omitempty"`
+	PromptOverlay   string                      `json:"prompt_overlay,omitempty"`
+	ContractOverlay string                      `json:"contract_overlay,omitempty"`
 }
 
 // SessionCreationOptions are deterministic per-session options excluded from
@@ -65,6 +66,7 @@ func NormalizeSessionCreationProfile(profile SessionCreationProfile) SessionCrea
 	if profile.Speed == "" {
 		profile.Speed = speedpkg.SpeedNormal
 	}
+	profile.ACPOptions = NormalizeSessionACPOptionSelections(profile.ACPOptions)
 	profile.ProfileID = strings.TrimSpace(profile.ProfileID)
 	profile.WorkspaceID = strings.TrimSpace(profile.WorkspaceID)
 	profile.CWD = strings.TrimSpace(profile.CWD)
@@ -90,6 +92,9 @@ func (p SessionCreationProfile) Validate() error {
 	}
 	if _, err := speedpkg.Parse(string(p.Speed)); err != nil {
 		return fmt.Errorf("store: session creation profile: %w", err)
+	}
+	if err := ValidateSessionACPOptionSelections(p.ACPOptions); err != nil {
+		return fmt.Errorf("store: session creation profile ACP options: %w", err)
 	}
 	required := []struct {
 		name  string

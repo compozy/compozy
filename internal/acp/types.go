@@ -56,29 +56,44 @@ const (
 	SystemEventTitleAvailableCommandsUpdate = "available_commands_update"
 )
 
+// RuntimeApplicationStrategy identifies where provider runtime options must be applied.
+type RuntimeApplicationStrategy string
+
+const (
+	// RuntimeApplicationSessionConfig applies options through ACP session config methods.
+	RuntimeApplicationSessionConfig RuntimeApplicationStrategy = "session_config"
+	// RuntimeApplicationLaunchArg compiles options into the subprocess launch command.
+	RuntimeApplicationLaunchArg RuntimeApplicationStrategy = "launch_arg"
+	// RuntimeApplicationProviderManaged leaves runtime selection to the provider-owned bridge.
+	RuntimeApplicationProviderManaged RuntimeApplicationStrategy = "provider_managed"
+)
+
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	AgentName            string
-	Command              string
-	Cwd                  string
-	AdditionalDirs       []string
-	Env                  []string
-	MCPServers           []compozyconfig.MCPServer
-	Permissions          compozyconfig.PermissionMode
-	SystemPrompt         string
-	SystemPromptDelivery SystemPromptDeliveryMode
-	PreferredModel       string
-	ReasoningEffort      string
-	Speed                speedpkg.Speed
-	ResumeSessionID      string
-	Launcher             sandbox.Launcher
-	ToolHost             sandbox.ToolHost
-	ToolGateway          ToolExecutionGateway
-	ProviderName         string
-	ProviderConfig       *compozyconfig.ProviderConfig
-	ProviderAuthEnv      *authproviders.ProbeEnv
-	ActivateMCPServers   func(context.Context) error
-	Inspection           bool
+	AgentName              string
+	Command                string
+	Cwd                    string
+	AdditionalDirs         []string
+	Env                    []string
+	MCPServers             []compozyconfig.MCPServer
+	Permissions            compozyconfig.PermissionMode
+	SystemPrompt           string
+	SystemPromptDelivery   SystemPromptDeliveryMode
+	PreferredModel         string
+	ReasoningEffort        string
+	Speed                  speedpkg.Speed
+	ACPOptions             []SessionConfigOptionSelection
+	RuntimeStrategy        RuntimeApplicationStrategy
+	ExpectedTransportModel string
+	ResumeSessionID        string
+	Launcher               sandbox.Launcher
+	ToolHost               sandbox.ToolHost
+	ToolGateway            ToolExecutionGateway
+	ProviderName           string
+	ProviderConfig         *compozyconfig.ProviderConfig
+	ProviderAuthEnv        *authproviders.ProbeEnv
+	ActivateMCPServers     func(context.Context) error
+	Inspection             bool
 
 	launchIdentity *preparedLaunchIdentity
 }
@@ -128,6 +143,14 @@ func (o StartOpts) Validate() error {
 		if err := server.Validate(fmt.Sprintf("start.mcp_servers[%d]", i)); err != nil {
 			return err
 		}
+	}
+	switch o.RuntimeStrategy {
+	case "", RuntimeApplicationSessionConfig, RuntimeApplicationLaunchArg, RuntimeApplicationProviderManaged:
+	default:
+		return fmt.Errorf("acp: invalid runtime application strategy %q", o.RuntimeStrategy)
+	}
+	if _, err := normalizeSessionConfigOptionSelections(o.ACPOptions); err != nil {
+		return fmt.Errorf("acp: validate start ACP options: %w", err)
 	}
 	switch o.SystemPromptDelivery {
 	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:

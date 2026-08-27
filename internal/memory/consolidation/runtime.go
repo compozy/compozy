@@ -15,6 +15,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -68,6 +69,8 @@ type SessionRoute struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []acp.SessionConfigOptionSelection
 	Fallbacks       []compozyconfig.RoleFallback
 	BeforeFallback  func(context.Context, int, compozyconfig.RoleFallback) error
 }

@@ -1,4 +1,4 @@
-import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import {
   AGENT_CREATE_PERMISSION_OPTIONS,
@@ -7,7 +7,9 @@ import {
   type AgentCreatePermissionChoice,
 } from "./agent-create-draft";
 import { joinAgentCategorySegments } from "./agent-category";
+import { runtimeACPSelections } from "./agent-effective-runtime";
 import type { AgentPayload, UpdateAgentParams } from "../types";
+import type { RuntimeACPOptionSelection } from "@/systems/runtime";
 
 const KNOWN_PERMISSIONS = new Set<AgentCreatePermission>(
   AGENT_CREATE_PERMISSION_OPTIONS.map(option => option.value).filter(
@@ -21,6 +23,9 @@ export interface AgentSettingsDraft {
   provider: string;
   model: string;
   reasoningEffort: ReasoningEffort | "";
+  speed: RuntimeSpeed | "";
+  /** Typed ACP overrides; undefined means inherit provider defaults. */
+  acpOptions?: RuntimeACPOptionSelection[];
   command: string;
   prompt: string;
   /** Selected RadioCard value; null when legacy string requires explicit choice. */
@@ -61,6 +66,8 @@ export function buildSettingsDraftFromAgent(agent: AgentPayload): AgentSettingsD
       agent.reasoning_effort && isReasoningEffort(agent.reasoning_effort)
         ? agent.reasoning_effort
         : "",
+    speed: agentRuntimeSpeed(agent.speed),
+    acpOptions: runtimeACPSelections(agent.acp_options),
     command: agent.command ?? "",
     prompt: agent.prompt ?? "",
     permissions: known ? rawPermissions : emptyOrInherit ? "" : null,
@@ -81,6 +88,8 @@ export function isAgentSettingsDraftDirty(draft: AgentSettingsDraft, agent: Agen
     draft.provider !== baseline.provider ||
     draft.model !== baseline.model ||
     draft.reasoningEffort !== baseline.reasoningEffort ||
+    draft.speed !== baseline.speed ||
+    !sameOptionalList(draft.acpOptions, baseline.acpOptions) ||
     draft.command !== baseline.command ||
     draft.prompt !== baseline.prompt ||
     draft.permissions !== baseline.permissions ||
@@ -146,6 +155,8 @@ export function buildUpdateAgentParams(
       ...(model.length > 0 ? { model } : {}),
       ...(command.length > 0 ? { command } : {}),
       ...(reasoningEffort !== "" ? { reasoning_effort: reasoningEffort } : {}),
+      ...(draft.speed !== "" ? { speed: draft.speed } : {}),
+      ...(draft.acpOptions !== undefined ? { acp_options: [...draft.acpOptions] } : {}),
       ...(permissions ? { permissions } : {}),
       ...(validation.categorySegments.length > 0
         ? { category_path: validation.categorySegments }
@@ -160,7 +171,25 @@ export function buildUpdateAgentParams(
   };
 }
 
+function agentRuntimeSpeed(value: string | null | undefined): RuntimeSpeed | "" {
+  return value === "normal" || value === "fast" ? value : "";
+}
+
 function sameList(left: readonly string[], right: readonly string[]): boolean {
   if (left.length !== right.length) return false;
   return left.every((value, index) => value === right[index]);
+}
+
+function sameOptionalList(
+  left: readonly RuntimeACPOptionSelection[] | undefined,
+  right: readonly RuntimeACPOptionSelection[] | undefined
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  if (left.length !== right.length) return false;
+  return left.every(
+    (selection, index) =>
+      selection.id === right[index]?.id &&
+      selection.value_id === right[index]?.value_id &&
+      selection.bool_value === right[index]?.bool_value
+  );
 }

@@ -10,42 +10,202 @@ import (
 	"database/sql"
 )
 
+const deleteModelCatalogOptionValues = `-- name: DeleteModelCatalogOptionValues :exec
+DELETE FROM model_catalog_option_values
+WHERE context_id = ?1
+  AND source_id = ?2 AND provider_id = ?3
+`
+
+type DeleteModelCatalogOptionValuesParams struct {
+	ContextID  string `json:"context_id"`
+	SourceID   string `json:"source_id"`
+	ProviderID string `json:"provider_id"`
+}
+
+func (q *Queries) DeleteModelCatalogOptionValues(ctx context.Context, arg DeleteModelCatalogOptionValuesParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogOptionValues, arg.ContextID, arg.SourceID, arg.ProviderID)
+	return err
+}
+
+const deleteModelCatalogOptions = `-- name: DeleteModelCatalogOptions :exec
+DELETE FROM model_catalog_options
+WHERE context_id = ?1
+  AND source_id = ?2 AND provider_id = ?3
+`
+
+type DeleteModelCatalogOptionsParams struct {
+	ContextID  string `json:"context_id"`
+	SourceID   string `json:"source_id"`
+	ProviderID string `json:"provider_id"`
+}
+
+func (q *Queries) DeleteModelCatalogOptions(ctx context.Context, arg DeleteModelCatalogOptionsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogOptions, arg.ContextID, arg.SourceID, arg.ProviderID)
+	return err
+}
+
 const deleteModelCatalogReasoningEfforts = `-- name: DeleteModelCatalogReasoningEfforts :exec
 DELETE FROM model_catalog_reasoning_efforts
-WHERE source_id = ?1 AND provider_id = ?2
+WHERE context_id = ?1
+  AND source_id = ?2 AND provider_id = ?3
 `
 
 type DeleteModelCatalogReasoningEffortsParams struct {
+	ContextID  string `json:"context_id"`
 	SourceID   string `json:"source_id"`
 	ProviderID string `json:"provider_id"`
 }
 
 func (q *Queries) DeleteModelCatalogReasoningEfforts(ctx context.Context, arg DeleteModelCatalogReasoningEffortsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteModelCatalogReasoningEfforts, arg.SourceID, arg.ProviderID)
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogReasoningEfforts, arg.ContextID, arg.SourceID, arg.ProviderID)
 	return err
 }
 
 const deleteModelCatalogRows = `-- name: DeleteModelCatalogRows :exec
 DELETE FROM model_catalog_rows
-WHERE source_id = ?1 AND provider_id = ?2
+WHERE context_id = ?1
+  AND source_id = ?2 AND provider_id = ?3
 `
 
 type DeleteModelCatalogRowsParams struct {
+	ContextID  string `json:"context_id"`
 	SourceID   string `json:"source_id"`
 	ProviderID string `json:"provider_id"`
 }
 
 func (q *Queries) DeleteModelCatalogRows(ctx context.Context, arg DeleteModelCatalogRowsParams) error {
-	_, err := q.db.ExecContext(ctx, deleteModelCatalogRows, arg.SourceID, arg.ProviderID)
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogRows, arg.ContextID, arg.SourceID, arg.ProviderID)
+	return err
+}
+
+const deleteModelCatalogTransportBindingSelections = `-- name: DeleteModelCatalogTransportBindingSelections :exec
+DELETE FROM model_catalog_transport_binding_selections
+WHERE context_id = ?1
+  AND source_id = ?2 AND provider_id = ?3
+`
+
+type DeleteModelCatalogTransportBindingSelectionsParams struct {
+	ContextID  string `json:"context_id"`
+	SourceID   string `json:"source_id"`
+	ProviderID string `json:"provider_id"`
+}
+
+func (q *Queries) DeleteModelCatalogTransportBindingSelections(ctx context.Context, arg DeleteModelCatalogTransportBindingSelectionsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogTransportBindingSelections, arg.ContextID, arg.SourceID, arg.ProviderID)
+	return err
+}
+
+const deleteModelCatalogTransportBindings = `-- name: DeleteModelCatalogTransportBindings :exec
+DELETE FROM model_catalog_transport_bindings
+WHERE context_id = ?1
+  AND source_id = ?2 AND provider_id = ?3
+`
+
+type DeleteModelCatalogTransportBindingsParams struct {
+	ContextID  string `json:"context_id"`
+	SourceID   string `json:"source_id"`
+	ProviderID string `json:"provider_id"`
+}
+
+func (q *Queries) DeleteModelCatalogTransportBindings(ctx context.Context, arg DeleteModelCatalogTransportBindingsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteModelCatalogTransportBindings, arg.ContextID, arg.SourceID, arg.ProviderID)
+	return err
+}
+
+const insertModelCatalogOption = `-- name: InsertModelCatalogOption :exec
+INSERT INTO model_catalog_options (
+  context_id, source_id, provider_id, model_id, option_id, label, description,
+  category, kind, current_value_id, current_bool
+) VALUES (
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11
+)
+`
+
+type InsertModelCatalogOptionParams struct {
+	ContextID      string         `json:"context_id"`
+	SourceID       string         `json:"source_id"`
+	ProviderID     string         `json:"provider_id"`
+	ModelID        string         `json:"model_id"`
+	OptionID       string         `json:"option_id"`
+	Label          string         `json:"label"`
+	Description    string         `json:"description"`
+	Category       string         `json:"category"`
+	Kind           string         `json:"kind"`
+	CurrentValueID sql.NullString `json:"current_value_id"`
+	CurrentBool    sql.NullInt64  `json:"current_bool"`
+}
+
+func (q *Queries) InsertModelCatalogOption(ctx context.Context, arg InsertModelCatalogOptionParams) error {
+	_, err := q.db.ExecContext(ctx, insertModelCatalogOption,
+		arg.ContextID,
+		arg.SourceID,
+		arg.ProviderID,
+		arg.ModelID,
+		arg.OptionID,
+		arg.Label,
+		arg.Description,
+		arg.Category,
+		arg.Kind,
+		arg.CurrentValueID,
+		arg.CurrentBool,
+	)
+	return err
+}
+
+const insertModelCatalogOptionValue = `-- name: InsertModelCatalogOptionValue :exec
+INSERT INTO model_catalog_option_values (
+  context_id, source_id, provider_id, model_id, option_id, value_id, label, description,
+  group_id, group_label, rank
+) VALUES (
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11
+)
+`
+
+type InsertModelCatalogOptionValueParams struct {
+	ContextID   string `json:"context_id"`
+	SourceID    string `json:"source_id"`
+	ProviderID  string `json:"provider_id"`
+	ModelID     string `json:"model_id"`
+	OptionID    string `json:"option_id"`
+	ValueID     string `json:"value_id"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	GroupID     string `json:"group_id"`
+	GroupLabel  string `json:"group_label"`
+	Rank        int64  `json:"rank"`
+}
+
+func (q *Queries) InsertModelCatalogOptionValue(ctx context.Context, arg InsertModelCatalogOptionValueParams) error {
+	_, err := q.db.ExecContext(ctx, insertModelCatalogOptionValue,
+		arg.ContextID,
+		arg.SourceID,
+		arg.ProviderID,
+		arg.ModelID,
+		arg.OptionID,
+		arg.ValueID,
+		arg.Label,
+		arg.Description,
+		arg.GroupID,
+		arg.GroupLabel,
+		arg.Rank,
+	)
 	return err
 }
 
 const insertModelCatalogReasoningEffort = `-- name: InsertModelCatalogReasoningEffort :exec
-INSERT INTO model_catalog_reasoning_efforts (source_id, provider_id, model_id, effort, rank)
-VALUES (?1, ?2, ?3, ?4, ?5)
+INSERT INTO model_catalog_reasoning_efforts (context_id, source_id, provider_id, model_id, effort, rank)
+VALUES (
+  ?1, ?2, ?3,
+  ?4, ?5, ?6
+)
 `
 
 type InsertModelCatalogReasoningEffortParams struct {
+	ContextID  string `json:"context_id"`
 	SourceID   string `json:"source_id"`
 	ProviderID string `json:"provider_id"`
 	ModelID    string `json:"model_id"`
@@ -55,6 +215,7 @@ type InsertModelCatalogReasoningEffortParams struct {
 
 func (q *Queries) InsertModelCatalogReasoningEffort(ctx context.Context, arg InsertModelCatalogReasoningEffortParams) error {
 	_, err := q.db.ExecContext(ctx, insertModelCatalogReasoningEffort,
+		arg.ContextID,
 		arg.SourceID,
 		arg.ProviderID,
 		arg.ModelID,
@@ -66,7 +227,7 @@ func (q *Queries) InsertModelCatalogReasoningEffort(ctx context.Context, arg Ins
 
 const insertModelCatalogRow = `-- name: InsertModelCatalogRow :exec
 INSERT INTO model_catalog_rows (
-  source_id, provider_id, model_id, source_kind, priority, available, stale,
+  context_id, source_id, provider_id, model_id, source_kind, priority, available, stale,
   refreshed_at, expires_at, display_name, context_window, max_input_tokens,
   max_output_tokens, supports_tools, supports_reasoning, default_reasoning_effort,
   cost_input_per_million, cost_output_per_million, cost_cache_read_per_million,
@@ -74,21 +235,22 @@ INSERT INTO model_catalog_rows (
   deprecated, hidden, featured, deprecated_set, hidden_set, featured_set,
   release_date, last_error
 ) VALUES (
-  ?1, ?2, ?3, ?4,
-  ?5, ?6, ?7, ?8,
-  ?9, ?10, ?11,
-  ?12, ?13, ?14,
-  ?15, ?16,
-  ?17, ?18,
-  ?19, ?20,
-  ?21,
-  ?22, ?23, ?24, ?25,
-  ?26, ?27, ?28,
-  ?29, ?30
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8, ?9,
+  ?10, ?11, ?12,
+  ?13, ?14, ?15,
+  ?16, ?17,
+  ?18, ?19,
+  ?20, ?21,
+  ?22,
+  ?23, ?24, ?25, ?26,
+  ?27, ?28, ?29,
+  ?30, ?31
 )
 `
 
 type InsertModelCatalogRowParams struct {
+	ContextID                string          `json:"context_id"`
 	SourceID                 string          `json:"source_id"`
 	ProviderID               string          `json:"provider_id"`
 	ModelID                  string          `json:"model_id"`
@@ -123,6 +285,7 @@ type InsertModelCatalogRowParams struct {
 
 func (q *Queries) InsertModelCatalogRow(ctx context.Context, arg InsertModelCatalogRowParams) error {
 	_, err := q.db.ExecContext(ctx, insertModelCatalogRow,
+		arg.ContextID,
 		arg.SourceID,
 		arg.ProviderID,
 		arg.ModelID,
@@ -157,16 +320,420 @@ func (q *Queries) InsertModelCatalogRow(ctx context.Context, arg InsertModelCata
 	return err
 }
 
-const upsertModelCatalogSourceStatus = `-- name: UpsertModelCatalogSourceStatus :exec
-INSERT INTO model_catalog_sources (
-  source_id, provider_id, source_kind, priority, refresh_state,
-  last_refresh_at, next_refresh_at, last_success_at, last_error, row_count, stale
+const insertModelCatalogTransportBinding = `-- name: InsertModelCatalogTransportBinding :exec
+INSERT INTO model_catalog_transport_bindings (
+  context_id, source_id, provider_id, model_id, transport_model_id, label,
+  reasoning_effort, fast, thinking, rank
 ) VALUES (
   ?1, ?2, ?3, ?4,
   ?5, ?6, ?7,
-  ?8, ?9, ?10, ?11
+  ?8, ?9, ?10
 )
-ON CONFLICT(source_id, provider_id) DO UPDATE SET
+`
+
+type InsertModelCatalogTransportBindingParams struct {
+	ContextID        string         `json:"context_id"`
+	SourceID         string         `json:"source_id"`
+	ProviderID       string         `json:"provider_id"`
+	ModelID          string         `json:"model_id"`
+	TransportModelID string         `json:"transport_model_id"`
+	Label            string         `json:"label"`
+	ReasoningEffort  sql.NullString `json:"reasoning_effort"`
+	Fast             sql.NullInt64  `json:"fast"`
+	Thinking         sql.NullInt64  `json:"thinking"`
+	Rank             int64          `json:"rank"`
+}
+
+func (q *Queries) InsertModelCatalogTransportBinding(ctx context.Context, arg InsertModelCatalogTransportBindingParams) error {
+	_, err := q.db.ExecContext(ctx, insertModelCatalogTransportBinding,
+		arg.ContextID,
+		arg.SourceID,
+		arg.ProviderID,
+		arg.ModelID,
+		arg.TransportModelID,
+		arg.Label,
+		arg.ReasoningEffort,
+		arg.Fast,
+		arg.Thinking,
+		arg.Rank,
+	)
+	return err
+}
+
+const insertModelCatalogTransportBindingSelection = `-- name: InsertModelCatalogTransportBindingSelection :exec
+INSERT INTO model_catalog_transport_binding_selections (
+  context_id, source_id, provider_id, model_id, transport_model_id, option_id, value_id, bool_value
+) VALUES (
+  ?1, ?2, ?3, ?4,
+  ?5, ?6, ?7, ?8
+)
+`
+
+type InsertModelCatalogTransportBindingSelectionParams struct {
+	ContextID        string         `json:"context_id"`
+	SourceID         string         `json:"source_id"`
+	ProviderID       string         `json:"provider_id"`
+	ModelID          string         `json:"model_id"`
+	TransportModelID string         `json:"transport_model_id"`
+	OptionID         string         `json:"option_id"`
+	ValueID          sql.NullString `json:"value_id"`
+	BoolValue        sql.NullInt64  `json:"bool_value"`
+}
+
+func (q *Queries) InsertModelCatalogTransportBindingSelection(ctx context.Context, arg InsertModelCatalogTransportBindingSelectionParams) error {
+	_, err := q.db.ExecContext(ctx, insertModelCatalogTransportBindingSelection,
+		arg.ContextID,
+		arg.SourceID,
+		arg.ProviderID,
+		arg.ModelID,
+		arg.TransportModelID,
+		arg.OptionID,
+		arg.ValueID,
+		arg.BoolValue,
+	)
+	return err
+}
+
+const listModelCatalogOptionValues = `-- name: ListModelCatalogOptionValues :many
+SELECT
+  v.context_id,
+  v.source_id,
+  v.provider_id,
+  v.model_id,
+  v.option_id,
+  v.value_id,
+  v.label,
+  v.description,
+  v.group_id,
+  v.group_label,
+  v.rank
+FROM model_catalog_option_values v
+JOIN model_catalog_rows r
+  ON r.context_id = v.context_id
+  AND r.source_id = v.source_id
+  AND r.provider_id = v.provider_id
+  AND r.model_id = v.model_id
+WHERE v.context_id = CAST(?1 AS TEXT)
+  AND (CAST(?2 AS TEXT) = '' OR v.provider_id = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR v.source_id = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS INTEGER) = 1
+    OR CAST(?5 AS INTEGER) = 1
+    OR r.stale = 0)
+ORDER BY v.source_id ASC, v.provider_id ASC, v.model_id ASC, v.option_id ASC, v.rank ASC, v.value_id ASC
+`
+
+type ListModelCatalogOptionValuesParams struct {
+	ContextID    string `json:"context_id"`
+	ProviderID   string `json:"provider_id"`
+	SourceID     string `json:"source_id"`
+	IncludeStale int64  `json:"include_stale"`
+	IncludeAll   int64  `json:"include_all"`
+}
+
+func (q *Queries) ListModelCatalogOptionValues(ctx context.Context, arg ListModelCatalogOptionValuesParams) ([]ModelCatalogOptionValue, error) {
+	rows, err := q.db.QueryContext(ctx, listModelCatalogOptionValues,
+		arg.ContextID,
+		arg.ProviderID,
+		arg.SourceID,
+		arg.IncludeStale,
+		arg.IncludeAll,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ModelCatalogOptionValue{}
+	for rows.Next() {
+		var i ModelCatalogOptionValue
+		if err := rows.Scan(
+			&i.ContextID,
+			&i.SourceID,
+			&i.ProviderID,
+			&i.ModelID,
+			&i.OptionID,
+			&i.ValueID,
+			&i.Label,
+			&i.Description,
+			&i.GroupID,
+			&i.GroupLabel,
+			&i.Rank,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listModelCatalogOptions = `-- name: ListModelCatalogOptions :many
+SELECT
+  o.context_id,
+  o.source_id,
+  o.provider_id,
+  o.model_id,
+  o.option_id,
+  o.label,
+  o.description,
+  o.category,
+  o.kind,
+  o.current_value_id,
+  o.current_bool
+FROM model_catalog_options o
+JOIN model_catalog_rows r
+  ON r.context_id = o.context_id
+  AND r.source_id = o.source_id
+  AND r.provider_id = o.provider_id
+  AND r.model_id = o.model_id
+WHERE o.context_id = CAST(?1 AS TEXT)
+  AND (CAST(?2 AS TEXT) = '' OR o.provider_id = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR o.source_id = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS INTEGER) = 1
+    OR CAST(?5 AS INTEGER) = 1
+    OR r.stale = 0)
+ORDER BY o.source_id ASC, o.provider_id ASC, o.model_id ASC, o.option_id ASC
+`
+
+type ListModelCatalogOptionsParams struct {
+	ContextID    string `json:"context_id"`
+	ProviderID   string `json:"provider_id"`
+	SourceID     string `json:"source_id"`
+	IncludeStale int64  `json:"include_stale"`
+	IncludeAll   int64  `json:"include_all"`
+}
+
+func (q *Queries) ListModelCatalogOptions(ctx context.Context, arg ListModelCatalogOptionsParams) ([]ModelCatalogOption, error) {
+	rows, err := q.db.QueryContext(ctx, listModelCatalogOptions,
+		arg.ContextID,
+		arg.ProviderID,
+		arg.SourceID,
+		arg.IncludeStale,
+		arg.IncludeAll,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ModelCatalogOption{}
+	for rows.Next() {
+		var i ModelCatalogOption
+		if err := rows.Scan(
+			&i.ContextID,
+			&i.SourceID,
+			&i.ProviderID,
+			&i.ModelID,
+			&i.OptionID,
+			&i.Label,
+			&i.Description,
+			&i.Category,
+			&i.Kind,
+			&i.CurrentValueID,
+			&i.CurrentBool,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listModelCatalogTransportBindingSelections = `-- name: ListModelCatalogTransportBindingSelections :many
+SELECT
+  s.context_id,
+  s.source_id,
+  s.provider_id,
+  s.model_id,
+  s.transport_model_id,
+  s.option_id,
+  s.value_id,
+  s.bool_value
+FROM model_catalog_transport_binding_selections s
+JOIN model_catalog_rows r
+  ON r.context_id = s.context_id
+  AND r.source_id = s.source_id
+  AND r.provider_id = s.provider_id
+  AND r.model_id = s.model_id
+WHERE s.context_id = CAST(?1 AS TEXT)
+  AND (CAST(?2 AS TEXT) = '' OR s.provider_id = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR s.source_id = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS INTEGER) = 1
+    OR CAST(?5 AS INTEGER) = 1
+    OR r.stale = 0)
+ORDER BY s.source_id ASC, s.provider_id ASC, s.model_id ASC,
+  s.transport_model_id ASC, s.option_id ASC
+`
+
+type ListModelCatalogTransportBindingSelectionsParams struct {
+	ContextID    string `json:"context_id"`
+	ProviderID   string `json:"provider_id"`
+	SourceID     string `json:"source_id"`
+	IncludeStale int64  `json:"include_stale"`
+	IncludeAll   int64  `json:"include_all"`
+}
+
+func (q *Queries) ListModelCatalogTransportBindingSelections(ctx context.Context, arg ListModelCatalogTransportBindingSelectionsParams) ([]ModelCatalogTransportBindingSelection, error) {
+	rows, err := q.db.QueryContext(ctx, listModelCatalogTransportBindingSelections,
+		arg.ContextID,
+		arg.ProviderID,
+		arg.SourceID,
+		arg.IncludeStale,
+		arg.IncludeAll,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ModelCatalogTransportBindingSelection{}
+	for rows.Next() {
+		var i ModelCatalogTransportBindingSelection
+		if err := rows.Scan(
+			&i.ContextID,
+			&i.SourceID,
+			&i.ProviderID,
+			&i.ModelID,
+			&i.TransportModelID,
+			&i.OptionID,
+			&i.ValueID,
+			&i.BoolValue,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listModelCatalogTransportBindings = `-- name: ListModelCatalogTransportBindings :many
+SELECT
+  b.context_id,
+  b.source_id,
+  b.provider_id,
+  b.model_id,
+  b.transport_model_id,
+  b.label,
+  b.reasoning_effort,
+  b.fast,
+  b.thinking,
+  b.rank
+FROM model_catalog_transport_bindings b
+JOIN model_catalog_rows r
+  ON r.context_id = b.context_id
+  AND r.source_id = b.source_id
+  AND r.provider_id = b.provider_id
+  AND r.model_id = b.model_id
+WHERE b.context_id = CAST(?1 AS TEXT)
+  AND (CAST(?2 AS TEXT) = '' OR b.provider_id = CAST(?2 AS TEXT))
+  AND (CAST(?3 AS TEXT) = '' OR b.source_id = CAST(?3 AS TEXT))
+  AND (CAST(?4 AS INTEGER) = 1
+    OR CAST(?5 AS INTEGER) = 1
+    OR r.stale = 0)
+ORDER BY b.source_id ASC, b.provider_id ASC, b.model_id ASC, b.rank ASC, b.transport_model_id ASC
+`
+
+type ListModelCatalogTransportBindingsParams struct {
+	ContextID    string `json:"context_id"`
+	ProviderID   string `json:"provider_id"`
+	SourceID     string `json:"source_id"`
+	IncludeStale int64  `json:"include_stale"`
+	IncludeAll   int64  `json:"include_all"`
+}
+
+func (q *Queries) ListModelCatalogTransportBindings(ctx context.Context, arg ListModelCatalogTransportBindingsParams) ([]ModelCatalogTransportBinding, error) {
+	rows, err := q.db.QueryContext(ctx, listModelCatalogTransportBindings,
+		arg.ContextID,
+		arg.ProviderID,
+		arg.SourceID,
+		arg.IncludeStale,
+		arg.IncludeAll,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ModelCatalogTransportBinding{}
+	for rows.Next() {
+		var i ModelCatalogTransportBinding
+		if err := rows.Scan(
+			&i.ContextID,
+			&i.SourceID,
+			&i.ProviderID,
+			&i.ModelID,
+			&i.TransportModelID,
+			&i.Label,
+			&i.ReasoningEffort,
+			&i.Fast,
+			&i.Thinking,
+			&i.Rank,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertModelCatalogExecutionContext = `-- name: UpsertModelCatalogExecutionContext :exec
+INSERT INTO model_catalog_execution_contexts (
+  context_id, scope, profile_id, workspace_id, command_fingerprint
+) VALUES (
+  ?1, ?2, ?3,
+  ?4, ?5
+)
+ON CONFLICT(context_id) DO NOTHING
+`
+
+type UpsertModelCatalogExecutionContextParams struct {
+	ContextID          string `json:"context_id"`
+	Scope              string `json:"scope"`
+	ProfileID          string `json:"profile_id"`
+	WorkspaceID        string `json:"workspace_id"`
+	CommandFingerprint string `json:"command_fingerprint"`
+}
+
+func (q *Queries) UpsertModelCatalogExecutionContext(ctx context.Context, arg UpsertModelCatalogExecutionContextParams) error {
+	_, err := q.db.ExecContext(ctx, upsertModelCatalogExecutionContext,
+		arg.ContextID,
+		arg.Scope,
+		arg.ProfileID,
+		arg.WorkspaceID,
+		arg.CommandFingerprint,
+	)
+	return err
+}
+
+const upsertModelCatalogSourceStatus = `-- name: UpsertModelCatalogSourceStatus :exec
+INSERT INTO model_catalog_sources (
+  context_id, source_id, provider_id, source_kind, priority, refresh_state,
+  last_refresh_at, next_refresh_at, last_success_at, last_error, row_count, stale
+) VALUES (
+  ?1, ?2, ?3, ?4, ?5,
+  ?6, ?7, ?8,
+  ?9, ?10, ?11, ?12
+)
+ON CONFLICT(context_id, source_id, provider_id) DO UPDATE SET
   source_kind = excluded.source_kind, priority = excluded.priority,
   refresh_state = excluded.refresh_state, last_refresh_at = excluded.last_refresh_at,
   next_refresh_at = excluded.next_refresh_at, last_success_at = excluded.last_success_at,
@@ -174,6 +741,7 @@ ON CONFLICT(source_id, provider_id) DO UPDATE SET
 `
 
 type UpsertModelCatalogSourceStatusParams struct {
+	ContextID     string `json:"context_id"`
 	SourceID      string `json:"source_id"`
 	ProviderID    string `json:"provider_id"`
 	SourceKind    string `json:"source_kind"`
@@ -189,6 +757,7 @@ type UpsertModelCatalogSourceStatusParams struct {
 
 func (q *Queries) UpsertModelCatalogSourceStatus(ctx context.Context, arg UpsertModelCatalogSourceStatusParams) error {
 	_, err := q.db.ExecContext(ctx, upsertModelCatalogSourceStatus,
+		arg.ContextID,
 		arg.SourceID,
 		arg.ProviderID,
 		arg.SourceKind,

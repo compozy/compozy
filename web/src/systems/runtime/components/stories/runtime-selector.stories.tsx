@@ -7,6 +7,7 @@ import type { RuntimeSpeed } from "@/lib/api-contract";
 import {
   RuntimeSelector,
   runtimeModelKey,
+  type RuntimeACPOption,
   type RuntimeModelOption,
   type RuntimeProviderOption,
   type RuntimeSelectorProps,
@@ -105,6 +106,37 @@ const models: RuntimeModelOption[] = [
     efforts: ["low", "medium", "high"],
     reasoning_source: "catalog",
   }),
+];
+
+const advancedOptions: RuntimeACPOption[] = [
+  {
+    id: "context_window",
+    label: "Context window",
+    description: "Maximum context for the next run",
+    kind: "select",
+    current_value_id: "200k",
+    values: [
+      {
+        value: "200k",
+        label: "200k tokens",
+        group_id: "standard",
+        group_label: "Standard",
+      },
+      {
+        value: "1m",
+        label: "1M tokens",
+        group_id: "large",
+        group_label: "Large",
+      },
+    ],
+  },
+  {
+    id: "thinking",
+    label: "Thinking",
+    description: "Allow the provider to spend more time reasoning",
+    kind: "boolean",
+    current_bool: false,
+  },
 ];
 
 function ControlledRuntimeSelector({ value: initial, ...props }: RuntimeSelectorProps) {
@@ -345,6 +377,36 @@ export const PopupReasoningProviderDecides: Story = {
     const footer = await body.findByTestId("runtime-selector-reasoning");
     await expect(footer).toHaveAttribute("data-reasoning-mode", "supported-nolevels");
     await expect(within(footer).getByText(/provider decides/i)).toBeInTheDocument();
+  },
+};
+
+/** Advertised non-dedicated ACP controls stay quiet until the disclosure opens. */
+export const PopupAdvancedOptions: Story = {
+  args: {
+    value: { provider: "codex", model: "gpt-5.6-sol", reasoning_effort: "" },
+    acpOptions: advancedOptions,
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          "Live ACP descriptors render as grouped selects and typed boolean controls under progressive disclosure; private transport aliases are not part of the fixture.",
+      },
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const body = await openPopup(canvasElement);
+    const toggle = await body.findByTestId("runtime-selector-advanced-toggle");
+    await expect(body.queryByTestId("runtime-selector-advanced-panel")).not.toBeInTheDocument();
+    await userEvent.click(toggle);
+    const panel = await body.findByTestId("runtime-selector-advanced-panel");
+    await expect(within(panel).getByTestId("runtime-selector-option-context_window")).toHaveValue(
+      "200k"
+    );
+    await expect(within(panel).getByTestId("runtime-selector-option-thinking")).toHaveAttribute(
+      "aria-checked",
+      "false"
+    );
   },
 };
 

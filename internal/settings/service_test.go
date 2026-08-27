@@ -6498,7 +6498,7 @@ func (s *settingsModelCatalogStub) Refresh(
 
 func (s *settingsModelCatalogStub) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }

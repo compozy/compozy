@@ -91,6 +91,8 @@ const (
 type ListOptions struct {
 	ProviderID         string
 	SourceID           string
+	ExecutionContext   CatalogExecutionContext
+	SourceContexts     map[string]CatalogExecutionContext
 	View               CatalogView
 	Refresh            bool
 	SkipRefreshIfEmpty bool
@@ -101,11 +103,21 @@ type ListOptions struct {
 
 // RefreshOptions controls a model catalog refresh request.
 type RefreshOptions struct {
-	ProviderID string
-	SourceID   string
-	Force      bool
-	RequestID  string
-	Now        time.Time
+	ProviderID               string
+	SourceID                 string
+	ExecutionContext         CatalogExecutionContext
+	PreviousExecutionContext CatalogExecutionContext
+	SourceContexts           map[string]CatalogExecutionContext
+	Force                    bool
+	RequestID                string
+	Now                      time.Time
+}
+
+// StatusOptions filters source health by provider and execution context.
+type StatusOptions struct {
+	ProviderID       string
+	ExecutionContext CatalogExecutionContext
+	SourceContexts   map[string]CatalogExecutionContext
 }
 
 // ModelRow is one provider/model record contributed by one catalog source.
@@ -127,6 +139,8 @@ type ModelRow struct {
 	SupportsReasoning        *bool
 	ReasoningEfforts         []ReasoningEffort
 	DefaultReasoningEffort   *ReasoningEffort
+	ConfigOptions            []ModelOptionDescriptor
+	TransportBindings        []ModelTransportBinding
 	CostInputPerMillion      *float64
 	CostOutputPerMillion     *float64
 	CostCacheReadPerMillion  *float64
@@ -167,6 +181,8 @@ type Model struct {
 	SupportsReasoning        *bool
 	ReasoningEfforts         []ReasoningEffort
 	DefaultReasoningEffort   *ReasoningEffort
+	ConfigOptions            []ModelOptionDescriptor
+	TransportBindings        []ModelTransportBinding
 	CostInputPerMillion      *float64
 	CostOutputPerMillion     *float64
 	CostCacheReadPerMillion  *float64
@@ -212,16 +228,18 @@ type Source interface {
 
 // SourceRowsReplacement is one provider-scoped source publication.
 type SourceRowsReplacement struct {
-	SourceID   string
-	ProviderID string
-	Rows       []ModelRow
-	Status     SourceStatus
+	ExecutionContext CatalogExecutionContext
+	SourceID         string
+	ProviderID       string
+	Rows             []ModelRow
+	Status           SourceStatus
 }
 
 // Store persists source rows and provider-scoped source status.
 type Store interface {
 	ReplaceSourceRows(
 		ctx context.Context,
+		executionContext CatalogExecutionContext,
 		sourceID string,
 		providerID string,
 		rows []ModelRow,
@@ -230,12 +248,12 @@ type Store interface {
 	// ReplaceSourceRowsBatch publishes every replacement atomically.
 	ReplaceSourceRowsBatch(ctx context.Context, replacements []SourceRowsReplacement) error
 	ListRows(ctx context.Context, opts ListOptions) ([]ModelRow, error)
-	ListSourceStatus(ctx context.Context, providerID string) ([]SourceStatus, error)
+	ListSourceStatus(ctx context.Context, opts StatusOptions) ([]SourceStatus, error)
 }
 
 // Service exposes merged model catalog projections.
 type Service interface {
 	ListModels(ctx context.Context, opts ListOptions) ([]Model, error)
 	Refresh(ctx context.Context, opts RefreshOptions) ([]SourceStatus, error)
-	ListSourceStatus(ctx context.Context, providerID string) ([]SourceStatus, error)
+	ListSourceStatus(ctx context.Context, opts StatusOptions) ([]SourceStatus, error)
 }

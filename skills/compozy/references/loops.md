@@ -117,8 +117,9 @@ Catalog discovery uses exact stored identifiers:
 
 Agent, skill, Loop, worktree, and session reads resolve the exact workspace. Workspace reads follow
 the caller's workspace-access policy. Vault reads are global and return reference metadata only.
-Runtime accepts a partial `{provider, model, reasoning, speed}` object; `speed` is `normal|fast`, and
-exact custom model IDs remain valid. For CLI input, `provider/model@reasoning:speed=normal|fast` is
+Runtime accepts a partial `{provider, model, reasoning, speed, acp_options}` object; `speed` is
+`normal|fast`, each ACP option is a typed select or boolean selection, and exact custom model IDs remain
+valid. For CLI input, `provider/model@reasoning:speed=normal|fast` is
 the compact form, `-` leaves provider or model unset, and `-/-:speed=fast` is speed-only intent.
 
 Values resolve per field as run > workspace config > global config > definition default. Validation
@@ -518,7 +519,7 @@ Use `contract.runtime_defaults` and `contract.runtime_rules` in a Loop definitio
 `goal` nodes use either literal `params.runtime` or an exact direct reference such as
 `runtime: "{{ .inputs.worker_runtime }}"` to a declared `type: runtime` input. Field interpolation
 inside the object is invalid. Imported task frontmatter may set
-`runtime: {provider, model, reasoning, speed}`.
+`runtime: {provider, model, reasoning, speed, acp_options}`.
 Judges use only `runtime_defaults.judge` plus the criterion's `runtime`; task rules never select a
 judge. The retired `model_defaults`, scalar `params.model`, and scalar criterion `model` keys fail
 with migration guidance.

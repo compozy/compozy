@@ -26,6 +26,7 @@ import {
   reasoningEffortPosition,
   REASONING_EFFORT_ORDER,
   resolveReasoningState,
+  type RuntimeACPOption,
   type RuntimeModelOption,
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
@@ -45,6 +46,48 @@ const claudeProvider: RuntimeProviderOption = {
   name: "Claude",
   runtime_provider: "claude",
 };
+
+const advancedACPOptions: RuntimeACPOption[] = [
+  {
+    id: "context_window",
+    label: "Context window",
+    description: "Maximum context for the next run",
+    kind: "select",
+    current_value_id: "200k",
+    values: [
+      {
+        value: "200k",
+        label: "200k tokens",
+        group_id: "standard",
+        group_label: "Standard",
+      },
+      {
+        value: "1m",
+        label: "1M tokens",
+        group_id: "large",
+        group_label: "Large",
+      },
+    ],
+  },
+  {
+    id: "thinking",
+    label: "Thinking",
+    description: "Allow the provider to spend more time reasoning",
+    kind: "boolean",
+    current_bool: false,
+  },
+  {
+    id: "model",
+    label: "Private model alias",
+    kind: "select",
+    values: [{ value: "transport-model", label: "Transport model" }],
+  },
+];
+
+// Invariant: the selector renders only public ACP controls, preserves grouped
+// values, and emits typed overrides that remain valid as the model changes.
+// Owning layer: runtime selector component and controller.
+// Canonical suite: RuntimeSelector component integration suite.
 
 // Browser-local favorites/recents must not leak across cases (each seeds its own).
 beforeEach(async () => {
@@ -316,6 +359,127 @@ describe("RuntimeSelector reasoning reset-on-switch", () => {
       provider: "codex",
       model: "also-high",
       reasoning_effort: "high",
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// ACP advanced options
+// ---------------------------------------------------------------------------
+
+describe("RuntimeSelector ACP advanced options", () => {
+  it("Should use the selected model catalog descriptors before a session is active", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "gpt", reasoning_effort: "" },
+      models: [model("gpt", { acp_options: advancedACPOptions })],
+    });
+
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
+    await user.click(screen.getByTestId("runtime-selector-option-thinking"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "gpt",
+      reasoning_effort: "",
+      acp_options: [{ id: "thinking", bool_value: true }],
+    });
+  });
+
+  it("Should disclose public grouped controls and emit typed select and boolean overrides", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "gpt", reasoning_effort: "" },
+      models: [model("gpt")],
+      props: { acpOptions: advancedACPOptions },
+    });
+
+    await openSelector(user);
+    expect(screen.queryByTestId("runtime-selector-advanced-panel")).toBeNull();
+    expect(screen.queryByText("Private model alias")).toBeNull();
+
+    await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
+    const panel = screen.getByTestId("runtime-selector-advanced-panel");
+    expect(panel).toBeInTheDocument();
+
+    const context = screen.getByTestId("runtime-selector-option-context_window");
+    expect(context).toHaveValue("200k");
+    expect(context.querySelector('optgroup[label="Standard"]')).toBeInTheDocument();
+    expect(context.querySelector('optgroup[label="Large"]')).toBeInTheDocument();
+
+    await user.selectOptions(context, "1m");
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "gpt",
+      reasoning_effort: "",
+      acp_options: [{ id: "context_window", value_id: "1m" }],
+    });
+
+    await user.click(screen.getByTestId("runtime-selector-option-thinking"));
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "gpt",
+      reasoning_effort: "",
+      acp_options: [
+        { id: "context_window", value_id: "1m" },
+        { id: "thinking", bool_value: true },
+      ],
+    });
+  });
+
+  it("Should disable advertised controls when the provider owns runtime settings", async () => {
+    const user = userEvent.setup();
+    const providerManaged: RuntimeProviderOption = {
+      ...codexProvider,
+      runtime_strategy: "provider_managed",
+    };
+    const { onChange } = renderSelector({
+      value: { provider: "codex", model: "gpt", reasoning_effort: "" },
+      providers: [providerManaged],
+      models: [model("gpt", { efforts: ["low", "high"] })],
+      props: { acpOptions: advancedACPOptions, onSpeedChange: vi.fn(), speed: "normal" },
+    });
+
+    expect(screen.getByRole("img", { name: "Provider managed" })).toBeInTheDocument();
+    await openSelector(user);
+    await user.click(screen.getByTestId("runtime-selector-advanced-toggle"));
+
+    expect(screen.getByText("Provider managed")).toBeInTheDocument();
+    expect(screen.getByTestId("runtime-selector-option-context_window")).toBeDisabled();
+    expect(screen.getByTestId("runtime-selector-option-thinking")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    expect(screen.getByTestId("runtime-selector-reasoning-track")).toHaveAttribute(
+      "aria-disabled",
+      "true"
+    );
+    expect(screen.getByTestId("runtime-selector-speed")).toBeDisabled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("Should reject stale ACP selections when a model change leaves them unadvertised", async () => {
+    const user = userEvent.setup();
+    const { onChange } = renderSelector({
+      value: {
+        provider: "codex",
+        model: "with-context",
+        reasoning_effort: "",
+        acp_options: [{ id: "context_window", value_id: "private-transport-alias" }],
+      },
+      models: [model("with-context"), model("without-context")],
+      props: { acpOptions: advancedACPOptions },
+    });
+
+    await openSelector(user);
+    await user.click(row("without-context"));
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      provider: "codex",
+      model: "without-context",
+      reasoning_effort: "",
+      acp_options: undefined,
     });
   });
 });
@@ -1977,6 +2141,23 @@ describe("RuntimeSelector speed request", () => {
 
     await user.click(speedSwitch);
     expect(onSpeedChange).toHaveBeenLastCalledWith("normal");
+  });
+
+  it("Should disable Fast when the selected model has no public fast configuration", async () => {
+    const user = userEvent.setup();
+    renderSelector({
+      value: { provider: "codex", model: "standard", reasoning_effort: "" },
+      models: [
+        model("standard", {
+          efforts: ["low"],
+          configurations: [{ reasoning_effort: "low", fast: false }],
+        }),
+      ],
+      props: { speed: "normal", onSpeedChange: vi.fn() },
+    });
+
+    await openSelector(user);
+    expect(screen.getByTestId("runtime-selector-speed")).toBeDisabled();
   });
 
   it("Should render the speed switch beside every reasoning footer mode when wired", async () => {

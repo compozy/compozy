@@ -11,12 +11,14 @@ import (
 	apicontract "github.com/compozy/compozy/internal/api/contract"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type hostAPIModelCatalogService interface {
 	ListModels(ctx context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	Refresh(ctx context.Context, opts modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	ListSourceStatus(ctx context.Context, providerID string) ([]modelcatalog.SourceStatus, error)
+	ListSourceStatus(ctx context.Context, opts modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 // WithHostAPIModelCatalogService injects daemon-owned model catalog projections.
@@ -47,11 +49,12 @@ func (h *HostAPIHandler) handleModelsList(
 		return nil, unavailableRPCError(err)
 	}
 	models, err := service.ListModels(ctx, modelcatalog.ListOptions{
-		ProviderID:   providerID,
-		SourceID:     sourceID,
-		Refresh:      params.Refresh,
-		IncludeStale: params.IncludeStale,
-		Now:          h.hostAPINow(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		Refresh:          params.Refresh,
+		IncludeStale:     params.IncludeStale,
+		ExecutionContext: hostAPIModelCatalogExecutionContext(ctx),
+		Now:              h.hostAPINow(),
 	})
 	if err != nil {
 		return nil, hostAPIModelCatalogRPCError(err)
@@ -80,11 +83,12 @@ func (h *HostAPIHandler) handleModelsRefresh(
 		return nil, unavailableRPCError(err)
 	}
 	statuses, err := service.Refresh(ctx, modelcatalog.RefreshOptions{
-		ProviderID: providerID,
-		SourceID:   sourceID,
-		Force:      params.Force,
-		RequestID:  strings.TrimSpace(params.RequestID),
-		Now:        h.hostAPINow(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		Force:            params.Force,
+		RequestID:        strings.TrimSpace(params.RequestID),
+		ExecutionContext: hostAPIModelCatalogExecutionContext(ctx),
+		Now:              h.hostAPINow(),
 	})
 	payload := apicontract.ProviderModelRefreshResponse{
 		Sources: hostAPISourceStatusPayloadsFromStatuses(statuses),
@@ -115,7 +119,10 @@ func (h *HostAPIHandler) handleModelsStatus(
 	if err != nil {
 		return nil, unavailableRPCError(err)
 	}
-	statuses, err := service.ListSourceStatus(ctx, providerID)
+	statuses, err := service.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: hostAPIModelCatalogExecutionContext(ctx),
+	})
 	if err != nil {
 		return nil, unavailableRPCError(err)
 	}
@@ -129,6 +136,38 @@ func (h *HostAPIHandler) modelCatalogService() (hostAPIModelCatalogService, erro
 		return nil, errors.New("extension: model catalog service is unavailable")
 	}
 	return h.modelCatalog, nil
+}
+
+func hostAPIModelCatalogExecutionContext(ctx context.Context) modelcatalog.CatalogExecutionContext {
+	key, _ := hostAPIInstanceKeyFromContext(ctx)
+	profileID := strings.TrimSpace(key.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	workspaceID := strings.TrimSpace(key.WorkspaceID)
+	if resourceSession, ok := hostAPIResourceSessionFromContext(ctx); ok {
+		switch resourceSession.Actor.MaxScope.Kind {
+		case resources.ResourceScopeKindProfile:
+			if scopedProfileID := strings.TrimSpace(resourceSession.Actor.MaxScope.ID); scopedProfileID != "" {
+				profileID = scopedProfileID
+			}
+		case resources.ResourceScopeKindWorkspace:
+			if scopedWorkspaceID := strings.TrimSpace(resourceSession.Actor.MaxScope.ID); scopedWorkspaceID != "" {
+				workspaceID = scopedWorkspaceID
+			}
+		}
+	}
+	if workspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: profileID,
+		}
+	}
+	return modelcatalog.CatalogExecutionContext{
+		Scope:       modelcatalog.ExecutionScopeWorkspace,
+		ProfileID:   profileID,
+		WorkspaceID: workspaceID,
+	}
 }
 
 func (h *HostAPIHandler) hostAPINow() time.Time {
@@ -202,6 +241,8 @@ func hostAPIProviderModelPayloadFromModel(model modelcatalog.Model) apicontract.
 		SupportsReasoning:      model.SupportsReasoning,
 		ReasoningEfforts:       append([]apicontract.ReasoningEffort(nil), model.ReasoningEfforts...),
 		DefaultReasoningEffort: model.DefaultReasoningEffort,
+		ConfigOptions:          hostAPIModelConfigOptions(model.ConfigOptions),
+		Configurations:         hostAPIModelConfigurations(model.TransportBindings),
 		Cost:                   hostAPICostPayloadFromModel(model),
 		Curated:                model.Curated,
 		Deprecated:             model.Deprecated,
@@ -211,6 +252,74 @@ func hostAPIProviderModelPayloadFromModel(model modelcatalog.Model) apicontract.
 		ReasoningSource:        model.ReasoningSource,
 		LastError:              modelcatalog.RedactString(model.LastError),
 	}
+}
+
+func hostAPIModelConfigOptions(
+	options []modelcatalog.ModelOptionDescriptor,
+) []apicontract.SessionConfigOptionPayload {
+	if len(options) == 0 {
+		return nil
+	}
+	payloads := make([]apicontract.SessionConfigOptionPayload, 0, len(options))
+	for _, option := range options {
+		payload := apicontract.SessionConfigOptionPayload{
+			ID:             option.ID,
+			Label:          option.Label,
+			Description:    option.Description,
+			Category:       option.Category,
+			Kind:           string(option.Kind),
+			CurrentValueID: option.CurrentValueID,
+			Values:         hostAPIModelConfigOptionValues(option.Values),
+		}
+		if option.CurrentBool != nil {
+			payload.CurrentBool = new(*option.CurrentBool)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func hostAPIModelConfigOptionValues(
+	values []modelcatalog.ModelOptionValue,
+) []apicontract.SessionConfigOptionValuePayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]apicontract.SessionConfigOptionValuePayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, apicontract.SessionConfigOptionValuePayload{
+			Value:       value.ValueID,
+			Label:       value.Label,
+			Description: value.Description,
+			GroupID:     value.GroupID,
+			GroupLabel:  value.GroupLabel,
+		})
+	}
+	return payloads
+}
+
+func hostAPIModelConfigurations(
+	bindings []modelcatalog.ModelTransportBinding,
+) []apicontract.ProviderModelConfigurationPayload {
+	if len(bindings) == 0 {
+		return nil
+	}
+	payloads := make([]apicontract.ProviderModelConfigurationPayload, 0, len(bindings))
+	for _, binding := range bindings {
+		payload := apicontract.ProviderModelConfigurationPayload{}
+		if binding.ReasoningEffort != nil {
+			effort := apicontract.ReasoningEffort(*binding.ReasoningEffort)
+			payload.ReasoningEffort = new(effort)
+		}
+		if binding.Fast != nil {
+			payload.Fast = new(*binding.Fast)
+		}
+		if binding.Thinking != nil {
+			payload.Thinking = new(*binding.Thinking)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
 }
 
 func hostAPISourceRefPayloadsFromRefs(refs []modelcatalog.SourceRef) []apicontract.ModelCatalogSourceRefPayload {

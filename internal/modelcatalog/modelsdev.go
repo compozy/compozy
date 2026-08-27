@@ -415,6 +415,8 @@ func cloneModelRows(rows []ModelRow) []ModelRow {
 		cloned[index].SupportsReasoning = cloneModelRowPointer(row.SupportsReasoning)
 		cloned[index].ReasoningEfforts = append([]ReasoningEffort(nil), row.ReasoningEfforts...)
 		cloned[index].DefaultReasoningEffort = cloneModelRowPointer(row.DefaultReasoningEffort)
+		cloned[index].ConfigOptions = CloneModelOptionDescriptors(row.ConfigOptions)
+		cloned[index].TransportBindings = cloneTransportBindings(row.TransportBindings)
 		cloned[index].CostInputPerMillion = cloneModelRowPointer(row.CostInputPerMillion)
 		cloned[index].CostOutputPerMillion = cloneModelRowPointer(row.CostOutputPerMillion)
 		cloned[index].CostCacheReadPerMillion = cloneModelRowPointer(row.CostCacheReadPerMillion)

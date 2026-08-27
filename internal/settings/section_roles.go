@@ -1,7 +1,7 @@
 package settings
 
 import (
-	"slices"
+	"reflect"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
@@ -64,7 +64,13 @@ func diffRoleSettings(
 	if current.ReasoningEffort != desired.ReasoningEffort {
 		changed = append(changed, prefix+"reasoning_effort")
 	}
-	if !slices.Equal(current.FallbackChain, desired.FallbackChain) {
+	if current.Speed != desired.Speed {
+		changed = append(changed, prefix+"speed")
+	}
+	if !roleACPOptionsEqual(current.ACPOptions, desired.ACPOptions) {
+		changed = append(changed, prefix+"acp_options")
+	}
+	if !roleFallbacksEqual(current.FallbackChain, desired.FallbackChain) {
 		changed = append(changed, prefix+"fallback_chain")
 	}
 	return changed
@@ -85,6 +91,10 @@ func diffMemoryControllerRoleSettings(
 		desired.Model,
 		current.ReasoningEffort,
 		desired.ReasoningEffort,
+		string(current.Speed),
+		string(desired.Speed),
+		current.ACPOptions,
+		desired.ACPOptions,
 		current.FallbackChain,
 		desired.FallbackChain,
 	)
@@ -113,6 +123,10 @@ func diffSharedRoleRouteFields(
 	desiredModel string,
 	currentEffort string,
 	desiredEffort string,
+	currentSpeed string,
+	desiredSpeed string,
+	currentACPOptions []compozyconfig.ACPOptionSelection,
+	desiredACPOptions []compozyconfig.ACPOptionSelection,
 	currentFallbacks []compozyconfig.RoleFallback,
 	desiredFallbacks []compozyconfig.RoleFallback,
 ) []string {
@@ -129,7 +143,13 @@ func diffSharedRoleRouteFields(
 	if currentEffort != desiredEffort {
 		changed = append(changed, prefix+sectionsReasoningEffortKey)
 	}
-	if !slices.Equal(currentFallbacks, desiredFallbacks) {
+	if currentSpeed != desiredSpeed {
+		changed = append(changed, prefix+sectionsSpeedKey)
+	}
+	if !roleACPOptionsEqual(currentACPOptions, desiredACPOptions) {
+		changed = append(changed, prefix+sectionsACPOptionsKey)
+	}
+	if !roleFallbacksEqual(currentFallbacks, desiredFallbacks) {
 		changed = append(changed, prefix+sectionsFallbackChainKey)
 	}
 	return changed
@@ -162,6 +182,8 @@ func roleTable(role compozyconfig.RoleConfig) map[string]any {
 		sectionsProviderKey:        role.Provider,
 		sectionsModelKey:           role.Model,
 		sectionsReasoningEffortKey: role.ReasoningEffort,
+		sectionsSpeedKey:           string(role.Speed),
+		sectionsACPOptionsKey:      roleACPOptionTables(role.ACPOptions),
 		sectionsFallbackChainKey:   roleFallbackTables(role.FallbackChain),
 	}
 }
@@ -180,6 +202,8 @@ func memoryControllerRoleTable(role compozyconfig.MemoryControllerRoleConfig) ma
 		sectionsProviderKey:        role.Provider,
 		sectionsModelKey:           role.Model,
 		sectionsReasoningEffortKey: role.ReasoningEffort,
+		sectionsSpeedKey:           string(role.Speed),
+		sectionsACPOptionsKey:      roleACPOptionTables(role.ACPOptions),
 		"timeout":                  role.Timeout.String(),
 		"top_k":                    role.TopK,
 		"prompt_version":           role.PromptVersion,
@@ -195,7 +219,38 @@ func roleFallbackTables(fallbacks []compozyconfig.RoleFallback) []map[string]any
 			sectionsProviderKey:        fallback.Provider,
 			sectionsModelKey:           fallback.Model,
 			sectionsReasoningEffortKey: fallback.ReasoningEffort,
+			sectionsSpeedKey:           string(fallback.Speed),
+			sectionsACPOptionsKey:      roleACPOptionTables(fallback.ACPOptions),
 		})
 	}
 	return tables
+}
+
+func roleACPOptionTables(options []compozyconfig.ACPOptionSelection) []map[string]any {
+	tables := make([]map[string]any, 0, len(options))
+	for _, option := range options {
+		table := map[string]any{"id": option.ID}
+		if option.ValueID != "" {
+			table["value_id"] = option.ValueID
+		}
+		if option.BoolValue != nil {
+			table["bool_value"] = *option.BoolValue
+		}
+		tables = append(tables, table)
+	}
+	return tables
+}
+
+func roleACPOptionsEqual(left, right []compozyconfig.ACPOptionSelection) bool {
+	if len(left) == 0 && len(right) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(left, right)
+}
+
+func roleFallbacksEqual(left, right []compozyconfig.RoleFallback) bool {
+	if len(left) == 0 && len(right) == 0 {
+		return true
+	}
+	return reflect.DeepEqual(left, right)
 }

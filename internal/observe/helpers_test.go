@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -310,7 +311,7 @@ func TestHelperFunctions(t *testing.T) {
 		}
 	})
 
-	if got := sessionInfoFromSession(nil); got != (store.SessionInfo{}) {
+	if got := sessionInfoFromSession(nil); !reflect.DeepEqual(got, store.SessionInfo{}) {
 		t.Fatalf("sessionInfoFromSession(nil) = %#v, want zero value", got)
 	}
 	if got := stringPointer(""); got != nil {

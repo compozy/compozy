@@ -1,0 +1,40 @@
+Available models
+
+cursor-grok-4.5-low - Cursor Grok 4.5 Low
+cursor-grok-4.5-low-fast - Cursor Grok 4.5 Low Fast
+cursor-grok-4.5-medium - Cursor Grok 4.5 Medium
+cursor-grok-4.5-medium-fast - Cursor Grok 4.5 Medium Fast
+cursor-grok-4.5-high - Cursor Grok 4.5
+cursor-grok-4.5-high-fast - Cursor Grok 4.5 Fast
+
+cursor-grok-4.6-low - Cursor Grok 4.6 Low
+cursor-grok-4.6-low-fast - Cursor Grok 4.6 Low Fast
+cursor-grok-4.6-medium - Cursor Grok 4.6 Medium
+cursor-grok-4.6-medium-fast - Cursor Grok 4.6 Medium Fast
+cursor-grok-4.6-high - Cursor Grok 4.6
+cursor-grok-4.6-high-fast - Cursor Grok 4.6 Fast
+cursor-grok-4.6-xhigh - Cursor Grok 4.6 Extra High
+cursor-grok-4.6-xhigh-fast - Cursor Grok 4.6 Extra High Fast
+
+claude-opus-5-low - Claude Opus 5 1M Low
+claude-opus-5-low-fast - Claude Opus 5 1M Low Fast
+claude-opus-5-medium - Claude Opus 5 1M Medium
+claude-opus-5-medium-fast - Claude Opus 5 1M Medium Fast
+claude-opus-5-high - Claude Opus 5 1M
+claude-opus-5-high-fast - Claude Opus 5 1M Fast
+claude-opus-5-thinking-low - Claude Opus 5 1M Low Thinking
+claude-opus-5-thinking-low-fast - Claude Opus 5 1M Low Thinking Fast
+claude-opus-5-thinking-medium - Claude Opus 5 1M Medium Thinking
+claude-opus-5-thinking-medium-fast - Claude Opus 5 1M Medium Thinking Fast
+claude-opus-5-thinking-high - Claude Opus 5 1M Thinking
+claude-opus-5-thinking-high-fast - Claude Opus 5 1M Thinking Fast
+claude-opus-5-thinking-xhigh - Claude Opus 5 1M Extra High Thinking
+claude-opus-5-thinking-xhigh-fast - Claude Opus 5 1M Extra High Thinking Fast
+claude-opus-5-thinking-max - Claude Opus 5 1M Max Thinking
+claude-opus-5-thinking-max-fast - Claude Opus 5 1M Max Thinking Fast
+
+composer-2.5 - Composer 2.5
+composer-2.5-fast - Composer 2.5 Fast
+cursor-grok-4.6-high-fast - Cursor Grok 4.6 Fast
+
+Tip: use --model <id> to select a model

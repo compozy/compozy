@@ -30,6 +30,7 @@ func (s *Session) metaLocked() store.SessionMeta {
 		Model:             s.Model,
 		ReasoningEffort:   s.ReasoningEffort,
 		Speed:             s.Speed,
+		ACPOptions:        storeSessionACPOptionSelections(s.ACPOptions),
 		SpeedResolution:   speedpkg.CloneResolution(s.SpeedResolution),
 		RuntimeStatus:     s.RuntimeStatus,
 		RuntimeTransition: s.RuntimeTransition,

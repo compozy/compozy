@@ -38,3 +38,7 @@ Status remains untested; no QA replay ran.
 lines while creating an environment or starting the session stay visible. Status remains untested.
 
 2026-08-20 qa-impact: Simple/Advanced sits on a recessed `--color-canvas-tint` chrome strip against the `--color-canvas-soft` shell. Status remains untested.
+
+2026-08-27 qa-impact: the destination composer Runtime Selector now includes catalog-backed Fast,
+advanced ACP options, and provider-managed state. Status remains untested for the launch-to-composer
+handoff.

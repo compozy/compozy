@@ -3,6 +3,7 @@ package acp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -40,7 +41,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 		SessionID:      loadRequest.SessionId,
 	}
-	loadResponse, err := acpsdk.SendRequest[acpsdk.LoadSessionResponse](
+	loadResponse, err := acpsdk.SendRequest[wireSessionSetupResponse](
 		process.conn,
 		ctx,
 		acpsdk.AgentMethodSessionLoad,
@@ -61,11 +62,7 @@ func (d *Driver) loadSession(ctx context.Context, process *AgentProcess, normali
 	if err := process.checkpointProcessOwner(ctx); err != nil {
 		return err
 	}
-	process.setCaps(captureCaps(
-		process.CapsSnapshot(),
-		loadResponse.Modes,
-		loadResponse.ConfigOptions,
-	))
+	process.setCaps(captureSessionSetupCaps(process.CapsSnapshot(), loadResponse))
 	return d.applySessionConfiguration(ctx, process, normalized)
 }
 
@@ -80,7 +77,7 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		McpServers:     newRequest.McpServers,
 		AdditionalDirs: append([]string(nil), normalized.AdditionalDirs...),
 	}
-	newResponse, err := acpsdk.SendRequest[acpsdk.NewSessionResponse](
+	newResponse, err := acpsdk.SendRequest[wireSessionSetupResponse](
 		process.conn,
 		ctx,
 		acpsdk.AgentMethodSessionNew,
@@ -95,16 +92,12 @@ func (d *Driver) createSession(ctx context.Context, process *AgentProcess, norma
 		)
 	}
 
-	process.SessionID = string(newResponse.SessionId)
+	process.SessionID = string(newResponse.SessionID)
 	d.logStartStage(normalized, process, "session_new", startOutcomeSucceeded, stageStartedAt)
 	if err := process.checkpointProcessOwner(ctx); err != nil {
 		return err
 	}
-	process.setCaps(captureCaps(
-		process.CapsSnapshot(),
-		newResponse.Modes,
-		newResponse.ConfigOptions,
-	))
+	process.setCaps(captureSessionSetupCaps(process.CapsSnapshot(), newResponse))
 	return d.applySessionConfiguration(ctx, process, normalized)
 }
 
@@ -125,6 +118,9 @@ func (d *Driver) applySessionConfiguration(
 			"ACP session mode negotiation failed",
 			fmt.Errorf("acp: set session mode for %q: %w", normalized.AgentName, err),
 		)
+	}
+	if normalized.RuntimeStrategy != RuntimeApplicationSessionConfig {
+		return verifyLaunchBoundRuntime(process, normalized)
 	}
 
 	stageStartedAt = time.Now()
@@ -157,6 +153,44 @@ func (d *Driver) applySessionConfiguration(
 			store.FailureProtocol,
 			"ACP session speed negotiation failed",
 			fmt.Errorf("acp: set session speed for %q: %w", normalized.AgentName, err),
+		)
+	}
+	stageStartedAt = time.Now()
+	if err := d.applySessionConfigSelections(ctx, process, normalized.ACPOptions); err != nil {
+		d.logStartStage(normalized, process, "set_acp_options", startOutcomeFailed, stageStartedAt)
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session option negotiation failed",
+			fmt.Errorf("acp: set session ACP options for %q: %w", normalized.AgentName, err),
+		)
+	}
+	d.logStartStage(normalized, process, "set_acp_options", startOutcomeSucceeded, stageStartedAt)
+	return nil
+}
+
+func verifyLaunchBoundRuntime(process *AgentProcess, normalized StartOpts) error {
+	if normalized.RuntimeStrategy != RuntimeApplicationLaunchArg || normalized.ExpectedTransportModel == "" {
+		return nil
+	}
+	option, ok := ModelConfigOption(process.CapsSnapshot().ConfigOptions)
+	if !ok {
+		return newNegotiationError(
+			NegotiationCodeModelUnavailable,
+			sessionConfigModelKey,
+			normalized.ExpectedTransportModel,
+			"",
+			nil,
+			errModelConfigOptionRequired,
+		)
+	}
+	if strings.TrimSpace(option.CurrentValueID) != normalized.ExpectedTransportModel {
+		return newNegotiationError(
+			NegotiationCodeModelUnavailable,
+			sessionConfigModelKey,
+			normalized.ExpectedTransportModel,
+			option.ID,
+			configOptionChoices(option),
+			nil,
 		)
 	}
 	return nil

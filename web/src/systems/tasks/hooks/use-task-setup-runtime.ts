@@ -13,6 +13,7 @@ function settingsProviderOption(provider: SettingsProviderEntry): RuntimeProvide
     name: provider.settings.display_name?.trim() || provider.name,
     harness: provider.settings.harness?.trim() || undefined,
     runtime_provider: provider.settings.runtime_provider?.trim() || undefined,
+    runtime_strategy: provider.runtime_strategy,
     needs_auth: providerNeedsAuth(provider.auth_status?.state),
   };
 }
@@ -23,6 +24,7 @@ function workspaceProviderOption(provider: SessionProviderOption): RuntimeProvid
     name: provider.display_name?.trim() || provider.name,
     harness: provider.harness?.trim() || undefined,
     runtime_provider: provider.runtime_provider?.trim() || provider.name,
+    runtime_strategy: provider.runtime_strategy,
   };
 }
 

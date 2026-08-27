@@ -17,6 +17,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -178,6 +179,8 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		roles := cfg.Roles
 		roles.MemoryExtractor.Model = "anthropic/claude-sonnet-4"
+		roles.MemoryExtractor.Speed = "fast"
+		roles.MemoryExtractor.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionRoles},
@@ -197,6 +200,14 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		if got, want := persisted.Roles.MemoryExtractor.Model, "anthropic/claude-sonnet-4"; got != want {
 			t.Fatalf("persisted roles.memory_extractor.model = %q, want %q", got, want)
+		}
+		if got, want := persisted.Roles.MemoryExtractor.Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("persisted roles.memory_extractor.speed = %q, want %q", got, want)
+		}
+		persistedOption := persisted.Roles.MemoryExtractor.ACPOptions
+		if len(persistedOption) != 1 || persistedOption[0].ID != "thinking" ||
+			persistedOption[0].BoolValue == nil || !*persistedOption[0].BoolValue {
+			t.Fatalf("persisted roles.memory_extractor.acp_options = %#v, want thinking=true", persistedOption)
 		}
 		active, err := service.ActiveConfig(ctx)
 		if err != nil {
@@ -266,7 +277,8 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		roles := cfg.Roles
 		roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
-			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium",
+			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium", Speed: "fast",
+			ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}},
 		}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{

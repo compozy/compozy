@@ -4,6 +4,7 @@ import type { SessionPayload } from "@/systems/session";
 
 import { filterAgentSessionsByStatus, validateAgentDetailSearch } from "../agent-detail-search";
 import { validateAgentSettingsSearch } from "../agent-settings-search";
+import { resolveAgentRuntimeValue } from "../agent-effective-runtime";
 import {
   countPromptWords,
   formatAbsentList,
@@ -122,6 +123,10 @@ describe("agent-absent-value", () => {
 });
 
 describe("agent-settings-draft", () => {
+  // Invariant: typed ACP selections survive agent runtime reads and updates
+  // without exposing provider transport aliases or stringified booleans.
+  // Owning layer: agent runtime projection and settings request mapper.
+  // Canonical suite: agent-detail-settings-search unit suite.
   it("Should preserve blank authored runtime fields while project defaults remain effective", () => {
     const agent = makeAgent({
       provider: "",
@@ -182,5 +187,38 @@ describe("agent-settings-draft", () => {
     expect(params?.expected_digest).toBe(agent.definition_digest);
     expect(params?.workspace).toBe("ws_alpha");
     expect(params?.agent.permissions).toBe("approve-reads");
+  });
+
+  it("Should preserve typed ACP selections in the runtime projection and update body", () => {
+    const agent = makeAgent({
+      acp_options: [
+        { id: "context", value_id: "1m" },
+        { id: "thinking", bool_value: true },
+      ],
+    });
+
+    expect(resolveAgentRuntimeValue(agent).acp_options).toEqual([
+      { id: "context", value_id: "1m" },
+      { id: "thinking", bool_value: true },
+    ]);
+    const draft = buildSettingsDraftFromAgent(agent);
+    expect(draft.acpOptions).toEqual([
+      { id: "context", value_id: "1m" },
+      { id: "thinking", bool_value: true },
+    ]);
+
+    const params = buildUpdateAgentParams(
+      { ...draft, acpOptions: [{ id: "thinking", bool_value: false }] },
+      "ws_alpha"
+    );
+    expect(params?.agent.acp_options).toEqual([{ id: "thinking", bool_value: false }]);
+  });
+
+  it("Should preserve the authored Fast default in the settings update body", () => {
+    const agent = makeAgent({ speed: "fast" });
+    const draft = buildSettingsDraftFromAgent(agent);
+
+    expect(draft.speed).toBe("fast");
+    expect(buildUpdateAgentParams(draft, "ws_alpha")?.agent.speed).toBe("fast");
   });
 });

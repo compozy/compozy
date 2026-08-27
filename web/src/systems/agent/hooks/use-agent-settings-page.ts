@@ -35,6 +35,7 @@ function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProvi
     name: displayName || provider.name,
     ...(harness ? { harness } : {}),
     ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
+    runtime_strategy: provider.runtime_strategy,
     needs_auth: providerNeedsAuth(provider.auth_status?.state),
   };
 }
@@ -48,6 +49,7 @@ function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProv
     name: displayName || provider.name,
     ...(harness ? { harness } : {}),
     runtime_provider: runtimeProvider || provider.name,
+    runtime_strategy: provider.runtime_strategy,
   };
 }
 

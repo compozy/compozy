@@ -50,9 +50,10 @@ var builtinProviders = map[string]ProviderConfig{
 		Harness:     ProviderHarnessACP,
 	},
 	providerHermesKey: {
-		Command:     "hermes acp",
-		DisplayName: "Hermes",
-		Harness:     ProviderHarnessACP,
+		Command:       "hermes acp",
+		DisplayName:   "Hermes",
+		Harness:       ProviderHarnessACP,
+		AuthStatusCmd: "hermes acp --check",
 	},
 	providerJunieKey: {
 		Command:     "junie --acp true",

@@ -69,6 +69,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		"model":"gpt-test",
 		"reasoning_effort":" high ",
 		"speed":"fast",
+		"acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],
 		"name":"child",
 		"workspace":"ws-target",
 		"prompt_overlay":"focus",
@@ -97,6 +98,7 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		got.Model != "gpt-test" ||
 		got.ReasoningEffort != "high" ||
 		got.Speed != speedpkg.SpeedFast ||
+		len(got.ACPOptions) != 2 ||
 		got.Name != "child" ||
 		got.Workspace != "ws-target" ||
 		got.PromptOverlay != "focus" ||
@@ -107,6 +109,11 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		got.NotifyCreatorSet ||
 		got.IdempotencyKey != "spawn-1" {
 		t.Fatalf("spawn opts = %#v, want mapped request with auto_stop default", got)
+	}
+	if got.ACPOptions[0].ID != "context" || got.ACPOptions[0].ValueID != "1m" ||
+		got.ACPOptions[1].ID != "thinking" || got.ACPOptions[1].BoolValue == nil ||
+		!*got.ACPOptions[1].BoolValue {
+		t.Fatalf("spawn ACP options = %#v, want typed select and boolean", got.ACPOptions)
 	}
 	if len(got.PermissionPolicy.Tools) != 1 || got.PermissionPolicy.Tools[0] != "read" {
 		t.Fatalf("permission policy = %#v, want narrowed read tool", got.PermissionPolicy)

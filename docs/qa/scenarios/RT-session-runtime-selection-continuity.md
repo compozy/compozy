@@ -4,9 +4,9 @@ area: RT
 title: Preserve the session runtime selection through stop and restart
 persona: Théo
 journey: J-17
-expected: Choosing provider, model, reasoning, or speed persists immediately for that session; stop, reopen, refresh, and daemon restart restore the same selected values and revision, and the next prompt uses them without changing earlier turns or the agent default.
+expected: Choosing provider, logical model, Reasoning, Fast, or typed ACP options persists immediately for that session; stop, reopen, refresh, and daemon restart restore the same selected values and revision, and the next prompt uses them without changing earlier turns or the agent default.
 entry_points: web session composer; CLI session runtime set|clear; HTTP+UDS session runtime route
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -22,3 +22,6 @@ QA 2026-08-04: Claude Fable 5 with Max reasoning survived manual stop, permalink
 
 QA impact 2026-08-13: a Cursor selection now persists only when its model is an exact live ACP value.
 Reset for a public selection readback and next-prompt continuity walk.
+
+QA impact 2026-08-27: durable selection now preserves typed ACP options and public logical model IDs.
+Reset for store, HTTP/UDS/CLI/native, restart, and next-prompt continuity.

@@ -212,6 +212,9 @@ func (b *loopActionSessionBinder) revalidatePersistedProfile(
 		if requested.Speed != "" {
 			applied.Speed = requested.Speed
 		}
+		if len(requested.ACPOptions) > 0 {
+			applied.ACPOptions = loopACPOptionsFromSession(loopACPOptionsForSession(requested.ACPOptions))
+		}
 	}
 	return applied, nil
 }

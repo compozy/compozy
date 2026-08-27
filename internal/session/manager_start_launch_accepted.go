@@ -100,7 +100,8 @@ func (m *Manager) launchAcceptedSessionStart(accepted *acceptedSessionStart) err
 		ctx,
 		session,
 		accepted.proc,
-		strings.TrimSpace(startOpts.PreferredModel) == "",
+		strings.TrimSpace(startOpts.PreferredModel) == "" &&
+			startOpts.RuntimeStrategy == acp.RuntimeApplicationSessionConfig,
 		runtime.agent,
 		runtime.networkCapabilities,
 		spec.postEvent,

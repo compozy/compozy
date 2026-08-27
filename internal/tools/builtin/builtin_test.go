@@ -361,6 +361,52 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should expose typed authored agent runtime defaults", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDAgentCreate]
+		var topLevel nativeObjectSchema
+		if err := json.Unmarshal(descriptor.InputSchema, &topLevel); err != nil {
+			t.Fatalf("%s input schema unmarshal error = %v", descriptor.ID, err)
+		}
+		var input nativeObjectSchema
+		if err := json.Unmarshal(topLevel.Properties["acp_options"], &input); err != nil {
+			t.Fatalf("%s acp_options schema unmarshal error = %v", descriptor.ID, err)
+		}
+		if input.Type != "array" {
+			t.Fatalf("%s acp_options type = %q, want array", descriptor.ID, input.Type)
+		}
+		var option nativeObjectSchema
+		if err := json.Unmarshal(input.Items, &option); err != nil {
+			t.Fatalf("%s acp_options item schema unmarshal error = %v", descriptor.ID, err)
+		}
+		assertClosedObjectSchema(t, descriptor.ID.String()+" acp_options item", option,
+			[]string{"bool_value", "id", "value_id"})
+		for _, property := range []string{"id", "value_id"} {
+			var field nativeObjectSchema
+			if err := json.Unmarshal(option.Properties[property], &field); err != nil {
+				t.Fatalf("%s acp_options.%s schema unmarshal error = %v", descriptor.ID, property, err)
+			}
+			if field.Type != "string" || field.MinLength != 1 {
+				t.Fatalf("%s acp_options.%s schema = %#v, want non-empty string", descriptor.ID, property, field)
+			}
+		}
+		var boolField nativeObjectSchema
+		if err := json.Unmarshal(option.Properties["bool_value"], &boolField); err != nil {
+			t.Fatalf("%s acp_options.bool_value schema unmarshal error = %v", descriptor.ID, err)
+		}
+		if boolField.Type != "boolean" {
+			t.Fatalf("%s acp_options.bool_value type = %q, want boolean", descriptor.ID, boolField.Type)
+		}
+		var speedField nativeObjectSchema
+		if err := json.Unmarshal(topLevel.Properties["speed"], &speedField); err != nil {
+			t.Fatalf("%s speed schema unmarshal error = %v", descriptor.ID, err)
+		}
+		if speedField.Type != "string" {
+			t.Fatalf("%s speed type = %q, want string", descriptor.ID, speedField.Type)
+		}
+	})
+
 	t.Run("Should expose a closed atomic memory operations batch schema", func(t *testing.T) {
 		t.Parallel()
 

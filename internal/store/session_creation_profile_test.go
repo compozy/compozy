@@ -11,19 +11,21 @@ import (
 func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should persist normal speed and profile id in the canonical version four profile", func(t *testing.T) {
+	t.Run("Should persist typed runtime defaults in the canonical version five profile", func(t *testing.T) {
 		t.Parallel()
 
 		profile := validSessionCreationProfile()
+		profile.ACPOptions = []SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 		payload, err := profile.CanonicalJSON()
 		if err != nil {
 			t.Fatalf("CanonicalJSON() error = %v", err)
 		}
 		encoded := string(payload)
-		if !strings.Contains(encoded, `"version":4`) ||
+		if !strings.Contains(encoded, `"version":5`) ||
 			!strings.Contains(encoded, `"speed":"normal"`) ||
+			!strings.Contains(encoded, `"acp_options":[{"id":"thinking","bool_value":true}]`) ||
 			!strings.Contains(encoded, `"profile_id":"00000000000000000000000000"`) {
-			t.Fatalf("CanonicalJSON() = %s, want version 4 with normal speed and profile id", encoded)
+			t.Fatalf("CanonicalJSON() = %s, want version 5 with typed runtime defaults", encoded)
 		}
 	})
 
@@ -43,6 +45,25 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 		}
 		if normalRef == fastRef {
 			t.Fatalf("profile refs = %q, want speed-specific identities", normalRef)
+		}
+	})
+
+	t.Run("Should change the immutable profile reference when an ACP option changes", func(t *testing.T) {
+		t.Parallel()
+
+		withoutOption := validSessionCreationProfile()
+		withOption := withoutOption
+		withOption.ACPOptions = []SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		withoutRef, err := withoutOption.Ref()
+		if err != nil {
+			t.Fatalf("without option Ref() error = %v", err)
+		}
+		withRef, err := withOption.Ref()
+		if err != nil {
+			t.Fatalf("with option Ref() error = %v", err)
+		}
+		if withoutRef == withRef {
+			t.Fatalf("profile refs = %q, want ACP-option-specific identities", withoutRef)
 		}
 	})
 

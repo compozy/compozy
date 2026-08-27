@@ -42,16 +42,22 @@ func (m *Manager) ensurePromptRuntime(
 
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
-		if configurator, ok := m.driver.(RuntimeConfigurator); ok {
-			liveErr := m.configurePromptRuntime(ctx, session, configurator, &snapshot, plan.selection)
-			if liveErr == nil {
-				return snapshot.process, nil
+		runtimeProvider := strings.TrimSpace(plan.runtime.agent.RuntimeProvider)
+		if runtimeProvider == "" {
+			runtimeProvider = strings.TrimSpace(plan.runtime.agent.Provider)
+		}
+		if RuntimeStrategyForProvider(runtimeProvider) == acp.RuntimeApplicationSessionConfig {
+			if configurator, ok := m.driver.(RuntimeConfigurator); ok {
+				liveErr := m.configurePromptRuntime(ctx, session, configurator, &snapshot, plan.selection)
+				if liveErr == nil {
+					return snapshot.process, nil
+				}
+				proc, replacementErr := m.replacePromptRuntime(ctx, session, &snapshot, plan)
+				if replacementErr == nil {
+					return proc, nil
+				}
+				return nil, errors.Join(liveErr, replacementErr)
 			}
-			proc, replacementErr := m.replacePromptRuntime(ctx, session, &snapshot, plan)
-			if replacementErr == nil {
-				return proc, nil
-			}
-			return nil, errors.Join(liveErr, replacementErr)
 		}
 	}
 
@@ -189,6 +195,7 @@ func runtimeConfigForSelection(selection RuntimeSelection) acp.RuntimeConfig {
 		Model:           selection.Model,
 		ReasoningEffort: selection.ReasoningEffort,
 		Speed:           selection.Speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(selection.ACPOptions),
 	}
 }
 
@@ -245,8 +252,12 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.model = selection.Model
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
+	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	runtime, err := m.resolveSessionStartRuntime(&spec)
 	if err != nil {
+		return nil, err
+	}
+	if err := m.validateExplicitStartModel(ctx, &runtime, &spec); err != nil {
 		return nil, err
 	}
 	existingDefinition := session.AgentDefinition()
@@ -258,6 +269,7 @@ func (m *Manager) preparePromptRuntimePlan(
 		Model:           spec.model,
 		ReasoningEffort: spec.reasoningEffort,
 		Speed:           spec.speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(spec.acpOptions),
 	}
 	if resolvedSelection.Model == "" {
 		resolvedSelection.Model = runtime.agent.Model

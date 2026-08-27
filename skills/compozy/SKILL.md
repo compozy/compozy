@@ -22,7 +22,7 @@ Match the task to the row. Read the listed files in full before producing output
 | Start, inspect, prompt, stop, resume, or debug CompozyOS sessions and daemon state                                             | references/runtime-operations.md                                   |
 | Open, inspect, retry, diagnose, or recover the desktop app; update the host runtime and app                                    | references/desktop.md                                              |
 | Inspect or configure daemon-owned background roles, role diagnostics, builtin identities, or role fallback routing             | references/runtime-operations.md + references/agent-definitions.md |
-| Inspect, refresh, curate, or configure provider models, reasoning strategy, and pricing                                        | references/runtime-operations.md + references/native-tools.md      |
+| Inspect, refresh, curate, or configure provider models, runtime strategies, ACP options, reasoning, Fast, or pricing           | references/runtime-operations.md + references/native-tools.md      |
 | Configure provider authentication or run provider authentication login                                                         | references/agent-definitions.md + references/native-tools.md       |
 | Expose one CompozyOS workspace to an external MCP client with `compozy mcp serve`                                              | references/runtime-operations.md                                   |
 | Inspect, mutate, or watch virtual desktops, managed windows, or workspace layouts through native tools, CLI, HTTP, or UDS      | references/window-management.md + references/native-tools.md       |

@@ -201,19 +201,18 @@ deltas, including the five pricing fields, without copying unchanged catalog enr
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
 change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning effort.
 
-Discovery uses the resolved provider auth, env, and home policy. Most adapters do not create an ACP
-session. Cursor is the exception: `cursor-agent acp` starts a short-lived inspection session that reads
-the exact values advertised by Cursor's `model` option. The human-readable `cursor-agent models` aliases
-are not model IDs for CompozyOS. When a discovery path is unavailable or fails, the model catalog records
-a source status and falls back to stale or lower-priority rows. An explicit Cursor model refreshes this
-catalog before creation and must match a fresh advertised value; leaving the model blank preserves
-Cursor's native default. Cursor uses the operator home required by its native login and runs again only
-through an explicit catalog refresh.
+Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Hermes inspect a
+short-lived ACP session. Cursor runs `cursor-agent models`, converts the returned transport aliases into
+logical model IDs, and keeps the alias bindings private. At launch, CompozyOS resolves the selected
+logical model plus Reasoning, Fast, and Thinking back to one alias and starts
+`cursor-agent --model <alias> acp`. When discovery fails, the catalog records source status and keeps the
+last successful rows as stale data. Cursor uses the operator home required by its native login.
 Changes under `models.discovery` apply live: CompozyOS atomically rebinds and refreshes only the changed
 provider source. Model metadata edits do not invoke provider discovery, and a failed live refresh
 keeps prior rows stale instead of rejecting the config write.
 
-Session creation can override `provider`, `model`, `reasoning_effort`, and `speed` for one launch. Speed
+Session creation can override `provider`, `model`, `reasoning_effort`, `speed`, and typed ACP options for
+one launch. Speed
 is provider-neutral, accepts `normal | fast`, and defaults to `normal`. Authoring
 accepts a custom model ID as a candidate because `models.curated` is metadata, not an allowlist. The
 active ACP adapter must still advertise or accept that exact ID; otherwise start fails with
@@ -229,10 +228,12 @@ providers default to `none` unless explicitly configured. Strategy `none` means 
 application strategy. It is distinct from explicit effort `none`, which is sent through ACP when
 the active model advertises it.
 
-Negotiation order is deterministic: session mode, model, the refreshed config-option snapshot
-returned by that model change, reasoning effort, speed, then the first prompt. Empty effort sends no RPC;
-explicit `none` does. The live ACP snapshot is authoritative even when its effort set is empty.
-Missing or unsupported model/reasoning options fail before the first prompt with stable diagnostics.
+Negotiation order is deterministic: session mode, model, the refreshed config-option snapshot returned
+by that model change, reasoning effort, speed, then remaining ACP options in stable ID order. CompozyOS
+refreshes and revalidates after every ACP response. Empty effort sends no RPC; explicit `none` does. The
+live ACP snapshot is authoritative even when its effort set is empty. Missing or unsupported controls
+fail before the first prompt with stable diagnostics. OpenClaw is different: its Gateway owns runtime
+selection, so CompozyOS rejects model, Reasoning, Fast, and ACP-option overrides instead of dropping them.
 Speed V1 writes only an unambiguous ACP select/value-ID option; boolean speed options remain
 unsupported until the released ACP capability contract can advertise boolean writes. Missing or
 ambiguous speed options report a durable `unsupported` outcome, while provider rejection returns

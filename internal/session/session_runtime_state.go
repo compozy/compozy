@@ -40,6 +40,7 @@ func (s *Session) runtimeBindingSnapshot() runtimeBindingSnapshot {
 			Model:           s.Model,
 			ReasoningEffort: s.ReasoningEffort,
 			Speed:           s.Speed,
+			ACPOptions:      acp.CloneSessionConfigOptionSelections(s.ACPOptions),
 		},
 		status:          s.RuntimeStatus,
 		transition:      s.RuntimeTransition,
@@ -94,6 +95,7 @@ func (s *Session) completeRuntimeTransition(
 	s.Model = strings.TrimSpace(selection.Model)
 	s.ReasoningEffort = strings.TrimSpace(selection.ReasoningEffort)
 	s.Speed = selection.Speed
+	s.ACPOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	s.RuntimeStatus = RuntimeStatusReady
 	s.RuntimeTransition = strategy
 	s.RuntimeFailure = ""
@@ -167,6 +169,7 @@ func (s *Session) restoreRuntimeBinding(snapshot *runtimeBindingSnapshot, failur
 	s.Model = snapshot.selection.Model
 	s.ReasoningEffort = snapshot.selection.ReasoningEffort
 	s.Speed = snapshot.selection.Speed
+	s.ACPOptions = acp.CloneSessionConfigOptionSelections(snapshot.selection.ACPOptions)
 	s.RuntimeStatus = snapshot.status
 	s.RuntimeTransition = snapshot.transition
 	s.RuntimeFailure = strings.TrimSpace(failure)

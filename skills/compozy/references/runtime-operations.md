@@ -150,7 +150,7 @@ cannot be validated fail closed.
 
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
-    compozy session prompt <session-id> "Inspect the failing build." --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
+    compozy session prompt <session-id> "Inspect the failing build." --provider cursor --model grok-4.6 --reasoning-effort high --speed fast
     compozy session attachments upload <session-id> ./diagram.png -o json
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
@@ -170,7 +170,7 @@ cannot be validated fail closed.
     compozy session history <session-id> --last 20 --after 42
     compozy session rewind <session-id> --message-id <message-id>
     compozy session prompt <session-id> "Summarize the last three tool results."
-    compozy session runtime set <session-id> --provider claude --model claude-fable-5 --reasoning-effort max
+    compozy session runtime set <session-id> --provider cursor --model claude-opus-5 --reasoning-effort high --speed fast --acp-toggle thinking=true
     compozy session runtime clear <session-id>
     compozy session resume <session-id>
     compozy session resume --latest --workspace checkout-api
@@ -196,8 +196,9 @@ cannot be validated fail closed.
 
 `compozy session new` is promptless and accepts no runtime selection. It returns the durable active,
 unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
-select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that prompt's snapshot.
-`--speed` defaults to `normal`; `fast` applies only through an unambiguous ACP select/value-ID option.
+select `--provider`; `--model`, `--reasoning-effort`, `--speed`, repeatable `--acp-option id=value`,
+and repeatable `--acp-toggle id=true|false` refine that prompt's snapshot. `--speed` defaults to
+`normal`; live catalog descriptors and valid option combinations remain authoritative.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or
@@ -379,6 +380,13 @@ Inspect the redacted effective state with `compozy config show` after a live app
 provider/source filters, `force`, and `request_id`; it retains successful sources on partial failure
 and redacts credential material from errors. CLI fallbacks are `compozy provider models status` and
 `compozy provider models refresh`.
+
+Claude, Codex, and Hermes discover live models through ACP; Cursor discovers aliases through
+`cursor-agent models` and publishes only logical models and valid option combinations. Live sources
+refresh periodically and when their five-minute TTL expires, retaining stale rows on failure. New
+provider-advertised models therefore need no CompozyOS code change, though an explicit curated set can
+keep them out of the default view. OpenClaw is provider-managed: do not send model, Reasoning, Fast, or
+ACP-option overrides to it.
 
 The session usage endpoint
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage` returns token totals plus

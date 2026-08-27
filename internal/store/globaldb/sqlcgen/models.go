@@ -1135,7 +1135,44 @@ type McpOauthRegistration struct {
 	UpdatedAt                  string         `json:"updated_at"`
 }
 
+type ModelCatalogExecutionContext struct {
+	ContextID          string `json:"context_id"`
+	Scope              string `json:"scope"`
+	ProfileID          string `json:"profile_id"`
+	WorkspaceID        string `json:"workspace_id"`
+	CommandFingerprint string `json:"command_fingerprint"`
+}
+
+type ModelCatalogOption struct {
+	ContextID      string         `json:"context_id"`
+	SourceID       string         `json:"source_id"`
+	ProviderID     string         `json:"provider_id"`
+	ModelID        string         `json:"model_id"`
+	OptionID       string         `json:"option_id"`
+	Label          string         `json:"label"`
+	Description    string         `json:"description"`
+	Category       string         `json:"category"`
+	Kind           string         `json:"kind"`
+	CurrentValueID sql.NullString `json:"current_value_id"`
+	CurrentBool    sql.NullInt64  `json:"current_bool"`
+}
+
+type ModelCatalogOptionValue struct {
+	ContextID   string `json:"context_id"`
+	SourceID    string `json:"source_id"`
+	ProviderID  string `json:"provider_id"`
+	ModelID     string `json:"model_id"`
+	OptionID    string `json:"option_id"`
+	ValueID     string `json:"value_id"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	GroupID     string `json:"group_id"`
+	GroupLabel  string `json:"group_label"`
+	Rank        int64  `json:"rank"`
+}
+
 type ModelCatalogReasoningEffort struct {
+	ContextID  string `json:"context_id"`
 	SourceID   string `json:"source_id"`
 	ProviderID string `json:"provider_id"`
 	ModelID    string `json:"model_id"`
@@ -1144,6 +1181,7 @@ type ModelCatalogReasoningEffort struct {
 }
 
 type ModelCatalogRow struct {
+	ContextID                string          `json:"context_id"`
 	SourceID                 string          `json:"source_id"`
 	ProviderID               string          `json:"provider_id"`
 	ModelID                  string          `json:"model_id"`
@@ -1177,6 +1215,7 @@ type ModelCatalogRow struct {
 }
 
 type ModelCatalogSource struct {
+	ContextID     string `json:"context_id"`
 	SourceID      string `json:"source_id"`
 	ProviderID    string `json:"provider_id"`
 	SourceKind    string `json:"source_kind"`
@@ -1188,6 +1227,30 @@ type ModelCatalogSource struct {
 	LastError     string `json:"last_error"`
 	RowCount      int64  `json:"row_count"`
 	Stale         int64  `json:"stale"`
+}
+
+type ModelCatalogTransportBinding struct {
+	ContextID        string         `json:"context_id"`
+	SourceID         string         `json:"source_id"`
+	ProviderID       string         `json:"provider_id"`
+	ModelID          string         `json:"model_id"`
+	TransportModelID string         `json:"transport_model_id"`
+	Label            string         `json:"label"`
+	ReasoningEffort  sql.NullString `json:"reasoning_effort"`
+	Fast             sql.NullInt64  `json:"fast"`
+	Thinking         sql.NullInt64  `json:"thinking"`
+	Rank             int64          `json:"rank"`
+}
+
+type ModelCatalogTransportBindingSelection struct {
+	ContextID        string         `json:"context_id"`
+	SourceID         string         `json:"source_id"`
+	ProviderID       string         `json:"provider_id"`
+	ModelID          string         `json:"model_id"`
+	TransportModelID string         `json:"transport_model_id"`
+	OptionID         string         `json:"option_id"`
+	ValueID          sql.NullString `json:"value_id"`
+	BoolValue        sql.NullInt64  `json:"bool_value"`
 }
 
 type NetworkAuditLog struct {
@@ -1638,6 +1701,7 @@ type Session struct {
 	Model                    string         `json:"model"`
 	ReasoningEffort          string         `json:"reasoning_effort"`
 	Speed                    string         `json:"speed"`
+	AcpOptionsJson           string         `json:"acp_options_json"`
 	SpeedResolutionJson      string         `json:"speed_resolution_json"`
 	RuntimeStatus            string         `json:"runtime_status"`
 	RuntimeTransition        string         `json:"runtime_transition"`
@@ -1648,6 +1712,7 @@ type Session struct {
 	SelectedModel            string         `json:"selected_model"`
 	SelectedReasoningEffort  string         `json:"selected_reasoning_effort"`
 	SelectedSpeed            string         `json:"selected_speed"`
+	SelectedAcpOptionsJson   string         `json:"selected_acp_options_json"`
 	RuntimeSelectionRevision int64          `json:"runtime_selection_revision"`
 	WorkspaceID              string         `json:"workspace_id"`
 	Scope                    string         `json:"scope"`
@@ -1750,6 +1815,7 @@ type SessionInputQueue struct {
 	RuntimeModel             string         `json:"runtime_model"`
 	RuntimeReasoningEffort   string         `json:"runtime_reasoning_effort"`
 	RuntimeSpeed             string         `json:"runtime_speed"`
+	RuntimeAcpOptionsJson    string         `json:"runtime_acp_options_json"`
 	SessionGeneration        int64          `json:"session_generation"`
 	TaskRunID                string         `json:"task_run_id"`
 	RunGeneration            sql.NullInt64  `json:"run_generation"`
@@ -1820,6 +1886,7 @@ type SessionPromptAdmission struct {
 	RuntimeModel           string         `json:"runtime_model"`
 	RuntimeReasoningEffort string         `json:"runtime_reasoning_effort"`
 	RuntimeSpeed           string         `json:"runtime_speed"`
+	RuntimeAcpOptionsJson  string         `json:"runtime_acp_options_json"`
 	TurnID                 string         `json:"turn_id"`
 	EventID                string         `json:"event_id"`
 	ResultJson             sql.NullString `json:"result_json"`

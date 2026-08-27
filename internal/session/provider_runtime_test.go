@@ -16,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -61,6 +62,49 @@ func (r profileNameResolverMap) ProfileName(ctx context.Context, profileID strin
 		return "", fmt.Errorf("unknown profile id %q", profileID)
 	}
 	return name, nil
+}
+
+func TestProviderManagedRuntimeRejectsUnsupportedControls(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		opts acp.StartOpts
+		want string
+	}{
+		{name: "model", opts: acp.StartOpts{PreferredModel: "opus-5"}, want: "model selection"},
+		{name: "reasoning", opts: acp.StartOpts{ReasoningEffort: "high"}, want: "reasoning effort"},
+		{name: "Fast", opts: acp.StartOpts{Speed: speedpkg.SpeedFast}, want: "Fast mode"},
+		{
+			name: "ACP option",
+			opts: acp.StartOpts{ACPOptions: []acp.SessionConfigOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}}},
+			want: "ACP options",
+		},
+		{
+			name: "transport binding", opts: acp.StartOpts{ExpectedTransportModel: "private-alias"},
+			want: "transport model binding",
+		},
+	}
+	for _, test := range tests {
+		t.Run("Should reject "+test.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := compileProviderManagedRuntime(test.opts)
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("compileProviderManagedRuntime() error = %v, want %q", err, test.want)
+			}
+		})
+	}
+
+	accepted, err := compileProviderManagedRuntime(acp.StartOpts{Speed: speedpkg.SpeedNormal})
+	if err != nil {
+		t.Fatalf("compileProviderManagedRuntime(normal) error = %v", err)
+	}
+	if accepted.Speed != "" || accepted.RuntimeStrategy != "" {
+		t.Fatalf("compileProviderManagedRuntime(normal) = %#v, want provider-owned runtime controls", accepted)
+	}
 }
 
 func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {

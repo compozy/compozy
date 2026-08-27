@@ -26,18 +26,20 @@ type CreateAgentRequest struct {
 
 // CreateAgentPayload captures the simple AGENT.md fields supported by v1 authoring.
 type CreateAgentPayload struct {
-	Name            string                   `json:"name"`
-	Provider        string                   `json:"provider,omitempty"`
-	Command         string                   `json:"command,omitempty"`
-	Model           string                   `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort          `json:"reasoning_effort,omitempty"`
-	Tools           []string                 `json:"tools,omitempty"`
-	Toolsets        []string                 `json:"toolsets,omitempty"`
-	DenyTools       []string                 `json:"deny_tools,omitempty"`
-	Permissions     SettingsPermissionMode   `json:"permissions,omitempty"`
-	CategoryPath    []string                 `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig `json:"skills,omitempty"`
-	Prompt          string                   `json:"prompt"`
+	Name            string                    `json:"name"`
+	Provider        string                    `json:"provider,omitempty"`
+	Command         string                    `json:"command,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	Tools           []string                  `json:"tools,omitempty"`
+	Toolsets        []string                  `json:"toolsets,omitempty"`
+	DenyTools       []string                  `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
+	CategoryPath    []string                  `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig  `json:"skills,omitempty"`
+	Prompt          string                    `json:"prompt"`
 }
 
 // CreateAgentSkillsConfig captures agent-local skill policy stored in AGENT.md.

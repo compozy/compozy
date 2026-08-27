@@ -16,6 +16,7 @@ export interface ReasoningSliderProps {
   value: ReasoningEffort | "";
   /** Model default shown as the selected stop while the wire value is "". */
   defaultEffort: ReasoningEffort | "";
+  disabled?: boolean;
   modelName: string;
   /** id of the footer's visible "Reasoning" label. */
   labelId?: string;
@@ -40,12 +41,13 @@ export function ReasoningSlider({
   levels,
   value,
   defaultEffort,
+  disabled = false,
   modelName,
   labelId,
   onSelect,
 }: ReasoningSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
-  const slider = useReasoningSlider({ levels, value, defaultEffort, onSelect });
+  const slider = useReasoningSlider({ levels, value, defaultEffort, disabled, onSelect });
   const tipLabel =
     slider.markedIndex < 0
       ? "Provider default"
@@ -58,11 +60,11 @@ export function ReasoningSlider({
       data-testid="runtime-selector-reasoning-slider"
       data-unset={slider.unset ? "true" : "false"}
       data-dragging={slider.dragging ? "true" : "false"}
+      data-disabled={disabled ? "true" : "false"}
     >
       <div
         ref={trackRef}
         role="slider"
-        tabIndex={0}
         aria-orientation="horizontal"
         aria-labelledby={labelId}
         aria-label={labelId ? undefined : `Reasoning effort for ${modelName}`}
@@ -70,8 +72,13 @@ export function ReasoningSlider({
         aria-valuemax={slider.last}
         aria-valuenow={slider.valueNow}
         aria-valuetext={slider.valueText}
+        aria-disabled={disabled || undefined}
         data-testid="runtime-selector-reasoning-track"
-        className="group/track relative h-6 cursor-pointer rounded-md outline-none focus-visible:shadow-focus-ring"
+        tabIndex={disabled ? -1 : 0}
+        className={cn(
+          "group/track relative h-6 rounded-md outline-none focus-visible:shadow-focus-ring",
+          disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"
+        )}
         onPointerDown={slider.handlePointerDown}
         onPointerMove={slider.handlePointerMove}
         onPointerUp={event => {

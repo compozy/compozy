@@ -96,12 +96,18 @@ export function RuntimeSelectorTrigger({
   const currentEffort = value.reasoning_effort || reasoning.defaultEffort;
   const meterUnset = currentEffort === "";
   const showFast = speed === "fast" && !compact;
-  const showWarning = needsAuth || model?.availability === "unavailable";
-  const warningLabel = needsAuth ? "Provider needs sign in" : "Model unavailable";
+  const providerManaged = provider?.runtime_strategy === "provider_managed";
+  const showWarning = needsAuth || model?.availability === "unavailable" || providerManaged;
+  const warningLabel = needsAuth
+    ? "Provider needs sign in"
+    : model?.availability === "unavailable"
+      ? "Model unavailable"
+      : "Provider managed";
   const providerName = provider?.name || value.provider;
   // `||` not `??`: an unset model is "" (not nullish), so the placeholder must
   // still win — otherwise the trigger renders blank in the no-model state.
-  const modelName = model?.name || value.model || modelPlaceholder;
+  const modelName =
+    model?.name || value.model || (providerManaged ? "Provider managed" : modelPlaceholder);
 
   const summaryParts = [compact ? providerName : `${providerName} / ${modelName}`];
   if (showReasoning) {

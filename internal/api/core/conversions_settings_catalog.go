@@ -85,6 +85,7 @@ func settingsProviderItemPayload(value *settingspkg.ProviderItem) contract.Setti
 	payload := contract.SettingsProviderItemPayload{
 		Name:             strings.TrimSpace(value.Name),
 		Settings:         settingsProviderSettingsPayload(value.Settings),
+		RuntimeStrategy:  providerRuntimeStrategy(value.Name, value.Settings.RuntimeProvider),
 		Default:          value.Default,
 		CommandAvailable: value.CommandAvailable,
 		Credentials:      settingsProviderCredentialStatusPayloads(value.Credentials),

@@ -1,6 +1,10 @@
 package config
 
-import "time"
+import (
+	"time"
+
+	speedpkg "github.com/compozy/compozy/internal/speed"
+)
 
 type rolesOverlay struct {
 	Coordinator       coordinatorRoleOverlay      `toml:"coordinator"`
@@ -12,12 +16,14 @@ type rolesOverlay struct {
 }
 
 type roleOverlay struct {
-	Enabled         *bool           `toml:"enabled"`
-	Agent           *string         `toml:"agent"`
-	Provider        *string         `toml:"provider"`
-	Model           *string         `toml:"model"`
-	ReasoningEffort *string         `toml:"reasoning_effort"`
-	FallbackChain   *[]RoleFallback `toml:"fallback_chain"`
+	Enabled         *bool                 `toml:"enabled"`
+	Agent           *string               `toml:"agent"`
+	Provider        *string               `toml:"provider"`
+	Model           *string               `toml:"model"`
+	ReasoningEffort *string               `toml:"reasoning_effort"`
+	Speed           *string               `toml:"speed"`
+	ACPOptions      *[]ACPOptionSelection `toml:"acp_options"`
+	FallbackChain   *[]RoleFallback       `toml:"fallback_chain"`
 }
 
 type coordinatorRoleOverlay struct {
@@ -28,15 +34,17 @@ type coordinatorRoleOverlay struct {
 }
 
 type memoryControllerRoleOverlay struct {
-	Enabled         *bool           `toml:"enabled"`
-	Provider        *string         `toml:"provider"`
-	Model           *string         `toml:"model"`
-	ReasoningEffort *string         `toml:"reasoning_effort"`
-	Timeout         *time.Duration  `toml:"timeout"`
-	TopK            *int            `toml:"top_k"`
-	PromptVersion   *string         `toml:"prompt_version"`
-	MaxTokensOut    *int            `toml:"max_tokens_out"`
-	FallbackChain   *[]RoleFallback `toml:"fallback_chain"`
+	Enabled         *bool                 `toml:"enabled"`
+	Provider        *string               `toml:"provider"`
+	Model           *string               `toml:"model"`
+	ReasoningEffort *string               `toml:"reasoning_effort"`
+	Speed           *string               `toml:"speed"`
+	ACPOptions      *[]ACPOptionSelection `toml:"acp_options"`
+	Timeout         *time.Duration        `toml:"timeout"`
+	TopK            *int                  `toml:"top_k"`
+	PromptVersion   *string               `toml:"prompt_version"`
+	MaxTokensOut    *int                  `toml:"max_tokens_out"`
+	FallbackChain   *[]RoleFallback       `toml:"fallback_chain"`
 }
 
 func (o rolesOverlay) Apply(dst *RolesConfig) {
@@ -64,8 +72,14 @@ func (o roleOverlay) Apply(dst *RoleConfig) {
 	if o.ReasoningEffort != nil {
 		dst.ReasoningEffort = *o.ReasoningEffort
 	}
+	if o.Speed != nil {
+		dst.Speed = speedpkg.Speed(*o.Speed)
+	}
+	if o.ACPOptions != nil {
+		dst.ACPOptions = CloneACPOptionSelections(*o.ACPOptions)
+	}
 	if o.FallbackChain != nil {
-		dst.FallbackChain = append([]RoleFallback(nil), (*o.FallbackChain)...)
+		dst.FallbackChain = cloneRoleFallbacks(*o.FallbackChain)
 	}
 }
 
@@ -95,6 +109,12 @@ func (o memoryControllerRoleOverlay) Apply(dst *MemoryControllerRoleConfig) {
 	if o.ReasoningEffort != nil {
 		dst.ReasoningEffort = *o.ReasoningEffort
 	}
+	if o.Speed != nil {
+		dst.Speed = speedpkg.Speed(*o.Speed)
+	}
+	if o.ACPOptions != nil {
+		dst.ACPOptions = CloneACPOptionSelections(*o.ACPOptions)
+	}
 	if o.Timeout != nil {
 		dst.Timeout = *o.Timeout
 	}
@@ -108,6 +128,6 @@ func (o memoryControllerRoleOverlay) Apply(dst *MemoryControllerRoleConfig) {
 		dst.MaxTokensOut = *o.MaxTokensOut
 	}
 	if o.FallbackChain != nil {
-		dst.FallbackChain = append([]RoleFallback(nil), (*o.FallbackChain)...)
+		dst.FallbackChain = cloneRoleFallbacks(*o.FallbackChain)
 	}
 }

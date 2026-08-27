@@ -39,6 +39,8 @@ func ProviderModelPayloadFromModel(model modelcatalog.Model) contract.ProviderMo
 		SupportsReasoning:      model.SupportsReasoning,
 		ReasoningEfforts:       append([]contract.ReasoningEffort(nil), model.ReasoningEfforts...),
 		DefaultReasoningEffort: model.DefaultReasoningEffort,
+		ConfigOptions:          providerModelConfigOptions(model.ConfigOptions),
+		Configurations:         providerModelConfigurations(model.TransportBindings),
 		Curated:                model.Curated,
 		Deprecated:             model.Deprecated,
 		Hidden:                 model.Hidden,
@@ -57,6 +59,74 @@ func ProviderModelPayloadFromModel(model modelcatalog.Model) contract.ProviderMo
 		}
 	}
 	return payload
+}
+
+func providerModelConfigOptions(
+	options []modelcatalog.ModelOptionDescriptor,
+) []contract.SessionConfigOptionPayload {
+	if len(options) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SessionConfigOptionPayload, 0, len(options))
+	for _, option := range options {
+		payload := contract.SessionConfigOptionPayload{
+			ID:             option.ID,
+			Label:          option.Label,
+			Description:    option.Description,
+			Category:       option.Category,
+			Kind:           string(option.Kind),
+			CurrentValueID: option.CurrentValueID,
+			Values:         providerModelConfigOptionValues(option.Values),
+		}
+		if option.CurrentBool != nil {
+			payload.CurrentBool = new(*option.CurrentBool)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func providerModelConfigOptionValues(
+	values []modelcatalog.ModelOptionValue,
+) []contract.SessionConfigOptionValuePayload {
+	if len(values) == 0 {
+		return nil
+	}
+	payloads := make([]contract.SessionConfigOptionValuePayload, 0, len(values))
+	for _, value := range values {
+		payloads = append(payloads, contract.SessionConfigOptionValuePayload{
+			Value:       value.ValueID,
+			Label:       value.Label,
+			Description: value.Description,
+			GroupID:     value.GroupID,
+			GroupLabel:  value.GroupLabel,
+		})
+	}
+	return payloads
+}
+
+func providerModelConfigurations(
+	bindings []modelcatalog.ModelTransportBinding,
+) []contract.ProviderModelConfigurationPayload {
+	if len(bindings) == 0 {
+		return nil
+	}
+	configurations := make([]contract.ProviderModelConfigurationPayload, 0, len(bindings))
+	for _, binding := range bindings {
+		configuration := contract.ProviderModelConfigurationPayload{}
+		if binding.ReasoningEffort != nil {
+			value := contract.ReasoningEffort(*binding.ReasoningEffort)
+			configuration.ReasoningEffort = new(value)
+		}
+		if binding.Fast != nil {
+			configuration.Fast = new(*binding.Fast)
+		}
+		if binding.Thinking != nil {
+			configuration.Thinking = new(*binding.Thinking)
+		}
+		configurations = append(configurations, configuration)
+	}
+	return configurations
 }
 
 func SourceRefPayloadsFromRefs(refs []modelcatalog.SourceRef) []contract.ModelCatalogSourceRefPayload {

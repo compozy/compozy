@@ -10,6 +10,8 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 		Command:         strings.TrimSpace(agent.Command),
 		Model:           strings.TrimSpace(agent.Model),
 		ReasoningEffort: strings.TrimSpace(agent.ReasoningEffort),
+		Speed:           normalizeAgentSpeed(agent.Speed),
+		ACPOptions:      CloneACPOptionSelections(agent.ACPOptions),
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),

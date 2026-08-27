@@ -94,6 +94,7 @@ const (
 type hostAPIContextKey string
 
 const hostAPIExtensionNameContextKey hostAPIContextKey = "extension.host_api.extension_name"
+const hostAPIInstanceKeyContextKey hostAPIContextKey = "extension.host_api.instance_key"
 const hostAPICapabilityGrantIDContextKey hostAPIContextKey = "extension.host_api.capability_grant_id"
 const hostAPIBridgeRuntimeContextKey hostAPIContextKey = "extension.host_api.bridge_runtime"
 const hostAPIResourceSessionContextKey hostAPIContextKey = "extension.host_api.resource_session"

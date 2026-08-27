@@ -306,7 +306,9 @@ func (r ActionSessionBindRequest) RuntimeValue() RuntimeSpec {
 	if r.Runtime == nil {
 		return RuntimeSpec{}
 	}
-	return *r.Runtime
+	cloned := *r.Runtime
+	cloned.ACPOptions = dsl.CloneACPOptionSelections(r.Runtime.ACPOptions)
+	return cloned
 }
 
 // ActionSessionCellFence identifies the live ordinary-action cell allowed to activate a session binding.

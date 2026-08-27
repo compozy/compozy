@@ -16,6 +16,7 @@ export function settingsProviderToOption(provider: SettingsProviderEntry): Runti
     name: displayName || provider.name,
     ...(harness ? { harness } : {}),
     ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
+    runtime_strategy: provider.runtime_strategy,
     needs_auth: providerNeedsAuth(provider.auth_status?.state),
   };
 }

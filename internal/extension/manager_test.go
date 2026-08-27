@@ -2115,13 +2115,17 @@ func TestManagerDirectPhaseAndMonitorBranches(t *testing.T) {
 		},
 	}
 	injected := manager.wrapHostHandler(
-		"ext-host",
+		InstanceKey{Name: "ext-host", ProfileID: "profile-host", WorkspaceID: "workspace-host"},
 		"sessions/list",
 		bridgeRuntime,
 		resourceSession,
 		func(ctx context.Context, _ json.RawMessage) (any, error) {
 			if got := hostAPIExtensionNameFromContext(ctx); got != "ext-host" {
 				t.Fatalf("hostAPIExtensionNameFromContext(ctx) = %q, want ext-host", got)
+			}
+			key, ok := hostAPIInstanceKeyFromContext(ctx)
+			if !ok || key.ProfileID != "profile-host" || key.WorkspaceID != "workspace-host" {
+				t.Fatalf("hostAPIInstanceKeyFromContext(ctx) = %#v, %t, want profile/workspace scope", key, ok)
 			}
 			runtime := hostAPIBridgeRuntimeFromContext(ctx)
 			if runtime == nil {

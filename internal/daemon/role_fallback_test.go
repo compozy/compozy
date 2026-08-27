@@ -11,6 +11,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -114,6 +115,36 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		}
 		if value != "accepted-session" || attempts != 1 {
 			t.Fatalf("value/attempts = %q/%d, want accepted-session/1", value, attempts)
+		}
+	})
+
+	t.Run("Should preserve speed and ACP options on every route", func(t *testing.T) {
+		t.Parallel()
+
+		role := fallbackTestRole(nil)
+		role.Speed = speedpkg.SpeedFast
+		role.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		role.Fallbacks[0].Speed = speedpkg.SpeedNormal
+		role.Fallbacks[0].ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}}
+		var routes []roleAttemptRoute
+		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
+			_ context.Context,
+			route roleAttemptRoute,
+		) (struct{}, bool, error) {
+			routes = append(routes, route)
+			return struct{}{}, false, errors.New("rejected")
+		})
+		if err == nil || len(routes) != 3 {
+			t.Fatalf("invokeRoleWithFallback() error/routes = %v/%d, want exhaustion/3", err, len(routes))
+		}
+		if routes[0].Speed != speedpkg.SpeedFast || len(routes[0].ACPOptions) != 1 ||
+			routes[0].ACPOptions[0].ID != "thinking" || routes[0].ACPOptions[0].BoolValue == nil ||
+			!*routes[0].ACPOptions[0].BoolValue {
+			t.Fatalf("primary route = %#v, want speed and ACP option", routes[0])
+		}
+		if routes[1].Speed != speedpkg.SpeedNormal || len(routes[1].ACPOptions) != 1 ||
+			routes[1].ACPOptions[0].ID != "context" || routes[1].ACPOptions[0].ValueID != "1m" {
+			t.Fatalf("fallback route = %#v, want speed and ACP option", routes[1])
 		}
 	})
 

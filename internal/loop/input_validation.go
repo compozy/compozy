@@ -211,6 +211,14 @@ func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 	sort.Strings(keys)
 	for _, key := range keys {
 		raw := value[key]
+		if key == runtimeFieldACPOptions {
+			options, err := runtimeACPOptionsFromValue(raw)
+			if err != nil {
+				return dsl.RuntimeSpec{}, err
+			}
+			runtime.ACPOptions = options
+			continue
+		}
 		text, ok := raw.(string)
 		if !ok {
 			return dsl.RuntimeSpec{}, fmt.Errorf("%s must be a string", key)
@@ -236,7 +244,7 @@ func runtimeInputSpecFromMap(value map[string]any) (dsl.RuntimeSpec, error) {
 }
 
 func runtimeInputValue(runtime dsl.RuntimeSpec) map[string]any {
-	value := make(map[string]any, 4)
+	value := make(map[string]any, 5)
 	if runtime.Provider != "" {
 		value[runtimeFieldProvider] = runtime.Provider
 	}
@@ -248,6 +256,9 @@ func runtimeInputValue(runtime dsl.RuntimeSpec) map[string]any {
 	}
 	if runtime.Speed != "" {
 		value[runtimeFieldSpeed] = string(runtime.Speed)
+	}
+	if len(runtime.ACPOptions) > 0 {
+		value[runtimeFieldACPOptions] = runtimeACPOptionsValue(runtime.ACPOptions)
 	}
 	return value
 }

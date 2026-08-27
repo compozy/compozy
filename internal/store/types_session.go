@@ -64,6 +64,7 @@ type SessionInfo struct {
 	Model                    string
 	ReasoningEffort          string
 	Speed                    speedpkg.Speed
+	ACPOptions               []SessionACPOptionSelection
 	SpeedResolution          *speedpkg.Resolution
 	RuntimeStatus            SessionRuntimeStatus
 	RuntimeTransition        SessionRuntimeTransition
@@ -147,6 +148,9 @@ func (s SessionInfo) Validate() error {
 	}
 	if err := validateSessionSpeedMetadata(s.Speed, s.SpeedResolution); err != nil {
 		return err
+	}
+	if err := ValidateSessionACPOptionSelections(s.ACPOptions); err != nil {
+		return fmt.Errorf("store: validate session ACP options: %w", err)
 	}
 	if err := ValidateSessionRuntimeSelection(s.SelectedRuntime, s.RuntimeSelectionRevision); err != nil {
 		return err
@@ -263,6 +267,7 @@ type SessionStateUpdate struct {
 	Model                    string
 	ReasoningEffort          string
 	Speed                    speedpkg.Speed
+	ACPOptions               []SessionACPOptionSelection
 	SpeedResolution          *speedpkg.Resolution
 	RuntimeStatus            SessionRuntimeStatus
 	RuntimeTransition        SessionRuntimeTransition
@@ -320,6 +325,9 @@ func (u SessionStateUpdate) Validate() error {
 		}
 		if err := validateSessionSpeedMetadata(u.Speed, u.SpeedResolution); err != nil {
 			return err
+		}
+		if err := ValidateSessionACPOptionSelections(u.ACPOptions); err != nil {
+			return fmt.Errorf("store: validate session ACP options: %w", err)
 		}
 	}
 	if u.SelectedRuntimeSet {

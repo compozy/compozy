@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/goccy/go-yaml"
 )
 
@@ -23,6 +24,8 @@ type AgentDef struct {
 	Command             string               `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
 	Model               string               `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
 	ReasoningEffort     string               `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	Speed               speedpkg.Speed       `json:"speed,omitempty"            yaml:"speed,omitempty"            toml:"speed,omitempty"`
+	ACPOptions          []ACPOptionSelection `json:"acp_options,omitempty"      yaml:"acp_options,omitempty"      toml:"acp_options,omitempty"`
 	Tools               []string             `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
 	Toolsets            []string             `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
 	DenyTools           []string             `json:"deny_tools,omitempty"       yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
@@ -50,6 +53,8 @@ type parsedAgentDef struct {
 	Command         string                  `yaml:"command,omitempty"          toml:"command,omitempty"`
 	Model           string                  `yaml:"model,omitempty"            toml:"model,omitempty"`
 	ReasoningEffort string                  `yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed          `yaml:"speed,omitempty"            toml:"speed,omitempty"`
+	ACPOptions      []ACPOptionSelection    `yaml:"acp_options,omitempty"      toml:"acp_options,omitempty"`
 	Tools           []string                `yaml:"tools,omitempty"            toml:"tools,omitempty"`
 	Toolsets        []string                `yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
 	DenyTools       []string                `yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
@@ -300,6 +305,8 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		Command:         strings.TrimSpace(parsed.Command),
 		Model:           strings.TrimSpace(parsed.Model),
 		ReasoningEffort: strings.TrimSpace(parsed.ReasoningEffort),
+		Speed:           normalizeAgentSpeed(parsed.Speed),
+		ACPOptions:      parsed.ACPOptions,
 		Tools:           normalizeAgentToolPatterns(parsed.Tools),
 		Toolsets:        normalizeAgentToolsetRefs(parsed.Toolsets),
 		DenyTools:       normalizeAgentToolPatterns(parsed.DenyTools),
@@ -309,6 +316,11 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		MCPServers:      cloneMCPServers(parsed.MCPServers),
 		Prompt:          strings.TrimSpace(body),
 	}
+	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", agent.ACPOptions)
+	if err != nil {
+		return AgentDef{}, err
+	}
+	agent.ACPOptions = normalizedOptions
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
 		for idx := range parsed.Hooks {

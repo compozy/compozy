@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -22,7 +23,8 @@ func (s *sessionStartSpec) newStartingSession(
 	return &Session{
 		ID: s.sessionID, ProfileID: s.profileID, Name: s.sessionName, AgentName: resolved.Name,
 		Provider: strings.TrimSpace(resolved.Provider), Model: strings.TrimSpace(resolved.Model),
-		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), Speed: s.speed, WorkspaceID: s.workspace.ID,
+		ReasoningEffort: strings.TrimSpace(s.reasoningEffort), Speed: s.speed,
+		ACPOptions: acp.CloneSessionConfigOptionSelections(s.acpOptions), WorkspaceID: s.workspace.ID,
 		RuntimeStatus:             RuntimeStatusBinding,
 		SelectedRuntime:           cloneRuntimeSelection(s.selectedRuntime),
 		RuntimeSelectionRevision:  s.runtimeSelectionRevision,

@@ -5,6 +5,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -799,7 +800,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		cloned := cloneConfig(&original)
 		if !cloned.Roles.Coordinator.Enabled || cloned.Roles.Coordinator.Agent != "coordinator" ||
 			cloned.Roles.Coordinator.TTL != 45*time.Minute ||
-			!slices.Equal(cloned.Roles.Coordinator.FallbackChain, original.Roles.Coordinator.FallbackChain) {
+			!reflect.DeepEqual(cloned.Roles.Coordinator.FallbackChain, original.Roles.Coordinator.FallbackChain) {
 			t.Fatalf("cloned Roles.Coordinator = %#v, want preserved role config", cloned.Roles.Coordinator)
 		}
 		if got := cloned.RoleSources[compozyconfig.RoleCoordinator]["model"]; got != compozyconfig.RoleFieldSourceDefault {

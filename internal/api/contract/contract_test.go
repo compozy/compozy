@@ -918,10 +918,11 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 				SupportedModes:      []string{"chat"},
 				ConfigOptions: []acp.SessionConfigOption{
 					{
-						ID:      "model",
-						Label:   "Model",
-						Kind:    acp.SessionConfigOptionKindSelect,
-						Current: "gpt-test",
+						ID:             "model",
+						Label:          "Model",
+						Category:       "model",
+						Kind:           acp.SessionConfigOptionKindSelect,
+						CurrentValueID: "gpt-test",
 						Values: []acp.SessionConfigOptionValue{
 							{Value: "gpt-test", Label: "GPT Test"},
 						},
@@ -994,8 +995,12 @@ func TestSessionPayloadJSONShape(t *testing.T) {
 		if !ok {
 			t.Fatalf("config option type = %T, want object", configOptions[0])
 		}
-		if configOption["id"] != "model" || configOption["kind"] != "select" || configOption["current"] != "gpt-test" {
+		if configOption["id"] != "model" || configOption["kind"] != "select" ||
+			configOption["category"] != "model" || configOption["current_value_id"] != "gpt-test" {
 			t.Fatalf("config option JSON = %#v", configOption)
+		}
+		if _, exists := configOption["current"]; exists {
+			t.Fatalf("config option JSON retained untyped current: %#v", configOption)
 		}
 		values, ok := configOption["values"].([]any)
 		if !ok || len(values) != 1 {
@@ -1257,6 +1262,10 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 				Model:           "gpt-5.4",
 				ReasoningEffort: "high",
 				Speed:           contract.SpeedFast,
+				ACPOptions: []contract.AgentACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
 			},
 		}
 		raw, err := json.Marshal(req)
@@ -1269,7 +1278,10 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 		}
 		if decoded.Runtime == nil || decoded.Runtime.Provider != "codex" ||
 			decoded.Runtime.Model != "gpt-5.4" || decoded.Runtime.ReasoningEffort != "high" ||
-			decoded.Runtime.Speed != contract.SpeedFast {
+			decoded.Runtime.Speed != contract.SpeedFast || len(decoded.Runtime.ACPOptions) != 2 ||
+			decoded.Runtime.ACPOptions[0].ID != "context" || decoded.Runtime.ACPOptions[0].ValueID != "1m" ||
+			decoded.Runtime.ACPOptions[1].ID != "thinking" || decoded.Runtime.ACPOptions[1].BoolValue == nil ||
+			!*decoded.Runtime.ACPOptions[1].BoolValue {
 			t.Fatalf("decoded runtime = %#v", decoded.Runtime)
 		}
 		if decoded.MessageID != "msg-prompt-json-shape" || decoded.IdempotencyKey != "idem-prompt-json-shape" {
@@ -1289,6 +1301,30 @@ func TestSendPromptRequestJSONShape(t *testing.T) {
 			}
 			if got != want {
 				t.Fatalf("prompt shape %q = %q, want %q", field, got, want)
+			}
+		}
+		var runtimeShape map[string]json.RawMessage
+		if err := json.Unmarshal(shape["runtime"], &runtimeShape); err != nil {
+			t.Fatalf("json.Unmarshal(runtime shape) error = %v", err)
+		}
+		var optionShapes []map[string]json.RawMessage
+		if err := json.Unmarshal(runtimeShape["acp_options"], &optionShapes); err != nil {
+			t.Fatalf("json.Unmarshal(runtime ACP options shape) error = %v", err)
+		}
+		for index, optionShape := range optionShapes {
+			valueFields := 0
+			for _, field := range []string{"value_id", "bool_value"} {
+				if _, ok := optionShape[field]; ok {
+					valueFields++
+				}
+			}
+			if valueFields != 1 {
+				t.Fatalf("runtime ACP option %d has %d public values: %#v", index, valueFields, optionShape)
+			}
+			for _, field := range []string{"type", "value", "transport_model"} {
+				if _, ok := optionShape[field]; ok {
+					t.Fatalf("runtime ACP option %d exposes private field %q: %#v", index, field, optionShape)
+				}
 			}
 		}
 	})
@@ -1357,12 +1393,19 @@ func TestPromptRuntimeSelectionFromPayload(t *testing.T) {
 			Model:           " gpt-5.6 ",
 			ReasoningEffort: " high ",
 			Speed:           contract.SpeedFast,
+			ACPOptions: []contract.AgentACPOptionSelection{
+				{ID: " context ", ValueID: " 1m "},
+				{ID: "thinking", BoolValue: new(true)},
+			},
 		})
 		if selection == nil {
 			t.Fatal("PromptRuntimeSelectionFromPayload() = nil, want selection")
 		}
 		if selection.Provider != "codex" || selection.Model != "gpt-5.6" ||
-			selection.ReasoningEffort != "high" || selection.Speed != contract.SpeedFast {
+			selection.ReasoningEffort != "high" || selection.Speed != contract.SpeedFast ||
+			len(selection.ACPOptions) != 2 || selection.ACPOptions[0].ID != "context" ||
+			selection.ACPOptions[0].ValueID != "1m" || selection.ACPOptions[1].ID != "thinking" ||
+			selection.ACPOptions[1].BoolValue == nil || !*selection.ACPOptions[1].BoolValue {
 			t.Fatalf("PromptRuntimeSelectionFromPayload() = %#v, want canonical selection", selection)
 		}
 	})
@@ -1376,9 +1419,16 @@ func TestPromptRuntimeSelectionFromPayload(t *testing.T) {
 		payload := contract.PromptRuntimeSelectionPayloadFromSelection(&session.RuntimeSelection{
 			Provider: " codex ", Model: " gpt-5.6 ", ReasoningEffort: " high ",
 			Speed: contract.SpeedFast,
+			ACPOptions: []acp.SessionConfigOptionSelection{
+				{ID: " context ", ValueID: " 1m "},
+				{ID: "thinking", BoolValue: new(true)},
+			},
 		})
 		if payload == nil || payload.Provider != "codex" || payload.Model != "gpt-5.6" ||
-			payload.ReasoningEffort != contract.ReasoningEffort("high") || payload.Speed != contract.SpeedFast {
+			payload.ReasoningEffort != contract.ReasoningEffort("high") || payload.Speed != contract.SpeedFast ||
+			len(payload.ACPOptions) != 2 || payload.ACPOptions[0].ID != "context" ||
+			payload.ACPOptions[0].ValueID != "1m" || payload.ACPOptions[1].ID != "thinking" ||
+			payload.ACPOptions[1].BoolValue == nil || !*payload.ACPOptions[1].BoolValue {
 			t.Fatalf("PromptRuntimeSelectionPayloadFromSelection() = %#v, want canonical payload", payload)
 		}
 	})

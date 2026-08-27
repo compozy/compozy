@@ -13,6 +13,8 @@ type sourceListBootstrapper interface {
 	BootstrapOnList() bool
 }
 
+const bootstrapRetryDelay = 50 * time.Millisecond
+
 func (s *CatalogService) bootstrapSourcesOnList(
 	ctx context.Context,
 	opts ListOptions,
@@ -42,14 +44,24 @@ func (s *CatalogService) bootstrapSourcesOnList(
 			providers = []string{requestedProvider}
 		}
 		for _, providerID := range providers {
+			executionContext, contextErr := sourceExecutionContext(opts.SourceContexts, source.ID())
+			if contextErr != nil {
+				return statuses, handled, contextErr
+			}
 			handled = true
 			refreshed, refreshErr := s.withBootstrapFlight(
 				ctx,
 				source.ID(),
 				providerID,
+				executionContext,
 				func(retry bool) ([]SourceStatus, error) {
 					if !retry {
-						attempted, statusErr := s.sourceRefreshAttempted(ctx, source.ID(), providerID)
+						attempted, statusErr := s.sourceRefreshAttempted(
+							ctx,
+							source.ID(),
+							providerID,
+							executionContext,
+						)
 						if statusErr != nil {
 							return nil, statusErr
 						}
@@ -58,10 +70,11 @@ func (s *CatalogService) bootstrapSourcesOnList(
 						}
 					}
 					return s.Refresh(ctx, RefreshOptions{
-						ProviderID: providerID,
-						SourceID:   source.ID(),
-						Force:      retry,
-						Now:        now,
+						ProviderID:       providerID,
+						SourceID:         source.ID(),
+						ExecutionContext: opts.ExecutionContext,
+						Force:            retry,
+						Now:              now,
 					})
 				},
 			)
@@ -78,9 +91,14 @@ func (s *CatalogService) withBootstrapFlight(
 	ctx context.Context,
 	sourceID string,
 	providerID string,
+	executionContext CatalogExecutionContext,
 	fn func(retry bool) ([]SourceStatus, error),
 ) ([]SourceStatus, error) {
-	key := sourceID + "\x00" + providerID
+	contextID, err := executionContext.ID()
+	if err != nil {
+		return nil, err
+	}
+	key := sourceID + "\x00" + providerID + "\x00" + contextID
 	retry := false
 	for {
 		if err := ctx.Err(); err != nil {
@@ -111,6 +129,9 @@ func (s *CatalogService) withBootstrapFlight(
 		case <-flight.done:
 			if flight.retryable {
 				retry = true
+				if err := waitForBootstrapRetry(ctx); err != nil {
+					return nil, err
+				}
 				continue
 			}
 			return cloneSourceStatuses(flight.statuses), flight.err
@@ -120,12 +141,30 @@ func (s *CatalogService) withBootstrapFlight(
 	}
 }
 
+func waitForBootstrapRetry(ctx context.Context) error {
+	timer := time.NewTimer(bootstrapRetryDelay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
 func (s *CatalogService) sourceRefreshAttempted(
 	ctx context.Context,
 	sourceID string,
 	providerID string,
+	executionContext CatalogExecutionContext,
 ) (bool, error) {
-	statuses, err := s.store.ListSourceStatus(ctx, providerID)
+	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+		SourceContexts: map[string]CatalogExecutionContext{
+			sourceID: executionContext,
+		},
+	})
 	if err != nil {
 		return false, fmt.Errorf(
 			"model catalog: list bootstrap status for %q/%q: %w",

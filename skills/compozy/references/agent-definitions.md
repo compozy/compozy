@@ -36,8 +36,9 @@ The prompt body is required. CompozyOS rejects an agent definition with no promp
 ## Fields
 
 - name is required. Outer whitespace is trimmed, and the result must match `^[a-z][a-z0-9_-]{0,105}$`: start with a lowercase ASCII letter, then use lowercase ASCII letters, numbers, hyphens, or underscores; the maximum length is 106 characters. Filesystem-loaded agents must also match the directory name.
-- provider, model, reasoning_effort, and command can be omitted when defaults supply them.
+- provider, model, reasoning_effort, speed, acp_options, and command can be omitted when defaults supply them.
 - reasoning_effort is `none|minimal|low|medium|high|xhigh|max`; a session override wins over AGENT.md, which wins over the selected curated model's default effort. Empty after that cascade keeps the provider/adapter default.
+- speed is `normal|fast`; prompt and durable session selection override AGENT.md. Each acp_options entry requires `id` and exactly one of `value_id` or `bool_value`.
 - tools grants exact ToolIDs or namespace-prefix wildcard patterns.
 - toolsets grants named ToolsetIDs such as compozy\_\_catalog.
 - deny_tools narrows grants.
@@ -85,7 +86,7 @@ or `compozy roles show <role>` before diagnosing provider or model behavior.
 
 Built-in provider names include claude, codex, gemini, opencode, copilot, cursor, kiro, and pi. Provider config can supply launch command, default model, API key environment, and provider-level MCP servers.
 
-Agent `model` and `reasoning_effort` values are applied through active ACP `configOptions` before the first prompt. CompozyOS applies model first, replaces the option snapshot from that response, then applies effort. Empty effort sends no RPC; explicit `none` does when advertised. Exact model IDs are required: unavailable models fail with `model_unavailable`; missing or unsupported reasoning fails with `reasoning_option_missing` or `reasoning_effort_unsupported`. CompozyOS never aliases an unknown model or falls back to the provider default.
+For standard ACP providers, CompozyOS applies model, replaces the option snapshot, applies Reasoning and Fast, then applies remaining ACP options in stable ID order, refreshing and revalidating after every response. Cursor resolves logical model plus option values to a private launch alias and replaces the process when that binding changes. OpenClaw is provider-managed and rejects model, Reasoning, Fast, and ACP-option overrides. Empty effort sends no RPC; explicit `none` does when advertised. Unknown or unsupported values fail; CompozyOS never falls back silently.
 
 Per-agent MCP servers belong in AGENT.md or an agent-local mcp.json sidecar. mcp.json replaces same-name frontmatter servers. Use provider-level MCP when every agent for that provider needs the server; use agent-level MCP when one agent needs it.
 
@@ -108,6 +109,8 @@ Use structured CLI output for agent lifecycle work:
 
 Create, update, and duplicate accept repeatable `--disable-skill <name>` flags. On update,
 providing the flag replaces `skills.disabled`; pass `--disable-skill ""` to clear the list.
+They also accept `--speed`, repeatable `--acp-option id=value`, and repeatable
+`--acp-toggle id=true|false` for authored runtime defaults.
 
 `update` replaces the complete effective authored definition, including an extension-local winner, and requires the `definition_digest` from the last read. A 409 means the digest is stale: reload, reapply the intended change, and retry with the new digest.
 

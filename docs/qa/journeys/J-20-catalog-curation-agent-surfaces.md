@@ -6,7 +6,7 @@ The agent-manageability spine of the program (`model-selector` _spec §11, §5.5
 flowchart TD
     E1[Entry: agent via CLI/native tool/HTTP/UDS] --> GUIDE[Read the published model-catalog/provider/config guidance and bundled Compozy skill]
     GUIDE --> CURSOR{Cursor live status recorded?}
-    CURSOR -->|no| DISCOVER[First list inspects cursor-agent acp and stores exact model-option values]
+    CURSOR -->|no| DISCOVER[First list runs cursor-agent models and stores logical models plus private bindings]
     CURSOR -->|yes| LIST[Read stored catalog rows]
     DISCOVER --> LIST[Follow the documented path: compozy provider models list · curated default]
     LIST --> ALL[compozy provider models list --all · superset incl. hidden/deprecated]
@@ -23,7 +23,8 @@ flowchart TD
     ERR -->|alias / shorthand| NORES[No alias resolution; canonical IDs only]
     NF --> STABLE[Same stable code across CLI/HTTP/UDS/native — deterministic error terminal]
     NORES --> STABLE
-    STATUS --> RESTART[Daemon restart → rehydrate deterministic builtin/config sources]
+    STATUS --> TTL[After five minutes or periodic tick → refresh in background while stale rows remain usable]
+    TTL --> RESTART[Daemon restart → rehydrate persisted live, builtin, and config sources]
     RESTART --> READBACK[Fresh cross-surface list CLI/HTTP/UDS/native shows persisted curation; compozy status schema_streams reports global+memory Goose heads and digests — true_end_state]
     REFRESH -.->|refresh failure| STALE[Prior rows kept, marked stale — never emptied]
 ```
@@ -47,7 +48,7 @@ journey:
       expected_observable: "The guidance names the shipped CLI verbs, curated/all views, curation fields, reasoning apply values, and deterministic errors; following it reaches the real structured surfaces without undocumented repair steps."
     - step: 2
       verb: "List models curated-by-default, then the full set with --all / view=all"
-      expected_observable: "Before any Cursor session, the first Cursor list inspects the signed-in account through cursor-agent acp once and preserves exact advertised model values; the default list is curated, while --all / view=all returns the stored superset."
+      expected_observable: "Before any Cursor session, the first Cursor list runs cursor-agent models, groups its alias matrix into logical models with valid Reasoning/Fast/Thinking combinations, and keeps transport aliases private; the default list is curated, while --all / view=all returns the stored superset."
     - step: 3
       verb: "Compare the same persisted state across CLI, HTTP, UDS, and native tools (one COMPOZY_HOME)"
       expected_observable: "CLI structured output matches GET .../models for both curated and all views; UDS matches HTTP; the native tool reflects the same rows. Any drift is a defect."
@@ -56,14 +57,14 @@ journey:
       expected_observable: "The curated view reflects the flags: featured is promoted, hidden/deprecated are excluded; a request-only curation persists no merged enrichment; the change is visible on every surface."
     - step: 5
       verb: "Refresh with and without a provider, then read status"
-      expected_observable: "A provider-scoped refresh refreshes that provider; omitting the provider routes to the global refresh/status endpoints; status reports source freshness. A refresh failure keeps prior rows marked stale, never empties them."
+      expected_observable: "A provider-scoped refresh refreshes that provider; omitting the provider routes to the global refresh/status endpoints; status reports source freshness. TTL and periodic refresh find newly advertised models without a code update, and failure keeps prior rows stale instead of emptying them."
     - step: 6
       verb: "Target an unknown or alias model id"
       expected_observable: "Catalog curation returns model_not_found; aliases/shorthands do not resolve and unknown ids never fall back to the provider default; the same stable code appears across CLI/HTTP/UDS/native."
   goal:
     observable: "The catalog is curatable and inspectable from every agent surface with one truthful projection and shared deterministic error codes."
     side_effects: [config-curation-persisted, catalog-refreshed, source-status-reported]
-  true_end_state: "After a curation write, a fresh list on any surface shows the new membership; a Cursor account catalog discovered before any session remains available without another ACP inspection until explicit refresh; a daemon restart rehydrates deterministic builtin/config sources so curation survives."
+  true_end_state: "After a curation write, a fresh list on any surface shows the new membership; a Cursor account catalog remains immediately available while read-triggered or periodic refresh runs; a daemon restart rehydrates persisted rows and private bindings so curation and valid option combinations survive."
   exit:
     natural: "The agent has a curated, current catalog it can drive sessions against without touching the web UI."
   abandonment:

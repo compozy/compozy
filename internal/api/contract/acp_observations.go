@@ -71,14 +71,19 @@ func sessionConfigOptionPayloadsFromACP(options []acp.SessionConfigOption) []Ses
 	}
 	payloads := make([]SessionConfigOptionPayload, 0, len(options))
 	for _, option := range options {
-		payloads = append(payloads, SessionConfigOptionPayload{
-			ID:          strings.TrimSpace(option.ID),
-			Label:       strings.TrimSpace(option.Label),
-			Description: strings.TrimSpace(option.Description),
-			Kind:        string(option.Kind),
-			Current:     strings.TrimSpace(option.Current),
-			Values:      sessionConfigOptionValuePayloadsFromACP(option.Values),
-		})
+		payload := SessionConfigOptionPayload{
+			ID:             strings.TrimSpace(option.ID),
+			Label:          strings.TrimSpace(option.Label),
+			Description:    strings.TrimSpace(option.Description),
+			Category:       strings.TrimSpace(option.Category),
+			Kind:           string(option.Kind),
+			CurrentValueID: strings.TrimSpace(option.CurrentValueID),
+			Values:         sessionConfigOptionValuePayloadsFromACP(option.Values),
+		}
+		if option.CurrentBool != nil {
+			payload.CurrentBool = new(*option.CurrentBool)
+		}
+		payloads = append(payloads, payload)
 	}
 	return payloads
 }
@@ -95,6 +100,8 @@ func sessionConfigOptionValuePayloadsFromACP(
 			Value:       strings.TrimSpace(value.Value),
 			Label:       strings.TrimSpace(value.Label),
 			Description: strings.TrimSpace(value.Description),
+			GroupID:     strings.TrimSpace(value.GroupID),
+			GroupLabel:  strings.TrimSpace(value.GroupLabel),
 		})
 	}
 	return payloads
@@ -102,12 +109,14 @@ func sessionConfigOptionValuePayloadsFromACP(
 
 // SessionConfigOptionPayload is one active ACP session config option.
 type SessionConfigOptionPayload struct {
-	ID          string                            `json:"id"`
-	Label       string                            `json:"label,omitempty"`
-	Description string                            `json:"description,omitempty"`
-	Kind        string                            `json:"kind"`
-	Current     string                            `json:"current,omitempty"`
-	Values      []SessionConfigOptionValuePayload `json:"values,omitempty"`
+	ID             string                            `json:"id"`
+	Label          string                            `json:"label,omitempty"`
+	Description    string                            `json:"description,omitempty"`
+	Category       string                            `json:"category,omitempty"`
+	Kind           string                            `json:"kind"`
+	CurrentValueID string                            `json:"current_value_id,omitempty"`
+	CurrentBool    *bool                             `json:"current_bool,omitempty"`
+	Values         []SessionConfigOptionValuePayload `json:"values,omitempty"`
 }
 
 // SessionConfigOptionValuePayload is one selectable value for an active ACP config option.
@@ -115,4 +124,6 @@ type SessionConfigOptionValuePayload struct {
 	Value       string `json:"value"`
 	Label       string `json:"label,omitempty"`
 	Description string `json:"description,omitempty"`
+	GroupID     string `json:"group_id,omitempty"`
+	GroupLabel  string `json:"group_label,omitempty"`
 }

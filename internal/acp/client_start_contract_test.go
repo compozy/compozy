@@ -916,13 +916,17 @@ func TestConfigureRuntime(t *testing.T) {
 			Model:           "other-model",
 			ReasoningEffort: "max",
 			Speed:           speedpkg.SpeedFast,
+			ACPOptions: []SessionConfigOptionSelection{
+				{ID: "thinking", BoolValue: boolPointer(true)},
+				{ID: "context", ValueID: "large"},
+			},
 		})
 		if err != nil {
 			t.Fatalf("ConfigureRuntime() error = %v", err)
 		}
 
 		got := captureNegotiationSequence(t, captureFile)
-		want := []string{"model:other-model", "effort:max", "speed:fast"}
+		want := []string{"model:other-model", "effort:max", "speed:fast", "context:large", "thinking:true"}
 		if !slices.Equal(got, want) {
 			t.Fatalf("runtime configuration sequence = %#v, want %#v", got, want)
 		}
@@ -931,6 +935,16 @@ func TestConfigureRuntime(t *testing.T) {
 		assertConfigOption(t, caps.ConfigOptions, "model", "other-model", "other-model")
 		assertConfigOption(t, caps.ConfigOptions, "effort", "max", "none", "max")
 		assertConfigOption(t, caps.ConfigOptions, "speed", "fast", "normal", "fast")
+		assertConfigOption(t, caps.ConfigOptions, "context", "large", "standard", "large")
+		thinking, ok := findConfigOptionByID(caps.ConfigOptions, "thinking")
+		if !ok || thinking.CurrentBool == nil || !*thinking.CurrentBool {
+			t.Fatalf("thinking option = %#v, want true", thinking)
+		}
+		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
+		thinkingRequest := decodeCapturedSetSessionConfigOptionRequest(t, requests[len(requests)-1])
+		if thinkingRequest.Type != "boolean" || thinkingRequest.BoolValue == nil || !*thinkingRequest.BoolValue {
+			t.Fatalf("thinking request = %#v, want ACP boolean true", thinkingRequest)
+		}
 		if caps.SpeedResolution == nil ||
 			caps.SpeedResolution.Requested != speedpkg.SpeedFast ||
 			caps.SpeedResolution.Status != speedpkg.ResolutionApplied {
@@ -1406,5 +1420,194 @@ func TestCleanupFailedStartReturnsJoinedErrorWhenStopFails(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "stop failed while cleaning up failed start") {
 		t.Fatalf("cleanupFailedStart() error = %v, want cleanup stop context", err)
+	}
+}
+
+func TestCleanupFailedStartIncludesRedactedBoundedStderr(t *testing.T) {
+	t.Parallel()
+
+	const secret = "hermes-cleanup-secret"
+	process := &AgentProcess{
+		done:   make(chan struct{}),
+		stderr: &lockedBuffer{},
+	}
+	if _, err := process.stderr.Write(
+		[]byte("token=" + secret + " " + strings.Repeat("startup context ", 400)),
+	); err != nil {
+		t.Fatalf("stderr.Write() error = %v", err)
+	}
+	close(process.done)
+
+	err := New().cleanupFailedStart(process, errors.New("session setup failed"))
+	if err == nil {
+		t.Fatal("cleanupFailedStart() error = nil, want non-nil")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("cleanupFailedStart() leaked secret: %v", err)
+	}
+	stderrIndex := strings.Index(err.Error(), "stderr=")
+	if stderrIndex < 0 {
+		t.Fatalf("cleanupFailedStart() = %v, want stderr context", err)
+	}
+	if got := len(err.Error()[stderrIndex+len("stderr="):]); got > maxFailureSummaryBytes {
+		t.Fatalf("attached stderr length = %d, want <= %d", got, maxFailureSummaryBytes)
+	}
+}
+
+func TestStartCapturesHermesModelStateAsTypedConfigOption(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		payload           string
+		wantModel         string
+		wantValues        []string
+		wantOptionIDs     []string
+		wantModelReadOnly bool
+		wantReasoning     string
+		wantBooleanID     string
+		wantBooleanValue  bool
+	}{
+		{
+			name:              "Should capture models from session new when config options omit a model",
+			payload:           `{"sessionId":"sess-new","models":{"currentModelId":"openrouter:grok-4.6","availableModels":[{"modelId":"openrouter:grok-4.6","name":"Grok 4.6","description":"fast"},{"modelId":"openrouter:opus-5","name":"Opus 5"}]},"configOptions":[{"type":"select","id":"reasoning_effort","name":"Reasoning","currentValue":"high","options":[{"value":"high","name":"High"}]}]}`,
+			wantModel:         "openrouter:grok-4.6",
+			wantValues:        []string{"openrouter:grok-4.6", "openrouter:opus-5"},
+			wantOptionIDs:     []string{"reasoning_effort", "model"},
+			wantModelReadOnly: true,
+			wantReasoning:     "high",
+		},
+		{
+			name:              "Should capture models from session load when config options omit a model",
+			payload:           `{"models":{"currentModelId":"anthropic:claude-opus-5","availableModels":[{"modelId":"anthropic:claude-opus-5","name":"Claude Opus 5"}]},"configOptions":[{"type":"boolean","id":"thinking","name":"Thinking","currentValue":true}]}`,
+			wantModel:         "anthropic:claude-opus-5",
+			wantValues:        []string{"anthropic:claude-opus-5"},
+			wantOptionIDs:     []string{"thinking", "model"},
+			wantModelReadOnly: true,
+			wantBooleanID:     "thinking",
+			wantBooleanValue:  true,
+		},
+		{
+			name:             "Should preserve an advertised model config option over the Hermes extension",
+			payload:          `{"models":{"currentModelId":"hermes:extension-model","availableModels":[{"modelId":"hermes:extension-model","name":"Extension model"}]},"configOptions":[{"type":"select","id":"model","name":"Model","currentValue":"provider:configured-model","options":[{"value":"provider:configured-model","name":"Configured model"}]},{"type":"boolean","id":"thinking","name":"Thinking","currentValue":false}]}`,
+			wantModel:        "provider:configured-model",
+			wantValues:       []string{"provider:configured-model"},
+			wantOptionIDs:    []string{"model", "thinking"},
+			wantBooleanID:    "thinking",
+			wantBooleanValue: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var response wireSessionSetupResponse
+			if err := json.Unmarshal([]byte(tc.payload), &response); err != nil {
+				t.Fatalf("json.Unmarshal() error = %v", err)
+			}
+			caps := captureSessionSetupCaps(Caps{}, response)
+
+			if got, want := configOptionIDs(caps.ConfigOptions), tc.wantOptionIDs; !slices.Equal(got, want) {
+				t.Fatalf("config option ids = %#v, want %#v", got, want)
+			}
+			model, ok := ModelConfigOption(caps.ConfigOptions)
+			if !ok {
+				t.Fatal("ModelConfigOption() ok = false, want true")
+			}
+			if model.CurrentValueID != tc.wantModel {
+				t.Fatalf("model current value = %q, want %q", model.CurrentValueID, tc.wantModel)
+			}
+			if model.ReadOnly != tc.wantModelReadOnly {
+				t.Fatalf("model read-only = %t, want %t", model.ReadOnly, tc.wantModelReadOnly)
+			}
+			values := make([]string, 0, len(model.Values))
+			for _, value := range model.Values {
+				values = append(values, value.Value)
+			}
+			if !slices.Equal(values, tc.wantValues) {
+				t.Fatalf("model values = %#v, want %#v", values, tc.wantValues)
+			}
+			if tc.wantReasoning != "" {
+				reasoning, ok := findConfigOptionByID(caps.ConfigOptions, "reasoning_effort")
+				if !ok || reasoning.CurrentValueID != tc.wantReasoning {
+					t.Fatalf("reasoning option = %#v, %v, want current %q", reasoning, ok, tc.wantReasoning)
+				}
+			}
+			if tc.wantBooleanID != "" {
+				boolean, ok := findConfigOptionByID(caps.ConfigOptions, tc.wantBooleanID)
+				if !ok || boolean.CurrentBool == nil || *boolean.CurrentBool != tc.wantBooleanValue {
+					t.Fatalf("boolean option = %#v, %v, want current %t", boolean, ok, tc.wantBooleanValue)
+				}
+			}
+		})
+	}
+}
+
+func configOptionIDs(options []SessionConfigOption) []string {
+	ids := make([]string, 0, len(options))
+	for _, option := range options {
+		ids = append(ids, option.ID)
+	}
+	return ids
+}
+
+func TestHermesDiscoveryModelIsReadOnlyForModernACP(t *testing.T) {
+	t.Parallel()
+
+	modelOption, ok := sessionModelConfigOption(&wireSessionModelState{
+		CurrentModelID: "openrouter:grok-4.6",
+		AvailableModels: []wireSessionModelInfo{
+			{ModelID: "openrouter:grok-4.6", Name: "Grok 4.6"},
+		},
+	})
+	if !ok {
+		t.Fatal("sessionModelConfigOption() ok = false, want true")
+	}
+	if !modelOption.ReadOnly {
+		t.Fatal("discovered model option read-only = false, want true")
+	}
+
+	process := &AgentProcess{
+		conn: &acpsdk.Connection{},
+		caps: Caps{ConfigOptions: []SessionConfigOption{modelOption}},
+	}
+	applied, err := New().applySessionModel(
+		context.Background(),
+		process,
+		"openrouter:grok-4.6",
+	)
+	if applied {
+		t.Fatal("applySessionModel() applied = true, want false for discovery-only model")
+	}
+	if !errors.Is(err, errModelConfigOptionReadOnly) {
+		t.Fatalf("applySessionModel() error = %v, want read-only diagnostic", err)
+	}
+	if !strings.Contains(err.Error(), "session/set_model") {
+		t.Fatalf("applySessionModel() error = %v, want session/set_model guidance", err)
+	}
+}
+
+func TestAttachStderrRedactsAndBoundsSetupDiagnostics(t *testing.T) {
+	t.Parallel()
+
+	const secret = "super-secret-hermes-token"
+	rawStderr := "token=" + secret + " " + strings.Repeat("startup context ", 400)
+	err := attachStderr(errors.New("ACP initialize handshake failed"), rawStderr)
+	if err == nil {
+		t.Fatal("attachStderr() error = nil, want wrapped error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatalf("attachStderr() leaked secret: %v", err)
+	}
+	if !strings.Contains(err.Error(), "[REDACTED]") {
+		t.Fatalf("attachStderr() = %v, want redaction marker", err)
+	}
+	stderrIndex := strings.Index(err.Error(), "stderr=")
+	if stderrIndex < 0 {
+		t.Fatalf("attachStderr() = %v, want stderr context", err)
+	}
+	if got := len(err.Error()[stderrIndex+len("stderr="):]); got > maxFailureSummaryBytes {
+		t.Fatalf("attached stderr length = %d, want <= %d", got, maxFailureSummaryBytes)
 	}
 }

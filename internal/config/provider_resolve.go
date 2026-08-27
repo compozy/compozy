@@ -191,6 +191,8 @@ func resolvedAgentFromProvider(
 		DisplayName:     provider.DisplayName,
 		Model:           model,
 		ReasoningEffort: reasoningEffort,
+		Speed:           normalizeAgentSpeed(agent.Speed),
+		ACPOptions:      CloneACPOptionSelections(agent.ACPOptions),
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),

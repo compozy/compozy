@@ -47,6 +47,7 @@ func runtimeSelectionPayloadFromACP(runtime *acp.PromptRuntime) *contract.Runtim
 		Model:           runtime.Model,
 		ReasoningEffort: contract.ReasoningEffort(runtime.ReasoningEffort),
 		Speed:           runtime.Speed,
+		ACPOptions:      contract.ACPOptionSelectionPayloadsFromACP(runtime.ACPOptions),
 	}
 }
 

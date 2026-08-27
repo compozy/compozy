@@ -1,6 +1,7 @@
 package acp
 
 import (
+	"encoding/json"
 	"testing"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -11,11 +12,11 @@ func TestMatchSpeedConfig(t *testing.T) {
 	t.Parallel()
 
 	selectOption := SessionConfigOption{
-		ID:       "provider-speed",
-		Label:    "Speed",
-		Category: "model_config",
-		Kind:     SessionConfigOptionKindSelect,
-		Current:  "standard-tier",
+		ID:             "provider-speed",
+		Label:          "Speed",
+		Category:       "model_config",
+		Kind:           SessionConfigOptionKindSelect,
+		CurrentValueID: "standard-tier",
 		Values: []SessionConfigOptionValue{
 			{Value: "standard-tier", Label: "Standard"},
 			{Value: "accelerated-tier", Label: "Enabled"},
@@ -23,11 +24,11 @@ func TestMatchSpeedConfig(t *testing.T) {
 		},
 	}
 	booleanOption := SessionConfigOption{
-		ID:       "fast",
-		Label:    "Fast Mode",
-		Category: "model_config",
-		Kind:     SessionConfigOptionKindBoolean,
-		Current:  "false",
+		ID:          "fast",
+		Label:       "Fast Mode",
+		Category:    "model_config",
+		Kind:        SessionConfigOptionKindBoolean,
+		CurrentBool: boolPointer(false),
 	}
 
 	tests := []struct {
@@ -35,6 +36,7 @@ func TestMatchSpeedConfig(t *testing.T) {
 		requested  speedpkg.Speed
 		options    []SessionConfigOption
 		wantTarget string
+		wantBool   *bool
 		wantReason speedpkg.ResolutionReason
 	}{
 		{
@@ -44,10 +46,10 @@ func TestMatchSpeedConfig(t *testing.T) {
 			wantTarget: "accelerated-tier",
 		},
 		{
-			name:       "Should keep ACP boolean speed unsupported in V1",
-			requested:  speedpkg.SpeedFast,
-			options:    []SessionConfigOption{booleanOption},
-			wantReason: speedpkg.ReasonCapabilityAbsent,
+			name:      "Should match a boolean speed option",
+			requested: speedpkg.SpeedFast,
+			options:   []SessionConfigOption{booleanOption},
+			wantBool:  boolPointer(true),
 		},
 		{
 			name:      "Should reject a missing model config category",
@@ -140,8 +142,15 @@ func TestMatchSpeedConfig(t *testing.T) {
 				}
 				return
 			}
-			if match == nil || reason != "" || match.target != test.wantTarget {
-				t.Fatalf("matchSpeedConfig() = %#v, %q, want target %q", match, reason, test.wantTarget)
+			if match == nil || reason != "" || match.selection.ValueID != test.wantTarget ||
+				!equalOptionalBool(match.selection.BoolValue, test.wantBool) {
+				t.Fatalf(
+					"matchSpeedConfig() = %#v, %q, want value %q bool %#v",
+					match,
+					reason,
+					test.wantTarget,
+					test.wantBool,
+				)
 			}
 		})
 	}
@@ -154,11 +163,11 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 		t.Parallel()
 
 		option := SessionConfigOption{
-			ID:       "provider-speed",
-			Label:    "Speed",
-			Category: "model_config",
-			Kind:     SessionConfigOptionKindSelect,
-			Current:  "normal-tier",
+			ID:             "provider-speed",
+			Label:          "Speed",
+			Category:       "model_config",
+			Kind:           SessionConfigOptionKindSelect,
+			CurrentValueID: "normal-tier",
 			Values: []SessionConfigOptionValue{
 				{Value: "normal-tier", Label: "Normal"},
 				{Value: "fast-tier", Label: "Fast"},
@@ -172,17 +181,20 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 			t.Fatal("alreadyApplied() = true, want false")
 		}
 
-		request := match.request(acpsdk.SessionId("session-123"))
-		if request.ValueId == nil ||
-			request.ValueId.SessionId != "session-123" ||
-			request.ValueId.ConfigId != "provider-speed" ||
-			request.ValueId.Value != "fast-tier" ||
-			request.Boolean != nil {
+		request, err := match.request(acpsdk.SessionId("session-123"))
+		if err != nil {
+			t.Fatalf("request() error = %v", err)
+		}
+		if request.SessionID != "session-123" ||
+			request.ConfigID != "provider-speed" ||
+			request.Type != "id" ||
+			request.Value != acpsdk.SessionConfigValueId("fast-tier") {
 			t.Fatalf("request() = %#v, want select provider-speed=fast-tier", request)
 		}
+		assertConfigOptionRequestJSON(t, request, "id", "fast-tier")
 
 		confirmed := option
-		confirmed.Current = "fast-tier"
+		confirmed.CurrentValueID = "fast-tier"
 		if !match.confirmed([]SessionConfigOption{confirmed}) {
 			t.Fatal("confirmed() = false, want true")
 		}
@@ -190,6 +202,71 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 			t.Fatal("confirmed(duplicate response) = true, want false")
 		}
 	})
+
+	t.Run("Should build and confirm a boolean request", func(t *testing.T) {
+		t.Parallel()
+
+		option := SessionConfigOption{
+			ID:          "fast",
+			Label:       "Fast Mode",
+			Category:    "model_config",
+			Kind:        SessionConfigOptionKindBoolean,
+			CurrentBool: boolPointer(false),
+		}
+		match, reason := matchSpeedConfig(speedpkg.SpeedFast, []SessionConfigOption{option})
+		if match == nil || reason != "" {
+			t.Fatalf("matchSpeedConfig() = %#v, %q, want supported", match, reason)
+		}
+		if match.alreadyApplied() {
+			t.Fatal("alreadyApplied() = true, want false")
+		}
+
+		request, err := match.request(acpsdk.SessionId("session-123"))
+		if err != nil {
+			t.Fatalf("request() error = %v", err)
+		}
+		if request.SessionID != "session-123" ||
+			request.ConfigID != "fast" ||
+			request.Type != "boolean" ||
+			request.Value != true {
+			t.Fatalf("request() = %#v, want boolean fast=true", request)
+		}
+		assertConfigOptionRequestJSON(t, request, "boolean", true)
+
+		confirmed := option
+		confirmed.CurrentBool = boolPointer(true)
+		if !match.confirmed([]SessionConfigOption{confirmed}) {
+			t.Fatal("confirmed() = false, want true")
+		}
+	})
+}
+
+func assertConfigOptionRequestJSON(
+	t *testing.T,
+	request setSessionConfigOptionWireRequest,
+	wantType string,
+	wantValue any,
+) {
+	t.Helper()
+
+	data, err := json.Marshal(request)
+	if err != nil {
+		t.Fatalf("json.Marshal(request) error = %v", err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		t.Fatalf("json.Unmarshal(request) error = %v", err)
+	}
+	if payload["type"] != wantType || payload["value"] != wantValue {
+		t.Fatalf("request JSON = %s, want type=%q value=%#v", data, wantType, wantValue)
+	}
+}
+
+func equalOptionalBool(left *bool, right *bool) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }
 
 func withSpeedOptionIdentity(

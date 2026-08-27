@@ -40,6 +40,7 @@ type RuntimeSelection struct {
 	Model           string
 	ReasoningEffort string
 	Speed           speedpkg.Speed
+	ACPOptions      []acp.SessionConfigOptionSelection
 }
 
 // NormalizeRuntimeSelection returns the canonical prompt-bound runtime input.
@@ -50,6 +51,11 @@ func NormalizeRuntimeSelection(selection RuntimeSelection) (RuntimeSelection, er
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           selection.Speed,
 	}
+	options, err := acp.NormalizeSessionConfigOptionSelections(selection.ACPOptions)
+	if err != nil {
+		return RuntimeSelection{}, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+	}
+	normalized.ACPOptions = options
 	if normalized.Speed == "" {
 		normalized.Speed = speedpkg.SpeedNormal
 	}
@@ -104,7 +110,8 @@ func runtimeSelectionsEqual(left RuntimeSelection, right RuntimeSelection) bool 
 	return strings.TrimSpace(left.Provider) == strings.TrimSpace(right.Provider) &&
 		strings.TrimSpace(left.Model) == strings.TrimSpace(right.Model) &&
 		strings.TrimSpace(left.ReasoningEffort) == strings.TrimSpace(right.ReasoningEffort) &&
-		left.Speed == right.Speed
+		left.Speed == right.Speed &&
+		runtimeACPOptionSelectionsEqual(left.ACPOptions, right.ACPOptions)
 }
 
 func cloneRuntimeSelection(selection *RuntimeSelection) *RuntimeSelection {
@@ -112,6 +119,7 @@ func cloneRuntimeSelection(selection *RuntimeSelection) *RuntimeSelection {
 		return nil
 	}
 	cloned := *selection
+	cloned.ACPOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	return &cloned
 }
 
@@ -124,6 +132,7 @@ func storeSessionRuntimeSelection(selection *RuntimeSelection) *store.SessionRun
 		Model:           selection.Model,
 		ReasoningEffort: selection.ReasoningEffort,
 		Speed:           selection.Speed,
+		ACPOptions:      storeSessionACPOptionSelections(selection.ACPOptions),
 	})
 }
 
@@ -137,6 +146,7 @@ func runtimeSelectionFromSessionStore(selection *store.SessionRuntimeSelection) 
 		Model:           normalized.Model,
 		ReasoningEffort: normalized.ReasoningEffort,
 		Speed:           normalized.Speed,
+		ACPOptions:      acpSessionACPOptionSelections(normalized.ACPOptions),
 	}
 }
 
@@ -149,6 +159,7 @@ func storeRuntimeSelection(selection *RuntimeSelection) store.SessionInputRuntim
 		Model:           strings.TrimSpace(selection.Model),
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           string(selection.Speed),
+		ACPOptions:      storeSessionACPOptionSelections(selection.ACPOptions),
 	}
 }
 
@@ -156,7 +167,8 @@ func runtimeSelectionFromStore(selection store.SessionInputRuntime) *RuntimeSele
 	if strings.TrimSpace(selection.Provider) == "" &&
 		strings.TrimSpace(selection.Model) == "" &&
 		strings.TrimSpace(selection.ReasoningEffort) == "" &&
-		strings.TrimSpace(selection.Speed) == "" {
+		strings.TrimSpace(selection.Speed) == "" &&
+		len(selection.ACPOptions) == 0 {
 		return nil
 	}
 	return &RuntimeSelection{
@@ -164,7 +176,81 @@ func runtimeSelectionFromStore(selection store.SessionInputRuntime) *RuntimeSele
 		Model:           strings.TrimSpace(selection.Model),
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           speedpkg.Speed(strings.TrimSpace(selection.Speed)),
+		ACPOptions:      acpSessionACPOptionSelections(selection.ACPOptions),
 	}
+}
+
+func storeSessionACPOptionSelections(
+	selections []acp.SessionConfigOptionSelection,
+) []store.SessionACPOptionSelection {
+	if len(selections) == 0 {
+		return nil
+	}
+	cloned := make([]store.SessionACPOptionSelection, 0, len(selections))
+	for _, selection := range selections {
+		candidate := store.SessionACPOptionSelection{
+			ID:      strings.TrimSpace(selection.ID),
+			ValueID: strings.TrimSpace(selection.ValueID),
+		}
+		if selection.BoolValue != nil {
+			candidate.BoolValue = new(*selection.BoolValue)
+		}
+		cloned = append(cloned, candidate)
+	}
+	return store.NormalizeSessionACPOptionSelections(cloned)
+}
+
+func acpSessionACPOptionSelections(
+	selections []store.SessionACPOptionSelection,
+) []acp.SessionConfigOptionSelection {
+	if len(selections) == 0 {
+		return nil
+	}
+	cloned := make([]acp.SessionConfigOptionSelection, 0, len(selections))
+	for _, selection := range selections {
+		candidate := acp.SessionConfigOptionSelection{
+			ID:      strings.TrimSpace(selection.ID),
+			ValueID: strings.TrimSpace(selection.ValueID),
+		}
+		if selection.BoolValue != nil {
+			candidate.BoolValue = new(*selection.BoolValue)
+		}
+		cloned = append(cloned, candidate)
+	}
+	return candidateACPOptionSelections(cloned)
+}
+
+func candidateACPOptionSelections(
+	selections []acp.SessionConfigOptionSelection,
+) []acp.SessionConfigOptionSelection {
+	normalized, err := acp.NormalizeSessionConfigOptionSelections(selections)
+	if err != nil {
+		return acp.CloneSessionConfigOptionSelections(selections)
+	}
+	return normalized
+}
+
+func runtimeACPOptionSelectionsEqual(
+	left []acp.SessionConfigOptionSelection,
+	right []acp.SessionConfigOptionSelection,
+) bool {
+	left = candidateACPOptionSelections(left)
+	right = candidateACPOptionSelections(right)
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index].ID != right[index].ID || left[index].ValueID != right[index].ValueID {
+			return false
+		}
+		if (left[index].BoolValue == nil) != (right[index].BoolValue == nil) {
+			return false
+		}
+		if left[index].BoolValue != nil && *left[index].BoolValue != *right[index].BoolValue {
+			return false
+		}
+	}
+	return true
 }
 
 func promptRuntimeFromSelection(selection RuntimeSelection) *acp.PromptRuntime {
@@ -173,6 +259,7 @@ func promptRuntimeFromSelection(selection RuntimeSelection) *acp.PromptRuntime {
 		Model:           strings.TrimSpace(selection.Model),
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           selection.Speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(selection.ACPOptions),
 	}
 }
 

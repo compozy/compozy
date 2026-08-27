@@ -104,6 +104,60 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
+	t.Run("Should preserve Claude logical model ids and provider transport bindings", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.BuiltinProviders()["claude"]
+		provider.Command = "claude-acp"
+		provider.AuthMode = compozyconfig.ProviderAuthModeNone
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID:       "model",
+			Category: "model",
+			Kind:     acp.SessionConfigOptionKindSelect,
+			Values: []acp.SessionConfigOptionValue{
+				{Value: "default", Label: "Default"},
+				{Value: "sonnet", Label: "Sonnet"},
+				{Value: "opus[1m]", Label: "Opus 5 1M"},
+				{Value: "haiku", Label: "Haiku"},
+				{Value: "claude-future-6", Label: "Claude Future 6"},
+			},
+		}}}
+		source := newLiveSourceForTest(t, "claude", provider, &LiveProviderSourcesConfig{
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
+		})
+
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "claude",
+			Now:        testTime(0),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(Claude ACP) error = %v", err)
+		}
+		if got, want := rowModelIDs(rows), []string{
+			"claude-future-6",
+			"claude-haiku-4-5-20251001",
+			"claude-opus-5",
+			"claude-sonnet-5",
+		}; !slices.Equal(got, want) {
+			t.Fatalf("row ids = %#v, want %#v", got, want)
+		}
+		sonnet := requireModelRow(t, rows, "claude-sonnet-5")
+		if sonnet.DisplayName != "Claude Sonnet 5" {
+			t.Fatalf("Claude Sonnet display name = %q, want canonical seed label", sonnet.DisplayName)
+		}
+		assertClaudeTransportBinding(t, sonnet, "default")
+		assertClaudeTransportBinding(t, sonnet, "sonnet")
+
+		opus := requireModelRow(t, rows, "claude-opus-5")
+		if opus.DisplayName != "Opus 5 1M" {
+			t.Fatalf("Claude Opus display name = %q, want live label", opus.DisplayName)
+		}
+		assertClaudeTransportBinding(t, opus, "opus[1m]")
+		future := requireModelRow(t, rows, "claude-future-6")
+		assertClaudeTransportBinding(t, future, "claude-future-6")
+	})
+
 	t.Run(
 		"Should record unavailable Claude runtime when native CLI auth cannot satisfy HTTP discovery",
 		func(t *testing.T) {
@@ -238,23 +292,18 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should use exact Cursor ACP model values instead of CLI aliases", func(t *testing.T) {
+	t.Run("Should aggregate Cursor CLI aliases into logical models", func(t *testing.T) {
 		t.Parallel()
 
-		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
-			ID:       "model",
-			Category: "model",
-			Kind:     acp.SessionConfigOptionKindSelect,
-			Current:  "grok-4.5[effort=high,fast=true]",
-			Values: []acp.SessionConfigOptionValue{
-				{Value: "grok-4.5[effort=high,fast=true]", Label: "Grok 4.5"},
-				{Value: "composer-2.5", Label: "Composer 2.5"},
-			},
-		}}}
+		fixture, err := os.ReadFile("testdata/cursor-agent-models.txt")
+		if err != nil {
+			t.Fatalf("ReadFile(Cursor models fixture) error = %v", err)
+		}
+		executor := &fakeDiscoveryExecutor{result: DiscoveryCommandResult{Stdout: string(fixture)}}
 		provider := compozyconfig.ProviderConfig{HomePolicy: compozyconfig.ProviderHomePolicyOperator}
 		source := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{
-			BaseEnv:  []string{"PATH=/bin", "HOME=/Users/operator"},
-			ACPProbe: probe,
+			BaseEnv:         []string{"PATH=/bin", "HOME=/Users/operator"},
+			CommandExecutor: executor,
 		})
 
 		rows, err := source.ListModels(testutil.Context(t), ListOptions{
@@ -265,20 +314,87 @@ func TestLiveProviderSources(t *testing.T) {
 			t.Fatalf("ListModels() error = %v", err)
 		}
 		if got, want := rowModelIDs(rows), []string{
+			"claude-opus-5",
 			"composer-2.5",
-			"grok-4.5[effort=high,fast=true]",
+			"grok-4.5",
+			"grok-4.6",
 		}; !slices.Equal(got, want) {
 			t.Fatalf("row ids = %#v, want %#v", got, want)
 		}
-		if rows[0].DisplayName != "Composer 2.5" || rows[1].DisplayName != "Grok 4.5" {
-			t.Fatalf("display names = %q/%q, want ACP labels", rows[0].DisplayName, rows[1].DisplayName)
+		if rows[0].DisplayName != "Claude Opus 5 1M" || rows[1].DisplayName != "Composer 2.5" ||
+			rows[2].DisplayName != "Cursor Grok 4.5" || rows[3].DisplayName != "Cursor Grok 4.6" {
+			t.Fatalf("display names = %#v, want logical model labels", []string{
+				rows[0].DisplayName,
+				rows[1].DisplayName,
+				rows[2].DisplayName,
+				rows[3].DisplayName,
+			})
 		}
+		opus := rows[0]
+		if opus.SupportsReasoning == nil || !*opus.SupportsReasoning {
+			t.Fatalf("Opus 5 SupportsReasoning = %v, want true", opus.SupportsReasoning)
+		}
+		if !slices.Equal(opus.ReasoningEfforts, []ReasoningEffort{
+			ReasoningEffortLow,
+			ReasoningEffortMedium,
+			ReasoningEffortHigh,
+			ReasoningEffortXHigh,
+			ReasoningEffortMax,
+		}) {
+			t.Fatalf("Opus 5 ReasoningEfforts = %#v, want all fixture efforts", opus.ReasoningEfforts)
+		}
+		if opus.DefaultReasoningEffort == nil || *opus.DefaultReasoningEffort != ReasoningEffortHigh {
+			t.Fatalf("Opus 5 DefaultReasoningEffort = %v, want high", opus.DefaultReasoningEffort)
+		}
+		if len(opus.ConfigOptions) != 1 || opus.ConfigOptions[0].ID != "thinking" ||
+			opus.ConfigOptions[0].Kind != ModelOptionKindBoolean ||
+			opus.ConfigOptions[0].CurrentBool == nil || *opus.ConfigOptions[0].CurrentBool {
+			t.Fatalf("Opus 5 ConfigOptions = %#v, want thinking=false", opus.ConfigOptions)
+		}
+		assertCursorBinding(t, opus, "claude-opus-5-thinking-high-fast", ReasoningEffortHigh, true, new(true))
+		assertCursorBinding(t, opus, "claude-opus-5-low", ReasoningEffortLow, false, new(false))
+		if got, want := len(opus.TransportBindings), 16; got != want {
+			t.Fatalf("Opus 5 transport bindings = %d, want %d", got, want)
+		}
+
+		grok45 := rows[2]
+		if grok45.SupportsReasoning == nil || !*grok45.SupportsReasoning ||
+			!slices.Equal(grok45.ReasoningEfforts, []ReasoningEffort{
+				ReasoningEffortLow,
+				ReasoningEffortMedium,
+				ReasoningEffortHigh,
+			}) {
+			t.Fatalf("Grok 4.5 reasoning profile = %#v, want low/medium/high", grok45)
+		}
+		assertCursorBinding(t, grok45, "cursor-grok-4.5-high-fast", ReasoningEffortHigh, true, nil)
+		if got, want := len(grok45.TransportBindings), 6; got != want {
+			t.Fatalf("Grok 4.5 transport bindings = %d, want %d", got, want)
+		}
+
+		grok46 := rows[3]
+		if grok46.SupportsReasoning == nil || !*grok46.SupportsReasoning ||
+			!slices.Equal(grok46.ReasoningEfforts, []ReasoningEffort{
+				ReasoningEffortLow,
+				ReasoningEffortMedium,
+				ReasoningEffortHigh,
+				ReasoningEffortXHigh,
+			}) {
+			t.Fatalf("Grok 4.6 reasoning profile = %#v, want low/medium/high/xhigh", grok46.ReasoningEfforts)
+		}
+		if grok46.DefaultReasoningEffort == nil || *grok46.DefaultReasoningEffort != ReasoningEffortHigh {
+			t.Fatalf("Grok 4.6 DefaultReasoningEffort = %v, want high", grok46.DefaultReasoningEffort)
+		}
+		assertCursorBinding(t, grok46, "cursor-grok-4.6-xhigh-fast", ReasoningEffortXHigh, true, nil)
+		if got, want := len(grok46.TransportBindings), 8; got != want {
+			t.Fatalf("Grok 4.6 transport bindings = %d, want %d", got, want)
+		}
+
 		if !source.BootstrapOnList() {
 			t.Fatal("BootstrapOnList() = false, want true")
 		}
-		req := probe.singleRequest(t)
-		if req.Command != cursorACPCommand {
-			t.Fatalf("command = %q, want %s", req.Command, cursorACPCommand)
+		req := executor.singleRequest(t)
+		if req.Command != "cursor-agent" || !slices.Equal(req.Args, []string{"models"}) {
+			t.Fatalf("command = %q %v, want cursor-agent models", req.Command, req.Args)
 		}
 		if got := envValue(req.Env, "HOME"); got != "/Users/operator" {
 			t.Fatalf("HOME = %q, want operator home", got)
@@ -331,20 +447,20 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should reject Cursor ACP sessions without advertised model values", func(t *testing.T) {
+	t.Run("Should reject Cursor model command output without advertised model values", func(t *testing.T) {
 		t.Parallel()
 
-		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
-			ID: "model", Kind: acp.SessionConfigOptionKindSelect,
-		}}}
+		executor := &fakeDiscoveryExecutor{
+			result: DiscoveryCommandResult{Stdout: "Available models\n\nTip: use --model <id>"},
+		}
 		source := newLiveSourceForTest(t, "cursor", compozyconfig.ProviderConfig{}, &LiveProviderSourcesConfig{
-			BaseEnv:  []string{"PATH=/bin"},
-			ACPProbe: probe,
+			BaseEnv:         []string{"PATH=/bin"},
+			CommandExecutor: executor,
 		})
 
 		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
-		if err == nil || !strings.Contains(err.Error(), "did not advertise model values") {
-			t.Fatalf("ListModels() error = %v, want missing ACP model values", err)
+		if err == nil || !strings.Contains(err.Error(), "cursor model command returned no model rows") {
+			t.Fatalf("ListModels() error = %v, want missing Cursor model rows", err)
 		}
 	})
 
@@ -358,8 +474,8 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 
 		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
-		if err == nil || !strings.Contains(err.Error(), "requires an ACP discovery command") {
-			t.Fatalf("ListModels() error = %v, want ACP discovery configuration rejection", err)
+		if err == nil || !strings.Contains(err.Error(), "requires a model discovery command") {
+			t.Fatalf("ListModels() error = %v, want model command configuration rejection", err)
 		}
 	})
 
@@ -465,17 +581,47 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should use configured Hermes command only when enabled", func(t *testing.T) {
+	t.Run("Should discover Hermes models through a real ACP probe", func(t *testing.T) {
 		t.Parallel()
 
-		executor := &fakeDiscoveryExecutor{
-			result: DiscoveryCommandResult{Stdout: `[{"id":"hermes-model"}]`},
+		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
+			ID:   "model",
+			Kind: acp.SessionConfigOptionKindSelect,
+			Values: []acp.SessionConfigOptionValue{{
+				Value: "hermes-model",
+				Label: "Hermes model",
+			}},
+		}}}
+		provider := compozyconfig.ProviderConfig{
+			Command: "hermes acp",
 		}
-		provider := compozyconfig.ProviderConfig{}
-		provider.Models.Discovery.Command = "hermes models --json"
+		source := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
+		})
+		rows, err := source.ListModels(testutil.Context(t), ListOptions{
+			ProviderID: "hermes",
+			Now:        testTime(0),
+		})
+		if err != nil {
+			t.Fatalf("ListModels(Hermes ACP) error = %v", err)
+		}
+		if got, want := requireSingleRow(t, rows).ModelID, "hermes-model"; got != want {
+			t.Fatalf("ModelID = %q, want %q", got, want)
+		}
+		if !source.BootstrapOnList() {
+			t.Fatal("BootstrapOnList() = false, want true")
+		}
+		req := probe.singleRequest(t)
+		if req.Command != provider.Command {
+			t.Fatalf("ACP discovery command = %q, want %q", req.Command, provider.Command)
+		}
+
+		disabled := false
+		provider.Models.Discovery.Enabled = &disabled
 		disabledSource := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
-			BaseEnv:         []string{"PATH=/bin"},
-			CommandExecutor: executor,
+			BaseEnv:  []string{"PATH=/bin"},
+			ACPProbe: probe,
 		})
 		store := newMemoryStore()
 		service := newTestService(t, store, []Source{disabledSource})
@@ -484,34 +630,13 @@ func TestLiveProviderSources(t *testing.T) {
 			RefreshOptions{ProviderID: "hermes", Force: true, Now: testTime(0)},
 		)
 		if err != nil {
-			t.Fatalf("Refresh(disabled by default) error = %v", err)
+			t.Fatalf("Refresh(disabled) error = %v", err)
 		}
-		if got := executor.callCount(); got != 0 {
-			t.Fatalf("executor calls = %d, want 0", got)
-		}
-		if status := requireStatus(
-			t,
-			statuses,
-			"provider_live:hermes",
-		); status.RefreshState != RefreshStateDisabled {
+		if status := requireStatus(t, statuses, "provider_live:hermes"); status.RefreshState != RefreshStateDisabled {
 			t.Fatalf("RefreshState = %q, want disabled", status.RefreshState)
 		}
-
-		enabled := true
-		provider.Models.Discovery.Enabled = &enabled
-		enabledSource := newLiveSourceForTest(t, "hermes", provider, &LiveProviderSourcesConfig{
-			BaseEnv:         []string{"PATH=/bin"},
-			CommandExecutor: executor,
-		})
-		rows, err := enabledSource.ListModels(testutil.Context(t), ListOptions{ProviderID: "hermes", Now: testTime(0)})
-		if err != nil {
-			t.Fatalf("ListModels(enabled command) error = %v", err)
-		}
-		if got := executor.callCount(); got != 1 {
-			t.Fatalf("executor calls = %d, want 1", got)
-		}
-		if got, want := requireSingleRow(t, rows).ModelID, "hermes-model"; got != want {
-			t.Fatalf("ModelID = %q, want %q", got, want)
+		if got := probe.requestCount(); got != 1 {
+			t.Fatalf("ACP probe calls = %d, want 1 after disabled refresh", got)
 		}
 	})
 
@@ -783,8 +908,8 @@ func TestLiveProviderSourceRegistration(t *testing.T) {
 		if targetErr != nil {
 			t.Fatalf("Cursor discoveryTarget() error = %v", targetErr)
 		}
-		if target.kind != liveDiscoveryACP || target.command != cursorACPCommand {
-			t.Fatalf("Cursor discovery target = %#v, want cursor-agent ACP command", target)
+		if target.kind != liveDiscoveryCommand || target.command != cursorModelsCommand {
+			t.Fatalf("Cursor discovery target = %#v, want cursor-agent models command", target)
 		}
 	})
 
@@ -891,10 +1016,37 @@ func TestLiveProviderParsingHelpers(t *testing.T) {
 			t.Fatal("parseLiveModelPayload(empty) error = nil, want error")
 		}
 	})
+
+	t.Run("Should reject Cursor output without parseable model rows", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseCursorModelRows("cursor", "Available models\n\nTip: use --model <id>", testTime(0))
+		if err == nil || !strings.Contains(err.Error(), "cursor model command returned no model rows") {
+			t.Fatalf("parseCursorModelRows() error = %v, want missing model rows", err)
+		}
+	})
 }
 
 func TestLiveDiscoverySupportTypes(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should apply the live refresh TTL without adding provider config state", func(t *testing.T) {
+		t.Parallel()
+
+		provider := compozyconfig.BuiltinProviders()["cursor"]
+		defaultSource := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{})
+		if got, want := defaultSource.TTL(), defaultLiveDiscoveryTTL; got != want {
+			t.Fatalf("TTL() = %s, want %s", got, want)
+		}
+
+		customTTL := 37 * time.Second
+		customSource := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{
+			RefreshTTL: customTTL,
+		})
+		if got := customSource.TTL(); got != customTTL {
+			t.Fatalf("TTL() = %s, want %s", got, customTTL)
+		}
+	})
 
 	t.Run("Should resolve env secret refs", func(t *testing.T) {
 		t.Parallel()
@@ -1044,6 +1196,12 @@ func (p *fakeACPModelProbe) singleRequest(t *testing.T) ACPModelProbeRequest {
 	return p.requests[0]
 }
 
+func (p *fakeACPModelProbe) requestCount() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return len(p.requests)
+}
+
 func (e *fakeDiscoveryExecutor) RunDiscoveryCommand(
 	_ context.Context,
 	req DiscoveryCommandRequest,
@@ -1099,6 +1257,10 @@ func (s *blockingProviderSource) Kind() SourceKind {
 
 func (s *blockingProviderSource) Priority() int {
 	return PriorityProviderLive
+}
+
+func (s *blockingProviderSource) CatalogExecutionFingerprint() (string, error) {
+	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
 }
 
 func (s *blockingProviderSource) ProviderIDs() []string {
@@ -1161,4 +1323,68 @@ func envValue(env []string, key string) string {
 		}
 	}
 	return ""
+}
+
+func requireModelRow(t *testing.T, rows []ModelRow, modelID string) ModelRow {
+	t.Helper()
+
+	for _, row := range rows {
+		if row.ModelID == modelID {
+			return row
+		}
+	}
+	t.Fatalf("model rows = %#v, want model %q", rowModelIDs(rows), modelID)
+	return ModelRow{}
+}
+
+func assertClaudeTransportBinding(t *testing.T, row ModelRow, transportModelID string) {
+	t.Helper()
+
+	for _, binding := range row.TransportBindings {
+		if binding.TransportModelID == transportModelID {
+			return
+		}
+	}
+	t.Fatalf("row %q missing Claude transport binding %q", row.ModelID, transportModelID)
+}
+
+func assertCursorBinding(
+	t *testing.T,
+	row ModelRow,
+	transportModelID string,
+	effort ReasoningEffort,
+	fast bool,
+	thinking *bool,
+) {
+	t.Helper()
+
+	for _, binding := range row.TransportBindings {
+		if binding.TransportModelID != transportModelID {
+			continue
+		}
+		if binding.ReasoningEffort == nil || *binding.ReasoningEffort != effort {
+			t.Fatalf("binding %q reasoning = %v, want %q", transportModelID, binding.ReasoningEffort, effort)
+		}
+		if binding.Fast == nil || *binding.Fast != fast {
+			t.Fatalf("binding %q fast = %v, want %t", transportModelID, binding.Fast, fast)
+		}
+		if (binding.Thinking == nil) != (thinking == nil) ||
+			(binding.Thinking != nil && *binding.Thinking != *thinking) {
+			t.Fatalf("binding %q thinking = %v, want %v", transportModelID, binding.Thinking, thinking)
+		}
+		if thinking != nil {
+			if len(binding.OptionSelections) != 1 || binding.OptionSelections[0].ID != "thinking" ||
+				binding.OptionSelections[0].BoolValue == nil ||
+				*binding.OptionSelections[0].BoolValue != *thinking {
+				t.Fatalf(
+					"binding %q option selections = %#v, want thinking=%t",
+					transportModelID,
+					binding.OptionSelections,
+					*thinking,
+				)
+			}
+		}
+		return
+	}
+	t.Fatalf("row %q missing transport binding %q", row.ModelID, transportModelID)
 }

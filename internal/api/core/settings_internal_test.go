@@ -69,6 +69,24 @@ func TestSettingsHelperFunctionsAndNilErrorWrappers(t *testing.T) {
 	}
 }
 
+func TestSettingsProviderItemRuntimeStrategy(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should project provider-managed strategy from the runtime provider", func(t *testing.T) {
+		t.Parallel()
+
+		payload := settingsProviderItemPayload(&settingspkg.ProviderItem{
+			Name: "gateway-bridge",
+			Settings: settingspkg.ProviderSettings{
+				RuntimeProvider: "openclaw",
+			},
+		})
+		if got, want := payload.RuntimeStrategy, contract.ProviderRuntimeStrategyProviderManaged; got != want {
+			t.Fatalf("RuntimeStrategy = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestSettingsLogTailFileHelpers(t *testing.T) {
 	t.Parallel()
 

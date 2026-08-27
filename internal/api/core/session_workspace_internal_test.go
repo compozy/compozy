@@ -349,6 +349,9 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	seen := make(map[string]bool, len(payloads))
 	for _, payload := range payloads {
 		seen[payload.Name] = true
+		if payload.Name == "openclaw" && payload.RuntimeStrategy != "provider_managed" {
+			t.Fatalf("openclaw runtime strategy = %q, want provider_managed", payload.RuntimeStrategy)
+		}
 	}
 	for _, want := range expected {
 		if !seen[want.Name] {

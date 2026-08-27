@@ -3,6 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { ProviderModelPayload } from "../../types";
 import { providerNeedsAuth, toRuntimeModelOptions } from "../to-runtime-selector-options";
 
+// Invariant: selector-facing model rows expose only canonical public
+// capabilities, including valid reasoning/Fast/thinking combinations.
+// Owning layer: model-catalog to-runtime-selector-options mapper.
+// Canonical suite: to-runtime-selector-options unit suite.
+
 function payload(
   overrides: Partial<ProviderModelPayload> & { model_id: string }
 ): ProviderModelPayload {
@@ -125,6 +130,74 @@ describe("toRuntimeModelOptions", () => {
 
     expect(option.efforts).toEqual(["low", "high"]);
     expect(option.default_effort).toBe("");
+  });
+
+  it("Should preserve valid configuration combinations and discard private or empty values", () => {
+    const [option] = toRuntimeModelOptions([
+      payload({
+        model_id: "gpt",
+        reasoning_efforts: ["low", "high", "max"],
+        configurations: [
+          { reasoning_effort: "low", fast: false, thinking: false },
+          { reasoning_effort: "high", fast: true, thinking: true },
+          { reasoning_effort: "high", fast: true, thinking: true },
+          {
+            reasoning_effort: "ultra" as NonNullable<
+              ProviderModelPayload["configurations"]
+            >[number]["reasoning_effort"],
+            fast: true,
+          },
+          { reasoning_effort: null, fast: null, thinking: null },
+        ],
+      }),
+    ]);
+
+    expect(option.efforts).toEqual(["low", "high"]);
+    expect(option.configurations).toEqual([
+      { reasoning_effort: "low", fast: false, thinking: false },
+      { reasoning_effort: "high", fast: true, thinking: true },
+      { fast: true },
+    ]);
+  });
+
+  it("Should expose typed catalog option descriptors without transport identifiers", () => {
+    const [option] = toRuntimeModelOptions([
+      payload({
+        model_id: "opus",
+        config_options: [
+          {
+            id: " thinking ",
+            label: " Thinking ",
+            category: "thought_level",
+            kind: "boolean",
+            current_bool: false,
+          },
+          {
+            id: "context",
+            kind: "select",
+            current_value_id: "200k",
+            values: [{ value: "1m", label: "1M", group_id: "large", group_label: "Large" }],
+          },
+        ],
+      }),
+    ]);
+
+    expect(option.acp_options).toEqual([
+      {
+        id: "thinking",
+        label: "Thinking",
+        category: "thought_level",
+        kind: "boolean",
+        current_bool: false,
+      },
+      {
+        id: "context",
+        kind: "select",
+        current_value_id: "200k",
+        values: [{ value: "1m", label: "1M", group_id: "large", group_label: "Large" }],
+      },
+    ]);
+    expect(JSON.stringify(option)).not.toContain("transport");
   });
 
   it("Should pass through cost, context window, and capability flags", () => {

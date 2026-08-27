@@ -64,6 +64,8 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 			Provider:        resolved.Provider,
 			Model:           resolved.Model,
 			ReasoningEffort: resolved.ReasoningEffort,
+			Speed:           resolved.Speed,
+			ACPOptions:      roleACPOptionsForSession(resolved.ACPOptions),
 			Fallbacks:       append([]compozyconfig.RoleFallback(nil), resolved.Fallbacks...),
 			BeforeFallback: func(fallbackCtx context.Context, attempt int, fallback compozyconfig.RoleFallback) error {
 				return recordRoleFallbackEvent(fallbackCtx, resolved, correlation, attempt, roleAttemptRoute{
@@ -71,6 +73,8 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 					Provider:        fallback.Provider,
 					Model:           fallback.Model,
 					ReasoningEffort: fallback.ReasoningEffort,
+					Speed:           fallback.Speed,
+					ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
 				})
 			},
 		}, nil

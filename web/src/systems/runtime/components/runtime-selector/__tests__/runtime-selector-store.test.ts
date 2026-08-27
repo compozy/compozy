@@ -29,6 +29,7 @@ describe("runtime selector stores", () => {
 
     expect(announced.context).toEqual({
       phase: "open",
+      advancedExpanded: false,
       entryMode: "exact",
       railFilter: "codex",
       query: "gpt",
@@ -62,6 +63,7 @@ describe("runtime selector stores", () => {
     const [canceled] = store.transition(enterExactState(), { type: "exactEntryCanceled" });
     const want = {
       phase: "open",
+      advancedExpanded: false,
       entryMode: "catalog",
       railFilter: "codex",
       query: "",
@@ -70,6 +72,19 @@ describe("runtime selector stores", () => {
     };
     expect(committed.context).toEqual(want);
     expect(canceled.context).toEqual(want);
+  });
+
+  it("Should keep advanced disclosure state explicit while the popup is open", () => {
+    const store = runtimeSelectorPopupLogic.createStore();
+    const [opened] = store.transition(store.getInitialSnapshot(), { type: "popupOpened" });
+    const [expanded] = store.transition(opened, {
+      type: "advancedOptionsToggled",
+      expanded: true,
+    });
+    const [closed] = store.transition(expanded, { type: "popupClosed" });
+
+    expect(expanded.context).toMatchObject({ phase: "open", advancedExpanded: true });
+    expect(closed.context).toEqual({ phase: "closed" });
   });
 
   it("Should preserve cross-catalog preferences and reject catalog-foreign mutations", () => {

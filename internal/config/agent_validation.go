@@ -20,10 +20,8 @@ func (a AgentDef) Validate() error {
 	if err := ValidateAgentName(a.Name); err != nil {
 		return err
 	}
-	if effort := strings.TrimSpace(a.ReasoningEffort); a.ReasoningEffort != "" {
-		if effort != a.ReasoningEffort || !reasoning.IsValid(effort) {
-			return &reasoning.InvalidEffortError{Path: "agent.reasoning_effort", Value: a.ReasoningEffort}
-		}
+	if err := validateAgentRuntimeDefaults(a); err != nil {
+		return err
 	}
 	if strings.TrimSpace(a.Permissions) != "" {
 		if err := PermissionMode(a.Permissions).Validate("agent.permissions"); err != nil {
@@ -62,4 +60,16 @@ func (a AgentDef) Validate() error {
 	}
 
 	return nil
+}
+
+func validateAgentRuntimeDefaults(agent AgentDef) error {
+	if effort := strings.TrimSpace(agent.ReasoningEffort); agent.ReasoningEffort != "" {
+		if effort != agent.ReasoningEffort || !reasoning.IsValid(effort) {
+			return &reasoning.InvalidEffortError{Path: "agent.reasoning_effort", Value: agent.ReasoningEffort}
+		}
+	}
+	if err := validateAgentSpeed(agent.Speed, "agent.speed"); err != nil {
+		return err
+	}
+	return validateACPOptionSelections("agent.acp_options", agent.ACPOptions)
 }

@@ -468,7 +468,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
-				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-8","reasoning_effort":"max","prompt":"You scout the codebase."}`,
+				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-8","reasoning_effort":"max","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],"prompt":"You scout the codebase."}`,
 			),
 		})
 		if err != nil {
@@ -485,6 +485,11 @@ func TestNativeAgentCreate(t *testing.T) {
 		}
 		if got, want := agent.ReasoningEffort, "max"; got != want {
 			t.Fatalf("agent.ReasoningEffort = %q, want %q", got, want)
+		}
+		if agent.Speed != "fast" || len(agent.ACPOptions) != 2 || agent.ACPOptions[0].ID != "context" ||
+			agent.ACPOptions[0].ValueID != "1m" || agent.ACPOptions[1].ID != "thinking" ||
+			agent.ACPOptions[1].BoolValue == nil || !*agent.ACPOptions[1].BoolValue {
+			t.Fatalf("agent runtime defaults = speed %q options %#v", agent.Speed, agent.ACPOptions)
 		}
 	})
 

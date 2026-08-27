@@ -14,6 +14,8 @@ compozy agent update <name> [flags]
 ### Options
 
 ```
+      --acp-option stringArray      ACP select option default (repeatable: id=value_id)
+      --acp-toggle stringArray      ACP boolean option default (repeatable: id=true|false)
       --category stringArray        Agent category path segment (repeatable)
       --command string              Optional provider command override
       --deny-tool stringArray       Denied tool pattern (repeatable)
@@ -26,6 +28,7 @@ compozy agent update <name> [flags]
       --prompt-file string          Read the agent system prompt body from a file
       --provider string             Provider name for sessions using this agent
       --reasoning-effort string     Optional default reasoning effort
+      --speed string                Optional default runtime speed (normal or fast)
       --tool stringArray            Allowed tool pattern (repeatable)
       --toolset stringArray         Allowed toolset reference (repeatable)
       --workspace string            Override workspace context (ID, name, or path)

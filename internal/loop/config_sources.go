@@ -28,10 +28,12 @@ func builtinEffectiveConfigSources() map[string]string {
 		"/runtime_defaults/worker/model",
 		"/runtime_defaults/worker/reasoning",
 		"/runtime_defaults/worker/speed",
+		"/runtime_defaults/worker/acp_options",
 		"/runtime_defaults/judge/provider",
 		"/runtime_defaults/judge/model",
 		"/runtime_defaults/judge/reasoning",
 		"/runtime_defaults/judge/speed",
+		"/runtime_defaults/judge/acp_options",
 		"/environment",
 		"/request_expire_after",
 	}

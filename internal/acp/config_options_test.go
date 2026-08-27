@@ -63,16 +63,18 @@ func TestSessionConfigOptionsFromSDK(t *testing.T) {
 		if model.ID != "model" || model.Label != "Model" || model.Description != description ||
 			model.Category != string(
 				modelCategory,
-			) || model.Kind != SessionConfigOptionKindSelect || model.Current != "model-a" {
+			) || model.Kind != SessionConfigOptionKindSelect || model.CurrentValueID != "model-a" ||
+			model.CurrentBool != nil {
 			t.Fatalf("model option = %#v", model)
 		}
 		if len(model.Values) != 1 || model.Values[0].Value != "model-a" ||
-			model.Values[0].Description != description {
+			model.Values[0].Description != description || model.Values[0].GroupID != "frontier" ||
+			model.Values[0].GroupLabel != "Frontier" {
 			t.Fatalf("model values = %#v", model.Values)
 		}
 		boolean := options[1]
-		if boolean.ID != "verbose" || boolean.Kind != SessionConfigOptionKindBoolean || boolean.Current != "true" ||
-			boolean.Description != booleanDescription {
+		if boolean.ID != "verbose" || boolean.Kind != SessionConfigOptionKindBoolean || boolean.CurrentBool == nil ||
+			!*boolean.CurrentBool || boolean.CurrentValueID != "" || boolean.Description != booleanDescription {
 			t.Fatalf("boolean option = %#v", boolean)
 		}
 	})
@@ -115,18 +117,18 @@ func TestConfigOptionMatching(t *testing.T) {
 	t.Parallel()
 
 	options := []SessionConfigOption{
-		{ID: "verbose", Kind: SessionConfigOptionKindBoolean, Current: "true"},
+		{ID: "verbose", Kind: SessionConfigOptionKindBoolean, CurrentBool: boolPointer(true)},
 		{
-			ID:      "model",
-			Kind:    SessionConfigOptionKindSelect,
-			Current: "model-a",
-			Values:  []SessionConfigOptionValue{{Value: "model-a"}, {Value: "model-b"}},
+			ID:             "model",
+			Kind:           SessionConfigOptionKindSelect,
+			CurrentValueID: "model-a",
+			Values:         []SessionConfigOptionValue{{Value: "model-a"}, {Value: "model-b"}},
 		},
 		{
-			ID:      "effort",
-			Kind:    SessionConfigOptionKindSelect,
-			Current: "low",
-			Values:  []SessionConfigOptionValue{{Value: "low"}, {Value: "high"}},
+			ID:             "effort",
+			Kind:           SessionConfigOptionKindSelect,
+			CurrentValueID: "low",
+			Values:         []SessionConfigOptionValue{{Value: "low"}, {Value: "high"}},
 		},
 	}
 
@@ -166,11 +168,11 @@ func TestConfigOptionMatching(t *testing.T) {
 
 		advertised := "grok-4.5[effort=high,fast=true]"
 		options := []SessionConfigOption{{
-			ID:       "model",
-			Kind:     SessionConfigOptionKindSelect,
-			Values:   []SessionConfigOptionValue{{Value: advertised}},
-			Current:  advertised,
-			Category: string(acpsdk.SessionConfigOptionCategoryModel),
+			ID:             "model",
+			Kind:           SessionConfigOptionKindSelect,
+			Values:         []SessionConfigOptionValue{{Value: advertised}},
+			CurrentValueID: advertised,
+			Category:       string(acpsdk.SessionConfigOptionCategoryModel),
 		}}
 		if err := ValidateModelConfigValue(options, advertised); err != nil {
 			t.Fatalf("ValidateModelConfigValue(advertised) error = %v", err)
@@ -181,4 +183,8 @@ func TestConfigOptionMatching(t *testing.T) {
 			t.Fatalf("ValidateModelConfigValue(alias) error = %v, want model_unavailable NegotiationError", err)
 		}
 	})
+}
+
+func boolPointer(value bool) *bool {
+	return new(value)
 }

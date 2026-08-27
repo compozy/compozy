@@ -33,20 +33,22 @@ type networkChannelUpdateInput struct {
 }
 
 type agentCreateInput struct {
-	Scope           string   `json:"scope"`
-	Workspace       string   `json:"workspace,omitempty"`
-	Name            string   `json:"name"`
-	Provider        string   `json:"provider,omitempty"`
-	Model           string   `json:"model,omitempty"`
-	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
-	Command         string   `json:"command,omitempty"`
-	Prompt          string   `json:"prompt"`
-	Permissions     string   `json:"permissions,omitempty"`
-	Tools           []string `json:"tools,omitempty"`
-	Toolsets        []string `json:"toolsets,omitempty"`
-	DenyTools       []string `json:"deny_tools,omitempty"`
-	CategoryPath    []string `json:"category_path,omitempty"`
-	DisabledSkills  []string `json:"disabled_skills,omitempty"`
+	Scope           string                             `json:"scope"`
+	Workspace       string                             `json:"workspace,omitempty"`
+	Name            string                             `json:"name"`
+	Provider        string                             `json:"provider,omitempty"`
+	Model           string                             `json:"model,omitempty"`
+	ReasoningEffort string                             `json:"reasoning_effort,omitempty"`
+	Speed           string                             `json:"speed,omitempty"`
+	ACPOptions      []contract.AgentACPOptionSelection `json:"acp_options,omitempty"`
+	Command         string                             `json:"command,omitempty"`
+	Prompt          string                             `json:"prompt"`
+	Permissions     string                             `json:"permissions,omitempty"`
+	Tools           []string                           `json:"tools,omitempty"`
+	Toolsets        []string                           `json:"toolsets,omitempty"`
+	DenyTools       []string                           `json:"deny_tools,omitempty"`
+	CategoryPath    []string                           `json:"category_path,omitempty"`
+	DisabledSkills  []string                           `json:"disabled_skills,omitempty"`
 }
 
 func (n *daemonNativeTools) networkChannelCreate(
@@ -232,6 +234,8 @@ func (n *daemonNativeTools) agentCreateRequest(
 			Command:         strings.TrimSpace(input.Command),
 			Model:           strings.TrimSpace(input.Model),
 			ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(input.ReasoningEffort)),
+			Speed:           contract.Speed(strings.TrimSpace(input.Speed)),
+			ACPOptions:      cloneNativeAgentACPOptions(input.ACPOptions),
 			Prompt:          input.Prompt,
 			Permissions:     contract.SettingsPermissionMode(strings.TrimSpace(input.Permissions)),
 			Tools:           trimNativeStrings(input.Tools),
@@ -253,6 +257,25 @@ func (n *daemonNativeTools) agentCreateRequest(
 		createReq.Workspace = workspaceRef
 	}
 	return createReq, nil
+}
+
+func cloneNativeAgentACPOptions(
+	options []contract.AgentACPOptionSelection,
+) []contract.AgentACPOptionSelection {
+	if len(options) == 0 {
+		return nil
+	}
+	cloned := make([]contract.AgentACPOptionSelection, len(options))
+	for index, option := range options {
+		cloned[index] = contract.AgentACPOptionSelection{
+			ID:      strings.TrimSpace(option.ID),
+			ValueID: strings.TrimSpace(option.ValueID),
+		}
+		if option.BoolValue != nil {
+			cloned[index].BoolValue = new(*option.BoolValue)
+		}
+	}
+	return cloned
 }
 
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {

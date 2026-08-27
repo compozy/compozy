@@ -4,9 +4,9 @@ area: ET
 title: Minimal runtime selector trigger and reasoning slider
 persona: Sol
 journey: J-17
-expected: The session-composer "Next prompt" selector is ONE button (provider logo, model name, intensity meter, chevron — no provider name text, effort label, ⌘J badge, or dividers) that toggles the popup; provider rail and model rows remain minimal; the reasoning footer exposes only real levels, and drag, stop-label click, or track arrow keys commit the canonical effort for the next prompt snapshot.
+expected: The Runtime Selector keeps one minimal trigger and exposes only valid model Reasoning and Fast controls; Advanced renders every other advertised select or boolean, removes invalid selections after a model change, reacts to live descriptor updates, and shows provider-managed runtimes with unavailable controls disabled.
 entry_points: web session-composer runtime selector; agent create/settings runtime control; onboarding default-model step
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -24,3 +24,6 @@ including multi-thumb use. Flag only; the next QA cycle owns screen-reader and k
 QA impact 2026-08-25 (ENG-143): provider chips and cross-provider model glyphs now expose the
 provider display name through the shared tooltip, while disabled provider chips stay silent during
 search. Reset for targeted web hover and keyboard-focus verification.
+
+QA impact 2026-08-27: the selector gained catalog-backed Fast and advanced ACP controls plus the
+provider-managed state. Reset for keyboard, screen-reader, invalidation, and live-update walks.

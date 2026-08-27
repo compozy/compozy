@@ -1205,6 +1205,7 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 	copied.AdditionalDirs = append([]string(nil), opts.AdditionalDirs...)
 	copied.Env = append([]string(nil), opts.Env...)
 	copied.MCPServers = append([]compozyconfig.MCPServer(nil), opts.MCPServers...)
+	copied.ACPOptions = acp.CloneSessionConfigOptionSelections(opts.ACPOptions)
 	d.startCalls = append(d.startCalls, copied)
 	if copied.ActivateMCPServers != nil {
 		if err := copied.ActivateMCPServers(ctx); err != nil {

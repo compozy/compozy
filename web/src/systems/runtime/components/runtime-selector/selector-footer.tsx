@@ -21,6 +21,8 @@ export interface SelectorFooterProps {
   speed?: RuntimeSpeed;
   onSpeedChange?: (next: RuntimeSpeed) => void;
   speedDisabled?: boolean;
+  providerManaged?: boolean;
+  reasoningDisabled?: boolean;
 }
 
 function FooterNote({
@@ -59,6 +61,8 @@ export function SelectorFooter({
   speed,
   onSpeedChange,
   speedDisabled = false,
+  providerManaged = false,
+  reasoningDisabled = false,
 }: SelectorFooterProps) {
   // Per-instance id so multiple mounted selectors never collide on one DOM id
   // (the label→slider `aria-labelledby` relationship must stay local).
@@ -74,7 +78,9 @@ export function SelectorFooter({
   if (reasoning.mode === "no-model") {
     return (
       <FooterNote mode="no-model" speedSwitch={speedSwitch}>
-        Select a model to set reasoning.
+        {providerManaged
+          ? "Provider manages model and reasoning."
+          : "Select a model to set reasoning."}
       </FooterNote>
     );
   }
@@ -111,6 +117,7 @@ export function SelectorFooter({
         modelName={modelName}
         labelId={labelId}
         onSelect={onSelect}
+        disabled={reasoningDisabled}
       />
       {speedSwitch}
     </div>

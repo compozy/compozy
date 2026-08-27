@@ -34,6 +34,7 @@ function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProv
     name: displayName || provider.name,
     ...(harness ? { harness } : {}),
     runtime_provider: runtimeProvider || provider.name,
+    runtime_strategy: provider.runtime_strategy,
   };
 }
 
@@ -109,6 +110,7 @@ export function useAgentRuntimeEditor({
       provider: next.provider,
       model: next.model ?? "",
       reasoningEffort: next.reasoning_effort,
+      acpOptions: next.acp_options ?? [],
     };
     const params = buildUpdateAgentParams(draft, workspaceId);
     if (!params) {

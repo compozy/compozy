@@ -79,6 +79,10 @@ func mergeModelGroup(rows []ModelRow, opts MergeOptions) Model {
 		if model.DefaultReasoningEffort == nil {
 			model.DefaultReasoningEffort = row.DefaultReasoningEffort
 		}
+		model.ConfigOptions = mergeModelOptionDescriptors(model.ConfigOptions, row.ConfigOptions)
+		for _, binding := range row.TransportBindings {
+			model.TransportBindings = appendTransportBinding(model.TransportBindings, binding)
+		}
 		mergeModelCosts(&model, row)
 		if model.ReleaseDate == nil {
 			model.ReleaseDate = cloneStringPtr(row.ReleaseDate)

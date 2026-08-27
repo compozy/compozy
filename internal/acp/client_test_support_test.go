@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -230,9 +231,11 @@ type capturedSetSessionModeRequest struct {
 }
 
 type capturedSetSessionConfigOptionRequest struct {
-	SessionID string `json:"sessionId"`
-	ConfigID  string `json:"configId"`
-	Value     string `json:"value"`
+	SessionID string
+	ConfigID  string
+	Type      string
+	Value     string
+	BoolValue *bool
 }
 
 func captureRequestParams(t *testing.T, path string, method string) map[string]json.RawMessage {
@@ -313,7 +316,7 @@ func captureNegotiationSequence(t *testing.T, path string) []string {
 				t.Fatalf("json.Unmarshal(set-config params) error = %v", err)
 			}
 			request := decodeCapturedSetSessionConfigOptionRequest(t, params)
-			sequence = append(sequence, request.ConfigID+":"+request.Value)
+			sequence = append(sequence, request.ConfigID+":"+request.displayValue())
 		}
 	}
 	return sequence
@@ -374,11 +377,36 @@ func decodeCapturedSetSessionConfigOptionRequest(
 	if err != nil {
 		t.Fatalf("json.Marshal(set-session-config-option params) error = %v", err)
 	}
-	var request capturedSetSessionConfigOptionRequest
-	if err := json.Unmarshal(raw, &request); err != nil {
+	var wireRequest struct {
+		SessionID string          `json:"sessionId"`
+		ConfigID  string          `json:"configId"`
+		Type      string          `json:"type"`
+		Value     json.RawMessage `json:"value"`
+	}
+	if err := json.Unmarshal(raw, &wireRequest); err != nil {
 		t.Fatalf("json.Unmarshal(set-session-config-option request) error = %v", err)
 	}
+	request := capturedSetSessionConfigOptionRequest{
+		SessionID: wireRequest.SessionID,
+		ConfigID:  wireRequest.ConfigID,
+		Type:      wireRequest.Type,
+	}
+	if err := json.Unmarshal(wireRequest.Value, &request.Value); err == nil {
+		return request
+	}
+	var boolValue bool
+	if err := json.Unmarshal(wireRequest.Value, &boolValue); err != nil {
+		t.Fatalf("json.Unmarshal(set-session-config-option value) error = %v", err)
+	}
+	request.BoolValue = new(boolValue)
 	return request
+}
+
+func (r capturedSetSessionConfigOptionRequest) displayValue() string {
+	if r.BoolValue != nil {
+		return strconv.FormatBool(*r.BoolValue)
+	}
+	return r.Value
 }
 
 func assertConfigOption(
@@ -400,7 +428,7 @@ func assertConfigOption(
 	if found == nil {
 		t.Fatalf("config option %q not found in %#v", id, options)
 	}
-	if got := found.Current; got != current {
+	if got := found.CurrentValueID; got != current {
 		t.Fatalf("config option %q current = %q, want %q", id, got, current)
 	}
 	values := make([]string, 0, len(found.Values))
@@ -932,7 +960,12 @@ func (a *helperACPAgent) SetSessionConfigOption(
 				helperSelectConfigOption("effort", "Reasoning effort", "none", "none", "max"),
 			)
 			if a.scenario == "runtime_config_options" {
-				configOptions = append(configOptions, helperSpeedConfigOption("normal"))
+				configOptions = append(
+					configOptions,
+					helperSpeedConfigOption("normal"),
+					helperSelectConfigOption("context", "Context", "standard", "standard", "large"),
+					helperBooleanConfigOption("thinking", "Thinking", false),
+				)
 			}
 			a.configOptions = configOptions
 			return acpsdk.SetSessionConfigOptionResponse{
@@ -944,6 +977,15 @@ func (a *helperACPAgent) SetSessionConfigOption(
 				continue
 			}
 			a.configOptions[index].Select.CurrentValue = value
+		}
+	}
+	if request.Boolean != nil {
+		configID := string(request.Boolean.ConfigId)
+		for index := range a.configOptions {
+			if a.configOptions[index].Boolean == nil || string(a.configOptions[index].Boolean.Id) != configID {
+				continue
+			}
+			a.configOptions[index].Boolean.CurrentValue = request.Boolean.Value
 		}
 	}
 	return acpsdk.SetSessionConfigOptionResponse{
@@ -983,6 +1025,17 @@ func helperSpeedConfigOption(current string) acpsdk.SessionConfigOption {
 	category := acpsdk.SessionConfigOptionCategory(speedConfigCategory)
 	option.Select.Category = &category
 	return option
+}
+
+func helperBooleanConfigOption(id string, name string, current bool) acpsdk.SessionConfigOption {
+	return acpsdk.SessionConfigOption{
+		Boolean: &acpsdk.SessionConfigOptionBoolean{
+			Id:           acpsdk.SessionConfigId(id),
+			Name:         name,
+			CurrentValue: current,
+			Type:         string(SessionConfigOptionKindBoolean),
+		},
+	}
 }
 
 func sessionConfigOptionFromSDKForTest(t *testing.T, option acpsdk.SessionConfigOption) SessionConfigOption {

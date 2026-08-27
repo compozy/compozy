@@ -7,6 +7,10 @@ import (
 	"time"
 )
 
+type BridgeCheckResponse struct {
+	Checks []BridgeCheckRecord `json:"checks"`
+}
+
 type BridgeCheckStatus string
 
 type BridgeDMPolicy string
@@ -119,10 +123,4 @@ type Chip struct {
 	Count    *int              `json:"count,omitempty"`
 	Requires map[string]string `json:"requires,omitempty"`
 	Fallback string            `json:"fallback,omitempty"`
-}
-
-type ClarifyAnswer struct {
-	Choice   *int   `json:"choice"`
-	Text     string `json:"text"`
-	Fallback bool   `json:"fallback"`
 }

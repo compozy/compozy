@@ -101,6 +101,8 @@ func agentDefFromParsedFile(
 		Command:         strings.TrimSpace(parsed.Command),
 		Model:           strings.TrimSpace(parsed.Model),
 		ReasoningEffort: strings.TrimSpace(parsed.ReasoningEffort),
+		Speed:           normalizeAgentSpeed(parsed.Speed),
+		ACPOptions:      parsed.ACPOptions,
 		Tools:           normalizeAgentToolPatterns(parsed.Tools),
 		Toolsets:        normalizeAgentToolsetRefs(parsed.Toolsets),
 		DenyTools:       normalizeAgentToolPatterns(parsed.DenyTools),
@@ -111,6 +113,11 @@ func agentDefFromParsedFile(
 		Prompt:          strings.TrimSpace(parts.Body),
 		SourcePath:      filepath.Clean(path),
 	}
+	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", agent.ACPOptions)
+	if err != nil {
+		return AgentDef{}, fmt.Errorf("parse agent file %q ACP options: %w", path, err)
+	}
+	agent.ACPOptions = normalizedOptions
 	if len(parsed.Hooks) == 0 {
 		return agent, nil
 	}
@@ -132,6 +139,8 @@ func applyAgentDefToParsed(parsed *parsedAgentDef, agent AgentDef) error {
 	parsed.Command = strings.TrimSpace(agent.Command)
 	parsed.Model = strings.TrimSpace(agent.Model)
 	parsed.ReasoningEffort = strings.TrimSpace(agent.ReasoningEffort)
+	parsed.Speed = normalizeAgentSpeed(agent.Speed)
+	parsed.ACPOptions = canonicalACPOptionSelections(agent.ACPOptions)
 	parsed.Tools = cloneStrings(agent.Tools)
 	parsed.Toolsets = cloneStrings(agent.Toolsets)
 	parsed.DenyTools = cloneStrings(agent.DenyTools)

@@ -4,9 +4,9 @@ area: RT
 title: Transition runtime at a prompt boundary
 persona: Théo
 journey: J-13
-expected: A prompt captures its selected provider, model, reasoning effort, and speed; Compozy configures the live process or replaces it as required before dispatching that prompt, persists the transition, and restores the prior runtime if the transition fails.
+expected: A prompt captures provider, logical model, Reasoning, Fast, and typed ACP options; Compozy applies or compiles them in deterministic order, replaces a launch-bound process when required before dispatch, persists the public logical selection, and restores the prior runtime if the transition fails.
 entry_points: web session composer; POST /api/sessions/:sid/prompt over HTTP+UDS; CLI compozy session prompt
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:
@@ -21,3 +21,7 @@ The canonical prompt runtime-transition scenario. It covers the runtime snapshot
 QA impact 2026-08-13: Cursor prompt binding rejects a non-advertised model before the at-most-once
 dispatch commit and accepts the same identity when retried with the exact live ACP value. Reset for
 the direct and Goal command paths.
+
+QA impact 2026-08-27: prompt snapshots now include typed ACP options. Cursor changes resolve private
+launch aliases and replace the process atomically; standard ACPs refresh and revalidate after every
+option response. Reset for direct, durable-selection, queue, Goal, and replacement paths.

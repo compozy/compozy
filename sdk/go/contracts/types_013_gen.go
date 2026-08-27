@@ -7,6 +7,26 @@ import (
 	"time"
 )
 
+type Job struct {
+	ID          string          `json:"id"`
+	ProfileID   string          `json:"profile_id"`
+	Scope       Scope           `json:"scope"`
+	Name        string          `json:"name"`
+	TargetKind  TargetKind      `json:"target_kind"`
+	AgentName   string          `json:"agent_name"`
+	WorkspaceID string          `json:"workspace_id,omitempty"`
+	Prompt      string          `json:"prompt"`
+	Schedule    *ScheduleSpec   `json:"schedule,omitempty"`
+	Task        *JobTaskConfig  `json:"task,omitempty"`
+	LoopTarget  *LoopTarget     `json:"loop_target,omitempty"`
+	Enabled     bool            `json:"enabled"`
+	Retry       RetryConfig     `json:"retry"`
+	FireLimit   FireLimitConfig `json:"fire_limit"`
+	Source      JobSource       `json:"source"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
 type JobSource string
 
 type JobTaskConfig struct {
@@ -375,5 +395,3 @@ type MemoryRecallParams struct {
 	Scope     MemoryScope `json:"scope,omitempty"`
 	Workspace string      `json:"workspace,omitempty"`
 }
-
-type MemoryScope string

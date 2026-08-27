@@ -30,7 +30,7 @@ func (d *Driver) applySessionMode(
 		return false, nil
 	}
 	if option, ok := findSelectConfigOption(process.CapsSnapshot().ConfigOptions, sessionConfigModeKey); ok &&
-		strings.TrimSpace(option.Current) == modeID {
+		strings.TrimSpace(option.CurrentValueID) == modeID {
 		return false, nil
 	}
 
@@ -67,7 +67,20 @@ func (d *Driver) applySessionModel(
 		return false, err
 	}
 	option, _ := ModelConfigOption(caps.ConfigOptions)
-	if err := d.applySessionConfigOption(ctx, process, option.ID, modelID); err != nil {
+	if option.ReadOnly {
+		return false, newNegotiationError(
+			NegotiationCodeModelUnavailable,
+			sessionConfigModelKey,
+			modelID,
+			option.ID,
+			configOptionChoices(option),
+			errModelConfigOptionReadOnly,
+		)
+	}
+	if err := d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{
+		ID:      option.ID,
+		ValueID: modelID,
+	}); err != nil {
 		return true, newNegotiationError(
 			NegotiationCodeModelUnavailable,
 			sessionConfigModelKey,
@@ -145,10 +158,13 @@ func (d *Driver) applySessionReasoningEffort(
 			nil,
 		)
 	}
-	if strings.TrimSpace(option.Current) == effortID {
+	if strings.TrimSpace(option.CurrentValueID) == effortID {
 		return false, nil
 	}
-	if err := d.applySessionConfigOption(ctx, process, option.ID, effortID); err != nil {
+	if err := d.applySessionConfigOption(ctx, process, SessionConfigOptionSelection{
+		ID:      option.ID,
+		ValueID: effortID,
+	}); err != nil {
 		return true, newNegotiationError(
 			NegotiationCodeReasoningEffortUnsupported,
 			"reasoning effort",
@@ -164,20 +180,17 @@ func (d *Driver) applySessionReasoningEffort(
 func (d *Driver) applySessionConfigOption(
 	ctx context.Context,
 	process *AgentProcess,
-	optionID string,
-	valueID string,
+	selection SessionConfigOptionSelection,
 ) error {
+	request, err := selection.request(acpsdk.SessionId(process.SessionID))
+	if err != nil {
+		return err
+	}
 	response, err := acpsdk.SendRequest[acpsdk.SetSessionConfigOptionResponse](
 		process.conn,
 		ctx,
 		acpsdk.AgentMethodSessionSetConfigOption,
-		acpsdk.SetSessionConfigOptionRequest{
-			ValueId: &acpsdk.SetSessionConfigOptionValueId{
-				SessionId: acpsdk.SessionId(process.SessionID),
-				ConfigId:  acpsdk.SessionConfigId(strings.TrimSpace(optionID)),
-				Value:     acpsdk.SessionConfigValueId(strings.TrimSpace(valueID)),
-			},
-		},
+		request,
 	)
 	if err != nil {
 		return err

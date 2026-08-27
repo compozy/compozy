@@ -11,6 +11,7 @@ const (
 	modelGPT56TerraID           = "gpt-5.6-terra"
 	modelGPT56LunaID            = "gpt-5.6-luna"
 	modelClaudeFable5ID         = "claude-fable-5"
+	modelClaudeOpus5ID          = "claude-opus-5"
 	modelClaudeOpus48ID         = "claude-opus-4-8"
 	modelClaudeSonnet5ID        = "claude-sonnet-5"
 	modelClaudeHaiku45CurrentID = "claude-haiku-4-5-20251001"
@@ -105,6 +106,7 @@ func builtinClaudeModelsConfig() ProviderModelsConfig {
 		},
 		Curated: []ProviderModelConfig{
 			claudeReasoningModel(modelClaudeFable5ID, "Claude Fable 5", 1_000_000, 128_000, 10, 50, true, "2026-06-09"),
+			claudeOpus5Model(),
 			claudeReasoningModel(modelClaudeOpus48ID, "Claude Opus 4.8", 1_000_000, 128_000, 5, 25, false, ""),
 			claudeReasoningModel(modelClaudeSonnet5ID, "Claude Sonnet 5", 1_000_000, 128_000, 3, 15, false, ""),
 			{
@@ -118,6 +120,28 @@ func builtinClaudeModelsConfig() ProviderModelsConfig {
 				CostOutputPerMillion: new(5.0),
 			},
 		},
+	}
+}
+
+func claudeOpus5Model() ProviderModelConfig {
+	return ProviderModelConfig{
+		ID:                modelClaudeOpus5ID,
+		DisplayName:       "Claude Opus 5",
+		ContextWindow:     new(int64(1_000_000)),
+		MaxOutputTokens:   new(int64(128_000)),
+		SupportsTools:     new(true),
+		SupportsReasoning: new(true),
+		ReasoningEfforts: []string{
+			providerReasoningLowKey,
+			providerMediumKey,
+			providerHighKey,
+			providerReasoningXHighKey,
+			providerReasoningMaxKey,
+		},
+		DefaultReasoningEffort: providerMediumKey,
+		CostInputPerMillion:    new(5.0),
+		CostOutputPerMillion:   new(25.0),
+		Featured:               new(true),
 	}
 }
 

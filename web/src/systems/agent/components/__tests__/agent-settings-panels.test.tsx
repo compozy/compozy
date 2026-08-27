@@ -17,21 +17,34 @@ vi.mock("@/systems/runtime/components/runtime-selector", () => ({
     triggerTestId,
     onChange,
     value,
+    speed,
+    onSpeedChange,
   }: {
     triggerTestId?: string;
     onChange: (next: { provider: string; model: string; reasoning_effort: string }) => void;
     value: { provider: string; model: string; reasoning_effort: string };
+    speed?: "normal" | "fast";
+    onSpeedChange?: (next: "normal" | "fast") => void;
   }) => (
-    <button
-      type="button"
-      data-testid={triggerTestId}
-      data-provider={value.provider}
-      data-model={value.model}
-      data-reasoning-effort={value.reasoning_effort}
-      onClick={() => onChange({ provider: "codex", model: "gpt-5", reasoning_effort: "high" })}
-    >
-      Runtime selector
-    </button>
+    <>
+      <button
+        type="button"
+        data-testid={triggerTestId}
+        data-provider={value.provider}
+        data-model={value.model}
+        data-reasoning-effort={value.reasoning_effort}
+        onClick={() => onChange({ provider: "codex", model: "gpt-5", reasoning_effort: "high" })}
+      >
+        Runtime selector
+      </button>
+      <button
+        type="button"
+        data-testid="agent-settings-speed"
+        onClick={() => onSpeedChange?.("fast")}
+      >
+        {speed}
+      </button>
+    </>
   ),
 }));
 
@@ -135,9 +148,18 @@ describe("AgentSettingsPanels", () => {
       provider: "codex",
       model: "gpt-5",
       reasoningEffort: "high",
+      acpOptions: [],
     });
+    await user.click(screen.getByTestId("agent-settings-speed"));
+    expect(onPatch).toHaveBeenCalledWith({ speed: "fast" });
     await user.click(screen.getByTestId("agent-settings-runtime-use-project-defaults"));
-    expect(onPatch).toHaveBeenCalledWith({ provider: "", model: "", reasoningEffort: "" });
+    expect(onPatch).toHaveBeenCalledWith({
+      provider: "",
+      model: "",
+      reasoningEffort: "",
+      speed: "",
+      acpOptions: [],
+    });
     await user.click(screen.getByTestId("agent-settings-permissions-approve-all"));
     expect(onPatch).toHaveBeenCalledWith({ permissions: "approve-all", legacyPermissions: null });
 
