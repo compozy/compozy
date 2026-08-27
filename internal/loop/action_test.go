@@ -1068,51 +1068,60 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			},
 		}
 
-		for _, mode := range []dsl.RunLoopMode{dsl.RunLoopAwait, dsl.RunLoopDetach} {
-			node.Params["mode"] = string(mode)
-			if _, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
-				WorkspaceID: "ws-1",
-				LoopRunID:   "parent-1",
-				Namespace:   namespace,
-				Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
-			}); err != nil {
-				t.Fatalf("Execute(%s) error = %v", mode, err)
-			}
+		tests := []struct {
+			name string
+			mode dsl.RunLoopMode
+		}{
+			{name: "Should pass overrides to awaited child", mode: dsl.RunLoopAwait},
+			{name: "Should pass overrides to detached child", mode: dsl.RunLoopDetach},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				node.Params["mode"] = string(test.mode)
+				if _, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
+					WorkspaceID: "ws-1",
+					LoopRunID:   "parent-1",
+					Namespace:   namespace,
+					Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
+				}); err != nil {
+					t.Fatalf("Execute(%s) error = %v", test.mode, err)
+				}
 
-			config := starter.mustLastStart(t).inputs.ConfigOverrides
-			if config.IterationCap == nil || *config.IterationCap != 4 {
-				t.Fatalf("iteration cap = %#v, want 4", config.IterationCap)
-			}
-			if config.BudgetTokens == nil || *config.BudgetTokens != 250000 {
-				t.Fatalf("budget tokens = %#v, want 250000", config.BudgetTokens)
-			}
-			if config.BudgetWallSec == nil || *config.BudgetWallSec != 7200 {
-				t.Fatalf("budget wall seconds = %#v, want 7200", config.BudgetWallSec)
-			}
-			if config.BudgetOnExceeded == nil || *config.BudgetOnExceeded != dsl.BudgetExceededHalt {
-				t.Fatalf("budget outcome = %#v, want halt", config.BudgetOnExceeded)
-			}
-			if config.ReattemptStrategy == nil || *config.ReattemptStrategy != loop.ReattemptHalt {
-				t.Fatalf("reattempt strategy = %#v, want halt", config.ReattemptStrategy)
-			}
-			if config.Environment == nil || *config.Environment != (dsl.EnvironmentSpec{
-				Mode: dsl.EnvironmentWorktree, WorktreeRef: "delivery-feature",
-			}) {
-				t.Fatalf("config environment = %#v, want delivery worktree", config.Environment)
-			}
-			if len(config.RuntimeRules) != 1 || config.RuntimeRules[0].Match.ID != "frontend-shell" ||
-				config.RuntimeRules[0].Runtime.Provider != "cursor" ||
-				config.RuntimeRules[0].Runtime.Model != "grok-4.6" ||
-				config.RuntimeRules[0].Runtime.Reasoning != "high" {
-				t.Fatalf("runtime rules = %#v, want materialized cursor rule", config.RuntimeRules)
-			}
-			var checks map[string]map[string]bool
-			if err := json.Unmarshal(config.EnabledChecks, &checks); err != nil {
-				t.Fatalf("enabled checks JSON error = %v", err)
-			}
-			if !checks["quality"]["enabled"] {
-				t.Fatalf("enabled checks = %#v, want quality enabled", checks)
-			}
+				config := starter.mustLastStart(t).inputs.ConfigOverrides
+				if config.IterationCap == nil || *config.IterationCap != 4 {
+					t.Fatalf("iteration cap = %#v, want 4", config.IterationCap)
+				}
+				if config.BudgetTokens == nil || *config.BudgetTokens != 250000 {
+					t.Fatalf("budget tokens = %#v, want 250000", config.BudgetTokens)
+				}
+				if config.BudgetWallSec == nil || *config.BudgetWallSec != 7200 {
+					t.Fatalf("budget wall seconds = %#v, want 7200", config.BudgetWallSec)
+				}
+				if config.BudgetOnExceeded == nil || *config.BudgetOnExceeded != dsl.BudgetExceededHalt {
+					t.Fatalf("budget outcome = %#v, want halt", config.BudgetOnExceeded)
+				}
+				if config.ReattemptStrategy == nil || *config.ReattemptStrategy != loop.ReattemptHalt {
+					t.Fatalf("reattempt strategy = %#v, want halt", config.ReattemptStrategy)
+				}
+				if config.Environment == nil || *config.Environment != (dsl.EnvironmentSpec{
+					Mode: dsl.EnvironmentWorktree, WorktreeRef: "delivery-feature",
+				}) {
+					t.Fatalf("config environment = %#v, want delivery worktree", config.Environment)
+				}
+				if len(config.RuntimeRules) != 1 || config.RuntimeRules[0].Match.ID != "frontend-shell" ||
+					config.RuntimeRules[0].Runtime.Provider != "cursor" ||
+					config.RuntimeRules[0].Runtime.Model != "grok-4.6" ||
+					config.RuntimeRules[0].Runtime.Reasoning != "high" {
+					t.Fatalf("runtime rules = %#v, want materialized cursor rule", config.RuntimeRules)
+				}
+				var checks map[string]map[string]bool
+				if err := json.Unmarshal(config.EnabledChecks, &checks); err != nil {
+					t.Fatalf("enabled checks JSON error = %v", err)
+				}
+				if !checks["quality"]["enabled"] {
+					t.Fatalf("enabled checks = %#v, want quality enabled", checks)
+				}
+			})
 		}
 	})
 
