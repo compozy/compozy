@@ -1136,6 +1136,16 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		}{
 			{name: "Should reject unknown fields", overrides: map[string]any{"iteration_caps": 4}},
 			{
+				name:      "Should reject operator-owned lifecycle policy",
+				overrides: map[string]any{"lifecycle": map[string]any{}},
+				wantError: `unknown field "lifecycle"`,
+			},
+			{
+				name:      "Should reject operator-owned request expiry",
+				overrides: map[string]any{"request_expire_after": "30m"},
+				wantError: `unknown field "request_expire_after"`,
+			},
+			{
 				name: "Should reject unknown nested runtime fields",
 				overrides: map[string]any{
 					"runtime_rules": []any{map[string]any{

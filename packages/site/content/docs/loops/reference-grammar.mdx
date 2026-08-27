@@ -9,10 +9,10 @@ chosen by the field, never by the author.
 
 ## Two surfaces, one namespace
 
-| Surface        | Syntax                     | Where it is used                                                                                                   |
-| -------------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| **Values**     | Go `text/template` `{{ }}` | String-valued fields: `params.*`, effect payloads, gate rubrics, `run-loop.inputs`, transforms, and start mappings |
-| **Conditions** | CEL, returning `bool`      | `branch.condition`, `fan-out.filter`, `contract.stop_when`, `watch-events` `events[].filter`                       |
+| Surface        | Syntax                     | Where it is used                                                                                                                          |
+| -------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Values**     | Go `text/template` `{{ }}` | String-valued fields: `params.*`, effect payloads, gate rubrics, `run-loop.inputs` and `config_overrides`, transforms, and start mappings |
+| **Conditions** | CEL, returning `bool`      | `branch.condition`, `fan-out.filter`, `contract.stop_when`, `watch-events` `events[].filter`                                              |
 
 Values interpolate; conditions evaluate. A `branch` never uses `{{ }}`, and a prompt never uses raw
 CEL — the field's type decides.
@@ -64,6 +64,23 @@ the Goal performs work.
 Goal `params` values are resolved recursively at the same execution boundary. A direct reference
 keeps its JSON type instead of becoming text, while `output_schema` remains the authored schema and
 is never treated as a template. Nested gate inputs follow the same rule.
+
+### Typed direct references
+
+An exact reference occupying the whole value preserves its JSON type. This is required for
+`run-loop.params.config_overrides`: numeric budgets stay numbers, objects stay objects, and runtime
+rule lists stay arrays when the child receives its per-run configuration.
+
+```yaml
+params:
+  loop: implement-tasks
+  config_overrides:
+    budget_tokens: "{{ .nodes.routing.output.remaining_tokens }}"
+    runtime_rules: "{{ .nodes.routing.output.runtime_rules }}"
+```
+
+Text surrounding a reference produces a string instead. Use exact references for non-string fields;
+the closed child configuration schema rejects a coerced number or array before starting the child.
 
 There is no second template pass inside the agent or judge. If an input value itself contains
 `{{ ... }}`, those braces remain literal data; they cannot introduce a new reference. Run details

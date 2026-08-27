@@ -1521,6 +1521,36 @@ func TestLinterShouldRejectClosedEnumAndReservedSchemaViolations(t *testing.T) {
 			wantCodes: []string{refs.CodeUnresolvablePath},
 		},
 		{
+			name: "Should reject operator-owned child loop lifecycle policy",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "implement-tasks",
+					"config_overrides": map[string]any{
+						"lifecycle": map[string]any{},
+					},
+				},
+			}),
+			wantCodes: []string{refs.CodeUnresolvablePath},
+		},
+		{
+			name: "Should reject operator-owned child loop request expiry",
+			def: singleNodeDefinition(dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop": "implement-tasks",
+					"config_overrides": map[string]any{
+						"request_expire_after": "30m",
+					},
+				},
+			}),
+			wantCodes: []string{refs.CodeUnresolvablePath},
+		},
+		{
 			name: "Should reject wrong child loop config override types",
 			def: singleNodeDefinition(dsl.Node{
 				ID:    "child",

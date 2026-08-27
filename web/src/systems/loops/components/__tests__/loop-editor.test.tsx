@@ -495,6 +495,45 @@ describe("LoopEditor", () => {
     );
   });
 
+  it("Should author child config overrides and publish typed JSON unchanged", async () => {
+    const { captured, handler } = capturePublish();
+    renderEditor("quality-gate-demo", [handler, detailHandler(fullLifecycleDetail)]);
+
+    await screen.findByTestId("loop-editor");
+    fireEvent.click(nodeCard("release_notes"));
+    fireEvent.change(await screen.findByTestId("loop-field-config_overrides"), {
+      target: {
+        value: JSON.stringify({
+          iteration_cap: 4,
+          budget_tokens: 250000,
+          runtime_rules: [
+            {
+              match: { type: "frontend" },
+              runtime: { provider: "cursor", model: "grok-4.6" },
+            },
+          ],
+        }),
+      },
+    });
+
+    expect(screen.getByTestId("loop-editor-dirty-chip")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+    await waitFor(() => expect(captured.definition).not.toBeNull());
+
+    expect(publishedNode(captured, "release_notes").params).toMatchObject({
+      config_overrides: {
+        iteration_cap: 4,
+        budget_tokens: 250000,
+        runtime_rules: [
+          {
+            match: { type: "frontend" },
+            runtime: { provider: "cursor", model: "grok-4.6" },
+          },
+        ],
+      },
+    });
+  });
+
   it("WT-005: carries the whole Spec 1 grammar through edit → PATCH → reopen unchanged", async () => {
     const { captured, handler } = capturePublish();
     renderEditor("quality-gate-demo", [handler, detailHandler(fullLifecycleDetail)]);

@@ -109,10 +109,10 @@ func decodeRunLoopConfigOverrides(raw map[string]any) (LoopConfig, error) {
 	if err != nil {
 		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: encode JSON: %w", err)
 	}
-	var config LoopConfig
+	var publicConfig runLoopPublicConfigOverrides
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&config); err != nil {
+	if err := decoder.Decode(&publicConfig); err != nil {
 		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: decode JSON: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
@@ -121,7 +121,44 @@ func decodeRunLoopConfigOverrides(raw map[string]any) (LoopConfig, error) {
 		}
 		return LoopConfig{}, fmt.Errorf("run-loop config_overrides: decode trailing JSON: %w", err)
 	}
-	return config, nil
+	return publicConfig.loopConfig(), nil
+}
+
+// runLoopPublicConfigOverrides is the closed per-run authoring surface shared with
+// the public RunLoopRequest. Operator-owned lifecycle and request-expiry policy
+// deliberately remain outside child Loop definitions.
+type runLoopPublicConfigOverrides struct {
+	HumanGateEnabled  *bool                `json:"human_gate_enabled,omitempty"`
+	ReattemptStrategy *ReattemptStrategy   `json:"reattempt_strategy,omitempty"`
+	EnabledChecks     json.RawMessage      `json:"enabled_checks_json,omitempty"`
+	IterationCap      *int                 `json:"iteration_cap,omitempty"`
+	BudgetTokens      *int                 `json:"budget_tokens,omitempty"`
+	BudgetWallSec     *int                 `json:"budget_wall_sec,omitempty"`
+	BudgetOnExceeded  *dsl.BudgetExceeded  `json:"budget_on_exceeded,omitempty"`
+	NoProgressWindow  *int                 `json:"no_progress_window,omitempty"`
+	FanOutWidth       *int                 `json:"fan_out_width,omitempty"`
+	GateMaxRevisions  *int                 `json:"gate_max_revisions,omitempty"`
+	RuntimeDefaults   *RuntimeDefaults     `json:"runtime_defaults,omitempty"`
+	RuntimeRules      []RuntimeRule        `json:"runtime_rules,omitempty"`
+	Environment       *dsl.EnvironmentSpec `json:"environment,omitempty"`
+}
+
+func (c runLoopPublicConfigOverrides) loopConfig() LoopConfig {
+	return LoopConfig{
+		HumanGateEnabled:  c.HumanGateEnabled,
+		ReattemptStrategy: c.ReattemptStrategy,
+		EnabledChecks:     c.EnabledChecks,
+		IterationCap:      c.IterationCap,
+		BudgetTokens:      c.BudgetTokens,
+		BudgetWallSec:     c.BudgetWallSec,
+		BudgetOnExceeded:  c.BudgetOnExceeded,
+		NoProgressWindow:  c.NoProgressWindow,
+		FanOutWidth:       c.FanOutWidth,
+		GateMaxRevisions:  c.GateMaxRevisions,
+		RuntimeDefaults:   c.RuntimeDefaults,
+		RuntimeRules:      c.RuntimeRules,
+		Environment:       c.Environment,
+	}
 }
 
 // Harvest returns the run-loop child id and await status.

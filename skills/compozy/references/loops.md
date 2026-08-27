@@ -486,6 +486,28 @@ parent environment unless the child resolves its own default. Other node kinds r
 The retired `params.cwd` fails validation; migrate it to
 `params.environment: {mode: directory, directory: <path>}`.
 
+`run-loop.params.config_overrides` applies one direct-run configuration layer to the child started
+by that node. It works in `await` and `detach`, has per-run precedence, never writes the child's
+stored configuration, and is optional without changing existing execution. Its closed fields are
+`human_gate_enabled`, `reattempt_strategy`, `enabled_checks_json`, `iteration_cap`,
+`budget_tokens`, `budget_wall_sec`, `budget_on_exceeded`, `no_progress_window`, `fan_out_width`,
+`gate_max_revisions`, `runtime_defaults`, `runtime_rules`, and `environment`. Operator-owned
+`lifecycle` and `request_expire_after` are rejected, as are unknown keys and wrong literal types.
+An exact template reference keeps its JSON type through materialization.
+
+```yaml
+- id: implement_tasks
+  class: action
+  kind: run-loop
+  params:
+    loop: implement-tasks
+    mode: await
+    config_overrides:
+      iteration_cap: 4
+      budget_tokens: "{{ .nodes.routing.output.remaining_tokens }}"
+      runtime_rules: "{{ .nodes.routing.output.runtime_rules }}"
+```
+
 ### Metric Criteria
 
 One `command`, `agent-judge`, or `extension` criterion per definition may declare

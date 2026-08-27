@@ -94,13 +94,18 @@ describe("loop node schema", () => {
     });
   });
 
-  it("Should mark branch.condition as a CEL reference field and give run-loop editable inputs", () => {
+  it("Should mark branch.condition as a CEL reference field and give run-loop editable JSON", () => {
     const branch = buildNodeFields({ id: "b", class: "control", kind: "branch" }).find(
       f => "key" in f && f.key === "condition"
     );
     expect(branch).toMatchObject({ reference: true, cel: true });
     const runLoop = buildNodeFields({ id: "child", class: "action", kind: "run-loop" });
     expect(runLoop.some(f => "key" in f && f.key === "inputs" && "json" in f && f.json)).toBe(true);
+    expect(fieldByKey(runLoop, "config_overrides")).toMatchObject({
+      type: "textarea",
+      path: ["params", "config_overrides"],
+      json: true,
+    });
   });
 
   /**

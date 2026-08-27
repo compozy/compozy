@@ -373,6 +373,17 @@ export function runLoopFields(_raw: RawLoopNode): FieldSpec[] {
       hint: "The child loop's declared inputs, each value template-interpolated over this loop's namespace.",
     },
     {
+      type: "textarea",
+      key: "config_overrides",
+      label: "Child config overrides",
+      path: ["params", "config_overrides"],
+      mono: true,
+      json: true,
+      optionalLabel: "optional · child-only JSON",
+      placeholder: '{"iteration_cap": 4, "budget_tokens": 250000}',
+      hint: "Per-run settings for this child only. The daemon validates the same closed fields as a direct Loop run; nothing is saved to the child definition.",
+    },
+    {
       type: "select",
       key: "on_parent_close",
       label: "on_parent_close",
