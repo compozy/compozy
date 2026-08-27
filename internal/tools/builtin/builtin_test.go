@@ -103,6 +103,40 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep terminal open optional and terminal write non-empty", func(t *testing.T) {
+		t.Parallel()
+
+		descriptors := descriptorMap(NativeDescriptors())
+		var openSchema struct {
+			Required []string `json:"required"`
+		}
+		if err := json.Unmarshal(descriptors[toolspkg.ToolIDTerminalOpen].InputSchema, &openSchema); err != nil {
+			t.Fatalf("terminal_open input schema unmarshal error = %v", err)
+		}
+		if len(openSchema.Required) != 0 {
+			t.Fatalf("terminal_open required = %v, want none", openSchema.Required)
+		}
+
+		var writeSchema struct {
+			Required   []string `json:"required"`
+			Properties map[string]struct {
+				MinLength uint64 `json:"minLength"`
+			} `json:"properties"`
+		}
+		if err := json.Unmarshal(descriptors[toolspkg.ToolIDTerminalWrite].InputSchema, &writeSchema); err != nil {
+			t.Fatalf("terminal_write input schema unmarshal error = %v", err)
+		}
+		required := slices.Clone(writeSchema.Required)
+		slices.Sort(required)
+		if !slices.Equal(required, []string{"data", "terminal_id"}) || writeSchema.Properties["data"].MinLength != 1 {
+			t.Fatalf(
+				"terminal_write schema = required %v, data minLength %d",
+				required,
+				writeSchema.Properties["data"].MinLength,
+			)
+		}
+	})
+
 	t.Run("Should describe the complete nullable Goal control output contract", func(t *testing.T) {
 		t.Parallel()
 

@@ -18,12 +18,26 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
+		reflect.TypeFor[terminalpkg.Mode]():                     terminalModeValues(),
+		reflect.TypeFor[terminalpkg.LeaseState]():               terminalLeaseStateValues(),
+		reflect.TypeFor[terminalpkg.ActorKind]():                terminalActorKindValues(),
+		reflect.TypeFor[terminalpkg.Signal]():                   terminalSignalValues(),
+		reflect.TypeFor[contract.TerminalState]():               contract.TerminalStateValues(),
+		reflect.TypeFor[contract.TerminalExitCause]():           contract.TerminalExitCauseValues(),
+		reflect.TypeFor[contract.TerminalCommandDetection]():    contract.TerminalCommandDetectionValues(),
+		reflect.TypeFor[contract.TerminalCommandApproval]():     contract.TerminalCommandApprovalValues(),
+		reflect.TypeFor[contract.TerminalAttachMode]():          contract.TerminalAttachModeValues(),
+		reflect.TypeFor[contract.TerminalRecordingAction]():     contract.TerminalRecordingActionValues(),
+		reflect.TypeFor[contract.TerminalRecordingState]():      contract.TerminalRecordingStateValues(),
+		reflect.TypeFor[contract.TerminalInputRejectOutcome]():  contract.TerminalInputRejectOutcomeValues(),
+		reflect.TypeFor[contract.TerminalErrorCode]():           contract.TerminalErrorCodeValues(),
 		reflect.TypeFor[contract.IssueSeverity]():               contract.IssueSeverityValues(),
 		reflect.TypeFor[contract.MarketplaceKind]():             contract.MarketplaceKindValues(),
 		reflect.TypeFor[contract.DrainState]():                  drainStateValues(),
@@ -261,6 +275,35 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 	}),
 )
+
+func terminalModeValues() []string {
+	return []string{string(terminalpkg.ModePTY), string(terminalpkg.ModePipe)}
+}
+
+func terminalLeaseStateValues() []string {
+	return []string{
+		string(terminalpkg.LeaseHumanOwned),
+		string(terminalpkg.LeaseAgentOwned),
+		string(terminalpkg.LeaseAvailable),
+	}
+}
+
+func terminalActorKindValues() []string {
+	return []string{
+		string(terminalpkg.ActorKindHuman),
+		string(terminalpkg.ActorKindAgent),
+		string(terminalpkg.ActorKindSystem),
+	}
+}
+
+func terminalSignalValues() []string {
+	return []string{
+		string(terminalpkg.SignalINT),
+		string(terminalpkg.SignalTERM),
+		string(terminalpkg.SignalKILL),
+		string(terminalpkg.SignalHUP),
+	}
+}
 
 func notificationScopeKindValues() []string {
 	return []string{

@@ -26,16 +26,21 @@ func (h *BaseHandlers) terminalActor(
 	}
 	caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, action, workspaceID)
 	if err != nil {
-		h.respondError(c, StatusForAgentIdentityError(err), err)
+		h.respondTerminalMappedError(c, StatusForAgentIdentityError(err), "terminal_identity_invalid", err)
 		return terminalpkg.Actor{}, false
 	}
 	info, err := h.Sessions.Status(c.Request.Context(), caller.Session.ID)
 	if err != nil {
-		h.respondError(c, StatusForSessionError(err), err)
+		h.respondTerminalMappedError(c, StatusForSessionError(err), "terminal_session_unavailable", err)
 		return terminalpkg.Actor{}, false
 	}
 	if info == nil {
-		h.respondError(c, StatusForAgentIdentityError(agentidentity.ErrIdentityStale), agentidentity.ErrIdentityStale)
+		h.respondTerminalMappedError(
+			c,
+			StatusForAgentIdentityError(agentidentity.ErrIdentityStale),
+			"terminal_identity_stale",
+			agentidentity.ErrIdentityStale,
+		)
 		return terminalpkg.Actor{}, false
 	}
 	return terminalpkg.Actor{

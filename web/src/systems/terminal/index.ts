@@ -166,5 +166,6 @@ export type {
   TerminalMode,
   TerminalScopeKey,
   TerminalScopeParams,
+  TerminalSignal,
   TerminalViewerIdentity,
 } from "./types";

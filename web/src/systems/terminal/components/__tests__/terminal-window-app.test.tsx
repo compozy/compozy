@@ -250,15 +250,19 @@ describe("TerminalWindowApp — S1 states", () => {
     await screen.findByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`);
 
     for (const code of ["ticket_expired", "ticket_invalid"]) {
-      await socket.deliver(TERMINAL_SERVER_OP.error, { code, message: `refused: ${code}` });
+      await socket.deliver(TERMINAL_SERVER_OP.error, {
+        error: { code, message: `refused: ${code}` },
+      });
       const notice = await screen.findByTestId(`terminal-notice-${code}`);
       // A pass can be minted again, so reconnecting is a real remedy.
       expect(within(notice).getByRole("button", { name: "Reconnect" })).toBeInTheDocument();
     }
 
     await socket.deliver(TERMINAL_SERVER_OP.error, {
-      code: "subscriber_limit_reached",
-      message: "16 viewers already attached",
+      error: {
+        code: "subscriber_limit_reached",
+        message: "16 viewers already attached",
+      },
     });
     const full = await screen.findByTestId("terminal-notice-subscriber_limit_reached");
     // Nobody left, so retrying immediately would only fail again.
@@ -273,8 +277,7 @@ describe("TerminalWindowApp — S1 states", () => {
     await screen.findByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`);
 
     await socket.deliver(TERMINAL_SERVER_OP.error, {
-      code: "slow_consumer",
-      message: "viewer queue was full for 10s",
+      error: { code: "slow_consumer", message: "viewer queue was full for 10s" },
     });
 
     const notice = await screen.findByTestId("terminal-notice-slow_consumer");
@@ -498,8 +501,7 @@ describe("TerminalWindowApp — contention", () => {
 
     await socket.ready();
     await socket.deliver(TERMINAL_SERVER_OP.error, {
-      code: "terminal_not_found",
-      message: "no terminal term-4f21c9a03b7e",
+      error: { code: "terminal_not_found", message: "no terminal term-4f21c9a03b7e" },
     });
 
     // Nothing to reconnect to; everything it ran is still recorded.
@@ -516,8 +518,10 @@ describe("TerminalWindowApp — contention", () => {
 
     await socket.ready();
     await socket.deliver(TERMINAL_SERVER_OP.error, {
-      code: "some_future_refusal",
-      message: "The daemon refused for a reason this client predates.",
+      error: {
+        code: "some_future_refusal",
+        message: "The daemon refused for a reason this client predates.",
+      },
     });
 
     expect(await screen.findByTestId("terminal-notice-some_future_refusal")).toHaveTextContent(

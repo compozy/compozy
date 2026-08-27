@@ -86,7 +86,7 @@ func handleTerminalServerFrame(
 	case terminalwire.ServerOpExit:
 		return true, nil
 	case terminalwire.ServerOpError:
-		return false, terminalPermanentError(fmt.Errorf("cli: terminal stream error: %s", frame.Payload))
+		return false, terminalStreamFrameError(frame.Payload, "stream")
 	}
 	return false, nil
 }

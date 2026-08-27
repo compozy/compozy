@@ -391,9 +391,27 @@ func TestUDSTerminalWebSocketLifecycle(t *testing.T) {
 			)
 		}
 		terminalWorkspaceID := created.Terminal.WorkspaceID
+		ticketResponse := mustUnixRequest(
+			t,
+			runtime.client,
+			http.MethodPost,
+			"http://unix/api/workspaces/"+terminalWorkspaceID+"/terminals/"+
+				string(created.Terminal.ID)+"/attach-ticket?profile=default",
+			[]byte(`{"mode":"write"}`),
+			nil,
+		)
+		if ticketResponse.StatusCode != http.StatusCreated {
+			body := readAndCloseHTTPBody(t, ticketResponse)
+			t.Fatalf("mint terminal ticket status = %d, want 201; body=%s", ticketResponse.StatusCode, body)
+		}
+		var ticket contract.TerminalAttachTicketResponse
+		decodeHTTPJSON(t, ticketResponse, &ticket)
+		if ticket.Ticket == "" {
+			t.Fatal("terminal attach ticket is empty")
+		}
 
 		streamURL := "ws://unix/api/workspaces/" + terminalWorkspaceID + "/terminals/" +
-			string(created.Terminal.ID) + "/stream?mode=write&flow=ack&profile=default"
+			string(created.Terminal.ID) + "/stream?mode=write&flow=ack&ticket=" + ticket.Ticket
 		dialer := websocket.Dialer{
 			Subprotocols: []string{terminalwire.Subprotocol},
 			NetDialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {

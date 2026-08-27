@@ -12,9 +12,11 @@ import { z } from "zod";
 import type { TerminalInfo } from "../types";
 import {
   terminalActorKindSchema,
+  terminalExitSchema,
+  terminalInfoSchema,
   terminalLeaseStateSchema,
   terminalModeSchema,
-} from "./terminal-wire-enums";
+} from "./terminal-contract-schema";
 
 export const TERMINAL_CATALOG_EVENTS = [
   "terminal.snapshot",
@@ -27,57 +29,50 @@ export const TERMINAL_CATALOG_EVENTS = [
 
 export type TerminalCatalogEventName = (typeof TERMINAL_CATALOG_EVENTS)[number];
 
+export class TerminalCatalogProtocolError extends Error {
+  constructor() {
+    super("The daemon returned an invalid terminal catalog event.");
+    this.name = "TerminalCatalogProtocolError";
+  }
+}
+
 /** One catalog stream is always owned by exactly one profile. */
 export function terminalCatalogStreamPath(workspaceId: string, profile: string): string {
   const query = new URLSearchParams({ profile });
   return `/api/workspaces/${encodeURIComponent(workspaceId)}/terminals/stream?${query.toString()}`;
 }
 
-const exitSchema = z
-  .object({
-    cause: z.enum(["exited", "signaled", "unknown"]),
-    code: z.number().nullish(),
-    signal: z.string().nullish(),
-    at: z.string(),
-  })
-  .nullish();
-
-/**
- * The public terminal projection. Parsed rather than trusted: a frame the
- * client cannot read is dropped, never merged half-understood into the list a
- * person is reading.
- */
-const terminalInfoSchema = z.object({
-  id: z.string(),
-  workspace_id: z.string(),
-  profile_id: z.string(),
-  profile_name: z.string(),
-  title: z.string(),
-  shell: z.string(),
-  cwd: z.string(),
-  mode: terminalModeSchema,
-  state: z.enum(["running", "exited"]),
-  controller: z.object({ kind: terminalActorKindSchema, id: z.string() }).nullish(),
-  lease: terminalLeaseStateSchema,
-  viewers: z.number(),
-  bound_run: z.object({ session_id: z.string(), run_id: z.string() }).nullish(),
-  capabilities: z.object({ interactive: z.boolean() }),
-  created_at: z.string(),
-  exit: exitSchema,
-});
-
-const snapshotSchema = z.object({ terminals: z.array(terminalInfoSchema) });
-const createdSchema = z.object({ terminal: terminalInfoSchema });
-const closedSchema = z.object({ terminal_id: z.string(), exit: exitSchema });
-const titleChangedSchema = z.object({ terminal_id: z.string(), title: z.string() });
-const modeChangedSchema = z.object({ terminal_id: z.string(), mode: terminalModeSchema });
-const leaseChangedSchema = z.object({
+const snapshotSchema = z.strictObject({ terminals: z.array(terminalInfoSchema) });
+const createdSchema = z.strictObject({ terminal: terminalInfoSchema });
+const closedSchema = z.strictObject({
   terminal_id: z.string(),
-  lease: terminalLeaseStateSchema,
-  controller_kind: z.union([terminalActorKindSchema, z.literal("")]).nullish(),
-  controller_id: z.string().nullish(),
-  reason: z.string().nullish(),
+  exit: terminalExitSchema.nullable(),
 });
+const titleChangedSchema = z.strictObject({ terminal_id: z.string(), title: z.string() });
+const modeChangedSchema = z.strictObject({ terminal_id: z.string(), mode: terminalModeSchema });
+const leaseChangedSchema = z.discriminatedUnion("lease", [
+  z.strictObject({
+    terminal_id: z.string(),
+    lease: z.literal(terminalLeaseStateSchema.enum.available),
+    controller_kind: z.literal(""),
+    controller_id: z.literal(""),
+    reason: z.string(),
+  }),
+  z.strictObject({
+    terminal_id: z.string(),
+    lease: z.literal(terminalLeaseStateSchema.enum.human_owned),
+    controller_kind: z.literal(terminalActorKindSchema.enum.human),
+    controller_id: z.string().min(1),
+    reason: z.string(),
+  }),
+  z.strictObject({
+    terminal_id: z.string(),
+    lease: z.literal(terminalLeaseStateSchema.enum.agent_owned),
+    controller_kind: z.literal(terminalActorKindSchema.enum.agent),
+    controller_id: z.string().min(1),
+    reason: z.string(),
+  }),
+]);
 
 export type TerminalCatalogEvent =
   | { name: "terminal.snapshot"; terminals: TerminalInfo[] }
@@ -93,50 +88,41 @@ export type TerminalCatalogEvent =
       reason: string | null;
     };
 
-/** Parses one named catalog frame. Returns null for a frame it cannot read. */
+/** Parses a registered catalog frame; unregistered event names are ignored. */
 export function parseTerminalCatalogEvent(name: string, raw: unknown): TerminalCatalogEvent | null {
   switch (name) {
     case "terminal.snapshot": {
-      const parsed = snapshotSchema.safeParse(raw);
-      return parsed.success
-        ? { name, terminals: parsed.data.terminals.map(normalizeTerminal) }
-        : null;
+      const parsed = parseKnownCatalogEvent(snapshotSchema, raw);
+      return { name, terminals: parsed.terminals };
     }
     case "terminal.created": {
-      const parsed = createdSchema.safeParse(raw);
-      return parsed.success ? { name, terminal: normalizeTerminal(parsed.data.terminal) } : null;
+      const parsed = parseKnownCatalogEvent(createdSchema, raw);
+      return { name, terminal: parsed.terminal };
     }
     case "terminal.closed": {
-      const parsed = closedSchema.safeParse(raw);
-      return parsed.success
-        ? { name, terminalId: parsed.data.terminal_id, exit: parsed.data.exit ?? null }
-        : null;
+      const parsed = parseKnownCatalogEvent(closedSchema, raw);
+      return { name, terminalId: parsed.terminal_id, exit: parsed.exit };
     }
     case "terminal.title_changed": {
-      const parsed = titleChangedSchema.safeParse(raw);
-      return parsed.success
-        ? { name, terminalId: parsed.data.terminal_id, title: parsed.data.title }
-        : null;
+      const parsed = parseKnownCatalogEvent(titleChangedSchema, raw);
+      return { name, terminalId: parsed.terminal_id, title: parsed.title };
     }
     case "terminal.mode_changed": {
-      const parsed = modeChangedSchema.safeParse(raw);
-      return parsed.success
-        ? { name, terminalId: parsed.data.terminal_id, mode: parsed.data.mode }
-        : null;
+      const parsed = parseKnownCatalogEvent(modeChangedSchema, raw);
+      return { name, terminalId: parsed.terminal_id, mode: parsed.mode };
     }
     case "terminal.lease_changed": {
-      const parsed = leaseChangedSchema.safeParse(raw);
-      if (!parsed.success) return null;
+      const parsed = parseKnownCatalogEvent(leaseChangedSchema, raw);
       const controller =
-        parsed.data.controller_kind && parsed.data.controller_id
-          ? { kind: parsed.data.controller_kind, id: parsed.data.controller_id }
-          : null;
+        parsed.lease === terminalLeaseStateSchema.enum.available
+          ? null
+          : { kind: parsed.controller_kind, id: parsed.controller_id };
       return {
         name,
-        terminalId: parsed.data.terminal_id,
-        lease: parsed.data.lease,
+        terminalId: parsed.terminal_id,
+        lease: parsed.lease,
         controller,
-        reason: parsed.data.reason ?? null,
+        reason: parsed.reason || null,
       };
     }
     default:
@@ -144,13 +130,10 @@ export function parseTerminalCatalogEvent(name: string, raw: unknown): TerminalC
   }
 }
 
-function normalizeTerminal(parsed: z.infer<typeof terminalInfoSchema>): TerminalInfo {
-  return {
-    ...parsed,
-    controller: parsed.controller ?? null,
-    bound_run: parsed.bound_run ?? null,
-    exit: parsed.exit ?? null,
-  };
+function parseKnownCatalogEvent<Result>(schema: z.ZodType<Result>, raw: unknown): Result {
+  const parsed = schema.safeParse(raw);
+  if (!parsed.success) throw new TerminalCatalogProtocolError();
+  return parsed.data;
 }
 
 /**

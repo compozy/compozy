@@ -3,6 +3,7 @@ package spec
 import (
 	"sort"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/tools"
 )
 
@@ -59,12 +60,13 @@ func toolReasonCodeValues() []string {
 		string(tools.ReasonToolUnknown),
 		string(tools.ReasonConfigPathNotFound),
 	}
+	values = appendUniqueStrings(values, contract.TerminalErrorCodeValues()...)
 	sort.Strings(values)
 	return values
 }
 
 func toolErrorCodeValues() []string {
-	return []string{
+	values := []string{
 		string(tools.ErrorCodeNotFound),
 		string(tools.ErrorCodeConflict),
 		string(tools.ErrorCodeUnavailable),
@@ -79,4 +81,22 @@ func toolErrorCodeValues() []string {
 		string(tools.ErrorCodeCanceled),
 		string(tools.ErrorCodeTimedOut),
 	}
+	values = appendUniqueStrings(values, contract.TerminalErrorCodeValues()...)
+	sort.Strings(values)
+	return values
+}
+
+func appendUniqueStrings(values []string, additions ...string) []string {
+	seen := make(map[string]struct{}, len(values)+len(additions))
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+	for _, addition := range additions {
+		if _, exists := seen[addition]; exists {
+			continue
+		}
+		seen[addition] = struct{}{}
+		values = append(values, addition)
+	}
+	return values
 }

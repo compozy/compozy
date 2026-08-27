@@ -44,7 +44,7 @@ func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
 	}
 	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
 	if err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+		h.respondTerminalMappedError(c, StatusForWorkspaceError(err), "terminal_workspace_unavailable", err)
 		return
 	}
 	result, err := service.Exec(c.Request.Context(), terminalpkg.ExecRequest{
@@ -227,7 +227,9 @@ func (h *BaseHandlers) RejectTerminalInputRequest(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"outcome": "rejected"})
+	c.JSON(http.StatusOK, contract.TerminalInputRejectResponse{
+		Outcome: contract.TerminalInputRejectOutcomeRejected,
+	})
 }
 
 func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
@@ -242,16 +244,16 @@ func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
 	}
 	var (
 		recording terminalpkg.RecordingRef
-		state     string
+		state     contract.TerminalRecordingState
 		err       error
 	)
 	switch request.Action {
-	case taskActionStart:
+	case contract.TerminalRecordingActionStart:
 		recording, err = handle.StartRecording(c.Request.Context(), actor)
-		state = "recording"
-	case "stop":
+		state = contract.TerminalRecordingStateRecording
+	case contract.TerminalRecordingActionStop:
 		recording, err = handle.StopRecording(c.Request.Context(), actor)
-		state = "saved"
+		state = contract.TerminalRecordingStateSaved
 	default:
 		err = terminalRequestError(errors.New("recording action must be start or stop"))
 	}
@@ -259,8 +261,9 @@ func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	recording.State = state
-	c.JSON(http.StatusOK, gin.H{"recording": recording})
+	c.JSON(http.StatusOK, contract.TerminalRecordingResponse{
+		Recording: contract.TerminalRecordingPayloadFromDomain(recording, state),
+	})
 }
 
 func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
@@ -289,7 +292,7 @@ func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
 	}
 	identities, err := h.profileOwnerIdentities(c.Request.Context())
 	if err != nil {
-		h.respondError(c, http.StatusInternalServerError, err)
+		h.respondTerminalMappedError(c, http.StatusInternalServerError, "terminal_profile_catalog_failed", err)
 		return
 	}
 	entries := make([]contract.TerminalCommandRowPayload, 0, len(page.Entries))

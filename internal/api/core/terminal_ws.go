@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -57,23 +58,8 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	terminalID := terminalpkg.ID(strings.TrimSpace(c.Param("id")))
 	mode := strings.TrimSpace(c.Query("mode"))
-	service, ticket, ok := h.terminalStreamService(c, workspaceID, terminalID, mode)
+	handle, subscription, ticket, ok := h.attachTerminalStream(c, workspaceID, terminalID, mode)
 	if !ok {
-		return
-	}
-	handle, err := service.Handle(c.Request.Context(), workspaceID, ticket.Binding.ProfileID, terminalID)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return
-	}
-	options, err := terminalAttachOptions(c, ticket)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return
-	}
-	subscription, err := handle.Attach(c.Request.Context(), options)
-	if err != nil {
-		h.respondTerminalError(c, err)
 		return
 	}
 	stop, done, accepting := h.terminalStreams.begin()
@@ -91,24 +77,63 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		closeErr := subscription.Close()
-		if h.Logger != nil {
-			h.Logger.Warn(
-				"terminal websocket upgrade failed",
-				"terminal_id",
-				terminalID,
-				"error",
-				errors.Join(err, closeErr),
-			)
-		}
+		h.terminalStreamLogger().Warn(
+			"terminal websocket upgrade failed",
+			"terminal_id",
+			terminalID,
+			"error",
+			errors.Join(err, closeErr),
+		)
 		return
 	}
 	socket := &terminalSocket{
 		conn: conn, handle: handle, subscription: subscription, actor: ticket.Actor,
 		mode: mode, stop: stop,
 	}
-	if err := socket.run(c.Request.Context()); err != nil && !terminalExpectedSocketError(err) && h.Logger != nil {
-		h.Logger.Debug("terminal websocket closed with error", "terminal_id", terminalID, "error", err)
+	if err := socket.run(c.Request.Context()); err != nil && !terminalExpectedSocketError(err) {
+		h.terminalStreamLogger().Debug("terminal websocket closed with error", "terminal_id", terminalID, "error", err)
 	}
+}
+
+func (h *BaseHandlers) terminalStreamLogger() *slog.Logger {
+	if h != nil && h.Logger != nil {
+		return h.Logger
+	}
+	return slog.Default()
+}
+
+func (h *BaseHandlers) attachTerminalStream(
+	c *gin.Context,
+	workspaceID string,
+	terminalID terminalpkg.ID,
+	mode string,
+) (terminalpkg.Handle, terminalpkg.Subscription, terminalTicket, bool) {
+	service, ticket, ok := h.terminalStreamService(c, workspaceID, terminalID, mode)
+	if !ok {
+		return nil, nil, terminalTicket{}, false
+	}
+	handle, err := service.Handle(c.Request.Context(), workspaceID, ticket.Binding.ProfileID, terminalID)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, nil, terminalTicket{}, false
+	}
+	options, err := terminalAttachOptions(c, ticket)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, nil, terminalTicket{}, false
+	}
+	ticket, err = h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, nil, terminalTicket{}, false
+	}
+	options.Actor = ticket.Actor
+	subscription, err := handle.Attach(c.Request.Context(), options)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, nil, terminalTicket{}, false
+	}
+	return handle, subscription, ticket, true
 }
 
 func (h *BaseHandlers) terminalStreamService(
@@ -117,28 +142,11 @@ func (h *BaseHandlers) terminalStreamService(
 	terminalID terminalpkg.ID,
 	mode string,
 ) (terminalpkg.Manager, terminalTicket, bool) {
-	if h.isUDSTransport() {
-		service, profileID, ok := h.terminalService(c, mode == terminalModeWrite)
-		if !ok {
-			return nil, terminalTicket{}, false
-		}
-		actor, ok := h.terminalActor(c, workspaceID, profileID, "terminal.attach")
-		if !ok {
-			return nil, terminalTicket{}, false
-		}
-		ticket := terminalTicket{
-			Binding: terminalTicketBinding{
-				WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: mode,
-			},
-			Actor: actor,
-		}
-		return service, ticket, true
-	}
 	if h.terminalTickets == nil {
 		h.respondTerminalUnavailable(c)
 		return nil, terminalTicket{}, false
 	}
-	ticket, err := h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
+	ticket, err := h.terminalTickets.PeekStream(c.Query("ticket"), workspaceID, terminalID, mode)
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return nil, terminalTicket{}, false
@@ -319,11 +327,7 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 	switch frame.Op {
 	case terminalwire.ClientOpInput:
 		if s.mode != terminalModeWrite {
-			return &terminalpkg.Error{
-				Code:    "write_owner_held",
-				Message: "read-only terminal attachment cannot write",
-				Err:     terminalpkg.ErrWriteOwnerHeld,
-			}
+			return terminalReadOnlyOperationError("INPUT")
 		}
 		return s.handle.Write(ctx, s.actor, frame.Payload)
 	case terminalwire.ClientOpAck:
@@ -340,6 +344,9 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 		}
 		return s.subscription.Resize(payload.Cols, payload.Rows)
 	case terminalwire.ClientOpSignal:
+		if s.mode != terminalModeWrite {
+			return terminalReadOnlyOperationError("SIGNAL")
+		}
 		var payload struct {
 			Signal terminalpkg.Signal `json:"signal"`
 		}
@@ -364,6 +371,10 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 	}
 }
 
+func terminalReadOnlyOperationError(operation string) error {
+	return fmt.Errorf("%w: %s requires a write attachment", errTerminalReadOnly, operation)
+}
+
 func (s *terminalSocket) writeFrame(frame terminalwire.Frame) error {
 	encoded, err := terminalwire.EncodeServer(frame)
 	if err != nil {
@@ -379,8 +390,8 @@ func (s *terminalSocket) writeFrame(frame terminalwire.Frame) error {
 }
 
 func (s *terminalSocket) writeProtocolError(streamErr error) error {
-	_, code := terminalErrorStatusCode(streamErr)
-	payload, err := json.Marshal(map[string]string{"code": code, "message": streamErr.Error()})
+	status, code := terminalErrorStatusCode(streamErr)
+	payload, err := json.Marshal(terminalErrorResponse(status, code, streamErr, false))
 	if err != nil {
 		return err
 	}

@@ -1,6 +1,7 @@
 import { Suspense, lazy, use } from "react";
 
 import { OsShellContext } from "@/systems/os";
+import type { TerminalSignal } from "@/systems/terminal";
 import { useSessionTerminalScope } from "../../hooks/use-session-terminal-scope";
 import type { UIMessage } from "../../types";
 import { DetailPre } from "./detail-pre";
@@ -22,7 +23,7 @@ interface TerminalToolFacts {
   title: string;
   preview: string;
   exitCode: number | null;
-  signal: string | null;
+  signal: TerminalSignal | null;
   stillRunning: boolean;
 }
 
@@ -43,7 +44,7 @@ function readTerminalFacts(message: UIMessage): TerminalToolFacts | null {
   if (!terminalId) return null;
   const command = readString(asRecord(message.toolInput).command) ?? message.toolName ?? "terminal";
   const exitCode = typeof raw.exit_code === "number" ? raw.exit_code : null;
-  const signal = readString(raw.signal);
+  const signal = readTerminalSignal(raw.signal);
   return {
     terminalId,
     title: command,
@@ -62,6 +63,18 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function readString(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
+function readTerminalSignal(value: unknown): TerminalSignal | null {
+  switch (value) {
+    case "INT":
+    case "TERM":
+    case "KILL":
+    case "HUP":
+      return value;
+    default:
+      return null;
+  }
 }
 
 /**

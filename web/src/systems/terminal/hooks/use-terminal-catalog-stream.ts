@@ -9,6 +9,7 @@ import {
   parseTerminalCatalogEvent,
   reconcileTerminalCatalog,
   reconcileTerminalProfileSnapshot,
+  TerminalCatalogProtocolError,
   terminalCatalogStreamPath,
   TERMINAL_CATALOG_EVENTS,
 } from "../lib/terminal-catalog-stream";
@@ -62,6 +63,9 @@ function openTerminalCatalogStream(
 ): () => void {
   const queryKey = terminalKeys.catalog({ workspaceId, profileKey });
   let closed = false;
+  const refreshFromREST = () => {
+    void queryClient.invalidateQueries({ queryKey, exact: true });
+  };
 
   const handleFrame = (name: string): EventListener => {
     return event => {
@@ -71,11 +75,17 @@ function openTerminalCatalogStream(
       try {
         raw = JSON.parse(event.data);
       } catch {
-        // A frame this client cannot read is dropped rather than merged
-        // half-understood into a list someone is reading.
+        refreshFromREST();
         return;
       }
-      const parsed = parseTerminalCatalogEvent(name, raw);
+      let parsed: ReturnType<typeof parseTerminalCatalogEvent>;
+      try {
+        parsed = parseTerminalCatalogEvent(name, raw);
+      } catch (error) {
+        if (!(error instanceof TerminalCatalogProtocolError)) throw error;
+        refreshFromREST();
+        return;
+      }
       if (!parsed) return;
       queryClient.setQueryData<TerminalInfo[]>(queryKey, current => {
         if (aggregate && parsed.name === "terminal.snapshot") {
@@ -90,7 +100,7 @@ function openTerminalCatalogStream(
   // rather than trusting whatever the cache still holds.
   const handleOpen: EventListener = () => {
     if (closed) return;
-    void queryClient.invalidateQueries({ queryKey, exact: true });
+    refreshFromREST();
   };
 
   const listeners = TERMINAL_CATALOG_EVENTS.map(name => ({ name, listener: handleFrame(name) }));

@@ -64,16 +64,12 @@ func (c *daemonClient) takeoverTerminal(
 	workspace, id string,
 	force bool,
 ) (returnErr error) {
-	ticket := ""
-	if c.target.kind != clientTargetLocal {
-		var err error
-		ticket, err = c.mintTerminalTicket(ctx, workspace, id, terminalStreamModeRead)
-		if err != nil {
-			return err
-		}
+	ticket, err := c.mintTerminalTicket(ctx, workspace, id, terminalStreamModeRead)
+	if err != nil {
+		return err
 	}
 	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, TerminalAttachOptions{
+	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, TerminalAttachOptions{
 		Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop,
 	})
 	if err != nil {
@@ -130,7 +126,7 @@ func runTerminalTakeover(ctx context.Context, conn *websocket.Conn, force bool) 
 			}
 			return nil
 		case terminalwire.ServerOpError:
-			return terminalPermanentError(fmt.Errorf("cli: terminal takeover error: %s", frame.Payload))
+			return terminalStreamFrameError(frame.Payload, "takeover")
 		case terminalwire.ServerOpExit:
 			return terminalPermanentError(errors.New("cli: terminal exited during takeover"))
 		}
@@ -149,16 +145,12 @@ func (c *daemonClient) attachTerminalOnce(
 	inputReads <-chan terminalInputRead,
 	output io.Writer,
 ) (afterSeq uint64, returnErr error) {
-	ticket := ""
-	if c.target.kind != clientTargetLocal {
-		var err error
-		ticket, err = c.mintTerminalTicket(ctx, workspace, id, options.Mode)
-		if err != nil {
-			return options.AfterSeq, err
-		}
+	ticket, err := c.mintTerminalTicket(ctx, workspace, id, options.Mode)
+	if err != nil {
+		return options.AfterSeq, err
 	}
 	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, options)
+	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, options)
 	if err != nil {
 		return options.AfterSeq, err
 	}
@@ -210,19 +202,18 @@ func (c *daemonClient) mintTerminalTicket(ctx context.Context, workspace, id, mo
 }
 
 func (c *daemonClient) terminalStreamTarget(
-	ctx context.Context,
 	workspace, id, ticket string,
 	options TerminalAttachOptions,
 ) (string, http.Header, error) {
+	if strings.TrimSpace(ticket) == "" {
+		return "", nil, terminalPermanentError(errors.New("cli: terminal attach ticket is required"))
+	}
 	base, err := c.target.websocketBaseURL()
 	if err != nil {
 		return "", nil, terminalPermanentError(err)
 	}
 	query := url.Values{terminalModeKey: {options.Mode}, "flow": {options.Flow}}
-	query = profileQueryValues(ctx, query)
-	if ticket != "" {
-		query.Set("ticket", ticket)
-	}
+	query.Set("ticket", ticket)
 	if options.AfterSeq > 0 {
 		query.Set("after_seq", strconv.FormatUint(options.AfterSeq, 10))
 	}

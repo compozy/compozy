@@ -39,7 +39,7 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 	}
 	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
 	if err != nil {
-		h.respondError(c, StatusForWorkspaceError(err), err)
+		h.respondTerminalMappedError(c, StatusForWorkspaceError(err), "terminal_workspace_unavailable", err)
 		return
 	}
 	handle, err := service.Open(c.Request.Context(), terminalpkg.OpenRequest{
@@ -143,7 +143,7 @@ func (h *BaseHandlers) MintTerminalAttachTicket(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	if request.Mode != "read" && request.Mode != terminalModeWrite {
+	if request.Mode != contract.TerminalAttachModeRead && request.Mode != contract.TerminalAttachModeWrite {
 		h.respondTerminalError(
 			c,
 			&terminalpkg.Error{
@@ -177,7 +177,7 @@ func (h *BaseHandlers) MintTerminalAttachTicket(c *gin.Context) {
 		return
 	}
 	ticket, err := h.terminalTickets.Mint(terminalTicketBinding{
-		WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: request.Mode,
+		WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: string(request.Mode),
 	}, actor)
 	if err != nil {
 		h.respondTerminalError(c, err)

@@ -9,22 +9,23 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/spf13/cobra"
 )
 
 const terminalCLIActorID = terminalpkg.OperatorActorID
 
-func terminalExitedAttachError(terminal TerminalRecord) error {
+func terminalExitedAttachError(terminal contract.TerminalInfoPayload) error {
 	detail := "cause unknown"
 	if terminal.Exit != nil {
 		switch {
-		case terminal.Exit.Signal != nil && strings.TrimSpace(*terminal.Exit.Signal) != "":
-			detail = "signaled " + strings.TrimSpace(*terminal.Exit.Signal)
+		case terminal.Exit.Signal != nil && strings.TrimSpace(string(*terminal.Exit.Signal)) != "":
+			detail = "signaled " + strings.TrimSpace(string(*terminal.Exit.Signal))
 		case terminal.Exit.Code != nil:
 			detail = fmt.Sprintf("exited %d", *terminal.Exit.Code)
-		case strings.TrimSpace(terminal.Exit.Cause) != "":
-			detail = strings.TrimSpace(terminal.Exit.Cause)
+		case strings.TrimSpace(string(terminal.Exit.Cause)) != "":
+			detail = strings.TrimSpace(string(terminal.Exit.Cause))
 		}
 	}
 	err := &terminalpkg.Error{
@@ -35,7 +36,7 @@ func terminalExitedAttachError(terminal TerminalRecord) error {
 	return withCommandExitCode(apiStatusExitCode(http.StatusConflict), err)
 }
 
-func writeTerminalOpenAttachBanner(output io.Writer, terminal TerminalRecord) error {
+func writeTerminalOpenAttachBanner(output io.Writer, terminal contract.TerminalInfoPayload) error {
 	_, err := fmt.Fprintf(
 		output,
 		"● %s opened in %s (%s) — attached. Detach: Ctrl-\\ Ctrl-\\\n\n",
@@ -49,7 +50,7 @@ func writeTerminalOpenAttachBanner(output io.Writer, terminal TerminalRecord) er
 	return nil
 }
 
-func writeTerminalAttachBanner(output io.Writer, terminal TerminalRecord, control bool) error {
+func writeTerminalAttachBanner(output io.Writer, terminal contract.TerminalInfoPayload, control bool) error {
 	controller := terminalControllerLabel(terminal.Controller)
 	var message string
 	if control {
@@ -68,14 +69,14 @@ func writeTerminalAttachBanner(output io.Writer, terminal TerminalRecord, contro
 	return nil
 }
 
-func terminalControllerLabel(controller *TerminalControllerRecord) string {
+func terminalControllerLabel(controller *contract.TerminalControllerPayload) string {
 	if controller == nil {
 		return "no one"
 	}
-	return strings.TrimSpace(controller.Kind + " " + controller.ID)
+	return strings.TrimSpace(string(controller.Kind) + " " + controller.ID)
 }
 
-func terminalControllerNeedsTakeover(controller *TerminalControllerRecord) bool {
+func terminalControllerNeedsTakeover(controller *contract.TerminalControllerPayload) bool {
 	return controller == nil ||
 		controller.Kind != terminalControllerHumanKind ||
 		controller.ID != terminalCLIActorID

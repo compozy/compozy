@@ -26,7 +26,7 @@ func (h *BaseHandlers) terminalAggregateService(
 	}
 	scope, err := h.resolveProfileReadScope(c)
 	if err != nil {
-		h.respondProfileReadScopeError(c, err)
+		h.respondTerminalProfileError(c, err)
 		return nil, store.ReadScope{}, false
 	}
 	service, err := h.Terminal.TerminalFor(scope.ProfileID)
@@ -63,7 +63,7 @@ func (h *BaseHandlers) terminalService(
 		}
 	}
 	if err != nil {
-		h.respondProfileReadScopeError(c, err)
+		h.respondTerminalProfileError(c, err)
 		return nil, "", false
 	}
 	service, err := h.Terminal.TerminalFor(scopeID)

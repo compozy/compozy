@@ -8,37 +8,8 @@ import (
 	"strings"
 	"time"
 
-	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	"github.com/compozy/compozy/internal/api/contract"
 )
-
-type TerminalControllerRecord struct {
-	Kind string `json:"kind"`
-	ID   string `json:"id"`
-}
-
-type TerminalRecord struct {
-	ID           string                    `json:"id"`
-	WorkspaceID  string                    `json:"workspace_id"`
-	ProfileID    string                    `json:"profile_id"`
-	ProfileName  string                    `json:"profile_name"`
-	Title        string                    `json:"title"`
-	Shell        string                    `json:"shell"`
-	Cwd          string                    `json:"cwd"`
-	Mode         string                    `json:"mode"`
-	State        string                    `json:"state"`
-	Controller   *TerminalControllerRecord `json:"controller"`
-	Lease        string                    `json:"lease"`
-	Viewers      int                       `json:"viewers"`
-	BoundRun     *TerminalRunRecord        `json:"bound_run"`
-	Capabilities terminalpkg.Capabilities  `json:"capabilities"`
-	CreatedAt    time.Time                 `json:"created_at"`
-	Exit         *TerminalExitRecord       `json:"exit,omitempty"`
-}
-
-type TerminalRunRecord struct {
-	SessionID string `json:"session_id"`
-	RunID     string `json:"run_id"`
-}
 
 type TerminalCreateRequest struct {
 	Cwd   string `json:"cwd,omitempty"`
@@ -67,9 +38,9 @@ type TerminalAttachOptions struct {
 
 type TerminalClient interface {
 	workspaceLookupClient
-	CreateTerminal(context.Context, string, TerminalCreateRequest) (TerminalRecord, error)
-	ListTerminals(context.Context, string) ([]TerminalRecord, error)
-	GetTerminal(context.Context, string, string) (TerminalRecord, error)
+	CreateTerminal(context.Context, string, TerminalCreateRequest) (contract.TerminalInfoPayload, error)
+	ListTerminals(context.Context, string) ([]contract.TerminalInfoPayload, error)
+	GetTerminal(context.Context, string, string) (contract.TerminalInfoPayload, error)
 	DeleteTerminal(context.Context, string, string, string) (TerminalExitRecord, error)
 	AttachTerminal(context.Context, string, string, TerminalAttachOptions, io.Reader, io.Writer) error
 }
@@ -80,33 +51,33 @@ func (c *daemonClient) CreateTerminal(
 	ctx context.Context,
 	workspace string,
 	request TerminalCreateRequest,
-) (TerminalRecord, error) {
-	var response struct {
-		Terminal TerminalRecord `json:"terminal"`
-	}
+) (contract.TerminalInfoPayload, error) {
+	var response contract.TerminalResponse
 	if err := c.doJSON(ctx, http.MethodPost, terminalClientPath(workspace), nil, request, &response); err != nil {
-		return TerminalRecord{}, err
+		return contract.TerminalInfoPayload{}, err
 	}
 	return response.Terminal, nil
 }
 
-func (c *daemonClient) ListTerminals(ctx context.Context, workspace string) ([]TerminalRecord, error) {
-	var response struct {
-		Terminals []TerminalRecord `json:"terminals"`
-	}
+func (c *daemonClient) ListTerminals(
+	ctx context.Context,
+	workspace string,
+) ([]contract.TerminalInfoPayload, error) {
+	var response contract.TerminalListResponse
 	if err := c.doJSON(ctx, http.MethodGet, terminalClientPath(workspace), nil, nil, &response); err != nil {
 		return nil, err
 	}
 	return response.Terminals, nil
 }
 
-func (c *daemonClient) GetTerminal(ctx context.Context, workspace, id string) (TerminalRecord, error) {
-	var response struct {
-		Terminal TerminalRecord `json:"terminal"`
-	}
+func (c *daemonClient) GetTerminal(
+	ctx context.Context,
+	workspace, id string,
+) (contract.TerminalInfoPayload, error) {
+	var response contract.TerminalResponse
 	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(id))
 	if err := c.doJSON(ctx, http.MethodGet, path, nil, nil, &response); err != nil {
-		return TerminalRecord{}, err
+		return contract.TerminalInfoPayload{}, err
 	}
 	return response.Terminal, nil
 }

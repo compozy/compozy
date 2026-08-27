@@ -101,20 +101,16 @@ func TestTerminalClientStreamShouldTakeOverBeforeWriteAttach(t *testing.T) {
 	}
 }
 
-func TestTerminalClientStreamTargetShouldCarryProfileScope(t *testing.T) {
+func TestTerminalClientStreamTargetShouldUseTicketAsProfileAuthority(t *testing.T) {
 	t.Parallel()
 	client, err := NewClient(LocalClientTarget("/tmp/compozy-terminal-profile-stream.sock"))
 	if err != nil {
 		t.Fatalf("NewClient() error = %v", err)
 	}
-	ctx := context.WithValue(
-		t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: "work profile"},
-	)
 	target, _, err := client.(*daemonClient).terminalStreamTarget(
-		ctx,
 		"workspace /a",
 		"term /a",
-		"",
+		"ticket-a",
 		TerminalAttachOptions{Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck},
 	)
 	if err != nil {
@@ -124,8 +120,92 @@ func TestTerminalClientStreamTargetShouldCarryProfileScope(t *testing.T) {
 	if err != nil {
 		t.Fatalf("url.Parse(%q) error = %v", target, err)
 	}
-	if got := parsed.Query().Get(profileFlagName); got != "work profile" {
-		t.Fatalf("terminal stream profile = %q, want work profile", got)
+	if got := parsed.Query().Get(profileFlagName); got != "" {
+		t.Fatalf("terminal stream profile = %q, want ticket-only authority", got)
+	}
+	if got := parsed.Query().Get("ticket"); got != "ticket-a" {
+		t.Fatalf("terminal stream ticket = %q, want ticket-a", got)
+	}
+	if _, _, err := client.(*daemonClient).terminalStreamTarget(
+		"workspace-a",
+		"term-a",
+		"",
+		TerminalAttachOptions{Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop},
+	); err == nil {
+		t.Fatal("terminalStreamTarget() accepted an empty ticket")
+	}
+}
+
+func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOutput(t *testing.T) {
+	t.Parallel()
+	body := []byte(
+		`{"error":{"code":"input_answer_requires_write","message":"INPUT requires a write attachment","details":{"current":"8","max":"8"}}}`,
+	)
+	assertDetails := func(t *testing.T, terminalErr *terminalAPIError) {
+		t.Helper()
+		details := terminalErr.payload.Error.Details
+		if len(details) != 2 || details["current"] != "8" || details["max"] != "8" {
+			t.Fatalf("terminal error details = %#v, want current=8 and max=8", details)
+		}
+	}
+
+	t.Run("Should parse the HTTP envelope", func(t *testing.T) {
+		t.Parallel()
+		err := readAPIErrorBody(http.StatusForbidden, "403 Forbidden", body)
+		terminalErr, ok := errors.AsType[*terminalAPIError](err)
+		if !ok || terminalErr.payload.Error.Code != "input_answer_requires_write" {
+			t.Fatalf("readAPIErrorBody() = %#v, want input_answer_requires_write", err)
+		}
+		assertDetails(t, terminalErr)
+	})
+
+	t.Run("Should parse the WebSocket ERROR frame", func(t *testing.T) {
+		t.Parallel()
+		err := terminalStreamFrameError(body, "stream")
+		terminalErr, ok := errors.AsType[*terminalAPIError](err)
+		if !ok || terminalErr.payload.Error.Code != "input_answer_requires_write" {
+			t.Fatalf("terminalStreamFrameError() = %#v, want input_answer_requires_write", err)
+		}
+		assertDetails(t, terminalErr)
+	})
+
+	t.Run("Should emit the same nested structured envelope", func(t *testing.T) {
+		t.Parallel()
+		err := readAPIErrorBody(http.StatusForbidden, "403 Forbidden", body)
+		encoded, ok := marshalStructuredExecutionError([]string{"terminal", "-o", "json"}, err)
+		if !ok || !bytes.Equal(encoded, body) {
+			t.Fatalf("structured terminal error = %s/%v, want %s", encoded, ok, body)
+		}
+	})
+
+	unknownBody := []byte(`{"error":{"code":"terminal_future_error","message":"future refusal"}}`)
+	for _, testCase := range []struct {
+		name  string
+		parse func() error
+	}{
+		{
+			name: "Should reject an unknown HTTP terminal code as an invalid envelope",
+			parse: func() error {
+				return readAPIErrorBody(http.StatusConflict, "409 Conflict", unknownBody)
+			},
+		},
+		{
+			name: "Should reject an unknown WebSocket terminal code as an invalid envelope",
+			parse: func() error {
+				return terminalStreamFrameError(unknownBody, "stream")
+			},
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			err := testCase.parse()
+			if _, ok := errors.AsType[*terminalAPIError](err); ok {
+				t.Fatalf("terminal error = %#v, want invalid protocol envelope", err)
+			}
+			if !strings.Contains(err.Error(), "terminal error envelope is invalid") {
+				t.Fatalf("terminal error = %v, want invalid protocol envelope", err)
+			}
+		})
 	}
 }
 

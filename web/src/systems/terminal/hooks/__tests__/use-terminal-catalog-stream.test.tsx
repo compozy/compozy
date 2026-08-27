@@ -157,9 +157,14 @@ describe("useTerminalCatalogStream", () => {
 
   it("Should fold a snapshot and its patches into the scope's own cache entry", () => {
     const { opened, client } = renderStream("work");
+    const terminal = {
+      ...DEV_SERVER_TERMINAL,
+      bound_run: { session_id: "session-a", run_id: "run-a", generation: 7 },
+    };
 
-    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    opened[0].fake.emit("terminal.snapshot", { terminals: [terminal] });
     expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([DEV_SERVER_TERMINAL.id]);
+    expect(catalog(client, "work")?.[0].bound_run?.generation).toBe(7);
 
     opened[0].fake.emit("terminal.title_changed", {
       terminal_id: DEV_SERVER_TERMINAL.id,
@@ -205,22 +210,90 @@ describe("useTerminalCatalogStream", () => {
     expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([DEV_SERVER_TERMINAL.id]);
   });
 
-  it("Should drop a frame it cannot read rather than merge it half-understood", () => {
+  it("Should invalidate the exact catalog after a malformed known event without merging it", () => {
     const { opened, client } = renderStream("work");
     opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
 
     opened[0].fake.emit("terminal.created", { terminal: { id: "term-broken" } });
 
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey: "work" }),
+      exact: true,
+    });
     expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([DEV_SERVER_TERMINAL.id]);
   });
 
-  it("Should drop malformed SSE data before it reaches reconciliation", () => {
+  it("Should invalidate the exact catalog after malformed JSON without merging it", () => {
     const { opened, client } = renderStream("work");
     opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
 
     opened[0].fake.emitRaw("terminal.created", "{not-json");
 
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey: "work" }),
+      exact: true,
+    });
     expect(catalog(client, "work")?.map(terminal => terminal.id)).toEqual([DEV_SERVER_TERMINAL.id]);
+  });
+
+  it.each([
+    [
+      "an unknown enum",
+      "terminal.mode_changed",
+      { terminal_id: DEV_SERVER_TERMINAL.id, mode: "future" },
+    ],
+    [
+      "an unknown extra field",
+      "terminal.title_changed",
+      { terminal_id: DEV_SERVER_TERMINAL.id, title: "new title", extra: true },
+    ],
+    [
+      "an available lease with a controller",
+      "terminal.lease_changed",
+      {
+        terminal_id: DEV_SERVER_TERMINAL.id,
+        lease: "available",
+        controller_kind: "human",
+        controller_id: "viewer-1",
+        reason: "released",
+      },
+    ],
+    [
+      "human ownership without an actor",
+      "terminal.lease_changed",
+      {
+        terminal_id: DEV_SERVER_TERMINAL.id,
+        lease: "human_owned",
+        controller_kind: "",
+        controller_id: "",
+        reason: "claimed",
+      },
+    ],
+    [
+      "agent ownership with a human controller",
+      "terminal.lease_changed",
+      {
+        terminal_id: DEV_SERVER_TERMINAL.id,
+        lease: "agent_owned",
+        controller_kind: "human",
+        controller_id: "viewer-1",
+        reason: "claimed",
+      },
+    ],
+  ])("Should invalidate without merging %s", (_case, eventName, payload) => {
+    const { opened, client } = renderStream("work");
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    opened[0].fake.emit(eventName, payload);
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey: "work" }),
+      exact: true,
+    });
+    expect(catalog(client, "work")).toEqual([DEV_SERVER_TERMINAL]);
   });
 
   it("Should close its source when the surface goes away", () => {

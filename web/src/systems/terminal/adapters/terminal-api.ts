@@ -1,12 +1,28 @@
 /**
  * Terminal REST surface.
  *
- * The generated OpenAPI module does not describe these routes yet — they are
- * registered in the public-activation tranche — so this adapter goes through
- * the shared runtime fetch with the hand-written types in `../types`.
+ * The adapter goes through the shared runtime fetch and validates every JSON
+ * envelope before exposing generated terminal contract types.
  */
 
 import { apiBaseUrl, runtimeFetch } from "@/lib/api-client";
+import type { ZodType } from "zod";
+
+import {
+  terminalAttachTicketResponseSchema,
+  terminalErrorEnvelopeSchema,
+  terminalExitResponseSchema,
+  terminalInputAnswerResponseSchema,
+  terminalInputRejectResponseSchema,
+  terminalInputRequestsResponseSchema,
+  terminalJournalResponseSchema,
+  terminalListResponseSchema,
+  terminalReadResponseSchema,
+  terminalRecordingResponseSchema,
+  terminalResponseSchema,
+  terminalSignalResponseSchema,
+  type TerminalErrorCode,
+} from "../lib/terminal-contract-schema";
 
 import type {
   CreateTerminalInput,
@@ -36,18 +52,27 @@ import type {
  * stays free to change without breaking behaviour.
  */
 export class TerminalApiError extends Error {
+  public readonly details: Readonly<Record<string, string>> | undefined;
+
   constructor(
     message: string,
     public readonly status: number,
-    public readonly code: string
+    public readonly code: TerminalErrorCode,
+    details?: Readonly<Record<string, string>>
   ) {
     super(message);
     this.name = "TerminalApiError";
+    this.details = details ? Object.freeze({ ...details }) : undefined;
   }
 }
 
-interface TerminalErrorEnvelope {
-  error?: { code?: string; message?: string };
+const TERMINAL_PROTOCOL_ERROR_MESSAGE = "The daemon returned an invalid terminal response.";
+
+export class TerminalProtocolError extends Error {
+  constructor(public readonly status: number) {
+    super(TERMINAL_PROTOCOL_ERROR_MESSAGE);
+    this.name = "TerminalProtocolError";
+  }
 }
 
 function workspaceRoot(workspaceId: string): string {
@@ -78,22 +103,33 @@ function withQuery(url: string, query: URLSearchParams): string {
   return serialized === "" ? url : `${url}?${serialized}`;
 }
 
-async function terminalRequest<T>(url: string, fallback: string, init?: RequestInit): Promise<T> {
+async function parseTerminalResponse<Result>(
+  url: string,
+  schema: ZodType<Result>,
+  init?: RequestInit
+): Promise<Result> {
   const response = await runtimeFetch(url, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   const body = await readBody(response);
   if (!response.ok) {
-    const envelope = (body ?? {}) as TerminalErrorEnvelope;
-    const message = envelope.error?.message?.trim();
-    throw new TerminalApiError(
-      message && message !== "" ? message : `${fallback}: ${response.status}`,
-      response.status,
-      envelope.error?.code?.trim() ?? ""
-    );
+    throw terminalResponseError(response, body);
   }
-  return body as T;
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) throw new TerminalProtocolError(response.status);
+  return parsed.data;
+}
+
+function terminalResponseError(response: Response, body: unknown): TerminalApiError {
+  const parsed = terminalErrorEnvelopeSchema.safeParse(body);
+  if (!parsed.success) throw new TerminalProtocolError(response.status);
+  return new TerminalApiError(
+    parsed.data.error.message,
+    response.status,
+    parsed.data.error.code,
+    parsed.data.error.details
+  );
 }
 
 async function readBody(response: Response): Promise<unknown> {
@@ -102,7 +138,7 @@ async function readBody(response: Response): Promise<unknown> {
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    throw new TerminalApiError("The daemon returned an unreadable response.", response.status, "");
+    throw new TerminalProtocolError(response.status);
   }
 }
 
@@ -111,9 +147,9 @@ export async function fetchTerminals(
   scope: TerminalScopeParams,
   signal?: AbortSignal
 ): Promise<TerminalInfo[]> {
-  const payload = await terminalRequest<{ terminals: TerminalInfo[] }>(
+  const payload = await parseTerminalResponse(
     withQuery(workspaceRoot(workspaceId), terminalScopeQuery(scope)),
-    "Failed to load terminals",
+    terminalListResponseSchema,
     { method: "GET", signal }
   );
   return payload.terminals;
@@ -126,9 +162,9 @@ export async function fetchTerminal(
   signal?: AbortSignal
 ): Promise<TerminalInfo> {
   const url = terminalURL(workspaceId, terminalId);
-  const payload = await terminalRequest<{ terminal: TerminalInfo }>(
+  const payload = await parseTerminalResponse(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
-    "Failed to load the terminal",
+    terminalResponseSchema,
     { method: "GET", signal }
   );
   return payload.terminal;
@@ -141,9 +177,9 @@ export async function createTerminal(
   viewer: TerminalViewerIdentity,
   signal?: AbortSignal
 ): Promise<TerminalInfo> {
-  const payload = await terminalRequest<{ terminal: TerminalInfo }>(
+  const payload = await parseTerminalResponse(
     withQuery(workspaceRoot(workspaceId), terminalScopeQuery({ profile: scope.profile })),
-    "Failed to open a terminal",
+    terminalResponseSchema,
     {
       method: "POST",
       body: JSON.stringify({ ...input, client_id: viewer.id }),
@@ -162,9 +198,9 @@ export async function closeTerminal(
   abortSignal?: AbortSignal
 ): Promise<TerminalExit | null> {
   const url = terminalURL(workspaceId, terminalId);
-  const payload = await terminalRequest<{ exit: TerminalExit | null }>(
+  const payload = await parseTerminalResponse(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
-    "Failed to close the terminal",
+    terminalExitResponseSchema,
     {
       method: "DELETE",
       body: terminalSignal ? JSON.stringify({ signal: terminalSignal }) : undefined,
@@ -188,9 +224,9 @@ export async function mintTerminalAttachTicket(
   signal?: AbortSignal
 ): Promise<TerminalAttachTicket> {
   const url = terminalURL(workspaceId, terminalId, "/attach-ticket");
-  return terminalRequest<TerminalAttachTicket>(
+  return parseTerminalResponse(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
-    "Failed to open a connection pass",
+    terminalAttachTicketResponseSchema,
     {
       method: "POST",
       body: JSON.stringify({ mode, ...(viewer ? { client_id: viewer.id } : {}) }),
@@ -224,7 +260,7 @@ export async function readTerminal(
   if (params.to !== undefined) query.set("to", String(params.to));
   if (params.grep) query.set("grep", params.grep);
   const url = terminalURL(workspaceId, terminalId, "/read");
-  return terminalRequest<TerminalReadResult>(withQuery(url, query), "Failed to read the terminal", {
+  return parseTerminalResponse(withQuery(url, query), terminalReadResponseSchema, {
     method: "GET",
     signal,
   });
@@ -238,9 +274,9 @@ export async function signalTerminal(
   abortSignal?: AbortSignal
 ): Promise<void> {
   const url = terminalURL(workspaceId, terminalId, "/signal");
-  await terminalRequest<{ delivered: boolean }>(
+  await parseTerminalResponse(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
-    "Failed to deliver the signal",
+    terminalSignalResponseSchema,
     { method: "POST", body: JSON.stringify({ signal }), signal: abortSignal }
   );
 }
@@ -253,9 +289,9 @@ export async function fetchTerminalInputRequests(
 ): Promise<TerminalInputRequest[]> {
   const query = terminalScopeQuery(scope);
   if (terminalId) query.set("terminal_id", terminalId);
-  const payload = await terminalRequest<{ requests: TerminalInputRequest[] }>(
+  const payload = await parseTerminalResponse(
     withQuery(`${workspaceRoot(workspaceId)}/input-requests`, query),
-    "Failed to load pending questions",
+    terminalInputRequestsResponseSchema,
     { method: "GET", signal }
   );
   return payload.requests;
@@ -277,12 +313,12 @@ export async function answerTerminalInputRequest(
   scope: TerminalProfileScopeParams,
   abortSignal?: AbortSignal
 ): Promise<TerminalInputAnswerResult> {
-  return terminalRequest<TerminalInputAnswerResult>(
+  return parseTerminalResponse(
     withQuery(
       `${inputRequestRoot(workspaceId, terminalId, requestId)}/answer`,
       terminalScopeQuery({ profile: scope.profile })
     ),
-    "Failed to send the answer",
+    terminalInputAnswerResponseSchema,
     { method: "POST", body: JSON.stringify({ input }), signal: abortSignal }
   );
 }
@@ -295,12 +331,12 @@ export async function rejectTerminalInputRequest(
   scope: TerminalProfileScopeParams,
   abortSignal?: AbortSignal
 ): Promise<TerminalInputRejectResult> {
-  return terminalRequest<TerminalInputRejectResult>(
+  return parseTerminalResponse(
     withQuery(
       `${inputRequestRoot(workspaceId, terminalId, requestId)}/reject`,
       terminalScopeQuery({ profile: scope.profile })
     ),
-    "Failed to decline the question",
+    terminalInputRejectResponseSchema,
     { method: "POST", body: JSON.stringify({ reason }), signal: abortSignal }
   );
 }
@@ -313,9 +349,9 @@ export async function controlTerminalRecording(
   abortSignal?: AbortSignal
 ): Promise<TerminalRecording> {
   const url = terminalURL(workspaceId, terminalId, "/recording");
-  const payload = await terminalRequest<{ recording: TerminalRecording }>(
+  const payload = await parseTerminalResponse(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
-    "Failed to change the recording",
+    terminalRecordingResponseSchema,
     { method: "POST", body: JSON.stringify({ action }), signal: abortSignal }
   );
   return payload.recording;
@@ -335,12 +371,11 @@ export async function fetchTerminalJournal(
   if (filters.terminalId) query.set("terminal_id", filters.terminalId);
   if (filters.limit !== undefined) query.set("limit", String(filters.limit));
   if (cursor) query.set("cursor", cursor);
-  const page = await terminalRequest<TerminalJournalPage>(
+  return parseTerminalResponse(
     withQuery(`${workspaceRoot(workspaceId)}/journal`, query),
-    "Failed to load the journal",
+    terminalJournalResponseSchema,
     { method: "GET", signal }
   );
-  return { entries: page.entries ?? [], next: page.next ?? null };
 }
 
 /** The recording artifact, as asciicast v2 text. */
@@ -356,11 +391,8 @@ export async function fetchTerminalRecording(
   );
   const response = await runtimeFetch(url, { method: "GET", signal });
   if (!response.ok) {
-    throw new TerminalApiError(
-      `Failed to load the recording: ${response.status}`,
-      response.status,
-      ""
-    );
+    const body = await readBody(response);
+    throw terminalResponseError(response, body);
   }
   return response.text();
 }

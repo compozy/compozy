@@ -3262,7 +3262,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "cd1a463c46d6264134447db17a8c3c7abe5b9a2488c6d759fea66da1f96b133e",
-    "output_schema_digest": "66dd6eec2cdeebe97c72869a201b2aabd7354a4a24e153ed845f67d8ea2b56f1",
+    "output_schema_digest": "3afc2395dcad5b3efd66ee3fdd9d89b7779116c205e83eefff47090c95b902f3",
     "required_capabilities": [
       "terminal.observe"
     ]
@@ -3277,7 +3277,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": true,
-    "input_schema_digest": "342f43400486d813f1056e5eea4cb67f215a2c610937357eade938c5aca985c6",
+    "input_schema_digest": "3ffb64034cc02d21a8e8de70c0844e904911a156156dcacab5e66a5b038069a5",
     "output_schema_digest": "8a18967993509b4b659c19c1dc4d9cec5d41d66c96132839ba43b376f0bfc4b5",
     "required_capabilities": [
       "terminal.exec"
@@ -3357,8 +3357,8 @@
     "read_only": false,
     "destructive": true,
     "open_world": true,
-    "input_schema_digest": "cbbe50332cc5583d72a72af94118ee2e31304beb8cf3c1e20f9cb3ed1df741e8",
-    "output_schema_digest": "946364746fb5fa92a47242dab491798e2cba4c3e5cc78f382ca06ca0ba3cab49",
+    "input_schema_digest": "52337098cce1357edea9e57741546a131c569dc50859377d0c8412d5cb340b00",
+    "output_schema_digest": "38e18f3d35f5ef562498c9a3f19dbbcdfc75b4a8b828ef88f1f7834f10296bed",
     "required_capabilities": [
       "terminal.exec"
     ]

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/gin-gonic/gin"
@@ -94,6 +95,30 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		attached := terminalReadServerFrame(t, conn)
 		if attached.Op != terminalwire.ServerOpAttached {
 			t.Fatalf("first opcode = 0x%02x, want ATTACHED", attached.Op)
+		}
+		reused, reusedResponse, reuseErr := dialer.Dial(wsURL, headers)
+		if reuseErr == nil {
+			closeErr := reused.Close()
+			t.Fatalf("reused ticket opened a second stream; close error = %v", closeErr)
+		}
+		if reusedResponse == nil || reusedResponse.Body == nil {
+			t.Fatalf("reused ticket response = %#v, error = %v", reusedResponse, reuseErr)
+		}
+		reusedBody, readErr := io.ReadAll(reusedResponse.Body)
+		closeErr := reusedResponse.Body.Close()
+		if readErr != nil || closeErr != nil {
+			t.Fatalf("read/close reused ticket response errors = %v / %v", readErr, closeErr)
+		}
+		var reusedError contract.TerminalErrorResponse
+		if err := json.Unmarshal(reusedBody, &reusedError); err != nil {
+			t.Fatalf("decode reused ticket response: %v; body=%s", err, reusedBody)
+		}
+		if reusedResponse.StatusCode != http.StatusForbidden || reusedError.Error.Code != "ticket_invalid" {
+			t.Fatalf(
+				"reused ticket status/error = %d/%#v, want 403/ticket_invalid",
+				reusedResponse.StatusCode,
+				reusedError,
+			)
 		}
 		input, err := terminalwire.EncodeClient(
 			terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte("echo wire-ok\n")},
@@ -185,7 +210,19 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if err := secondConn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 			t.Fatalf("second SetReadDeadline() error = %v", err)
 		}
-		_, _, err = secondConn.ReadMessage()
+		for {
+			messageType, encoded, readErr := secondConn.ReadMessage()
+			if readErr != nil {
+				err = readErr
+				break
+			}
+			if messageType != websocket.BinaryMessage {
+				t.Fatalf("shutdown-drain message type = %d, want binary", messageType)
+			}
+			if _, decodeErr := terminalwire.DecodeServer(encoded); decodeErr != nil {
+				t.Fatalf("DecodeServer(shutdown-drain) error = %v", decodeErr)
+			}
+		}
 		if !websocket.IsCloseError(err, websocket.CloseGoingAway) {
 			t.Fatalf("ReadMessage(shutdown) error = %v, want GoingAway", err)
 		}

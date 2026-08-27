@@ -134,7 +134,7 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
             terminalId,
             exit: { cause: frame.cause, code: frame.exit_code, signal: frame.signal },
           }),
-        onStreamError: error =>
+        onStreamError: ({ error }) =>
           store.trigger.streamErrored({
             terminalId,
             code: error.code,

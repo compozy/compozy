@@ -59,8 +59,7 @@ func normalizeNativeMemoryActorKind(actorKind string) nativeMemoryActorKind {
 }
 
 type daemonNativeTools struct {
-	deps          *daemonNativeToolsDeps
-	terminalReads terminalReadCursors
+	deps *daemonNativeToolsDeps
 }
 
 type memoryToolWriteRecorder interface {

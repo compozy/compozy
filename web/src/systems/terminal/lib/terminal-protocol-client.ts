@@ -273,7 +273,14 @@ export class TerminalProtocolClient {
 
   private handleMessage(event: MessageEvent<unknown>): void {
     const data = event.data;
-    if (!(data instanceof ArrayBuffer) && !(data instanceof Uint8Array)) return;
+    if (!(data instanceof ArrayBuffer) && !(data instanceof Uint8Array)) {
+      this.reportClientError(
+        new Error("The terminal stream sent a non-binary frame."),
+        "The terminal stream sent a non-binary frame."
+      );
+      this.reconnectFromCommitted();
+      return;
+    }
     let frame;
     try {
       frame = decodeTerminalServerFrame(data);

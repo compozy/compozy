@@ -93162,6 +93162,7 @@ export interface operations {
                 executable: boolean;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -93180,12 +93181,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93195,6 +93205,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -93204,13 +93221,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -93222,6 +93253,7 @@ export interface operations {
                 hook_result?: string;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -93240,12 +93272,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93255,6 +93296,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -93264,13 +93312,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -93339,19 +93401,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -93390,6 +93483,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -93408,12 +93502,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -93423,6 +93526,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -93432,19 +93542,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -93463,12 +93588,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -93478,6 +93612,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -93487,13 +93628,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -93712,6 +93867,7 @@ export interface operations {
                 executable: boolean;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -93730,12 +93886,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93745,6 +93910,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -93754,13 +93926,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -93772,6 +93958,7 @@ export interface operations {
                 hook_result?: string;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -93790,12 +93977,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -93805,6 +94001,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -93814,13 +94017,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -93889,19 +94106,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -93940,6 +94188,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -93958,12 +94207,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -93973,6 +94231,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -93982,19 +94247,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -94013,12 +94293,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94028,6 +94317,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -94037,13 +94333,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -94060,19 +94370,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -94111,6 +94452,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -94129,12 +94471,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -94144,6 +94495,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -94153,19 +94511,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -94184,12 +94557,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94199,6 +94581,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -94208,13 +94597,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -94289,6 +94692,7 @@ export interface operations {
                 executable: boolean;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -94307,12 +94711,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -94322,6 +94735,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -94331,13 +94751,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -94349,6 +94783,7 @@ export interface operations {
                 hook_result?: string;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -94367,12 +94802,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -94382,6 +94826,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -94391,13 +94842,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -94466,19 +94931,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -94517,6 +95013,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -94535,12 +95032,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -94550,6 +95056,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -94559,19 +95072,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -94590,12 +95118,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94605,6 +95142,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -94614,13 +95158,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -94637,19 +95195,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -94688,6 +95277,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -94706,12 +95296,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -94721,6 +95320,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -94730,19 +95336,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -94761,12 +95382,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94776,6 +95406,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -94785,13 +95422,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -94808,19 +95459,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -94859,6 +95541,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -94877,12 +95560,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -94892,6 +95584,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -94901,19 +95600,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -94932,12 +95646,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -94947,6 +95670,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -94956,13 +95686,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95050,19 +95794,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -95101,6 +95876,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -95119,12 +95895,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95134,6 +95919,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -95143,19 +95935,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -95174,12 +95981,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95189,6 +96005,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -95198,13 +96021,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95221,19 +96058,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -95272,6 +96140,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -95290,12 +96159,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95305,6 +96183,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -95314,19 +96199,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -95345,12 +96245,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95360,6 +96269,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -95369,13 +96285,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95392,19 +96322,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -95443,6 +96404,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -95461,12 +96423,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95476,6 +96447,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -95485,19 +96463,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -95516,12 +96509,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95531,6 +96533,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -95540,13 +96549,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95563,19 +96586,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -95614,6 +96668,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -95632,12 +96687,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -95647,6 +96711,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -95656,19 +96727,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -95687,12 +96773,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95702,6 +96797,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -95711,13 +96813,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -95802,19 +96918,50 @@ export interface operations {
               duration_ms?: number;
               /** @enum {string} */
               error_code?:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               input_digest?: string;
               /** @enum {string} */
               kind:
@@ -95827,6 +96974,7 @@ export interface operations {
               read_only: boolean;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -95845,12 +96993,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -95860,6 +97017,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -95869,13 +97033,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               redacted_input_fields?: string[];
               /** Format: int64 */
@@ -95925,6 +97103,7 @@ export interface operations {
                 /** @enum {string} */
                 reason:
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -95943,12 +97122,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -95958,6 +97146,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -95967,13 +97162,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
-                  | "visibility_denied";
+                  | "typing_grant_rejected"
+                  | "visibility_denied"
+                  | "write_owner_held";
               }[];
               structured?: unknown;
               truncated: boolean;
@@ -95994,19 +97203,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -96045,6 +97285,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -96063,12 +97304,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96078,6 +97328,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -96087,19 +97344,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -96118,12 +97390,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96133,6 +97414,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -96142,13 +97430,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96165,19 +97467,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -96216,6 +97549,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -96234,12 +97568,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96249,6 +97592,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -96258,19 +97608,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -96289,12 +97654,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96304,6 +97678,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -96313,13 +97694,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96336,19 +97731,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -96387,6 +97813,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -96405,12 +97832,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96420,6 +97856,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -96429,19 +97872,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -96460,12 +97918,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96475,6 +97942,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -96484,13 +97958,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96507,19 +97995,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -96558,6 +98077,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -96576,12 +98096,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96591,6 +98120,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -96600,19 +98136,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -96631,12 +98182,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96646,6 +98206,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -96655,13 +98222,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96678,19 +98259,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -96729,6 +98341,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -96747,12 +98360,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96762,6 +98384,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -96771,19 +98400,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -96802,12 +98446,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96817,6 +98470,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -96826,13 +98486,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -96849,19 +98523,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -96900,6 +98605,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -96918,12 +98624,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -96933,6 +98648,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -96942,19 +98664,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -96973,12 +98710,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -96988,6 +98734,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -96997,13 +98750,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97020,19 +98787,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -97071,6 +98869,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -97089,12 +98888,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -97104,6 +98912,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -97113,19 +98928,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -97144,12 +98974,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97159,6 +98998,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -97168,13 +99014,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97191,19 +99051,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -97242,6 +99133,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -97260,12 +99152,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -97275,6 +99176,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -97284,19 +99192,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -97315,12 +99238,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97330,6 +99262,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -97339,13 +99278,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97391,19 +99344,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -97442,6 +99426,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -97460,12 +99445,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -97475,6 +99469,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -97484,19 +99485,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -97515,12 +99531,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97530,6 +99555,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -97539,13 +99571,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97584,6 +99630,7 @@ export interface operations {
               id: string;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -97602,12 +99649,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97617,6 +99673,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -97626,13 +99689,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               status: string;
               tools?: string[];
@@ -97651,19 +99728,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -97702,6 +99810,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -97720,12 +99829,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -97735,6 +99853,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -97744,19 +99869,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -97775,12 +99915,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97790,6 +99939,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -97799,13 +99955,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -97876,6 +100046,7 @@ export interface operations {
               id: string;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -97894,12 +100065,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -97909,6 +100089,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -97918,13 +100105,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               status: string;
               tools?: string[];
@@ -97943,19 +100144,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -97994,6 +100226,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -98012,12 +100245,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98027,6 +100269,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -98036,19 +100285,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -98067,12 +100331,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98082,6 +100355,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -98091,13 +100371,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -98114,19 +100408,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -98165,6 +100490,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -98183,12 +100509,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98198,6 +100533,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -98207,19 +100549,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -98238,12 +100595,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98253,6 +100619,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -98262,13 +100635,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -98285,19 +100672,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -98336,6 +100754,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -98354,12 +100773,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -98369,6 +100797,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -98378,19 +100813,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -98409,12 +100859,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -98424,6 +100883,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -98433,13 +100899,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -135898,6 +138378,7 @@ export interface operations {
                 executable: boolean;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -135916,12 +138397,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -135931,6 +138421,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -135940,13 +138437,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -135958,6 +138469,7 @@ export interface operations {
                 hook_result?: string;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -135976,12 +138488,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -135991,6 +138512,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -136000,13 +138528,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -136075,19 +138617,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -136126,6 +138699,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -136144,12 +138718,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -136159,6 +138742,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -136168,19 +138758,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -136199,12 +138804,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -136214,6 +138828,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -136223,13 +138844,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -136308,6 +138943,7 @@ export interface operations {
                 executable: boolean;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -136326,12 +138962,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -136341,6 +138986,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -136350,13 +139002,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registered: boolean;
               };
@@ -136368,6 +139034,7 @@ export interface operations {
                 hook_result?: string;
                 reason_codes?: (
                   | "approval_canceled"
+                  | "approval_rejected"
                   | "approval_required"
                   | "approval_timed_out"
                   | "approval_token_expired"
@@ -136386,12 +139053,21 @@ export interface operations {
                   | "extension_capability_missing"
                   | "extension_inactive"
                   | "extension_runtime_mismatch"
+                  | "generation_fenced"
                   | "handler_missing"
                   | "hook_denied"
                   | "id_empty"
                   | "id_empty_segment"
                   | "id_invalid_format"
                   | "id_too_long"
+                  | "input_answer_requires_write"
+                  | "input_request_already_answered"
+                  | "input_request_limit_reached"
+                  | "input_request_not_found"
+                  | "input_request_superseded"
+                  | "invalid_cwd"
+                  | "journal_unavailable"
+                  | "lease_revoked"
                   | "loop_source_immutable"
                   | "loop_version_conflict"
                   | "mcp_auth_expired"
@@ -136401,6 +139077,13 @@ export interface operations {
                   | "mcp_auth_unconfigured"
                   | "mcp_unreachable"
                   | "policy_denied"
+                  | "profile_archived"
+                  | "profile_selection_conflict"
+                  | "profile_session_conflict"
+                  | "profile_unavailable"
+                  | "recording_already_started"
+                  | "recording_not_active"
+                  | "recording_unavailable"
                   | "reserved_conflict"
                   | "reserved_namespace"
                   | "result_budget_exceeded"
@@ -136410,13 +139093,27 @@ export interface operations {
                   | "schema_invalid"
                   | "secret_metadata"
                   | "session_denied"
+                  | "slow_consumer"
                   | "source_disabled"
+                  | "subscriber_limit_reached"
+                  | "terminal_exited"
+                  | "terminal_expired"
+                  | "terminal_interactive_unavailable"
+                  | "terminal_limit_reached"
+                  | "terminal_not_found"
+                  | "terminal_not_interactive"
+                  | "terminal_requires_workspace"
+                  | "ticket_expired"
+                  | "ticket_invalid"
+                  | "timeout_out_of_range"
                   | "tool_artifact_corrupt"
                   | "tool_artifact_not_found"
                   | "tool_unknown"
                   | "toolset_cycle"
                   | "toolset_unknown"
+                  | "typing_grant_rejected"
                   | "visibility_denied"
+                  | "write_owner_held"
                 )[];
                 registry_policy_result?: string;
                 session_policy_result?: string;
@@ -136485,19 +139182,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -136536,6 +139264,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -136554,12 +139283,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -136569,6 +139307,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -136578,19 +139323,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -136609,12 +139369,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -136624,6 +139393,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -136633,13 +139409,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -136656,19 +139446,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -136707,6 +139528,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -136725,12 +139547,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -136740,6 +139571,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -136749,19 +139587,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -136780,12 +139633,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -136795,6 +139657,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -136804,13 +139673,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -138320,6 +141203,8 @@ export interface operations {
           "application/json": {
             terminals: {
               bound_run: {
+                /** Format: int64 */
+                generation: number;
                 run_id: string;
                 session_id: string;
               } | null;
@@ -138328,7 +141213,8 @@ export interface operations {
               };
               controller: {
                 id: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
               } | null;
               /** Format: date-time */
               created_at: string;
@@ -138336,17 +141222,22 @@ export interface operations {
               exit?: {
                 /** Format: date-time */
                 at: string;
-                cause: string;
+                /** @enum {string} */
+                cause: "exited" | "signaled" | "unknown";
                 code?: number | null;
-                signal?: string | null;
+                /** @enum {string|null} */
+                signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              lease: string;
-              mode: string;
+              /** @enum {string} */
+              lease: "human_owned" | "agent_owned" | "available";
+              /** @enum {string} */
+              mode: "pty" | "pipe";
               profile_id: string;
               profile_name: string;
               shell: string;
-              state: string;
+              /** @enum {string} */
+              state: "running" | "exited";
               title: string;
               viewers: number;
               workspace_id: string;
@@ -138361,25 +141252,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138390,25 +141301,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138453,6 +141384,8 @@ export interface operations {
           "application/json": {
             terminal: {
               bound_run: {
+                /** Format: int64 */
+                generation: number;
                 run_id: string;
                 session_id: string;
               } | null;
@@ -138461,7 +141394,8 @@ export interface operations {
               };
               controller: {
                 id: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
               } | null;
               /** Format: date-time */
               created_at: string;
@@ -138469,17 +141403,22 @@ export interface operations {
               exit?: {
                 /** Format: date-time */
                 at: string;
-                cause: string;
+                /** @enum {string} */
+                cause: "exited" | "signaled" | "unknown";
                 code?: number | null;
-                signal?: string | null;
+                /** @enum {string|null} */
+                signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              lease: string;
-              mode: string;
+              /** @enum {string} */
+              lease: "human_owned" | "agent_owned" | "available";
+              /** @enum {string} */
+              mode: "pty" | "pipe";
               profile_id: string;
               profile_name: string;
               shell: string;
-              state: string;
+              /** @enum {string} */
+              state: "running" | "exited";
               title: string;
               viewers: number;
               workspace_id: string;
@@ -138494,25 +141433,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138523,25 +141482,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138552,25 +141531,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138609,25 +141608,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138638,25 +141657,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138679,19 +141718,19 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          args: string[];
+          args?: string[];
           command: string;
-          cwd: string;
-          env: {
+          cwd?: string;
+          env?: {
             [key: string]: string;
           };
-          output: {
+          output?: {
             grep?: string;
             max_bytes?: number;
             strategy?: string;
           };
-          visible: boolean;
-          yield_ms: number;
+          visible?: boolean;
+          yield_ms?: number;
         };
       };
     };
@@ -138753,25 +141792,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138782,25 +141841,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138854,25 +141933,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138883,25 +141982,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -138946,24 +142065,29 @@ export interface operations {
             entries: {
               actor: {
                 id: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
               };
-              approval: string;
+              /** @enum {string} */
+              approval: "approved_once" | "approved_always" | "allowlisted" | "human" | "none";
               argv_digest?: string | null;
               command: string;
               command_id: string;
               cwd: string;
-              detected_by: string;
+              /** @enum {string} */
+              detected_by: "exact" | "marker" | "idle";
               /** Format: int64 */
               duration_ms: number | null;
-              exit_cause: string;
+              /** @enum {string} */
+              exit_cause: "exited" | "signaled" | "unknown";
               exit_code: number | null;
               /** Format: int64 */
               output_bytes: number;
               profile_id: string;
               profile_name: string;
               recording?: string | null;
-              signal: string | null;
+              /** @enum {string|null} */
+              signal: "INT" | "TERM" | "KILL" | "HUP" | null;
               /** Format: date-time */
               started_at: string;
               terminal_id: string | null;
@@ -138980,25 +142104,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139009,25 +142153,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139066,25 +142230,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139095,25 +142279,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139146,6 +142350,8 @@ export interface operations {
           "text/event-stream": {
             terminals: {
               bound_run: {
+                /** Format: int64 */
+                generation: number;
                 run_id: string;
                 session_id: string;
               } | null;
@@ -139154,7 +142360,8 @@ export interface operations {
               };
               controller: {
                 id: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
               } | null;
               /** Format: date-time */
               created_at: string;
@@ -139162,17 +142369,22 @@ export interface operations {
               exit?: {
                 /** Format: date-time */
                 at: string;
-                cause: string;
+                /** @enum {string} */
+                cause: "exited" | "signaled" | "unknown";
                 code?: number | null;
-                signal?: string | null;
+                /** @enum {string|null} */
+                signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              lease: string;
-              mode: string;
+              /** @enum {string} */
+              lease: "human_owned" | "agent_owned" | "available";
+              /** @enum {string} */
+              mode: "pty" | "pipe";
               profile_id: string;
               profile_name: string;
               shell: string;
-              state: string;
+              /** @enum {string} */
+              state: "running" | "exited";
               title: string;
               viewers: number;
               workspace_id: string;
@@ -139187,25 +142399,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139216,25 +142448,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139266,6 +142518,8 @@ export interface operations {
           "application/json": {
             terminal: {
               bound_run: {
+                /** Format: int64 */
+                generation: number;
                 run_id: string;
                 session_id: string;
               } | null;
@@ -139274,7 +142528,8 @@ export interface operations {
               };
               controller: {
                 id: string;
-                kind: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
               } | null;
               /** Format: date-time */
               created_at: string;
@@ -139282,17 +142537,22 @@ export interface operations {
               exit?: {
                 /** Format: date-time */
                 at: string;
-                cause: string;
+                /** @enum {string} */
+                cause: "exited" | "signaled" | "unknown";
                 code?: number | null;
-                signal?: string | null;
+                /** @enum {string|null} */
+                signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
               } | null;
               id: string;
-              lease: string;
-              mode: string;
+              /** @enum {string} */
+              lease: "human_owned" | "agent_owned" | "available";
+              /** @enum {string} */
+              mode: "pty" | "pipe";
               profile_id: string;
               profile_name: string;
               shell: string;
-              state: string;
+              /** @enum {string} */
+              state: "running" | "exited";
               title: string;
               viewers: number;
               workspace_id: string;
@@ -139307,25 +142567,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139336,25 +142616,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139365,25 +142665,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139408,7 +142728,8 @@ export interface operations {
     requestBody?: {
       content: {
         "application/json": {
-          signal: string;
+          /** @enum {string} */
+          signal: "INT" | "TERM" | "KILL" | "HUP";
         };
       };
     };
@@ -139423,9 +142744,11 @@ export interface operations {
             exit: {
               /** Format: date-time */
               at: string;
-              cause: string;
+              /** @enum {string} */
+              cause: "exited" | "signaled" | "unknown";
               code?: number | null;
-              signal?: string | null;
+              /** @enum {string|null} */
+              signal?: "INT" | "TERM" | "KILL" | "HUP" | null;
             } | null;
           };
         };
@@ -139437,25 +142760,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139466,25 +142809,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139495,25 +142858,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139541,8 +142924,9 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          client_id: string;
-          mode: string;
+          client_id?: string;
+          /** @enum {string} */
+          mode: "read" | "write";
         };
       };
     };
@@ -139567,25 +142951,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139596,25 +143000,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139625,25 +143049,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139694,25 +143138,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139723,25 +143187,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139752,25 +143236,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139809,7 +143313,8 @@ export interface operations {
         };
         content: {
           "application/json": {
-            outcome: string;
+            /** @enum {string} */
+            outcome: "rejected";
           };
         };
       };
@@ -139820,25 +143325,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139849,25 +143374,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139878,25 +143423,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139958,25 +143523,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -139987,25 +143572,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140030,7 +143635,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          action: string;
+          /** @enum {string} */
+          action: "start" | "stop";
         };
       };
     };
@@ -140052,7 +143658,8 @@ export interface operations {
               profile_id: string;
               /** Format: date-time */
               started_at: string;
-              state?: string;
+              /** @enum {string} */
+              state: "recording" | "saved";
               /** Format: date-time */
               stopped_at?: string | null;
               terminal_id: string;
@@ -140067,25 +143674,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140096,25 +143723,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140125,25 +143772,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140168,7 +143835,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          signal: string;
+          /** @enum {string} */
+          signal: "INT" | "TERM" | "KILL" | "HUP";
         };
       };
     };
@@ -140191,25 +143859,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140220,25 +143908,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140249,25 +143957,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140300,18 +144028,12 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description WebSocket upgrade using compozy.terminal.v1 */
+      /** @description WebSocket upgrade using the binary compozy.terminal.v1 subprotocol. Server frames: OUTPUT=0x01 (u64 big-endian sequence followed by raw bytes), ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, OWNER=0x08, PRESENCE=0x09. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, SIGNAL=0x04, TAKEOVER=0x05, DETACH=0x06, RELEASE=0x07. Every non-OUTPUT frame is one opcode byte followed by a JSON payload. */
       101: {
         headers: {
           [name: string]: unknown;
         };
-        content: {
-          "application/json": {
-            opcode: number;
-            payload: string;
-            seq?: number;
-          };
-        };
+        content?: never;
       };
       /** @description Terminal ticket invalid or expired */
       403: {
@@ -140320,25 +144042,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140349,25 +144091,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140392,8 +144154,8 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          pattern: string;
-          timeout_ms: number;
+          pattern?: string;
+          timeout_ms?: number;
           until: string;
         };
       };
@@ -140420,25 +144182,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140449,25 +144231,45 @@ export interface operations {
         };
         content: {
           "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
+            error: {
+              /** @enum {string} */
+              code:
+                | "terminal_not_found"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "terminal_requires_workspace"
+                | "profile_archived"
+                | "profile_unavailable"
+                | "terminal_limit_reached"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_not_interactive"
+                | "invalid_cwd"
+                | "timeout_out_of_range"
+                | "write_owner_held"
+                | "lease_revoked"
+                | "generation_fenced"
+                | "typing_grant_rejected"
+                | "approval_rejected"
+                | "ticket_invalid"
+                | "ticket_expired"
+                | "input_request_not_found"
+                | "input_request_already_answered"
+                | "input_request_superseded"
+                | "input_request_limit_reached"
+                | "input_answer_requires_write"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "journal_unavailable";
+              details?: {
+                [key: string]: string;
               };
-              id: string;
               message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
+            };
           };
         };
       };
@@ -140530,19 +144332,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -140581,6 +144414,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -140599,12 +144433,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -140614,6 +144457,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -140623,19 +144473,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -140654,12 +144519,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -140669,6 +144543,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -140678,13 +144559,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -140701,19 +144596,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -140752,6 +144678,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -140770,12 +144697,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -140785,6 +144721,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -140794,19 +144737,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -140825,12 +144783,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -140840,6 +144807,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -140849,13 +144823,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };
@@ -140872,19 +144860,50 @@ export interface operations {
             error: {
               /** @enum {string} */
               code:
-                | "tool_not_found"
-                | "tool_conflict"
-                | "tool_unavailable"
-                | "tool_denied"
-                | "tool_approval_required"
-                | "tool_invalid_input"
+                | "approval_rejected"
+                | "generation_fenced"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "model_not_found"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
                 | "reasoning_effort_unsupported"
-                | "tool_result_too_large"
-                | "tool_result_persistence_failed"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
+                | "slow_consumer"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
+                | "tool_approval_required"
                 | "tool_backend_failed"
                 | "tool_canceled"
-                | "tool_timed_out";
+                | "tool_conflict"
+                | "tool_denied"
+                | "tool_invalid_input"
+                | "tool_not_found"
+                | "tool_result_persistence_failed"
+                | "tool_result_too_large"
+                | "tool_timed_out"
+                | "tool_unavailable"
+                | "typing_grant_rejected"
+                | "write_owner_held";
               details?: {
                 [key: string]: unknown;
               };
@@ -140923,6 +144942,7 @@ export interface operations {
                   /** @enum {string} */
                   reason:
                     | "approval_canceled"
+                    | "approval_rejected"
                     | "approval_required"
                     | "approval_timed_out"
                     | "approval_token_expired"
@@ -140941,12 +144961,21 @@ export interface operations {
                     | "extension_capability_missing"
                     | "extension_inactive"
                     | "extension_runtime_mismatch"
+                    | "generation_fenced"
                     | "handler_missing"
                     | "hook_denied"
                     | "id_empty"
                     | "id_empty_segment"
                     | "id_invalid_format"
                     | "id_too_long"
+                    | "input_answer_requires_write"
+                    | "input_request_already_answered"
+                    | "input_request_limit_reached"
+                    | "input_request_not_found"
+                    | "input_request_superseded"
+                    | "invalid_cwd"
+                    | "journal_unavailable"
+                    | "lease_revoked"
                     | "loop_source_immutable"
                     | "loop_version_conflict"
                     | "mcp_auth_expired"
@@ -140956,6 +144985,13 @@ export interface operations {
                     | "mcp_auth_unconfigured"
                     | "mcp_unreachable"
                     | "policy_denied"
+                    | "profile_archived"
+                    | "profile_selection_conflict"
+                    | "profile_session_conflict"
+                    | "profile_unavailable"
+                    | "recording_already_started"
+                    | "recording_not_active"
+                    | "recording_unavailable"
                     | "reserved_conflict"
                     | "reserved_namespace"
                     | "result_budget_exceeded"
@@ -140965,19 +145001,34 @@ export interface operations {
                     | "schema_invalid"
                     | "secret_metadata"
                     | "session_denied"
+                    | "slow_consumer"
                     | "source_disabled"
+                    | "subscriber_limit_reached"
+                    | "terminal_exited"
+                    | "terminal_expired"
+                    | "terminal_interactive_unavailable"
+                    | "terminal_limit_reached"
+                    | "terminal_not_found"
+                    | "terminal_not_interactive"
+                    | "terminal_requires_workspace"
+                    | "ticket_expired"
+                    | "ticket_invalid"
+                    | "timeout_out_of_range"
                     | "tool_artifact_corrupt"
                     | "tool_artifact_not_found"
                     | "tool_unknown"
                     | "toolset_cycle"
                     | "toolset_unknown"
-                    | "visibility_denied";
+                    | "typing_grant_rejected"
+                    | "visibility_denied"
+                    | "write_owner_held";
                 }[];
                 structured?: unknown;
                 truncated: boolean;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
+                | "approval_rejected"
                 | "approval_required"
                 | "approval_timed_out"
                 | "approval_token_expired"
@@ -140996,12 +145047,21 @@ export interface operations {
                 | "extension_capability_missing"
                 | "extension_inactive"
                 | "extension_runtime_mismatch"
+                | "generation_fenced"
                 | "handler_missing"
                 | "hook_denied"
                 | "id_empty"
                 | "id_empty_segment"
                 | "id_invalid_format"
                 | "id_too_long"
+                | "input_answer_requires_write"
+                | "input_request_already_answered"
+                | "input_request_limit_reached"
+                | "input_request_not_found"
+                | "input_request_superseded"
+                | "invalid_cwd"
+                | "journal_unavailable"
+                | "lease_revoked"
                 | "loop_source_immutable"
                 | "loop_version_conflict"
                 | "mcp_auth_expired"
@@ -141011,6 +145071,13 @@ export interface operations {
                 | "mcp_auth_unconfigured"
                 | "mcp_unreachable"
                 | "policy_denied"
+                | "profile_archived"
+                | "profile_selection_conflict"
+                | "profile_session_conflict"
+                | "profile_unavailable"
+                | "recording_already_started"
+                | "recording_not_active"
+                | "recording_unavailable"
                 | "reserved_conflict"
                 | "reserved_namespace"
                 | "result_budget_exceeded"
@@ -141020,13 +145087,27 @@ export interface operations {
                 | "schema_invalid"
                 | "secret_metadata"
                 | "session_denied"
+                | "slow_consumer"
                 | "source_disabled"
+                | "subscriber_limit_reached"
+                | "terminal_exited"
+                | "terminal_expired"
+                | "terminal_interactive_unavailable"
+                | "terminal_limit_reached"
+                | "terminal_not_found"
+                | "terminal_not_interactive"
+                | "terminal_requires_workspace"
+                | "ticket_expired"
+                | "ticket_invalid"
+                | "timeout_out_of_range"
                 | "tool_artifact_corrupt"
                 | "tool_artifact_not_found"
                 | "tool_unknown"
                 | "toolset_cycle"
                 | "toolset_unknown"
+                | "typing_grant_rejected"
                 | "visibility_denied"
+                | "write_owner_held"
               )[];
               tool_id?: string;
             };

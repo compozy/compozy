@@ -22,5 +22,11 @@ func terminalExitFromDomain(exit *terminalpkg.Exit) *terminalExitPayload {
 	if exit == nil {
 		return nil
 	}
-	return &terminalExitPayload{Cause: exit.Cause, Code: exit.Code, Signal: exit.Signal, At: exit.At}
+	var signal *terminalpkg.Signal
+	if exit.Signal != nil {
+		signal = new(terminalpkg.Signal(*exit.Signal))
+	}
+	return &terminalExitPayload{
+		Cause: contract.TerminalExitCause(exit.Cause), Code: exit.Code, Signal: signal, At: exit.At,
+	}
 }

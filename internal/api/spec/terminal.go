@@ -177,9 +177,13 @@ func terminalStreamOperation(transports []Transport, workspace, id ParameterSpec
 		nil,
 		[]ResponseSpec{
 			{
-				Status:      101,
-				Description: "WebSocket upgrade using compozy.terminal.v1",
-				Body:        contract.TerminalStreamFrame{},
+				Status: 101,
+				Description: "WebSocket upgrade using the binary compozy.terminal.v1 subprotocol. " +
+					"Server frames: OUTPUT=0x01 (u64 big-endian sequence followed by raw bytes), " +
+					"ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, " +
+					"OWNER=0x08, PRESENCE=0x09. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, " +
+					"SIGNAL=0x04, TAKEOVER=0x05, DETACH=0x06, RELEASE=0x07. " +
+					"Every non-OUTPUT frame is one opcode byte followed by a JSON payload.",
 			},
 			terminalErrorResponse(403, "Terminal ticket invalid or expired"),
 			terminalErrorResponse(409, "Subscriber limit reached"),
@@ -411,5 +415,5 @@ func terminalOperation(
 }
 
 func terminalErrorResponse(status int, description string) ResponseSpec {
-	return ResponseSpec{Status: status, Description: description, Body: contract.ErrorPayload{}}
+	return ResponseSpec{Status: status, Description: description, Body: contract.TerminalErrorResponse{}}
 }

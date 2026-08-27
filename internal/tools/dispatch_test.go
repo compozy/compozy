@@ -916,8 +916,15 @@ func TestRuntimeRegistryDispatchHooksAndErrors(t *testing.T) {
 		if !postErrorCalled {
 			t.Fatal("post-error hook was not called")
 		}
+		toolErr, ok := errors.AsType[*ToolError](err)
+		if !ok || len(toolErr.ReasonCodes) != 0 {
+			t.Fatalf("untyped provider failure = %#v, want backend failure without invented health reason", err)
+		}
 		if got, want := events.kinds(), []ToolCallEventKind{ToolCallStarted, ToolCallFailed}; !slices.Equal(got, want) {
 			t.Fatalf("event kinds = %#v, want %#v", got, want)
+		}
+		if reasons := events.snapshot()[1].ReasonCodes; len(reasons) != 0 {
+			t.Fatalf("untyped provider failure event reasons = %#v, want none", reasons)
 		}
 	})
 

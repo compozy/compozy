@@ -52,6 +52,7 @@ function buildClient(
   const gapsCleared: number[] = [];
   const exits: unknown[] = [];
   const streamErrors: unknown[] = [];
+  const clientErrors: Error[] = [];
   const client = new TerminalProtocolClient({
     workspaceId: "ws-atlas",
     terminalId: "term-4f21c9a03b7e",
@@ -72,6 +73,7 @@ function buildClient(
       onGapCleared: () => gapsCleared.push(1),
       onExit: frame => exits.push(frame),
       onStreamError: error => streamErrors.push(error),
+      onClientError: error => clientErrors.push(error),
     },
   });
   activeClients.add(client);
@@ -86,6 +88,7 @@ function buildClient(
     gapsCleared,
     exits,
     streamErrors,
+    clientErrors,
     calls: stub.calls,
     fetchStub: stub,
   };
@@ -480,13 +483,15 @@ describe("TerminalProtocolClient", () => {
     socket.open();
     socket.deliver(
       serverControlFrame(TERMINAL_SERVER_OP.error, {
-        code: "slow_consumer",
-        message: "viewer queue was full for 10s",
+        error: {
+          code: "slow_consumer",
+          message: "viewer queue was full for 10s",
+        },
       })
     );
 
     expect(streamErrors).toEqual([
-      { code: "slow_consumer", message: "viewer queue was full for 10s" },
+      { error: { code: "slow_consumer", message: "viewer queue was full for 10s" } },
     ]);
     client.stop();
   });
@@ -523,9 +528,22 @@ describe("TerminalProtocolClient", () => {
     expect(sockets.sockets[0].closed).toBe(true);
   });
 
+  it("Should reject a text frame and reconnect from the binary protocol", async () => {
+    const { client, sockets, clientErrors } = buildClient();
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+
+    sockets.last().onmessage?.({ data: "not-binary" } as MessageEvent<unknown>);
+
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    expect(sockets.sockets[0].closed).toBe(true);
+    expect(clientErrors).toEqual([new Error("The terminal stream sent a non-binary frame.")]);
+  });
+
   it.each([
     ["negative sequence", { ...attachedPayload(), seq: -1 }],
     ["out-of-range dimensions", { ...attachedPayload(), cols: 2_001 }],
+    ["an unknown extra field", { ...attachedPayload(), future: true }],
   ])("Should reconnect after an ATTACHED frame has %s", async (_case, payload) => {
     const { client, sockets } = buildClient();
     client.start();

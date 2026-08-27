@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -38,13 +39,15 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if err := withTerminalRawInput(cmd.InOrStdin(), func() error {
-				return client.AttachTerminal(cmd.Context(), workspaceID, terminal.ID, TerminalAttachOptions{
+				return client.AttachTerminal(cmd.Context(), workspaceID, string(terminal.ID), TerminalAttachOptions{
 					Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck, Cols: cols, Rows: rows,
 				}, cmd.InOrStdin(), cmd.OutOrStdout())
 			}); err != nil {
 				return err
 			}
-			return writeTerminalDetachNotice(cmd.Context(), cmd.OutOrStdout(), client, workspaceID, terminal.ID)
+			return writeTerminalDetachNotice(
+				cmd.Context(), cmd.OutOrStdout(), client, workspaceID, string(terminal.ID),
+			)
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
@@ -195,7 +198,7 @@ func newTerminalKillCommand(deps commandDeps) *cobra.Command {
 	return command
 }
 
-func terminalRecordBundle(record TerminalRecord) outputBundle {
+func terminalRecordBundle(record contract.TerminalInfoPayload) outputBundle {
 	value := map[string]any{"terminal": record}
 	return outputBundle{
 		jsonValue: value,
@@ -206,7 +209,11 @@ func terminalRecordBundle(record TerminalRecord) outputBundle {
 	}
 }
 
-func terminalListBundle(cmd *cobra.Command, records []TerminalRecord, now func() time.Time) outputBundle {
+func terminalListBundle(
+	cmd *cobra.Command,
+	records []contract.TerminalInfoPayload,
+	now func() time.Time,
+) outputBundle {
 	value := map[string]any{"terminals": records}
 	return outputBundle{
 		jsonValue: value,
@@ -228,14 +235,14 @@ func terminalListBundle(cmd *cobra.Command, records []TerminalRecord, now func()
 			headers = append(headers, "TITLE", "CONTROLLER", "STATE", "CREATED")
 			lines := []string{strings.Join(headers, "\t")}
 			for _, record := range records {
-				fields := []string{record.ID}
+				fields := []string{string(record.ID)}
 				if selection.AllProfiles {
 					fields = append(fields, record.ProfileName)
 				}
 				fields = append(fields,
 					record.Title,
 					terminalListController(record.Controller),
-					record.State,
+					string(record.State),
 					terminalListAge(now, record.CreatedAt),
 				)
 				lines = append(lines, strings.Join(fields, "\t"))
@@ -264,7 +271,7 @@ func terminalListScopeLabels(cmd *cobra.Command) (string, string) {
 	return workspace, profile
 }
 
-func terminalListController(controller *TerminalControllerRecord) string {
+func terminalListController(controller *contract.TerminalControllerPayload) string {
 	if controller == nil {
 		return terminalControllerAvailable
 	}

@@ -234,9 +234,9 @@ func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { //
 		}
 
 		recordProfileReadSelection(command, profileReadSelection{AllProfiles: true})
-		rows, err := terminalListBundle(command, []TerminalRecord{{
+		rows, err := terminalListBundle(command, []contract.TerminalInfoPayload{{
 			ID: "term-9f21c04a3b17", ProfileName: "work", Title: "zsh — status",
-			Controller: &TerminalControllerRecord{Kind: "human", ID: terminalCLIActorID},
+			Controller: &contract.TerminalControllerPayload{Kind: "human", ID: terminalCLIActorID},
 			State:      "running", CreatedAt: fixed.Add(-2 * time.Minute),
 		}}, func() time.Time { return fixed }).human()
 		if err != nil {
@@ -396,13 +396,13 @@ func TestTerminalAttachCommand(t *testing.T) {
 	t.Parallel()
 	t.Run("Should report the exited terminal code and cause before opening a stream", func(t *testing.T) {
 		t.Parallel()
-		signal := "HUP"
+		signal := terminalpkg.SignalHUP
 		client := &terminalAgentCommandClient{
 			DaemonClient: newDefaultProfileTestClient(&stubClient{}),
-			terminal: TerminalRecord{
+			terminal: contract.TerminalInfoPayload{
 				ID:    "term-ended",
 				State: "exited",
-				Exit:  &TerminalExitRecord{Cause: "signaled", Signal: &signal},
+				Exit:  &contract.TerminalExitPayload{Cause: "signaled", Signal: &signal},
 			},
 		}
 		deps := newTestDeps(t, client)
@@ -450,7 +450,7 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 		Controller:   &contract.TerminalControllerPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
 		Lease:        terminalpkg.LeaseAgentOwned,
 		Viewers:      2,
-		BoundRun:     &contract.TerminalRunPayload{SessionID: "session-a", RunID: "run-a"},
+		BoundRun:     &contract.TerminalRunPayload{SessionID: "session-a", RunID: "run-a", Generation: 7},
 		Capabilities: terminalpkg.Capabilities{Interactive: true},
 		CreatedAt:    fixed,
 		Exit: &contract.TerminalExitPayload{
@@ -884,7 +884,7 @@ func assertTerminalJSONParity(t *testing.T, stdout string, want any) {
 
 type terminalAgentCommandClient struct {
 	DaemonClient
-	terminal TerminalRecord
+	terminal contract.TerminalInfoPayload
 	attaches int
 	exec     struct {
 		Workspace string
@@ -904,13 +904,20 @@ func (*terminalAgentCommandClient) CreateTerminal(
 	context.Context,
 	string,
 	TerminalCreateRequest,
-) (TerminalRecord, error) {
-	return TerminalRecord{}, nil
+) (contract.TerminalInfoPayload, error) {
+	return contract.TerminalInfoPayload{}, nil
 }
-func (*terminalAgentCommandClient) ListTerminals(context.Context, string) ([]TerminalRecord, error) {
+func (*terminalAgentCommandClient) ListTerminals(
+	context.Context,
+	string,
+) ([]contract.TerminalInfoPayload, error) {
 	return nil, nil
 }
-func (c *terminalAgentCommandClient) GetTerminal(context.Context, string, string) (TerminalRecord, error) {
+func (c *terminalAgentCommandClient) GetTerminal(
+	context.Context,
+	string,
+	string,
+) (contract.TerminalInfoPayload, error) {
 	return c.terminal, nil
 }
 func (*terminalAgentCommandClient) DeleteTerminal(context.Context, string, string, string) (TerminalExitRecord, error) {

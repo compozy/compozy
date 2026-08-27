@@ -18,6 +18,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -46,6 +47,9 @@ func TestTerminalTicketStoreShouldEnforceSingleUseBindingTTLAndCapacity(t *testi
 		wrong.ProfileID = "profile-b"
 		if _, err := store.Consume(ticket.Token, wrong); !errors.Is(err, errTerminalTicketInvalid) {
 			t.Fatalf("Consume(wrong) error = %v", err)
+		}
+		if consumed, err := store.Consume(ticket.Token, binding); err != nil || consumed.Binding != binding {
+			t.Fatalf("Consume(correct after mismatch) = %#v, %v", consumed, err)
 		}
 		if _, err := store.Consume(ticket.Token, binding); !errors.Is(err, errTerminalTicketInvalid) {
 			t.Fatalf("Consume(reused) error = %v", err)
@@ -311,6 +315,97 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 		}
 	})
 
+	t.Run("Should require a ticket on UDS instead of trusting the local transport", func(t *testing.T) {
+		provider := &terminalProviderStub{manager: terminalManagerStub{}}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/terminals/:id/stream", handlers.StreamTerminal)
+		request := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			"/api/workspaces/workspace-a/terminals/term-a/stream?mode=read",
+			http.NoBody,
+		)
+		request.Header.Set("Sec-WebSocket-Protocol", terminalwire.Subprotocol)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("UDS stream without ticket status = %d, want 403; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.TerminalErrorResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode UDS ticket refusal: %v", err)
+		}
+		if payload.Error.Code != "ticket_invalid" {
+			t.Fatalf("UDS ticket refusal = %#v, want ticket_invalid", payload)
+		}
+	})
+
+	t.Run("Should reject input and signal frames on read attachments", func(t *testing.T) {
+		socket := &terminalSocket{mode: "read", handle: terminalHandleStub{}}
+		for _, frame := range []terminalwire.Frame{
+			{Op: terminalwire.ClientOpInput, Payload: []byte("hidden")},
+			{Op: terminalwire.ClientOpSignal, Payload: []byte(`{"signal":"TERM"}`)},
+		} {
+			err := socket.applyClientFrame(t.Context(), frame)
+			if !errors.Is(err, errTerminalReadOnly) {
+				t.Fatalf("applyClientFrame(%d) error = %v, want read-only refusal", frame.Op, err)
+			}
+			status, code := terminalErrorStatusCode(err)
+			if status != http.StatusForbidden || code != "input_answer_requires_write" {
+				t.Fatalf("read-only frame status/code = %d/%q", status, code)
+			}
+		}
+	})
+
+	t.Run("Should close the subscription when the WebSocket upgrade fails", func(t *testing.T) {
+		subscription := &terminalSubscriptionStub{frames: make(chan terminalpkg.Frame)}
+		provider := &terminalProviderStub{manager: terminalManagerStub{
+			handle: terminalHandleStub{subscription: subscription},
+		}}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+		binding := terminalTicketBinding{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: "term-a", Mode: "read",
+		}
+		ticket, err := handlers.terminalTickets.Mint(binding, terminalpkg.Actor{ProfileID: "profile-a"})
+		if err != nil {
+			t.Fatalf("Mint() error = %v", err)
+		}
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/terminals/:id/stream", handlers.StreamTerminal)
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+		request, err := http.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodGet,
+			server.URL+"/api/workspaces/workspace-a/terminals/term-a/stream?mode=read&ticket="+ticket.Token,
+			http.NoBody,
+		)
+		if err != nil {
+			t.Fatalf("NewRequestWithContext() error = %v", err)
+		}
+		request.Header.Set("Connection", "Upgrade")
+		request.Header.Set("Upgrade", "websocket")
+		request.Header.Set("Sec-WebSocket-Version", "13")
+		request.Header.Set("Sec-WebSocket-Protocol", terminalwire.Subprotocol)
+		response, err := http.DefaultClient.Do(request)
+		if err != nil {
+			t.Fatalf("Do() error = %v", err)
+		}
+		if err := response.Body.Close(); err != nil {
+			t.Fatalf("Close(response body) error = %v", err)
+		}
+		if !subscription.closed {
+			t.Fatal("subscription remained open after WebSocket upgrade failure")
+		}
+		if _, err := handlers.terminalTickets.Consume(ticket.Token, binding); !errors.Is(
+			err,
+			errTerminalTicketInvalid,
+		) {
+			t.Fatalf("ticket after failed upgrade error = %v, want consumed", err)
+		}
+	})
+
 	t.Run("Should reject ticket mint advisorily without reserving capacity", func(t *testing.T) {
 		provider := &terminalProviderStub{manager: terminalManagerStub{
 			info: &terminalpkg.Info{ID: "term-a", WS: "workspace-a", ProfileID: "default", Viewers: 1},
@@ -336,12 +431,13 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 				response.Body.String(),
 			)
 		}
-		var payload contract.ErrorPayload
+		var payload contract.TerminalErrorResponse
 		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 			t.Fatalf("decode subscriber limit response: %v", err)
 		}
-		if payload.Code != "subscriber_limit_reached" || payload.Error != "terminal subscriber limit reached" ||
-			!reflect.DeepEqual(payload.Details, map[string]string{"current": "1", "max": "1"}) {
+		if payload.Error.Code != "subscriber_limit_reached" ||
+			payload.Error.Message != "terminal subscriber limit reached" ||
+			!reflect.DeepEqual(payload.Error.Details, map[string]string{"current": "1", "max": "1"}) {
 			t.Fatalf("subscriber limit payload = %#v", payload)
 		}
 	})
@@ -934,12 +1030,12 @@ func (j *terminalDownloadJournalStub) Recording(
 	if id == "foreign" {
 		return nil, nil, os.ErrNotExist
 	}
-	return &terminalpkg.RecordingRef{
-			ID:    id,
-			Bytes: int64(len("asciicast")),
-		}, io.NopCloser(
-			strings.NewReader("asciicast"),
-		), nil
+	recording := &terminalpkg.RecordingRef{
+		ID:    id,
+		Bytes: int64(len("asciicast")),
+	}
+	reader := io.NopCloser(strings.NewReader("asciicast"))
+	return recording, reader, nil
 }
 
 func (j *terminalDownloadJournalStub) Artifact(
@@ -1036,6 +1132,7 @@ func (terminalManagerStub) ArchiveProfile(context.Context, string) error     { r
 type terminalHandleStub struct {
 	info         terminalpkg.Info
 	attachErr    error
+	subscription terminalpkg.Subscription
 	screenResult *terminalpkg.ReadResult
 	screenErr    error
 	pending      *terminalpkg.PendingInputRequest
@@ -1078,7 +1175,7 @@ func (h *terminalAgentHandleStub) StopRecording(context.Context, terminalpkg.Act
 func (h terminalHandleStub) Info() terminalpkg.Info { return h.info }
 func (terminalHandleStub) MarkerNonce() string      { return "" }
 func (h terminalHandleStub) Attach(context.Context, terminalpkg.AttachOptions) (terminalpkg.Subscription, error) {
-	return nil, h.attachErr
+	return h.subscription, h.attachErr
 }
 func (terminalHandleStub) Write(context.Context, terminalpkg.Actor, []byte) error { return nil }
 func (h terminalHandleStub) Screen(context.Context, terminalpkg.ReadOptions) (*terminalpkg.ReadResult, error) {
@@ -1118,4 +1215,17 @@ func (terminalHandleStub) StartRecording(context.Context, terminalpkg.Actor) (te
 }
 func (terminalHandleStub) StopRecording(context.Context, terminalpkg.Actor) (terminalpkg.RecordingRef, error) {
 	return terminalpkg.RecordingRef{}, nil
+}
+
+type terminalSubscriptionStub struct {
+	frames chan terminalpkg.Frame
+	closed bool
+}
+
+func (s *terminalSubscriptionStub) Frames() <-chan terminalpkg.Frame { return s.frames }
+func (*terminalSubscriptionStub) Ack(int)                            {}
+func (*terminalSubscriptionStub) Resize(uint16, uint16) error        { return nil }
+func (s *terminalSubscriptionStub) Close() error {
+	s.closed = true
+	return nil
 }

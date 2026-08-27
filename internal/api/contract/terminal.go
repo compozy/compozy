@@ -12,15 +12,16 @@ type TerminalControllerPayload struct {
 }
 
 type TerminalRunPayload struct {
-	SessionID string `json:"session_id"`
-	RunID     string `json:"run_id"`
+	SessionID  string `json:"session_id"`
+	RunID      string `json:"run_id"`
+	Generation int64  `json:"generation"`
 }
 
 type TerminalExitPayload struct {
-	Cause  string    `json:"cause"`
-	Code   *int      `json:"code,omitempty"`
-	Signal *string   `json:"signal,omitempty"`
-	At     time.Time `json:"at"`
+	Cause  TerminalExitCause   `json:"cause"`
+	Code   *int                `json:"code,omitempty"`
+	Signal *terminalpkg.Signal `json:"signal,omitempty"`
+	At     time.Time           `json:"at"`
 }
 
 type TerminalInfoPayload struct {
@@ -32,7 +33,7 @@ type TerminalInfoPayload struct {
 	Shell        string                     `json:"shell"`
 	Cwd          string                     `json:"cwd"`
 	Mode         terminalpkg.Mode           `json:"mode"`
-	State        string                     `json:"state"`
+	State        TerminalState              `json:"state"`
 	Controller   *TerminalControllerPayload `json:"controller"`
 	Lease        terminalpkg.LeaseState     `json:"lease"`
 	Viewers      int                        `json:"viewers"`
@@ -45,18 +46,22 @@ type TerminalInfoPayload struct {
 func TerminalInfoPayloadFromDomain(info terminalpkg.Info, profileName string) TerminalInfoPayload {
 	payload := TerminalInfoPayload{
 		ID: info.ID, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: profileName,
-		Title: info.Title, Shell: info.Shell, Cwd: info.Cwd, Mode: info.Mode, State: info.State,
+		Title: info.Title, Shell: info.Shell, Cwd: info.Cwd, Mode: info.Mode, State: TerminalState(info.State),
 		Lease: info.Lease, Viewers: info.Viewers, Capabilities: info.Capabilities, CreatedAt: info.CreatedAt,
 	}
 	if info.Controller != nil {
 		payload.Controller = &TerminalControllerPayload{Kind: info.Controller.Kind, ID: info.Controller.ID}
 	}
 	if info.BoundRun != nil {
-		payload.BoundRun = &TerminalRunPayload{SessionID: info.BoundRun.SessionID, RunID: info.BoundRun.RunID}
+		payload.BoundRun = &TerminalRunPayload{
+			SessionID: info.BoundRun.SessionID, RunID: info.BoundRun.RunID,
+			Generation: info.BoundRun.Generation,
+		}
 	}
 	if info.Exit != nil {
 		payload.Exit = &TerminalExitPayload{
-			Cause: info.Exit.Cause, Code: info.Exit.Code, Signal: info.Exit.Signal, At: info.Exit.At,
+			Cause: TerminalExitCause(info.Exit.Cause), Code: info.Exit.Code,
+			Signal: terminalSignalFromString(info.Exit.Signal), At: info.Exit.At,
 		}
 	}
 	return payload
@@ -79,10 +84,10 @@ type TerminalCommandRowPayload struct {
 	StartedAt   time.Time                   `json:"started_at"`
 	DurationMs  *int64                      `json:"duration_ms"`
 	ExitCode    *int                        `json:"exit_code"`
-	ExitSignal  *string                     `json:"signal"`
-	ExitCause   string                      `json:"exit_cause"`
-	DetectedBy  string                      `json:"detected_by"`
-	Approval    string                      `json:"approval"`
+	ExitSignal  *terminalpkg.Signal         `json:"signal"`
+	ExitCause   TerminalExitCause           `json:"exit_cause"`
+	DetectedBy  TerminalCommandDetection    `json:"detected_by"`
+	Approval    TerminalCommandApproval     `json:"approval"`
 	OutputBytes int64                       `json:"output_bytes"`
 	Truncated   bool                        `json:"truncated"`
 	RecordingID *string                     `json:"recording,omitempty"`
@@ -93,8 +98,9 @@ func TerminalCommandRowPayloadFromDomain(row terminalpkg.CommandRow, profileName
 		ID: row.ID, TerminalID: row.TerminalID, ProfileID: row.ProfileID, ProfileName: profileName,
 		Actor:   TerminalCommandActorPayload{Kind: row.Actor.Kind, ID: row.Actor.ID},
 		Command: row.Command, ArgvDigest: row.ArgvDigest, Cwd: row.Cwd, StartedAt: row.StartedAt,
-		DurationMs: row.DurationMs, ExitCode: row.ExitCode, ExitSignal: row.ExitSignal,
-		ExitCause: row.ExitCause, DetectedBy: row.DetectedBy, Approval: row.Approval,
+		DurationMs: row.DurationMs, ExitCode: row.ExitCode, ExitSignal: terminalSignalFromString(row.ExitSignal),
+		ExitCause: TerminalExitCause(row.ExitCause), DetectedBy: TerminalCommandDetection(row.DetectedBy),
+		Approval:    TerminalCommandApproval(row.Approval),
 		OutputBytes: row.OutputBytes, Truncated: row.Truncated, RecordingID: row.RecordingID,
 	}
 }
@@ -104,8 +110,8 @@ func TerminalCommandRowFromPayload(row TerminalCommandRowPayload) terminalpkg.Co
 		ID: row.ID, TerminalID: row.TerminalID, ProfileID: row.ProfileID, ProfileName: row.ProfileName,
 		Actor:   terminalpkg.Actor{Kind: row.Actor.Kind, ID: row.Actor.ID, ProfileID: row.ProfileID},
 		Command: row.Command, ArgvDigest: row.ArgvDigest, Cwd: row.Cwd, StartedAt: row.StartedAt,
-		DurationMs: row.DurationMs, ExitCode: row.ExitCode, ExitSignal: row.ExitSignal,
-		ExitCause: row.ExitCause, DetectedBy: row.DetectedBy, Approval: row.Approval,
+		DurationMs: row.DurationMs, ExitCode: row.ExitCode, ExitSignal: terminalSignalString(row.ExitSignal),
+		ExitCause: string(row.ExitCause), DetectedBy: string(row.DetectedBy), Approval: string(row.Approval),
 		OutputBytes: row.OutputBytes, Truncated: row.Truncated, RecordingID: row.RecordingID,
 	}
 }
@@ -124,24 +130,24 @@ type TerminalCloseRequest struct {
 }
 
 type TerminalAttachTicketRequest struct {
-	Mode     string `json:"mode"`
-	ClientID string `json:"client_id"`
+	Mode     TerminalAttachMode `json:"mode"`
+	ClientID string             `json:"client_id,omitempty"`
 }
 
 type TerminalExecRequest struct {
 	Command string                  `json:"command"`
-	Args    []string                `json:"args"`
-	Cwd     string                  `json:"cwd"`
-	Env     map[string]string       `json:"env"`
-	YieldMs int                     `json:"yield_ms"`
-	Visible bool                    `json:"visible"`
-	Output  terminalpkg.OutputShape `json:"output"`
+	Args    []string                `json:"args,omitempty"`
+	Cwd     string                  `json:"cwd,omitempty"`
+	Env     map[string]string       `json:"env,omitempty"`
+	YieldMs int                     `json:"yield_ms,omitzero"`
+	Visible bool                    `json:"visible,omitzero"`
+	Output  terminalpkg.OutputShape `json:"output,omitzero"`
 }
 
 type TerminalWaitRequest struct {
 	Until     string `json:"until"`
-	Pattern   string `json:"pattern"`
-	TimeoutMs int    `json:"timeout_ms"`
+	Pattern   string `json:"pattern,omitempty"`
+	TimeoutMs int    `json:"timeout_ms,omitempty"`
 }
 
 type TerminalSignalRequest struct {
@@ -157,7 +163,7 @@ type TerminalRejectInputRequest struct {
 }
 
 type TerminalRecordingRequest struct {
-	Action string `json:"action"`
+	Action TerminalRecordingAction `json:"action"`
 }
 
 type TerminalResponse struct {
@@ -191,11 +197,34 @@ type TerminalInputAnswerResponse struct {
 }
 
 type TerminalInputRejectResponse struct {
-	Outcome string `json:"outcome"`
+	Outcome TerminalInputRejectOutcome `json:"outcome"`
+}
+
+type TerminalRecordingPayload struct {
+	ID         string                 `json:"id"`
+	State      TerminalRecordingState `json:"state"`
+	TerminalID terminalpkg.ID         `json:"terminal_id"`
+	ProfileID  string                 `json:"profile_id"`
+	Digest     string                 `json:"digest"`
+	StartedAt  time.Time              `json:"started_at"`
+	StoppedAt  *time.Time             `json:"stopped_at,omitempty"`
+	Bytes      int64                  `json:"bytes"`
+	ExpiresAt  time.Time              `json:"expires_at"`
+}
+
+func TerminalRecordingPayloadFromDomain(
+	recording terminalpkg.RecordingRef,
+	state TerminalRecordingState,
+) TerminalRecordingPayload {
+	return TerminalRecordingPayload{
+		ID: recording.ID, State: state, TerminalID: recording.TerminalID, ProfileID: recording.ProfileID,
+		Digest: recording.Digest, StartedAt: recording.StartedAt, StoppedAt: recording.StoppedAt,
+		Bytes: recording.Bytes, ExpiresAt: recording.ExpiresAt,
+	}
 }
 
 type TerminalRecordingResponse struct {
-	Recording terminalpkg.RecordingRef `json:"recording"`
+	Recording TerminalRecordingPayload `json:"recording"`
 }
 
 type TerminalJournalResponse struct {
@@ -207,8 +236,16 @@ type TerminalCatalogSnapshot struct {
 	Terminals []TerminalInfoPayload `json:"terminals"`
 }
 
-type TerminalStreamFrame struct {
-	Opcode  uint8  `json:"opcode"`
-	Seq     uint64 `json:"seq,omitempty"`
-	Payload string `json:"payload"`
+func terminalSignalFromString(signal *string) *terminalpkg.Signal {
+	if signal == nil {
+		return nil
+	}
+	return new(terminalpkg.Signal(*signal))
+}
+
+func terminalSignalString(signal *terminalpkg.Signal) *string {
+	if signal == nil {
+		return nil
+	}
+	return new(string(*signal))
 }

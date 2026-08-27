@@ -1,157 +1,65 @@
 import type { operations } from "@/generated/compozy-openapi";
 
-/**
- * Terminal wire shapes corresponding to `_dx.md` and the generated OpenAPI
- * contract. A list entry is byte-identical to `get`'s projection, which is why
- * one type serves both.
- */
+import type { TerminalInfo } from "./lib/terminal-contract-schema";
 
-/** Closed everywhere it appears — `_dx.md` → *Native Tools*. */
-export type TerminalLeaseState = "agent_owned" | "human_owned" | "available";
+export type { TerminalInfo } from "./lib/terminal-contract-schema";
 
-export type TerminalActorKind = "human" | "agent" | "system";
+type TerminalCreateRequest =
+  operations["createTerminal"]["requestBody"]["content"]["application/json"];
+type TerminalTicketRequest =
+  operations["mintTerminalAttachTicket"]["requestBody"]["content"]["application/json"];
+type TerminalSignalRequest =
+  operations["signalTerminal"]["requestBody"]["content"]["application/json"];
+type TerminalJournalResponse =
+  operations["queryTerminalJournal"]["responses"][200]["content"]["application/json"];
+type TerminalReadQuery = NonNullable<operations["readTerminal"]["parameters"]["query"]>;
 
-/** A pty terminal is watchable and writable; a pipe terminal is a log. */
-export type TerminalMode = "pty" | "pipe";
-
-export type TerminalRunState = "running" | "exited";
-
-/** Never fabricated: a cause the daemon could not verify stays `unknown`. */
-export type TerminalExitCause = "exited" | "signaled" | "unknown";
-
-export type TerminalSignal = "INT" | "TERM" | "KILL" | "HUP";
-
-export interface TerminalActor {
-  kind: TerminalActorKind;
-  id: string;
-}
-
-export interface TerminalBoundRun {
-  session_id: string;
-  run_id: string;
-}
-
-export interface TerminalExit {
-  cause: TerminalExitCause;
-  code?: number | null;
-  signal?: string | null;
-  at: string;
-}
+export type TerminalLeaseState = TerminalInfo["lease"];
+export type TerminalActorKind = NonNullable<TerminalInfo["controller"]>["kind"];
+export type TerminalMode = TerminalInfo["mode"];
+export type TerminalRunState = TerminalInfo["state"];
+export type TerminalExitCause = NonNullable<TerminalInfo["exit"]>["cause"];
+export type TerminalSignal = TerminalSignalRequest["signal"];
+export type TerminalActor = NonNullable<TerminalInfo["controller"]>;
+export type TerminalBoundRun = NonNullable<TerminalInfo["bound_run"]>;
+export type TerminalExit = NonNullable<TerminalInfo["exit"]>;
+export type TerminalCapabilities = TerminalInfo["capabilities"];
 
 export interface TerminalExitNotice {
   cause: TerminalExitCause;
   code: number | null;
-  signal: string | null;
+  signal: TerminalSignal | null;
 }
 
-export interface TerminalCapabilities {
-  interactive: boolean;
-}
-
-/** The one public projection, shared by list, get, and `terminal.created`. */
-export interface TerminalInfo {
-  id: string;
-  workspace_id: string;
-  profile_id: string;
-  profile_name: string;
-  title: string;
-  shell: string;
-  cwd: string;
-  mode: TerminalMode;
-  state: TerminalRunState;
-  controller: TerminalActor | null;
-  lease: TerminalLeaseState;
-  viewers: number;
-  bound_run: TerminalBoundRun | null;
-  capabilities: TerminalCapabilities;
-  created_at: string;
-  exit?: TerminalExit | null;
-}
-
-export interface TerminalAttachTicket {
-  ticket: string;
-  expires_at: string;
-}
+export type TerminalAttachTicket =
+  operations["mintTerminalAttachTicket"]["responses"][201]["content"]["application/json"];
 
 export interface TerminalViewerIdentity {
   id: string;
   attachmentToken: string;
 }
 
-export type TerminalAttachMode = "read" | "write";
-
-/** Watchers drop frames they cannot keep up with; writers return credit. */
-export type TerminalFlowMode = "drop" | "ack";
-
-type TerminalCreateRequest =
-  operations["createTerminal"]["requestBody"]["content"]["application/json"];
+export type TerminalAttachMode = TerminalTicketRequest["mode"];
+export type TerminalFlowMode = NonNullable<
+  NonNullable<operations["streamTerminal"]["parameters"]["query"]>["flow"]
+>;
 
 export type CreateTerminalInput = Omit<TerminalCreateRequest, "client_id">;
 
-/** Pending prompts, workspace- and profile-scoped. */
-export interface TerminalInputRequest {
-  id: string;
-  terminal_id: string;
-  profile_id: string;
-  profile_name: string;
-  reason: string;
-  prompt_excerpt: string;
-  redacted: boolean;
-  requested_at: string;
-}
+export type TerminalInputRequest =
+  operations["listTerminalInputRequests"]["responses"][200]["content"]["application/json"]["requests"][number];
 
-/** The frozen outcome enum; the boards' "Declined" is copy for `rejected`. */
 export type TerminalInputOutcome = "answered" | "rejected" | "superseded" | "expired";
 
-export interface TerminalInputAnswerResult {
-  delivered_bytes: number;
-  redacted: boolean;
-}
+export type TerminalInputAnswerResult =
+  operations["answerTerminalInputRequest"]["responses"][200]["content"]["application/json"];
+export type TerminalInputRejectResult =
+  operations["rejectTerminalInputRequest"]["responses"][200]["content"]["application/json"];
 
-export interface TerminalInputRejectResult {
-  outcome: "rejected";
-}
-
-/** How a command boundary was established. `idle` is the heuristic one. */
-export type TerminalDetectedBy = "exact" | "marker" | "idle";
-
-/** Which permission covered the run. */
-export type TerminalApproval =
-  | "approved_once"
-  | "approved_always"
-  | "allowlisted"
-  | "human"
-  | "none";
-
-export interface TerminalJournalEntry {
-  command_id: string;
-  terminal_id: string | null;
-  profile_id: string;
-  profile_name: string;
-  actor: TerminalActor;
-  command: string;
-  argv_digest?: string | null;
-  cwd: string;
-  started_at: string;
-  duration_ms: number | null;
-  exit_code: number | null;
-  signal: string | null;
-  exit_cause: TerminalExitCause;
-  detected_by: TerminalDetectedBy;
-  approval: TerminalApproval;
-  output_bytes: number;
-  truncated: boolean;
-  recording?: string | null;
-}
-
-/**
- * No total: retention is unbounded, so a truthful count would mean reading the
- * whole history. The panel states rows loaded instead.
- */
-export interface TerminalJournalPage {
-  entries: TerminalJournalEntry[];
-  next: string | null;
-}
+export type TerminalJournalEntry = TerminalJournalResponse["entries"][number];
+export type TerminalDetectedBy = TerminalJournalEntry["detected_by"];
+export type TerminalApproval = TerminalJournalEntry["approval"];
+export type TerminalJournalPage = TerminalJournalResponse;
 
 export interface TerminalJournalFilters {
   actor?: TerminalActorKind | null;
@@ -161,30 +69,19 @@ export interface TerminalJournalFilters {
   limit?: number;
 }
 
-export interface TerminalRecording {
-  id: string;
-  state: "recording" | "saved";
-}
+export type TerminalRecording =
+  operations["controlTerminalRecording"]["responses"][200]["content"]["application/json"]["recording"];
 
-/** Rendered screen, stream tail, or a scrollback line range. */
-export type TerminalReadView = "screen" | "tail" | "lines";
+export type TerminalReadView = NonNullable<TerminalReadQuery["view"]>;
+export type TerminalReadResult =
+  operations["readTerminal"]["responses"][200]["content"]["application/json"];
 
-export interface TerminalReadResult {
-  content: string;
-  seq: number;
-  truncated: boolean;
-  busy: boolean;
-  untrusted: boolean;
-}
-
-/** The two selectors are mutually exclusive — `profile_selection_conflict`. */
 export type TerminalScopeParams =
   | { profile: string; all_profiles?: never }
   | { profile?: never; all_profiles: true };
 
 export type TerminalProfileScopeParams = Extract<TerminalScopeParams, { profile: string }>;
 
-/** Cache and stream identity. A read without both halves cannot be scoped. */
 export interface TerminalScopeKey {
   workspaceId: string;
   profileKey: string;

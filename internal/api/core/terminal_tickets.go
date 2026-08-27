@@ -103,14 +103,7 @@ func (s *terminalTicketStore) Mint(binding terminalTicketBinding, actor terminal
 }
 
 func (s *terminalTicketStore) Consume(token string, expected terminalTicketBinding) (terminalTicket, error) {
-	ticket, err := s.consume(token)
-	if err != nil {
-		return terminalTicket{}, err
-	}
-	if ticket.Binding != expected {
-		return terminalTicket{}, errTerminalTicketInvalid
-	}
-	return ticket, nil
+	return s.find(token, true, func(ticket terminalTicket) bool { return ticket.Binding == expected })
 }
 
 func (s *terminalTicketStore) ConsumeStream(
@@ -118,18 +111,33 @@ func (s *terminalTicketStore) ConsumeStream(
 	terminalID terminalpkg.ID,
 	mode string,
 ) (terminalTicket, error) {
-	ticket, err := s.consume(token)
-	if err != nil {
-		return terminalTicket{}, err
-	}
-	if ticket.Binding.WorkspaceID != workspaceID || ticket.Binding.TerminalID != terminalID ||
-		ticket.Binding.Mode != mode {
-		return terminalTicket{}, errTerminalTicketInvalid
-	}
-	return ticket, nil
+	return s.find(token, true, terminalStreamTicketMatches(workspaceID, terminalID, mode))
 }
 
-func (s *terminalTicketStore) consume(token string) (terminalTicket, error) {
+func (s *terminalTicketStore) PeekStream(
+	token, workspaceID string,
+	terminalID terminalpkg.ID,
+	mode string,
+) (terminalTicket, error) {
+	return s.find(token, false, terminalStreamTicketMatches(workspaceID, terminalID, mode))
+}
+
+func terminalStreamTicketMatches(
+	workspaceID string,
+	terminalID terminalpkg.ID,
+	mode string,
+) func(terminalTicket) bool {
+	return func(ticket terminalTicket) bool {
+		return ticket.Binding.WorkspaceID == workspaceID && ticket.Binding.TerminalID == terminalID &&
+			ticket.Binding.Mode == mode
+	}
+}
+
+func (s *terminalTicketStore) find(
+	token string,
+	consume bool,
+	matches func(terminalTicket) bool,
+) (terminalTicket, error) {
 	digest, validFormat := terminalTicketDigestFromToken(token)
 	if !validFormat {
 		return terminalTicket{}, errTerminalTicketInvalid
@@ -137,18 +145,21 @@ func (s *terminalTicketStore) consume(token string) (terminalTicket, error) {
 	now := s.now()
 	s.mu.Lock()
 	ticket, ok := s.tickets[digest]
-	valid := ok && ticket.group != nil && ticket.group.invalidUntil.Load() == 0
-	if ok {
+	validTarget := ok && ticket.group != nil && ticket.group.invalidUntil.Load() == 0
+	expired := ok && !now.Before(ticket.ExpiresAt)
+	matched := ok && matches != nil && matches(ticket)
+	consumeMatched := consume && validTarget && !expired && matched
+	if ok && (consumeMatched || expired || !validTarget) {
 		s.deleteLocked(digest)
 	}
 	s.mu.Unlock()
 	if !ok {
 		return terminalTicket{}, errTerminalTicketInvalid
 	}
-	if !now.Before(ticket.ExpiresAt) {
+	if expired {
 		return terminalTicket{}, errTerminalTicketExpired
 	}
-	if !valid {
+	if !validTarget || !matched {
 		return terminalTicket{}, errTerminalTicketInvalid
 	}
 	return ticket, nil
