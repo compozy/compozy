@@ -1,9 +1,11 @@
 package loop_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"reflect"
 	"slices"
 	"strings"
@@ -11,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -1257,6 +1260,117 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("transform literal = %#v, want unrendered literal", got["literal"])
 		}
 	})
+}
+
+func TestRunLoopActionShouldMatchPublicConfigOverrideFields(t *testing.T) {
+	t.Parallel()
+
+	jsonFields := func(valueType reflect.Type) map[string]struct{} {
+		fields := make(map[string]struct{}, valueType.NumField())
+		for field := range valueType.Fields() {
+			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			if name != "" && name != "-" {
+				fields[name] = struct{}{}
+			}
+		}
+		return fields
+	}
+
+	publicFields := jsonFields(reflect.TypeFor[contract.LoopConfig]())
+	publicSamples := map[string]any{
+		"human_gate_enabled": true,
+		"reattempt_strategy": "halt",
+		"enabled_checks_json": map[string]any{
+			"quality": map[string]any{"enabled": true},
+		},
+		"iteration_cap":      4,
+		"budget_tokens":      250000,
+		"budget_wall_sec":    7200,
+		"budget_on_exceeded": "halt",
+		"no_progress_window": 3,
+		"fan_out_width":      4,
+		"gate_max_revisions": 2,
+		"runtime_defaults": map[string]any{
+			"worker": map[string]any{"provider": "codex", "model": "gpt-5.6-sol"},
+		},
+		"runtime_rules": []any{map[string]any{
+			"match":   map[string]any{"id": "frontend-shell"},
+			"runtime": map[string]any{"provider": "cursor", "model": "grok-4.6"},
+		}},
+		"environment": map[string]any{"mode": "root"},
+	}
+	candidates := jsonFields(reflect.TypeFor[loop.LoopConfig]())
+	for name := range publicFields {
+		candidates[name] = struct{}{}
+	}
+	for name := range publicSamples {
+		candidates[name] = struct{}{}
+	}
+	candidateNames := slices.Collect(maps.Keys(candidates))
+	slices.Sort(candidateNames)
+
+	for _, name := range candidateNames {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, wantAllowed := publicFields[name]
+			sample, hasSample := publicSamples[name]
+			if hasSample != wantAllowed {
+				t.Fatalf(
+					"config override %q sample present = %t, want %t from public LoopConfig",
+					name,
+					hasSample,
+					wantAllowed,
+				)
+			}
+			if !wantAllowed {
+				sample = nil
+			}
+			payload := map[string]any{name: sample}
+			if wantAllowed {
+				data, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatalf("json.Marshal(%q sample) error = %v", name, err)
+				}
+				decoder := json.NewDecoder(bytes.NewReader(data))
+				decoder.DisallowUnknownFields()
+				if err := decoder.Decode(&contract.LoopConfig{}); err != nil {
+					t.Fatalf("public LoopConfig rejected %q sample: %v", name, err)
+				}
+			}
+
+			starter := &fakeActionLoopStarter{returnRun: &loop.Run{ID: "child-1"}}
+			actions := newActionRegistryForTest(
+				t,
+				&fakeActionToolRegistry{},
+				loop.WithActionLoopStarter(starter),
+			)
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunLoop))
+			if err != nil {
+				t.Fatalf("Resolve(run-loop) error = %v", err)
+			}
+			_, err = executor.Execute(t.Context(), dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop":             "implement-tasks",
+					"config_overrides": payload,
+				},
+			}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+
+			gotAllowed := err == nil
+			if gotAllowed != wantAllowed {
+				t.Fatalf(
+					"config override %q allowed = %t, want %t from public LoopConfig (error = %v)",
+					name,
+					gotAllowed,
+					wantAllowed,
+					err,
+				)
+			}
+		})
+	}
 }
 
 type actionTestRuntimeCatalog struct{}
