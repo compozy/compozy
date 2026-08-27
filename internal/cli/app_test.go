@@ -45,8 +45,9 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 					t.Fatalf("WriteFile(app record) error = %v", err)
 				}
 				deps := appTestDeps(homePaths)
-				deps.processAlive = func(int) bool { return true }
-				deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+				deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+					return appDiagnosticReportFixture(), nil
+				}
 				report, err := resolveAppStatus(t.Context(), deps, homePaths)
 				if err != nil {
 					t.Fatalf("resolveAppStatus(shared state fixture) error = %v", err)
@@ -75,9 +76,11 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
 			return appInstallation{Installed: true, Version: "0.3.0"}, nil
 		}
-		deps.processAlive = func(pid int) bool { return pid == 4242 }
-		deps.processMatchesStartTime = func(pid int, startedAt time.Time) bool {
-			return pid == 4242 && startedAt.Equal(time.Date(2026, 8, 10, 3, 0, 0, 0, time.UTC))
+		deps.callAppControl = func(_ context.Context, _ string, method string, _ any) (any, error) {
+			if method != appDiagnoseMethod {
+				t.Fatalf("app control method = %q, want %q", method, appDiagnoseMethod)
+			}
+			return appDiagnosticReportFixture(), nil
 		}
 
 		stdout, err := executeAppTestCommand(t, deps, "app", "status", "-o", "json")
@@ -270,8 +273,6 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 				maps.Copy(record, state.extra)
 				writeAppTestRecord(t, homePaths, record)
 				deps := appTestDeps(homePaths)
-				deps.processAlive = func(int) bool { return true }
-				deps.processMatchesStartTime = func(int, time.Time) bool { return true }
 				stdout, err := executeAppTestCommand(t, deps, "app", "status", "-o", "json")
 				if err != nil {
 					t.Fatalf("app status error = %v", err)
@@ -298,7 +299,15 @@ func TestAppStatusReportsCanonicalState(t *testing.T) {
 			"diagnostic_report": appDiagnosticReportFixture(),
 		})
 		deps := appTestDeps(homePaths)
-		deps.processAlive = func(int) bool { return false }
+		deps.processAlive = func(int) bool { return true }
+		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
+		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(
+				appControlUnavailableCode,
+				"the CompozyOS desktop app control channel is unavailable",
+				errors.New("stale socket"),
+			)
+		}
 		stdout, err := executeAppTestCommand(t, deps, "app", "status", "-o", "json")
 		if err != nil {
 			t.Fatalf("app status error = %v", err)
@@ -1092,6 +1101,54 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 		assertAppCommandError(t, err, appLaunchFailedCode)
 	})
 
+	t.Run("Should navigate through the authenticated control channel when the app is live", func(t *testing.T) {
+		t.Parallel()
+		homePaths := appTestHome(t)
+		writeAppTestRecord(t, homePaths, map[string]any{
+			"schema_version":    2,
+			"pid":               4242,
+			"started_at":        "2026-08-10T03:00:00Z",
+			"app_version":       "0.3.0",
+			"state":             "product",
+			"origin":            "http://localhost:2123/",
+			"owned":             true,
+			"diagnostic_report": appDiagnosticReportFixture(),
+		})
+		deps := appTestDeps(homePaths)
+		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
+			return appInstallation{Installed: true, Version: "0.3.0"}, nil
+		}
+		launched := false
+		deps.openBrowser = func(context.Context, string) error {
+			launched = true
+			return nil
+		}
+		navigated := false
+		deps.callAppControl = func(_ context.Context, _ string, method string, params any) (any, error) {
+			switch method {
+			case appDiagnoseMethod:
+				return appDiagnosticReportFixture(), nil
+			case "navigate":
+				values, ok := params.(map[string]string)
+				if !ok || values[automationPathKey] != "/sessions/abc" {
+					t.Fatalf("app navigate params = %#v, want /sessions/abc", params)
+				}
+				navigated = true
+				return map[string]any{"navigated": true}, nil
+			default:
+				t.Fatalf("app control method = %q, want diagnose or navigate", method)
+				return nil, nil
+			}
+		}
+
+		if _, err := executeAppTestCommand(t, deps, "app", "open", "/sessions/abc"); err != nil {
+			t.Fatalf("app open error = %v", err)
+		}
+		if launched || !navigated {
+			t.Fatalf("app open launched=%t navigated=%t, want authenticated navigation", launched, navigated)
+		}
+	})
+
 	t.Run("Should reject a future app state before navigating a live process", func(t *testing.T) {
 		t.Parallel()
 		homePaths := appTestHome(t)
@@ -1105,8 +1162,6 @@ func TestAppOpenUsesValidatedProductTargets(t *testing.T) {
 		deps.resolveAppInstallation = func(context.Context, compozyconfig.HomePaths) (appInstallation, error) {
 			return appInstallation{Installed: true, Version: "0.3.0"}, nil
 		}
-		deps.processAlive = func(int) bool { return true }
-		deps.processMatchesStartTime = func(int, time.Time) bool { return true }
 		controlCalled := false
 		deps.callAppControl = func(context.Context, string, string, any) (any, error) {
 			controlCalled = true
@@ -1344,6 +1399,13 @@ func appTestDeps(homePaths compozyconfig.HomePaths) commandDeps {
 		},
 		processAlive:            func(int) bool { return false },
 		processMatchesStartTime: func(int, time.Time) bool { return false },
+		callAppControl: func(context.Context, string, string, any) (any, error) {
+			return nil, newAppCommandError(
+				appNotRunningCode,
+				"the CompozyOS desktop app is not running",
+				nil,
+			)
+		},
 	}
 }
 
