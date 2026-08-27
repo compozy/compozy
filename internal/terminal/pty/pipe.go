@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
@@ -18,8 +19,8 @@ import (
 )
 
 type pipeProc struct {
-	reader     *io.PipeReader
-	input      *io.PipeWriter
+	reader     *os.File
+	input      *os.File
 	cancel     context.CancelFunc
 	waiter     processWaiter
 	mu         sync.RWMutex
@@ -50,8 +51,18 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("terminal pipe: parse runner program: %w", err)
 	}
-	inputReader, inputWriter := io.Pipe()
-	outputReader, outputWriter := io.Pipe()
+	inputReader, inputWriter, err := os.Pipe()
+	if err != nil {
+		return nil, fmt.Errorf("terminal pipe: open input pipe: %w", err)
+	}
+	outputReader, outputWriter, err := os.Pipe()
+	if err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("terminal pipe: open output pipe: %w", err),
+			inputReader.Close(),
+			inputWriter.Close(),
+		)
+	}
 	ctx, cancel := context.WithCancel(context.WithoutCancel(parent))
 	proc := &pipeProc{
 		reader: outputReader,
@@ -154,9 +165,8 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 		if !stopCancellation() {
 			<-cancellationDone
 		}
-		descendantErr := escalatePipeCommand(command)
+		descendantErr := escalatePipeCommand(command, nil)
 		p.mu.Lock()
-		commandExit = reportedPipeSignal(p.killSignal, commandExit)
 		if p.command == command {
 			p.command = nil
 		}
@@ -210,7 +220,16 @@ func (p *pipeProc) Write(input []byte) (int, error) {
 
 func (p *pipeProc) Resize(uint16, uint16) error { return ErrInteractiveUnavailable }
 
-func (p *pipeProc) Wait(ctx context.Context) (Exit, error) { return p.waiter.wait(ctx) }
+func (p *pipeProc) Wait(ctx context.Context) (Exit, error) {
+	exit, err := p.waiter.wait(ctx)
+	if err != nil {
+		return exit, err
+	}
+	p.mu.RLock()
+	signal := p.killSignal
+	p.mu.RUnlock()
+	return reportedExitForSignal(signal, exit), nil
+}
 
 func (p *pipeProc) Kill(signal Signal) error {
 	p.mu.Lock()
@@ -235,7 +254,11 @@ func (p *pipeProc) Kill(signal Signal) error {
 		return fmt.Errorf("terminal pipe: signal: %w", err)
 	}
 	if signal == SignalHUP || signal == SignalTERM {
-		if err := escalatePipeCommand(command); err != nil {
+		if err := escalatePipeCommand(command, func() {
+			p.mu.Lock()
+			p.killSignal = SignalKILL
+			p.mu.Unlock()
+		}); err != nil {
 			return fmt.Errorf("terminal pipe: escalate process group: %w", err)
 		}
 	}

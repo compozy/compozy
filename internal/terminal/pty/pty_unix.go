@@ -21,10 +21,12 @@ import (
 
 type unixProc struct {
 	device      *xpty.UnixPty
-	reader      *os.File
+	reader      *unixPTYReader
 	command     *exec.Cmd
 	waiter      processWaiter
 	startedAt   time.Time
+	mu          sync.RWMutex
+	killSignal  Signal
 	closeOnce   sync.Once
 	closeErr    error
 	shimCleanup func() error
@@ -94,7 +96,7 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	return proc, nil
 }
 
-func duplicateNonblocking(device *xpty.UnixPty) (*os.File, error) {
+func duplicateNonblocking(device *xpty.UnixPty) (*unixPTYReader, error) {
 	duplicate := -1
 	var duplicateErr error
 	if err := device.Control(func(fd uintptr) {
@@ -113,7 +115,7 @@ func duplicateNonblocking(device *xpty.UnixPty) (*os.File, error) {
 		}
 		return nil, duplicateErr
 	}
-	return os.NewFile(uintptr(duplicate), device.Name()+"-reader"), nil
+	return &unixPTYReader{File: os.NewFile(uintptr(duplicate), device.Name()+"-reader")}, nil
 }
 
 func (p *unixProc) PID() int {
@@ -146,7 +148,14 @@ func (p *unixProc) Resize(cols, rows uint16) error {
 }
 
 func (p *unixProc) Wait(ctx context.Context) (Exit, error) {
-	return p.waiter.wait(ctx)
+	exit, err := p.waiter.wait(ctx)
+	if err != nil {
+		return exit, err
+	}
+	p.mu.RLock()
+	signal := p.killSignal
+	p.mu.RUnlock()
+	return reportedExitForSignal(signal, exit), nil
 }
 
 func (p *unixProc) Kill(signal Signal) error {
@@ -154,7 +163,14 @@ func (p *unixProc) Kill(signal Signal) error {
 	if err != nil {
 		return err
 	}
+	p.mu.Lock()
+	previousSignal := p.killSignal
+	p.killSignal = signal
+	p.mu.Unlock()
 	if err := procutil.SignalCommandProcessGroup(p.command, syscallSignal); err != nil {
+		p.mu.Lock()
+		p.killSignal = previousSignal
+		p.mu.Unlock()
 		return fmt.Errorf("terminal pty: signal process group: %w", err)
 	}
 	if signal != SignalHUP && signal != SignalTERM {
@@ -163,6 +179,9 @@ func (p *unixProc) Kill(signal Signal) error {
 	if err := procutil.WaitForCommandProcessGroupExit(p.command, processGroupGrace); err == nil {
 		return nil
 	}
+	p.mu.Lock()
+	p.killSignal = SignalKILL
+	p.mu.Unlock()
 	if err := procutil.KillCommandProcessGroupAndWait(p.command, processGroupGrace); err != nil {
 		return fmt.Errorf("terminal pty: escalate process group: %w", err)
 	}
@@ -175,7 +194,7 @@ func (p *unixProc) Close() error {
 		if p.shimCleanup != nil {
 			shimErr = p.shimCleanup()
 		}
-		p.closeErr = errors.Join(closeIgnoringClosed(p.reader), closeUnixDevice(p.device), shimErr)
+		p.closeErr = errors.Join(closeIgnoringClosed(p.reader.File), closeUnixDevice(p.device), shimErr)
 	})
 	return p.closeErr
 }

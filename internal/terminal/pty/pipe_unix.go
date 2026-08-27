@@ -37,14 +37,23 @@ func forcePipeCommand(command *exec.Cmd) error {
 	return procutil.KillCommandProcessGroupAndWait(command, processGroupGrace)
 }
 
-func escalatePipeCommand(command *exec.Cmd) error {
+func escalatePipeCommand(command *exec.Cmd, beforeForce func()) error {
 	if command == nil || command.Process == nil {
 		return nil
 	}
 	if err := procutil.WaitForCommandProcessGroupExit(command, processGroupGrace); err == nil {
 		return nil
 	}
+	if beforeForce != nil {
+		beforeForce()
+	}
 	return procutil.KillCommandProcessGroupAndWait(command, processGroupGrace)
 }
 
-func reportedPipeSignal(_ Signal, exit Exit) Exit { return exit }
+func reportedExitForSignal(requested Signal, exit Exit) Exit {
+	if requested != SignalKILL {
+		return exit
+	}
+	signal := string(SignalKILL)
+	return Exit{Cause: "signaled", Signal: &signal}
+}
