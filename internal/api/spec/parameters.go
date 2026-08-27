@@ -16,6 +16,10 @@ func headerParam(name string, description string) ParameterSpec {
 	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: true}
 }
 
+func optionalHeaderParam(name string, description string) ParameterSpec {
+	return ParameterSpec{Name: name, In: openapi3.ParameterInHeader, Description: description, Required: false}
+}
+
 func optionalLastEventIDHeaderParam(description string) ParameterSpec {
 	return ParameterSpec{
 		Name: specLastEventIDHeader, In: openapi3.ParameterInHeader, Description: description, Required: false,

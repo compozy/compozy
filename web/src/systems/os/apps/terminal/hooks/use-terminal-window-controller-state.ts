@@ -21,6 +21,7 @@ import {
   terminalScope,
   useTerminalCatalogStream,
   type TerminalInputRequest,
+  type TerminalViewerIdentity,
 } from "@/systems/terminal";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -51,6 +52,8 @@ export function useTerminalWindowControllerState(windowId: string) {
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? DEFAULT_ROUTE);
   const viewerId = useDesktop(state => state.client?.clientId ?? null);
   const viewerToken = useDesktop(state => state.clientAttachmentToken);
+  const viewer: TerminalViewerIdentity | null =
+    viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null;
   const workspaceId = workspace.runtimeWorkspaceId ?? "";
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
@@ -104,7 +107,8 @@ export function useTerminalWindowControllerState(windowId: string) {
   };
 
   const create = useMutation({
-    mutationFn: () => createTerminal(workspaceId, {}, destinationScope.params),
+    mutationFn: (identity: TerminalViewerIdentity) =>
+      createTerminal(workspaceId, {}, destinationScope.params, identity),
     onSuccess: async terminal => {
       await invalidateTerminalReads();
       await coordinator.userRetarget(windowId, {
@@ -193,6 +197,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     stopRecording,
     viewerId,
     viewerToken,
+    viewer,
     workspace,
     workspaceId,
   };

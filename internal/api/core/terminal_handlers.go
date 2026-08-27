@@ -32,6 +32,11 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
+	actor, err := h.bindTerminalHumanClient(c, workspaceID, profileID, request.ClientID, actor)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
 	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
 	if err != nil {
 		h.respondError(c, StatusForWorkspaceError(err), err)

@@ -23,6 +23,7 @@ import {
 const WORKSPACE_ID = "ws/atlas";
 const TERMINAL_ID = "term/one";
 const PROFILE = { profile: "work profile" } as const;
+const VIEWER = { id: "client:web", attachmentToken: "attachment-token" } as const;
 
 function respond(body: unknown, status = 200, contentType = "application/json") {
   vi.mocked(fetch).mockResolvedValueOnce(
@@ -74,11 +75,12 @@ describe("terminal REST requests", () => {
 
   it("Should preserve method and body for terminal mutations", async () => {
     respond({ terminal: DEV_SERVER_TERMINAL });
-    await createTerminal(WORKSPACE_ID, { title: "release", cwd: "/repo" }, PROFILE);
+    await createTerminal(WORKSPACE_ID, { title: "release", cwd: "/repo" }, PROFILE, VIEWER);
     expect(lastRequest()).toMatchObject({
       init: expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ title: "release", cwd: "/repo" }),
+        body: JSON.stringify({ title: "release", cwd: "/repo", client_id: "client:web" }),
+        headers: expect.objectContaining({ "X-Compozy-Client-Token": "attachment-token" }),
       }),
     });
 
@@ -101,10 +103,7 @@ describe("terminal REST requests", () => {
 
   it("Should encode attach and bounded-read parameters", async () => {
     respond({ ticket: "tkt-1", expires_at: "2026-08-25T12:00:30Z" });
-    await mintTerminalAttachTicket(WORKSPACE_ID, TERMINAL_ID, "write", PROFILE, {
-      id: "client:web",
-      attachmentToken: "attachment-token",
-    });
+    await mintTerminalAttachTicket(WORKSPACE_ID, TERMINAL_ID, "write", PROFILE, VIEWER);
     expect(lastRequest()).toMatchObject({
       url: expect.stringContaining("/attach-ticket?profile=work+profile"),
       init: expect.objectContaining({

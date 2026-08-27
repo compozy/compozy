@@ -111,11 +111,12 @@ func TerminalCommandRowFromPayload(row TerminalCommandRowPayload) terminalpkg.Co
 }
 
 type TerminalCreateRequest struct {
-	Cwd   string `json:"cwd"`
-	Shell string `json:"shell"`
-	Cols  uint16 `json:"cols"`
-	Rows  uint16 `json:"rows"`
-	Title string `json:"title"`
+	Cwd      string `json:"cwd,omitempty"`
+	Shell    string `json:"shell,omitempty"`
+	Cols     uint16 `json:"cols,omitempty"`
+	Rows     uint16 `json:"rows,omitempty"`
+	Title    string `json:"title,omitempty"`
+	ClientID string `json:"client_id,omitempty"`
 }
 
 type TerminalCloseRequest struct {

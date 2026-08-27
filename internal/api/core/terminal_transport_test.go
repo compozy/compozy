@@ -111,59 +111,117 @@ func TestTerminalTicketStoreShouldInvalidateOnTerminalEnd(t *testing.T) {
 	}
 }
 
-func TestTerminalAttachTicketShouldBindAuthorizedBrowserIdentity(t *testing.T) {
-	t.Parallel()
+func TestTerminalBrowserIdentityShouldBindAuthorizedClient(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	manager := &terminalWindowManagerServiceStub{}
-	provider := &terminalProviderStub{manager: terminalManagerStub{
-		info: &terminalpkg.Info{ID: "term-a", WS: "workspace-a", ProfileID: store.DefaultProfileID},
-	}}
-	handlers := NewBaseHandlers(&BaseHandlerConfig{
-		TransportName: "httpapi",
-		Terminal:      provider,
-		WindowManager: &terminalWindowManagerProviderStub{service: manager},
+
+	t.Run("Should create a terminal under the authorized browser identity", func(t *testing.T) {
+		t.Parallel()
+		windowManager := &terminalWindowManagerServiceStub{}
+		terminalManager := &terminalOpenManagerStub{}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			TransportName: "httpapi",
+			Terminal:      &terminalProviderStub{manager: terminalManager},
+			WindowManager: &terminalWindowManagerProviderStub{service: windowManager},
+		})
+		router := gin.New()
+		router.POST("/api/workspaces/:workspace_id/terminals", handlers.CreateTerminal)
+
+		request := httptest.NewRequestWithContext(
+			testutil.Context(t),
+			http.MethodPost,
+			"/api/workspaces/workspace-a/terminals?profile=default",
+			strings.NewReader(`{"client_id":"client:web"}`),
+		)
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(terminalClientAttachmentHeader, "attachment-token")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+
+		if response.Code != http.StatusCreated {
+			t.Fatalf(
+				"create status = %d, want 201; body=%s",
+				response.Code,
+				response.Body.String(),
+			)
+		}
+		var payload contract.TerminalResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode create response: %v", err)
+		}
+		if payload.Terminal.ID != "term-a" || terminalManager.request.Actor.ID != "client:web" {
+			t.Fatalf(
+				"create terminal/actor = %q/%q, want term-a/client:web",
+				payload.Terminal.ID,
+				terminalManager.request.Actor.ID,
+			)
+		}
+		if windowManager.clientID != "client:web" || windowManager.token != "attachment-token" {
+			t.Fatalf(
+				"authorized browser identity = %q/%q, want client:web/attachment-token",
+				windowManager.clientID,
+				windowManager.token,
+			)
+		}
 	})
-	router := gin.New()
-	router.POST("/api/workspaces/:workspace_id/terminals/:id/attach-ticket", handlers.MintTerminalAttachTicket)
 
-	request := httptest.NewRequestWithContext(testutil.Context(t),
-		http.MethodPost,
-		"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
-		strings.NewReader(`{"mode":"read","client_id":"client:web"}`))
+	t.Run("Should mint a ticket under the authorized browser identity and reject a forgery", func(t *testing.T) {
+		t.Parallel()
+		manager := &terminalWindowManagerServiceStub{}
+		provider := &terminalProviderStub{manager: terminalManagerStub{
+			info: &terminalpkg.Info{ID: "term-a", WS: "workspace-a", ProfileID: store.DefaultProfileID},
+		}}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			TransportName: "httpapi",
+			Terminal:      provider,
+			WindowManager: &terminalWindowManagerProviderStub{service: manager},
+		})
+		router := gin.New()
+		router.POST("/api/workspaces/:workspace_id/terminals/:id/attach-ticket", handlers.MintTerminalAttachTicket)
 
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set(terminalClientAttachmentHeader, "attachment-token")
-	response := httptest.NewRecorder()
-	router.ServeHTTP(response, request)
-	if response.Code != http.StatusCreated {
-		t.Fatalf("status = %d, want 201; body=%s", response.Code, response.Body.String())
-	}
-	var payload contract.TerminalAttachTicketResponse
-	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
-		t.Fatalf("decode ticket response: %v", err)
-	}
-	ticket, err := handlers.terminalTickets.ConsumeStream(payload.Ticket, "workspace-a", "term-a", "read")
-	if err != nil {
-		t.Fatalf("ConsumeStream() error = %v", err)
-	}
-	if ticket.Actor.ID != "client:web" || manager.clientID != "client:web" || manager.token != "attachment-token" {
-		t.Fatalf("browser identity = actor:%q authorized:%q token:%q", ticket.Actor.ID, manager.clientID, manager.token)
-	}
+		request := httptest.NewRequestWithContext(testutil.Context(t),
+			http.MethodPost,
+			"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
+			strings.NewReader(`{"mode":"read","client_id":"client:web"}`))
 
-	manager.err = windowmanager.ErrClientUnauthorized
-	denied := httptest.NewRecorder()
-	request = httptest.NewRequestWithContext(testutil.Context(t),
-		http.MethodPost,
-		"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
-		strings.NewReader(`{"mode":"read","client_id":"client:forged"}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(terminalClientAttachmentHeader, "attachment-token")
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, request)
+		if response.Code != http.StatusCreated {
+			t.Fatalf("status = %d, want 201; body=%s", response.Code, response.Body.String())
+		}
+		var payload contract.TerminalAttachTicketResponse
+		if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("decode ticket response: %v", err)
+		}
+		ticket, err := handlers.terminalTickets.ConsumeStream(payload.Ticket, "workspace-a", "term-a", "read")
+		if err != nil {
+			t.Fatalf("ConsumeStream() error = %v", err)
+		}
+		if ticket.Actor.ID != "client:web" || manager.clientID != "client:web" || manager.token != "attachment-token" {
+			t.Fatalf(
+				"browser identity = actor:%q authorized:%q token:%q",
+				ticket.Actor.ID,
+				manager.clientID,
+				manager.token,
+			)
+		}
 
-	request.Header.Set("Content-Type", "application/json")
-	request.Header.Set(terminalClientAttachmentHeader, "forged-token")
-	router.ServeHTTP(denied, request)
-	if denied.Code != http.StatusForbidden ||
-		!strings.Contains(denied.Body.String(), `"code":"terminal_client_unauthorized"`) {
-		t.Fatalf("denied status/body = %d/%s", denied.Code, denied.Body.String())
-	}
+		manager.err = windowmanager.ErrClientUnauthorized
+		denied := httptest.NewRecorder()
+		request = httptest.NewRequestWithContext(testutil.Context(t),
+			http.MethodPost,
+			"/api/workspaces/workspace-a/terminals/term-a/attach-ticket?profile=default",
+			strings.NewReader(`{"mode":"read","client_id":"client:forged"}`))
+
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set(terminalClientAttachmentHeader, "forged-token")
+		router.ServeHTTP(denied, request)
+		if denied.Code != http.StatusForbidden ||
+			!strings.Contains(denied.Body.String(), `"code":"terminal_client_unauthorized"`) {
+			t.Fatalf("denied status/body = %d/%s", denied.Code, denied.Body.String())
+		}
+	})
 }
 
 func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
@@ -800,6 +858,21 @@ type terminalManagerStub struct {
 	info   *terminalpkg.Info
 }
 
+type terminalOpenManagerStub struct {
+	terminalManagerStub
+	request terminalpkg.OpenRequest
+}
+
+func (m *terminalOpenManagerStub) Open(
+	_ context.Context,
+	request terminalpkg.OpenRequest,
+) (terminalpkg.Handle, error) {
+	m.request = request
+	return terminalHandleStub{info: terminalpkg.Info{
+		ID: "term-a", WS: request.WS, ProfileID: request.Actor.ProfileID,
+	}}, nil
+}
+
 type terminalAgentManagerStub struct {
 	terminalManagerStub
 	handle     *terminalAgentHandleStub
@@ -961,6 +1034,7 @@ func (terminalManagerStub) Observe(func(context.Context, terminalpkg.Event)) {}
 func (terminalManagerStub) ArchiveProfile(context.Context, string) error     { return nil }
 
 type terminalHandleStub struct {
+	info         terminalpkg.Info
 	attachErr    error
 	screenResult *terminalpkg.ReadResult
 	screenErr    error
@@ -1001,8 +1075,8 @@ func (h *terminalAgentHandleStub) StopRecording(context.Context, terminalpkg.Act
 	return terminalpkg.RecordingRef{ID: "recording-a"}, nil
 }
 
-func (terminalHandleStub) Info() terminalpkg.Info { return terminalpkg.Info{} }
-func (terminalHandleStub) MarkerNonce() string    { return "" }
+func (h terminalHandleStub) Info() terminalpkg.Info { return h.info }
+func (terminalHandleStub) MarkerNonce() string      { return "" }
 func (h terminalHandleStub) Attach(context.Context, terminalpkg.AttachOptions) (terminalpkg.Subscription, error) {
 	return nil, h.attachErr
 }

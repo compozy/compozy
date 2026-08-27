@@ -1,6 +1,6 @@
 // Suite: Integrated terminal OpenAPI contract.
-// Invariant: every terminal route ships on HTTP and UDS with its exact profile scope and WS upgrade response.
-// Boundary IN: terminal paths, operation ids, transports, profile parameters, and response statuses.
+// Invariant: every terminal route ships on HTTP and UDS with its exact profile scope, browser identity, and WS response.
+// Boundary IN: terminal paths, operation ids, transports, profile and identity parameters, and response statuses.
 // Boundary OUT: handler behavior belongs to internal/api/core and user journeys belong to web/e2e.
 package spec
 
@@ -84,6 +84,30 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 			if !hasProfile || hasAggregate != aggregate {
 				t.Fatalf("%s profile/all_profiles = %t/%t, aggregate = %t", key, hasProfile, hasAggregate, aggregate)
 			}
+		}
+	})
+
+	t.Run("Should publish the optional browser identity token on create and attach ticket", func(t *testing.T) {
+		t.Parallel()
+
+		operationIDs := map[string]struct{}{
+			"createTerminal":           {},
+			"mintTerminalAttachTicket": {},
+		}
+		identityHeader := terminalClientIdentityHeaderParam()
+		seen := make(map[string]struct{}, len(operationIDs))
+		for _, operation := range Operations() {
+			if _, ok := operationIDs[operation.OperationID]; !ok {
+				continue
+			}
+			for _, parameter := range operation.Parameters {
+				if parameter.Name == identityHeader.Name && parameter.In == "header" && !parameter.Required {
+					seen[operation.OperationID] = struct{}{}
+				}
+			}
+		}
+		if len(seen) != len(operationIDs) {
+			t.Fatalf("terminal browser identity headers found = %v, want %v", seen, operationIDs)
 		}
 	})
 }

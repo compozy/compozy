@@ -138420,7 +138420,10 @@ export interface operations {
         /** @description Act as this profile by name */
         profile?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Registered browser client attachment token */
+        "X-Compozy-Client-Token"?: string;
+      };
       path: {
         /** @description Workspace id */
         workspace_id: string;
@@ -138431,11 +138434,12 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": {
-          cols: number;
-          cwd: string;
-          rows: number;
-          shell: string;
-          title: string;
+          client_id?: string;
+          cols?: number;
+          cwd?: string;
+          rows?: number;
+          shell?: string;
+          title?: string;
         };
       };
     };
@@ -139521,7 +139525,10 @@ export interface operations {
         /** @description Act as this profile by name */
         profile?: string;
       };
-      header?: never;
+      header?: {
+        /** @description Registered browser client attachment token */
+        "X-Compozy-Client-Token"?: string;
+      };
       path: {
         /** @description Workspace id */
         workspace_id: string;

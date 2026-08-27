@@ -1,3 +1,5 @@
+import type { operations } from "@/generated/compozy-openapi";
+
 /**
  * Terminal wire shapes corresponding to `_dx.md` and the generated OpenAPI
  * contract. A list entry is byte-identical to `get`'s projection, which is why
@@ -81,13 +83,10 @@ export type TerminalAttachMode = "read" | "write";
 /** Watchers drop frames they cannot keep up with; writers return credit. */
 export type TerminalFlowMode = "drop" | "ack";
 
-export interface CreateTerminalInput {
-  cwd?: string;
-  shell?: string;
-  cols?: number;
-  rows?: number;
-  title?: string;
-}
+type TerminalCreateRequest =
+  operations["createTerminal"]["requestBody"]["content"]["application/json"];
+
+export type CreateTerminalInput = Omit<TerminalCreateRequest, "client_id">;
 
 /** Pending prompts, workspace- and profile-scoped. */
 export interface TerminalInputRequest {

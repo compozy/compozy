@@ -77,6 +77,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     stopRecording,
     viewerId,
     viewerToken,
+    viewer,
     workspace,
     workspaceId,
   } = useTerminalWindowControllerState(windowId);
@@ -116,33 +117,36 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   }
 
   const requestedId = matchTerminalInstance(pathname);
+  const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
   if (requestedId && !(catalog.data ?? []).some(terminal => terminal.id === requestedId)) {
     const fallbackTerminal = catalog.data?.[0];
     return (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
         <Empty
           action={
-            <Button
-              onClick={() => {
-                if (!fallbackTerminal) {
-                  create.mutate();
-                  return;
-                }
-                void coordinator.userRetarget(windowId, {
-                  app: "terminal",
-                  instanceKey: fallbackTerminal.id,
-                  route: {
-                    pathname: `/terminal/${encodeURIComponent(fallbackTerminal.id)}`,
-                    search: {},
-                  },
-                });
-              }}
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {fallbackTerminal ? "View terminals" : "Open terminal"}
-            </Button>
+            fallbackTerminal || openTerminal ? (
+              <Button
+                onClick={() => {
+                  if (!fallbackTerminal) {
+                    openTerminal?.();
+                    return;
+                  }
+                  void coordinator.userRetarget(windowId, {
+                    app: "terminal",
+                    instanceKey: fallbackTerminal.id,
+                    route: {
+                      pathname: `/terminal/${encodeURIComponent(fallbackTerminal.id)}`,
+                      search: {},
+                    },
+                  });
+                }}
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {fallbackTerminal ? "View terminals" : "Open terminal"}
+              </Button>
+            ) : undefined
           }
           className="max-w-md"
           icon={AlertCircle}
@@ -214,7 +218,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       isLoadingMore={journal.isFetchingNextPage}
       onFiltersChange={setJournalChips}
       onLoadMore={() => void journal.fetchNextPage()}
-      onOpenNewTerminal={() => create.mutate()}
+      onOpenNewTerminal={openTerminal}
       onOpenTerminal={terminalId => {
         void coordinator.userRetarget(windowId, {
           app: "terminal",
@@ -247,7 +251,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     <>
       <TerminalWindowApp
         actions={{
-          onOpenTerminal: () => create.mutate(),
+          onOpenTerminal: openTerminal,
           onCloseTerminal: terminalId => close.mutate(terminalId),
           onStop: terminalId => stop.mutate(terminalId),
           onStopRecording: terminalId => stopRecording.mutate(terminalId),

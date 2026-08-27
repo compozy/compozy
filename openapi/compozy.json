@@ -349299,6 +349299,14 @@
             }
           },
           {
+            "description": "Registered browser client attachment token",
+            "in": "header",
+            "name": "X-Compozy-Client-Token",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Act as this profile by name",
             "in": "query",
             "name": "profile",
@@ -349312,6 +349320,9 @@
             "application/json": {
               "schema": {
                 "properties": {
+                  "client_id": {
+                    "type": "string"
+                  },
                   "cols": {
                     "maximum": 65535,
                     "minimum": 0,
@@ -349332,13 +349343,6 @@
                     "type": "string"
                   }
                 },
-                "required": [
-                  "cols",
-                  "cwd",
-                  "rows",
-                  "shell",
-                  "title"
-                ],
                 "type": "object"
               }
             }
@@ -352191,6 +352195,14 @@
             "in": "path",
             "name": "id",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Registered browser client attachment token",
+            "in": "header",
+            "name": "X-Compozy-Client-Token",
             "schema": {
               "type": "string"
             }

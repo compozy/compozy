@@ -7,6 +7,10 @@ import (
 
 const terminalPath = "/api/workspaces/{workspace_id}/terminals"
 
+func terminalClientIdentityHeaderParam() ParameterSpec {
+	return optionalHeaderParam("X-Compozy-Client-Token", "Registered browser client attachment token")
+}
+
 func terminalOperations() []OperationSpec {
 	transports := []Transport{TransportHTTP, TransportUDS}
 	workspace := pathParam("workspace_id", "Workspace id")
@@ -80,7 +84,10 @@ func terminalCreateOperation(transports []Transport, workspace ParameterSpec) Op
 		"createTerminal",
 		"Create an interactive terminal",
 		transports,
-		withProfileSelector(workspace),
+		withProfileSelector(
+			workspace,
+			terminalClientIdentityHeaderParam(),
+		),
 		contract.TerminalCreateRequest{},
 		[]ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.TerminalResponse{}},
@@ -136,7 +143,11 @@ func terminalTicketOperation(transports []Transport, workspace, id ParameterSpec
 		"mintTerminalAttachTicket",
 		"Mint a single-use terminal attach ticket",
 		transports,
-		withProfileSelector(workspace, id),
+		withProfileSelector(
+			workspace,
+			id,
+			terminalClientIdentityHeaderParam(),
+		),
 		contract.TerminalAttachTicketRequest{},
 		[]ResponseSpec{
 			{Status: 201, Description: "Created", Body: contract.TerminalAttachTicketResponse{}},

@@ -138,12 +138,18 @@ export async function createTerminal(
   workspaceId: string,
   input: CreateTerminalInput,
   scope: TerminalProfileScopeParams,
+  viewer: TerminalViewerIdentity,
   signal?: AbortSignal
 ): Promise<TerminalInfo> {
   const payload = await terminalRequest<{ terminal: TerminalInfo }>(
     withQuery(workspaceRoot(workspaceId), terminalScopeQuery({ profile: scope.profile })),
     "Failed to open a terminal",
-    { method: "POST", body: JSON.stringify(input), signal }
+    {
+      method: "POST",
+      body: JSON.stringify({ ...input, client_id: viewer.id }),
+      headers: { "X-Compozy-Client-Token": viewer.attachmentToken },
+      signal,
+    }
   );
   return payload.terminal;
 }
