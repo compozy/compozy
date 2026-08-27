@@ -18,9 +18,9 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import type { Page, Route } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
-import { appWindow, ensureAppWindow } from "../fixtures/os-navigation";
+import { appWindow, sessionWindow } from "../fixtures/os-navigation";
 import { type BrowserRuntime, type WorkspacePayload } from "../fixtures/runtime";
 import { agentCommsSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
@@ -276,8 +276,17 @@ async function waitForMessageDelivery(
 async function openAgents(page: Page, url: string) {
   await page.goto(url, { waitUntil: "domcontentloaded" });
   await completeOnboardingIfPrompted(page);
-  await ensureAppWindow(page, "Agents", "agents");
-  return agentCommsSelectors(appWindow(page, "agents"));
+  const win = appWindow(page, "agents");
+  await expect(win).toBeVisible();
+  return agentCommsSelectors(win);
+}
+
+async function openSession(page: Page, url: string, sessionId: string) {
+  await page.goto(url, { waitUntil: "domcontentloaded" });
+  await completeOnboardingIfPrompted(page);
+  const win = sessionWindow(page, sessionId);
+  await expect(win).toBeVisible();
+  return agentCommsSelectors(win);
 }
 
 test.beforeEach(async ({ appPage, runtime }) => {
@@ -457,11 +466,11 @@ test.describe("E2E-017 in-context messages", () => {
     const record = await waitForCallState(runtime, workspace.id, accepted.call_id, ["completed"]);
 
     // The message landed in the caller's transcript, where it means something.
-    await appPage.goto(runtime.url(`/session/${record.caller.id}`), {
-      waitUntil: "domcontentloaded",
-    });
-    await completeOnboardingIfPrompted(appPage);
-    const shell = agentCommsSelectors(appPage);
+    const shell = await openSession(
+      appPage,
+      runtime.url(`/session/${record.caller.id}`),
+      record.caller.id
+    );
 
     const message = shell.syntheticTurn("message").first();
     await expect(message).toBeVisible();
@@ -511,11 +520,13 @@ test.describe("E2E-017 in-context messages", () => {
     // Follow the same durable record into the owning transcript. The compose
     // showed its admission receipt (`queued`); this row must show the later
     // delivery receipt, so the transition is visible rather than API-only.
-    await appPage.goto(runtime.url(`/session/${record.child_session_id}`), {
-      waitUntil: "domcontentloaded",
-    });
-    await completeOnboardingIfPrompted(appPage);
-    const message = appPage.locator(
+    const childWindow = sessionWindow(appPage, record.child_session_id!);
+    await openSession(
+      appPage,
+      runtime.url(`/session/${record.child_session_id}`),
+      record.child_session_id!
+    );
+    const message = childWindow.locator(
       `[data-testid="session-synthetic-turn"][data-synthetic-kind="message"]` +
         `[data-message-id="${sent.items[0]!.message_id}"]`
     );
@@ -591,28 +602,29 @@ test.describe("E2E-018 liveness and stale actions", () => {
     const calls = await openAgents(appPage, runtime.url(`/agents/calls/${accepted.call_id}`));
     await expect(calls.callCancel).toBeVisible();
 
-    // A stale action is a click made while the client still holds the in-flight
-    // snapshot. Holding the detail read is what makes that reachable on purpose
-    // instead of by luck: production keeps no invalid control, so once a refresh
-    // lands the button is legitimately gone and there is nothing stale to click.
-    //
-    // The pattern matches the detail GET and nothing else — `[^/?]+` stops at a
-    // slash, so `.../calls/<id>/cancel` cannot match, and the method guard makes
-    // that doubly true. `runtime.requestJSON` runs on Node's fetch, outside the
-    // browser, so the out-of-band settle below is never intercepted.
-    const detailRead = /\/api\/workspaces\/[^/]+\/calls\/call_[^/?]+(\?|$)/;
-    const held: Route[] = [];
-    await appPage.route(detailRead, route => {
-      if (route.request().method() !== "GET") {
-        void route.continue();
-        return;
-      }
-      held.push(route);
+    // Hold the public cancel request after the click has reached the daemon
+    // boundary. The call can then settle out of band while the exact action the
+    // operator already made remains in flight, without pinning stale reads or
+    // racing a control that correctly disappears on a live update.
+    const cancelRequest = /\/api\/workspaces\/[^/]+\/calls\/call_[^/?]+\/cancel$/;
+    let releaseCancel!: () => void;
+    let markCancelReached!: () => void;
+    const cancelReached = new Promise<void>(resolve => {
+      markCancelReached = resolve;
+    });
+    const cancelRelease = new Promise<void>(resolve => {
+      releaseCancel = resolve;
+    });
+    await appPage.route(cancelRequest, async route => {
+      markCancelReached();
+      await cancelRelease;
+      await route.continue();
     });
 
-    await waitForCallState(runtime, workspace.id, accepted.call_id, ["completed"]);
-
     await calls.callCancel.click();
+    await cancelReached;
+    await waitForCallState(runtime, workspace.id, accepted.call_id, ["completed"]);
+    releaseCancel();
 
     // The receipt comes from the mutation response, so it lands without a
     // re-read — and it names the state the daemon actually returned.
@@ -621,10 +633,7 @@ test.describe("E2E-018 liveness and stale actions", () => {
     await expect(outcome).toContainText("already settled");
     await expect(outcome).toContainText("completed");
 
-    await appPage.unroute(detailRead);
-    for (const route of held) {
-      await route.continue().catch(() => undefined);
-    }
+    await appPage.unroute(cancelRequest);
 
     // Then the view reconciles: the control goes because the operation is gone.
     await expect(calls.callCancel).toHaveCount(0);
@@ -640,11 +649,11 @@ test.describe("E2E-019 session Calls panel and the wake row", () => {
     const accepted = await createCall(runtime, workspace.id, { agent: REVIEWER }, "golden path");
     const record = await waitForCallState(runtime, workspace.id, accepted.call_id, ["completed"]);
 
-    await appPage.goto(runtime.url(`/session/${record.child_session_id}`), {
-      waitUntil: "domcontentloaded",
-    });
-    await completeOnboardingIfPrompted(appPage);
-    const calls = agentCommsSelectors(appPage);
+    const calls = await openSession(
+      appPage,
+      runtime.url(`/session/${record.child_session_id}`),
+      record.child_session_id!
+    );
 
     await calls.inspectorTab.click();
     await expect(calls.inspectorPanel).toBeVisible();
@@ -671,13 +680,11 @@ test.describe("E2E-019 session Calls panel and the wake row", () => {
       workspace.id,
       `caller=${encodeURIComponent(record.caller.id)}&limit=1`
     );
-    await appPage.reload({ waitUntil: "domcontentloaded" });
-    await completeOnboardingIfPrompted(appPage);
-    const callerPanel = agentCommsSelectors(appPage);
-    await appPage.goto(runtime.url(`/session/${record.caller.id}`), {
-      waitUntil: "domcontentloaded",
-    });
-    await completeOnboardingIfPrompted(appPage);
+    const callerPanel = await openSession(
+      appPage,
+      runtime.url(`/session/${record.caller.id}`),
+      record.caller.id
+    );
     await callerPanel.inspectorTab.click();
     await expect(callerPanel.panelMade).toBeVisible();
     await expect(callerPanel.panelMadeCount).toHaveText(String(made.total));
@@ -694,11 +701,11 @@ test.describe("E2E-019 session Calls panel and the wake row", () => {
     // The caller is a real, browsable session: `ensureOperatorCallerSession`
     // creates a deterministic `ses_operator_*` session and binds it, so the
     // completion wake lands in a transcript the operator can actually read.
-    await appPage.goto(runtime.url(`/session/${record.caller.id}`), {
-      waitUntil: "domcontentloaded",
-    });
-    await completeOnboardingIfPrompted(appPage);
-    const calls = agentCommsSelectors(appPage);
+    const calls = await openSession(
+      appPage,
+      runtime.url(`/session/${record.caller.id}`),
+      record.caller.id
+    );
 
     const wake = calls.syntheticTurn("call-wake").first();
     await expect(wake).toBeVisible();
@@ -821,8 +828,7 @@ test.describe("E2E-021 empty states", () => {
       appWindow(appPage, "agents").getByText("No agent is delegating work right now")
     ).toBeVisible();
 
-    await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
-    await completeOnboardingIfPrompted(appPage);
+    await openAgents(appPage, runtime.url("/agents"));
     const agents = appWindow(appPage, "agents");
     await expect(agents.getByTestId("agent-fleet-empty")).toBeVisible();
     // The empty roster points at the way out.
@@ -954,7 +960,21 @@ test.describe("E2E-030 roster journey", () => {
     await runtime.requestJSON(`/api/agents/${encodeURIComponent(HELPER)}`, {
       method: "PUT",
       body: JSON.stringify({
-        agent: { ...current.agent, name: HELPER, description: HELPER_DESCRIPTION },
+        agent: {
+          name: HELPER,
+          description: HELPER_DESCRIPTION,
+          provider: current.agent.provider,
+          command: current.agent.command,
+          model: current.agent.model,
+          reasoning_effort: current.agent.reasoning_effort,
+          tools: current.agent.tools,
+          toolsets: current.agent.toolsets,
+          deny_tools: current.agent.deny_tools,
+          permissions: current.agent.permissions,
+          category_path: current.agent.category_path,
+          skills: current.agent.skills,
+          prompt: current.agent.prompt,
+        },
         expected_digest: current.digest,
       }),
     });
@@ -983,8 +1003,7 @@ test.describe("E2E-030 roster journey", () => {
     await createCall(runtime, workspace.id, { agent: HELPER }, "keep working");
     await waitForCallTotal(runtime, workspace.id, `agent=${HELPER}&state=queued,running`, 1);
 
-    await appPage.goto(runtime.url("/agents"), { waitUntil: "domcontentloaded" });
-    await completeOnboardingIfPrompted(appPage);
+    await openAgents(appPage, runtime.url("/agents"));
     const agents = appWindow(appPage, "agents");
 
     await expect(agents.getByTestId(`agent-fleet-row-${HELPER}`)).toContainText(HELPER_DESCRIPTION);

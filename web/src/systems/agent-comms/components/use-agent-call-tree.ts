@@ -56,13 +56,18 @@ export function useAgentCallTree(
 
   useLayoutEffect(() => {
     const folderIds = new Set(buildCallTreeDataSource(tree).folderIds);
-    const expanded = instance.getState().expandedItems.filter(itemId => folderIds.has(itemId));
+    // Rebuild first so newly loaded folders have item instances. Expanding
+    // through the item API then updates headless-tree's internal state before
+    // its next rebuild; `config.setExpandedItems` is React-state-backed and
+    // would rebuild once with the old, collapsed state.
+    instance.rebuildTree();
+    const expandedFolderIds = new Set(instance.getState().expandedItems);
     for (const folderId of folderIds) {
-      if (!previousFolderIds.current.has(folderId)) expanded.push(folderId);
+      if (!previousFolderIds.current.has(folderId) && !expandedFolderIds.has(folderId)) {
+        instance.getItemInstance(folderId).expand();
+      }
     }
     previousFolderIds.current = folderIds;
-    instance.getConfig().setExpandedItems?.([...new Set(expanded)]);
-    instance.rebuildTree();
 
     if (selectedCallId && tree.rowsByCallId.has(selectedCallId)) {
       const selected = instance.getItemInstance(callNodeId(selectedCallId));

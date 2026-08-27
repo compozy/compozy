@@ -135,6 +135,23 @@ describe("AgentCallTree", () => {
 
     expect(screen.getAllByTestId("agent-call-tree-row")).toHaveLength(2);
   });
+
+  it("Should populate when live data arrives after an empty first render", () => {
+    const { rerender } = renderTree([]);
+    expect(screen.queryAllByTestId("agent-call-tree-row")).toHaveLength(0);
+
+    rerender(
+      <AgentCallTree
+        data-testid="tree"
+        tree={buildCallTree(activityTreeCallsFixture)}
+        onSelectCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getAllByTestId("agent-call-tree-row")).toHaveLength(
+      activityTreeCallsFixture.length
+    );
+  });
 });
 
 /**

@@ -78,6 +78,8 @@ export function AgentCallTree({
   pendingStopRootSessionId = null,
   "data-testid": testId,
 }: AgentCallTreeProps) {
+  "use no memo";
+
   // The tree's `scrollToItem` seam needs the virtualizer, which needs the row
   // list, which needs the tree. The holder returned by the hook breaks that
   // cycle and is filled after the first paint, before a keystroke can arrive.
@@ -88,7 +90,8 @@ export function AgentCallTree({
   const rows = instance.getItems().filter(item => item.getItemData().kind !== "root");
   const virtualized = rows.length > CALL_TREE_VIRTUALIZATION_THRESHOLD;
 
-  // oxlint-disable-next-line react/incompatible-library -- virtualizer state is isolated inside this compiler boundary.
+  // react-doctor-disable-next-line react-hooks-js/incompatible-library -- `use no memo` is the explicit React Compiler boundary for TanStack Virtual's mutable methods.
+  // oxlint-disable-next-line react/incompatible-library -- `use no memo` isolates TanStack Virtual's mutable methods; remove the boundary when TanStack ships a compiler-compatible API.
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => viewportRef.current,
