@@ -27,6 +27,7 @@ type callTurnEndService interface {
 }
 
 type callTurnEndSessionReader interface {
+	Status(context.Context, string) (*session.Info, error)
 	IsPrompting(string) bool
 	TranscriptPage(context.Context, string, transcript.PageQuery) (transcript.Page, error)
 }
@@ -147,6 +148,10 @@ func (r *callRuntime) onTurnEnd(sessionID string) {
 		return
 	}
 	if r.sessions == nil || r.sessions.IsPrompting(sessionID) {
+		return
+	}
+	info, err := r.sessions.Status(turnCtx, sessionID)
+	if err != nil || info == nil || info.State != session.StateActive {
 		return
 	}
 	callID, finalText, err := r.finalCallTurn(turnCtx, sessionID)

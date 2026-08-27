@@ -261,6 +261,7 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 		t.Parallel()
 
 		sessions := &callSessionManagerStub{
+			info: &session.Info{ID: "ses-child", State: session.StateActive},
 			transcriptPage: transcript.Page{
 				Entries: []transcript.Entry{{
 					Message: transcript.UIMessage{
@@ -301,7 +302,7 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 	t.Run("Should defer omitted return settlement when a delivery starts the next turn", func(t *testing.T) {
 		t.Parallel()
 
-		sessions := &callSessionManagerStub{}
+		sessions := &callSessionManagerStub{info: &session.Info{ID: "ses-child", State: session.StateActive}}
 		service := &callRuntimeServiceStub{drain: func() { sessions.prompting = true }}
 		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
 
@@ -310,6 +311,32 @@ func TestCallRuntimeTurnEndSettlement(t *testing.T) {
 		if service.drainCalls != 1 || service.returnCalls != 0 {
 			t.Fatalf(
 				"turn-end calls = drain %d return %d, want delivery-only boundary",
+				service.drainCalls,
+				service.returnCalls,
+			)
+		}
+	})
+
+	t.Run("Should not settle an interrupted turn after the child starts stopping", func(t *testing.T) {
+		t.Parallel()
+
+		sessions := &callSessionManagerStub{
+			info: &session.Info{ID: "ses-child", State: session.StateStopping},
+			transcriptPage: transcript.Page{Entries: []transcript.Entry{{
+				Message: transcript.UIMessage{
+					Role:     transcript.UIRoleSystem,
+					Metadata: json.RawMessage(`{"synthetic":{"call_id":"call-1"}}`),
+				},
+			}}},
+		}
+		service := &callRuntimeServiceStub{}
+		runtime := &callRuntime{turnEndService: service, sessions: sessions, ctx: t.Context()}
+
+		runtime.onTurnEnd("ses-child")
+
+		if service.drainCalls != 1 || service.returnCalls != 0 {
+			t.Fatalf(
+				"stopping turn-end calls = drain %d return %d, want delivery-only boundary",
 				service.drainCalls,
 				service.returnCalls,
 			)

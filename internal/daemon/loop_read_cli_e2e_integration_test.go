@@ -34,7 +34,7 @@ const (
 )
 
 func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
-	t.Parallel()
+	// This journey accumulates parked runs in one shared runtime and must not starve its scheduler assertions.
 	acpmock.RequireDriver(t)
 	workspaceRoot := t.TempDir()
 	seedLoopNodeLifecycleDefinitions(t, workspaceRoot)
