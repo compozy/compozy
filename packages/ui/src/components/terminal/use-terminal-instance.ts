@@ -240,7 +240,9 @@ function createInstance(
  * reattached buffer wired to the pane on screen.
  */
 function bindInstanceEvents(instance: TerminalInstance): void {
-  instance.terminal.attachCustomKeyEventHandler(event => !isHostAccelerator(event));
+  instance.terminal.attachCustomKeyEventHandler(
+    event => !isHostAccelerator(event, instance.terminal.getSelection() !== "")
+  );
   const data = instance.terminal.onData(payload => {
     notifyTerminalInstance(instance, listener => listener.onData(payload));
   });
@@ -256,8 +258,8 @@ function bindInstanceEvents(instance: TerminalInstance): void {
   );
 }
 
-/** Lets product shortcuts reach the browser or desktop shell while the terminal owns focus. */
-function isHostAccelerator(event: KeyboardEvent): boolean {
+/** Lets product shortcuts reach the host without stealing an unselected terminal interrupt. */
+function isHostAccelerator(event: KeyboardEvent, hasSelection: boolean): boolean {
   if ((!event.metaKey && !event.ctrlKey) || event.altKey) return false;
   switch (event.key.toLowerCase()) {
     case "+":
@@ -265,7 +267,10 @@ function isHostAccelerator(event: KeyboardEvent): boolean {
     case "-":
     case "0":
     case "k":
+    case "v":
       return true;
+    case "c":
+      return hasSelection;
     default:
       return false;
   }

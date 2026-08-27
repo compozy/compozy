@@ -699,4 +699,25 @@ describe("TerminalView", () => {
 
     expect(onData).not.toHaveBeenCalled();
   });
+
+  it("Should pass host shortcuts without stealing an unselected terminal interrupt", async () => {
+    const engine = createFakeEngine();
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={loaderFor(engine)}
+        instanceId={nextInstanceId()}
+      />
+    );
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    const terminal = engine.lastTerminal();
+    const key = (value: string) => new KeyboardEvent("keydown", { key: value, ctrlKey: true });
+
+    expect(terminal.acceptKeyEvent(key("v"))).toBe(false);
+    expect(terminal.acceptKeyEvent(key("k"))).toBe(false);
+    expect(terminal.acceptKeyEvent(key("c"))).toBe(true);
+
+    terminal.emitSelectionChange("selected output");
+    expect(terminal.acceptKeyEvent(key("c"))).toBe(false);
+  });
 });

@@ -15,6 +15,7 @@ export interface FakeTerminal extends Terminal {
   readonly openedIn: HTMLElement[];
   resetCount: number;
   disposed: boolean;
+  acceptKeyEvent(event: KeyboardEvent): boolean;
   emitData(payload: string): void;
   emitSelectionChange(selection: string): void;
   /** Releases the parse callback for the write at `index`. */
@@ -112,6 +113,7 @@ function createFakeTerminal(
   const dataListeners: Array<(payload: string) => void> = [];
   const selectionListeners: Array<() => void> = [];
   const pendingWrites: Array<() => void> = [];
+  let keyEventHandler = (_event: KeyboardEvent) => true;
   let selection = "";
   let rows = 24;
   let cols = 80;
@@ -173,7 +175,10 @@ function createFakeTerminal(
         dispose: () => selectionListeners.splice(selectionListeners.indexOf(listener), 1),
       };
     },
-    attachCustomKeyEventHandler: () => undefined,
+    attachCustomKeyEventHandler: (handler: (event: KeyboardEvent) => boolean) => {
+      keyEventHandler = handler;
+    },
+    acceptKeyEvent: (event: KeyboardEvent) => keyEventHandler(event),
     emitData: (payload: string) => {
       for (const listener of Array.from(dataListeners)) listener(payload);
     },
