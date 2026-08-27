@@ -4,6 +4,7 @@ import { CpuIcon, DatabaseIcon, EyeIcon, MoreHorizontalIcon, ZapIcon } from "luc
 
 import { Button } from "../button";
 import { Pill } from "../custom/pill";
+import { Time } from "../custom/time";
 import {
   Item,
   ItemActions,
@@ -124,6 +125,64 @@ export const Compact: Story = {
             </ItemContent>
           </Item>
         ))}
+      </ItemGroup>
+    </div>
+  ),
+};
+
+/**
+ * Compact rail / inspector / fan-out row: media, title, pill, compact age.
+ */
+export const CompactRail: Story = {
+  args: {},
+  render: () => (
+    <div className="w-80">
+      <ItemGroup>
+        <Item as="button" size="xs" selectable selected>
+          <ItemMedia>
+            <span className="flex size-5 items-center justify-center rounded-xs bg-badge-fill text-eyebrow">
+              RV
+            </span>
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>reviewer</ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <Pill tone="neutral" mono size="xs">
+              running
+            </Pill>
+            <Time
+              className="font-mono text-transcript-caption text-subtle"
+              iso={new Date(Date.now() - 40_000).toISOString()}
+              mode="compact"
+            />
+          </ItemActions>
+        </Item>
+        <Item as="button" size="xs" selectable>
+          <ItemMedia>
+            <span className="flex size-5 items-center justify-center rounded-xs bg-badge-fill text-eyebrow">
+              SC
+            </span>
+          </ItemMedia>
+          <ItemContent>
+            <ItemTitle>scribe</ItemTitle>
+          </ItemContent>
+          <ItemActions>
+            <Pill
+              className="bg-transparent ring-1 ring-inset ring-line-strong"
+              tone="neutral"
+              mono
+              size="xs"
+            >
+              queued
+            </Pill>
+            <Time
+              className="font-mono text-transcript-caption text-subtle"
+              iso={new Date(Date.now() - 2 * 60_000).toISOString()}
+              mode="compact"
+            />
+          </ItemActions>
+        </Item>
       </ItemGroup>
     </div>
   ),

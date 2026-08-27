@@ -19,4 +19,15 @@ describe("MetadataList", () => {
     expect(screen.getByText("Ready").tagName).toBe("DD");
     expect(screen.getByTestId("metadata-row")).toHaveAttribute("data-slot", "metadata-list-row");
   });
+
+  it("Should assemble a labeled row into dt and dd without extra slots", () => {
+    render(
+      <MetadataList>
+        <MetadataList.Row label="caller">parent session</MetadataList.Row>
+      </MetadataList>
+    );
+
+    expect(screen.getByText("caller").tagName).toBe("DT");
+    expect(screen.getByText("parent session").tagName).toBe("DD");
+  });
 });

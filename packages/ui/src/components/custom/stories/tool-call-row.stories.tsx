@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 
 import { CodeBlock } from "../code-block";
+import { Pill } from "../pill";
+import { Time } from "../time";
 import { ToolCallRow, type ToolCallStatus } from "../tool-call-row";
 
 const meta: Meta<typeof ToolCallRow> = {
@@ -211,6 +213,38 @@ export const AllStatuses: Story = {
  * The density win: a whole tool-heavy turn as a stack of ~26px lines instead of
  * a wall of 44px cards.
  */
+/**
+ * Identity + chip + compact age on the shared transcript row.
+ * Domain wrappers pass an avatar as `icon`, a `Pill` as `statusSlot`, and
+ * `<Time mode="compact">` as `stat`.
+ */
+export const StatusSlot: Story = {
+  args: {},
+  render: () => (
+    <ToolCallRow
+      toolName="Asked reviewer"
+      status="running"
+      icon={
+        <span className="flex size-5 items-center justify-center rounded-xs bg-badge-fill text-eyebrow text-fg">
+          RV
+        </span>
+      }
+      statusSlot={
+        <Pill tone="neutral" mono size="xs">
+          running
+        </Pill>
+      }
+      stat={<Time iso={new Date(Date.now() - 2 * 60_000).toISOString()} mode="compact" />}
+    >
+      <ToolCallRow.Input
+        source='{"prompt":"Review the contract digest before writing the answer."}'
+        format="code"
+        language="json"
+      />
+    </ToolCallRow>
+  ),
+};
+
 export const LiveStack: Story = {
   render: () => (
     <div className="flex flex-col gap-0.5" data-testid="live-stack">

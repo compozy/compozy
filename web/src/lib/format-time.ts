@@ -11,6 +11,7 @@
 export {
   FORMAT_TIME_FALLBACK,
   formatAbsoluteTime,
+  formatCompactRelativeTime,
   formatDuration,
   formatRelativeTime,
 } from "@compozy/ui";

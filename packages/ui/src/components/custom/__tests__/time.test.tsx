@@ -52,4 +52,13 @@ describe("Time", () => {
     const node = container.querySelector<HTMLTimeElement>('[data-slot="time"]');
     expect(node?.textContent).toBe("—");
   });
+
+  it("Should render a compact age without an ago suffix", () => {
+    const past = new Date(FIXED_NOW - 5 * 60_000).toISOString();
+    const { container } = render(<Time iso={past} mode="compact" />);
+    const node = container.querySelector<HTMLTimeElement>('[data-slot="time"]');
+    expect(node?.dataset.mode).toBe("compact");
+    expect(node?.textContent).toBe("5m");
+    expect(node?.getAttribute("title")).toMatch(/2026/);
+  });
 });

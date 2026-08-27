@@ -10,6 +10,7 @@ import {
   FieldSet,
 } from "../field";
 import { Input } from "../input";
+import { Textarea } from "../textarea";
 
 const meta: Meta<typeof Field> = {
   title: "components/ui/Field",
@@ -35,6 +36,21 @@ export const Default: Story = {
       <Field>
         <FieldLabel htmlFor="field-default">Workspace name</FieldLabel>
         <Input id="field-default" defaultValue="Latency triage" />
+      </Field>
+    </div>
+  ),
+};
+
+/**
+ * Visible label plus textarea — the compose contract. No essay under the label.
+ */
+export const WithTextarea: Story = {
+  args: {},
+  render: () => (
+    <div className="w-88">
+      <Field>
+        <FieldLabel htmlFor="field-textarea">Result contract</FieldLabel>
+        <Textarea id="field-textarea" rows={4} defaultValue='{"ok": true}' />
       </Field>
     </div>
   ),

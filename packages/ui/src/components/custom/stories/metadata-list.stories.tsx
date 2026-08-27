@@ -20,6 +20,22 @@ const meta: Meta<typeof MetadataList> = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/**
+ * Shortcut: `label` injects Term + Value on the kv grid.
+ */
+export const LabeledRows: Story = {
+  args: {},
+  render: () => (
+    <MetadataList>
+      <MetadataList.Row label="caller">parent session</MetadataList.Row>
+      <MetadataList.Row label="child">
+        <span className="font-mono">ses_8f21</span>
+      </MetadataList.Row>
+      <MetadataList.Row label="depth">2</MetadataList.Row>
+    </MetadataList>
+  ),
+};
+
 export const Short: Story = {
   args: {},
   render: () => (

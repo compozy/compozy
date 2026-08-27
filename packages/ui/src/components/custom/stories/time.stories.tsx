@@ -10,7 +10,7 @@ const meta: Meta<typeof Time> = {
     docs: {
       description: {
         component:
-          "Relative (default) or absolute timestamp. Renders `<time dateTime title>` with the alternate format in the title attribute. Refreshes every 30 s for relative mode.",
+          "Relative (default), compact, or absolute timestamp. Renders `<time dateTime title>` with the alternate format in the title attribute. Refreshes every 30 s for relative and compact modes.",
       },
     },
   },
@@ -32,6 +32,11 @@ export const RelativeMinutes: Story = {
 /** Relative — hours ago. */
 export const RelativeHours: Story = {
   args: { iso: new Date(Date.now() - 3 * 3_600_000).toISOString() },
+};
+
+/** Compact rail age — `5m`, no ago suffix. */
+export const Compact: Story = {
+  args: { iso: new Date(Date.now() - 5 * 60_000).toISOString(), mode: "compact" },
 };
 
 /** Absolute timestamp. */

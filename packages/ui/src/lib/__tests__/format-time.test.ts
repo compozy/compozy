@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   FORMAT_TIME_FALLBACK,
   formatAbsoluteTime,
+  formatCompactRelativeTime,
   formatDuration,
   formatRelativeTime,
 } from "../format-time";
@@ -35,6 +36,20 @@ describe("formatRelativeTime", () => {
 
   it("Should return the sentinel for invalid ISO strings", () => {
     expect(formatRelativeTime("not-iso", NOW)).toBe(FORMAT_TIME_FALLBACK);
+  });
+});
+
+describe("formatCompactRelativeTime", () => {
+  it("Should render dense past ages without an ago suffix", () => {
+    expect(formatCompactRelativeTime(new Date(NOW - 1_000).toISOString(), NOW)).toBe("now");
+    expect(formatCompactRelativeTime(new Date(NOW - 45_000).toISOString(), NOW)).toBe("45s");
+    expect(formatCompactRelativeTime(new Date(NOW - 5 * 60_000).toISOString(), NOW)).toBe("5m");
+    expect(formatCompactRelativeTime(new Date(NOW - 3 * 3_600_000).toISOString(), NOW)).toBe("3h");
+  });
+
+  it("Should keep the future prefix and the invalid sentinel", () => {
+    expect(formatCompactRelativeTime(new Date(NOW + 90_000).toISOString(), NOW)).toBe("in 1m");
+    expect(formatCompactRelativeTime("not-iso", NOW)).toBe(FORMAT_TIME_FALLBACK);
   });
 });
 

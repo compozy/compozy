@@ -1087,8 +1087,13 @@ creating: redefining an exported name in `web/` or `packages/site/` fails the
   helper; monogram and aria-label behavior stay in the primitive.
 - `<StatusDot>`: small state indicator. Defaults to decorative unless a label
   is provided.
-- `<Time>`: timestamp primitive. It owns relative/absolute formatting and tick
-  refresh behavior.
+- `<Time>`: timestamp primitive. It owns relative (`5m ago`), compact (`5m`),
+  and absolute formatting plus tick refresh behavior.
+- `<UntrustedFrame>`: dashed hairline frame for quoted untrusted text. The
+  stamp is an `<Eyebrow>` slot; the body stays plain selectable prose. No
+  product copy is baked in.
+- `<ToolCallRow>`: single-line transcript tool call. Optional `statusSlot`
+  replaces the trailing glyph so a composed chip can share the row.
 - `<PriorityBars>` and queue sparklines: visualization components. Color and
   thresholds come from typed inputs, not local class maps.
 

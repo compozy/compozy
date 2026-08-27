@@ -27,6 +27,12 @@ export interface ToolCallRowProps extends Omit<React.ComponentProps<"div">, "tit
   statLabel?: string;
   /** Trailing affordances rendered beside chevron/status (e.g. copy). */
   actions?: React.ReactNode;
+  /**
+   * Replaces the trailing status glyph. Use for a composed chip (`Pill`) when
+   * the row carries a richer state word than the five-glyph set. `status`
+   * still drives `data-status` and the trigger name.
+   */
+  statusSlot?: React.ReactNode;
   expanded?: boolean;
   defaultExpanded?: boolean;
   onExpandedChange?: (expanded: boolean) => void;
@@ -83,8 +89,8 @@ function ToolCallRowOutput(props: ToolCallRowSectionProps) {
  * `[icon well] [verb] [mono preview] [diff stat] [chevron] [status glyph]` —
  * that expands an inline indented body (params/outputs) on click or
  * Enter/Space. Calm-transcript grammar: no tinted wells, row text never
- * changes color on failure — status lives in the trailing glyph alone (grey
- * check, red ×, grey spinner).
+ * changes color on failure — status lives in the trailing glyph (or
+ * `statusSlot`) alone (grey check, red ×, grey spinner).
  */
 function ToolCallRowInner({
   toolName,
@@ -95,6 +101,7 @@ function ToolCallRowInner({
   stat,
   statLabel,
   actions,
+  statusSlot,
   expanded,
   defaultExpanded = false,
   onExpandedChange,
@@ -183,7 +190,19 @@ function ToolCallRowInner({
             strokeWidth={1.75}
           />
         ) : null}
-        <ToolCallStatusIcon status={status} />
+        {statusSlot ? (
+          <span
+            data-slot="tool-call-row-status-slot"
+            className="relative z-10 flex shrink-0 items-center"
+            onClick={event => event.stopPropagation()}
+            onKeyDown={event => event.stopPropagation()}
+            onPointerDown={event => event.stopPropagation()}
+          >
+            {statusSlot}
+          </span>
+        ) : (
+          <ToolCallStatusIcon status={status} />
+        )}
       </span>
     </>
   );

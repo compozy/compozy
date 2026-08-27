@@ -13,9 +13,11 @@ export {
 export {
   FORMAT_TIME_FALLBACK,
   formatAbsoluteTime,
+  formatCompactRelativeTime,
   formatDuration,
   formatRelativeTime,
 } from "../lib/format-time";
+export { UntrustedFrame, type UntrustedFrameProps } from "../components/custom/untrusted-frame";
 export {
   WIDTH_DETAIL_INSPECTOR_INLINE,
   WIDTH_MESSAGE_BUBBLE_MAX,

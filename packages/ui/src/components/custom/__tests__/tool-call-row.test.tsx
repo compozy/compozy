@@ -172,6 +172,26 @@ describe("ToolCallRow", () => {
     ).toBeInTheDocument();
   });
 
+  it("Should replace the trailing glyph when statusSlot is provided", () => {
+    const { container } = render(
+      <ToolCallRow
+        toolName="Asked reviewer"
+        status="running"
+        statusSlot={<span>running</span>}
+        stat="2m"
+      />
+    );
+
+    expect(statusGlyph(container)).toBeNull();
+    expect(container.querySelector('[data-slot="tool-call-row-status-slot"]')?.textContent).toBe(
+      "running"
+    );
+    expect(
+      container.querySelector('[data-slot="tool-call-row"]')?.getAttribute("data-status")
+    ).toBe("running");
+    expect(container.querySelector('[data-slot="tool-call-row-stat"]')?.textContent).toBe("2m");
+  });
+
   it("Should hover with the neutral glaze and never render an accent class in the row DOM", () => {
     const { container } = render(
       <ToolCallRow toolName="Edit" status="success" icon={FileEditIcon}>

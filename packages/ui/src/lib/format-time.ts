@@ -58,6 +58,18 @@ export function formatRelativeTime(iso: string, now: number = Date.now()): strin
 }
 
 /**
+ * Compact relative age for dense rails and transcript rows (`5m`, `40s`).
+ * Maps `"just now"` to `"now"` and strips the `" ago"` suffix. Future and
+ * absolute fallbacks stay the same as `formatRelativeTime`.
+ */
+export function formatCompactRelativeTime(iso: string, now: number = Date.now()): string {
+  const relative = formatRelativeTime(iso, now);
+  if (relative === "just now") return "now";
+  if (relative.endsWith(" ago")) return relative.slice(0, -4);
+  return relative;
+}
+
+/**
  * Renders an absolute timestamp using the runtime's default locale settings.
  * Invalid ISO strings render the `—` sentinel.
  */
