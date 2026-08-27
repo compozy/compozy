@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 
 import { sessionWindow } from "../fixtures/os-navigation";
 import {
@@ -396,12 +396,16 @@ test.describe("E2E-015 sidebar badges and sort", () => {
     const workspace = await globalWorkspace(runtime);
     const session = await createSession(runtime, workspace, attentionAgent);
     await overrideSessionBadge(page, workspace.id, session.id, "provider-state-unreported");
-    await reloadShell(page);
+    try {
+      await reloadShell(page);
 
-    const modal = await openSessionsModal(page);
-    const row = modal.getByTestId(`os-sessions-modal-session-${session.id}`);
-    await expect(row.getByRole("img")).toHaveAttribute("aria-label", "Session badge: unknown");
-    await expect(row.getByRole("img")).toHaveAttribute("data-badge", "unknown");
+      const modal = await openSessionsModal(page);
+      const row = modal.getByTestId(`os-sessions-modal-session-${session.id}`);
+      await expect(row.getByRole("img")).toHaveAttribute("aria-label", "Session badge: unknown");
+      await expect(row.getByRole("img")).toHaveAttribute("data-badge", "unknown");
+    } finally {
+      await page.unrouteAll({ behavior: "ignoreErrors" });
+    }
   });
 });
 
@@ -543,7 +547,7 @@ async function overrideSessionBadge(
       await route.continue();
       return;
     }
-    const response = await route.fetch();
+    const response = await fetchRouteAcrossDaemonTransition(route);
     const payload = (await response.json()) as SessionsEnvelope;
     await route.fulfill({
       response,
@@ -555,6 +559,19 @@ async function overrideSessionBadge(
       },
     });
   });
+}
+
+async function fetchRouteAcrossDaemonTransition(route: Route) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      return await route.fetch({ maxRetries: 3 });
+    } catch (error) {
+      const retryable = String(error).includes("ECONNREFUSED");
+      if (!retryable || attempt === 3) throw error;
+      await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+    }
+  }
+  throw new Error("unreachable route fetch retry state");
 }
 
 function sessionPath(agentName: string, sessionID: string): string {

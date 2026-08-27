@@ -14,9 +14,28 @@ export async function reloadDaemonServedPage(
   const targetURL = runtime.url(pathname);
   const timeout = options.timeout ?? 45_000;
 
+  const currentPageIsReady = async (): Promise<boolean> => {
+    try {
+      if (new URL(page.url()).pathname !== pathname) return false;
+      if (options.readyTestId) {
+        await page.getByTestId(options.readyTestId).waitFor({
+          state: "visible",
+          timeout: 500,
+        });
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
   await expect
     .poll(
       async () => {
+        // A restart can make goto time out after Chromium has already committed
+        // and rendered the destination. Observe that state before issuing another
+        // navigation, otherwise each poll can abort the successful in-flight load.
+        if (await currentPageIsReady()) return pathname;
         try {
           const response = await page.goto(targetURL, {
             waitUntil: "domcontentloaded",
@@ -25,18 +44,9 @@ export async function reloadDaemonServedPage(
           if (response && !response.ok()) {
             return "";
           }
-          if (new URL(page.url()).pathname !== pathname) {
-            return "";
-          }
-          if (options.readyTestId) {
-            await page.getByTestId(options.readyTestId).waitFor({
-              state: "visible",
-              timeout: 500,
-            });
-          }
-          return pathname;
+          return (await currentPageIsReady()) ? pathname : "";
         } catch {
-          return "";
+          return (await currentPageIsReady()) ? pathname : "";
         }
       },
       {

@@ -318,14 +318,15 @@ test.describe("Profiles", () => {
 
     await ui.editIdentityRow("consulting").click();
     await expect(ui.identityDialog).toBeVisible();
-    const color = ui.identityPicker.getByLabel("Custom color");
+    const color = ui.identityPicker.getByLabel("Custom color", { exact: true });
     await color.fill("12ZZ");
     await expect(ui.identityDialog).toContainText("Enter a color like #4ea7fc.");
     await expect(ui.identityConfirm).toBeDisabled();
 
     await color.fill("4CB782");
     await ui.identityPicker.getByRole("button", { name: "Emojis" }).click();
-    await ui.identityPicker.getByRole("option", { name: "seedling" }).click();
+    await ui.identityPicker.getByRole("searchbox", { name: "Search emojis" }).fill("seedling");
+    await ui.identityPicker.getByRole("gridcell", { name: "Seedling" }).click();
     const updated = appPage.waitForResponse(
       response =>
         response.request().method() === "PATCH" &&
@@ -829,7 +830,8 @@ test.describe("Profiles", () => {
     await ui.switcher.focus();
     await appPage.keyboard.press("Enter");
     await expect(ui.switcherMenu).toBeVisible();
-    await tabUntilFocused(appPage, ui.switcherCreate, 12);
+    await appPage.keyboard.press("End");
+    await expect(ui.switcherCreate).toHaveAttribute("aria-selected", "true");
     await appPage.keyboard.press("Enter");
     await expect(ui.createDialog).toBeVisible();
     // Focus is inside the dialog the moment it opens, and stays there.
@@ -839,9 +841,9 @@ test.describe("Profiles", () => {
     const iconsTab = ui.createDialog.getByRole("button", { name: "Icons" });
     const emojisTab = ui.createDialog.getByRole("button", { name: "Emojis" });
     const icons = ui.createDialog.getByRole("listbox", { name: "Icons" });
-    const emojis = ui.createDialog.getByRole("listbox", { name: "Emojis" });
+    const emojiSearch = ui.createDialog.getByRole("searchbox", { name: "Search emojis" });
     const swatches = ui.createDialog.getByRole("listbox", { name: "Suggested colors" });
-    const hex = ui.createDialog.getByLabel("Custom color");
+    const hex = ui.createDialog.getByLabel("Custom color", { exact: true });
     await expect(iconsTab).toBeVisible();
     await expect(emojisTab).toBeVisible();
 
@@ -852,7 +854,7 @@ test.describe("Profiles", () => {
     // The kind pills are ordinary buttons, so they answer Tab and Enter.
     await tabUntilFocused(appPage, emojisTab, 4);
     await appPage.keyboard.press("Enter");
-    await expect(emojis).toBeVisible();
+    await expect(emojiSearch).toBeVisible();
     await appPage.keyboard.press("Shift+Tab");
     await expect(iconsTab).toBeFocused();
     await appPage.keyboard.press("Enter");
@@ -860,7 +862,7 @@ test.describe("Profiles", () => {
 
     // Search filters by typing, and the grid shrinks to what matched.
     const search = ui.createDialog.getByLabel("Search icons");
-    await tabUntilFocused(appPage, search, 4);
+    await tabUntilFocused(appPage, search, 16);
     const allIcons = await icons.getByRole("option").count();
     await appPage.keyboard.type("compass");
     await expect.poll(async () => icons.getByRole("option").count()).toBeLessThan(allIcons);
@@ -874,7 +876,7 @@ test.describe("Profiles", () => {
     await expect(appPage.locator(`#${activeIconId}`)).toHaveAttribute("aria-selected", "true");
 
     // The palette is a single tab stop, so the hex field is one Tab away from it.
-    await tabUntilFocused(appPage, swatches, 4);
+    await tabUntilFocused(appPage, swatches, 16);
     await appPage.keyboard.press("End");
     const activeSwatchId = await swatches.getAttribute("aria-activedescendant");
     expect(activeSwatchId).not.toBeNull();
