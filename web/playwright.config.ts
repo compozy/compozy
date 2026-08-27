@@ -20,6 +20,7 @@ export default defineConfig({
   outputDir: path.join(sharedTmpDir, "test-results"),
   reporter: [
     ["list"],
+    ...(process.env.GITHUB_ACTIONS === "true" ? ([["github"]] as const) : []),
     ["html", { open: "never", outputFolder: path.join(sharedTmpDir, "report") }],
   ],
   use: {
