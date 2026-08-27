@@ -22,12 +22,15 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const windowsSleepTestRunArg = "-test.run=^TestWindowsPTYSleepHelper$"
+const (
+	windowsSleepHelperEnv  = "COMPOZY_WINDOWS_PTY_SLEEP_HELPER"
+	windowsSleepTestRunArg = "-test.run=^TestWindowsPTYSleepHelper$"
+)
 
 func TestWindowsPTYSleepHelper(t *testing.T) {
 	t.Run("Should remain silent while the terminal process is alive", func(t *testing.T) {
 		t.Parallel()
-		if len(os.Args) != 2 || os.Args[1] != windowsSleepTestRunArg {
+		if os.Getenv(windowsSleepHelperEnv) != "1" {
 			return
 		}
 		time.Sleep(5 * time.Minute)
@@ -36,16 +39,8 @@ func TestWindowsPTYSleepHelper(t *testing.T) {
 
 func TestWindowsPTYHardening(t *testing.T) { // IT-038
 	t.Run("Should unblock a parked read within 200ms while the child is alive", func(t *testing.T) {
-		proc := startWindowsTestProc(t, ModePTY, windowsSleepCommand())
-		readDone := make(chan error, 1)
-		readStarted := make(chan struct{})
-		go func() {
-			close(readStarted)
-			buffer := make([]byte, 1)
-			_, err := proc.Reader().Read(buffer)
-			readDone <- err
-		}()
-		<-readStarted
+		proc := startWindowsSleepTestProc(t, ModePTY)
+		readDone := startWindowsReadAfterStartup(t, proc)
 		select {
 		case err := <-readDone:
 			t.Fatalf("live-child read returned before close: %v", err)
@@ -67,16 +62,8 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 	})
 
 	t.Run("Should resize while another goroutine is reading", func(t *testing.T) {
-		proc := startWindowsTestProc(t, ModePTY, windowsSleepCommand())
-		readDone := make(chan error, 1)
-		readStarted := make(chan struct{})
-		go func() {
-			close(readStarted)
-			buffer := make([]byte, 1)
-			_, err := proc.Reader().Read(buffer)
-			readDone <- err
-		}()
-		<-readStarted
+		proc := startWindowsSleepTestProc(t, ModePTY)
+		readDone := startWindowsReadAfterStartup(t, proc)
 		select {
 		case err := <-readDone:
 			t.Fatalf("live-child read returned before resize: %v", err)
@@ -106,7 +93,7 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 			t.Fatalf("Close(normal) error = %v", err)
 		}
 
-		terminated := startWindowsTestProc(t, ModePTY, windowsSleepCommand())
+		terminated := startWindowsSleepTestProc(t, ModePTY)
 		if err := terminated.Kill(SignalTERM); err != nil {
 			t.Fatalf("Kill(TERM) error = %v", err)
 		}
@@ -164,14 +151,59 @@ func TestWindowsPipeRuntime(t *testing.T) { // IT-038
 
 func startWindowsTestProc(t *testing.T, mode Mode, argv []string) Proc {
 	t.Helper()
+	return startWindowsTestProcWithEnv(t, mode, argv, nil)
+}
+
+func startWindowsSleepTestProc(t *testing.T, mode Mode) Proc {
+	t.Helper()
+	return startWindowsTestProcWithEnv(
+		t,
+		mode,
+		windowsSleepCommand(),
+		map[string]string{windowsSleepHelperEnv: "1"},
+	)
+}
+
+func startWindowsTestProcWithEnv(t *testing.T, mode Mode, argv []string, env map[string]string) Proc {
+	t.Helper()
 	proc, err := New().Start(context.Background(), ProcSpec{
-		Argv: argv, Cwd: t.TempDir(), Mode: mode, Cols: 80, Rows: 24,
+		Argv: argv, Cwd: t.TempDir(), Env: env, Mode: mode, Cols: 80, Rows: 24,
 	})
 	if err != nil {
 		t.Fatalf("Start(%v) error = %v", argv, err)
 	}
 	t.Cleanup(func() { stopWindowsTestProc(t, proc) })
 	return proc
+}
+
+func startWindowsReadAfterStartup(t *testing.T, proc Proc) <-chan error {
+	t.Helper()
+	startupDeadline := time.NewTimer(2 * time.Second)
+	defer startupDeadline.Stop()
+	for {
+		readDone := make(chan error, 1)
+		readStarted := make(chan struct{})
+		go func() {
+			close(readStarted)
+			buffer := make([]byte, 256)
+			_, err := proc.Reader().Read(buffer)
+			readDone <- err
+		}()
+		<-readStarted
+		quiet := time.NewTimer(100 * time.Millisecond)
+		select {
+		case err := <-readDone:
+			quiet.Stop()
+			if err != nil {
+				t.Fatalf("read ConPTY startup output: %v", err)
+			}
+		case <-quiet.C:
+			return readDone
+		case <-startupDeadline.C:
+			quiet.Stop()
+			t.Fatal("ConPTY startup output did not become quiet within 2s")
+		}
+	}
 }
 
 func stopWindowsTestProc(t *testing.T, proc Proc) {
