@@ -706,6 +706,7 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 
 	root := findRepoRootForReleaseConfigTest(t)
 	workflow := readTextFile(t, root, filepath.Join(".github", "workflows", "release.yml"))
+	setupNode := readTextFile(t, root, filepath.Join(".github", "actions", "setup-node", "action.yml"))
 	gitignore := readTextFile(t, root, ".gitignore")
 	goreleaserData, err := os.ReadFile(filepath.Join(root, ".goreleaser.yml"))
 	if err != nil {
@@ -763,6 +764,32 @@ func TestDesktopReleaseWorkflowFailsClosedAndPublishesDraftLast(t *testing.T) {
 		assertContainsText(t, "public CLI smoke", cliSmokeJob, "smoke-public-cli-package.sh")
 		npmPublishJob := workflowJobSection(t, workflow, "npm-publish", "")
 		assertContainsText(t, "npm publisher", npmPublishJob, "name: Publish verified CLI package")
+		dryRunJob := workflowJobSection(t, workflow, "dry-run", "desktop-dry-run")
+		assertContainsText(t, "dry-run npm", dryRunJob, "npm-version: ${{ env.NPM_VERSION }}")
+		assertContainsText(t, "npm publisher", npmPublishJob, "npm-version: ${{ env.NPM_VERSION }}")
+		if got := strings.Count(workflow, "npm-version: ${{ env.NPM_VERSION }}"); got != 2 {
+			t.Fatalf("trusted-publishing npm setup count = %d, want dry-run and npm publisher", got)
+		}
+		for _, required := range []string{
+			"id-token: write",
+			"NPM_VERSION: \"11.9.0\"",
+			"name: Verify npm trusted publishing prerequisites",
+		} {
+			assertContainsText(t, "npm trusted publisher", workflow, required)
+		}
+		for _, forbidden := range []string{
+			"secrets.NPM_TOKEN",
+			"npm whoami",
+		} {
+			assertNotContainsText(t, "npm token publisher", workflow, forbidden)
+		}
+		for _, required := range []string{
+			"npm-version:",
+			"name: Install pinned npm",
+			`run: npm install --global "npm@${NPM_VERSION}"`,
+		} {
+			assertContainsText(t, "npm setup action", setupNode, required)
+		}
 		assertContainsText(t, "isolated release staging ignore", gitignore, ".release-dist/")
 		assertEqualString(t, "checksum.algorithm", stringAt(t, checksum, "algorithm"), "sha256")
 
