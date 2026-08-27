@@ -21,7 +21,7 @@ import {
 import { readSyntheticTurn } from "@/systems/agent-comms";
 
 import { sessionSkillInvocationDirectives } from "./session-directive-registry";
-import { SessionSyntheticTurn } from "./session-synthetic-turn";
+import { SessionSyntheticMessage } from "./session-synthetic-turn";
 import { SessionDirectiveText } from "./session-directive-text";
 import { MessageActions } from "./message-actions";
 import { SessionDataEventMarker } from "./session-message-parts";
@@ -112,13 +112,11 @@ export function UserMessage() {
   // operator's bubble. It renders in its own grammar, in the same durable place.
   if (synthetic !== null) {
     return (
-      <MessagePrimitive.Root className="flex w-full min-w-0 flex-col pt-1 pb-transcript-turn-gap">
-        <SessionSyntheticTurn
-          synthetic={synthetic}
-          content={message.content}
-          timestamp={message.createdAt.toISOString()}
-        />
-      </MessagePrimitive.Root>
+      <SessionSyntheticMessage
+        synthetic={synthetic}
+        content={message.content}
+        timestamp={message.createdAt.toISOString()}
+      />
     );
   }
   const attachments = userMessageAttachmentItems(

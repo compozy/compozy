@@ -61,6 +61,11 @@ function AgentFleetCard({ row, newSessionDisabled = false, onNewSession }: Agent
       </Link>
       <CatalogCard.Actions className="justify-between">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {row.hasShadowing ? (
+            <Pill tone="warning" size="sm" data-testid={`agent-fleet-shadowed-${agent.name}`}>
+              Shadowed
+            </Pill>
+          ) : null}
           {sessionsAvailable && signals ? (
             <Pill
               size="sm"

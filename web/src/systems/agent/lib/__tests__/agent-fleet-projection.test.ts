@@ -90,9 +90,11 @@ describe("agent fleet projection", () => {
     });
 
     expect(rows).toHaveLength(2);
-    expect(rows.map(row => [row.agent.origin, row.agent.shadowed, row.canStartSession])).toEqual([
-      ["workspace", false, true],
-      ["global", true, false],
+    expect(
+      rows.map(row => [row.agent.origin, row.agent.shadowed, row.hasShadowing, row.canStartSession])
+    ).toEqual([
+      ["workspace", false, false, true],
+      ["global", true, true, false],
     ]);
   });
 
@@ -235,6 +237,8 @@ describe("agent fleet projection", () => {
     expect(agentShadowLayers(definition)).toEqual(["project", "profile"]);
     expect(row?.layer).toBe("project_profile");
     expect(row?.shadowLayers).toEqual(["project", "profile"]);
+    expect(row?.hasShadowing).toBe(true);
+    expect(row?.canStartSession).toBe(true);
   });
 });
 

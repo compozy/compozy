@@ -5,6 +5,7 @@
  * stays presentational and testable without a router.
  */
 import { useNavigate } from "@tanstack/react-router";
+import { MessagePrimitive } from "@assistant-ui/react";
 
 import { AgentSyntheticTurn, type SyntheticTurn } from "@/systems/agent-comms";
 
@@ -42,5 +43,22 @@ export function SessionSyntheticTurn({
       timestamp={timestamp}
       turn={synthetic}
     />
+  );
+}
+
+/** A daemon-authored transcript row, shared by every transport role it may use. */
+export function SessionSyntheticMessage({
+  synthetic,
+  content,
+  timestamp,
+}: {
+  synthetic: SyntheticTurn;
+  content: unknown;
+  timestamp: string;
+}) {
+  return (
+    <MessagePrimitive.Root className="flex w-full min-w-0 flex-col pt-1 pb-transcript-turn-gap">
+      <SessionSyntheticTurn synthetic={synthetic} content={content} timestamp={timestamp} />
+    </MessagePrimitive.Root>
   );
 }

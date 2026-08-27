@@ -83,11 +83,8 @@ function AgentFleetRow({ row, newSessionDisabled = false, onNewSession }: AgentF
         </ListingRow.Main>
       </ListingRow.Link>
       <ListingRow.Trail className="gap-3">
-        {/*
-          An inactive name collision: this definition exists but a same-named one
-          in a nearer layer is what actually runs.
-        */}
-        {agent.shadowed ? (
+        {/* A name collision exists, whether this row wins or loses precedence. */}
+        {row.hasShadowing ? (
           <Pill tone="warning" size="sm" data-testid={`agent-fleet-shadowed-${agent.name}`}>
             Shadowed
           </Pill>

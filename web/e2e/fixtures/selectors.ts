@@ -1953,6 +1953,7 @@ export const agentCommsTestIds = {
   callUntrustedNote: "agent-call-untrusted-note",
   callError: "agent-call-error",
   // Session inspector
+  inspectorToggle: "session-inspector-toggle",
   inspectorTab: "session-inspector-tab-calls",
   inspectorPanel: "session-inspector-calls",
   panelMade: "agent-calls-panel-made",
@@ -2022,6 +2023,7 @@ export interface AgentCommsSelectors {
   callCost: Locator;
   callUntrustedNote: Locator;
   callError: Locator;
+  inspectorToggle: Locator;
   inspectorTab: Locator;
   inspectorPanel: Locator;
   panelMade: Locator;
@@ -2093,6 +2095,7 @@ export function agentCommsSelectors(
     callCost: scope.getByTestId(id.callCost),
     callUntrustedNote: scope.getByTestId(id.callUntrustedNote),
     callError: scope.getByTestId(id.callError),
+    inspectorToggle: scope.getByTestId(id.inspectorToggle),
     inspectorTab: scope.getByTestId(id.inspectorTab),
     inspectorPanel: scope.getByTestId(id.inspectorPanel),
     panelMade: scope.getByTestId(id.panelMade),

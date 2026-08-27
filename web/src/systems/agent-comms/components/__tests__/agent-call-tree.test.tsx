@@ -211,6 +211,13 @@ describe("AgentCallTree — windowing", () => {
     expect(mounted).toBeLessThan(60);
   });
 
+  it("Should mount an initial window before the viewport reports its size", () => {
+    renderTree(buildLargeTreeFixture(150));
+
+    expect(screen.getByTestId("tree")).toHaveAttribute("data-virtualized", "true");
+    expect(screen.getAllByTestId("agent-call-tree-row").length).toBeGreaterThan(0);
+  });
+
   it("Should keep the scroll height of every row it did not mount", () => {
     stubLayout();
     const { container } = renderTree(buildLargeTreeFixture(150));

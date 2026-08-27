@@ -24,7 +24,7 @@
  */
 import { useLayoutEffect } from "react";
 
-import { useVirtualizer } from "@tanstack/react-virtual";
+import { observeElementRect, useVirtualizer } from "@tanstack/react-virtual";
 
 import { Tree, TreeItem, TreeItemLabel } from "@compozy/ui";
 
@@ -99,6 +99,16 @@ export function AgentCallTree({
     estimateSize: () => ROW_ESTIMATE,
     overscan: OVERSCAN,
     enabled: virtualized,
+    // Seed one row before the scroll element has a measured box. Otherwise the
+    // empty virtual window collapses its own viewport and can never recover.
+    initialRect: { width: 0, height: ROW_ESTIMATE },
+    observeElementRect: (instance, callback) =>
+      observeElementRect(instance, rect => {
+        // A zero-height first observation would erase `initialRect` before its
+        // rows can give the viewport a real height. Keep the seed until layout
+        // reports a usable box; later positive observations remain authoritative.
+        if (rect.height > 0) callback(rect);
+      }),
     useFlushSync: false,
   });
 

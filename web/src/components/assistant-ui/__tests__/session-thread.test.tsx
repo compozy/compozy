@@ -39,6 +39,7 @@ vi.mock("@tanstack/react-router", async importOriginal => {
   const actual = await importOriginal<typeof import("@tanstack/react-router")>();
   return {
     ...actual,
+    useNavigate: () => vi.fn(),
     Link: ({ to, params, children, ...props }: Record<string, unknown>) => (
       <a
         href={typeof to === "string" ? to : "#"}
@@ -732,6 +733,43 @@ describe("SessionThread transcript states", () => {
     expect(screen.getByTestId("user-message-bubble")).toHaveTextContent(
       "Review /frontend-qa before the release."
     );
+  });
+
+  it("Should render daemon-authored system turns without exposing ordinary system messages", async () => {
+    const transcript = [
+      {
+        id: "system-call-wake",
+        role: "system",
+        metadata: {
+          synthetic: {
+            call_id: "call_system_wake",
+            call_state: "completed",
+            summary:
+              "Call completed: reviewer (call_system_wake) → completed. Result preview: the review passed.",
+          },
+        },
+        parts: [
+          {
+            type: "text",
+            text: "Durable system turn body.",
+            state: "done",
+          },
+        ],
+      } as SessionMessage,
+      {
+        id: "ordinary-system-message",
+        role: "system",
+        parts: [{ type: "text", text: "Internal transport note", state: "done" }],
+      } as SessionMessage,
+    ];
+
+    renderThreadState({ status: "success", messages: toReadonlyThreadMessages(transcript) });
+
+    const synthetic = await screen.findByTestId("session-synthetic-turn");
+    expect(synthetic).toHaveAttribute("data-synthetic-kind", "call-wake");
+    expect(synthetic).toHaveAttribute("data-call-id", "call_system_wake");
+    expect(synthetic).toHaveTextContent("Result preview: the review passed.");
+    expect(screen.queryByText("Internal transport note")).not.toBeInTheDocument();
   });
 
   it("Should render only the server-admitted skill occurrence", async () => {

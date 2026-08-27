@@ -9,8 +9,10 @@ import {
   SESSION_DEBUG_EVENTS,
 } from "@/systems/session/lib/session-observability";
 import { AssistantMessage } from "./session-assistant-message";
+import { SessionSyntheticMessage } from "./session-synthetic-turn";
 import { ThreadStatePane } from "./session-thread-states";
 import { UserMessage } from "./session-user-message";
+import { readSyntheticTurn } from "@/systems/agent-comms";
 import {
   type SessionFailurePayload,
   type SessionState,
@@ -18,13 +20,24 @@ import {
 } from "@/systems/session";
 
 function SessionThreadMessage() {
-  const role = useAuiState(state => state.message.role);
+  const message = useAuiState(state => state.message);
+  const role = message.role;
 
   if (role === "user") {
     return <UserMessage />;
   }
   if (role === "assistant") {
     return <AssistantMessage />;
+  }
+  if (role === "system") {
+    const synthetic = readSyntheticTurn(message.metadata);
+    return synthetic === null ? null : (
+      <SessionSyntheticMessage
+        synthetic={synthetic}
+        content={message.content}
+        timestamp={message.createdAt.toISOString()}
+      />
+    );
   }
   return null;
 }

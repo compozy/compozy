@@ -18,7 +18,7 @@
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 
-import type { Page } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
 
 import { appWindow, sessionWindow } from "../fixtures/os-navigation";
 import { type BrowserRuntime, type WorkspacePayload } from "../fixtures/runtime";
@@ -578,12 +578,22 @@ test.describe("E2E-018 liveness and stale actions", () => {
     const workspace = await projectWorkspace(runtime);
     await createCall(runtime, workspace.id, { agent: REVIEWER }, "golden path");
 
-    await appPage.route(/\/api\/sessions\/catalog-stream(?:\?.*)?$/, route => route.abort());
+    const catalogStream = /\/api\/sessions\/catalog-stream(?:\?.*)?$/;
+    let markStreamRejected!: () => void;
+    const streamRejected = new Promise<void>(resolve => {
+      markStreamRejected = resolve;
+    });
+    const rejectCatalogStream = async (route: Route) => {
+      markStreamRejected();
+      await route.abort();
+    };
+    await appPage.context().route(catalogStream, rejectCatalogStream);
     const stale = await openAgents(appPage, runtime.url("/agents/activity"));
+    await streamRejected;
     // Out of date is stated, never silent.
     await expect(stale.activityStale).toBeVisible();
 
-    await appPage.unroute(/\/api\/sessions\/catalog-stream(?:\?.*)?$/);
+    await appPage.context().unroute(catalogStream, rejectCatalogStream);
     const live = await openAgents(appPage, runtime.url("/agents/activity"));
     await expect(live.activityStale).toHaveCount(0);
     await expect(live.activityTree).toBeVisible();
@@ -624,10 +634,14 @@ test.describe("E2E-018 liveness and stale actions", () => {
       await route.continue();
     });
 
-    await calls.callCancel.click();
-    await cancelReached;
-    await waitForCallState(runtime, workspace.id, accepted.call_id, ["completed"]);
-    releaseCancel();
+    const cancelClick = calls.callCancel.click();
+    try {
+      await cancelReached;
+      await waitForCallState(runtime, workspace.id, accepted.call_id, ["completed"]);
+    } finally {
+      releaseCancel();
+    }
+    await cancelClick;
 
     // The receipt comes from the mutation response, so it lands without a
     // re-read — and it names the state the daemon actually returned.
@@ -658,6 +672,7 @@ test.describe("E2E-019 session Calls panel and the wake row", () => {
       record.child_session_id!
     );
 
+    await calls.inspectorToggle.click();
     await calls.inspectorTab.click();
     await expect(calls.inspectorPanel).toBeVisible();
     await expect(calls.panelReceived).toBeVisible();
@@ -688,6 +703,7 @@ test.describe("E2E-019 session Calls panel and the wake row", () => {
       runtime.url(`/session/${record.caller.id}`),
       record.caller.id
     );
+    await callerPanel.inspectorToggle.click();
     await callerPanel.inspectorTab.click();
     await expect(callerPanel.panelMade).toBeVisible();
     await expect(callerPanel.panelMadeCount).toHaveText(String(made.total));
@@ -819,7 +835,7 @@ test.describe("E2E-020 attention", () => {
 
 test.describe("E2E-021 empty states", () => {
   // A workspace that has never delegated, and a roster with nothing in it.
-  test.use({ runtimeOptions: {} });
+  test.use({ runtimeOptions: { seed: { mockAgents: [] } } });
 
   test("Should teach the feature instead of showing an empty frame", async ({
     appPage,

@@ -13,6 +13,8 @@ export interface AgentFleetRowModel {
   cardOrigin: string;
   layer: string;
   shadowLayers: string[];
+  /** This effective row supersedes another layer, or is itself superseded. */
+  hasShadowing: boolean;
   ariaLabel: string;
   hasDiagnostics: boolean;
   sessionsAvailable: boolean;
@@ -115,6 +117,7 @@ export function projectAgentFleetRows(input: {
             total: item.sessions.total,
           }
         : null;
+    const shadowLayers = agentShadowLayers(agent);
     return {
       agent,
       signals,
@@ -122,7 +125,8 @@ export function projectAgentFleetRows(input: {
       cardCategory: formatAgentFleetCardCategory(agent),
       cardOrigin: formatAgentOriginLabel(agent.origin),
       layer: formatAgentLayer(agent),
-      shadowLayers: agentShadowLayers(agent),
+      shadowLayers,
+      hasShadowing: agent.shadowed || shadowLayers.length > 0,
       ariaLabel: formatAgentFleetAriaLabel(agent, signals, input.sessionsAvailable),
       hasDiagnostics: Array.isArray(agent.diagnostics) && agent.diagnostics.length > 0,
       sessionsAvailable: input.sessionsAvailable,
