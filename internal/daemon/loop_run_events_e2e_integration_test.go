@@ -1645,6 +1645,7 @@ func waitForLoopRunStatus(
 func loopRunStatusTerminal(status compozycontract.LoopRunStatus) bool {
 	switch status {
 	case compozycontract.LoopRunStatusDone,
+		compozycontract.LoopRunStatusCanceled,
 		compozycontract.LoopRunStatusNoOp,
 		compozycontract.LoopRunStatusBlocked,
 		compozycontract.LoopRunStatusFailed,

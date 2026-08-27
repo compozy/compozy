@@ -650,7 +650,22 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			logLoopRunTimeoutDebug(t, harness, quarantinedRun.ID, compozycontract.LoopRunPayload{})
 		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
-		waitForLoopRunStatus(t, ctx, harness, quarantinedRun.ID, compozycontract.LoopRunStatusDone)
+
+		var canceled compozycontract.LoopMutationResponse
+		if err := harness.HTTPJSON(
+			ctx,
+			http.MethodPost,
+			loopReadRunPath(harness.WorkspaceID, quarantinedRun.ID)+"/cancel",
+			nil,
+			&canceled,
+		); err != nil {
+			t.Fatalf("cancel quarantined Loop after requeue journey error = %v", err)
+		}
+		if !canceled.OK || canceled.RunID != quarantinedRun.ID ||
+			canceled.Status != string(compozycontract.LoopRunStatusCanceled) {
+			t.Fatalf("cancel quarantined Loop response = %#v", canceled)
+		}
+		waitForLoopRunStatus(t, ctx, harness, quarantinedRun.ID, compozycontract.LoopRunStatusCanceled)
 	})
 	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
