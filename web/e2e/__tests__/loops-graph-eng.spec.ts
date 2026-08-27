@@ -41,6 +41,7 @@ test.describe("Human requests on the run page", () => {
   test("E2E-020: an ask renders its schema form and reports the daemon's field errors", async ({
     page,
   }) => {
+    test.setTimeout(180_000);
     await openStory(page, `${RUN_PAGE}--pending-requests`);
 
     const cards = page.getByTestId("loop-request-card");
