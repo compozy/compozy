@@ -661,8 +661,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		); err != nil {
 			t.Fatalf("cancel quarantined Loop after requeue journey error = %v", err)
 		}
-		if !canceled.OK || canceled.RunID != quarantinedRun.ID ||
-			canceled.Status != string(compozycontract.LoopRunStatusCanceled) {
+		if !canceled.OK || canceled.RunID != quarantinedRun.ID {
 			t.Fatalf("cancel quarantined Loop response = %#v", canceled)
 		}
 		waitForLoopRunStatus(t, ctx, harness, quarantinedRun.ID, compozycontract.LoopRunStatusCanceled)
