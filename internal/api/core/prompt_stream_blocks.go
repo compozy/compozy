@@ -23,7 +23,7 @@ func (e *PromptStreamEncoder) ensureMessageStarted(writer FlushWriter, event acp
 	e.messageStarted = true
 
 	return WriteSSE(writer, SSEMessage{
-		Data: promptStartPayload{Type: "start", MessageID: e.messageID},
+		Data: promptStartPayload{Type: taskActionStart, MessageID: e.messageID},
 	})
 }
 

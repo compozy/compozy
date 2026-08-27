@@ -311,9 +311,15 @@ func TestExpandedTaskReadHandlersDelegateIntegration(t *testing.T) {
 			nil,
 		)
 		if timelineResp.Code != http.StatusOK {
-			t.Fatalf("timeline status = %d, want %d; body=%s", timelineResp.Code, http.StatusOK, timelineResp.Body.String())
+			t.Fatalf(
+				"timeline status = %d, want %d; body=%s",
+				timelineResp.Code,
+				http.StatusOK,
+				timelineResp.Body.String(),
+			)
 		}
-		if timelineQuery.AfterSequence != 5 || timelineQuery.Limit != 2 || timelineActor.Origin.Ref != "tasks.timeline" {
+		if timelineQuery.AfterSequence != 5 || timelineQuery.Limit != 2 ||
+			timelineActor.Origin.Ref != "tasks.timeline" {
 			t.Fatalf("timeline query/actor = %#v / %#v", timelineQuery, timelineActor)
 		}
 

@@ -29,13 +29,15 @@ func shapeOutput(content []byte, shape OutputShape) (string, bool, error) {
 		strategy = "head_tail"
 	}
 	switch strategy {
-	case "tail":
+	case terminalViewTail:
 		return elidedTail(content, maximum), true, nil
 	case "head_tail":
 		return elidedHeadTail(content, maximum), true, nil
 	default:
 		return "", false, &Error{
-			Code: "terminal_output_strategy_invalid", Message: "terminal output strategy must be tail or head_tail", Err: ErrUnsupported,
+			Code:    "terminal_output_strategy_invalid",
+			Message: "terminal output strategy must be tail or head_tail",
+			Err:     ErrUnsupported,
 		}
 	}
 }

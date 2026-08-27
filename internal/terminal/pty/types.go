@@ -14,6 +14,9 @@ type Mode string
 const (
 	ModePTY  Mode = "pty"
 	ModePipe Mode = "pipe"
+
+	exitCauseExited  = "exited"
+	exitCauseUnknown = "unknown"
 )
 
 type Signal string

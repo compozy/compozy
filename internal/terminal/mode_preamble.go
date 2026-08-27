@@ -2,6 +2,7 @@ package terminal
 
 import (
 	"bytes"
+	"slices"
 	"strconv"
 )
 
@@ -68,7 +69,7 @@ func (t *modePreambleTracker) observeCSI(input []byte, start int) int {
 			return index
 		}
 		on := value == 'h'
-		for _, raw := range bytes.Split(input[paramsStart:index], []byte{';'}) {
+		for raw := range bytes.SplitSeq(input[paramsStart:index], []byte{';'}) {
 			mode, err := strconv.Atoi(string(raw))
 			if err == nil && replayableDECMode(mode) {
 				t.decModes[mode] = on
@@ -80,12 +81,7 @@ func (t *modePreambleTracker) observeCSI(input []byte, start int) int {
 }
 
 func replayableDECMode(mode int) bool {
-	for _, candidate := range replayableDECModeOrder {
-		if mode == candidate {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(replayableDECModeOrder, mode)
 }
 
 func (t *modePreambleTracker) preamble() []byte {

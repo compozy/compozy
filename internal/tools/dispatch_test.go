@@ -380,7 +380,11 @@ func TestRuntimeRegistryDispatchApprovalBridge(t *testing.T) {
 					t.Fatalf("provider input = %s, want patched approval input", req.Input)
 				}
 				if !req.ApprovalGranted || req.ApprovalLabel != "approved_by_operator" {
-					t.Fatalf("provider approval = %t/%q, want granted/approved_by_operator", req.ApprovalGranted, req.ApprovalLabel)
+					t.Fatalf(
+						"provider approval = %t/%q, want granted/approved_by_operator",
+						req.ApprovalGranted,
+						req.ApprovalLabel,
+					)
 				}
 				return ToolResult{Content: []ToolContent{{Type: "text", Text: "ok"}}}, nil
 			},

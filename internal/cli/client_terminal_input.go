@@ -24,6 +24,13 @@ type terminalInputRead struct {
 	err  error
 }
 
+type terminalDetachState struct {
+	timer        *time.Timer
+	timeout      <-chan time.Time
+	pending      bool
+	forwardInput bool
+}
+
 func terminalInputReads(ctx context.Context, input io.Reader) <-chan terminalInputRead {
 	reads := make(chan terminalInputRead, 1)
 	go readTerminalInput(ctx, input, reads)
@@ -55,76 +62,96 @@ func copyTerminalInput(
 	reads <-chan terminalInputRead,
 	forwardInput bool,
 ) error {
-	var timer *time.Timer
-	var timeout <-chan time.Time
-	pendingDetach := false
-	defer func() {
-		if timer != nil {
-			timer.Stop()
-		}
-	}()
+	state := terminalDetachState{forwardInput: forwardInput}
+	defer state.stop()
 	for {
 		select {
 		case read := <-reads:
-			payload := make([]byte, 0, len(read.data)+1)
-			for _, value := range read.data {
-				if value == terminalDetachByte {
-					if pendingDetach {
-						stopTerminalDetachTimer(timer)
-						if err := writeTerminalInputFrame(conn, writes, payload); err != nil {
-							return err
-						}
-						if err := writeTerminalDetachFrame(conn, writes); err != nil {
-							return err
-						}
-						return errTerminalDetached
-					}
-					pendingDetach = true
-					timer = resetTerminalDetachTimer(timer)
-					timeout = timer.C
-					continue
-				}
-				if pendingDetach {
-					if forwardInput {
-						payload = append(payload, terminalDetachByte)
-					}
-					pendingDetach = false
-					stopTerminalDetachTimer(timer)
-					timeout = nil
-				}
-				if forwardInput {
-					payload = append(payload, value)
-				}
-			}
-			if err := writeTerminalInputFrame(conn, writes, payload); err != nil {
+			if err := state.forwardRead(conn, writes, read); err != nil {
 				return err
 			}
-			if read.err != nil {
-				if pendingDetach && forwardInput {
-					if err := writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte}); err != nil {
-						return err
-					}
-				}
-				if errors.Is(read.err, io.EOF) {
-					if err := writeTerminalDetachFrame(conn, writes); err != nil {
-						return err
-					}
-					return errTerminalDetached
-				}
-				return read.err
-			}
-		case <-timeout:
-			pendingDetach = false
-			timeout = nil
-			if forwardInput {
-				if err := writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte}); err != nil {
-					return err
-				}
+		case <-state.timeout:
+			if err := state.expire(conn, writes); err != nil {
+				return err
 			}
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
+}
+
+func (s *terminalDetachState) forwardRead(
+	conn *websocket.Conn,
+	writes *sync.Mutex,
+	read terminalInputRead,
+) error {
+	payload := make([]byte, 0, len(read.data)+1)
+	for _, value := range read.data {
+		if value == terminalDetachByte {
+			if s.pending {
+				s.stop()
+				if err := writeTerminalInputFrame(conn, writes, payload); err != nil {
+					return err
+				}
+				if err := writeTerminalDetachFrame(conn, writes); err != nil {
+					return err
+				}
+				return errTerminalDetached
+			}
+			s.pending = true
+			s.timer = resetTerminalDetachTimer(s.timer)
+			s.timeout = s.timer.C
+			continue
+		}
+		if s.pending {
+			if s.forwardInput {
+				payload = append(payload, terminalDetachByte)
+			}
+			s.stop()
+		}
+		if s.forwardInput {
+			payload = append(payload, value)
+		}
+	}
+	if err := writeTerminalInputFrame(conn, writes, payload); err != nil {
+		return err
+	}
+	return s.finishRead(conn, writes, read.err)
+}
+
+func (s *terminalDetachState) finishRead(conn *websocket.Conn, writes *sync.Mutex, readErr error) error {
+	if readErr == nil {
+		return nil
+	}
+	if s.pending && s.forwardInput {
+		if err := writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte}); err != nil {
+			return err
+		}
+	}
+	if !errors.Is(readErr, io.EOF) {
+		return readErr
+	}
+	if err := writeTerminalDetachFrame(conn, writes); err != nil {
+		return err
+	}
+	return errTerminalDetached
+}
+
+func (s *terminalDetachState) expire(conn *websocket.Conn, writes *sync.Mutex) error {
+	s.pending = false
+	s.timeout = nil
+	if !s.forwardInput {
+		return nil
+	}
+	return writeTerminalInputFrame(conn, writes, []byte{terminalDetachByte})
+}
+
+func (s *terminalDetachState) stop() {
+	if s.timer != nil {
+		stopTerminalDetachTimer(s.timer)
+	}
+	s.pending = false
+	s.timeout = nil
 }
 
 func writeTerminalInputFrame(conn *websocket.Conn, writes *sync.Mutex, payload []byte) error {

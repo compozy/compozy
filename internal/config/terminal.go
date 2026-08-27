@@ -14,6 +14,7 @@ const (
 	DefaultTerminalMaxPerWorkspace        = 8
 	DefaultTerminalMaxPerDaemon           = 32
 	DefaultTerminalMaxSubscribers         = 16
+	terminalPositiveValueMessage          = "must be greater than zero"
 )
 
 // TerminalConfig controls terminal process, retention, and capacity policy.
@@ -61,14 +62,14 @@ func (c TerminalConfig) Validate() error {
 	}
 	for _, check := range checks {
 		if check.value <= 0 {
-			return ValidationError{Path: check.path, Message: "must be greater than zero"}
+			return ValidationError{Path: check.path, Message: terminalPositiveValueMessage}
 		}
 	}
 	if c.DetachedTTL <= 0 {
-		return ValidationError{Path: "terminal.detached_ttl", Message: "must be greater than zero"}
+		return ValidationError{Path: "terminal.detached_ttl", Message: terminalPositiveValueMessage}
 	}
 	if c.ExitRetention <= 0 {
-		return ValidationError{Path: "terminal.exit_retention", Message: "must be greater than zero"}
+		return ValidationError{Path: "terminal.exit_retention", Message: terminalPositiveValueMessage}
 	}
 	return nil
 }
@@ -78,10 +79,16 @@ func validateTerminalShell(shell string) error {
 		return nil
 	}
 	if strings.ContainsRune(shell, '\x00') || strings.TrimSpace(shell) != shell {
-		return ValidationError{Path: "terminal.default_shell", Message: "must be a bare executable name or absolute path"}
+		return ValidationError{
+			Path:    "terminal.default_shell",
+			Message: "must be a bare executable name or absolute path",
+		}
 	}
 	if strings.ContainsAny(shell, `/\\`) && !filepath.IsAbs(shell) {
-		return ValidationError{Path: "terminal.default_shell", Message: "must be a bare executable name or absolute path"}
+		return ValidationError{
+			Path:    "terminal.default_shell",
+			Message: "must be a bare executable name or absolute path",
+		}
 	}
 	return nil
 }

@@ -24,10 +24,18 @@ type sqliteTrigger struct {
 var sqliteDropTable = regexp.MustCompile(`(?i)^DROP\s+TABLE\s+(?:IF\s+EXISTS\s+)?["` + "`" + `]?([^"` + "`" + `\s;]+)`)
 
 var (
-	gooseTriggerBlock       = regexp.MustCompile(`(?is)--\s*\+goose\s+StatementBegin\s*(.*?)\s*--\s*\+goose\s+StatementEnd`)
-	sqliteCreateTriggerName = regexp.MustCompile(`(?i)^CREATE\s+TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?["` + "`" + `\[]?([^"` + "`" + `\]\s]+)`)
-	sqliteTriggerTable      = regexp.MustCompile(`(?is)\b(?:BEFORE|AFTER|INSTEAD\s+OF)\b.*?\bON\s+["` + "`" + `\[]?([^"` + "`" + `\]\s]+)`)
-	sqliteDropTrigger       = regexp.MustCompile(`(?im)^\s*DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?["` + "`" + `\[]?([^"` + "`" + `\]\s;]+)[^\n]*`)
+	gooseTriggerBlock = regexp.MustCompile(
+		`(?is)--\s*\+goose\s+StatementBegin\s*(.*?)\s*--\s*\+goose\s+StatementEnd`,
+	)
+	sqliteCreateTriggerName = regexp.MustCompile(
+		`(?i)^CREATE\s+TRIGGER\s+(?:IF\s+NOT\s+EXISTS\s+)?["` + "`" + `\[]?([^"` + "`" + `\]\s]+)`,
+	)
+	sqliteTriggerTable = regexp.MustCompile(
+		`(?is)\b(?:BEFORE|AFTER|INSTEAD\s+OF)\b.*?\bON\s+["` + "`" + `\[]?([^"` + "`" + `\]\s]+)`,
+	)
+	sqliteDropTrigger = regexp.MustCompile(
+		`(?im)^\s*DROP\s+TRIGGER\s+(?:IF\s+EXISTS\s+)?["` + "`" + `\[]?([^"` + "`" + `\]\s;]+)[^\n]*`,
+	)
 )
 
 func inspectSQLiteTriggers(ctx context.Context, db *sql.DB) (_ []sqliteTrigger, err error) {
@@ -74,7 +82,7 @@ func readMigrationSQLiteTriggers(descriptor stream) ([]sqliteTrigger, error) {
 		if err != nil {
 			return nil, fmt.Errorf("read %s migration %q for triggers: %w", descriptor.name, path, err)
 		}
-		up := strings.SplitN(string(contents), "-- +goose Down", 2)[0]
+		up, _, _ := strings.Cut(string(contents), "-- +goose Down")
 		events, err := migrationTriggerEvents(up)
 		if err != nil {
 			return nil, fmt.Errorf("read %s migration %q triggers: %w", descriptor.name, path, err)
@@ -150,7 +158,8 @@ func appendSQLiteTriggerChanges(plan *migrate.Plan, current, desired []sqliteTri
 	creates := make([]sqliteTrigger, 0)
 	for _, trigger := range current {
 		desiredTrigger, retained := desiredByName[trigger.name]
-		changed := retained && normalizeSQLiteTriggerSQL(trigger.createSQL) != normalizeSQLiteTriggerSQL(desiredTrigger.createSQL)
+		changed := retained &&
+			normalizeSQLiteTriggerSQL(trigger.createSQL) != normalizeSQLiteTriggerSQL(desiredTrigger.createSQL)
 		if !retained || changed || triggerTouchesRebuiltTable(trigger, rebuilt) {
 			dropNames = append(dropNames, trigger.name)
 		}

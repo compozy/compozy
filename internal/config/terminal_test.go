@@ -29,32 +29,51 @@ func TestTerminalConfigLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should validate values by exact key while treating shell availability as runtime policy [UT-061]", func(t *testing.T) {
-		t.Parallel()
-		cases := []struct {
-			name string
-			path string
-			edit func(*TerminalConfig)
-		}{
-			{name: "Should reject zero workspace cap", path: "terminal.max_per_workspace", edit: func(c *TerminalConfig) { c.MaxPerWorkspace = 0 }},
-			{name: "Should reject negative detached ttl", path: "terminal.detached_ttl", edit: func(c *TerminalConfig) { c.DetachedTTL = -time.Second }},
-			{name: "Should reject a relative shell path", path: "terminal.default_shell", edit: func(c *TerminalConfig) { c.DefaultShell = "bin/sh" }},
-			{name: "Should reject a NUL shell", path: "terminal.default_shell", edit: func(c *TerminalConfig) { c.DefaultShell = "sh\x00bad" }},
-		}
-		for _, testCase := range cases {
-			t.Run(testCase.name, func(t *testing.T) {
-				t.Parallel()
-				config := DefaultTerminalConfig()
-				testCase.edit(&config)
-				assertTerminalValidationPath(t, config.Validate(), testCase.path)
-			})
-		}
-		validMissing := DefaultTerminalConfig()
-		validMissing.DefaultShell = "/not/installed/but/well-formed"
-		if err := validMissing.Validate(); err != nil {
-			t.Fatalf("Validate(well-formed unavailable shell) error = %v", err)
-		}
-	})
+	t.Run(
+		"Should validate values by exact key while treating shell availability as runtime policy [UT-061]",
+		func(t *testing.T) {
+			t.Parallel()
+			cases := []struct {
+				name string
+				path string
+				edit func(*TerminalConfig)
+			}{
+				{
+					name: "Should reject zero workspace cap",
+					path: "terminal.max_per_workspace",
+					edit: func(c *TerminalConfig) { c.MaxPerWorkspace = 0 },
+				},
+				{
+					name: "Should reject negative detached ttl",
+					path: "terminal.detached_ttl",
+					edit: func(c *TerminalConfig) { c.DetachedTTL = -time.Second },
+				},
+				{
+					name: "Should reject a relative shell path",
+					path: "terminal.default_shell",
+					edit: func(c *TerminalConfig) { c.DefaultShell = "bin/sh" },
+				},
+				{
+					name: "Should reject a NUL shell",
+					path: "terminal.default_shell",
+					edit: func(c *TerminalConfig) { c.DefaultShell = "sh\x00bad" },
+				},
+			}
+			for _, testCase := range cases {
+				t.Run(testCase.name, func(t *testing.T) {
+					t.Parallel()
+					config := DefaultTerminalConfig()
+					testCase.edit(&config)
+					assertTerminalValidationPath(t, config.Validate(), testCase.path)
+				})
+			}
+			validMissing := DefaultTerminalConfig()
+			validMissing.DefaultShell = "/not/installed/but/well-formed"
+			if err := validMissing.Validate(); err != nil {
+				t.Fatalf("Validate(well-formed unavailable shell) error = %v", err)
+			}
+		},
+	)
 
 	t.Run("Should deny only the daemon cap in profile overlays", func(t *testing.T) {
 		t.Parallel()
@@ -76,7 +95,8 @@ func TestTerminalConfigLifecycle(t *testing.T) {
 		writeFile(t, denied, "[terminal]\nmax_per_daemon = 64\n")
 		err = applyProfileConfigOverlayFile(denied, &config, "test-profile")
 		var validationErr ValidationError
-		if !errors.As(err, &validationErr) || validationErr.Code != profileConfigKeyDeniedCode || validationErr.Path != "terminal.max_per_daemon" {
+		if !errors.As(err, &validationErr) || validationErr.Code != profileConfigKeyDeniedCode ||
+			validationErr.Path != "terminal.max_per_daemon" {
 			t.Fatalf("profile max_per_daemon overlay error = %#v", err)
 		}
 	})
@@ -94,7 +114,8 @@ func TestTerminalConfigLifecycle(t *testing.T) {
 		if err := ApplyConfigOverlayFile(path, &config); err != nil {
 			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
 		}
-		if config.Terminal.DetachedTTL != 2*time.Hour || config.Terminal.MaxSubscribers != 9 || config.Terminal.MaxPerWorkspace != 8 {
+		if config.Terminal.DetachedTTL != 2*time.Hour || config.Terminal.MaxSubscribers != 9 ||
+			config.Terminal.MaxPerWorkspace != 8 {
 			t.Fatalf("merged Terminal = %#v", config.Terminal)
 		}
 	})
@@ -109,7 +130,8 @@ func TestTerminalConfigLifecycle(t *testing.T) {
 		cloned := CloneConfig(&active)
 		cloned.Terminal.DefaultShell = "fish"
 		cloned.Terminal.MaxSubscribers = 3
-		if active.Terminal.DefaultShell == cloned.Terminal.DefaultShell || active.Terminal.MaxSubscribers == cloned.Terminal.MaxSubscribers {
+		if active.Terminal.DefaultShell == cloned.Terminal.DefaultShell ||
+			active.Terminal.MaxSubscribers == cloned.Terminal.MaxSubscribers {
 			t.Fatalf("CloneConfig() aliased terminal config: active=%#v clone=%#v", active.Terminal, cloned.Terminal)
 		}
 	})

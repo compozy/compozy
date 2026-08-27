@@ -31,7 +31,14 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 	replay, reset, fence, changed := h.terminalCatalog.read(workspaceID, profileID, after)
 	stop, done, accepting := h.terminalStreams.begin()
 	if !accepting {
-		h.respondTerminalError(c, &terminalpkg.Error{Code: "terminal_shutting_down", Message: "terminal streams are shutting down", Err: terminalpkg.ErrShuttingDown})
+		h.respondTerminalError(
+			c,
+			&terminalpkg.Error{
+				Code:    "terminal_shutting_down",
+				Message: "terminal streams are shutting down",
+				Err:     terminalpkg.ErrShuttingDown,
+			},
+		)
 		return
 	}
 	defer done()
@@ -54,14 +61,34 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 	if reset {
 		after = fence
 	}
+	h.streamTerminalCatalog(c, writer, service, workspaceID, profileID, after, changed, stop)
+}
+
+func (h *BaseHandlers) streamTerminalCatalog(
+	c *gin.Context,
+	writer FlushWriter,
+	service terminalpkg.Manager,
+	workspaceID, profileID string,
+	after uint64,
+	changed <-chan struct{},
+	stop <-chan struct{},
+) {
 	keepAlive := time.NewTicker(20 * time.Second)
 	defer keepAlive.Stop()
 	for {
 		select {
 		case <-changed:
-			replay, reset, fence, changed = h.terminalCatalog.read(workspaceID, profileID, after)
+			replay, reset, fence, nextChanged := h.terminalCatalog.read(workspaceID, profileID, after)
+			changed = nextChanged
 			if reset {
-				if err := h.writeTerminalCatalogSnapshot(c, writer, service, workspaceID, profileID, fence); err != nil {
+				if err := h.writeTerminalCatalogSnapshot(
+					c,
+					writer,
+					service,
+					workspaceID,
+					profileID,
+					fence,
+				); err != nil {
 					return
 				}
 				after = fence
@@ -108,7 +135,11 @@ func terminalCatalogCursor(raw string) (uint64, error) {
 	}
 	value, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
 	if err != nil {
-		return 0, &terminalpkg.Error{Code: "terminal_cursor_invalid", Message: "terminal catalog cursor is invalid", Err: terminalpkg.ErrUnsupported}
+		return 0, &terminalpkg.Error{
+			Code:    "terminal_cursor_invalid",
+			Message: "terminal catalog cursor is invalid",
+			Err:     terminalpkg.ErrUnsupported,
+		}
 	}
 	return value, nil
 }
@@ -121,21 +152,26 @@ func writeTerminalCatalogEvent(writer FlushWriter, event terminalCatalogEvent) e
 	return WriteSSE(writer, SSEMessage{ID: strconv.FormatUint(event.Sequence, 10), Name: name, Data: payload})
 }
 
-func terminalCatalogPayload(event terminalpkg.TerminalEvent) (string, any, error) {
+func terminalCatalogPayload(event terminalpkg.Event) (string, any, error) {
 	switch event.Kind {
 	case terminalpkg.EventKindOpened:
 		if event.Info == nil {
 			return "", nil, errors.New("terminal catalog: opened event has no terminal info")
 		}
-		return "terminal.created", gin.H{"terminal": terminalInfoFromDomain(*event.Info, event.ProfileName)}, nil
+		return "terminal.created", gin.H{
+			terminalPayloadKey: terminalInfoFromDomain(*event.Info, event.ProfileName),
+		}, nil
 	case terminalpkg.EventKindClosed:
 		exit := event.Exit
 		if exit == nil && event.Info != nil {
 			exit = event.Info.Exit
 		}
-		return "terminal.closed", gin.H{"terminal_id": event.TerminalID, "exit": terminalExitFromDomain(exit)}, nil
+		return "terminal.closed", gin.H{
+			terminalIDPayloadKey: event.TerminalID,
+			"exit":               terminalExitFromDomain(exit),
+		}, nil
 	case terminalpkg.EventKindTitleChanged:
-		return "terminal.title_changed", gin.H{"terminal_id": event.TerminalID, "title": event.Detail.Title}, nil
+		return "terminal.title_changed", gin.H{terminalIDPayloadKey: event.TerminalID, "title": event.Detail.Title}, nil
 	case terminalpkg.EventKindLeaseChanged:
 		var controllerKind terminalpkg.ActorKind
 		var controllerID string
@@ -144,11 +180,11 @@ func terminalCatalogPayload(event terminalpkg.TerminalEvent) (string, any, error
 			controllerID = event.Info.Controller.ID
 		}
 		return "terminal.lease_changed", gin.H{
-			"terminal_id": event.TerminalID, "lease": event.Detail.LeaseTo,
+			terminalIDPayloadKey: event.TerminalID, "lease": event.Detail.LeaseTo,
 			"controller_kind": controllerKind, "controller_id": controllerID, "reason": event.Reason,
 		}, nil
 	case terminalpkg.EventKindModeChanged:
-		return "terminal.mode_changed", gin.H{"terminal_id": event.TerminalID, "mode": event.Detail.Mode}, nil
+		return "terminal.mode_changed", gin.H{terminalIDPayloadKey: event.TerminalID, "mode": event.Detail.Mode}, nil
 	default:
 		return "", nil, fmt.Errorf("terminal catalog: unsupported event %q", event.Kind)
 	}

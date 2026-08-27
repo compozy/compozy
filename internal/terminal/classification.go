@@ -52,7 +52,7 @@ func ClassifyArgv(argv []string, allowlist []ArgvPattern, denyLists ...[]ArgvPat
 			return CommandClassification{Verdict: CommandVerdictAllowlisted, Reason: "allowlist", Digest: digest}
 		}
 	}
-	return CommandClassification{Verdict: CommandVerdictPrompt, Reason: "approval_required", Digest: digest}
+	return CommandClassification{Verdict: CommandVerdictPrompt, Reason: errorCodeApprovalRequired, Digest: digest}
 }
 
 func argvDigest(argv []string) string {
@@ -65,7 +65,10 @@ func isUnclassifiableArgv(argv []string) bool {
 	if executable == "eval" || strings.ContainsAny(executable, "'\"") {
 		return true
 	}
-	if slices.Contains([]string{"sh", "bash", "dash", "zsh", "fish", "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh"}, executable) {
+	if slices.Contains(
+		[]string{"sh", "bash", "dash", "zsh", "fish", "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh"},
+		executable,
+	) {
 		for _, arg := range argv[1:] {
 			if slices.Contains([]string{"-c", "-lc", "-Command", "/c", "/C"}, arg) {
 				return true
@@ -122,7 +125,8 @@ func destructiveRemove(args []string) bool {
 		return false
 	}
 	for _, target := range targets {
-		if target == string(filepath.Separator) || target == "." || target == ".." || target == "$HOME" || target == "~" {
+		if target == string(filepath.Separator) || target == "." || target == ".." || target == "$HOME" ||
+			target == "~" {
 			return true
 		}
 	}

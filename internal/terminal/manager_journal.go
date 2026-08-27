@@ -3,7 +3,7 @@ package terminal
 import "context"
 
 type journalTerminalRegistrar interface {
-	RegisterTerminal(Info, func(bool), func(TerminalEvent))
+	RegisterTerminal(Info, func(bool), func(Event))
 }
 
 type journalCommandObserver interface {
@@ -21,8 +21,8 @@ func (m *Service) registerJournalTerminal(item *session) {
 	if !ok {
 		return
 	}
-	registrar.RegisterTerminal(item.Info(), item.audit.SetBlocked, func(event TerminalEvent) {
-		m.events.Emit(context.Background(), event)
+	registrar.RegisterTerminal(item.Info(), item.audit.SetBlocked, func(event Event) {
+		m.events.Notify(context.Background(), event)
 	})
 }
 

@@ -19,6 +19,34 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 	if state.workspaceResolver == nil {
 		return errors.New("daemon: terminal workspace resolver is required")
 	}
+	databasePool, err := newTerminalDatabasePool(state)
+	if err != nil {
+		return err
+	}
+	cleanup.add(databasePool.Close)
+	journal, err := terminaljournal.New(terminaljournal.Options{
+		Databases: databasePool, HomeDir: d.homePaths.HomeDir, Logger: state.logger, Now: d.now,
+	})
+	if err != nil {
+		return fmt.Errorf("daemon: create terminal journal: %w", err)
+	}
+	options := terminalManagerOptions(d, state, journal)
+	manager, err := terminalpkg.NewManager(options...)
+	if err != nil {
+		return fmt.Errorf("daemon: create terminal manager: %w", err)
+	}
+	if err := manager.Start(ctx); err != nil {
+		return fmt.Errorf("daemon: start terminal manager: %w", err)
+	}
+	cleanup.add(manager.Shutdown)
+	state.terminals = manager
+	if state.notifier != nil {
+		state.notifier.setTerminalRuntime(manager)
+	}
+	return nil
+}
+
+func newTerminalDatabasePool(state *bootState) (*workspacedb.Pool, error) {
 	databasePool, err := workspacedb.NewPool(func(
 		resolveCtx context.Context,
 		workspaceID string,
@@ -42,15 +70,16 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 		return workspacedb.ResolvedRoot{RootDir: resolved.RootDir, WorkspaceID: identityID}, nil
 	})
 	if err != nil {
-		return fmt.Errorf("daemon: create workspace database pool: %w", err)
+		return nil, fmt.Errorf("daemon: create workspace database pool: %w", err)
 	}
-	cleanup.add(databasePool.Close)
-	journal, err := terminaljournal.New(terminaljournal.Options{
-		Databases: databasePool, HomeDir: d.homePaths.HomeDir, Logger: state.logger, Now: d.now,
-	})
-	if err != nil {
-		return fmt.Errorf("daemon: create terminal journal: %w", err)
-	}
+	return databasePool, nil
+}
+
+func terminalManagerOptions(
+	d *Daemon,
+	state *bootState,
+	journal *terminaljournal.Service,
+) []terminalpkg.Option {
 	options := []terminalpkg.Option{
 		terminalpkg.WithProcessRegistry(state.processRegistry),
 		terminalpkg.WithLogger(state.logger),
@@ -65,8 +94,8 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 		options,
 		terminalpkg.WithTypingGrantAuthorizer(state.terminalPermissions),
 		terminalpkg.WithExecAuthorizer(state.terminalPermissions),
+		terminalpkg.WithWorkspaceResolver(state.workspaceResolver),
 	)
-	options = append(options, terminalpkg.WithWorkspaceResolver(state.workspaceResolver))
 	if state.profiles != nil {
 		options = append(options, terminalpkg.WithProfileNameResolver(state.profiles))
 	}
@@ -82,19 +111,7 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 			func(context.Context, string, string) (terminalpkg.Settings, error) { return settings, nil },
 		))
 	}
-	manager, err := terminalpkg.NewManager(options...)
-	if err != nil {
-		return fmt.Errorf("daemon: create terminal manager: %w", err)
-	}
-	if err := manager.Start(ctx); err != nil {
-		return fmt.Errorf("daemon: start terminal manager: %w", err)
-	}
-	cleanup.add(manager.Shutdown)
-	state.terminals = manager
-	if state.notifier != nil {
-		state.notifier.setTerminalRuntime(manager)
-	}
-	return nil
+	return options
 }
 
 func terminalSettingsProvider(state *bootState) terminalpkg.SettingsProvider {
@@ -108,7 +125,11 @@ func terminalSettingsProvider(state *bootState) terminalpkg.SettingsProvider {
 		}
 		resolved, err := state.workspaceResolver.ResolveForProfile(ctx, workspaceID, profileName)
 		if err != nil {
-			return terminalpkg.Settings{}, fmt.Errorf("daemon: resolve terminal workspace profile %q: %w", profileName, err)
+			return terminalpkg.Settings{}, fmt.Errorf(
+				"daemon: resolve terminal workspace profile %q: %w",
+				profileName,
+				err,
+			)
 		}
 		return terminalSettings(resolved.Config.Terminal), nil
 	}

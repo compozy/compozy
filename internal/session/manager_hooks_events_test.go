@@ -238,7 +238,7 @@ func TestRecordEventSkipsHooksForAgentReportedTerminal(t *testing.T) {
 	}
 
 	err := h.manager.recordEvent(testutil.Context(t), session, acp.AgentEvent{
-		Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+		Type:   acp.EventTypeAgentReportedTerminal,
 		TurnID: "turn-reported", Timestamp: now, Text: "output",
 		ReportedTerminal: &acp.AgentReportedTerminal{ID: "reported-1", TotalBytes: 6},
 	})

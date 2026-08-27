@@ -8,6 +8,7 @@ package pty
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -26,7 +27,10 @@ import (
 
 func TestUnixPTYHardening(t *testing.T) {
 	t.Run("Should distinguish visible shell editing from hidden input [UT-092]", func(t *testing.T) {
-		proc := startTestProc(t, ProcSpec{Argv: []string{"/bin/sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24})
+		proc := startTestProc(
+			t,
+			ProcSpec{Argv: []string{"/bin/sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24},
+		)
 		defer stopTestProc(t, proc)
 		unixProcess := proc.(*unixProc)
 
@@ -168,7 +172,12 @@ func TestUnixPTYHardening(t *testing.T) {
 			t.Fatalf("TIOCGPGRP error = %v", ioctlErr)
 		}
 		if foregroundGroup != unixProcess.PID() || foregroundGroup == syscall.Getpgrp() {
-			t.Fatalf("foreground pgid=%d child pid=%d daemon pgid=%d", foregroundGroup, unixProcess.PID(), syscall.Getpgrp())
+			t.Fatalf(
+				"foreground pgid=%d child pid=%d daemon pgid=%d",
+				foregroundGroup,
+				unixProcess.PID(),
+				syscall.Getpgrp(),
+			)
 		}
 	})
 
@@ -231,7 +240,14 @@ func TestUnixPTYHardening(t *testing.T) {
 
 	t.Run("Should kill an ignored-HUP process group after the grace period [UT-006][UT-007]", func(t *testing.T) {
 		proc := startTestProc(t, ProcSpec{
-			Argv: []string{"sh", "-c", `trap "" HUP TERM; echo ready; sleep 300 & wait`}, Mode: ModePTY, Cols: 80, Rows: 24,
+			Argv: []string{
+				"sh",
+				"-c",
+				`trap "" HUP TERM; echo ready; sleep 300 & wait`,
+			},
+			Mode: ModePTY,
+			Cols: 80,
+			Rows: 24,
 		})
 		unixProcess := proc.(*unixProc)
 		if err := unixProcess.reader.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
@@ -273,8 +289,13 @@ func TestPipeRunnerContract(t *testing.T) {
 	t.Run("Should merge output scrub host terminal identity and pin TERM [UT-008]", func(t *testing.T) {
 		t.Parallel()
 		proc := startTestProc(t, ProcSpec{
-			Argv: []string{"sh", "-c", `printf 'a\n'; printf 'b\n' >&2; printf '%s|%s|%s\n' "$TERM" "$COLORTERM" "${KITTY_WINDOW_ID-unset}"`},
-			Env:  map[string]string{"KITTY_WINDOW_ID": "secret", "TERM_PROGRAM": "host"}, Mode: ModePipe,
+			Argv: []string{
+				"sh",
+				"-c",
+				`printf 'a\n'; printf 'b\n' >&2; printf '%s|%s|%s\n' "$TERM" "$COLORTERM" "${KITTY_WINDOW_ID-unset}"`,
+			},
+			Env:  map[string]string{"KITTY_WINDOW_ID": "secret", "TERM_PROGRAM": "host"},
+			Mode: ModePipe,
 		})
 		output, readErr := io.ReadAll(proc.Reader())
 		if readErr != nil {
@@ -309,14 +330,19 @@ func TestPipeRunnerContract(t *testing.T) {
 			t.Fatalf("Kill(KILL) error = %v", err)
 		}
 		exit, err = signaled.Wait(context.Background())
-		if err != nil || exit.Cause != "signaled" || exit.Signal == nil || *exit.Signal != string(SignalKILL) || exit.Code != nil {
+		if err != nil || exit.Cause != "signaled" || exit.Signal == nil || *exit.Signal != string(SignalKILL) ||
+			exit.Code != nil {
 			t.Fatalf("signaled exit = %#v error=%v", exit, err)
 		}
 		if closeErr := signaled.Close(); closeErr != nil {
 			t.Fatalf("Close(signaled) error = %v", closeErr)
 		}
 
-		if unknown := classifyExit(errors.New("lost wait status"), nil); unknown.Cause != "unknown" || unknown.Code != nil {
+		if unknown := classifyExit(
+			errors.New("lost wait status"),
+			nil,
+		); unknown.Cause != "unknown" ||
+			unknown.Code != nil {
 			t.Fatalf("unknown exit = %#v", unknown)
 		}
 	})
@@ -482,11 +508,25 @@ func assertUserRCFirst(t *testing.T, shell string, setup shellSetup, shim string
 	t.Helper()
 	switch shell {
 	case "bash":
-		if source, marker := strings.Index(shim, "; then . "), strings.Index(shim, "__compozy_nonce"); source < 0 || source > marker {
+		if source, marker := strings.Index(
+			shim,
+			"; then . ",
+		), strings.Index(
+			shim,
+			"__compozy_nonce",
+		); source < 0 ||
+			source > marker {
 			t.Fatalf("%s user rc is not sourced before integration: %q", shell, shim)
 		}
 	case "zsh":
-		if source, marker := strings.Index(shim, "source "), strings.Index(shim, "__compozy_nonce"); source < 0 || source > marker {
+		if source, marker := strings.Index(
+			shim,
+			"source ",
+		), strings.Index(
+			shim,
+			"__compozy_nonce",
+		); source < 0 ||
+			source > marker {
 			t.Fatalf("%s user rc is not sourced before integration: %q", shell, shim)
 		}
 	case "fish":
@@ -496,7 +536,14 @@ func assertUserRCFirst(t *testing.T, shell string, setup shellSetup, shim string
 			t.Fatalf("ReadFile(%s) error = %v", configPath, err)
 		}
 		userConfig := filepath.Join(env["XDG_CONFIG_HOME"], "fish", "config.fish")
-		if user, vendor := strings.Index(string(config), userConfig), strings.Index(string(config), "compozy-terminal.fish"); user < 0 || user > vendor {
+		if user, vendor := bytes.Index(
+			config,
+			[]byte(userConfig),
+		), bytes.Index(
+			config,
+			[]byte("compozy-terminal.fish"),
+		); user < 0 ||
+			user > vendor {
 			t.Fatalf("fish user config is not sourced before integration: %q", config)
 		}
 	}
@@ -545,7 +592,7 @@ func readUntilContaining(reader *bufio.Reader, want string) (string, error) {
 	}
 }
 
-func TestPTYWinsizeHelperProcess(t *testing.T) {
+func TestPTYWinsizeHelperProcess(_ *testing.T) {
 	if os.Getenv("GO_WANT_PTY_WINSIZE_HELPER") != "1" {
 		return
 	}

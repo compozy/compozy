@@ -49,25 +49,28 @@ func TestRingReplayContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should prepend reset and mode state after truncation without mouse tracking [UT-013][UT-014]", func(t *testing.T) {
-		t.Parallel()
-		ring := NewRing(8)
-		preamble := []byte("\x1b[?1h\x1b[?2004h\x1b[?1049h")
-		ring.SetModePreamble(preamble)
-		ring.Append([]byte("discarded\nframe"))
-		replay := ring.ReplayFrom(0)
-		if !replay.Truncated || !bytes.HasPrefix(replay.Payload, []byte(resetSequence)) {
-			t.Fatalf("ReplayFrom(0) = %#v, want reset + mode preamble resync", replay)
-		}
-		for _, sequence := range [][]byte{[]byte("\x1b[?1h"), []byte("\x1b[?1049h"), []byte("\x1b[?2004h")} {
-			if !bytes.Contains(replay.Payload, sequence) {
-				t.Fatalf("replay = %q, want canonical mode %q", replay.Payload, sequence)
+	t.Run(
+		"Should prepend reset and mode state after truncation without mouse tracking [UT-013][UT-014]",
+		func(t *testing.T) {
+			t.Parallel()
+			ring := NewRing(8)
+			preamble := []byte("\x1b[?1h\x1b[?2004h\x1b[?1049h")
+			ring.SetModePreamble(preamble)
+			ring.Append([]byte("discarded\nframe"))
+			replay := ring.ReplayFrom(0)
+			if !replay.Truncated || !bytes.HasPrefix(replay.Payload, []byte(resetSequence)) {
+				t.Fatalf("ReplayFrom(0) = %#v, want reset + mode preamble resync", replay)
 			}
-		}
-		if bytes.Contains(replay.Payload, []byte("?1000")) || bytes.Contains(replay.Payload, []byte("?1006")) {
-			t.Fatalf("replay contains mouse tracking: %q", replay.Payload)
-		}
-	})
+			for _, sequence := range [][]byte{[]byte("\x1b[?1h"), []byte("\x1b[?1049h"), []byte("\x1b[?2004h")} {
+				if !bytes.Contains(replay.Payload, sequence) {
+					t.Fatalf("replay = %q, want canonical mode %q", replay.Payload, sequence)
+				}
+			}
+			if bytes.Contains(replay.Payload, []byte("?1000")) || bytes.Contains(replay.Payload, []byte("?1006")) {
+				t.Fatalf("replay contains mouse tracking: %q", replay.Payload)
+			}
+		},
+	)
 
 	t.Run("Should derive the safe mode preamble from split production output", func(t *testing.T) {
 		t.Parallel()

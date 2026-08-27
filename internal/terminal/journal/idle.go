@@ -178,10 +178,10 @@ func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
 		StartedAt: candidate.startedAt, DurationMs: &duration, ExitCause: "unknown",
 		DetectedBy: "idle", Approval: approvalForActor(candidate.actor),
 	}
-	l.emitEvent(terminalpkg.TerminalEvent{
+	l.emitEvent(terminalpkg.Event{
 		Kind: terminalpkg.EventKindCommandStarted, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,
 		TerminalID: l.info.ID, Actor: candidate.actor, At: candidate.startedAt,
-		Detail: terminalpkg.EventDetail{
+		Detail: &terminalpkg.EventDetail{
 			CommandID: id, Command: candidate.command, Cwd: l.info.Cwd, DetectedBy: "idle",
 		},
 	})

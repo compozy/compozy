@@ -128,12 +128,15 @@ func (d *Daemon) gracefulShutdownTimeout() time.Duration {
 }
 
 func (d *Daemon) gracefulShutdownTimeoutLocked() time.Duration {
-	return GracefulShutdownTimeout(d.config)
+	return GracefulShutdownTimeout(&d.config)
 }
 
 // GracefulShutdownTimeout returns the daemon's complete shutdown budget for a config.
-func GracefulShutdownTimeout(config compozyconfig.Config) time.Duration {
+func GracefulShutdownTimeout(config *compozyconfig.Config) time.Duration {
 	timeout := defaultShutdownTimeout
+	if config == nil {
+		return timeout
+	}
 	memoryEnabled := config.Memory.Enabled
 	checkpointDeadline := config.Memory.Extractor.Deadline
 	if memoryEnabled && checkpointDeadline > 0 {

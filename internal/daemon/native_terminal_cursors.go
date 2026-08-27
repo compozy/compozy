@@ -33,7 +33,7 @@ func (c *terminalReadCursors) Load(key string) uint64 {
 		return 0
 	}
 	c.ordered.MoveToBack(element)
-	return element.Value.(terminalReadCursor).seq
+	return terminalReadCursorValue(element.Value).seq
 }
 
 func (c *terminalReadCursors) Store(key string, seq uint64) {
@@ -52,8 +52,16 @@ func (c *terminalReadCursors) Store(key string, seq uint64) {
 		return
 	}
 	oldest := c.ordered.Front()
-	delete(c.values, oldest.Value.(terminalReadCursor).key)
+	delete(c.values, terminalReadCursorValue(oldest.Value).key)
 	c.ordered.Remove(oldest)
+}
+
+func terminalReadCursorValue(value any) terminalReadCursor {
+	cursor, ok := value.(terminalReadCursor)
+	if !ok {
+		panic("terminal read cursor: order contains an invalid value")
+	}
+	return cursor
 }
 
 func (c *terminalReadCursors) Delete(key string) {

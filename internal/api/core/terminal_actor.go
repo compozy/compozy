@@ -18,7 +18,11 @@ func (h *BaseHandlers) terminalActor(
 ) (terminalpkg.Actor, bool) {
 	credentials := agentCallerCredentialsFromRequest(c)
 	if !hasAgentCallerIdentityCredentials(credentials) {
-		return terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: terminalpkg.OperatorActorID, ProfileID: profileID}, true
+		return terminalpkg.Actor{
+			Kind:      terminalpkg.ActorKindHuman,
+			ID:        terminalpkg.OperatorActorID,
+			ProfileID: profileID,
+		}, true
 	}
 	caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, action, workspaceID)
 	if err != nil {
@@ -54,7 +58,10 @@ func (h *BaseHandlers) bindTerminalHumanClient(
 		return actor, nil
 	}
 	if clientID == "" || token == "" || h.WindowManager == nil {
-		return terminalpkg.Actor{}, fmt.Errorf("terminal browser identity is incomplete: %w", windowmanager.ErrClientUnauthorized)
+		return terminalpkg.Actor{}, fmt.Errorf(
+			"terminal browser identity is incomplete: %w",
+			windowmanager.ErrClientUnauthorized,
+		)
 	}
 	service, err := h.WindowManager.WindowManagerFor(profileID)
 	if err != nil {

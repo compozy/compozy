@@ -155,13 +155,13 @@ func withProcessRegister(register processRegister) Option {
 	}
 }
 
-// WithEventBus sets the terminal lifecycle event bus.
-func WithEventBus(bus *EventBus) Option {
+// WithNotifier sets the terminal lifecycle notifier.
+func WithNotifier(notifier *Notifier) Option {
 	return func(service *Service) error {
-		if bus == nil {
-			return errors.New("terminal: event bus is required")
+		if notifier == nil {
+			return errors.New("terminal: notifier is required")
 		}
-		service.events = bus
+		service.events = notifier
 		return nil
 	}
 }
@@ -236,7 +236,7 @@ func defaultServiceOptions(service *Service) {
 	service.settings = func(context.Context, string, string) (Settings, error) {
 		return DefaultSettings(), nil
 	}
-	service.events = NewEventBus(nil)
+	service.events = NewNotifier(nil)
 	service.markers = noopMarkerConsumer{}
 	service.logger = slog.Default()
 	service.now = func() time.Time { return time.Now().UTC() }

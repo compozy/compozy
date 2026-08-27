@@ -16,7 +16,14 @@ import (
 func TestLeaseMachineContract(t *testing.T) {
 	t.Parallel()
 
-	agent := Actor{Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a", SessionID: "session", RunID: "run", Generation: 3}
+	agent := Actor{
+		Kind:       ActorKindAgent,
+		ID:         "agent",
+		ProfileID:  "profile-a",
+		SessionID:  "session",
+		RunID:      "run",
+		Generation: 3,
+	}
 	humanA := Actor{Kind: ActorKindHuman, ID: "human-a", ProfileID: "profile-a"}
 	humanB := Actor{Kind: ActorKindHuman, ID: "human-b", ProfileID: "profile-a"}
 
@@ -30,7 +37,6 @@ func TestLeaseMachineContract(t *testing.T) {
 			actor Actor
 			text  string
 		}{{humanA, "accepted"}, {humanB, "rejected"}} {
-			attempt := attempt
 			go func() {
 				<-start
 				errorsSeen <- lease.deliver(attempt.actor, []byte(attempt.text))
@@ -46,7 +52,9 @@ func TestLeaseMachineContract(t *testing.T) {
 			failed = second
 		}
 		var terminalErr *Error
-		if !errors.As(failed, &terminalErr) || terminalErr.Code != "write_owner_held" || terminalErr.Controller == nil || terminalErr.Controller.ID != humanA.ID {
+		if !errors.As(failed, &terminalErr) || terminalErr.Code != "write_owner_held" ||
+			terminalErr.Controller == nil ||
+			terminalErr.Controller.ID != humanA.ID {
 			t.Fatalf("rejected write error = %#v, want named controller", failed)
 		}
 		if got := output.String(); got != "accepted" {
@@ -57,9 +65,14 @@ func TestLeaseMachineContract(t *testing.T) {
 	t.Run("Should let a human take control from an agent immediately [UT-018]", func(t *testing.T) {
 		t.Parallel()
 		transitions := make(chan string, 1)
-		lease := newLeaseMachine(agent, io.Discard, time.Second, func(from, to LeaseState, reason string, _ Actor, _ *Actor) {
-			transitions <- string(from) + ">" + string(to) + ":" + reason
-		})
+		lease := newLeaseMachine(
+			agent,
+			io.Discard,
+			time.Second,
+			func(from, to LeaseState, reason string, _ Actor, _ *Actor) {
+				transitions <- string(from) + ">" + string(to) + ":" + reason
+			},
+		)
 		if err := lease.takeover(humanA, false); err != nil {
 			t.Fatalf("takeover() error = %v", err)
 		}
@@ -76,11 +89,16 @@ func TestLeaseMachineContract(t *testing.T) {
 		t.Parallel()
 		operator := Actor{Kind: ActorKindHuman, ID: OperatorActorID, ProfileID: "profile-a"}
 		transitions := make(chan string, 1)
-		lease := newLeaseMachine(operator, io.Discard, time.Second, func(_ LeaseState, _ LeaseState, _ string, _ Actor, controller *Actor) {
-			if controller != nil {
-				transitions <- controller.ID
-			}
-		})
+		lease := newLeaseMachine(
+			operator,
+			io.Discard,
+			time.Second,
+			func(_ LeaseState, _ LeaseState, _ string, _ Actor, controller *Actor) {
+				if controller != nil {
+					transitions <- controller.ID
+				}
+			},
+		)
 
 		if err := lease.takeover(humanA, false); err != nil {
 			t.Fatalf("takeover() error = %v", err)
@@ -158,7 +176,6 @@ func TestLeaseMachineContract(t *testing.T) {
 		start := make(chan struct{})
 		results := make(chan error, 2)
 		for _, actor := range []Actor{humanA, humanB} {
-			actor := actor
 			go func() {
 				<-start
 				results <- lease.takeover(actor, false)
@@ -209,8 +226,8 @@ func TestLeaseMachineContract(t *testing.T) {
 			transitions++
 			mu.Unlock()
 		})
-		lease.runEnded(agent, "run_ended")
-		lease.runEnded(agent, "run_ended")
+		lease.runEnded(agent)
+		lease.runEnded(agent)
 		if err := lease.yield(Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: agent.ProfileID}); err != nil {
 			t.Fatalf("human yield error = %v", err)
 		}
@@ -226,9 +243,14 @@ func TestLeaseMachineContract(t *testing.T) {
 	t.Run("Should return an active displaced agent only on explicit human release [UT-023]", func(t *testing.T) {
 		t.Parallel()
 		transitions := make(chan LeaseState, 2)
-		lease := newLeaseMachine(agent, io.Discard, time.Second, func(_ LeaseState, to LeaseState, _ string, _ Actor, _ *Actor) {
-			transitions <- to
-		})
+		lease := newLeaseMachine(
+			agent,
+			io.Discard,
+			time.Second,
+			func(_ LeaseState, to LeaseState, _ string, _ Actor, _ *Actor) {
+				transitions <- to
+			},
+		)
 		human := Actor{Kind: ActorKindHuman, ID: "client:web", ProfileID: agent.ProfileID}
 		if err := lease.takeover(human, false); err != nil {
 			t.Fatalf("takeover error = %v", err)
@@ -253,7 +275,7 @@ func TestLeaseMachineContract(t *testing.T) {
 		if err := lease.takeover(human, false); err != nil {
 			t.Fatalf("takeover error = %v", err)
 		}
-		lease.runEnded(agent, "run_ended")
+		lease.runEnded(agent)
 		if err := lease.yield(human); err != nil {
 			t.Fatalf("release error = %v", err)
 		}
@@ -266,9 +288,14 @@ func TestLeaseMachineContract(t *testing.T) {
 	t.Run("Should start grace only after the final controller attachment closes [UT-024]", func(t *testing.T) {
 		t.Parallel()
 		transition := make(chan LeaseState, 2)
-		lease := newLeaseMachine(humanA, io.Discard, 35*time.Millisecond, func(_ LeaseState, to LeaseState, _ string, _ Actor, _ *Actor) {
-			transition <- to
-		})
+		lease := newLeaseMachine(
+			humanA,
+			io.Discard,
+			35*time.Millisecond,
+			func(_ LeaseState, to LeaseState, _ string, _ Actor, _ *Actor) {
+				transition <- to
+			},
+		)
 		first := lease.attachWriter(humanA)
 		second := lease.attachWriter(humanA)
 		lease.detachWriter(first)
@@ -349,10 +376,7 @@ func newBlockingPartialWriter() *blockingPartialWriter {
 
 func (w *blockingPartialWriter) Write(input []byte) (int, error) {
 	w.mu.Lock()
-	count := len(input)
-	if count > 2 {
-		count = 2
-	}
+	count := min(len(input), 2)
 	_, err := w.b.Write(input[:count])
 	w.mu.Unlock()
 	w.once.Do(func() {

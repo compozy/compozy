@@ -1600,7 +1600,7 @@ func TestHandleSessionUpdateAgentReportedTerminal(t *testing.T) {
 			if got, want := events[index].Type, EventTypeAgentReportedTerminal; got != want {
 				t.Fatalf("reported event %d type = %q, want %q", index, got, want)
 			}
-			if got, want := events[index].Origin, AgentEventOriginAgentReported; got != want {
+			if got, want := events[index].Origin(), AgentEventOriginAgentReported; got != want {
 				t.Fatalf("reported event %d origin = %q, want %q", index, got, want)
 			}
 			if events[index].ReportedTerminal == nil {
@@ -1624,7 +1624,10 @@ func TestHandleSessionUpdateAgentReportedTerminal(t *testing.T) {
 			t.Fatalf("reported terminal exit = code:%#v signal:%#v, want nil/TERM", terminal.ExitCode, terminal.Signal)
 		}
 		if terminalHost.calls != 0 {
-			t.Fatalf("supervised terminal host calls = %d, want none for registry and catalog isolation", terminalHost.calls)
+			t.Fatalf(
+				"supervised terminal host calls = %d, want none for registry and catalog isolation",
+				terminalHost.calls,
+			)
 		}
 	})
 

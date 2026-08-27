@@ -110,10 +110,20 @@ func (h *BaseHandlers) WaitTerminal(c *gin.Context) {
 		return
 	}
 	if request.TimeoutMs > 60_000 {
-		h.respondTerminalError(c, &terminalpkg.Error{Code: "timeout_out_of_range", Message: "terminal wait timeout_ms must not exceed 60000", Err: terminalpkg.ErrUnsupported})
+		h.respondTerminalError(
+			c,
+			&terminalpkg.Error{
+				Code:    "timeout_out_of_range",
+				Message: "terminal wait timeout_ms must not exceed 60000",
+				Err:     terminalpkg.ErrUnsupported,
+			},
+		)
 		return
 	}
-	result, err := handle.Wait(c.Request.Context(), terminalpkg.WaitCondition{Until: request.Until, Pattern: request.Pattern, TimeoutMs: request.TimeoutMs})
+	result, err := handle.Wait(
+		c.Request.Context(),
+		terminalpkg.WaitCondition{Until: request.Until, Pattern: request.Pattern, TimeoutMs: request.TimeoutMs},
+	)
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return
@@ -152,7 +162,12 @@ func (h *BaseHandlers) ListTerminalInputRequests(c *gin.Context) {
 		h.respondTerminalUnavailable(c)
 		return
 	}
-	requests, err := lister.InputRequests(c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), scope, terminalpkg.ID(strings.TrimSpace(c.Query("terminal_id"))))
+	requests, err := lister.InputRequests(
+		c.Request.Context(),
+		strings.TrimSpace(c.Param("workspace_id")),
+		scope,
+		terminalpkg.ID(strings.TrimSpace(c.Query("terminal_id"))),
+	)
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return
@@ -180,7 +195,12 @@ func (h *BaseHandlers) AnswerTerminalInputRequest(c *gin.Context) {
 		}
 		redacted = pending.Redacted
 	}
-	outcome, err := handle.AnswerInput(c.Request.Context(), actor, requestID, terminalpkg.InputAnswer{Input: []byte(request.Input)})
+	outcome, err := handle.AnswerInput(
+		c.Request.Context(),
+		actor,
+		requestID,
+		terminalpkg.InputAnswer{Input: []byte(request.Input)},
+	)
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return
@@ -198,7 +218,12 @@ func (h *BaseHandlers) RejectTerminalInputRequest(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	if err := handle.RejectInput(c.Request.Context(), actor, terminalpkg.InputRequestID(strings.TrimSpace(c.Param("request_id"))), request.Reason); err != nil {
+	if err := handle.RejectInput(
+		c.Request.Context(),
+		actor,
+		terminalpkg.InputRequestID(strings.TrimSpace(c.Param("request_id"))),
+		request.Reason,
+	); err != nil {
 		h.respondTerminalError(c, err)
 		return
 	}
@@ -221,7 +246,7 @@ func (h *BaseHandlers) ControlTerminalRecording(c *gin.Context) {
 		err       error
 	)
 	switch request.Action {
-	case "start":
+	case taskActionStart:
 		recording, err = handle.StartRecording(c.Request.Context(), actor)
 		state = "recording"
 	case "stop":
@@ -253,10 +278,11 @@ func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	page, err := service.Journal().Query(c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), scope, terminalpkg.Query{
-		Actor: c.Query("actor"), Since: c.Query("since"), Terminal: c.Query("terminal_id"),
-		Failed: failed, Limit: limit, Cursor: c.Query("cursor"),
-	})
+	page, err := service.Journal().
+		Query(c.Request.Context(), strings.TrimSpace(c.Param("workspace_id")), scope, terminalpkg.Query{
+			Actor: c.Query("actor"), Since: c.Query("since"), Terminal: c.Query("terminal_id"),
+			Failed: failed, Limit: limit, Cursor: c.Query("cursor"),
+		})
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return
@@ -277,7 +303,11 @@ func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"entries": entries, "next": next})
 }
 
-func (h *BaseHandlers) terminalHandle(c *gin.Context, mutation bool, action string) (terminalpkg.Handle, terminalpkg.Actor, bool) {
+func (h *BaseHandlers) terminalHandle(
+	c *gin.Context,
+	mutation bool,
+	action string,
+) (terminalpkg.Handle, terminalpkg.Actor, bool) {
 	service, profileID, ok := h.terminalService(c, mutation)
 	if !ok {
 		return nil, terminalpkg.Actor{}, false
@@ -287,7 +317,12 @@ func (h *BaseHandlers) terminalHandle(c *gin.Context, mutation bool, action stri
 	if !ok {
 		return nil, terminalpkg.Actor{}, false
 	}
-	handle, err := service.Handle(c.Request.Context(), workspaceID, profileID, terminalpkg.ID(strings.TrimSpace(c.Param("id"))))
+	handle, err := service.Handle(
+		c.Request.Context(),
+		workspaceID,
+		profileID,
+		terminalpkg.ID(strings.TrimSpace(c.Param("id"))),
+	)
 	if err != nil {
 		h.respondTerminalError(c, err)
 		return nil, terminalpkg.Actor{}, false

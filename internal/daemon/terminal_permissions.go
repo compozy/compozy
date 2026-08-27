@@ -60,7 +60,7 @@ func (b *terminalPermissionBridge) ApproveTerminalExec(
 	}
 	label := strings.TrimSpace(call.ApprovalLabel)
 	if label == "" {
-		label = "approved_once"
+		label = toolApprovalApprovedOnceLabel
 	}
 	return label, nil
 }
@@ -80,11 +80,11 @@ func (b *terminalPermissionBridge) AuthorizeTerminalExec(
 	classification terminalpkg.CommandClassification,
 ) (string, error) {
 	input, err := json.Marshal(map[string]any{
-		"command": request.Command,
-		"args":    request.Args,
-		"cwd":     request.Cwd,
-		"visible": request.Visible,
-		"risk":    terminalPermissionRisk(classification),
+		"command":          request.Command,
+		nativeToolsArgsKey: request.Args,
+		"cwd":              request.Cwd,
+		"visible":          request.Visible,
+		"risk":             terminalPermissionRisk(classification),
 	})
 	if err != nil {
 		return "", err

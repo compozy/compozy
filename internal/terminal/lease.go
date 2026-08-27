@@ -49,11 +49,12 @@ func newLeaseMachine(initial Actor, writer io.Writer, grace time.Duration, onTra
 		attachments:  make(map[uint64]Actor),
 		onTransition: onTransition,
 	}
-	if initial.Kind == ActorKindHuman {
+	switch initial.Kind {
+	case ActorKindHuman:
 		machine.fallback = initial
 		machine.state = LeaseHumanOwned
 		machine.controller = cloneActor(&initial)
-	} else if initial.Kind == ActorKindAgent {
+	case ActorKindAgent:
 		machine.fallback = Actor{Kind: ActorKindHuman, ID: OperatorActorID, ProfileID: initial.ProfileID}
 		machine.state = LeaseAgentOwned
 		machine.controller = cloneActor(&initial)
@@ -72,7 +73,7 @@ func (m *leaseMachine) withAgentController(register func(Actor) error) error {
 	defer m.mu.Unlock()
 	if m.controller == nil || m.controller.Kind != ActorKindAgent {
 		return &Error{
-			Code: "write_owner_held", Message: "only the controlling agent can request terminal input",
+			Code: errorCodeWriteOwnerHeld, Message: "only the controlling agent can request terminal input",
 			Controller: cloneActor(m.controller), Err: ErrWriteOwnerHeld,
 		}
 	}
@@ -111,7 +112,11 @@ func (m *leaseMachine) answerHandoff(actor Actor, input []byte, write func([]byt
 	m.mu.Lock()
 	if m.controller == nil {
 		m.mu.Unlock()
-		return &Error{Code: "input_answer_requires_write", Message: "answering an input request requires the write lease", Err: ErrInputRequiresWrite}
+		return &Error{
+			Code:    errorCodeInputAnswerRequiresWrite,
+			Message: "answering an input request requires the write lease",
+			Err:     ErrInputRequiresWrite,
+		}
 	}
 	if sameActor(actor, *m.controller) {
 		err := writeAllInput(input, write)
@@ -121,7 +126,12 @@ func (m *leaseMachine) answerHandoff(actor Actor, input []byte, write func([]byt
 	if actor.Kind != ActorKindHuman || m.controller.Kind != ActorKindAgent {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
-		return &Error{Code: "input_answer_requires_write", Message: "answering an input request requires the write lease", Controller: controller, Err: ErrInputRequiresWrite}
+		return &Error{
+			Code:       "input_answer_requires_write",
+			Message:    "answering an input request requires the write lease",
+			Controller: controller,
+			Err:        ErrInputRequiresWrite,
+		}
 	}
 	previous := *m.controller
 	from := m.state
@@ -147,22 +157,39 @@ func (m *leaseMachine) authorize(actor Actor) error {
 func (m *leaseMachine) authorizeLocked(actor Actor) error {
 	if actor.Kind == ActorKindAgent && m.recoverable != nil && sameRun(actor, *m.recoverable) &&
 		actor.Generation != m.recoverable.Generation {
-		return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+		return &Error{
+			Code:    errorCodeGenerationFenced,
+			Message: errorMessageGenerationFenced,
+			Err:     ErrGenerationFenced,
+		}
 	}
 	if m.controller == nil {
-		return &Error{Code: "write_owner_held", Message: "terminal has no active controller", Err: ErrWriteOwnerHeld}
+		return &Error{
+			Code:    errorCodeWriteOwnerHeld,
+			Message: "terminal has no active controller",
+			Err:     ErrWriteOwnerHeld,
+		}
 	}
 	if actor.Kind == ActorKindAgent && sameRun(actor, *m.controller) && actor.Generation != m.controller.Generation {
-		return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+		return &Error{
+			Code:    errorCodeGenerationFenced,
+			Message: errorMessageGenerationFenced,
+			Err:     ErrGenerationFenced,
+		}
 	}
 	if !sameActor(actor, *m.controller) {
 		sentinel := ErrWriteOwnerHeld
-		code := "write_owner_held"
+		code := errorCodeWriteOwnerHeld
 		if actor.Kind == ActorKindAgent {
 			sentinel = ErrLeaseRevoked
 			code = "lease_revoked"
 		}
-		return &Error{Code: code, Message: "terminal input rejected because another actor controls it", Controller: cloneActor(m.controller), Err: sentinel}
+		return &Error{
+			Code:       code,
+			Message:    "terminal input rejected because another actor controls it",
+			Controller: cloneActor(m.controller),
+			Err:        sentinel,
+		}
 	}
 	return nil
 }
@@ -172,7 +199,11 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 	if m.controller != nil && actor.Kind == ActorKindAgent && sameRun(actor, *m.controller) &&
 		actor.Generation != m.controller.Generation {
 		m.mu.Unlock()
-		return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+		return &Error{
+			Code:    errorCodeGenerationFenced,
+			Message: errorMessageGenerationFenced,
+			Err:     ErrGenerationFenced,
+		}
 	}
 	if m.controller != nil && sameActor(actor, *m.controller) {
 		m.cancelGraceLocked()
@@ -182,14 +213,24 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 	if actor.Kind != ActorKindHuman {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
-		return &Error{Code: "write_owner_held", Message: "agents cannot displace the current controller", Controller: controller, Err: ErrWriteOwnerHeld}
+		return &Error{
+			Code:       errorCodeWriteOwnerHeld,
+			Message:    "agents cannot displace the current controller",
+			Controller: controller,
+			Err:        ErrWriteOwnerHeld,
+		}
 	}
 	refinesOperator := m.controller != nil && m.controller.Kind == ActorKindHuman &&
 		m.controller.ID == OperatorActorID && m.controller.ProfileID == actor.ProfileID
 	if m.controller != nil && m.controller.Kind == ActorKindHuman && !force && !refinesOperator {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
-		return &Error{Code: "write_owner_held", Message: "another human controls the terminal", Controller: controller, Err: ErrWriteOwnerHeld}
+		return &Error{
+			Code:       errorCodeWriteOwnerHeld,
+			Message:    "another human controls the terminal",
+			Controller: controller,
+			Err:        ErrWriteOwnerHeld,
+		}
 	}
 	from := m.state
 	if m.controller != nil && m.controller.Kind == ActorKindAgent {
@@ -241,7 +282,7 @@ func (m *leaseMachine) yield(actor Actor) error {
 	return nil
 }
 
-func (m *leaseMachine) runEnded(actor Actor, reason string) {
+func (m *leaseMachine) runEnded(actor Actor) {
 	m.mu.Lock()
 	if m.displaced != nil && sameActor(actor, *m.displaced) {
 		m.displaced = nil
@@ -259,7 +300,7 @@ func (m *leaseMachine) runEnded(actor Actor, reason string) {
 	m.generation++
 	m.cancelGraceLocked()
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, reason, actor)
+	m.emit(from, LeaseHumanOwned, "run_ended", actor)
 }
 
 func (m *leaseMachine) runtimeRecovered(previous, current Actor) {
@@ -282,7 +323,12 @@ func (m *leaseMachine) claim(actor Actor) error {
 	m.mu.Lock()
 	if actor.Kind != ActorKindAgent {
 		m.mu.Unlock()
-		return &Error{Code: "write_owner_held", Message: "only an agent can claim an agent terminal lease", Controller: cloneActor(m.controller), Err: ErrWriteOwnerHeld}
+		return &Error{
+			Code:       errorCodeWriteOwnerHeld,
+			Message:    "only an agent can claim an agent terminal lease",
+			Controller: cloneActor(m.controller),
+			Err:        ErrWriteOwnerHeld,
+		}
 	}
 	if m.controller != nil && sameActor(actor, *m.controller) {
 		m.mu.Unlock()
@@ -291,7 +337,11 @@ func (m *leaseMachine) claim(actor Actor) error {
 	if m.recoverable != nil && sameRun(actor, *m.recoverable) {
 		if actor.Generation != m.recoverable.Generation {
 			m.mu.Unlock()
-			return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+			return &Error{
+				Code:    errorCodeGenerationFenced,
+				Message: errorMessageGenerationFenced,
+				Err:     ErrGenerationFenced,
+			}
 		}
 		from := m.state
 		m.controller = cloneActor(&actor)
@@ -315,7 +365,12 @@ func (m *leaseMachine) claim(actor Actor) error {
 	}
 	controller := cloneActor(m.controller)
 	m.mu.Unlock()
-	return &Error{Code: "write_owner_held", Message: "terminal is controlled by another actor", Controller: controller, Err: ErrWriteOwnerHeld}
+	return &Error{
+		Code:       errorCodeWriteOwnerHeld,
+		Message:    "terminal is controlled by another actor",
+		Controller: controller,
+		Err:        ErrWriteOwnerHeld,
+	}
 }
 
 func (m *leaseMachine) attachWriter(actor Actor) uint64 {
@@ -349,7 +404,8 @@ func (m *leaseMachine) detachWriter(id uint64) {
 
 func (m *leaseMachine) expireGrace(generation uint64, actor Actor) {
 	m.mu.Lock()
-	if generation != m.generation || m.controller == nil || !sameActor(actor, *m.controller) || m.controllerAttachmentCountLocked() > 0 {
+	if generation != m.generation || m.controller == nil || !sameActor(actor, *m.controller) ||
+		m.controllerAttachmentCountLocked() > 0 {
 		m.mu.Unlock()
 		return
 	}

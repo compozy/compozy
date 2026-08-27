@@ -99,7 +99,6 @@ func (p *AgentProcess) projectAgentReportedTerminal(
 	text, truncated := state.output()
 	event := &AgentEvent{
 		Type:      EventTypeAgentReportedTerminal,
-		Origin:    AgentEventOriginAgentReported,
 		SessionID: string(notification.SessionId),
 		TurnID:    p.activeTurnID(),
 		Timestamp: timeNowUTC(),

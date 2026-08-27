@@ -23,7 +23,6 @@ func (c *daemonClient) ResolveBridgeTarget(
 		ctx,
 		http.MethodPost,
 		path,
-		nil,
 		requestBody,
 	)
 	if err != nil {

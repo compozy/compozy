@@ -14,6 +14,8 @@ import (
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 )
 
+const terminalIDMetaKey = "terminal_id"
+
 func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (acpsdk.PromptResponse, error) {
 	sessionID := strings.TrimSpace(string(params.SessionId))
 	if sessionID == "" {
@@ -219,8 +221,8 @@ func (a *mockAgent) emitReportedTerminal(
 		acpsdk.WithStartStatus(acpsdk.ToolCallStatusInProgress),
 	)
 	start.ToolCall.Meta = map[string]any{"terminal_info": map[string]any{
-		"terminal_id": terminalID,
-		"cwd":         strings.TrimSpace(step.Cwd),
+		terminalIDMetaKey: terminalID,
+		"cwd":             strings.TrimSpace(step.Cwd),
 	}}
 	if err := a.deliverSessionUpdate(ctx, sessionID, start); err != nil {
 		return acpmock.DiagnosticsStep{}, err
@@ -230,8 +232,8 @@ func (a *mockAgent) emitReportedTerminal(
 	for _, chunk := range chunks {
 		update := acpsdk.UpdateToolCall(toolCallID)
 		update.ToolCallUpdate.Meta = map[string]any{"terminal_output": map[string]any{
-			"terminal_id": terminalID,
-			"data":        chunk,
+			terminalIDMetaKey: terminalID,
+			"data":            chunk,
 		}}
 		if err := a.deliverSessionUpdate(ctx, sessionID, update); err != nil {
 			return acpmock.DiagnosticsStep{}, err
@@ -239,7 +241,7 @@ func (a *mockAgent) emitReportedTerminal(
 	}
 
 	final := acpsdk.UpdateToolCall(toolCallID, acpsdk.WithUpdateStatus(acpsdk.ToolCallStatusCompleted))
-	terminalExit := map[string]any{"terminal_id": terminalID}
+	terminalExit := map[string]any{terminalIDMetaKey: terminalID}
 	if step.ExitCode != nil {
 		terminalExit["exit_code"] = *step.ExitCode
 	}

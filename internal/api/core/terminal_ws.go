@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -34,52 +36,30 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 		return
 	}
 	if !h.terminalHostAllowed(c.Request) || !h.terminalOriginAllowed(c.Request) {
-		h.respondTerminalStatus(c, http.StatusForbidden, "terminal_origin_forbidden", "terminal stream origin or host is not allowed")
+		h.respondTerminalStatus(
+			c,
+			http.StatusForbidden,
+			"terminal_origin_forbidden",
+			"terminal stream origin or host is not allowed",
+		)
 		return
 	}
 	if !terminalProtocolAllowed(c.Request) {
 		c.Header("Sec-WebSocket-Protocol", terminalwire.Subprotocol)
-		h.respondTerminalStatus(c, http.StatusUpgradeRequired, "terminal_protocol_required", "terminal stream requires compozy.terminal.v1")
+		h.respondTerminalStatus(
+			c,
+			http.StatusUpgradeRequired,
+			"terminal_protocol_required",
+			"terminal stream requires compozy.terminal.v1",
+		)
 		return
 	}
 	workspaceID := strings.TrimSpace(c.Param("workspace_id"))
 	terminalID := terminalpkg.ID(strings.TrimSpace(c.Param("id")))
 	mode := strings.TrimSpace(c.Query("mode"))
-	var ticket terminalTicket
-	var service terminalpkg.Manager
-	var err error
-	if h.isUDSTransport() {
-		var profileID string
-		var ok bool
-		service, profileID, ok = h.terminalService(c, mode == "write")
-		if !ok {
-			return
-		}
-		actor, actorOK := h.terminalActor(c, workspaceID, profileID, "terminal.attach")
-		if !actorOK {
-			return
-		}
-		ticket = terminalTicket{
-			Binding: terminalTicketBinding{
-				WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: mode,
-			},
-			Actor: actor,
-		}
-	} else {
-		if h.terminalTickets == nil {
-			h.respondTerminalUnavailable(c)
-			return
-		}
-		ticket, err = h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
-		if err != nil {
-			h.respondTerminalError(c, err)
-			return
-		}
-		service, err = h.Terminal.TerminalFor(ticket.Binding.ProfileID)
-		if err != nil {
-			h.respondTerminalError(c, err)
-			return
-		}
+	service, ticket, ok := h.terminalStreamService(c, workspaceID, terminalID, mode)
+	if !ok {
+		return
 	}
 	handle, err := service.Handle(c.Request.Context(), workspaceID, ticket.Binding.ProfileID, terminalID)
 	if err != nil {
@@ -112,7 +92,13 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 	if err != nil {
 		closeErr := subscription.Close()
 		if h.Logger != nil {
-			h.Logger.Warn("terminal websocket upgrade failed", "terminal_id", terminalID, "error", errors.Join(err, closeErr))
+			h.Logger.Warn(
+				"terminal websocket upgrade failed",
+				"terminal_id",
+				terminalID,
+				"error",
+				errors.Join(err, closeErr),
+			)
 		}
 		return
 	}
@@ -123,6 +109,46 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 	if err := socket.run(c.Request.Context()); err != nil && !terminalExpectedSocketError(err) && h.Logger != nil {
 		h.Logger.Debug("terminal websocket closed with error", "terminal_id", terminalID, "error", err)
 	}
+}
+
+func (h *BaseHandlers) terminalStreamService(
+	c *gin.Context,
+	workspaceID string,
+	terminalID terminalpkg.ID,
+	mode string,
+) (terminalpkg.Manager, terminalTicket, bool) {
+	if h.isUDSTransport() {
+		service, profileID, ok := h.terminalService(c, mode == terminalModeWrite)
+		if !ok {
+			return nil, terminalTicket{}, false
+		}
+		actor, ok := h.terminalActor(c, workspaceID, profileID, "terminal.attach")
+		if !ok {
+			return nil, terminalTicket{}, false
+		}
+		ticket := terminalTicket{
+			Binding: terminalTicketBinding{
+				WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: mode,
+			},
+			Actor: actor,
+		}
+		return service, ticket, true
+	}
+	if h.terminalTickets == nil {
+		h.respondTerminalUnavailable(c)
+		return nil, terminalTicket{}, false
+	}
+	ticket, err := h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, terminalTicket{}, false
+	}
+	service, err := h.Terminal.TerminalFor(ticket.Binding.ProfileID)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return nil, terminalTicket{}, false
+	}
+	return service, ticket, true
 }
 
 func terminalAttachOptions(c *gin.Context, ticket terminalTicket) (terminalpkg.AttachOptions, error) {
@@ -138,10 +164,28 @@ func terminalAttachOptions(c *gin.Context, ticket terminalTicket) (terminalpkg.A
 	if err != nil {
 		return terminalpkg.AttachOptions{}, err
 	}
+	cols16, err := terminalUint16(cols)
+	if err != nil {
+		return terminalpkg.AttachOptions{}, err
+	}
+	rows16, err := terminalUint16(rows)
+	if err != nil {
+		return terminalpkg.AttachOptions{}, err
+	}
 	return terminalpkg.AttachOptions{
 		Mode: ticket.Binding.Mode, Flow: c.Query("flow"), AfterSeq: afterSeq,
-		Cols: uint16(cols), Rows: uint16(rows), Actor: ticket.Actor,
+		Cols: cols16, Rows: rows16, Actor: ticket.Actor,
 	}, nil
+}
+
+func terminalUint16(value uint64) (uint16, error) {
+	if value > math.MaxUint16 {
+		return 0, &terminalpkg.Error{
+			Code: "terminal_stream_parameter_invalid", Message: "terminal stream parameter is invalid",
+			Err: terminalpkg.ErrUnsupported,
+		}
+	}
+	return uint16(value), nil
 }
 
 func parseTerminalUint(value string, bits int) (uint64, error) {
@@ -150,7 +194,11 @@ func parseTerminalUint(value string, bits int) (uint64, error) {
 	}
 	parsed, err := strconv.ParseUint(value, 10, bits)
 	if err != nil {
-		return 0, &terminalpkg.Error{Code: "terminal_stream_parameter_invalid", Message: "terminal stream parameter is invalid", Err: terminalpkg.ErrUnsupported}
+		return 0, &terminalpkg.Error{
+			Code:    "terminal_stream_parameter_invalid",
+			Message: "terminal stream parameter is invalid",
+			Err:     terminalpkg.ErrUnsupported,
+		}
 	}
 	return parsed, nil
 }
@@ -197,12 +245,7 @@ func isTerminalLoopback(host string) bool {
 }
 
 func terminalProtocolAllowed(request *http.Request) bool {
-	for _, protocol := range websocket.Subprotocols(request) {
-		if protocol == terminalwire.Subprotocol {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(websocket.Subprotocols(request), terminalwire.Subprotocol)
 }
 
 type terminalSocket struct {
@@ -275,8 +318,12 @@ func (s *terminalSocket) readPump(ctx context.Context) error {
 func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwire.Frame) error {
 	switch frame.Op {
 	case terminalwire.ClientOpInput:
-		if s.mode != "write" {
-			return &terminalpkg.Error{Code: "write_owner_held", Message: "read-only terminal attachment cannot write", Err: terminalpkg.ErrWriteOwnerHeld}
+		if s.mode != terminalModeWrite {
+			return &terminalpkg.Error{
+				Code:    "write_owner_held",
+				Message: "read-only terminal attachment cannot write",
+				Err:     terminalpkg.ErrWriteOwnerHeld,
+			}
 		}
 		return s.handle.Write(ctx, s.actor, frame.Payload)
 	case terminalwire.ClientOpAck:
@@ -350,7 +397,11 @@ func (s *terminalSocket) writePing() error {
 
 func (s *terminalSocket) writeClose(code int, reason string) error {
 	deadline := time.Now().Add(terminalWriteTimeout)
-	if err := s.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(code, reason), deadline); err != nil {
+	if err := s.conn.WriteControl(
+		websocket.CloseMessage,
+		websocket.FormatCloseMessage(code, reason),
+		deadline,
+	); err != nil {
 		return fmt.Errorf("write terminal close: %w", err)
 	}
 	return nil
@@ -366,7 +417,8 @@ func (s *terminalSocket) cleanup(runErr error) error {
 }
 
 func terminalExpectedSocketError(err error) bool {
-	if err == nil || errors.Is(err, errTerminalDetached) || errors.Is(err, context.Canceled) || errors.Is(err, net.ErrClosed) {
+	if err == nil || errors.Is(err, errTerminalDetached) || errors.Is(err, context.Canceled) ||
+		errors.Is(err, net.ErrClosed) {
 		return true
 	}
 	var closeErr *websocket.CloseError

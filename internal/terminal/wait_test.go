@@ -116,7 +116,8 @@ func TestWaitEngineContract(t *testing.T) {
 		const expectedIdleDebounce = 300 * time.Millisecond
 		const expectedIdleMaximum = 700 * time.Millisecond
 		const schedulerTolerance = 75 * time.Millisecond
-		if err != nil || result.Reason != "idle" || elapsed < expectedIdleDebounce-schedulerTolerance || elapsed > expectedIdleMaximum+schedulerTolerance {
+		if err != nil || result.Reason != "idle" || elapsed < expectedIdleDebounce-schedulerTolerance ||
+			elapsed > expectedIdleMaximum+schedulerTolerance {
 			t.Fatalf("Wait(idle) = %#v error=%v elapsed=%s", result, err, elapsed)
 		}
 	})

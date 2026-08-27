@@ -4,17 +4,29 @@ const terminalObservationPatchSchema = "TerminalObservationPatch"
 
 func terminalHookEventDescriptors() map[HookEvent]EventDescriptor {
 	return map[HookEvent]EventDescriptor{
-		HookTerminalOpened:            terminalDescriptor(HookTerminalOpened, "TerminalOpenedPayload"),
-		HookTerminalClosed:            terminalDescriptor(HookTerminalClosed, "TerminalClosedPayload"),
-		HookTerminalLeaseChanged:      terminalDescriptor(HookTerminalLeaseChanged, "TerminalLeaseChangedPayload"),
-		HookTerminalCommandStarted:    terminalDescriptor(HookTerminalCommandStarted, "TerminalCommandStartedPayload"),
-		HookTerminalCommandFinished:   terminalDescriptor(HookTerminalCommandFinished, "TerminalCommandFinishedPayload"),
-		HookTerminalInputRequested:    terminalDescriptor(HookTerminalInputRequested, "TerminalInputRequestedPayload"),
-		HookTerminalInputProvided:     terminalDescriptor(HookTerminalInputProvided, "TerminalInputProvidedPayload"),
-		HookTerminalRecordingStarted:  terminalDescriptor(HookTerminalRecordingStarted, "TerminalRecordingStartedPayload"),
-		HookTerminalRecordingStopped:  terminalDescriptor(HookTerminalRecordingStopped, "TerminalRecordingStoppedPayload"),
-		HookTerminalSubscriberEvicted: terminalDescriptor(HookTerminalSubscriberEvicted, "TerminalSubscriberEvictedPayload"),
-		HookTerminalLimitRejected:     terminalDescriptor(HookTerminalLimitRejected, "TerminalLimitRejectedPayload"),
+		HookTerminalOpened:         terminalDescriptor(HookTerminalOpened, "TerminalOpenedPayload"),
+		HookTerminalClosed:         terminalDescriptor(HookTerminalClosed, "TerminalClosedPayload"),
+		HookTerminalLeaseChanged:   terminalDescriptor(HookTerminalLeaseChanged, "TerminalLeaseChangedPayload"),
+		HookTerminalCommandStarted: terminalDescriptor(HookTerminalCommandStarted, "TerminalCommandStartedPayload"),
+		HookTerminalCommandFinished: terminalDescriptor(
+			HookTerminalCommandFinished,
+			"TerminalCommandFinishedPayload",
+		),
+		HookTerminalInputRequested: terminalDescriptor(HookTerminalInputRequested, "TerminalInputRequestedPayload"),
+		HookTerminalInputProvided:  terminalDescriptor(HookTerminalInputProvided, "TerminalInputProvidedPayload"),
+		HookTerminalRecordingStarted: terminalDescriptor(
+			HookTerminalRecordingStarted,
+			"TerminalRecordingStartedPayload",
+		),
+		HookTerminalRecordingStopped: terminalDescriptor(
+			HookTerminalRecordingStopped,
+			"TerminalRecordingStoppedPayload",
+		),
+		HookTerminalSubscriberEvicted: terminalDescriptor(
+			HookTerminalSubscriberEvicted,
+			"TerminalSubscriberEvictedPayload",
+		),
+		HookTerminalLimitRejected: terminalDescriptor(HookTerminalLimitRejected, "TerminalLimitRejectedPayload"),
 	}
 }
 

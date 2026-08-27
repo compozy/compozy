@@ -32,7 +32,6 @@ func (s *AvailableCommandSet) Values() []store.SessionAdvertisedCommand {
 // AgentEvent is the stream item exposed to session/.
 type AgentEvent struct {
 	Type      string
-	Origin    string
 	SessionID string
 	TurnID    string
 	store.EventCorrelation
@@ -55,4 +54,12 @@ type AgentEvent struct {
 	Runtime           *RuntimeActivity
 	ReportedTerminal  *AgentReportedTerminal
 	Raw               json.RawMessage
+}
+
+// Origin returns the source classification derived from the event type.
+func (e AgentEvent) Origin() string {
+	if e.Type == EventTypeAgentReportedTerminal {
+		return AgentEventOriginAgentReported
+	}
+	return ""
 }

@@ -62,7 +62,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalUnreachable)
@@ -87,7 +87,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalTimedOut)
@@ -113,7 +113,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			ctx,
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
@@ -135,7 +135,7 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
@@ -354,7 +354,7 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolApprovalCallPtr(toolspkg.CallRequest{
+			new(toolspkg.CallRequest{
 				ToolID:      view.Descriptor.ID,
 				ToolCallID:  "call-1",
 				SessionID:   "sess-1",
@@ -487,7 +487,7 @@ func TestToolApprovalBridgeRoutesAllowAndRejectOutcomes(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{SessionID: "sess-1"},
-			toolApprovalCallPtr(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
+			new(toolspkg.CallRequest{ToolID: view.Descriptor.ID, Input: []byte(`{}`)}),
 			&view,
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalRequired)
@@ -640,7 +640,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{ProfileID: store.DefaultProfileID},
-			toolApprovalCallPtr(toolApprovalTestCall(view.Descriptor.ID, "ws-1")),
+			new(toolApprovalTestCall(view.Descriptor.ID, "ws-1")),
 			&view,
 		); err != nil {
 			t.Fatalf("RequestToolApproval() error = %v, want prompt fallback", err)
@@ -673,7 +673,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		if err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{ProfileID: store.DefaultProfileID},
-			toolApprovalCallPtr(toolApprovalTestCall(view.Descriptor.ID, "ws-b")),
+			new(toolApprovalTestCall(view.Descriptor.ID, "ws-b")),
 			&view,
 		); err != nil {
 			t.Fatalf("RequestToolApproval() error = %v, want workspace B prompt", err)
@@ -698,7 +698,7 @@ func TestToolApprovalBridgePersistsDurableOutcomes(t *testing.T) {
 		err := bridge.RequestToolApproval(
 			t.Context(),
 			toolspkg.Scope{ProfileID: store.DefaultProfileID},
-			toolApprovalCallPtr(toolApprovalTestCall(view.Descriptor.ID, "ws-1")),
+			new(toolApprovalTestCall(view.Descriptor.ID, "ws-1")),
 			&view,
 		)
 		if !errors.Is(err, toolspkg.ErrToolBackendFailed) {
@@ -721,10 +721,6 @@ func requireToolApprovalReason(t *testing.T, err error, want toolspkg.ReasonCode
 	if !toolErrMatched || !slices.Contains(toolErr.ReasonCodes, want) {
 		t.Fatalf("approval error = %#v, want reason %q", err, want)
 	}
-}
-
-func toolApprovalCallPtr(call toolspkg.CallRequest) *toolspkg.CallRequest {
-	return &call
 }
 
 func toolApprovalTestView() toolspkg.ToolView {

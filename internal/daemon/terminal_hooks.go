@@ -15,9 +15,17 @@ func attachTerminalHookBridge(terminals *terminalpkg.Service, hooks *hookspkg.Ho
 	if logger == nil {
 		logger = slog.Default()
 	}
-	terminals.Observe(func(ctx context.Context, event terminalpkg.TerminalEvent) {
+	terminals.Observe(func(ctx context.Context, event terminalpkg.Event) {
 		if err := dispatchTerminalHookEvent(ctx, hooks, event); err != nil {
-			logger.Warn("daemon: dispatch terminal hook", "event", event.Kind, "terminal_id", event.TerminalID, "error", err)
+			logger.Warn(
+				"daemon: dispatch terminal hook",
+				"event",
+				event.Kind,
+				"terminal_id",
+				event.TerminalID,
+				"error",
+				err,
+			)
 		}
 	})
 }
@@ -25,7 +33,7 @@ func attachTerminalHookBridge(terminals *terminalpkg.Service, hooks *hookspkg.Ho
 func dispatchTerminalHookEvent(
 	ctx context.Context,
 	hooks *hookspkg.Hooks,
-	event terminalpkg.TerminalEvent,
+	event terminalpkg.Event,
 ) error {
 	base, terminalContext := terminalHookEnvelope(event)
 	switch event.Kind {
@@ -83,6 +91,19 @@ func dispatchTerminalHookEvent(
 			Length: event.Detail.Length, Outcome: event.Detail.Outcome,
 		})
 		return err
+	default:
+		return dispatchTerminalStateHook(ctx, hooks, base, terminalContext, event)
+	}
+}
+
+func dispatchTerminalStateHook(
+	ctx context.Context,
+	hooks *hookspkg.Hooks,
+	base hookspkg.PayloadBase,
+	terminalContext hookspkg.TerminalContext,
+	event terminalpkg.Event,
+) error {
+	switch event.Kind {
 	case terminalpkg.EventKindRecordingStarted:
 		base.Event = hookspkg.HookTerminalRecordingStarted
 		_, err := hooks.DispatchTerminalRecordingStarted(ctx, hookspkg.TerminalRecordingStartedPayload{
@@ -116,7 +137,7 @@ func dispatchTerminalHookEvent(
 	}
 }
 
-func terminalHookEnvelope(event terminalpkg.TerminalEvent) (hookspkg.PayloadBase, hookspkg.TerminalContext) {
+func terminalHookEnvelope(event terminalpkg.Event) (hookspkg.PayloadBase, hookspkg.TerminalContext) {
 	return hookspkg.PayloadBase{Timestamp: event.At}, hookspkg.TerminalContext{
 		WorkspaceID: event.WorkspaceID, ProfileID: event.ProfileID, TerminalID: string(event.TerminalID),
 		ActorKind: string(event.Actor.Kind), ActorID: event.Actor.ID,

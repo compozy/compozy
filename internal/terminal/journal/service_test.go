@@ -6,6 +6,7 @@ package journal
 // Boundary OUT: HTTP/UDS projections and browser replay, owned by later terminal task suites.
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -30,7 +31,7 @@ func TestService(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
+		service, workspaceID := newJournalTestService(ctx, t)
 		exitCode := 1
 		duration := int64(84)
 		terminalID := terminalpkg.ID("term-exact")
@@ -127,7 +128,7 @@ func TestService(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
+		service, workspaceID := newJournalTestService(ctx, t)
 		terminalID := terminalpkg.ID("term-remove")
 		row := terminalpkg.CommandRow{
 			ID: "cmd-remove", TerminalID: &terminalID, ProfileID: "profile-a",
@@ -171,7 +172,7 @@ func TestService(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
+		service, workspaceID := newJournalTestService(ctx, t)
 		signal := "TERM"
 		for index, row := range []terminalpkg.CommandRow{
 			{
@@ -211,8 +212,8 @@ func TestService(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
-		for index := 0; index < 55; index++ {
+		service, workspaceID := newJournalTestService(ctx, t)
+		for index := range 55 {
 			row := terminalpkg.CommandRow{
 				ID: commandIDForIndex(index), ProfileID: "profile-a",
 				Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
@@ -238,7 +239,12 @@ func TestService(t *testing.T) {
 					previous.StartedAt, previous.ID, current.StartedAt, current.ID)
 			}
 		}
-		second, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: "profile-a"}, terminalpkg.Query{Cursor: first.Next})
+		second, err := service.Query(
+			ctx,
+			workspaceID,
+			store.ReadScope{ProfileID: "profile-a"},
+			terminalpkg.Query{Cursor: first.Next},
+		)
 		if err != nil {
 			t.Fatalf("Query(second) error = %v", err)
 		}
@@ -252,7 +258,12 @@ func TestService(t *testing.T) {
 			}
 			seen[row.ID] = struct{}{}
 		}
-		if _, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: "profile-b"}, terminalpkg.Query{Cursor: first.Next}); err == nil {
+		if _, err := service.Query(
+			ctx,
+			workspaceID,
+			store.ReadScope{ProfileID: "profile-b"},
+			terminalpkg.Query{Cursor: first.Next},
+		); err == nil {
 			t.Fatal("Query(cross-profile cursor) error = nil, want invalid cursor")
 		}
 		if _, err := service.Query(
@@ -266,7 +277,7 @@ func TestService(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
+		service, workspaceID := newJournalTestService(ctx, t)
 		row := terminalpkg.CommandRow{
 			ID: "cmd-artifact", ProfileID: "profile-a",
 			Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
@@ -305,7 +316,7 @@ func TestService(t *testing.T) {
 		if err != nil || closeErr != nil {
 			t.Fatalf("Read/Close artifact errors = %v / %v", err, closeErr)
 		}
-		if string(got) != string(contents) {
+		if !bytes.Equal(got, contents) {
 			t.Fatalf("Artifact() = %q, want %q", got, contents)
 		}
 		if _, err := service.Artifact(
@@ -319,7 +330,7 @@ func TestService(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
+		service, workspaceID := newJournalTestService(ctx, t)
 		for _, commandID := range []string{"cmd-first", "cmd-second"} {
 			if err := service.Record(ctx, workspaceID, terminalpkg.CommandRow{
 				ID: commandID, ProfileID: "profile-a",
@@ -368,83 +379,90 @@ func TestService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should degrade accepted input to one idle row unless an authenticated marker claims it [UT-086][UT-088]", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should degrade accepted input to one idle row unless an authenticated marker claims it [UT-086][UT-088]",
+		func(t *testing.T) {
+			t.Parallel()
 
-		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
-		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-		info := terminalpkg.Info{
-			ID: "term-idle", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
-		}
-		events := make(chan terminalpkg.TerminalEvent, 6)
-		service.RegisterTerminal(info, func(bool) {}, func(event terminalpkg.TerminalEvent) { events <- event })
-		service.ObserveInput(info, actor, []byte("echo approximate\n"))
-		service.ObserveOutput(info)
-		idleRow := waitForJournalRows(t, ctx, service, workspaceID, 1).Entries[0]
-		if idleRow.Command != "echo approximate" || idleRow.DetectedBy != "idle" ||
-			idleRow.Actor.Kind != terminalpkg.ActorKindHuman || idleRow.ExitCause != "unknown" {
-			t.Fatalf("idle row = %#v", idleRow)
-		}
+			ctx := testutil.Context(t)
+			service, workspaceID := newJournalTestService(ctx, t)
+			actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+			info := terminalpkg.Info{
+				ID: "term-idle", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
+			}
+			events := make(chan terminalpkg.Event, 6)
+			service.RegisterTerminal(info, func(bool) {}, func(event terminalpkg.Event) { events <- event })
+			service.ObserveInput(info, actor, []byte("echo approximate\n"))
+			service.ObserveOutput(info)
+			idleRow := waitForJournalRows(ctx, t, service, workspaceID, 1).Entries[0]
+			if idleRow.Command != "echo approximate" || idleRow.DetectedBy != "idle" ||
+				idleRow.Actor.Kind != terminalpkg.ActorKindHuman || idleRow.ExitCause != "unknown" {
+				t.Fatalf("idle row = %#v", idleRow)
+			}
 
-		service.ObserveInput(info, actor, []byte("echo authenticated\n"))
-		service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
-			{Kind: "S", Command: "echo authenticated", Cwd: "/workspace"},
-			{Kind: "F", Exit: intPointerValue(0)},
-		})
-		page := waitForJournalRows(t, ctx, service, workspaceID, 2)
-		markerRows := 0
-		idleRows := 0
-		for _, row := range page.Entries {
-			switch row.DetectedBy {
-			case "marker":
-				markerRows++
-			case "idle":
-				idleRows++
+			service.ObserveInput(info, actor, []byte("echo authenticated\n"))
+			service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
+				{Kind: "S", Command: "echo authenticated", Cwd: "/workspace"},
+				{Kind: "F", Exit: new(0)},
+			})
+			page := waitForJournalRows(ctx, t, service, workspaceID, 2)
+			markerRows := 0
+			idleRows := 0
+			for _, row := range page.Entries {
+				switch row.DetectedBy {
+				case "marker":
+					markerRows++
+				case "idle":
+					idleRows++
+				}
 			}
-		}
-		if markerRows != 1 || idleRows != 1 {
-			t.Fatalf("detection rows marker/idle = %d/%d, want 1/1", markerRows, idleRows)
-		}
-		time.Sleep(idleCommandDelay + 50*time.Millisecond)
-		page = waitForJournalRows(t, ctx, service, workspaceID, 2)
-		if len(page.Entries) != 2 {
-			t.Fatalf("authenticated marker left a duplicate idle row: %#v", page.Entries)
-		}
+			if markerRows != 1 || idleRows != 1 {
+				t.Fatalf("detection rows marker/idle = %d/%d, want 1/1", markerRows, idleRows)
+			}
+			time.Sleep(idleCommandDelay + 50*time.Millisecond)
+			page = waitForJournalRows(ctx, t, service, workspaceID, 2)
+			if len(page.Entries) != 2 {
+				t.Fatalf("authenticated marker left a duplicate idle row: %#v", page.Entries)
+			}
 
-		started, finished := 0, 0
-		for len(events) > 0 {
-			event := <-events
-			if event.Kind == terminalpkg.EventKindCommandStarted {
-				started++
+			started, finished := 0, 0
+			for len(events) > 0 {
+				event := <-events
+				if event.Kind == terminalpkg.EventKindCommandStarted {
+					started++
+				}
+				if event.Kind == terminalpkg.EventKindCommandFinished {
+					finished++
+				}
 			}
-			if event.Kind == terminalpkg.EventKindCommandFinished {
-				finished++
+			if started != 2 || finished != 2 {
+				t.Fatalf("command event counts start/finish = %d/%d, want 2/2", started, finished)
 			}
-		}
-		if started != 2 || finished != 2 {
-			t.Fatalf("command event counts start/finish = %d/%d, want 2/2", started, finished)
-		}
-	})
+		},
+	)
 
 	t.Run("Should reserve at most 64 pending command rows before PTY delivery", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
-		service, workspaceID := newJournalTestService(t, ctx)
+		service, workspaceID := newJournalTestService(ctx, t)
 		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
 		info := terminalpkg.Info{
 			ID: "term-capacity", WS: workspaceID, ProfileID: "profile-a", Controller: &actor,
 		}
 		blocked := make(chan bool, 2)
-		service.RegisterTerminal(info, func(value bool) { blocked <- value }, func(terminalpkg.TerminalEvent) {})
-		for index := 0; index < pendingLaneCapacity; index++ {
+		service.RegisterTerminal(info, func(value bool) { blocked <- value }, func(terminalpkg.Event) {})
+		for index := range pendingLaneCapacity {
 			reservation, admitted := service.ReserveInput(info, []byte("echo reserved\n"))
 			if !admitted || reservation != 1 {
 				t.Fatalf("ReserveInput(%d) = %d/%t, want 1/true", index, reservation, admitted)
 			}
 		}
-		if reservation, admitted := service.ReserveInput(info, []byte("echo rejected\n")); admitted || reservation != 1 {
+		if reservation, admitted := service.ReserveInput(
+			info,
+			[]byte("echo rejected\n"),
+		); admitted ||
+			reservation != 1 {
 			t.Fatalf("ReserveInput(over capacity) = %d/%t, want 1/false", reservation, admitted)
 		}
 		select {
@@ -507,7 +525,7 @@ func TestService(t *testing.T) {
 		blocked := make(chan bool, 4)
 		service.RegisterTerminal(info, func(value bool) { blocked <- value }, nil)
 		service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
-			{Kind: "S", Command: "pwd", Cwd: "/workspace"}, {Kind: "F", Exit: intPointerValue(0)},
+			{Kind: "S", Command: "pwd", Cwd: "/workspace"}, {Kind: "F", Exit: new(0)},
 		})
 		waitForAuditState(t, blocked, true)
 		if pending := service.PendingCount(info); pending != 1 || service.WriteFailureCount() < retryBlockAttempt {
@@ -527,7 +545,7 @@ func TestService(t *testing.T) {
 	})
 }
 
-func newJournalTestService(t *testing.T, ctx context.Context) (*Service, string) {
+func newJournalTestService(ctx context.Context, t *testing.T) (*Service, string) {
 	t.Helper()
 	workspaceRoot := t.TempDir()
 	identity, err := workspacepkg.EnsureIdentity(ctx, workspaceRoot)
@@ -578,8 +596,6 @@ func commandRowByID(t *testing.T, page *terminalpkg.Page, id string) terminalpkg
 	return terminalpkg.CommandRow{}
 }
 
-func intPointerValue(value int) *int { return &value }
-
 func waitForAuditState(t *testing.T, states <-chan bool, want bool) {
 	t.Helper()
 	timer := time.NewTimer(3 * time.Second)
@@ -597,8 +613,8 @@ func waitForAuditState(t *testing.T, states <-chan bool, want bool) {
 }
 
 func waitForJournalRows(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	service *Service,
 	workspaceID string,
 	want int,

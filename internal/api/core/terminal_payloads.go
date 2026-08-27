@@ -5,8 +5,12 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
-type terminalControllerPayload = contract.TerminalControllerPayload
-type terminalRunPayload = contract.TerminalRunPayload
+const (
+	terminalPayloadKey   = "terminal"
+	terminalIDPayloadKey = "terminal_id"
+	terminalModeWrite    = "write"
+)
+
 type terminalExitPayload = contract.TerminalExitPayload
 type terminalInfoPayload = contract.TerminalInfoPayload
 

@@ -15,7 +15,12 @@ func (m *terminalManager) kill(id string) error {
 	if err != nil {
 		return err
 	}
-	if err := managed.handle.Signal(context.Background(), managed.actor, terminalpkg.SignalHUP); err != nil && !errors.Is(err, terminalpkg.ErrExited) {
+	if err := managed.handle.Signal(
+		context.Background(),
+		managed.actor,
+		terminalpkg.SignalHUP,
+	); err != nil &&
+		!errors.Is(err, terminalpkg.ErrExited) {
 		return fmt.Errorf("acp: kill terminal %q: %w", id, err)
 	}
 	return nil
@@ -63,7 +68,14 @@ func (m *terminalManager) release(id string) error {
 		return err
 	}
 	info := managed.handle.Info()
-	if err := m.core.Release(context.Background(), info.WS, info.ProfileID, info.ID, managed.actor); err != nil && !errors.Is(err, terminalpkg.ErrExited) {
+	if err := m.core.Release(
+		context.Background(),
+		info.WS,
+		info.ProfileID,
+		info.ID,
+		managed.actor,
+	); err != nil &&
+		!errors.Is(err, terminalpkg.ErrExited) {
 		return err
 	}
 	m.mu.Lock()

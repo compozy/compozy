@@ -45,14 +45,14 @@ func (w *processWaiter) wait(ctx context.Context) (Exit, error) {
 
 func classifyExit(err error, command *exec.Cmd) Exit {
 	if command == nil || command.ProcessState == nil {
-		return Exit{Cause: "unknown"}
+		return Exit{Cause: exitCauseUnknown}
 	}
 	if signal := processSignal(command.ProcessState); signal != "" {
 		return Exit{Cause: "signaled", Signal: &signal}
 	}
 	if err == nil || errors.As(err, new(*exec.ExitError)) {
 		code := command.ProcessState.ExitCode()
-		return Exit{Cause: "exited", Code: &code}
+		return Exit{Cause: exitCauseExited, Code: &code}
 	}
-	return Exit{Cause: "unknown"}
+	return Exit{Cause: exitCauseUnknown}
 }

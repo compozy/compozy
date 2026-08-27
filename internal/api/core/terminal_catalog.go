@@ -14,7 +14,7 @@ const terminalCatalogMailbox = 512
 
 type terminalCatalogEvent struct {
 	Sequence uint64
-	Event    terminalpkg.TerminalEvent
+	Event    terminalpkg.Event
 }
 
 type terminalCatalog struct {
@@ -41,7 +41,7 @@ func newTerminalCatalog(provider TerminalProvider) *terminalCatalog {
 	return catalog
 }
 
-func (c *terminalCatalog) observe(_ context.Context, event terminalpkg.TerminalEvent) {
+func (c *terminalCatalog) observe(_ context.Context, event terminalpkg.Event) {
 	if !catalogEventKind(event.Kind) {
 		return
 	}

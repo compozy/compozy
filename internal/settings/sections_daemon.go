@@ -9,6 +9,7 @@ import (
 const (
 	sectionsDaemonKey         = "daemon"
 	sectionsReloadTimeoutsKey = "reload_timeouts"
+	sectionsTerminalKey       = "terminal"
 )
 
 func diffGeneralSettings(cfg *compozyconfig.Config, desired GeneralSettings) []string {
@@ -106,16 +107,16 @@ func terminalSettingUpdates(settings compozyconfig.TerminalConfig) []struct {
 		path  []string
 		value any
 	}{
-		{path: []string{"terminal", "default_shell"}, value: settings.DefaultShell},
-		{path: []string{"terminal", "shell_integration"}, value: settings.ShellIntegration},
-		{path: []string{"terminal", "scrollback_bytes"}, value: settings.ScrollbackBytes},
-		{path: []string{"terminal", "detached_ttl"}, value: settings.DetachedTTL.String()},
-		{path: []string{"terminal", "exit_retention"}, value: settings.ExitRetention.String()},
-		{path: []string{"terminal", "recording"}, value: settings.Recording},
-		{path: []string{"terminal", "recording_retention_days"}, value: settings.RecordingRetentionDays},
-		{path: []string{"terminal", "max_per_workspace"}, value: settings.MaxPerWorkspace},
-		{path: []string{"terminal", "max_per_daemon"}, value: settings.MaxPerDaemon},
-		{path: []string{"terminal", "max_subscribers"}, value: settings.MaxSubscribers},
+		{path: []string{sectionsTerminalKey, "default_shell"}, value: settings.DefaultShell},
+		{path: []string{sectionsTerminalKey, "shell_integration"}, value: settings.ShellIntegration},
+		{path: []string{sectionsTerminalKey, "scrollback_bytes"}, value: settings.ScrollbackBytes},
+		{path: []string{sectionsTerminalKey, "detached_ttl"}, value: settings.DetachedTTL.String()},
+		{path: []string{sectionsTerminalKey, "exit_retention"}, value: settings.ExitRetention.String()},
+		{path: []string{sectionsTerminalKey, "recording"}, value: settings.Recording},
+		{path: []string{sectionsTerminalKey, "recording_retention_days"}, value: settings.RecordingRetentionDays},
+		{path: []string{sectionsTerminalKey, "max_per_workspace"}, value: settings.MaxPerWorkspace},
+		{path: []string{sectionsTerminalKey, "max_per_daemon"}, value: settings.MaxPerDaemon},
+		{path: []string{sectionsTerminalKey, "max_subscribers"}, value: settings.MaxSubscribers},
 	}
 }
 

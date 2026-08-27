@@ -163,14 +163,13 @@ func (c *daemonClient) doRequest(
 	ctx context.Context,
 	method string,
 	path string,
-	query url.Values,
 	requestBody any,
 ) (*http.Response, error) {
 	return c.doRequestWithCredentials(
 		ctx,
 		method,
 		path,
-		query,
+		nil,
 		requestBody,
 		"",
 		agentidentity.Credentials{},

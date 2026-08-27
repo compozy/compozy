@@ -31,7 +31,7 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 		}
 	}
 	request.Title = SanitizeTitle(request.Title)
-	_, cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -70,17 +70,11 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start shell %q: %w", shell, err)
 	}
-	info := Info{
+	info := ownedInfo(Info{
 		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
-		Title: request.Title, Shell: shell, Cwd: cwd, Mode: ModePTY, State: "running",
+		Title: request.Title, Shell: shell, Cwd: cwd, Mode: ModePTY, State: terminalStateRunning,
 		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
-	}
-	if request.Actor.Kind == ActorKindAgent {
-		info.Lease = LeaseAgentOwned
-		info.BoundRun = &RunRef{SessionID: request.Actor.SessionID, RunID: request.Actor.RunID, Generation: request.Actor.Generation}
-	} else {
-		info.Lease = LeaseHumanOwned
-	}
+	}, request.Actor)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(m, proc, info, settings, nonce, profileName, cols, rows, strings.TrimSpace(request.Title) != "")
 	processRecord, err := m.processRegistration(ctx, item, spec)
@@ -93,22 +87,37 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if err := m.insert(key, item); err != nil {
 		return nil, cleanupRegisteredProcess(ctx, proc, processRecord, err)
 	}
+	m.startOpenedSession(ctx, item, request.Actor, settings.Recording)
+	return item, nil
+}
+
+func (m *Service) startOpenedSession(ctx context.Context, item *session, actor Actor, record bool) {
 	m.registerJournalTerminal(item)
 	opened := item.Info()
-	m.events.Emit(ctx, TerminalEvent{
-		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
-		ProfileName: profileName,
-		TerminalID:  id, Actor: request.Actor, Info: &opened,
-		Detail: EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
+	m.events.Notify(ctx, Event{
+		Kind: EventKindOpened, WorkspaceID: opened.WS, ProfileID: opened.ProfileID,
+		ProfileName: item.profileName, TerminalID: opened.ID, Actor: actor, Info: &opened,
+		Detail: &EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
 	})
-	if settings.Recording {
-		autoActor := Actor{Kind: ActorKindSystem, ID: "terminal-auto-recording", ProfileID: info.ProfileID}
+	if record {
+		autoActor := Actor{Kind: ActorKindSystem, ID: "terminal-auto-recording", ProfileID: opened.ProfileID}
 		if _, err := item.startRecording(autoActor); err != nil {
-			m.logger.Warn("terminal: start automatic recording", "terminal_id", info.ID, "error", err)
+			m.logger.Warn("terminal: start automatic recording", "terminal_id", opened.ID, "error", err)
 		}
 	}
 	item.start()
-	return item, nil
+}
+
+func ownedInfo(info Info, actor Actor) Info {
+	if actor.Kind != ActorKindAgent {
+		info.Lease = LeaseHumanOwned
+		return info
+	}
+	info.Lease = LeaseAgentOwned
+	info.BoundRun = &RunRef{
+		SessionID: actor.SessionID, RunID: actor.RunID, Generation: actor.Generation,
+	}
+	return info
 }
 
 func (m *Service) eventProfileName(ctx context.Context, profileID string) string {
@@ -127,7 +136,11 @@ func (m *Service) reserveAdmission(request OpenRequest, settings Settings) (func
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
-		return nil, &Error{Code: "terminal_shutting_down", Message: "terminal manager is shutting down", Err: ErrShuttingDown}
+		return nil, &Error{
+			Code:    errorCodeShuttingDown,
+			Message: errorMessageShuttingDown,
+			Err:     ErrShuttingDown,
+		}
 	}
 	workspaceCount := 0
 	daemonCount := 0
@@ -180,7 +193,11 @@ func (m *Service) insert(key terminalKey, item *session) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closing {
-		return &Error{Code: "terminal_shutting_down", Message: "terminal manager is shutting down", Err: ErrShuttingDown}
+		return &Error{
+			Code:    "terminal_shutting_down",
+			Message: "terminal manager is shutting down",
+			Err:     ErrShuttingDown,
+		}
 	}
 	if _, exists := m.terminals[key]; exists {
 		return errors.New("terminal: generated duplicate id")
@@ -190,17 +207,24 @@ func (m *Service) insert(key terminalKey, item *session) error {
 }
 
 func (m *Service) emitLimitRejected(request OpenRequest, limit string, current, maximum int) {
-	m.events.Emit(context.Background(), TerminalEvent{
+	m.events.Notify(context.Background(), Event{
 		Kind: EventKindLimitRejected, WorkspaceID: request.WS, ProfileID: request.Actor.ProfileID,
-		Actor: request.Actor, Detail: EventDetail{Limit: limit, Current: current, Max: maximum}, At: m.now(),
+		Actor: request.Actor, Detail: &EventDetail{Limit: limit, Current: current, Max: maximum}, At: m.now(),
 	})
 }
 
 func limitError(current, maximum int, ids []string) error {
 	return &Error{
-		Code:    "terminal_limit_reached",
-		Message: fmt.Sprintf("terminal limit reached (%d/%d); existing terminals: %s", current, maximum, strings.Join(ids, ", ")),
-		Current: current, Max: maximum, Err: ErrLimitReached,
+		Code: "terminal_limit_reached",
+		Message: fmt.Sprintf(
+			"terminal limit reached (%d/%d); existing terminals: %s",
+			current,
+			maximum,
+			strings.Join(ids, ", "),
+		),
+		Current: current,
+		Max:     maximum,
+		Err:     ErrLimitReached,
 	}
 }
 
@@ -210,28 +234,34 @@ func (m *Service) resolveOpenWorkspace(
 	cwd string,
 	profileID string,
 	additionalRoots ...string,
-) (workspacepkg.ResolvedWorkspace, string, string, error) {
+) (string, string, error) {
 	if m.workspaces == nil {
 		if strings.TrimSpace(cwd) == "" {
 			cwd = "."
 		}
 		resolved, err := filepath.Abs(cwd)
-		return workspacepkg.ResolvedWorkspace{}, resolved, workspaceID, err
+		return resolved, workspaceID, err
 	}
 	resolved, err := m.resolveWorkspace(ctx, workspaceID, profileID)
 	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, "", "", fmt.Errorf("terminal: resolve workspace %q: %w", workspaceID, err)
+		return "", "", fmt.Errorf(
+			"terminal: resolve workspace %q: %w",
+			workspaceID,
+			err,
+		)
 	}
 	canonicalID := strings.TrimSpace(resolved.ID)
 	if canonicalID == "" {
-		return workspacepkg.ResolvedWorkspace{}, "", "", errors.New("terminal: resolved workspace registration is required")
+		return "", "", errors.New(
+			"terminal: resolved workspace registration is required",
+		)
 	}
 	resolved.AdditionalDirs = append(resolved.AdditionalDirs, additionalRoots...)
-	validCwd, err := resolveWorkspaceCwd(resolved, cwd)
+	validCwd, err := resolveWorkspaceCwd(&resolved, cwd)
 	if err != nil {
-		return workspacepkg.ResolvedWorkspace{}, "", "", err
+		return "", "", err
 	}
-	return resolved, validCwd, canonicalID, nil
+	return validCwd, canonicalID, nil
 }
 
 func (m *Service) resolveWorkspace(
@@ -253,7 +283,10 @@ func (m *Service) resolveWorkspace(
 	return profileResolver.ResolveForProfile(ctx, workspaceID, profileName)
 }
 
-func resolveWorkspaceCwd(workspace workspacepkg.ResolvedWorkspace, requested string) (string, error) {
+func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested string) (string, error) {
+	if workspace == nil {
+		return "", &Error{Code: errorCodeInvalidCwd, Message: "workspace is unavailable", Err: ErrInvalidCwd}
+	}
 	root := filepath.Clean(workspace.RootDir)
 	displayPath := requested
 	if requested == "" {
@@ -264,7 +297,11 @@ func resolveWorkspaceCwd(workspace workspacepkg.ResolvedWorkspace, requested str
 	}
 	resolved, err := filepath.EvalSymlinks(filepath.Clean(requested))
 	if err != nil {
-		return "", &Error{Code: "invalid_cwd", Message: fmt.Sprintf("invalid terminal cwd %q: %v", displayPath, err), Err: ErrInvalidCwd}
+		return "", &Error{
+			Code:    errorCodeInvalidCwd,
+			Message: fmt.Sprintf("invalid terminal cwd %q: %v", displayPath, err),
+			Err:     ErrInvalidCwd,
+		}
 	}
 	allowed := append([]string{root}, workspace.AdditionalDirs...)
 	for _, candidate := range allowed {
@@ -279,7 +316,11 @@ func resolveWorkspaceCwd(workspace workspacepkg.ResolvedWorkspace, requested str
 			}
 		}
 	}
-	return "", &Error{Code: "invalid_cwd", Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace", displayPath), Err: ErrInvalidCwd}
+	return "", &Error{
+		Code:    errorCodeInvalidCwd,
+		Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace", displayPath),
+		Err:     ErrInvalidCwd,
+	}
 }
 
 func pathWithin(root, path string) bool {
@@ -304,7 +345,11 @@ func resolveShell(requested, configured string) (string, error) {
 			return resolved, nil
 		}
 	}
-	return "", &Error{Code: "terminal_shell_unavailable", Message: "no terminal shell is available", Err: exec.ErrNotFound}
+	return "", &Error{
+		Code:    "terminal_shell_unavailable",
+		Message: "no terminal shell is available",
+		Err:     exec.ErrNotFound,
+	}
 }
 
 func normalizedDimensions(cols, rows uint16) (uint16, uint16) {

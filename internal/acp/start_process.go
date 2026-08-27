@@ -78,6 +78,31 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		policy,
 		terminalScope,
 	)
+	d.configureAgentConnection(process, handle, toolHost)
+
+	if err := d.registerLaunchedAgent(ctx, process, handle); err != nil {
+		return nil, err
+	}
+
+	go process.waitForExit(ctx, d.processRecordTimeout)
+
+	return process, nil
+}
+
+func (d *Driver) registerLaunchedAgent(ctx context.Context, process *AgentProcess, handle sandbox.Handle) error {
+	if err := d.registerAgentProcess(ctx, process); err != nil {
+		process.cancelProcess()
+		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
+		defer cancelStop()
+		if stopErr := handle.Stop(stopCtx); stopErr != nil {
+			return errors.Join(err, fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr))
+		}
+		return err
+	}
+	return nil
+}
+
+func (d *Driver) configureAgentConnection(process *AgentProcess, handle sandbox.Handle, toolHost ToolHost) {
 	if localHost, ok := toolHost.(*localToolHost); ok {
 		process.terminals = localHost.terminals
 	}
@@ -88,25 +113,9 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		process.handleInbound,
 		handle.Stdin(),
 		handle.Stdout(),
-		acpsdk.ConnectionOptions{
-			NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock,
-		},
+		acpsdk.ConnectionOptions{NotificationQueueOverflow: acpsdk.NotificationQueueOverflowBlock},
 	)
 	process.conn.SetLogger(d.logger)
-
-	if err := d.registerAgentProcess(ctx, process); err != nil {
-		cancelProcess()
-		stopCtx, cancelStop := context.WithTimeout(context.Background(), d.stopTimeout)
-		defer cancelStop()
-		if stopErr := handle.Stop(stopCtx); stopErr != nil {
-			return nil, errors.Join(err, fmt.Errorf("acp: cleanup unregistered agent process: %w", stopErr))
-		}
-		return nil, err
-	}
-
-	go process.waitForExit(ctx, d.processRecordTimeout)
-
-	return process, nil
 }
 
 func (d *Driver) newAgentProcess(

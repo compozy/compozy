@@ -18,23 +18,9 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 	if ctx == nil {
 		return nil, errors.New("terminal: wait context is required")
 	}
-	until := strings.TrimSpace(condition.Until)
-	if until == "" {
-		until = "exit"
-	}
-	var matcher *regexp.Regexp
-	if until == "match" {
-		if strings.TrimSpace(condition.Pattern) == "" {
-			return nil, &Error{Code: "terminal_wait_pattern_required", Message: "terminal wait match requires a pattern", Err: ErrUnsupported}
-		}
-		compiled, err := regexp.Compile(condition.Pattern)
-		if err != nil {
-			return nil, &Error{Code: "terminal_wait_pattern_invalid", Message: err.Error(), Err: ErrUnsupported}
-		}
-		matcher = compiled
-	}
-	if until != "exit" && until != "match" && until != "idle" {
-		return nil, &Error{Code: "terminal_wait_condition_invalid", Message: "terminal wait condition must be exit, match, or idle", Err: ErrUnsupported}
+	until, matcher, err := prepareWaitCondition(condition)
+	if err != nil {
+		return nil, err
 	}
 	waitCtx := ctx
 	var cancel context.CancelFunc
@@ -42,7 +28,7 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 		waitCtx, cancel = context.WithTimeout(ctx, time.Duration(condition.TimeoutMs)*time.Millisecond)
 		defer cancel()
 	}
-	if until == "idle" {
+	if until == terminalWaitIdle {
 		return s.waitIdle(waitCtx)
 	}
 	for {
@@ -52,7 +38,7 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 		revisionReady := s.revisionReady
 		s.mu.RUnlock()
 		if exit != nil {
-			if until == "exit" {
+			if until == terminalWaitExit {
 				select {
 				case <-waitCtx.Done():
 					return nil, waitCtx.Err()
@@ -64,24 +50,56 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 			}
 			return s.waitExitResult(exit), nil
 		}
-		if until == "match" {
+		if until == terminalWaitMatch {
 			output, _ := s.ring.Snapshot()
 			if matcher.Match(output) {
-				return &WaitResult{Reason: "match", Screen: s.currentScreen(waitCtx), Untrusted: true}, nil
+				return &WaitResult{Reason: terminalWaitMatch, Screen: s.currentScreen(waitCtx), Untrusted: true}, nil
 			}
 		}
-		if readerEnded && until != "exit" {
+		if readerEnded && until != terminalWaitExit {
 			return &WaitResult{Reason: "stalled", Screen: s.currentScreen(waitCtx), Untrusted: true}, nil
 		}
 		select {
 		case <-waitCtx.Done():
 			if errors.Is(waitCtx.Err(), context.DeadlineExceeded) {
-				return &WaitResult{Reason: "timeout", Screen: s.currentScreen(context.Background()), Untrusted: true}, nil
+				return &WaitResult{
+					Reason:    "timeout",
+					Screen:    s.currentScreen(context.Background()),
+					Untrusted: true,
+				}, nil
 			}
 			return nil, waitCtx.Err()
 		case <-revisionReady:
 		}
 	}
+}
+
+func prepareWaitCondition(condition WaitCondition) (string, *regexp.Regexp, error) {
+	until := strings.TrimSpace(condition.Until)
+	if until == "" {
+		until = terminalWaitExit
+	}
+	if until != terminalWaitExit && until != terminalWaitMatch && until != terminalWaitIdle {
+		return "", nil, &Error{
+			Code: "terminal_wait_condition_invalid", Message: "terminal wait condition must be exit, match, or idle",
+			Err: ErrUnsupported,
+		}
+	}
+	if until != terminalWaitMatch {
+		return until, nil, nil
+	}
+	if strings.TrimSpace(condition.Pattern) == "" {
+		return "", nil, &Error{
+			Code:    "terminal_wait_pattern_required",
+			Message: "terminal wait match requires a pattern",
+			Err:     ErrUnsupported,
+		}
+	}
+	matcher, err := regexp.Compile(condition.Pattern)
+	if err != nil {
+		return "", nil, &Error{Code: "terminal_wait_pattern_invalid", Message: err.Error(), Err: ErrUnsupported}
+	}
+	return until, matcher, nil
 }
 
 func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
@@ -97,11 +115,19 @@ func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
 		select {
 		case <-ctx.Done():
 			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-				return &WaitResult{Reason: "timeout", Screen: s.currentScreen(context.Background()), Untrusted: true}, nil
+				return &WaitResult{
+					Reason:    "timeout",
+					Screen:    s.currentScreen(context.Background()),
+					Untrusted: true,
+				}, nil
 			}
 			return nil, ctx.Err()
 		case <-deadline.C:
-			return &WaitResult{Reason: "still_running", Screen: s.currentScreen(context.Background()), Untrusted: true}, nil
+			return &WaitResult{
+				Reason:    "still_running",
+				Screen:    s.currentScreen(context.Background()),
+				Untrusted: true,
+			}, nil
 		case <-ticker.C:
 			s.mu.RLock()
 			exit := cloneExit(s.exit)
@@ -112,7 +138,11 @@ func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
 				return s.waitExitResult(exit), nil
 			}
 			if readerEnded {
-				return &WaitResult{Reason: "stalled", Screen: s.currentScreen(context.Background()), Untrusted: true}, nil
+				return &WaitResult{
+					Reason:    "stalled",
+					Screen:    s.currentScreen(context.Background()),
+					Untrusted: true,
+				}, nil
 			}
 			if lastRevision == revision {
 				stable++
@@ -121,16 +151,20 @@ func (s *session) waitIdle(ctx context.Context) (*WaitResult, error) {
 				lastRevision = revision
 			}
 			if stable >= idleSamplesNeeded {
-				return &WaitResult{Reason: "idle", Screen: s.currentScreen(context.Background()), Untrusted: true}, nil
+				return &WaitResult{
+					Reason:    terminalWaitIdle,
+					Screen:    s.currentScreen(context.Background()),
+					Untrusted: true,
+				}, nil
 			}
 		}
 	}
 }
 
 func (s *session) currentScreen(ctx context.Context) string {
-	read, err := s.Screen(ctx, ReadOptions{View: "screen"})
+	read, err := s.Screen(ctx, ReadOptions{View: terminalViewScreen})
 	if err != nil {
-		read, err = s.Screen(ctx, ReadOptions{View: "tail", MaxBytes: 64 << 10})
+		read, err = s.Screen(ctx, ReadOptions{View: terminalViewTail, MaxBytes: 64 << 10})
 		if err != nil {
 			return ""
 		}
@@ -140,7 +174,7 @@ func (s *session) currentScreen(ctx context.Context) string {
 
 func (s *session) waitExitResult(exit *Exit) *WaitResult {
 	return &WaitResult{
-		Reason: "exit", ExitCode: exit.Code,
+		Reason: terminalWaitExit, ExitCode: exit.Code,
 		Screen: s.currentScreen(context.Background()), Untrusted: true,
 	}
 }

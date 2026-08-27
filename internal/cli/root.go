@@ -469,8 +469,7 @@ func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 		return nil, false
 	}
 	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error())}
-	var terminalErr *terminalpkg.Error
-	if errors.As(err, &terminalErr) {
+	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok {
 		payload.Code = terminalErr.Code
 	}
 	if ok {

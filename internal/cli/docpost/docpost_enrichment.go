@@ -113,11 +113,12 @@ func renderOutputFormatsSection(body string, outputProfile OutputProfile, comman
 			usage += " --lines 1-5"
 		}
 		b.WriteString("\nExample:\n\n```bash\n")
-		if outputProfile == OutputProfileHumanJSONL {
+		switch outputProfile {
+		case OutputProfileHumanJSONL:
 			b.WriteString(outputExampleCommandWithFormat(usage, "jsonl"))
-		} else if outputProfile == OutputProfileTerminalOpen {
+		case OutputProfileTerminalOpen:
 			b.WriteString(outputExampleCommandWithFormat(usage+" --detach", "json"))
-		} else {
+		default:
 			b.WriteString(outputExampleCommand(usage))
 		}
 		b.WriteString("\n```")

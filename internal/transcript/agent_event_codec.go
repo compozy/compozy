@@ -54,7 +54,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 	return canonicalEventPayload{
 		Schema:            CanonicalSchema,
 		Type:              event.Type,
-		Origin:            event.Origin,
+		Origin:            event.Origin(),
 		SessionID:         event.SessionID,
 		TurnID:            event.TurnID,
 		MessageID:         event.MessageIDValue(),
@@ -138,7 +138,6 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 
 	event := acp.AgentEvent{
 		Type:             strings.TrimSpace(decoded.Type),
-		Origin:           strings.TrimSpace(decoded.Origin),
 		SessionID:        strings.TrimSpace(decoded.SessionID),
 		TurnID:           strings.TrimSpace(decoded.TurnID),
 		EventCorrelation: decoded.Normalize(),

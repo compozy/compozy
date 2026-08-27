@@ -153,8 +153,8 @@ func (n *daemonNativeTools) skillView(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := map[string]any{
-		"skill":   skillViewPayloadWithoutExposure(skill),
-		"content": content,
+		"skill":               skillViewPayloadWithoutExposure(skill),
+		nativeToolsContentKey: content,
 	}
 	resourceScope := skill.ResourceScope.Normalize()
 	if resourceScope.Kind == resourceScopeUserKind || resourceScope.Kind == resourceScopeWorkspaceKind {

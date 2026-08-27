@@ -65,7 +65,7 @@ func TestAgentReportedTerminalProjection(t *testing.T) {
 		timestamp := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 		terminal := &acp.AgentReportedTerminal{ID: "reported-1", Cwd: "/workspace", TotalBytes: 11}
 		first, err := MarshalAgentEvent(acp.AgentEvent{
-			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+			Type:      acp.EventTypeAgentReportedTerminal,
 			SessionID: "sess-reported", TurnID: "turn-reported", Timestamp: timestamp,
 			Text: "hello ", Title: "bun test", ReportedTerminal: terminal,
 		})
@@ -74,7 +74,7 @@ func TestAgentReportedTerminalProjection(t *testing.T) {
 		}
 		terminal.ExitCode = new(0)
 		second, err := MarshalAgentEvent(acp.AgentEvent{
-			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+			Type:      acp.EventTypeAgentReportedTerminal,
 			SessionID: "sess-reported", TurnID: "turn-reported", Timestamp: timestamp.Add(time.Second),
 			Text: "hello world", Title: "bun test", ReportedTerminal: terminal,
 		})

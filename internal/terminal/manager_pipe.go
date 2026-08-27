@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
@@ -33,7 +34,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	if err := m.admit(ctx, request.WS, request.Actor); err != nil {
 		return nil, err
 	}
-	_, cwd, workspaceID, err := m.resolveOpenWorkspace(
+	cwd, workspaceID, err := m.resolveOpenWorkspace(
 		ctx, request.WS, request.Cwd, request.Actor.ProfileID, request.AllowedRoots...,
 	)
 	if err != nil {
@@ -68,17 +69,11 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start pipe command %q: %w", request.Argv[0], err)
 	}
-	info := Info{
+	info := ownedInfo(Info{
 		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID,
-		Title: request.Title, Shell: request.Argv[0], Cwd: cwd, Mode: ModePipe, State: "running",
+		Title: request.Title, Shell: request.Argv[0], Cwd: cwd, Mode: ModePipe, State: terminalStateRunning,
 		Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
-	}
-	if request.Actor.Kind == ActorKindAgent {
-		info.Lease = LeaseAgentOwned
-		info.BoundRun = &RunRef{SessionID: request.Actor.SessionID, RunID: request.Actor.RunID, Generation: request.Actor.Generation}
-	} else {
-		info.Lease = LeaseHumanOwned
-	}
+	}, request.Actor)
 	profileName := m.eventProfileName(ctx, request.Actor.ProfileID)
 	item := newSession(m, proc, info, settings, nonce, profileName, 80, 24, true)
 	processRecord, err := m.processRegistration(ctx, item, spec)
@@ -92,11 +87,11 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 	}
 	m.registerJournalTerminal(item)
 	opened := item.Info()
-	m.events.Emit(ctx, TerminalEvent{
+	m.events.Notify(ctx, Event{
 		Kind: EventKindOpened, WorkspaceID: workspaceID, ProfileID: request.Actor.ProfileID,
 		ProfileName: profileName,
 		TerminalID:  id, Actor: request.Actor, Info: &opened,
-		Detail: EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
+		Detail: &EventDetail{Mode: opened.Mode, Cwd: opened.Cwd, Title: opened.Title}, At: m.now(),
 	})
 	item.start()
 	return item, nil
@@ -105,7 +100,7 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 // Release closes and immediately forgets a consumer-owned terminal.
 func (m *Service) Release(ctx context.Context, workspaceID, profileID string, id ID, actor Actor) error {
 	if actor.ProfileID != profileID {
-		return &Error{Code: "terminal_not_found", Message: "terminal not found", Err: ErrNotFound}
+		return &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 	}
 	key := terminalKey{workspaceID: workspaceID, profileID: profileID, id: id}
 	item, err := m.lookup(key)
@@ -124,8 +119,6 @@ func cloneStringMap(source map[string]string) map[string]string {
 		return nil
 	}
 	cloned := make(map[string]string, len(source))
-	for key, value := range source {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, source)
 	return cloned
 }

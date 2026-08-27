@@ -38,7 +38,7 @@ type UIAgentEventPayload struct {
 func UIAgentEventPayloadFromEvent(event acp.AgentEvent) UIAgentEventPayload {
 	event = RedactAgentEvent(event)
 	payload := UIAgentEventPayload{
-		Type: event.Type, Origin: event.Origin, SessionID: event.SessionID, TurnID: event.TurnID,
+		Type: event.Type, Origin: event.Origin(), SessionID: event.SessionID, TurnID: event.TurnID,
 		RequestID: event.RequestIDValue(),
 		Text:      event.Text, Title: event.Title, ToolCallID: event.ToolCallID, StopReason: event.StopReason,
 		PromptStopReason: event.PromptStopReason, Action: event.Action, Resource: event.Resource,

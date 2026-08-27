@@ -46,34 +46,18 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			ClientMetadataURL: DefaultMCPClientMetadataURL,
 			RedirectURI:       "http://127.0.0.1:2123/api/mcp/oauth/callback",
 		}},
-		Providers:    map[string]ProviderConfig{},
-		ModelCatalog: DefaultModelCatalogConfig(),
-		Marketplace:  DefaultMarketplaceRuntimeConfig(),
-		Sandboxes:    map[string]SandboxProfile{},
-		Observability: ObservabilityConfig{
-			Enabled:           true,
-			RetentionDays:     7,
-			MaxGlobalBytes:    1 << 30,
-			AgentProbeTimeout: DefaultObservabilityAgentProbeTimeout,
-			Transcripts: ObservabilityTranscriptConfig{
-				Enabled:            true,
-				SegmentBytes:       1 << 20,
-				MaxBytesPerSession: 256 << 20,
-			},
-		},
-		Log: LogConfig{
-			Level:           configLogLevelInfo,
-			MaxSizeMB:       10,
-			MaxBackups:      5,
-			MaxAgeDays:      30,
-			CompressBackups: false,
-		},
-		Redact:      RedactConfig{Enabled: true},
-		Memory:      DefaultMemoryConfig(homePaths),
-		Shell:       DefaultShellConfig(),
-		Attention:   DefaultAttentionConfig(),
-		Roles:       DefaultRolesConfig(),
-		RoleSources: defaultRoleFieldSources(),
+		Providers:     map[string]ProviderConfig{},
+		ModelCatalog:  DefaultModelCatalogConfig(),
+		Marketplace:   DefaultMarketplaceRuntimeConfig(),
+		Sandboxes:     map[string]SandboxProfile{},
+		Observability: defaultObservabilityConfig(),
+		Log:           defaultLogConfig(),
+		Redact:        RedactConfig{Enabled: true},
+		Memory:        DefaultMemoryConfig(homePaths),
+		Shell:         DefaultShellConfig(),
+		Attention:     DefaultAttentionConfig(),
+		Roles:         DefaultRolesConfig(),
+		RoleSources:   defaultRoleFieldSources(),
 		Skills: SkillsConfig{
 			Enabled:       true,
 			Sources:       []string{SkillSourceAgents},
@@ -101,5 +85,23 @@ func DefaultWithHome(homePaths HomePaths) Config {
 			Scheduler:            DefaultSchedulerConfig(),
 		},
 		Worktrees: DefaultWorktreesConfig(),
+	}
+}
+
+func defaultObservabilityConfig() ObservabilityConfig {
+	return ObservabilityConfig{
+		Enabled:           true,
+		RetentionDays:     7,
+		MaxGlobalBytes:    1 << 30,
+		AgentProbeTimeout: DefaultObservabilityAgentProbeTimeout,
+		Transcripts: ObservabilityTranscriptConfig{
+			Enabled: true, SegmentBytes: 1 << 20, MaxBytesPerSession: 256 << 20,
+		},
+	}
+}
+
+func defaultLogConfig() LogConfig {
+	return LogConfig{
+		Level: configLogLevelInfo, MaxSizeMB: 10, MaxBackups: 5, MaxAgeDays: 30, CompressBackups: false,
 	}
 }

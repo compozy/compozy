@@ -48,7 +48,11 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 		return nil, err
 	}
 	if s.Info().Mode != ModePTY {
-		return nil, &Error{Code: "terminal_not_interactive", Message: "terminal is not interactive", Err: ErrNotInteractive}
+		return nil, &Error{
+			Code:    errorCodeNotInteractive,
+			Message: errorMessageNotInteractive,
+			Err:     ErrNotInteractive,
+		}
 	}
 	if err := s.runningGate(); err != nil {
 		return nil, err
@@ -57,7 +61,7 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	if err != nil {
 		return nil, err
 	}
-	if mode == "write" {
+	if mode == terminalAccessWrite {
 		if err := s.lease.authorize(options.Actor); err != nil {
 			return nil, err
 		}
@@ -66,17 +70,23 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	s.mu.Lock()
 	if s.reaping {
 		s.mu.Unlock()
-		return nil, &Error{Code: "terminal_expired", Message: "terminal has expired", Err: ErrExpired}
+		return nil, &Error{Code: errorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
 	}
 	if s.exit != nil {
 		s.mu.Unlock()
-		return nil, &Error{Code: "terminal_exited", Message: "terminal has exited", Err: ErrExited}
+		return nil, &Error{Code: errorCodeExited, Message: errorMessageExited, Err: ErrExited}
 	}
 	if len(s.subscribers) >= settings.MaxSubscribers {
 		current := len(s.subscribers)
 		s.mu.Unlock()
 		s.emitSubscriberLimit(options.Actor, current, settings.MaxSubscribers)
-		return nil, &Error{Code: "subscriber_limit_reached", Message: "terminal subscriber limit reached", Current: current, Max: settings.MaxSubscribers, Err: ErrSubscriberLimit}
+		return nil, &Error{
+			Code:    "subscriber_limit_reached",
+			Message: "terminal subscriber limit reached",
+			Current: current,
+			Max:     settings.MaxSubscribers,
+			Err:     ErrSubscriberLimit,
+		}
 	}
 	s.nextSubID++
 	subscriber := &subscription{session: s, id: s.nextSubID, mode: mode, actor: options.Actor}
@@ -85,7 +95,7 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 		Demoted: subscriber.demoted, Evicted: subscriber.evict,
 	})
 	s.flow.Add(subscriber.queue)
-	if mode == "write" {
+	if mode == terminalAccessWrite {
 		subscriber.leaseToken = s.lease.attachWriter(options.Actor)
 	}
 	s.subscribers[subscriber.id] = subscriber
@@ -100,7 +110,7 @@ func (s *session) Attach(_ context.Context, options AttachOptions) (Subscription
 	}
 	s.mu.Unlock()
 	s.broadcastPresence()
-	if options.Cols > 0 && options.Rows > 0 && mode == "write" {
+	if options.Cols > 0 && options.Rows > 0 && mode == terminalAccessWrite {
 		if err := subscriber.Resize(options.Cols, options.Rows); err != nil {
 			closeErr := subscriber.Close()
 			return nil, errors.Join(err, closeErr)
@@ -114,18 +124,26 @@ func normalizeAttachOptions(options AttachOptions) (string, string, error) {
 	if mode == "" {
 		mode = "read"
 	}
-	if mode != "read" && mode != "write" {
-		return "", "", &Error{Code: "terminal_attach_mode_invalid", Message: "terminal attach mode must be read or write", Err: ErrUnsupported}
+	if mode != "read" && mode != terminalAccessWrite {
+		return "", "", &Error{
+			Code:    "terminal_attach_mode_invalid",
+			Message: "terminal attach mode must be read or write",
+			Err:     ErrUnsupported,
+		}
 	}
 	flow := options.Flow
-	if flow == "" && mode == "write" {
+	if flow == "" && mode == terminalAccessWrite {
 		flow = string(terminalwire.FlowAck)
 	}
 	if flow == "" {
 		flow = string(terminalwire.FlowDrop)
 	}
 	if flow != string(terminalwire.FlowAck) && flow != string(terminalwire.FlowDrop) {
-		return "", "", &Error{Code: "terminal_flow_invalid", Message: "terminal flow must be ack or drop", Err: ErrUnsupported}
+		return "", "", &Error{
+			Code:    "terminal_flow_invalid",
+			Message: "terminal flow must be ack or drop",
+			Err:     ErrUnsupported,
+		}
 	}
 	return mode, flow, nil
 }
@@ -152,7 +170,7 @@ func (s *subscription) Frames() <-chan Frame { return s.queue.Frames() }
 func (s *subscription) Ack(bytes int) { s.queue.Ack(bytes) }
 
 func (s *subscription) Resize(cols, rows uint16) error {
-	if s.mode != "write" {
+	if s.mode != terminalAccessWrite {
 		return nil
 	}
 	cols, rows, ok := terminalwire.ClampDimensions(cols, rows)
@@ -211,20 +229,20 @@ func (s *subscription) demoted(reason string) {
 
 func (s *subscription) emitFlowTransition(reason string) {
 	info := s.session.Info()
-	s.session.manager.events.Emit(context.Background(), TerminalEvent{
+	s.session.manager.events.Notify(context.Background(), Event{
 		Kind: EventKindSubscriberEvicted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.session.profileName,
 		TerminalID:  info.ID, Actor: s.actor,
-		Reason: reason, Detail: EventDetail{Flow: string(s.queue.Flow())}, At: s.session.manager.now(),
+		Reason: reason, Detail: &EventDetail{Flow: string(s.queue.Flow())}, At: s.session.manager.now(),
 	})
 }
 
 func (s *session) emitSubscriberLimit(actor Actor, current, maximum int) {
 	info := s.Info()
-	s.manager.events.Emit(context.Background(), TerminalEvent{
+	s.manager.events.Notify(context.Background(), Event{
 		Kind: EventKindLimitRejected, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		TerminalID: info.ID, Actor: actor,
-		Detail: EventDetail{Limit: "subscribers", Current: current, Max: maximum}, At: s.manager.now(),
+		Detail: &EventDetail{Limit: "subscribers", Current: current, Max: maximum}, At: s.manager.now(),
 	})
 }
 
@@ -244,7 +262,13 @@ func (s *session) removeSubscriber(subscriber *subscription) {
 	}
 	if changed {
 		if err := s.applyResize(cols, rows); err != nil {
-			s.manager.logger.Warn("terminal: resize after subscriber departure", "terminal_id", s.Info().ID, "error", err)
+			s.manager.logger.Warn(
+				"terminal: resize after subscriber departure",
+				"terminal_id",
+				s.Info().ID,
+				"error",
+				err,
+			)
 		}
 	}
 }
@@ -270,7 +294,7 @@ func (s *session) resizeVoteLocked() (uint16, uint16) {
 	cols, rows := s.cols, s.rows
 	first := true
 	for _, subscriber := range s.subscribers {
-		if subscriber.mode != "write" || subscriber.cols == 0 || subscriber.rows == 0 {
+		if subscriber.mode != terminalAccessWrite || subscriber.cols == 0 || subscriber.rows == 0 {
 			continue
 		}
 		if first {

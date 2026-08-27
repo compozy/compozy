@@ -36,7 +36,11 @@ func DecodeServer(encoded []byte) (Frame, error) {
 		if len(encoded) < 9 {
 			return Frame{}, fmt.Errorf("%w: short OUTPUT frame", ErrInvalidFrame)
 		}
-		return Frame{Op: opcode, Seq: binary.BigEndian.Uint64(encoded[1:9]), Payload: append([]byte(nil), encoded[9:]...)}, nil
+		return Frame{
+			Op:      opcode,
+			Seq:     binary.BigEndian.Uint64(encoded[1:9]),
+			Payload: append([]byte(nil), encoded[9:]...),
+		}, nil
 	}
 	if !json.Valid(encoded[1:]) {
 		return Frame{}, fmt.Errorf("%w: server control payload is not JSON", ErrInvalidFrame)

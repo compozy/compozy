@@ -1678,7 +1678,7 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 		t.Parallel()
 
 		event := acp.AgentEvent{
-			Type: acp.EventTypeAgentReportedTerminal, Origin: acp.AgentEventOriginAgentReported,
+			Type:      acp.EventTypeAgentReportedTerminal,
 			SessionID: "sess-reported", TurnID: "turn-reported",
 			Timestamp: time.Date(2026, 4, 7, 10, 31, 0, 0, time.UTC),
 			Text:      "tests passed", Title: "bun test",

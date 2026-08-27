@@ -169,19 +169,8 @@ func planAtlasStream(
 			closeAtlasDatabase(closeDev, descriptor.name),
 		)
 	}
-	normalizeGeneratedSQLiteIndexes(current)
-	normalizeGeneratedSQLiteIndexes(desired)
-	if err := normalizeSQLiteIndexExpressions(current); err != nil {
-		return nil, nil, nil, errors.Join(
-			err,
-			closeAtlasDatabase(closeDev, descriptor.name),
-		)
-	}
-	if err := normalizeSQLiteIndexExpressions(desired); err != nil {
-		return nil, nil, nil, errors.Join(
-			err,
-			closeAtlasDatabase(closeDev, descriptor.name),
-		)
+	if err := normalizeAtlasRealms(current, desired); err != nil {
+		return nil, nil, nil, errors.Join(err, closeAtlasDatabase(closeDev, descriptor.name))
 	}
 	changes, err := dev.RealmDiff(current, desired, schema.DiffNormalized())
 	if err != nil {
@@ -215,6 +204,15 @@ func planAtlasStream(
 		lintStatements = append(lintStatements, change.Cmd)
 	}
 	return &atlasPlan{migration: plan, changes: changes, lintStatements: lintStatements}, dev, closeDev, nil
+}
+
+func normalizeAtlasRealms(current, desired *schema.Realm) error {
+	normalizeGeneratedSQLiteIndexes(current)
+	normalizeGeneratedSQLiteIndexes(desired)
+	if err := normalizeSQLiteIndexExpressions(current); err != nil {
+		return err
+	}
+	return normalizeSQLiteIndexExpressions(desired)
 }
 
 func closeAtlasDatabase(closeDev func() error, streamName string) error {

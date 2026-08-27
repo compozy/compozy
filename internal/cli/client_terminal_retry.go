@@ -38,24 +38,19 @@ func terminalReconnectableError(err error) bool {
 	if err == nil || errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 		return false
 	}
-	var permanent *terminalClientPermanentError
-	if errors.As(err, &permanent) {
+	if errors.As(err, new(*terminalClientPermanentError)) {
 		return false
 	}
-	var profileErr *profileCommandError
-	if errors.As(err, &profileErr) {
+	if errors.As(err, new(*profileCommandError)) {
 		return false
 	}
-	var apiErr *daemonAPIError
-	if errors.As(err, &apiErr) {
+	if apiErr, ok := errors.AsType[*daemonAPIError](err); ok {
 		return apiErr.statusCode >= http.StatusInternalServerError
 	}
-	var gatewayErr *gatewayClientError
-	if errors.As(err, &gatewayErr) {
+	if errors.As(err, new(*gatewayClientError)) {
 		return true
 	}
-	var closeErr *websocket.CloseError
-	if errors.As(err, &closeErr) {
+	if closeErr, ok := errors.AsType[*websocket.CloseError](err); ok {
 		switch closeErr.Code {
 		case websocket.CloseGoingAway,
 			websocket.CloseAbnormalClosure,

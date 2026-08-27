@@ -26,6 +26,14 @@ const (
 	ModePTY  Mode = "pty"
 	ModePipe Mode = "pipe"
 
+	terminalAccessWrite  = "write"
+	terminalStateRunning = "running"
+	terminalViewScreen   = "screen"
+	terminalViewTail     = "tail"
+	terminalWaitExit     = "exit"
+	terminalWaitIdle     = "idle"
+	terminalWaitMatch    = "match"
+
 	SignalINT  Signal = "INT"
 	SignalTERM Signal = "TERM"
 	SignalKILL Signal = "KILL"
@@ -308,7 +316,7 @@ type Manager interface {
 	Close(ctx context.Context, workspaceID string, id ID, actor Actor, signal Signal) (*Exit, error)
 	Journal() Journal
 	Shutdown(ctx context.Context) error
-	Observe(fn func(context.Context, TerminalEvent))
+	Observe(fn func(context.Context, Event))
 	ArchiveProfile(ctx context.Context, profileID string) error
 }
 
@@ -316,7 +324,12 @@ type Journal interface {
 	Record(ctx context.Context, workspaceID string, row CommandRow) error
 	Query(ctx context.Context, workspaceID string, scope store.ReadScope, query Query) (*Page, error)
 	LinkRecording(ctx context.Context, workspaceID string, terminalID ID, recording RecordingRef) error
-	Recording(ctx context.Context, workspaceID string, scope store.ReadScope, id string) (*RecordingRef, io.ReadCloser, error)
+	Recording(
+		ctx context.Context,
+		workspaceID string,
+		scope store.ReadScope,
+		id string,
+	) (*RecordingRef, io.ReadCloser, error)
 	Artifact(ctx context.Context, workspaceID string, scope store.ReadScope, id string) (io.ReadCloser, error)
 }
 

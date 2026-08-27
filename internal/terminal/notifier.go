@@ -54,7 +54,7 @@ type EventDetail struct {
 	AuditBlocked bool
 }
 
-type TerminalEvent struct {
+type Event struct {
 	Kind        EventKind
 	WorkspaceID string
 	ProfileID   string
@@ -64,70 +64,87 @@ type TerminalEvent struct {
 	Info        *Info
 	Exit        *Exit
 	Reason      string
-	Detail      EventDetail
+	Detail      *EventDetail
 	At          time.Time
 }
 
-type eventObserver func(context.Context, TerminalEvent)
+// DetailValue returns the event detail or its zero value when absent.
+func (e Event) DetailValue() EventDetail {
+	if e.Detail == nil {
+		return EventDetail{}
+	}
+	return *e.Detail
+}
 
-type EventBus struct {
+type eventObserver func(context.Context, Event)
+
+type Notifier struct {
 	logger *slog.Logger
 	mu     sync.Mutex
 	draft  []eventObserver
 	frozen atomic.Pointer[[]eventObserver]
 }
 
-func NewEventBus(logger *slog.Logger) *EventBus {
+func NewNotifier(logger *slog.Logger) *Notifier {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &EventBus{logger: logger}
+	return &Notifier{logger: logger}
 }
 
-// Observe registers an observer until the first Emit freezes the observer set.
+// Observe registers an observer until the first Notify freezes the observer set.
 // Registrations attempted after that point are ignored and logged.
-func (b *EventBus) Observe(fn func(context.Context, TerminalEvent)) {
-	if b == nil || fn == nil {
+func (n *Notifier) Observe(fn func(context.Context, Event)) {
+	if n == nil || fn == nil {
 		return
 	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.frozen.Load() != nil {
-		b.logger.Warn("terminal: observer ignored after event bus freeze")
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if n.frozen.Load() != nil {
+		n.logger.Warn("terminal: observer ignored after notifier freeze")
 		return
 	}
-	b.draft = append(b.draft, fn)
+	n.draft = append(n.draft, fn)
 }
 
-func (b *EventBus) Emit(ctx context.Context, event TerminalEvent) {
-	if b == nil {
+// Notify synchronously fans a typed terminal event out to the frozen observer set.
+func (n *Notifier) Notify(ctx context.Context, event Event) {
+	if n == nil {
 		return
 	}
-	observers := b.observers()
+	observers := n.observers()
 	for _, observer := range observers {
-		b.invoke(ctx, event, observer)
+		n.invoke(ctx, event, observer)
 	}
 }
 
-func (b *EventBus) observers() []eventObserver {
-	if frozen := b.frozen.Load(); frozen != nil {
+func (n *Notifier) observers() []eventObserver {
+	if frozen := n.frozen.Load(); frozen != nil {
 		return *frozen
 	}
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if frozen := b.frozen.Load(); frozen != nil {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	if frozen := n.frozen.Load(); frozen != nil {
 		return *frozen
 	}
-	copyOfObservers := append([]eventObserver(nil), b.draft...)
-	b.draft = nil
-	b.frozen.Store(&copyOfObservers)
+	copyOfObservers := append([]eventObserver(nil), n.draft...)
+	n.draft = nil
+	n.frozen.Store(&copyOfObservers)
 	return copyOfObservers
 }
 
-func (b *EventBus) invoke(ctx context.Context, event TerminalEvent, observer eventObserver) {
+func (n *Notifier) invoke(ctx context.Context, event Event, observer eventObserver) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			b.logger.Error("terminal: observer panic recovered", "terminal_id", event.TerminalID, "event", event.Kind, "panic", recovered)
+			n.logger.Error(
+				"terminal: observer panic recovered",
+				"terminal_id",
+				event.TerminalID,
+				"event",
+				event.Kind,
+				"panic",
+				recovered,
+			)
 		}
 	}()
 	observer(ctx, event)

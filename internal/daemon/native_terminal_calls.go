@@ -95,7 +95,10 @@ func (n *daemonNativeTools) terminalWrite(
 		return toolspkg.ToolResult{}, terminalNativeError(req.ToolID, err)
 	}
 	info := handle.Info()
-	return structuredResult(map[string]any{"accepted": true, "lease_state": info.Lease}, "terminal input accepted")
+	return structuredResult(
+		map[string]any{"accepted": true, nativeToolsLeaseStateKey: info.Lease},
+		"terminal input accepted",
+	)
 }
 
 func (n *daemonNativeTools) terminalRead(
@@ -261,7 +264,7 @@ func (n *daemonNativeTools) terminalYield(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalNativeError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"lease_state": handle.Info().Lease}, "terminal control yielded")
+	return structuredResult(map[string]any{nativeToolsLeaseStateKey: handle.Info().Lease}, "terminal control yielded")
 }
 
 func (n *daemonNativeTools) terminalClaim(
@@ -290,7 +293,10 @@ func (n *daemonNativeTools) terminalClaim(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalNativeError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"granted": true, "lease_state": info.Lease}, "terminal control claimed")
+	return structuredResult(
+		map[string]any{"granted": true, nativeToolsLeaseStateKey: info.Lease},
+		"terminal control claimed",
+	)
 }
 
 func (n *daemonNativeTools) nativeTerminalContext(
@@ -308,7 +314,9 @@ func (n *daemonNativeTools) nativeTerminalContext(
 	workspaceID := strings.TrimSpace(scope.WorkspaceID)
 	if workspaceID == "" {
 		return nil, terminalpkg.Actor{}, "", &terminalpkg.Error{
-			Code: "terminal_requires_workspace", Message: "terminal actions require a workspace", Err: terminalpkg.ErrRequiresWorkspace,
+			Code:    "terminal_requires_workspace",
+			Message: "terminal actions require a workspace",
+			Err:     terminalpkg.ErrRequiresWorkspace,
 		}
 	}
 	profileID := strings.TrimSpace(scope.ProfileID)
@@ -358,12 +366,15 @@ func (n *daemonNativeTools) terminalWritePoll(
 	}
 	n.terminalReads.Store(key, result.Seq)
 	return structuredResult(map[string]any{
-		"accepted": false, "lease_state": handle.Info().Lease,
-		"content": result.Content, "seq": result.Seq, "busy": result.Busy, "untrusted": true,
+		"accepted": false, nativeToolsLeaseStateKey: handle.Info().Lease,
+		nativeToolsContentKey: result.Content, "seq": result.Seq, "busy": result.Busy, "untrusted": true,
 	}, "untrusted terminal output polled")
 }
 
-func (n *daemonNativeTools) terminalToolInfos(ctx context.Context, items []terminalpkg.Info) ([]terminalToolInfo, error) {
+func (n *daemonNativeTools) terminalToolInfos(
+	ctx context.Context,
+	items []terminalpkg.Info,
+) ([]terminalToolInfo, error) {
 	projected := make([]terminalToolInfo, 0, len(items))
 	profileNames := make(map[string]string)
 	for _, item := range items {
@@ -410,10 +421,10 @@ func (n *daemonNativeTools) authorizeNativeTerminalExec(
 		if label := strings.TrimSpace(req.ApprovalLabel); label != "" {
 			return label, nil
 		}
-		return "approved_once", nil
+		return toolApprovalApprovedOnceLabel, nil
 	}
 	if strings.TrimSpace(req.ApprovalToken) != "" {
-		return "approved_once", nil
+		return toolApprovalApprovedOnceLabel, nil
 	}
 	if n != nil && n.deps != nil && n.deps.TerminalExecApprover != nil {
 		label, err := n.deps.TerminalExecApprover.ApproveTerminalExec(ctx, scope, req)

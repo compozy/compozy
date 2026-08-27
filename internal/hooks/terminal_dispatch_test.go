@@ -97,37 +97,70 @@ func dispatchTerminalTestPayload(ctx context.Context, hooks *Hooks, event HookEv
 	}
 	switch event {
 	case HookTerminalOpened:
-		_, err := hooks.DispatchTerminalOpened(ctx, TerminalOpenedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalOpened(
+			ctx,
+			TerminalOpenedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalClosed:
-		_, err := hooks.DispatchTerminalClosed(ctx, TerminalClosedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalClosed(
+			ctx,
+			TerminalClosedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalLeaseChanged:
-		_, err := hooks.DispatchTerminalLeaseChanged(ctx, TerminalLeaseChangedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalLeaseChanged(
+			ctx,
+			TerminalLeaseChangedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalCommandStarted:
-		_, err := hooks.DispatchTerminalCommandStarted(ctx, TerminalCommandStartedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalCommandStarted(
+			ctx,
+			TerminalCommandStartedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalCommandFinished:
-		_, err := hooks.DispatchTerminalCommandFinished(ctx, TerminalCommandFinishedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalCommandFinished(
+			ctx,
+			TerminalCommandFinishedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalInputRequested:
-		_, err := hooks.DispatchTerminalInputRequested(ctx, TerminalInputRequestedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalInputRequested(
+			ctx,
+			TerminalInputRequestedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalInputProvided:
-		_, err := hooks.DispatchTerminalInputProvided(ctx, TerminalInputProvidedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalInputProvided(
+			ctx,
+			TerminalInputProvidedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalRecordingStarted:
-		_, err := hooks.DispatchTerminalRecordingStarted(ctx, TerminalRecordingStartedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalRecordingStarted(
+			ctx,
+			TerminalRecordingStartedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalRecordingStopped:
-		_, err := hooks.DispatchTerminalRecordingStopped(ctx, TerminalRecordingStoppedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalRecordingStopped(
+			ctx,
+			TerminalRecordingStoppedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalSubscriberEvicted:
-		_, err := hooks.DispatchTerminalSubscriberEvicted(ctx, TerminalSubscriberEvictedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalSubscriberEvicted(
+			ctx,
+			TerminalSubscriberEvictedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	case HookTerminalLimitRejected:
-		_, err := hooks.DispatchTerminalLimitRejected(ctx, TerminalLimitRejectedPayload{PayloadBase: base, TerminalContext: terminalContext})
+		_, err := hooks.DispatchTerminalLimitRejected(
+			ctx,
+			TerminalLimitRejectedPayload{PayloadBase: base, TerminalContext: terminalContext},
+		)
 		return err
 	default:
 		return fmt.Errorf("unexpected terminal event %q", event)

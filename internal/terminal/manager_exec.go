@@ -72,7 +72,7 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		run.settlePublication()
 	}
 	run.item.start()
-	go m.recordExec(run, request, argv)
+	go m.recordExec(context.WithoutCancel(ctx), run, request, argv)
 	timer := time.NewTimer(yield)
 	defer timer.Stop()
 	select {
@@ -114,7 +114,7 @@ func (m *Service) authorizeExec(ctx context.Context, request ExecRequest, argv [
 	}
 	if m.execApprovals == nil {
 		return ExecRequest{}, &Error{
-			Code: "approval_required", Message: "agent terminal execution requires approval",
+			Code: errorCodeApprovalRequired, Message: "agent terminal execution requires approval",
 			Err: ErrApprovalRequired,
 		}
 	}
@@ -154,14 +154,16 @@ func execYieldDuration(value int) (time.Duration, error) {
 func ValidateExecYieldDuration(duration time.Duration) error {
 	if duration < minimumExecYield || duration > maximumExecYield {
 		return &Error{
-			Code: "timeout_out_of_range", Message: "terminal exec yield_ms must be between 250 and 30000", Err: ErrUnsupported,
+			Code:    "timeout_out_of_range",
+			Message: "terminal exec yield_ms must be between 250 and 30000",
+			Err:     ErrUnsupported,
 		}
 	}
 	return nil
 }
 
 func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []string) (*execRun, error) {
-	_, cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -188,27 +190,42 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	ptyMode := terminalpty.ModePipe
 	if request.Visible {
 		if !request.Capabilities.Interactive {
-			return nil, &Error{Code: "terminal_interactive_unavailable", Message: "Interactive terminals are not available on this platform yet — command execution is.", Err: ErrInteractive}
+			return nil, &Error{
+				Code:    "terminal_interactive_unavailable",
+				Message: "Interactive terminals are not available on this platform yet — command execution is.",
+				Err:     ErrInteractive,
+			}
 		}
 		mode = ModePTY
 		ptyMode = terminalpty.ModePTY
 	}
 	title := SanitizeTitle(strings.Join(argv, " "))
-	spec := ProcSpec{Argv: argv, Cwd: cwd, Env: cloneStringMap(request.Env), Cols: 80, Rows: 24, Mode: ptyMode, MarkerNonce: nonce}
+	spec := ProcSpec{
+		Argv:        argv,
+		Cwd:         cwd,
+		Env:         cloneStringMap(request.Env),
+		Cols:        80,
+		Rows:        24,
+		Mode:        ptyMode,
+		MarkerNonce: nonce,
+	}
 	proc, err := m.pty.Start(ctx, spec)
 	if err != nil {
 		return nil, fmt.Errorf("terminal: start exec %q: %w", argv[0], err)
 	}
-	info := Info{
-		ID: id, WS: workspaceID, ProfileID: request.Actor.ProfileID, Title: title, Shell: argv[0], Cwd: cwd,
-		Mode: mode, State: "running", Controller: cloneActor(&request.Actor), Capabilities: request.Capabilities, CreatedAt: m.now(),
-	}
-	if request.Actor.Kind == ActorKindAgent {
-		info.Lease = LeaseAgentOwned
-		info.BoundRun = &RunRef{SessionID: request.Actor.SessionID, RunID: request.Actor.RunID, Generation: request.Actor.Generation}
-	} else {
-		info.Lease = LeaseHumanOwned
-	}
+	info := ownedInfo(Info{
+		ID:           id,
+		WS:           workspaceID,
+		ProfileID:    request.Actor.ProfileID,
+		Title:        title,
+		Shell:        argv[0],
+		Cwd:          cwd,
+		Mode:         mode,
+		State:        terminalStateRunning,
+		Controller:   cloneActor(&request.Actor),
+		Capabilities: request.Capabilities,
+		CreatedAt:    m.now(),
+	}, request.Actor)
 	item := newSession(m, proc, info, settings, nonce, m.eventProfileName(ctx, request.Actor.ProfileID), 80, 24, true)
 	item.captureOutput = true
 	processRecord, err := m.processRegistration(ctx, item, spec)
@@ -235,15 +252,15 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 	m.registerJournalTerminal(run.item)
 	run.registered.Store(true)
 	info := run.item.Info()
-	m.events.Emit(ctx, TerminalEvent{
+	m.events.Notify(ctx, Event{
 		Kind: EventKindOpened, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: run.item.profileName,
 		TerminalID: info.ID, Actor: request.Actor, Info: &info,
-		Detail: EventDetail{Mode: info.Mode, Cwd: info.Cwd, Title: info.Title}, At: m.now(),
+		Detail: &EventDetail{Mode: info.Mode, Cwd: info.Cwd, Title: info.Title}, At: m.now(),
 	})
 	return nil
 }
 
-func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
+func (m *Service) recordExec(ctx context.Context, run *execRun, request ExecRequest, argv []string) {
 	<-run.item.done
 	<-run.decision
 	if m.journal == nil {
@@ -269,10 +286,10 @@ func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
 		row.TerminalID = &id
 	}
 	if queued, ok := m.journal.(queuedJournal); ok {
-		run.journaled <- queued.RecordQueued(context.Background(), info, row)
+		run.journaled <- queued.RecordQueued(ctx, info, row)
 		return
 	}
-	run.journaled <- m.journal.Record(context.Background(), info.WS, row)
+	run.journaled <- m.journal.Record(ctx, info.WS, row)
 }
 
 func terminalApprovalLabel(value string) string {
@@ -307,7 +324,15 @@ func (m *Service) execResult(ctx context.Context, run *execRun, request ExecRequ
 	if truncated || captureTruncated {
 		writer, ok := m.journal.(artifactWriter)
 		if ok {
-			spill, err := writer.WriteArtifact(ctx, info.WS, info.ProfileID, run.commandID, result.TerminalID, content, m.now().Add(infoSettingsRetention(run.item)))
+			spill, err := writer.WriteArtifact(
+				ctx,
+				info.WS,
+				info.ProfileID,
+				run.commandID,
+				result.TerminalID,
+				content,
+				m.now().Add(infoSettingsRetention(run.item)),
+			)
 			if err != nil {
 				return nil, fmt.Errorf("terminal: preserve exec spill: %w", err)
 			}

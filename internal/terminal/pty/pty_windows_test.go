@@ -186,18 +186,30 @@ func stopWindowsTestProc(t *testing.T, proc Proc) {
 func assertWindowsSignaledExit(t *testing.T, proc Proc, want Signal) {
 	t.Helper()
 	exit, err := proc.Wait(context.Background())
-	if err != nil || exit.Cause != "signaled" || exit.Signal == nil || *exit.Signal != string(want) || exit.Code != nil {
+	if err != nil || exit.Cause != "signaled" || exit.Signal == nil || *exit.Signal != string(want) ||
+		exit.Code != nil {
 		t.Fatalf("Wait() = %#v error=%v, want signal %s", exit, err, want)
 	}
 }
 
 func windowsSleepCommand() []string {
-	return []string{"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 300"}
+	return []string{
+		"powershell.exe",
+		"-NoLogo",
+		"-NoProfile",
+		"-NonInteractive",
+		"-Command",
+		"Start-Sleep -Seconds 300",
+	}
 }
 
 func windowsGrandchildCommand() []string {
 	return []string{
-		"powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-Command",
+		"powershell.exe",
+		"-NoLogo",
+		"-NoProfile",
+		"-NonInteractive",
+		"-Command",
 		`$child = Start-Process powershell.exe -ArgumentList @('-NoLogo','-NoProfile','-NonInteractive','-Command','Start-Sleep -Seconds 300') -PassThru; [Console]::Out.WriteLine("CHILD_PID=$($child.Id)"); [Console]::Out.Flush(); Wait-Process -Id $child.Id`,
 	}
 }

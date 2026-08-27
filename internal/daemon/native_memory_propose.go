@@ -96,7 +96,7 @@ func (n *daemonNativeTools) memoryProposeSingle(
 		return nativeMemoryDecisionResult(result)
 	}
 
-	content, err := requiredNativeString(req.ToolID, "content", input.Content)
+	content, err := requiredNativeString(req.ToolID, nativeToolsContentKey, input.Content)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}

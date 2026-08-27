@@ -5739,7 +5739,7 @@ func TestDoRequestRejectsNilContext(t *testing.T) {
 		httpClient: &http.Client{},
 	}
 
-	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/status", nil, nil)
+	response, err := client.doRequest(nilContext(), http.MethodGet, "/api/status", nil)
 	if response != nil {
 		defer func() {
 			if closeErr := response.Body.Close(); closeErr != nil {

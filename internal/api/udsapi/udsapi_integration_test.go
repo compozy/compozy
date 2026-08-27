@@ -347,7 +347,12 @@ func TestUDSTerminalWebSocketLifecycle(t *testing.T) {
 		)
 		if workspaceResponse.StatusCode != http.StatusCreated {
 			body := readAndCloseHTTPBody(t, workspaceResponse)
-			t.Fatalf("create workspace status = %d, want %d; body=%s", workspaceResponse.StatusCode, http.StatusCreated, body)
+			t.Fatalf(
+				"create workspace status = %d, want %d; body=%s",
+				workspaceResponse.StatusCode,
+				http.StatusCreated,
+				body,
+			)
 		}
 		var workspacePayload contract.WorkspaceResponse
 		decodeHTTPJSON(t, workspaceResponse, &workspacePayload)
@@ -366,7 +371,12 @@ func TestUDSTerminalWebSocketLifecycle(t *testing.T) {
 		)
 		if createResponse.StatusCode != http.StatusCreated {
 			body := readAndCloseHTTPBody(t, createResponse)
-			t.Fatalf("create terminal status = %d, want %d; body=%s", createResponse.StatusCode, http.StatusCreated, body)
+			t.Fatalf(
+				"create terminal status = %d, want %d; body=%s",
+				createResponse.StatusCode,
+				http.StatusCreated,
+				body,
+			)
 		}
 		var created contract.TerminalResponse
 		decodeHTTPJSON(t, createResponse, &created)
@@ -374,7 +384,11 @@ func TestUDSTerminalWebSocketLifecycle(t *testing.T) {
 			t.Fatal("created terminal id is empty")
 		}
 		if created.Terminal.WorkspaceID == "" || created.Terminal.ProfileID == "" {
-			t.Fatalf("created terminal scope = workspace %q, profile %q", created.Terminal.WorkspaceID, created.Terminal.ProfileID)
+			t.Fatalf(
+				"created terminal scope = workspace %q, profile %q",
+				created.Terminal.WorkspaceID,
+				created.Terminal.ProfileID,
+			)
 		}
 		terminalWorkspaceID := created.Terminal.WorkspaceID
 
@@ -435,7 +449,9 @@ func TestUDSTerminalWebSocketLifecycle(t *testing.T) {
 			t,
 			runtime.client,
 			http.MethodDelete,
-			"http://unix/api/workspaces/"+terminalWorkspaceID+"/terminals/"+string(created.Terminal.ID)+"?profile=default",
+			"http://unix/api/workspaces/"+terminalWorkspaceID+"/terminals/"+string(
+				created.Terminal.ID,
+			)+"?profile=default",
 			[]byte(`{"signal":"HUP"}`),
 			nil,
 		)

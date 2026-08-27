@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os/exec"
 	"strings"
 	"sync"
@@ -64,11 +65,19 @@ func startPipe(parent context.Context, spec ProcSpec) (Proc, error) {
 		interp.Env(environmentList),
 		interp.Params(append([]string{"--"}, argv...)...),
 		interp.StdIO(inputReader, outputWriter, outputWriter),
-		interp.ExecHandler(proc.execHandler(spec.Env)),
+		interp.ExecHandlers(func(interp.ExecHandlerFunc) interp.ExecHandlerFunc {
+			return proc.execHandler(spec.Env)
+		}),
 	)
 	if err != nil {
 		cancel()
-		return nil, errors.Join(fmt.Errorf("terminal pipe: construct interpreter: %w", err), inputReader.Close(), inputWriter.Close(), outputReader.Close(), outputWriter.Close())
+		return nil, errors.Join(
+			fmt.Errorf("terminal pipe: construct interpreter: %w", err),
+			inputReader.Close(),
+			inputWriter.Close(),
+			outputReader.Close(),
+			outputWriter.Close(),
+		)
 	}
 	proc.waiter.start(func() waitResult {
 		runErr := runner.Run(ctx, program)
@@ -99,7 +108,7 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 		if err != nil {
 			return fmt.Errorf("terminal pipe: resolve %q: %w", args[0], err)
 		}
-		command := exec.Command(path, args[1:]...)
+		command := exec.CommandContext(ctx, path, args[1:]...)
 		command.Dir = handler.Dir
 		command.Env = environment(env)
 		command.Stdin = handler.Stdin
@@ -113,12 +122,20 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 		if err != nil {
 			killErr := forcePipeCommand(command)
 			waitErr := command.Wait()
-			return errors.Join(fmt.Errorf("terminal pipe: observe %q start time: %w", args[0], err), killErr, normalizeExecWaitError(waitErr))
+			return errors.Join(
+				fmt.Errorf("terminal pipe: observe %q start time: %w", args[0], err),
+				killErr,
+				normalizeExecWaitError(waitErr),
+			)
 		}
 		if err := registerPipeCommand(command); err != nil {
 			killErr := forcePipeCommand(command)
 			waitErr := command.Wait()
-			return errors.Join(fmt.Errorf("terminal pipe: register %q: %w", args[0], err), killErr, normalizeExecWaitError(waitErr))
+			return errors.Join(
+				fmt.Errorf("terminal pipe: register %q: %w", args[0], err),
+				killErr,
+				normalizeExecWaitError(waitErr),
+			)
 		}
 		p.mu.Lock()
 		p.command = command
@@ -152,7 +169,11 @@ func (p *pipeProc) execHandler(env map[string]string) interp.ExecHandlerFunc {
 			if descendantErr != nil {
 				return descendantErr
 			}
-			return interp.ExitStatus(exitErr.ExitCode())
+			exitCode := exitErr.ExitCode()
+			if exitCode < 0 || exitCode > math.MaxUint8 {
+				exitCode = 1
+			}
+			return interp.ExitStatus(exitCode)
 		}
 		if waitErr != nil {
 			return errors.Join(
@@ -237,16 +258,15 @@ func (p *pipeProc) pipeExit(err error) Exit {
 		return exit
 	}
 	p.mu.RUnlock()
-	var status interp.ExitStatus
-	if errors.As(err, &status) {
+	if status, ok := errors.AsType[interp.ExitStatus](err); ok {
 		code := int(status)
-		return Exit{Cause: "exited", Code: &code}
+		return Exit{Cause: exitCauseExited, Code: &code}
 	}
 	if err == nil {
 		code := 0
-		return Exit{Cause: "exited", Code: &code}
+		return Exit{Cause: exitCauseExited, Code: &code}
 	}
-	return Exit{Cause: "unknown"}
+	return Exit{Cause: exitCauseUnknown}
 }
 
 func (p *pipeProc) signalReady(err error) {
@@ -259,8 +279,7 @@ func (p *pipeProc) signalReady(err error) {
 }
 
 func normalizeExecWaitError(err error) error {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if errors.As(err, new(*exec.ExitError)) {
 		return nil
 	}
 	return err

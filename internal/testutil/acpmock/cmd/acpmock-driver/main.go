@@ -137,7 +137,8 @@ func (a *mockAgent) Initialize(
 	request acpsdk.InitializeRequest,
 ) (acpsdk.InitializeResponse, error) {
 	a.mu.Lock()
-	a.reportedTerminalOutput, _ = request.ClientCapabilities.Meta["terminal_output"].(bool)
+	reportedTerminalOutput, ok := request.ClientCapabilities.Meta["terminal_output"].(bool)
+	a.reportedTerminalOutput = ok && reportedTerminalOutput
 	a.mu.Unlock()
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,

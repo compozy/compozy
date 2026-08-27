@@ -84,7 +84,7 @@ func (s *terminalTicketStore) Mint(binding terminalTicketBinding, actor terminal
 	s.sweepExpiredLocked(now)
 	s.sweepInvalidTargetsLocked(now)
 	for len(s.tickets) >= terminalTicketCapacity && s.order.Len() > 0 {
-		s.deleteLocked(s.order.Front().Value.(terminalTicketDigest))
+		s.deleteLocked(terminalTicketDigestValue(s.order.Front().Value))
 	}
 	group := s.targetGroupLocked(binding)
 	if group.invalidUntil.Load() != 0 {
@@ -122,7 +122,8 @@ func (s *terminalTicketStore) ConsumeStream(
 	if err != nil {
 		return terminalTicket{}, err
 	}
-	if ticket.Binding.WorkspaceID != workspaceID || ticket.Binding.TerminalID != terminalID || ticket.Binding.Mode != mode {
+	if ticket.Binding.WorkspaceID != workspaceID || ticket.Binding.TerminalID != terminalID ||
+		ticket.Binding.Mode != mode {
 		return terminalTicket{}, errTerminalTicketInvalid
 	}
 	return ticket, nil
@@ -165,19 +166,19 @@ func terminalTicketDigestFromToken(token string) (terminalTicketDigest, bool) {
 	return terminalTicketDigest(sha256.Sum256([]byte(token))), true
 }
 
-func (s *terminalTicketStore) observe(_ context.Context, event terminalpkg.TerminalEvent) {
+func (s *terminalTicketStore) observe(_ context.Context, event terminalpkg.Event) {
 	if event.Kind != terminalpkg.EventKindClosed {
 		return
 	}
 	invalidUntil := s.now().Add(terminalTicketTTL).UnixNano()
-	for _, mode := range []string{"read", "write"} {
+	for _, mode := range []string{"read", terminalModeWrite} {
 		binding := terminalTicketBinding{
 			WorkspaceID: event.WorkspaceID, ProfileID: event.ProfileID,
 			TerminalID: event.TerminalID, Mode: mode,
 		}
 		group := &terminalTicketGroup{}
 		actual, _ := s.byTarget.LoadOrStore(binding, group)
-		group = actual.(*terminalTicketGroup)
+		group = terminalTicketGroupValue(actual)
 		group.invalidUntil.Store(invalidUntil)
 		time.AfterFunc(terminalTicketTTL, func() { s.expireTargetTombstone(binding, group, invalidUntil) })
 	}
@@ -195,17 +196,17 @@ func (s *terminalTicketStore) expireTargetTombstone(
 
 func (s *terminalTicketStore) targetGroupLocked(binding terminalTicketBinding) *terminalTicketGroup {
 	if value, ok := s.byTarget.Load(binding); ok {
-		return value.(*terminalTicketGroup)
+		return terminalTicketGroupValue(value)
 	}
 	group := &terminalTicketGroup{}
 	actual, _ := s.byTarget.LoadOrStore(binding, group)
-	return actual.(*terminalTicketGroup)
+	return terminalTicketGroupValue(actual)
 }
 
 func (s *terminalTicketStore) sweepInvalidTargetsLocked(now time.Time) {
 	nowUnix := now.UnixNano()
 	s.byTarget.Range(func(key, value any) bool {
-		group := value.(*terminalTicketGroup)
+		group := terminalTicketGroupValue(value)
 		invalidUntil := group.invalidUntil.Load()
 		if group.count.Load() == 0 && invalidUntil > 0 && invalidUntil <= nowUnix {
 			s.byTarget.CompareAndDelete(key, group)
@@ -217,13 +218,29 @@ func (s *terminalTicketStore) sweepInvalidTargetsLocked(now time.Time) {
 func (s *terminalTicketStore) sweepExpiredLocked(now time.Time) {
 	for element := s.order.Front(); element != nil; {
 		next := element.Next()
-		digest := element.Value.(terminalTicketDigest)
+		digest := terminalTicketDigestValue(element.Value)
 		ticket, ok := s.tickets[digest]
 		if ok && !now.Before(ticket.ExpiresAt) {
 			s.deleteLocked(digest)
 		}
 		element = next
 	}
+}
+
+func terminalTicketDigestValue(value any) terminalTicketDigest {
+	digest, ok := value.(terminalTicketDigest)
+	if !ok {
+		panic("terminal ticket store: order contains an invalid digest")
+	}
+	return digest
+}
+
+func terminalTicketGroupValue(value any) *terminalTicketGroup {
+	group, ok := value.(*terminalTicketGroup)
+	if !ok || group == nil {
+		panic("terminal ticket store: target map contains an invalid group")
+	}
+	return group
 }
 
 func (s *terminalTicketStore) deleteLocked(digest terminalTicketDigest) {

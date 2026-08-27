@@ -51,7 +51,7 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"terminal": payload})
+	c.JSON(http.StatusCreated, gin.H{terminalPayloadKey: payload})
 }
 
 func (h *BaseHandlers) ListTerminals(c *gin.Context) {
@@ -90,7 +90,7 @@ func (h *BaseHandlers) GetTerminal(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"terminal": payload})
+	c.JSON(http.StatusOK, gin.H{terminalPayloadKey: payload})
 }
 
 func (h *BaseHandlers) DeleteTerminal(c *gin.Context) {
@@ -138,8 +138,15 @@ func (h *BaseHandlers) MintTerminalAttachTicket(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	if request.Mode != "read" && request.Mode != "write" {
-		h.respondTerminalError(c, &terminalpkg.Error{Code: "terminal_attach_mode_invalid", Message: "terminal attach mode must be read or write", Err: terminalpkg.ErrUnsupported})
+	if request.Mode != "read" && request.Mode != terminalModeWrite {
+		h.respondTerminalError(
+			c,
+			&terminalpkg.Error{
+				Code:    "terminal_attach_mode_invalid",
+				Message: "terminal attach mode must be read or write",
+				Err:     terminalpkg.ErrUnsupported,
+			},
+		)
 		return
 	}
 	actor, err := h.bindTerminalHumanClient(c, workspaceID, profileID, request.ClientID, actor)

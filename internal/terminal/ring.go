@@ -64,7 +64,9 @@ func (r *Ring) ReplayFrom(seq uint64) Replay {
 	if seq > r.next {
 		seq = r.next
 	}
-	offset := int(seq - r.oldest)
+	delta := min(seq-r.oldest, uint64(len(r.data)))
+	// #nosec G115 -- delta is bounded by len(r.data), which is representable as int.
+	offset := int(delta)
 	return Replay{Payload: append([]byte(nil), r.data[offset:]...), Seq: r.next}
 }
 
@@ -92,6 +94,7 @@ func (r *Ring) trim() {
 	for cut < len(r.data) && r.data[cut]&0xc0 == 0x80 {
 		cut++
 	}
+	// #nosec G115 -- cut is a nonnegative index bounded by len(r.data).
 	r.oldest += uint64(cut)
 	remaining := len(r.data) - cut
 	copy(r.data[:remaining], r.data[cut:])
@@ -104,39 +107,7 @@ func safeTrimIndex(data []byte, minimum int) int {
 	}
 	state := byte(0)
 	for index, value := range data {
-		switch state {
-		case 0:
-			if value == 0x1b {
-				state = 1
-			}
-		case 1:
-			switch value {
-			case ']':
-				state = 2
-			case 'P':
-				state = 3
-			case '[':
-				state = 4
-			default:
-				state = 0
-			}
-		case 2, 3:
-			if value == 0x07 {
-				state = 0
-			} else if value == 0x1b {
-				state += 4
-			}
-		case 4:
-			if value >= 0x40 && value <= 0x7e {
-				state = 0
-			}
-		case 6, 7:
-			if value == '\\' {
-				state = 0
-			} else if value != 0x1b {
-				state -= 4
-			}
-		}
+		state = nextEscapeState(state, value)
 		if index+1 >= minimum && state == 0 {
 			if newline := bytes.IndexByte(data[index+1:], '\n'); newline >= 0 && newline < 256 {
 				return index + newline + 2
@@ -147,4 +118,42 @@ func safeTrimIndex(data []byte, minimum int) int {
 	// The retained suffix would otherwise begin inside an incomplete escape.
 	// Dropping the incomplete suffix preserves both the cap and replay safety.
 	return len(data)
+}
+
+func nextEscapeState(state, value byte) byte {
+	switch state {
+	case 0:
+		if value == 0x1b {
+			return 1
+		}
+	case 1:
+		switch value {
+		case ']':
+			return 2
+		case 'P':
+			return 3
+		case '[':
+			return 4
+		}
+		return 0
+	case 2, 3:
+		if value == 0x07 {
+			return 0
+		}
+		if value == 0x1b {
+			return state + 4
+		}
+	case 4:
+		if value >= 0x40 && value <= 0x7e {
+			return 0
+		}
+	case 6, 7:
+		if value == '\\' {
+			return 0
+		}
+		if value != 0x1b {
+			return state - 4
+		}
+	}
+	return state
 }

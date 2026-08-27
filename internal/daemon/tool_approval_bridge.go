@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	toolApprovalAllowOnceID    acpsdk.PermissionOptionId = "allow_once"
-	toolApprovalAllowAlwaysID  acpsdk.PermissionOptionId = "allow_always"
-	toolApprovalRejectOnceID   acpsdk.PermissionOptionId = "reject_once"
-	toolApprovalRejectAlwaysID acpsdk.PermissionOptionId = "reject_always"
+	toolApprovalAllowOnceID       acpsdk.PermissionOptionId = "allow_once"
+	toolApprovalAllowAlwaysID     acpsdk.PermissionOptionId = "allow_always"
+	toolApprovalRejectOnceID      acpsdk.PermissionOptionId = "reject_once"
+	toolApprovalRejectAlwaysID    acpsdk.PermissionOptionId = "reject_always"
+	toolApprovalApprovedOnceLabel                           = "approved_once"
 )
 
 type sessionPermissionRequester interface {
@@ -77,7 +78,7 @@ func (b *toolApprovalBridge) RequestToolApproval(
 	}
 	if handled, err := b.consumeLocalToolApproval(ctx, scope, call); handled {
 		if err == nil {
-			setToolApprovalLabel(request, "approved_once")
+			setToolApprovalLabel(request, toolApprovalApprovedOnceLabel)
 		}
 		return err
 	}
@@ -165,7 +166,7 @@ func toolApprovalOutcomeLabel(outcome acpsdk.RequestPermissionOutcome) string {
 	if outcome.Selected != nil && outcome.Selected.OptionId == toolApprovalAllowAlwaysID {
 		return "approved_always"
 	}
-	return "approved_once"
+	return toolApprovalApprovedOnceLabel
 }
 
 func (b *toolApprovalBridge) requestSessionToolApproval(

@@ -368,8 +368,8 @@ func TestWaitForDaemonStopReturnsStoppedStatusWhenProcessExits(t *testing.T) {
 				Deadline: 42 * time.Second,
 			},
 		}}
-		want := compozydaemon.GracefulShutdownTimeout(config) + daemonStopWaitMargin
-		if got := daemonStopWaitTimeout(defaultStopTimeout, config); got != want {
+		want := compozydaemon.GracefulShutdownTimeout(&config) + daemonStopWaitMargin
+		if got := daemonStopWaitTimeout(defaultStopTimeout, &config); got != want {
 			t.Fatalf("daemonStopWaitTimeout() = %s, want %s", got, want)
 		}
 	})

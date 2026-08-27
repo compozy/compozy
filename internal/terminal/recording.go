@@ -67,7 +67,9 @@ func (r *activeRecording) contents() []byte {
 func (s *session) startRecording(actor Actor) (RecordingRef, error) {
 	if !RecordingAvailable(s.Info().Capabilities) {
 		return RecordingRef{}, &Error{
-			Code: "recording_unavailable", Message: "recording is unavailable for this terminal", Err: ErrRecording,
+			Code:    errorCodeRecordingUnavailable,
+			Message: "recording is unavailable for this terminal",
+			Err:     ErrRecording,
 		}
 	}
 	if _, ok := s.manager.journal.(recordingStore); !ok {
@@ -144,9 +146,7 @@ func (s *session) appendRecording(output []byte) {
 		ID: recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
 		StartedAt: recording.startedAt, StoppedAt: &stoppedAt,
 	}, "storage_stall", true)
-	s.recordingWG.Add(1)
-	go func() {
-		defer s.recordingWG.Done()
+	s.recordingWG.Go(func() {
 		actor := Actor{Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID}
 		persistCtx, cancel := context.WithTimeout(context.Background(), recordingPersistenceTimeout)
 		defer cancel()
@@ -154,7 +154,7 @@ func (s *session) appendRecording(output []byte) {
 			s.retainFailedRecording(recording)
 			s.manager.logger.Warn("terminal: persist truncated recording", "terminal_id", s.Info().ID, "error", err)
 		}
-	}()
+	})
 }
 
 func (s *session) retainFailedRecording(recording *activeRecording) {
@@ -177,7 +177,11 @@ func (s *session) persistRecording(
 ) (RecordingRef, error) {
 	store, ok := s.manager.journal.(recordingStore)
 	if !ok {
-		return RecordingRef{}, &Error{Code: "recording_unavailable", Message: "recording storage is unavailable", Err: ErrRecording}
+		return RecordingRef{}, &Error{
+			Code:    "recording_unavailable",
+			Message: "recording storage is unavailable",
+			Err:     ErrRecording,
+		}
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -222,10 +226,10 @@ func (s *session) persistRecording(
 
 func (s *session) emitRecordingEvent(kind EventKind, actor Actor, ref RecordingRef, reason string, truncated bool) {
 	info := s.Info()
-	s.manager.events.Emit(context.Background(), TerminalEvent{
+	s.manager.events.Notify(context.Background(), Event{
 		Kind: kind, WorkspaceID: info.WS, ProfileID: info.ProfileID, ProfileName: s.profileName,
 		TerminalID: info.ID, Actor: actor, Info: &info, Reason: reason, At: s.manager.now(),
-		Detail: EventDetail{RecordingID: ref.ID, Digest: ref.Digest, Bytes: ref.Bytes, Truncated: truncated},
+		Detail: &EventDetail{RecordingID: ref.ID, Digest: ref.Digest, Bytes: ref.Bytes, Truncated: truncated},
 	})
 }
 

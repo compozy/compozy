@@ -29,7 +29,7 @@ func waitForDaemonStop(
 	client, clientErr := clientFromDeps(deps)
 	return pollUntil(
 		ctx,
-		daemonStopWaitTimeout(deps.stopTimeout, runtime.Config),
+		daemonStopWaitTimeout(deps.stopTimeout, &runtime.Config),
 		deps.pollInterval,
 		nil,
 		"cli: daemon did not stop before timeout",
@@ -49,7 +49,7 @@ func waitForDaemonStop(
 	)
 }
 
-func daemonStopWaitTimeout(configured time.Duration, config compozyconfig.Config) time.Duration {
+func daemonStopWaitTimeout(configured time.Duration, config *compozyconfig.Config) time.Duration {
 	if configured != defaultStopTimeout {
 		return configured
 	}

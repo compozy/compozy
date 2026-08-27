@@ -145,7 +145,7 @@ func (m *Manager) dispatchEventPostRecord(
 }
 
 func skipAgentEventHooks(manager *Manager, event acp.AgentEvent) bool {
-	return manager == nil || event.Origin == acp.AgentEventOriginAgentReported
+	return manager == nil || event.Origin() == acp.AgentEventOriginAgentReported
 }
 
 func (m *Manager) dispatchSessionMessagePersisted(

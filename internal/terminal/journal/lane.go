@@ -21,7 +21,7 @@ type terminalLane struct {
 	service    *Service
 	info       terminalpkg.Info
 	setBlocked func(bool)
-	emit       func(terminalpkg.TerminalEvent)
+	emit       func(terminalpkg.Event)
 	rows       []pendingCommand
 	wake       chan struct{}
 	done       chan struct{}
@@ -50,7 +50,7 @@ func newTerminalLane(
 	service *Service,
 	info terminalpkg.Info,
 	setBlocked func(bool),
-	emit func(terminalpkg.TerminalEvent),
+	emit func(terminalpkg.Event),
 ) *terminalLane {
 	ctx, cancel := context.WithCancel(context.Background())
 	lane := &terminalLane{
@@ -110,7 +110,10 @@ func (l *terminalLane) run() {
 				break
 			}
 			if l.ctx.Err() != nil {
-				l.failCommand(command, fmt.Errorf("terminal journal: append %q canceled: %w", command.row.ID, l.ctx.Err()))
+				l.failCommand(
+					command,
+					fmt.Errorf("terminal journal: append %q canceled: %w", command.row.ID, l.ctx.Err()),
+				)
 				return
 			}
 			l.service.writeFailures.Add(1)
@@ -128,7 +131,10 @@ func (l *terminalLane) run() {
 				if !timer.Stop() {
 					<-timer.C
 				}
-				l.failCommand(command, fmt.Errorf("terminal journal: append %q canceled: %w", command.row.ID, l.ctx.Err()))
+				l.failCommand(
+					command,
+					fmt.Errorf("terminal journal: append %q canceled: %w", command.row.ID, l.ctx.Err()),
+				)
 				return
 			}
 		}
@@ -250,16 +256,16 @@ func (l *terminalLane) setAuditBlockedLocked(blocked bool) {
 	l.service.logger.Warn("terminal journal: audit state changed",
 		"workspace_id", l.info.WS, "terminal_id", l.info.ID, "blocked", blocked,
 	)
-	l.emitEvent(terminalpkg.TerminalEvent{
+	l.emitEvent(terminalpkg.Event{
 		Kind: terminalpkg.EventKindAuditChanged, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,
 		TerminalID: l.info.ID, Actor: terminalpkg.Actor{
 			Kind: terminalpkg.ActorKindSystem, ID: "terminal-journal", ProfileID: l.info.ProfileID,
 		},
-		At: l.service.now(), Detail: terminalpkg.EventDetail{AuditBlocked: blocked},
+		At: l.service.now(), Detail: &terminalpkg.EventDetail{AuditBlocked: blocked},
 	})
 }
 
-func (l *terminalLane) emitEvent(event terminalpkg.TerminalEvent) {
+func (l *terminalLane) emitEvent(event terminalpkg.Event) {
 	if l.emit != nil {
 		l.emit(event)
 	}

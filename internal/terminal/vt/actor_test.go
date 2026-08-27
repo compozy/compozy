@@ -25,7 +25,11 @@ func TestActorScreenContract(t *testing.T) {
 			want  string
 		}{
 			{name: "Should render plain text", input: "hello\nworld", want: "hello\n     world"},
-			{name: "Should render an alternate screen", input: "primary\x1b[?1049h\x1b[2J\x1b[Halt\nrow", want: "alt\n   row"},
+			{
+				name:  "Should render an alternate screen",
+				input: "primary\x1b[?1049h\x1b[2J\x1b[Halt\nrow",
+				want:  "alt\n   row",
+			},
 			{name: "Should preserve CJK and emoji widths", input: "界🙂x", want: "界🙂x"},
 		}
 		for _, testCase := range cases {
@@ -58,10 +62,10 @@ func TestActorScreenContract(t *testing.T) {
 		})
 		var writers sync.WaitGroup
 		workerErrors := make(chan error, 1)
-		for index := 0; index < 4; index++ {
+		for index := range 4 {
 			writers.Go(func() {
-				for line := 0; line < 200; line++ {
-					if _, err := actor.Write([]byte(fmt.Sprintf("worker-%d-%03d\r\n", index, line))); err != nil {
+				for line := range 200 {
+					if _, err := fmt.Fprintf(actor, "worker-%d-%03d\r\n", index, line); err != nil {
 						select {
 						case workerErrors <- fmt.Errorf("worker %d write: %w", index, err):
 						default:

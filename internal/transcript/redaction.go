@@ -17,7 +17,6 @@ var structuralRedactor = redactpkg.New(redactpkg.Options{Disabled: true})
 // stored, replayed, or streamed to a caller.
 func RedactAgentEvent(event acp.AgentEvent) acp.AgentEvent {
 	redacted := event
-	redacted.Origin = redactStructuralString(event.Origin)
 	redacted.Text = redactDisplayString(event.Text)
 	redacted.Title = redactDisplayString(event.Title)
 	redacted.ToolCallID = redactStructuralString(event.ToolCallID)

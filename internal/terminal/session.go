@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"sync"
 	"time"
 	"unicode/utf8"
@@ -210,7 +211,7 @@ func (s *session) acceptOutput(input []byte) {
 		subscribers = append(subscribers, subscriber)
 	}
 	s.mu.Unlock()
-	vtInput := append(s.vtCarry, input...)
+	vtInput := slices.Concat(s.vtCarry, input)
 	complete, carry := splitCompleteUTF8(vtInput)
 	s.vtCarry = append(s.vtCarry[:0], carry...)
 	completeEnd := end - uint64(len(carry))
@@ -288,11 +289,11 @@ func (s *session) programTitleChanged(title string) {
 	for _, subscriber := range subscribers {
 		subscriber.deliver(Frame{Op: terminalwire.ServerOpTitle, Payload: payload}, 0)
 	}
-	s.manager.events.Emit(context.Background(), TerminalEvent{
+	s.manager.events.Notify(context.Background(), Event{
 		Kind: EventKindTitleChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.profileName,
 		TerminalID:  info.ID, Actor: Actor{Kind: ActorKindSystem, ID: "terminal-program", ProfileID: info.ProfileID},
-		Info: &info, Detail: EventDetail{Title: title}, At: s.manager.now(),
+		Info: &info, Detail: &EventDetail{Title: title}, At: s.manager.now(),
 	})
 }
 
@@ -372,7 +373,7 @@ func (s *session) finalize(exit Exit) {
 			}
 		}
 		if emitClosed {
-			s.manager.events.Emit(context.Background(), TerminalEvent{
+			s.manager.events.Notify(context.Background(), Event{
 				Kind: EventKindClosed, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 				ProfileName: s.profileName,
 				TerminalID:  info.ID, Actor: actor, Info: &info, Exit: cloneExit(&exit), Reason: reason,
@@ -388,7 +389,7 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 	if s.exit != nil {
 		exit := cloneExit(s.exit)
 		s.mu.Unlock()
-		return exit, &Error{Code: "terminal_exited", Message: "terminal has exited", Err: ErrExited}
+		return exit, &Error{Code: errorCodeExited, Message: errorMessageExited, Err: ErrExited}
 	}
 	if s.closeReason == "" {
 		s.closeReason = reason

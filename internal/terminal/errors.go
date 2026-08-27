@@ -5,6 +5,27 @@ import (
 	"fmt"
 )
 
+const (
+	errorCodeApprovalRequired         = "approval_required"
+	errorCodeExpired                  = "terminal_expired"
+	errorCodeExited                   = "terminal_exited"
+	errorCodeGenerationFenced         = "generation_fenced"
+	errorCodeInputAlreadyAnswered     = "input_request_already_answered"
+	errorCodeInputAnswerRequiresWrite = "input_answer_requires_write"
+	errorCodeInvalidCwd               = "invalid_cwd"
+	errorCodeNotInteractive           = "terminal_not_interactive"
+	errorCodeNotFound                 = "terminal_not_found"
+	errorCodeRecordingUnavailable     = "recording_unavailable"
+	errorCodeShuttingDown             = "terminal_shutting_down"
+	errorCodeWriteOwnerHeld           = "write_owner_held"
+	errorMessageExpired               = "terminal has expired"
+	errorMessageExited                = "terminal has exited"
+	errorMessageGenerationFenced      = "terminal action came from a stale runtime generation"
+	errorMessageNotFound              = "terminal not found"
+	errorMessageNotInteractive        = "terminal is not interactive"
+	errorMessageShuttingDown          = "terminal manager is shutting down"
+)
+
 var (
 	ErrNotFound           = errors.New("terminal not found")
 	ErrRequiresWorkspace  = errors.New("terminal requires workspace")

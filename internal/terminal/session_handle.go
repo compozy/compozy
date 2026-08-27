@@ -38,7 +38,7 @@ func requireInputVisibilityProc(proc Proc) (inputVisibilityProc, error) {
 	visibilityProc, ok := proc.(inputVisibilityProc)
 	if !ok {
 		return nil, &Error{
-			Code:    "terminal_not_interactive",
+			Code:    errorCodeNotInteractive,
 			Message: "terminal input requests require an echo-aware interactive terminal",
 			Err:     ErrNotInteractive,
 		}
@@ -57,17 +57,25 @@ func (s *session) deliverInputMode(
 		return err
 	}
 	if s.Info().Mode != ModePTY {
-		return &Error{Code: "terminal_not_interactive", Message: "terminal is not interactive", Err: ErrNotInteractive}
+		return &Error{Code: errorCodeNotInteractive, Message: errorMessageNotInteractive, Err: ErrNotInteractive}
 	}
 	if s.audit.Blocked() {
-		return &Error{Code: "journal_unavailable", Message: "terminal input is blocked while journal delivery is unavailable", Err: ErrJournalUnavailable}
+		return &Error{
+			Code:    "journal_unavailable",
+			Message: "terminal input is blocked while journal delivery is unavailable",
+			Err:     ErrJournalUnavailable,
+		}
 	}
 	if err := s.runningGate(); err != nil {
 		return err
 	}
 	if actor.Kind == ActorKindAgent {
 		if s.manager.typingGrants == nil {
-			return &Error{Code: "typing_grant_rejected", Message: "agent typing requires a one-time terminal grant", Err: ErrTypingGrant}
+			return &Error{
+				Code:    "typing_grant_rejected",
+				Message: "agent typing requires a one-time terminal grant",
+				Err:     ErrTypingGrant,
+			}
 		}
 		if err := s.manager.typingGrants.AuthorizeTerminalInput(ctx, actor, s.Info()); err != nil {
 			return err
@@ -100,7 +108,11 @@ func (s *session) deliverInputMode(
 	}
 	reservation, admitted := s.manager.reserveJournalInput(info, auditInput)
 	if !admitted {
-		return &Error{Code: "journal_unavailable", Message: "terminal input is blocked while the journal lane is full", Err: ErrJournalUnavailable}
+		return &Error{
+			Code:    "journal_unavailable",
+			Message: "terminal input is blocked while the journal lane is full",
+			Err:     ErrJournalUnavailable,
+		}
 	}
 	var deliveryErr error
 	if answerHandoff {
@@ -119,14 +131,18 @@ func (s *session) deliverInputMode(
 func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult, error) {
 	view := strings.TrimSpace(options.View)
 	if view == "" {
-		view = "screen"
+		view = terminalViewScreen
 	}
-	if s.Info().Mode == ModePipe && view == "screen" {
-		return nil, &Error{Code: "terminal_not_interactive", Message: "pipe terminals do not have a screen", Err: ErrNotInteractive}
+	if s.Info().Mode == ModePipe && view == terminalViewScreen {
+		return nil, &Error{
+			Code:    errorCodeNotInteractive,
+			Message: "pipe terminals do not have a screen",
+			Err:     ErrNotInteractive,
+		}
 	}
 	s.touch()
 	switch view {
-	case "screen":
+	case terminalViewScreen:
 		snapshot, err := s.vt.Screen(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("terminal: read screen: %w", err)
@@ -135,12 +151,16 @@ func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult,
 			Content: string(modelFacingOutput([]byte(snapshot.Content))),
 			Seq:     snapshot.Seq, Busy: snapshot.Busy, Untrusted: true,
 		}, nil
-	case "tail":
+	case terminalViewTail:
 		return s.readTail(options)
 	case "lines":
 		return s.readLines(options)
 	default:
-		return nil, &Error{Code: "terminal_read_view_invalid", Message: "terminal read view must be screen, tail, or lines", Err: ErrUnsupported}
+		return nil, &Error{
+			Code:    "terminal_read_view_invalid",
+			Message: "terminal read view must be screen, tail, or lines",
+			Err:     ErrUnsupported,
+		}
 	}
 }
 
@@ -276,7 +296,7 @@ func (s *session) runEnded(actor Actor) bool {
 		info.BoundRun.RunID != actor.RunID || info.BoundRun.Generation != actor.Generation {
 		return false
 	}
-	s.lease.runEnded(actor, "run_ended")
+	s.lease.runEnded(actor)
 	s.supersedeInputRequests(context.Background(), actor)
 	return true
 }
@@ -307,22 +327,35 @@ func (s *session) authorizeClose(actor Actor) error {
 	state, controller := s.lease.snapshot()
 	if actor.Kind == ActorKindAgent && controller != nil && sameRun(actor, *controller) &&
 		actor.Generation != controller.Generation {
-		return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+		return &Error{
+			Code:    errorCodeGenerationFenced,
+			Message: errorMessageGenerationFenced,
+			Err:     ErrGenerationFenced,
+		}
 	}
 	if state == LeaseAgentOwned && controller != nil && sameActor(actor, *controller) {
 		return nil
 	}
-	return &Error{Code: "write_owner_held", Message: "terminal is controlled by another actor", Controller: controller, Err: ErrWriteOwnerHeld}
+	return &Error{
+		Code:       errorCodeWriteOwnerHeld,
+		Message:    "terminal is controlled by another actor",
+		Controller: controller,
+		Err:        ErrWriteOwnerHeld,
+	}
 }
 
 func (s *session) authorizeProfile(actor Actor) error {
 	info := s.Info()
 	if actor.ProfileID != info.ProfileID {
-		return &Error{Code: "terminal_not_found", Message: "terminal not found", Err: ErrNotFound}
+		return &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 	}
 	if actor.Kind == ActorKindAgent && info.BoundRun != nil && actor.SessionID == info.BoundRun.SessionID &&
 		actor.RunID == info.BoundRun.RunID && actor.Generation != info.BoundRun.Generation {
-		return &Error{Code: "generation_fenced", Message: "terminal action came from a stale runtime generation", Err: ErrGenerationFenced}
+		return &Error{
+			Code:    errorCodeGenerationFenced,
+			Message: errorMessageGenerationFenced,
+			Err:     ErrGenerationFenced,
+		}
 	}
 	return nil
 }
@@ -353,9 +386,9 @@ func (s *session) runningGate() error {
 		return nil
 	}
 	if s.reaping {
-		return &Error{Code: "terminal_expired", Message: "terminal has expired", Err: ErrExpired}
+		return &Error{Code: errorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
 	}
-	return &Error{Code: "terminal_exited", Message: "terminal has exited", Err: ErrExited}
+	return &Error{Code: errorCodeExited, Message: errorMessageExited, Err: ErrExited}
 }
 
 func (s *session) touch() {
@@ -396,11 +429,11 @@ func (s *session) leaseChanged(from, to LeaseState, reason string, actor Actor, 
 			subscriber.deliver(Frame{Op: terminalwire.ServerOpOwner, Payload: payload}, 0)
 		}
 	}
-	s.manager.events.Emit(context.Background(), TerminalEvent{
+	s.manager.events.Notify(context.Background(), Event{
 		Kind: EventKindLeaseChanged, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 		ProfileName: s.profileName,
 		TerminalID:  info.ID, Actor: actor, Info: &info,
-		Reason: reason, Detail: EventDetail{LeaseFrom: from, LeaseTo: to}, At: s.manager.now(),
+		Reason: reason, Detail: &EventDetail{LeaseFrom: from, LeaseTo: to}, At: s.manager.now(),
 	})
 }
 

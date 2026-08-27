@@ -220,6 +220,7 @@ func (q *Queue) demoteLocked() bool {
 			from = item.frame.Seq
 		}
 		to = item.end
+		// #nosec G115 -- ack is the nonnegative encoded payload length.
 		dropped += uint64(item.ack)
 	}
 	q.items = nil
@@ -251,6 +252,7 @@ func (q *Queue) trimDropQueueLocked() {
 			from = item.frame.Seq
 		}
 		to = item.end
+		// #nosec G115 -- ack is the nonnegative encoded payload length.
 		dropped += uint64(item.ack)
 	}
 	if dropped > 0 {

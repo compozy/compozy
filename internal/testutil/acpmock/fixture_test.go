@@ -260,7 +260,10 @@ func TestLoadFixtureParsesMultipleAgentsAndScenarioPrimitives(t *testing.T) {
 		if agent.SupportsLoadSession() {
 			t.Fatal("generation-bump fixture advertises load_session; recovery would not replace the runtime")
 		}
-		initial, err := agent.SelectTurn("recover the terminal generation", acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser})
+		initial, err := agent.SelectTurn(
+			"recover the terminal generation",
+			acp.PromptMeta{TurnSource: acp.PromptTurnSourceUser},
+		)
 		if err != nil {
 			t.Fatalf("agent.SelectTurn(initial) error = %v", err)
 		}

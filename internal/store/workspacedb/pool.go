@@ -242,7 +242,10 @@ func (p *Pool) Close(ctx context.Context) error {
 	for _, named := range openings {
 		select {
 		case <-ctx.Done():
-			errs = append(errs, fmt.Errorf("store: wait for opening workspace database %q: %w", named.workspaceID, ctx.Err()))
+			errs = append(
+				errs,
+				fmt.Errorf("store: wait for opening workspace database %q: %w", named.workspaceID, ctx.Err()),
+			)
 		case <-named.opening.done:
 			if named.opening.cleanupErr != nil {
 				errs = append(errs, fmt.Errorf(

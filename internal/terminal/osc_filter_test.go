@@ -39,7 +39,12 @@ func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T)
 		filter := newOSCSecurityFilter("nonce-1", nil)
 		result := filter.Filter(append([]byte("visible\x1b]52;c;"), bytes.Repeat([]byte("x"), maxPendingOSCBytes)...))
 		if string(result.DisplayBytes) != "visible" || len(filter.output.pending) != 0 || !filter.output.discarding {
-			t.Fatalf("overflow filter result/state = %#v pending=%d discarding=%v", result, len(filter.output.pending), filter.output.discarding)
+			t.Fatalf(
+				"overflow filter result/state = %#v pending=%d discarding=%v",
+				result,
+				len(filter.output.pending),
+				filter.output.discarding,
+			)
 		}
 		result = filter.Filter([]byte("ignored\x1b\\safe"))
 		if string(result.DisplayBytes) != "safe" || filter.output.discarding {
@@ -49,7 +54,9 @@ func TestOSCSecurityFilterShouldAuthenticateMarkersAndSplitDisplay(t *testing.T)
 
 	t.Run("Should neutralize OSC location hyperlinks and DCS only for model output", func(t *testing.T) {
 		t.Parallel()
-		input := []byte("before\x1b]7;file:///tmp\x07middle\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\after\x1bPprivate\x1b\\done")
+		input := []byte(
+			"before\x1b]7;file:///tmp\x07middle\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\after\x1bPprivate\x1b\\done",
+		)
 		filtered := modelFacingOutput(input)
 		if got, want := string(filtered), "beforemiddlelinkafterdone"; got != want {
 			t.Fatalf("modelFacingOutput() = %q, want %q", got, want)
@@ -134,7 +141,8 @@ func TestOSCSecurityFilterShouldStripClipboardBeforeSequenceAccounting(t *testin
 	if err != nil {
 		t.Fatalf("Screen() error = %v", err)
 	}
-	if read.Seq != uint64(len("beforeafter")) || read.Content != "beforeafter" || bytes.Contains([]byte(read.Content), []byte("52;")) {
+	if read.Seq != uint64(len("beforeafter")) || read.Content != "beforeafter" ||
+		bytes.Contains([]byte(read.Content), []byte("52;")) {
 		t.Fatalf("Screen() = %#v", read)
 	}
 	actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
@@ -153,7 +161,9 @@ func TestTerminalTitlePipelineShouldPinAndSanitize(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
 		handle, err := manager.Open(context.Background(), OpenRequest{
-			WS: "workspace-a", Title: "Pinned", Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			WS:           "workspace-a",
+			Title:        "Pinned",
+			Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
 			Capabilities: Capabilities{Interactive: true},
 		})
 		if err != nil {

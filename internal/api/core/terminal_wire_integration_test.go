@@ -95,7 +95,9 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if attached.Op != terminalwire.ServerOpAttached {
 			t.Fatalf("first opcode = 0x%02x, want ATTACHED", attached.Op)
 		}
-		input, err := terminalwire.EncodeClient(terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte("echo wire-ok\n")})
+		input, err := terminalwire.EncodeClient(
+			terminalwire.Frame{Op: terminalwire.ClientOpInput, Payload: []byte("echo wire-ok\n")},
+		)
 		if err != nil {
 			t.Fatalf("EncodeClient(INPUT) error = %v", err)
 		}
@@ -114,7 +116,9 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 		if !foundEcho {
 			t.Fatal("terminal stream did not echo input")
 		}
-		resize, err := terminalwire.EncodeClient(terminalwire.Frame{Op: terminalwire.ClientOpResize, Payload: json.RawMessage(`{"cols":100,"rows":30}`)})
+		resize, err := terminalwire.EncodeClient(
+			terminalwire.Frame{Op: terminalwire.ClientOpResize, Payload: json.RawMessage(`{"cols":100,"rows":30}`)},
+		)
 		if err != nil {
 			t.Fatalf("EncodeClient(RESIZE) error = %v", err)
 		}
@@ -154,7 +158,13 @@ func TestTerminalWireShouldCompleteRealLifecycle(t *testing.T) {
 			if secondResponse != nil && secondResponse.Body != nil {
 				body, readErr := io.ReadAll(secondResponse.Body)
 				closeErr := secondResponse.Body.Close()
-				t.Fatalf("second Dial() error = %v, read error = %v, close error = %v, body=%s", err, readErr, closeErr, body)
+				t.Fatalf(
+					"second Dial() error = %v, read error = %v, close error = %v, body=%s",
+					err,
+					readErr,
+					closeErr,
+					body,
+				)
 			}
 			t.Fatalf("second Dial() error = %v", err)
 		}

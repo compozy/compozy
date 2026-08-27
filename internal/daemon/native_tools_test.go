@@ -114,10 +114,17 @@ func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
 	})
 }
 
-func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(t *testing.T) { // UT-068, UT-089, UT-090, IT-008, IT-034, IT-036
+func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
+	t *testing.T,
+) { // UT-068, UT-089, UT-090, IT-008, IT-034, IT-036
 	t.Parallel()
 	handle := &terminalNativeHandleStub{
-		info: terminalpkg.Info{ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", Lease: terminalpkg.LeaseAgentOwned},
+		info: terminalpkg.Info{
+			ID:        "term-aaaaaaaaaaaa",
+			WS:        "workspace-a",
+			ProfileID: "profile-a",
+			Lease:     terminalpkg.LeaseAgentOwned,
+		},
 		read: &terminalpkg.ReadResult{Content: "terminal bytes", Seq: 12, Untrusted: true},
 	}
 	manager := &terminalNativeManagerStub{handle: handle}
@@ -223,7 +230,8 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(t *testing.T)
 		ToolID: toolspkg.ToolIDTerminalExec,
 		Input:  json.RawMessage(`{"command":"bun","args":["test"]}`),
 	})
-	if err != nil || manager.execCalls != 2 || manager.execRequest.Approval != "approved_always" || approver.calls != 1 {
+	if err != nil || manager.execCalls != 2 || manager.execRequest.Approval != "approved_always" ||
+		approver.calls != 1 {
 		t.Fatalf(
 			"terminalExec(prompted) error/calls/request/approvals = %v/%d/%#v/%d",
 			err, manager.execCalls, manager.execRequest, approver.calls,
@@ -234,7 +242,12 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(t *testing.T)
 func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T) { // IT-016, IT-025, IT-028
 	t.Parallel()
 	handle := &terminalNativeHandleStub{
-		info:        terminalpkg.Info{ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", Lease: terminalpkg.LeaseAgentOwned},
+		info: terminalpkg.Info{
+			ID:        "term-aaaaaaaaaaaa",
+			WS:        "workspace-a",
+			ProfileID: "profile-a",
+			Lease:     terminalpkg.LeaseAgentOwned,
+		},
 		read:        &terminalpkg.ReadResult{Content: "tail", Seq: 4, Untrusted: true},
 		wait:        &terminalpkg.WaitResult{Reason: "match", Screen: "matched", Untrusted: true},
 		inputResult: &terminalpkg.InputOutcome{Outcome: "answered", Redacted: true, Length: 4},
@@ -246,7 +259,12 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 			return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 7}, nil
 		}},
 	}}
-	scope := toolspkg.Scope{WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a"}
+	scope := toolspkg.Scope{
+		WorkspaceID: "workspace-a",
+		ProfileID:   "profile-a",
+		SessionID:   "session-a",
+		AgentName:   "agent-a",
+	}
 	testCases := []struct {
 		name  string
 		call  func() (toolspkg.ToolResult, error)
@@ -297,7 +315,11 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		},
 		{
 			name: "list", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalList(t.Context(), scope, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)})
+				return adapter.terminalList(
+					t.Context(),
+					scope,
+					toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)},
+				)
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"term-aaaaaaaaaaaa"`))
@@ -328,7 +350,8 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 			},
 		},
 		{
-			name: "claim", call: func() (toolspkg.ToolResult, error) {
+			name: "claim",
+			call: func() (toolspkg.ToolResult, error) {
 				return adapter.terminalClaim(t.Context(), scope, toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalClaim,
 					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
@@ -346,8 +369,11 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 			testCase.check(result)
 		})
 	}
-	if string(handle.writeInput) != "go\n" || handle.writeActor.Generation != 7 || handle.signal != terminalpkg.SignalTERM ||
-		!handle.yielded || manager.claimActor.Generation != 7 || manager.openRequest.Actor.Generation != 7 {
+	if string(handle.writeInput) != "go\n" || handle.writeActor.Generation != 7 ||
+		handle.signal != terminalpkg.SignalTERM ||
+		!handle.yielded ||
+		manager.claimActor.Generation != 7 ||
+		manager.openRequest.Actor.Generation != 7 {
 		t.Fatalf("native calls lost actor/input state: handle=%#v manager=%#v", handle, manager)
 	}
 }
@@ -405,22 +431,43 @@ type terminalNativeManagerStub struct {
 	execCalls   int
 }
 
-func (m *terminalNativeManagerStub) Open(_ context.Context, request terminalpkg.OpenRequest) (terminalpkg.Handle, error) {
+func (m *terminalNativeManagerStub) Open(
+	_ context.Context,
+	request terminalpkg.OpenRequest,
+) (terminalpkg.Handle, error) {
 	m.openRequest = request
 	return m.handle, nil
 }
-func (m *terminalNativeManagerStub) Exec(_ context.Context, request terminalpkg.ExecRequest) (*terminalpkg.ExecResult, error) {
+
+func (m *terminalNativeManagerStub) Exec(
+	_ context.Context,
+	request terminalpkg.ExecRequest,
+) (*terminalpkg.ExecResult, error) {
 	m.execCalls++
 	m.execRequest = request
 	return &terminalpkg.ExecResult{Untrusted: true, CommandID: "cmd-a"}, nil
 }
-func (m *terminalNativeManagerStub) Handle(_ context.Context, workspaceID, profileID string, _ terminalpkg.ID) (terminalpkg.Handle, error) {
+
+func (m *terminalNativeManagerStub) Handle(
+	_ context.Context,
+	workspaceID, profileID string,
+	_ terminalpkg.ID,
+) (terminalpkg.Handle, error) {
 	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != profileID {
-		return nil, &terminalpkg.Error{Code: "terminal_not_found", Message: "terminal not found", Err: terminalpkg.ErrNotFound}
+		return nil, &terminalpkg.Error{
+			Code:    "terminal_not_found",
+			Message: "terminal not found",
+			Err:     terminalpkg.ErrNotFound,
+		}
 	}
 	return m.handle, nil
 }
-func (m *terminalNativeManagerStub) Get(ctx context.Context, workspaceID, profileID string, id terminalpkg.ID) (*terminalpkg.Info, error) {
+
+func (m *terminalNativeManagerStub) Get(
+	ctx context.Context,
+	workspaceID, profileID string,
+	id terminalpkg.ID,
+) (*terminalpkg.Info, error) {
 	handle, err := m.Handle(ctx, workspaceID, profileID, id)
 	if err != nil {
 		return nil, err
@@ -442,17 +489,26 @@ func (m *terminalNativeManagerStub) Close(
 	_ terminalpkg.Signal,
 ) (*terminalpkg.Exit, error) {
 	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != actor.ProfileID {
-		return nil, &terminalpkg.Error{Code: "terminal_not_found", Message: "terminal not found", Err: terminalpkg.ErrNotFound}
+		return nil, &terminalpkg.Error{
+			Code:    "terminal_not_found",
+			Message: "terminal not found",
+			Err:     terminalpkg.ErrNotFound,
+		}
 	}
 	m.closeActor = actor
 	return &terminalpkg.Exit{Cause: "signaled"}, nil
 }
-func (*terminalNativeManagerStub) Journal() terminalpkg.Journal                             { return nil }
-func (*terminalNativeManagerStub) Shutdown(context.Context) error                           { return nil }
-func (*terminalNativeManagerStub) Observe(func(context.Context, terminalpkg.TerminalEvent)) {}
-func (*terminalNativeManagerStub) ArchiveProfile(context.Context, string) error             { return nil }
+func (*terminalNativeManagerStub) Journal() terminalpkg.Journal                     { return nil }
+func (*terminalNativeManagerStub) Shutdown(context.Context) error                   { return nil }
+func (*terminalNativeManagerStub) Observe(func(context.Context, terminalpkg.Event)) {}
+func (*terminalNativeManagerStub) ArchiveProfile(context.Context, string) error     { return nil }
 
-func (m *terminalNativeManagerStub) Claim(_ context.Context, workspaceID string, _ terminalpkg.ID, actor terminalpkg.Actor) error {
+func (m *terminalNativeManagerStub) Claim(
+	_ context.Context,
+	workspaceID string,
+	_ terminalpkg.ID,
+	actor terminalpkg.Actor,
+) error {
 	if m.handle == nil || m.handle.Info().WS != workspaceID || m.handle.Info().ProfileID != actor.ProfileID {
 		return terminalpkg.ErrNotFound
 	}
@@ -492,13 +548,29 @@ func (h *terminalNativeHandleStub) Yield(context.Context, terminalpkg.Actor) err
 	h.yielded = true
 	return nil
 }
-func (h *terminalNativeHandleStub) RequestInput(context.Context, terminalpkg.InputRequest) (*terminalpkg.InputOutcome, error) {
+
+func (h *terminalNativeHandleStub) RequestInput(
+	context.Context,
+	terminalpkg.InputRequest,
+) (*terminalpkg.InputOutcome, error) {
 	return h.inputResult, nil
 }
-func (*terminalNativeHandleStub) AnswerInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, terminalpkg.InputAnswer) (*terminalpkg.InputOutcome, error) {
+
+func (*terminalNativeHandleStub) AnswerInput(
+	context.Context,
+	terminalpkg.Actor,
+	terminalpkg.InputRequestID,
+	terminalpkg.InputAnswer,
+) (*terminalpkg.InputOutcome, error) {
 	return &terminalpkg.InputOutcome{Outcome: "answered"}, nil
 }
-func (*terminalNativeHandleStub) RejectInput(context.Context, terminalpkg.Actor, terminalpkg.InputRequestID, string) error {
+
+func (*terminalNativeHandleStub) RejectInput(
+	context.Context,
+	terminalpkg.Actor,
+	terminalpkg.InputRequestID,
+	string,
+) error {
 	return nil
 }
 func (h *terminalNativeHandleStub) Signal(_ context.Context, _ terminalpkg.Actor, signal terminalpkg.Signal) error {

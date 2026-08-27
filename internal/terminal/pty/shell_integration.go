@@ -5,6 +5,7 @@ package pty
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,7 +19,11 @@ type shellSetup struct {
 
 func prepareShellIntegration(spec ProcSpec) (shellSetup, error) {
 	setup := shellSetup{
-		argv: append([]string(nil), spec.Argv...), env: cloneEnvironment(spec.Env), cleanup: func() error { return nil },
+		argv: append(
+			[]string(nil),
+			spec.Argv...),
+		env:     cloneEnvironment(spec.Env),
+		cleanup: func() error { return nil },
 	}
 	if !spec.ShellIntegration || strings.TrimSpace(spec.MarkerNonce) == "" || len(spec.Argv) == 0 {
 		return setup, nil
@@ -106,7 +111,13 @@ func prepareFishIntegration(setup *shellSetup, root, nonce string) error {
 		userConfigRoot = filepath.Join(home, ".config")
 	}
 	userConfig := filepath.Join(userConfigRoot, "fish", "config.fish")
-	config := "if test -f " + fishQuote(userConfig) + "\n  source " + fishQuote(userConfig) + "\nend\nsource " + fishQuote(vendorPath) + "\n"
+	config := "if test -f " + fishQuote(
+		userConfig,
+	) + "\n  source " + fishQuote(
+		userConfig,
+	) + "\nend\nsource " + fishQuote(
+		vendorPath,
+	) + "\n"
 	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
 		return fmt.Errorf("terminal pty: write fish integration config: %w", err)
 	}
@@ -130,7 +141,8 @@ __compozy_preexec() {
   [[ "$__compozy_guard" == 1 ]] && return
   __compozy_guard=1
   local command="$BASH_COMMAND"
-  printf '\033]7113;v1;%s;S;cmd=%s;cwd=%s\033\\' "$__compozy_nonce" "$(__compozy_pct "$command")" "$(__compozy_pct "$PWD")"
+  printf '\033]7113;v1;%s;S;cmd=%s;cwd=%s\033\\' "$__compozy_nonce" \
+    "$(__compozy_pct "$command")" "$(__compozy_pct "$PWD")"
   __compozy_active=1
   __compozy_guard=0
 }
@@ -173,7 +185,8 @@ add-zsh-hook precmd __compozy_precmd
 func fishMarkerScript(nonce string) string {
 	return `set -g __compozy_nonce ` + fishQuote(nonce) + `
 function __compozy_preexec --on-event fish_preexec
-  printf '\e]7113;v1;%s;S;cmd=%s;cwd=%s\e\\' $__compozy_nonce (string escape --style=url -- $argv) (string escape --style=url -- $PWD)
+  printf '\e]7113;v1;%s;S;cmd=%s;cwd=%s\e\\' $__compozy_nonce \
+    (string escape --style=url -- $argv) (string escape --style=url -- $PWD)
 end
 function __compozy_postexec --on-event fish_postexec
   printf '\e]7113;v1;%s;F;exit=%d\e\\' $__compozy_nonce $status
@@ -183,9 +196,7 @@ end
 
 func cloneEnvironment(source map[string]string) map[string]string {
 	cloned := make(map[string]string, len(source)+3)
-	for key, value := range source {
-		cloned[key] = value
-	}
+	maps.Copy(cloned, source)
 	return cloned
 }
 

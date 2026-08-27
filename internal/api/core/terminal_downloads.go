@@ -78,7 +78,7 @@ func (h *BaseHandlers) streamTerminalDownload(c *gin.Context, reader io.ReadClos
 	c.Status(http.StatusOK)
 	_, copyErr := io.Copy(c.Writer, reader)
 	closeErr := reader.Close()
-	h.logTerminalDownloadError(c.Request.Context(), errors.Join(copyErr, closeErr))
+	h.logTerminalDownloadError(errors.Join(copyErr, closeErr))
 }
 
 func terminalDownloadError(id string, err error) error {
@@ -91,7 +91,7 @@ func terminalDownloadError(id string, err error) error {
 	return err
 }
 
-func (h *BaseHandlers) logTerminalDownloadError(ctx context.Context, err error) {
+func (h *BaseHandlers) logTerminalDownloadError(err error) {
 	if err == nil {
 		return
 	}

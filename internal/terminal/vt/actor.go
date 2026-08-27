@@ -221,37 +221,51 @@ func (a *Actor) loop(cols, rows int, ring RingSnapshot) {
 		case message := <-a.writes:
 			a.pending.Add(-int64(len(message.data)))
 			if !ended {
-				start := message.end - uint64(len(message.data))
-				if message.end > applied {
-					input := message.data
-					if start < applied {
-						input = input[applied-start:]
-					}
-					if _, err := emulator.Write(input); err != nil {
-						ended = true
-					}
-					applied = message.end
-				}
+				applied, ended = applyActorWrite(emulator, message, applied)
 			}
 		case request := <-a.commands:
-			switch request.kind {
-			case commandScreen:
-				if a.dirty.Load() || a.rebuilding.Load() {
-					request.snapshot <- Snapshot{Seq: applied, Busy: true, Ended: ended}
-				} else {
-					request.snapshot <- Snapshot{Content: screenText(emulator), Seq: applied, Ended: ended}
-				}
-			case commandResize:
-				cols, rows = normalizeSize(request.cols, request.rows)
-				if ended {
-					request.err <- ErrClosed
-					continue
-				}
-				emulator.Resize(cols, rows)
-				request.err <- nil
-			}
+			cols, rows = a.handleActorCommand(request, emulator, applied, ended, cols, rows)
 		}
 	}
+}
+
+func applyActorWrite(emulator *charmvt.Emulator, message writeMessage, applied uint64) (uint64, bool) {
+	start := message.end - uint64(len(message.data))
+	if message.end <= applied {
+		return applied, false
+	}
+	input := message.data
+	if start < applied {
+		input = input[applied-start:]
+	}
+	_, err := emulator.Write(input)
+	return message.end, err != nil
+}
+
+func (a *Actor) handleActorCommand(
+	request command,
+	emulator *charmvt.Emulator,
+	applied uint64,
+	ended bool,
+	cols, rows int,
+) (int, int) {
+	switch request.kind {
+	case commandScreen:
+		if a.dirty.Load() || a.rebuilding.Load() {
+			request.snapshot <- Snapshot{Seq: applied, Busy: true, Ended: ended}
+		} else {
+			request.snapshot <- Snapshot{Content: screenText(emulator), Seq: applied, Ended: ended}
+		}
+	case commandResize:
+		cols, rows = normalizeSize(request.cols, request.rows)
+		if ended {
+			request.err <- ErrClosed
+			return cols, rows
+		}
+		emulator.Resize(cols, rows)
+		request.err <- nil
+	}
+	return cols, rows
 }
 
 func (a *Actor) finishClose(emulator *charmvt.Emulator, drainDone <-chan error, applied uint64) {
@@ -344,10 +358,7 @@ func screenText(emulator *charmvt.Emulator) string {
 				continue
 			}
 			line.WriteString(cell.String())
-			width := cell.Width
-			if width < 1 {
-				width = 1
-			}
+			width := max(cell.Width, 1)
 			x += width
 		}
 		lines = append(lines, strings.TrimRight(line.String(), " "))

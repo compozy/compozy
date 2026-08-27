@@ -3068,7 +3068,12 @@ func TestTerminalDescriptorsShouldKeepObserveOnlyAgentsReadOnly(t *testing.T) { 
 	for _, id := range readIDs {
 		descriptor := descriptors[id]
 		if !slices.Equal(descriptor.Backend.RequiresCapabilities, []string{terminalObserveCapability}) {
-			t.Fatalf("%s capabilities = %#v, want [%q]", id, descriptor.Backend.RequiresCapabilities, terminalObserveCapability)
+			t.Fatalf(
+				"%s capabilities = %#v, want [%q]",
+				id,
+				descriptor.Backend.RequiresCapabilities,
+				terminalObserveCapability,
+			)
 		}
 		decision, evaluateErr := evaluator.Evaluate(t.Context(), toolspkg.Scope{}, descriptor)
 		if evaluateErr != nil {

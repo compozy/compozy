@@ -48,7 +48,7 @@ type Service struct {
 	typingGrants    TypingGrantAuthorizer
 	execApprovals   ExecAuthorizer
 	registerProcess processRegister
-	events          *EventBus
+	events          *Notifier
 	journal         Journal
 	markers         MarkerConsumer
 	logger          *slog.Logger
@@ -98,7 +98,11 @@ func (m *Service) Start(ctx context.Context) error {
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
-		return &Error{Code: "terminal_shutting_down", Message: "terminal manager is shutting down", Err: ErrShuttingDown}
+		return &Error{
+			Code:    errorCodeShuttingDown,
+			Message: errorMessageShuttingDown,
+			Err:     ErrShuttingDown,
+		}
 	}
 	if m.reaperCancel != nil {
 		m.mu.Unlock()
@@ -175,7 +179,7 @@ func (m *Service) Journal() Journal { return m.journal }
 
 func (m *Service) TerminalFor(string) (Manager, error) { return m, nil }
 
-func (m *Service) Observe(fn func(context.Context, TerminalEvent)) { m.events.Observe(fn) }
+func (m *Service) Observe(fn func(context.Context, Event)) { m.events.Observe(fn) }
 
 func (m *Service) ArchiveProfile(ctx context.Context, profileID string) error {
 	if strings.TrimSpace(profileID) == "" {
@@ -271,7 +275,7 @@ func (m *Service) Shutdown(ctx context.Context) error {
 	}
 	done := m.shutdownDone
 	m.mu.Unlock()
-	go m.drain(cancel, targets)
+	go m.drain(context.WithoutCancel(ctx), cancel, targets)
 	return m.waitForShutdown(ctx, done)
 }
 
@@ -286,17 +290,17 @@ func (m *Service) waitForShutdown(ctx context.Context, done <-chan struct{}) err
 	}
 }
 
-func (m *Service) drain(cancel context.CancelFunc, targets []terminalLifecycleTarget) {
+func (m *Service) drain(ctx context.Context, cancel context.CancelFunc, targets []terminalLifecycleTarget) {
 	if cancel != nil {
 		cancel()
 		<-m.reaperDone
 	}
-	closeErr := m.closeAndArchiveTerminals(context.Background(), targets, "shutdown", "daemon-shutdown")
+	closeErr := m.closeAndArchiveTerminals(ctx, targets, "shutdown", "daemon-shutdown")
 	closeErrors := []error{closeErr}
 	if lifecycle, ok := m.journal.(interface {
 		Shutdown(context.Context) error
 	}); ok {
-		journalCtx, cancelJournal := context.WithTimeout(context.Background(), defaultJournalShutdownTimeout)
+		journalCtx, cancelJournal := context.WithTimeout(ctx, defaultJournalShutdownTimeout)
 		if err := lifecycle.Shutdown(journalCtx); err != nil {
 			closeErrors = append(closeErrors, err)
 		}
@@ -325,17 +329,21 @@ func (m *Service) lookup(key terminalKey) (*session, error) {
 		return item, nil
 	}
 	if tombstoned && now.Before(stone.expiresAt) {
-		return nil, &Error{Code: "terminal_expired", Message: "terminal has expired", Err: ErrExpired}
+		return nil, &Error{Code: errorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
 	}
-	return nil, &Error{Code: "terminal_not_found", Message: "terminal not found", Err: ErrNotFound}
+	return nil, &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 }
 
 func (m *Service) admit(ctx context.Context, workspaceID string, actor Actor) error {
 	if strings.TrimSpace(workspaceID) == "" {
-		return &Error{Code: "terminal_requires_workspace", Message: "terminal operations require a workspace", Err: ErrRequiresWorkspace}
+		return &Error{
+			Code:    "terminal_requires_workspace",
+			Message: "terminal operations require a workspace",
+			Err:     ErrRequiresWorkspace,
+		}
 	}
 	if strings.TrimSpace(actor.ProfileID) == "" {
-		return &Error{Code: "terminal_not_found", Message: "terminal profile is required", Err: ErrNotFound}
+		return &Error{Code: errorCodeNotFound, Message: "terminal profile is required", Err: ErrNotFound}
 	}
 	if m.profiles != nil {
 		return m.profiles.EnsureAvailableID(ctx, actor.ProfileID)

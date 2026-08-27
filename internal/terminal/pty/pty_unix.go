@@ -30,7 +30,7 @@ type unixProc struct {
 	shimCleanup func() error
 }
 
-func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
+func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if len(spec.Argv) == 0 || spec.Argv[0] == "" {
 		return nil, errors.New("terminal pty: command is required")
 	}
@@ -48,7 +48,8 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 	if err != nil {
 		return nil, errors.Join(err, reader.Close(), closeUnixDevice(device))
 	}
-	command := exec.Command(setup.argv[0], setup.argv[1:]...)
+	// #nosec G204 -- argv is the resolved shell command from the validated terminal request.
+	command := exec.CommandContext(ctx, setup.argv[0], setup.argv[1:]...)
 	command.Dir = spec.Cwd
 	command.Env = environment(setup.env)
 	procutil.ConfigureCommandTerminalSession(command)
@@ -233,8 +234,7 @@ func signalName(signal syscall.Signal) string {
 }
 
 func waitError(err error) error {
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if errors.As(err, new(*exec.ExitError)) {
 		return nil
 	}
 	return err

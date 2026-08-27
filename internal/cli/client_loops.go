@@ -134,7 +134,7 @@ func (c *daemonClient) ValidateLoop(
 	request contract.ValidateLoopRequest,
 ) (payload contract.LoopValidationResponse, err error) {
 	path := loopDefinitionPath(workspaceID, name) + "/validate"
-	response, err := c.doRequest(ctx, http.MethodPost, path, nil, request)
+	response, err := c.doRequest(ctx, http.MethodPost, path, request)
 	if err != nil {
 		return contract.LoopValidationResponse{}, err
 	}

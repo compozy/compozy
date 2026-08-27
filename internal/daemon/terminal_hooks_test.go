@@ -2,7 +2,7 @@ package daemon
 
 // Suite: terminal-to-hook composition bridge.
 // Invariant: each extension-visible terminal event maps once without manager re-entry or correlation-key loss.
-// Boundary IN: terminal.EventBus values. Boundary OUT: the hooks async queue.
+// Boundary IN: terminal notifier values. Boundary OUT: the hooks async queue.
 
 import (
 	"context"
@@ -75,17 +75,17 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 
 	at := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
 	for _, testCase := range cases {
-		event := terminalpkg.TerminalEvent{
+		event := terminalpkg.Event{
 			Kind: testCase.kind, WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: "term-a",
 			Actor: terminalpkg.Actor{
 				Kind: terminalpkg.ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
 				SessionID: "session-a", RunID: "run-a",
 			},
 			At: at, Reason: "operator_close",
-			Exit: &terminalpkg.Exit{Cause: "exited", Code: intPointer(0)},
-			Detail: terminalpkg.EventDetail{
+			Exit: &terminalpkg.Exit{Cause: "exited", Code: new(0)},
+			Detail: &terminalpkg.EventDetail{
 				Mode: terminalpkg.ModePTY, Cwd: "/workspace", Title: "Build", CommandID: "cmd-a", Command: "pwd",
-				DetectedBy: "marker", ExitCode: intPointer(0), ExitCause: "exited", DurationMS: 12,
+				DetectedBy: "marker", ExitCode: new(0), ExitCause: "exited", DurationMS: 12,
 				Signal: new("TERM"), Approval: "human", RequestID: "request-a", Redacted: true,
 				Length: 7, Outcome: "provided", RecordingID: "rec-a", Digest: "digest-a", Bytes: 42,
 				LeaseFrom: terminalpkg.LeaseAvailable, LeaseTo: terminalpkg.LeaseHumanOwned, Truncated: true,
@@ -128,7 +128,15 @@ func terminalHookExpectedPayload(event hookspkg.HookEvent) map[string]any {
 	case hookspkg.HookTerminalCommandStarted:
 		return map[string]any{"command_id": "cmd-a", "command": "pwd", "cwd": "/workspace", "detected_by": "marker"}
 	case hookspkg.HookTerminalCommandFinished:
-		return map[string]any{"command_id": "cmd-a", "exit_code": float64(0), "signal": "TERM", "exit_cause": "exited", "duration_ms": float64(12), "detected_by": "marker", "approval": "human"}
+		return map[string]any{
+			"command_id":  "cmd-a",
+			"exit_code":   float64(0),
+			"signal":      "TERM",
+			"exit_cause":  "exited",
+			"duration_ms": float64(12),
+			"detected_by": "marker",
+			"approval":    "human",
+		}
 	case hookspkg.HookTerminalInputRequested:
 		return map[string]any{"request_id": "request-a", "reason": "operator_close", "redacted": true}
 	case hookspkg.HookTerminalInputProvided:
@@ -136,7 +144,13 @@ func terminalHookExpectedPayload(event hookspkg.HookEvent) map[string]any {
 	case hookspkg.HookTerminalRecordingStarted:
 		return map[string]any{"recording_id": "rec-a"}
 	case hookspkg.HookTerminalRecordingStopped:
-		return map[string]any{"recording_id": "rec-a", "digest": "digest-a", "bytes": float64(42), "reason": "operator_close", "truncated": true}
+		return map[string]any{
+			"recording_id": "rec-a",
+			"digest":       "digest-a",
+			"bytes":        float64(42),
+			"reason":       "operator_close",
+			"truncated":    true,
+		}
 	case hookspkg.HookTerminalSubscriberEvicted:
 		return map[string]any{"flow": "drop", "reason": "operator_close"}
 	case hookspkg.HookTerminalLimitRejected:
@@ -145,5 +159,3 @@ func terminalHookExpectedPayload(event hookspkg.HookEvent) map[string]any {
 		return nil
 	}
 }
-
-func intPointer(value int) *int { return &value }

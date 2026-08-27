@@ -12,7 +12,7 @@ import (
 // TerminalProvider resolves the terminal manager for one profile and publishes terminal events.
 type TerminalProvider interface {
 	TerminalFor(profileID string) (terminalpkg.Manager, error)
-	Observe(func(context.Context, terminalpkg.TerminalEvent))
+	Observe(func(context.Context, terminalpkg.Event))
 }
 
 func (h *BaseHandlers) terminalAggregateService(

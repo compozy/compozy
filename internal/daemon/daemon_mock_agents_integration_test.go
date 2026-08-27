@@ -794,7 +794,7 @@ func TestDaemonE2EAgentReportedTerminalStaysObservational(t *testing.T) {
 	if reported == nil {
 		t.Fatalf("events = %#v, want reported terminal event", events)
 	}
-	if got, want := reported.Origin, acp.AgentEventOriginAgentReported; got != want {
+	if got, want := reported.Origin(), acp.AgentEventOriginAgentReported; got != want {
 		t.Fatalf("reported origin = %q, want %q", got, want)
 	}
 	if reported.ReportedTerminal == nil || reported.ReportedTerminal.ID != "reported-terminal-1" {

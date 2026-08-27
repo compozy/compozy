@@ -55,7 +55,7 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 		t.Parallel()
 		queue := NewQueue(QueueOptions{Flow: FlowDrop})
 		t.Cleanup(queue.Close)
-		for index := 0; index < 4; index++ {
+		for index := range 4 {
 			start := uint64(index * (32 << 10))
 			queue.Enqueue(Frame{Op: ServerOpOutput, Seq: start, Payload: make([]byte, 32<<10)}, start+(32<<10))
 		}
@@ -133,7 +133,10 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 			return selected
 		}, "delivery worker to select the first frame")
 		start := uint64(len(first.Payload))
-		queue.Enqueue(Frame{Op: ServerOpOutput, Seq: start, Payload: make([]byte, DropQueueLimit+1)}, start+DropQueueLimit+1)
+		queue.Enqueue(
+			Frame{Op: ServerOpOutput, Seq: start, Payload: make([]byte, DropQueueLimit+1)},
+			start+DropQueueLimit+1,
+		)
 		select {
 		case frame := <-queue.Frames():
 			if string(frame.Payload) != "first" {
@@ -219,7 +222,10 @@ func TestFlowQueueShouldEvictAContinuouslyFullObserver(t *testing.T) {
 	t.Cleanup(queue.Close)
 	queue.Enqueue(Frame{Op: ServerOpOutput, Payload: make([]byte, DropQueueLimit+1)}, DropQueueLimit+1)
 	now = now.Add(11 * time.Second)
-	queue.Enqueue(Frame{Op: ServerOpOutput, Seq: DropQueueLimit + 1, Payload: make([]byte, DropQueueLimit+1)}, 2*(DropQueueLimit+1))
+	queue.Enqueue(
+		Frame{Op: ServerOpOutput, Seq: DropQueueLimit + 1, Payload: make([]byte, DropQueueLimit+1)},
+		2*(DropQueueLimit+1),
+	)
 	select {
 	case reason := <-evicted:
 		if reason != "slow_consumer" {
@@ -272,7 +278,7 @@ func TestFlowGroupShouldKeepHealthyAckAndDropSubscribersIndependentUnderFlood(t 
 	const chunks = 40
 	const chunkBytes = 32 << 10
 	delivered := 0
-	for index := 0; index < chunks; index++ {
+	for index := range chunks {
 		start := uint64(index * chunkBytes)
 		frame := Frame{Op: ServerOpOutput, Seq: start, Payload: make([]byte, chunkBytes)}
 		healthy.Enqueue(frame, start+chunkBytes)

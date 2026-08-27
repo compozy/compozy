@@ -137,7 +137,11 @@ exit 0
 
 		repo := newGateTestRepo(t)
 		writeConfigChange(t, repo)
-		if err := os.WriteFile(filepath.Join(repo, "go.mod"), []byte("module gate.test\n\ngo 1.26\n"), 0o644); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(repo, "go.mod"),
+			[]byte("module gate.test\n\ngo 1.26\n"),
+			0o644,
+		); err != nil {
 			t.Fatalf("write module change: %v", err)
 		}
 

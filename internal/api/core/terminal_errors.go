@@ -58,8 +58,7 @@ func terminalErrorStatusCode(err error) (int, string) {
 	case errors.Is(err, windowmanager.ErrClientUnauthorized):
 		return http.StatusForbidden, "terminal_client_unauthorized"
 	}
-	var typed *terminalpkg.Error
-	if errors.As(err, &typed) {
+	if typed, ok := errors.AsType[*terminalpkg.Error](err); ok {
 		return terminalDomainStatus(typed), typed.Code
 	}
 	return http.StatusInternalServerError, "internal_error"

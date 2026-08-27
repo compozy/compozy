@@ -12,7 +12,7 @@ type terminalExecInput struct {
 	Env     map[string]string       `json:"env,omitempty"`
 	YieldMS int                     `json:"yield_ms,omitempty"`
 	Visible bool                    `json:"visible,omitempty"`
-	Output  terminalpkg.OutputShape `json:"output,omitempty"`
+	Output  terminalpkg.OutputShape `json:"output,omitzero"`
 }
 
 type terminalOpenInput struct {

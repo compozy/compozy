@@ -8,14 +8,6 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 )
 
-func configureManagedCommand(cmd *exec.Cmd) {
-	procutil.ConfigureCommandProcessGroup(cmd)
-}
-
-func registerManagedCommand(cmd *exec.Cmd) error {
-	return procutil.RegisterCommandProcessGroup(cmd)
-}
-
 func terminateManagedProcess(cmd *exec.Cmd) error {
 	return signalManagedProcess(cmd, syscall.SIGTERM)
 }

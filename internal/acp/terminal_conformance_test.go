@@ -20,7 +20,10 @@ func TestTerminalBehavioralConformance(t *testing.T) {
 	t.Run("Should preserve the polled terminal lifecycle [IT-011]", assertTerminalLifecycleHandlers)
 	t.Run("Should retain a UTF-8-safe 64 KiB output window [IT-011]", assertTerminalOutputWindow)
 	t.Run("Should apply the terminal permission gate [IT-011]", assertTerminalPermissionGate)
-	t.Run("Should reject non-allowlisted commands during network turns [IT-011]", assertTerminalNetworkTurnRejectsNonAllowlistedCommands)
+	t.Run(
+		"Should reject non-allowlisted commands during network turns [IT-011]",
+		assertTerminalNetworkTurnRejectsNonAllowlistedCommands,
+	)
 	t.Run("Should enforce network-turn terminal ownership [IT-011]", assertNetworkTurnTerminalOwnershipGuards)
 }
 
@@ -65,7 +68,11 @@ func assertTerminalOutputWindow(t *testing.T) {
 		t.Fatalf("len(TerminalOutput.Output) = %d, want %d", got, want)
 	}
 	if !strings.HasPrefix(output.Output, "b") || !strings.HasSuffix(output.Output, "x") {
-		t.Fatalf("TerminalOutput.Output boundaries = %q…%q, want b…x", output.Output[:1], output.Output[len(output.Output)-1:])
+		t.Fatalf(
+			"TerminalOutput.Output boundaries = %q…%q, want b…x",
+			output.Output[:1],
+			output.Output[len(output.Output)-1:],
+		)
 	}
 
 	configured := run("a€b", new(3))

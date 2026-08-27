@@ -25,7 +25,7 @@ func availableCommandPayloads(commands []store.SessionAdvertisedCommand) []contr
 // AgentEventPayloadFromEvent converts an agent event into the shared raw-stream payload.
 func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload {
 	return contract.AgentEventPayload{
-		Type: event.Type, Origin: event.Origin, SessionID: event.SessionID, TurnID: event.TurnID,
+		Type: event.Type, Origin: event.Origin(), SessionID: event.SessionID, TurnID: event.TurnID,
 		MessageID: event.MessageIDValue(), RequestID: event.RequestIDValue(),
 		Timestamp: event.Timestamp, Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID,
 		StopReason: event.StopReason, PromptStopReason: contract.ACPPromptStopReason(event.PromptStopReason),

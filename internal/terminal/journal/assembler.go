@@ -12,6 +12,8 @@ import (
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
+const commandDetectionMarker = "marker"
+
 type commandAssembly struct {
 	id         string
 	command    string
@@ -25,7 +27,7 @@ type commandAssembly struct {
 func (s *Service) RegisterTerminal(
 	info terminalpkg.Info,
 	setBlocked func(bool),
-	emit func(terminalpkg.TerminalEvent),
+	emit func(terminalpkg.Event),
 ) {
 	if s == nil || info.ID == "" {
 		return
@@ -36,7 +38,7 @@ func (s *Service) RegisterTerminal(
 func (s *Service) ensureLane(
 	info terminalpkg.Info,
 	setBlocked func(bool),
-	emit func(terminalpkg.TerminalEvent),
+	emit func(terminalpkg.Event),
 ) (*terminalLane, bool) {
 	key := terminalLaneKey(info)
 	s.mu.Lock()
@@ -74,13 +76,16 @@ func (s *Service) ConsumeMarkerFacts(
 			}
 			lane.setAssembly(commandAssembly{
 				id: id, command: scrubCommand(fact.Command), cwd: fact.Cwd, startedAt: s.now(),
-				actor: lane.actor(), detectedBy: "marker",
+				actor: lane.actor(), detectedBy: commandDetectionMarker,
 			})
-			lane.emitEvent(terminalpkg.TerminalEvent{
+			lane.emitEvent(terminalpkg.Event{
 				Kind: terminalpkg.EventKindCommandStarted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 				TerminalID: info.ID, Actor: lane.actor(), At: s.now(),
-				Detail: terminalpkg.EventDetail{
-					CommandID: id, Command: scrubCommand(fact.Command), Cwd: fact.Cwd, DetectedBy: "marker",
+				Detail: &terminalpkg.EventDetail{
+					CommandID:  id,
+					Command:    scrubCommand(fact.Command),
+					Cwd:        fact.Cwd,
+					DetectedBy: commandDetectionMarker,
 				},
 			})
 		case "F":
@@ -105,7 +110,7 @@ func (l *terminalLane) finishAssembly(exitCode *int, finishedAt time.Time) {
 	}
 	detectedBy := assembly.detectedBy
 	if detectedBy == "" {
-		detectedBy = "marker"
+		detectedBy = commandDetectionMarker
 	}
 	row := terminalpkg.CommandRow{
 		ID: assembly.id, TerminalID: terminalIDPointer(l.info.ID), ProfileID: l.info.ProfileID,
@@ -122,10 +127,10 @@ func (l *terminalLane) finishCommand(row terminalpkg.CommandRow, finishedAt time
 		duration = *row.DurationMs
 	}
 	l.enqueue(row)
-	l.emitEvent(terminalpkg.TerminalEvent{
+	l.emitEvent(terminalpkg.Event{
 		Kind: terminalpkg.EventKindCommandFinished, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,
 		TerminalID: l.info.ID, Actor: row.Actor, At: finishedAt,
-		Detail: terminalpkg.EventDetail{
+		Detail: &terminalpkg.EventDetail{
 			CommandID: row.ID, ExitCode: row.ExitCode, ExitCause: row.ExitCause,
 			DurationMS: duration, DetectedBy: row.DetectedBy, Approval: row.Approval,
 		},

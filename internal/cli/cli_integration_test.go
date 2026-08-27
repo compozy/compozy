@@ -174,7 +174,11 @@ func TestTerminalAgentCommandBodiesKeepProfileHelperContracts(t *testing.T) { //
 	}{
 		{name: "list aggregate read", command: newTerminalListCommand(deps), wantAllProfilesFlag: true},
 		{name: "journal aggregate read", command: newTerminalJournalCommand(deps), wantAllProfilesFlag: true},
-		{name: "input requests aggregate read", command: newTerminalInputRequestsCommand(deps), wantAllProfilesFlag: true},
+		{
+			name:                "input requests aggregate read",
+			command:             newTerminalInputRequestsCommand(deps),
+			wantAllProfilesFlag: true,
+		},
 		{name: "get owner read", command: newTerminalGetCommand(deps)},
 		{name: "attach owner read", command: newTerminalAttachCommand(deps)},
 		{name: "quote owner read", command: newTerminalQuoteCommand(deps)},
@@ -284,13 +288,55 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		input    string
 		contains string
 	}{
-		{"exec", newTerminalExecCommand(deps), []string{"exec", "--workspace", "workspace-a", "--yield", "250ms", "printf", "ok"}, "", "ok"},
-		{"signal", newTerminalSignalCommand(deps), []string{"signal", "--workspace", "workspace-a", "--signal", "TERM", "term-a"}, "", "SIGTERM delivered"},
-		{"input requests", newTerminalInputRequestsCommand(deps), []string{"input-requests", "--workspace", "workspace-a", "--all-profiles"}, "", "input-a"},
-		{"respond reject", newTerminalRespondCommand(deps), []string{"respond", "--workspace", "workspace-a", "--request", "input-a", "--reject", "term-a"}, "", "Rejected"},
-		{"journal", newTerminalJournalCommand(deps), []string{"journal", "--workspace", "workspace-a", "--all-profiles", "--limit", "25"}, "", "No terminal commands matched"},
-		{"record", newTerminalRecordCommand(deps), []string{"record", "start", "--workspace", "workspace-a", "term-a"}, "", "recording-a"},
-		{"quote", newTerminalQuoteCommand(deps), []string{"quote", "--workspace", "workspace-a", "--lines", "1-2", "term-a"}, "", `<terminal_context terminal="term-a" lines="1-2">`},
+		{
+			"exec",
+			newTerminalExecCommand(deps),
+			[]string{"exec", "--workspace", "workspace-a", "--yield", "250ms", "printf", "ok"},
+			"",
+			"ok",
+		},
+		{
+			"signal",
+			newTerminalSignalCommand(deps),
+			[]string{"signal", "--workspace", "workspace-a", "--signal", "TERM", "term-a"},
+			"",
+			"SIGTERM delivered",
+		},
+		{
+			"input requests",
+			newTerminalInputRequestsCommand(deps),
+			[]string{"input-requests", "--workspace", "workspace-a", "--all-profiles"},
+			"",
+			"input-a",
+		},
+		{
+			"respond reject",
+			newTerminalRespondCommand(deps),
+			[]string{"respond", "--workspace", "workspace-a", "--request", "input-a", "--reject", "term-a"},
+			"",
+			"Rejected",
+		},
+		{
+			"journal",
+			newTerminalJournalCommand(deps),
+			[]string{"journal", "--workspace", "workspace-a", "--all-profiles", "--limit", "25"},
+			"",
+			"No terminal commands matched",
+		},
+		{
+			"record",
+			newTerminalRecordCommand(deps),
+			[]string{"record", "start", "--workspace", "workspace-a", "term-a"},
+			"",
+			"recording-a",
+		},
+		{
+			"quote",
+			newTerminalQuoteCommand(deps),
+			[]string{"quote", "--workspace", "workspace-a", "--lines", "1-2", "term-a"},
+			"",
+			`<terminal_context terminal="term-a" lines="1-2">`,
+		},
 	}
 	for _, testCase := range testCases {
 		t.Run("Should execute "+testCase.name, func(t *testing.T) {
@@ -392,13 +438,27 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 	next := "journal-next"
 	terminalID := terminalpkg.ID("term-a")
 	terminalPayload := contract.TerminalInfoPayload{
-		ID: terminalID, WorkspaceID: "workspace-a", ProfileID: "profile-work", ProfileName: "work",
-		Title: "Build", Shell: "/bin/zsh", Cwd: "/workspace", Mode: terminalpkg.ModePTY, State: "exited",
-		Controller: &contract.TerminalControllerPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
-		Lease:      terminalpkg.LeaseAgentOwned, Viewers: 2,
+		ID:           terminalID,
+		WorkspaceID:  "workspace-a",
+		ProfileID:    "profile-work",
+		ProfileName:  "work",
+		Title:        "Build",
+		Shell:        "/bin/zsh",
+		Cwd:          "/workspace",
+		Mode:         terminalpkg.ModePTY,
+		State:        "exited",
+		Controller:   &contract.TerminalControllerPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
+		Lease:        terminalpkg.LeaseAgentOwned,
+		Viewers:      2,
 		BoundRun:     &contract.TerminalRunPayload{SessionID: "session-a", RunID: "run-a"},
-		Capabilities: terminalpkg.Capabilities{Interactive: true}, CreatedAt: fixed,
-		Exit: &contract.TerminalExitPayload{Cause: "signal", Code: &exitCode, Signal: &exitSignal, At: fixed.Add(time.Minute)},
+		Capabilities: terminalpkg.Capabilities{Interactive: true},
+		CreatedAt:    fixed,
+		Exit: &contract.TerminalExitPayload{
+			Cause:  "signal",
+			Code:   &exitCode,
+			Signal: &exitSignal,
+			At:     fixed.Add(time.Minute),
+		},
 	}
 	journalPayload := contract.TerminalJournalResponse{
 		Entries: []contract.TerminalCommandRowPayload{{
@@ -430,7 +490,11 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 			requestMu.Lock()
 			terminalRequests = append(terminalRequests, path+"?"+request.URL.Query().Encode())
 			requestMu.Unlock()
-			writeRemoteCLIJSON(writer, http.StatusOK, contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}})
+			writeRemoteCLIJSON(
+				writer,
+				http.StatusOK,
+				contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
+			)
 		case request.Method == http.MethodGet && path == "/api/workspaces/workspace-a/terminals/term-a":
 			requestMu.Lock()
 			terminalRequests = append(terminalRequests, path+"?"+request.URL.Query().Encode())
@@ -463,42 +527,69 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 		wantRequest string
 	}{
 		{
-			name: "list with the default profile", args: []string{"terminal", "list", "--workspace", "workspace-a", "-o", "json"},
+			name:        "list with the default profile",
+			args:        []string{"terminal", "list", "--workspace", "workspace-a", "-o", "json"},
 			wantPayload: contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
 			wantRequest: "/api/workspaces/workspace-a/terminals?profile=default",
 		},
 		{
-			name: "list with an explicit profile", args: []string{"terminal", "list", "--workspace", "workspace-a", "--profile", "work", "-o", "json"},
+			name:        "list with an explicit profile",
+			args:        []string{"terminal", "list", "--workspace", "workspace-a", "--profile", "work", "-o", "json"},
 			wantPayload: contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
 			wantRequest: "/api/workspaces/workspace-a/terminals?profile=work",
 		},
 		{
-			name: "list across profiles", args: []string{"terminal", "list", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
+			name:        "list across profiles",
+			args:        []string{"terminal", "list", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
 			wantPayload: contract.TerminalListResponse{Terminals: []contract.TerminalInfoPayload{terminalPayload}},
 			wantRequest: "/api/workspaces/workspace-a/terminals?all_profiles=true",
 		},
 		{
-			name: "get with the default profile", args: []string{"terminal", "get", "--workspace", "workspace-a", "term-a", "-o", "json"},
+			name:        "get with the default profile",
+			args:        []string{"terminal", "get", "--workspace", "workspace-a", "term-a", "-o", "json"},
 			wantPayload: contract.TerminalResponse{Terminal: terminalPayload},
 			wantRequest: "/api/workspaces/workspace-a/terminals/term-a?profile=default",
 		},
 		{
-			name: "get with an explicit profile", args: []string{"terminal", "get", "--workspace", "workspace-a", "--profile", "work", "term-a", "-o", "json"},
+			name: "get with an explicit profile",
+			args: []string{
+				"terminal",
+				"get",
+				"--workspace",
+				"workspace-a",
+				"--profile",
+				"work",
+				"term-a",
+				"-o",
+				"json",
+			},
 			wantPayload: contract.TerminalResponse{Terminal: terminalPayload},
 			wantRequest: "/api/workspaces/workspace-a/terminals/term-a?profile=work",
 		},
 		{
-			name: "journal with the default profile", args: []string{"terminal", "journal", "--workspace", "workspace-a", "-o", "json"},
+			name:        "journal with the default profile",
+			args:        []string{"terminal", "journal", "--workspace", "workspace-a", "-o", "json"},
 			wantPayload: journalPayload,
 			wantRequest: "/api/workspaces/workspace-a/terminals/journal?limit=50&profile=default",
 		},
 		{
-			name: "journal with an explicit profile", args: []string{"terminal", "journal", "--workspace", "workspace-a", "--profile", "work", "-o", "json"},
+			name: "journal with an explicit profile",
+			args: []string{
+				"terminal",
+				"journal",
+				"--workspace",
+				"workspace-a",
+				"--profile",
+				"work",
+				"-o",
+				"json",
+			},
 			wantPayload: journalPayload,
 			wantRequest: "/api/workspaces/workspace-a/terminals/journal?limit=50&profile=work",
 		},
 		{
-			name: "journal across profiles", args: []string{"terminal", "journal", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
+			name:        "journal across profiles",
+			args:        []string{"terminal", "journal", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
 			wantPayload: journalPayload,
 			wantRequest: "/api/workspaces/workspace-a/terminals/journal?all_profiles=true&limit=50",
 		},
@@ -521,7 +612,17 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 
 	t.Run("Should reject conflicting read selectors with structured JSON", func(t *testing.T) {
 		exit, stdout, stderr := executeRootCommandWithExit(
-			t, deps, "terminal", "list", "--workspace", "workspace-a", "--profile", "work", "--all-profiles", "-o", "json",
+			t,
+			deps,
+			"terminal",
+			"list",
+			"--workspace",
+			"workspace-a",
+			"--profile",
+			"work",
+			"--all-profiles",
+			"-o",
+			"json",
 		)
 		if exit != 1 || stdout != "" {
 			t.Fatalf("conflicting selectors exit = %d, stdout = %q; want exit 1 and empty stdout", exit, stdout)
@@ -571,10 +672,13 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 		invoke   func(context.Context, *daemonClient) error
 	}{
 		{
-			name:   "Should send terminal exec fields through the concrete HTTP client",
-			method: http.MethodPost, path: basePath + "/exec", query: "profile=work+profile",
-			body:   `{"command":"printf","args":["%s","ok"],"cwd":"sub dir","env":{"MODE":"test"},"yield_ms":250,"visible":true,"output":{"max_bytes":1024,"strategy":"head_tail","grep":"warn"}}`,
-			status: http.StatusOK, response: `{}`,
+			name:     "Should send terminal exec fields through the concrete HTTP client",
+			method:   http.MethodPost,
+			path:     basePath + "/exec",
+			query:    "profile=work+profile",
+			body:     `{"command":"printf","args":["%s","ok"],"cwd":"sub dir","env":{"MODE":"test"},"yield_ms":250,"visible":true,"output":{"max_bytes":1024,"strategy":"head_tail","grep":"warn"}}`,
+			status:   http.StatusOK,
+			response: `{}`,
 			invoke: func(ctx context.Context, client *daemonClient) error {
 				_, err := client.ExecTerminal(ctx, workspaceID, TerminalExecRequest{
 					Command: "printf", Args: []string{"%s", "ok"}, Cwd: "sub dir",
@@ -610,7 +714,11 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			query: "profile=work+profile&terminal_id=term+%2Fa", status: http.StatusOK,
 			response: `{"requests":[]}`,
 			invoke: func(ctx context.Context, client *daemonClient) error {
-				_, err := client.ListTerminalInputRequests(ctx, workspaceID, TerminalInputRequestQuery{TerminalID: terminalID})
+				_, err := client.ListTerminalInputRequests(
+					ctx,
+					workspaceID,
+					TerminalInputRequestQuery{TerminalID: terminalID},
+				)
 				return err
 			},
 		},
@@ -638,10 +746,12 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			},
 		},
 		{
-			name:   "Should encode every terminal journal filter",
-			method: http.MethodGet, path: basePath + "/journal",
-			query:  "actor=atlas&cursor=next+page&failed=true&limit=25&profile=work+profile&since=2026-08-25T12%3A00%3A00Z&terminal_id=term+%2Fa",
-			status: http.StatusOK, response: `{"entries":[],"next":"next-a"}`,
+			name:     "Should encode every terminal journal filter",
+			method:   http.MethodGet,
+			path:     basePath + "/journal",
+			query:    "actor=atlas&cursor=next+page&failed=true&limit=25&profile=work+profile&since=2026-08-25T12%3A00%3A00Z&terminal_id=term+%2Fa",
+			status:   http.StatusOK,
+			response: `{"entries":[],"next":"next-a"}`,
 			invoke: func(ctx context.Context, client *daemonClient) error {
 				page, err := client.QueryTerminalJournal(ctx, workspaceID, TerminalJournalQuery{
 					Actor: "atlas", Since: "2026-08-25T12:00:00Z", TerminalID: terminalID,
@@ -654,9 +764,12 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			},
 		},
 		{
-			name:   "Should control recording on the escaped terminal",
-			method: http.MethodPost, path: basePath + "/term%20%2Fa/recording", query: "profile=work+profile",
-			body: `{"action":"start"}`, status: http.StatusOK,
+			name:     "Should control recording on the escaped terminal",
+			method:   http.MethodPost,
+			path:     basePath + "/term%20%2Fa/recording",
+			query:    "profile=work+profile",
+			body:     `{"action":"start"}`,
+			status:   http.StatusOK,
 			response: `{"recording":{"id":"recording-a","terminal_id":"term /a","profile_id":"profile-a","digest":"digest-a","started_at":"2026-08-25T12:00:00Z","bytes":0,"expires_at":"2026-09-25T12:00:00Z"}}`,
 			invoke: func(ctx context.Context, client *daemonClient) error {
 				recording, err := client.ControlTerminalRecording(ctx, workspaceID, terminalID, "start")
@@ -787,7 +900,11 @@ type terminalAgentCommandClient struct {
 	noInputRequests    bool
 }
 
-func (*terminalAgentCommandClient) CreateTerminal(context.Context, string, TerminalCreateRequest) (TerminalRecord, error) {
+func (*terminalAgentCommandClient) CreateTerminal(
+	context.Context,
+	string,
+	TerminalCreateRequest,
+) (TerminalRecord, error) {
 	return TerminalRecord{}, nil
 }
 func (*terminalAgentCommandClient) ListTerminals(context.Context, string) ([]TerminalRecord, error) {
@@ -799,7 +916,15 @@ func (c *terminalAgentCommandClient) GetTerminal(context.Context, string, string
 func (*terminalAgentCommandClient) DeleteTerminal(context.Context, string, string, string) (TerminalExitRecord, error) {
 	return TerminalExitRecord{}, nil
 }
-func (c *terminalAgentCommandClient) AttachTerminal(context.Context, string, string, TerminalAttachOptions, io.Reader, io.Writer) error {
+
+func (c *terminalAgentCommandClient) AttachTerminal(
+	context.Context,
+	string,
+	string,
+	TerminalAttachOptions,
+	io.Reader,
+	io.Writer,
+) error {
 	c.attaches++
 	return nil
 }
