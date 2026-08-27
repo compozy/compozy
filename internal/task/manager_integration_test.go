@@ -4927,7 +4927,11 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 	t.Run("Should retain the original contract and budget on the active run", func(t *testing.T) {
 		if firstRun.ExpectDigest != original.Digest || firstRun.ResultBudget == nil ||
 			firstRun.ResultBudget.MaxBytes != 1024 || firstRun.ResultBudget.Overflow != contracts.OverflowReject {
-			t.Fatalf("first run snapshot = digest %q budget %#v, want original 1024/reject", firstRun.ExpectDigest, firstRun.ResultBudget)
+			t.Fatalf(
+				"first run snapshot = digest %q budget %#v, want original 1024/reject",
+				firstRun.ExpectDigest,
+				firstRun.ResultBudget,
+			)
 		}
 	})
 
@@ -5001,7 +5005,11 @@ func TestTaskResultContractSnapshotAndRepairIntegration(t *testing.T) {
 		secondRun, secondToken := startRun("updated")
 		if secondRun.ExpectDigest != updated.Digest || secondRun.ResultBudget == nil ||
 			secondRun.ResultBudget.MaxBytes != 2048 || secondRun.ResultBudget.Overflow != contracts.OverflowStore {
-			t.Fatalf("second run snapshot = digest %q budget %#v, want updated 2048/store", secondRun.ExpectDigest, secondRun.ResultBudget)
+			t.Fatalf(
+				"second run snapshot = digest %q budget %#v, want updated 2048/store",
+				secondRun.ExpectDigest,
+				secondRun.ResultBudget,
+			)
 		}
 		_, updatedRejectionErr := manager.CompleteRunLease(ctx, taskpkg.LeaseCompletion{
 			RunID: secondRun.ID, ClaimToken: secondToken,

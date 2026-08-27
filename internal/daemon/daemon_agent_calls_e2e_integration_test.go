@@ -55,353 +55,367 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
-	t.Run("Should complete return follow-up idempotency repair and resumable await journeys E2E-001 E2E-002 E2E-005 E2E-006 E2E-007", func(t *testing.T) {
-		// not parallel: the journey intentionally reuses one child and isolated runtime.
-		golden := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path", "--expect", agentCallsE2EExpect)
-		settled := waitForAgentCallState(t, ctx, harness, golden.CallID, callspkg.StateCompleted)
-		if settled.Verdict != string(callspkg.VerdictReturned) || settled.ChildSessionID == "" {
-			t.Fatalf("golden call = %#v, want returned result and child", settled)
-		}
-		var result map[string]int
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&result,
-			"call", "result", golden.CallID,
-			"--workspace", harness.WorkspaceRoot,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI call result error = %v", err)
-		}
-		if result["answer"] != 42 {
-			t.Fatalf("CLI call result = %#v, want answer 42", result)
-		}
-
-		first := createAgentCallCLI(t, ctx, harness, "reviewer", "first pass", "--expect", agentCallsE2EExpect)
-		firstSettled := waitForAgentCallState(t, ctx, harness, first.CallID, callspkg.StateCompleted)
-		followUp := createAgentCallCLI(
-			t,
-			ctx,
-			harness,
-			firstSettled.ChildSessionID,
-			"one more thing",
-			"--expect",
-			agentCallsE2EExpect,
-		)
-		followUpSettled := waitForAgentCallState(t, ctx, harness, followUp.CallID, callspkg.StateCompleted)
-		if followUpSettled.ChildSessionID != firstSettled.ChildSessionID {
-			t.Fatalf("follow-up child = %q, want %q", followUpSettled.ChildSessionID, firstSettled.ChildSessionID)
-		}
-
-		idempotent := createAgentCallCLI(
-			t,
-			ctx,
-			harness,
-			"reviewer",
-			"idempotent retry",
-			"--idempotency-key",
-			"e2e-idempotent",
-		)
-		replayed := createAgentCallCLI(
-			t,
-			ctx,
-			harness,
-			"reviewer",
-			"idempotent retry",
-			"--idempotency-key",
-			"e2e-idempotent",
-		)
-		if idempotent.CallID != replayed.CallID || !replayed.Replayed {
-			t.Fatalf("idempotent calls = %#v / %#v, want one replayed call", idempotent, replayed)
-		}
-		waitForAgentCallState(t, ctx, harness, idempotent.CallID, callspkg.StateCompleted)
-
-		delayed := createAgentCallCLI(t, ctx, harness, "reviewer", "delayed result")
-		stdout, stderr, err := harness.CLI.RunInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			"call", "await", delayed.CallID,
-			"--workspace", harness.WorkspaceRoot,
-			"--timeout", "50ms",
-			"-o", "json",
-		)
-		var exitErr *exec.ExitError
-		if !errors.As(err, &exitErr) || exitErr.ExitCode() != 3 {
-			t.Fatalf("CLI call await timeout error = %v stderr=%q, want exit 3", err, stderr)
-		}
-		var timeoutOutcome compozycontract.AwaitCallsResponse
-		if decodeErr := json.Unmarshal([]byte(stdout), &timeoutOutcome); decodeErr != nil {
-			t.Fatalf("decode await timeout output error = %v; stdout=%s", decodeErr, stdout)
-		}
-		if timeoutOutcome.Outcome != "timeout" || timeoutOutcome.Resume == "" {
-			t.Fatalf("await timeout = %#v, want resume token", timeoutOutcome)
-		}
-		waitForAgentCallState(t, ctx, harness, delayed.CallID, callspkg.StateCompleted)
-		var resumed compozycontract.AwaitCallsResponse
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&resumed,
-			"call", "await", delayed.CallID,
-			"--workspace", harness.WorkspaceRoot,
-			"--resume", timeoutOutcome.Resume,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI resumed await error = %v", err)
-		}
-		if resumed.Outcome != "complete" || len(resumed.Settled) != 1 {
-			t.Fatalf("resumed await = %#v, want completed call", resumed)
-		}
-
-		repair := createAgentCallCLI(
-			t,
-			ctx,
-			harness,
-			"reviewer",
-			"repair result",
-			"--expect",
-			agentCallsE2EExpect,
-		)
-		repaired := waitForAgentCallState(t, ctx, harness, repair.CallID, callspkg.StateCompleted)
-		if repaired.Verdict != string(callspkg.VerdictRepaired) || repaired.RepairAttempts != 1 {
-			t.Fatalf("repair call = %#v, want one repaired attempt", repaired)
-		}
-	})
-
-	t.Run("Should settle silence extraction mailbox cancel and deadline journeys E2E-004 E2E-008 E2E-009 E2E-010 E2E-029", func(t *testing.T) {
-		// not parallel: journeys share the daemon's deterministic calls budget.
-		silent := createAgentCallCLI(t, ctx, harness, "silent", "finish silently")
-		silentSettled := waitForAgentCallState(t, ctx, harness, silent.CallID, callspkg.StateCompletedWithoutResult)
-		if !strings.Contains(silentSettled.FinalProsePreview, "Reviewed the change") {
-			t.Fatalf("silent call = %#v, want prose preview", silentSettled)
-		}
-
-		extracted := createAgentCallCLI(
-			t,
-			ctx,
-			harness,
-			"extractor",
-			"extract result",
-			"--expect",
-			agentCallsE2EExpect,
-		)
-		extractedSettled := waitForAgentCallState(t, ctx, harness, extracted.CallID, callspkg.StateCompleted)
-		if extractedSettled.Verdict != string(callspkg.VerdictExtracted) {
-			t.Fatalf("extracted call = %#v, want extracted verdict", extractedSettled)
-		}
-
-		messaged := createAgentCallCLI(t, ctx, harness, "messenger", "message parent")
-		messagedSettled := waitForAgentCallState(t, ctx, harness, messaged.CallID, callspkg.StateCompleted)
-		var messages compozycontract.CallMessagesResponse
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&messages,
-			"message", "list",
-			"--workspace", harness.WorkspaceRoot,
-			"--session", messagedSettled.ParentSessionID,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI message list error = %v", err)
-		}
-		if len(messages.Items) == 0 || messages.Items[0].CallID != messaged.CallID {
-			t.Fatalf("message list = %#v, want call-bound parent message", messages)
-		}
-
-		blocking := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
-		waitForAgentCallState(t, ctx, harness, blocking.CallID, callspkg.StateRunning)
-		var canceled compozycontract.CancelCallResponse
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&canceled,
-			"call", "cancel", blocking.CallID,
-			"--workspace", harness.WorkspaceRoot,
-			"--reason", "operator canceled",
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI call cancel error = %v", err)
-		}
-		if canceled.State != string(callspkg.StateCanceled) {
-			t.Fatalf("cancel response = %#v", canceled)
-		}
-		waitForAgentCallState(t, ctx, harness, blocking.CallID, callspkg.StateCanceled)
-
-		deadline := createAgentCallCLI(t, ctx, harness, "blocker", "keep working", "--deadline", "1s")
-		waitForAgentCallState(t, ctx, harness, deadline.CallID, callspkg.StateTimeout)
-	})
-
-	t.Run("Should preserve batch HTTP and agent-definition contracts E2E-003 E2E-023 E2E-024 E2E-025", func(t *testing.T) {
-		// not parallel: assertions observe one shared catalog and call page.
-		path := fmt.Sprintf("/api/workspaces/%s/calls", url.PathEscape(harness.WorkspaceID))
-		batch := compozycontract.CreateCallRequest{Tasks: []compozycontract.CreateCallItemRequest{
-			{Target: compozycontract.CallTargetRequest{Agent: "reviewer"}, Prompt: "golden path"},
-			{Target: compozycontract.CallTargetRequest{Agent: "extractor"}, Prompt: "extract result"},
-			{Target: compozycontract.CallTargetRequest{Agent: "missing-agent"}, Prompt: "reject this"},
-		}}
-		var batchItems []compozycontract.CallBatchItemPayload
-		if err := harness.HTTPJSON(ctx, http.MethodPost, path, batch, &batchItems); err != nil {
-			t.Fatalf("HTTP batch create error = %v", err)
-		}
-		if len(batchItems) != 3 || batchItems[0].CallID == "" || batchItems[1].CallID == "" ||
-			batchItems[2].Error == nil || batchItems[2].Error.Code != string(callspkg.CodeAgentUnknown) {
-			t.Fatalf("HTTP batch response = %#v", batchItems)
-		}
-		waitForAgentCallState(t, ctx, harness, batchItems[0].CallID, callspkg.StateCompleted)
-		waitForAgentCallState(t, ctx, harness, batchItems[1].CallID, callspkg.StateCompleted)
-
-		status, unknown := postAgentCallHTTP[compozycontract.CallErrorResponse](
-			t,
-			ctx,
-			harness,
-			path,
-			compozycontract.CreateCallRequest{CreateCallItemRequest: compozycontract.CreateCallItemRequest{
-				Target: compozycontract.CallTargetRequest{Agent: "missing-agent"}, Prompt: "unknown",
-			}},
-		)
-		if status != http.StatusNotFound || unknown.Code != string(callspkg.CodeAgentUnknown) || len(unknown.Available) == 0 {
-			t.Fatalf("HTTP unknown agent = status %d payload %#v", status, unknown)
-		}
-
-		status, malformed := postAgentCallHTTP[compozycontract.CallErrorResponse](
-			t,
-			ctx,
-			harness,
-			path,
-			compozycontract.CreateCallRequest{CreateCallItemRequest: compozycontract.CreateCallItemRequest{
-				Target: compozycontract.CallTargetRequest{Agent: "reviewer"}, Prompt: "invalid expect",
-				Expect: json.RawMessage(`{"type":"object","properties":{"x":{"type":"not-a-type"}}}`),
-			}},
-		)
-		if status != http.StatusUnprocessableEntity || malformed.Code != string(callspkg.CodeExpectInvalid) {
-			t.Fatalf("HTTP malformed expect = status %d payload %#v", status, malformed)
-		}
-
-		var agents []compozycontract.AgentPayload
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&agents,
-			"agent", "list",
-			"--workspace", harness.WorkspaceRoot,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI agent list error = %v", err)
-		}
-		found := false
-		for _, agent := range agents {
-			if agent.Name == "reviewer" && agent.Description == "Reviews delegated work and returns a structured answer." {
-				found = true
-				break
+	t.Run(
+		"Should complete return follow-up idempotency repair and resumable await journeys E2E-001 E2E-002 E2E-005 E2E-006 E2E-007",
+		func(t *testing.T) {
+			// not parallel: the journey intentionally reuses one child and isolated runtime.
+			golden := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path", "--expect", agentCallsE2EExpect)
+			settled := waitForAgentCallState(t, ctx, harness, golden.CallID, callspkg.StateCompleted)
+			if settled.Verdict != string(callspkg.VerdictReturned) || settled.ChildSessionID == "" {
+				t.Fatalf("golden call = %#v, want returned result and child", settled)
 			}
-		}
-		if !found {
-			t.Fatalf("CLI agents = %#v, want reviewer description", agents)
-		}
-	})
+			var result map[string]int
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&result,
+				"call", "result", golden.CallID,
+				"--workspace", harness.WorkspaceRoot,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI call result error = %v", err)
+			}
+			if result["answer"] != 42 {
+				t.Fatalf("CLI call result = %#v, want answer 42", result)
+			}
 
-	t.Run("Should enforce TTL inert messages subtree drain and recursion walls E2E-011 E2E-012 E2E-013 E2E-014", func(t *testing.T) {
-		// not parallel: the cases intentionally mutate one governed call tree.
-		ttl := createAgentCallCLI(
-			t,
-			ctx,
-			harness,
-			"reviewer",
-			"first pass",
-			"--idle-ttl",
-			"1s",
-		)
-		ttlSettled := waitForAgentCallExpiredIdleClock(t, ctx, harness, ttl.CallID)
-		_, stderr, err := harness.CLI.RunInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			"call", ttlSettled.ChildSessionID, "one more thing",
-			"--workspace", harness.WorkspaceRoot, "-o", "json",
-		)
-		assertAgentCallCLIErrorCode(
-			t,
-			err,
-			stderr,
-			callspkg.CodeTargetExpired,
-		)
+			first := createAgentCallCLI(t, ctx, harness, "reviewer", "first pass", "--expect", agentCallsE2EExpect)
+			firstSettled := waitForAgentCallState(t, ctx, harness, first.CallID, callspkg.StateCompleted)
+			followUp := createAgentCallCLI(
+				t,
+				ctx,
+				harness,
+				firstSettled.ChildSessionID,
+				"one more thing",
+				"--expect",
+				agentCallsE2EExpect,
+			)
+			followUpSettled := waitForAgentCallState(t, ctx, harness, followUp.CallID, callspkg.StateCompleted)
+			if followUpSettled.ChildSessionID != firstSettled.ChildSessionID {
+				t.Fatalf("follow-up child = %q, want %q", followUpSettled.ChildSessionID, firstSettled.ChildSessionID)
+			}
 
-		messaged := createAgentCallCLI(t, ctx, harness, "messenger", "message parent")
-		messagedCall := waitForAgentCallState(t, ctx, harness, messaged.CallID, callspkg.StateCompleted)
-		var messages compozycontract.CallMessagesResponse
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&messages,
-			"message", "list",
-			"--workspace", harness.WorkspaceRoot,
-			"--session", messagedCall.ParentSessionID,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI inert message list error = %v", err)
-		}
-		if len(messages.Items) == 0 || messages.Items[0].Text != "Need an operator decision." {
-			t.Fatalf("inert messages = %#v", messages.Items)
-		}
+			idempotent := createAgentCallCLI(
+				t,
+				ctx,
+				harness,
+				"reviewer",
+				"idempotent retry",
+				"--idempotency-key",
+				"e2e-idempotent",
+			)
+			replayed := createAgentCallCLI(
+				t,
+				ctx,
+				harness,
+				"reviewer",
+				"idempotent retry",
+				"--idempotency-key",
+				"e2e-idempotent",
+			)
+			if idempotent.CallID != replayed.CallID || !replayed.Replayed {
+				t.Fatalf("idempotent calls = %#v / %#v, want one replayed call", idempotent, replayed)
+			}
+			waitForAgentCallState(t, ctx, harness, idempotent.CallID, callspkg.StateCompleted)
 
-		completed := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path")
-		completedCall := waitForAgentCallState(t, ctx, harness, completed.CallID, callspkg.StateCompleted)
-		runningA := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
-		runningB := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
-		waitForAgentCallState(t, ctx, harness, runningA.CallID, callspkg.StateRunning)
-		waitForAgentCallState(t, ctx, harness, runningB.CallID, callspkg.StateRunning)
-		var drain struct {
-			SessionID string `json:"session_id"`
-			compozycontract.StopSessionSubtreeResponse
-		}
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&drain,
-			"session", "stop", completedCall.ParentSessionID,
-			"--subtree",
-			"--reason", "e2e drain",
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI session stop --subtree error = %v", err)
-		}
-		if drain.ClosedCalls < 2 || drain.PreservedResults < 1 {
-			t.Fatalf("subtree drain = %#v, want open calls closed and result preserved", drain)
-		}
-		var preserved map[string]int
-		if err := harness.CLI.RunJSONInDir(
-			ctx,
-			harness.WorkspaceRoot,
-			&preserved,
-			"call", "result", completed.CallID,
-			"--workspace", harness.WorkspaceRoot,
-			"-o", "json",
-		); err != nil {
-			t.Fatalf("CLI preserved result after drain error = %v", err)
-		}
+			delayed := createAgentCallCLI(t, ctx, harness, "reviewer", "delayed result")
+			stdout, stderr, err := harness.CLI.RunInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				"call", "await", delayed.CallID,
+				"--workspace", harness.WorkspaceRoot,
+				"--timeout", "50ms",
+				"-o", "json",
+			)
+			var exitErr *exec.ExitError
+			if !errors.As(err, &exitErr) || exitErr.ExitCode() != 3 {
+				t.Fatalf("CLI call await timeout error = %v stderr=%q, want exit 3", err, stderr)
+			}
+			var timeoutOutcome compozycontract.AwaitCallsResponse
+			if decodeErr := json.Unmarshal([]byte(stdout), &timeoutOutcome); decodeErr != nil {
+				t.Fatalf("decode await timeout output error = %v; stdout=%s", decodeErr, stdout)
+			}
+			if timeoutOutcome.Outcome != "timeout" || timeoutOutcome.Resume == "" {
+				t.Fatalf("await timeout = %#v, want resume token", timeoutOutcome)
+			}
+			waitForAgentCallState(t, ctx, harness, delayed.CallID, callspkg.StateCompleted)
+			var resumed compozycontract.AwaitCallsResponse
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&resumed,
+				"call", "await", delayed.CallID,
+				"--workspace", harness.WorkspaceRoot,
+				"--resume", timeoutOutcome.Resume,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI resumed await error = %v", err)
+			}
+			if resumed.Outcome != "complete" || len(resumed.Settled) != 1 {
+				t.Fatalf("resumed await = %#v, want completed call", resumed)
+			}
 
-		root := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
-		rootCall := waitForAgentCallState(t, ctx, harness, root.CallID, callspkg.StateRunning)
-		depthTwo := createNestedAgentCall(t, ctx, harness, rootCall.ChildSessionID)
-		depthTwoCall := waitForAgentCallState(t, ctx, harness, depthTwo.CallID, callspkg.StateRunning)
-		depthThree := createNestedAgentCall(t, ctx, harness, depthTwoCall.ChildSessionID)
-		depthThreeCall := waitForAgentCallState(t, ctx, harness, depthThree.CallID, callspkg.StateRunning)
-		depthThreeClient := hostedMCPClientForSession(t, ctx, harness, "blocker", depthThreeCall.ChildSessionID)
-		defer closeHostedMCPClient(t, depthThreeClient)
-		listed, err := depthThreeClient.ListTools(ctx, nil)
-		if err != nil {
-			t.Fatalf("ListTools(depth wall) error = %v", err)
-		}
-		if sdkToolListContains(listed.Tools, toolspkg.ToolIDAgentCall.String()) {
-			t.Fatalf("depth-wall tools = %#v, must omit %s", sdkToolNames(listed.Tools), toolspkg.ToolIDAgentCall)
-		}
-		waitForAgentCallTranscriptText(
-			t,
-			ctx,
-			harness,
-			depthThreeCall.ChildSessionID,
-			"You cannot delegate further.",
-		)
-	})
+			repair := createAgentCallCLI(
+				t,
+				ctx,
+				harness,
+				"reviewer",
+				"repair result",
+				"--expect",
+				agentCallsE2EExpect,
+			)
+			repaired := waitForAgentCallState(t, ctx, harness, repair.CallID, callspkg.StateCompleted)
+			if repaired.Verdict != string(callspkg.VerdictRepaired) || repaired.RepairAttempts != 1 {
+				t.Fatalf("repair call = %#v, want one repaired attempt", repaired)
+			}
+		},
+	)
+
+	t.Run(
+		"Should settle silence extraction mailbox cancel and deadline journeys E2E-004 E2E-008 E2E-009 E2E-010 E2E-029",
+		func(t *testing.T) {
+			// not parallel: journeys share the daemon's deterministic calls budget.
+			silent := createAgentCallCLI(t, ctx, harness, "silent", "finish silently")
+			silentSettled := waitForAgentCallState(t, ctx, harness, silent.CallID, callspkg.StateCompletedWithoutResult)
+			if !strings.Contains(silentSettled.FinalProsePreview, "Reviewed the change") {
+				t.Fatalf("silent call = %#v, want prose preview", silentSettled)
+			}
+
+			extracted := createAgentCallCLI(
+				t,
+				ctx,
+				harness,
+				"extractor",
+				"extract result",
+				"--expect",
+				agentCallsE2EExpect,
+			)
+			extractedSettled := waitForAgentCallState(t, ctx, harness, extracted.CallID, callspkg.StateCompleted)
+			if extractedSettled.Verdict != string(callspkg.VerdictExtracted) {
+				t.Fatalf("extracted call = %#v, want extracted verdict", extractedSettled)
+			}
+
+			messaged := createAgentCallCLI(t, ctx, harness, "messenger", "message parent")
+			messagedSettled := waitForAgentCallState(t, ctx, harness, messaged.CallID, callspkg.StateCompleted)
+			var messages compozycontract.CallMessagesResponse
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&messages,
+				"message", "list",
+				"--workspace", harness.WorkspaceRoot,
+				"--session", messagedSettled.ParentSessionID,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI message list error = %v", err)
+			}
+			if len(messages.Items) == 0 || messages.Items[0].CallID != messaged.CallID {
+				t.Fatalf("message list = %#v, want call-bound parent message", messages)
+			}
+
+			blocking := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
+			waitForAgentCallState(t, ctx, harness, blocking.CallID, callspkg.StateRunning)
+			var canceled compozycontract.CancelCallResponse
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&canceled,
+				"call", "cancel", blocking.CallID,
+				"--workspace", harness.WorkspaceRoot,
+				"--reason", "operator canceled",
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI call cancel error = %v", err)
+			}
+			if canceled.State != string(callspkg.StateCanceled) {
+				t.Fatalf("cancel response = %#v", canceled)
+			}
+			waitForAgentCallState(t, ctx, harness, blocking.CallID, callspkg.StateCanceled)
+
+			deadline := createAgentCallCLI(t, ctx, harness, "blocker", "keep working", "--deadline", "1s")
+			waitForAgentCallState(t, ctx, harness, deadline.CallID, callspkg.StateTimeout)
+		},
+	)
+
+	t.Run(
+		"Should preserve batch HTTP and agent-definition contracts E2E-003 E2E-023 E2E-024 E2E-025",
+		func(t *testing.T) {
+			// not parallel: assertions observe one shared catalog and call page.
+			path := fmt.Sprintf("/api/workspaces/%s/calls", url.PathEscape(harness.WorkspaceID))
+			batch := compozycontract.CreateCallRequest{Tasks: []compozycontract.CreateCallItemRequest{
+				{Target: compozycontract.CallTargetRequest{Agent: "reviewer"}, Prompt: "golden path"},
+				{Target: compozycontract.CallTargetRequest{Agent: "extractor"}, Prompt: "extract result"},
+				{Target: compozycontract.CallTargetRequest{Agent: "missing-agent"}, Prompt: "reject this"},
+			}}
+			var batchItems []compozycontract.CallBatchItemPayload
+			if err := harness.HTTPJSON(ctx, http.MethodPost, path, batch, &batchItems); err != nil {
+				t.Fatalf("HTTP batch create error = %v", err)
+			}
+			if len(batchItems) != 3 || batchItems[0].CallID == "" || batchItems[1].CallID == "" ||
+				batchItems[2].Error == nil || batchItems[2].Error.Code != string(callspkg.CodeAgentUnknown) {
+				t.Fatalf("HTTP batch response = %#v", batchItems)
+			}
+			waitForAgentCallState(t, ctx, harness, batchItems[0].CallID, callspkg.StateCompleted)
+			waitForAgentCallState(t, ctx, harness, batchItems[1].CallID, callspkg.StateCompleted)
+
+			status, unknown := postAgentCallHTTP[compozycontract.CallErrorResponse](
+				t,
+				ctx,
+				harness,
+				path,
+				compozycontract.CreateCallRequest{CreateCallItemRequest: compozycontract.CreateCallItemRequest{
+					Target: compozycontract.CallTargetRequest{Agent: "missing-agent"}, Prompt: "unknown",
+				}},
+			)
+			if status != http.StatusNotFound || unknown.Code != string(callspkg.CodeAgentUnknown) ||
+				len(unknown.Available) == 0 {
+				t.Fatalf("HTTP unknown agent = status %d payload %#v", status, unknown)
+			}
+
+			status, malformed := postAgentCallHTTP[compozycontract.CallErrorResponse](
+				t,
+				ctx,
+				harness,
+				path,
+				compozycontract.CreateCallRequest{CreateCallItemRequest: compozycontract.CreateCallItemRequest{
+					Target: compozycontract.CallTargetRequest{Agent: "reviewer"}, Prompt: "invalid expect",
+					Expect: json.RawMessage(`{"type":"object","properties":{"x":{"type":"not-a-type"}}}`),
+				}},
+			)
+			if status != http.StatusUnprocessableEntity || malformed.Code != string(callspkg.CodeExpectInvalid) {
+				t.Fatalf("HTTP malformed expect = status %d payload %#v", status, malformed)
+			}
+
+			var agents []compozycontract.AgentPayload
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&agents,
+				"agent", "list",
+				"--workspace", harness.WorkspaceRoot,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI agent list error = %v", err)
+			}
+			found := false
+			for _, agent := range agents {
+				if agent.Name == "reviewer" &&
+					agent.Description == "Reviews delegated work and returns a structured answer." {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Fatalf("CLI agents = %#v, want reviewer description", agents)
+			}
+		},
+	)
+
+	t.Run(
+		"Should enforce TTL inert messages subtree drain and recursion walls E2E-011 E2E-012 E2E-013 E2E-014",
+		func(t *testing.T) {
+			// not parallel: the cases intentionally mutate one governed call tree.
+			ttl := createAgentCallCLI(
+				t,
+				ctx,
+				harness,
+				"reviewer",
+				"first pass",
+				"--idle-ttl",
+				"1s",
+			)
+			ttlSettled := waitForAgentCallExpiredIdleClock(t, ctx, harness, ttl.CallID)
+			_, stderr, err := harness.CLI.RunInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				"call", ttlSettled.ChildSessionID, "one more thing",
+				"--workspace", harness.WorkspaceRoot, "-o", "json",
+			)
+			assertAgentCallCLIErrorCode(
+				t,
+				err,
+				stderr,
+				callspkg.CodeTargetExpired,
+			)
+
+			messaged := createAgentCallCLI(t, ctx, harness, "messenger", "message parent")
+			messagedCall := waitForAgentCallState(t, ctx, harness, messaged.CallID, callspkg.StateCompleted)
+			var messages compozycontract.CallMessagesResponse
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&messages,
+				"message", "list",
+				"--workspace", harness.WorkspaceRoot,
+				"--session", messagedCall.ParentSessionID,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI inert message list error = %v", err)
+			}
+			if len(messages.Items) == 0 || messages.Items[0].Text != "Need an operator decision." {
+				t.Fatalf("inert messages = %#v", messages.Items)
+			}
+
+			completed := createAgentCallCLI(t, ctx, harness, "reviewer", "golden path")
+			completedCall := waitForAgentCallState(t, ctx, harness, completed.CallID, callspkg.StateCompleted)
+			runningA := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
+			runningB := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
+			waitForAgentCallState(t, ctx, harness, runningA.CallID, callspkg.StateRunning)
+			waitForAgentCallState(t, ctx, harness, runningB.CallID, callspkg.StateRunning)
+			var drain struct {
+				SessionID string `json:"session_id"`
+				compozycontract.StopSessionSubtreeResponse
+			}
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&drain,
+				"session", "stop", completedCall.ParentSessionID,
+				"--subtree",
+				"--reason", "e2e drain",
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI session stop --subtree error = %v", err)
+			}
+			if drain.ClosedCalls < 2 || drain.PreservedResults < 1 {
+				t.Fatalf("subtree drain = %#v, want open calls closed and result preserved", drain)
+			}
+			var preserved map[string]int
+			if err := harness.CLI.RunJSONInDir(
+				ctx,
+				harness.WorkspaceRoot,
+				&preserved,
+				"call", "result", completed.CallID,
+				"--workspace", harness.WorkspaceRoot,
+				"-o", "json",
+			); err != nil {
+				t.Fatalf("CLI preserved result after drain error = %v", err)
+			}
+
+			root := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
+			rootCall := waitForAgentCallState(t, ctx, harness, root.CallID, callspkg.StateRunning)
+			depthTwo := createNestedAgentCall(t, ctx, harness, rootCall.ChildSessionID)
+			depthTwoCall := waitForAgentCallState(t, ctx, harness, depthTwo.CallID, callspkg.StateRunning)
+			depthThree := createNestedAgentCall(t, ctx, harness, depthTwoCall.ChildSessionID)
+			depthThreeCall := waitForAgentCallState(t, ctx, harness, depthThree.CallID, callspkg.StateRunning)
+			depthThreeClient := hostedMCPClientForSession(t, ctx, harness, "blocker", depthThreeCall.ChildSessionID)
+			defer closeHostedMCPClient(t, depthThreeClient)
+			listed, err := depthThreeClient.ListTools(ctx, nil)
+			if err != nil {
+				t.Fatalf("ListTools(depth wall) error = %v", err)
+			}
+			if sdkToolListContains(listed.Tools, toolspkg.ToolIDAgentCall.String()) {
+				t.Fatalf("depth-wall tools = %#v, must omit %s", sdkToolNames(listed.Tools), toolspkg.ToolIDAgentCall)
+			}
+			waitForAgentCallTranscriptText(
+				t,
+				ctx,
+				harness,
+				depthThreeCall.ChildSessionID,
+				"You cannot delegate further.",
+			)
+		},
+	)
 
 	t.Run("Should apply the task result contract through CLI and agent lease surfaces E2E-026", func(t *testing.T) {
 		// not parallel: the task run has one ordered claim/start/repair/completion lifecycle.
@@ -551,7 +565,15 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 	})
 
 	t.Run("Should publish settled call evidence through HTTP", func(t *testing.T) {
-		httpCompleted := createAgentCallFromSession(t, ctx, harness, "publisher", publisher.ID, "reviewer", "golden path")
+		httpCompleted := createAgentCallFromSession(
+			t,
+			ctx,
+			harness,
+			"publisher",
+			publisher.ID,
+			"reviewer",
+			"golden path",
+		)
 		waitForAgentCallState(t, ctx, harness, httpCompleted.CallID, callspkg.StateCompleted)
 		httpStatus, httpPublished := postAgentCallPublishHTTP(
 			t,
@@ -701,7 +723,14 @@ func waitForAgentCallState(
 		}
 		select {
 		case <-ctx.Done():
-			t.Fatalf("wait for call %s state %s: %v; last=%#v; last read error=%v", callID, want, ctx.Err(), last, lastErr)
+			t.Fatalf(
+				"wait for call %s state %s: %v; last=%#v; last read error=%v",
+				callID,
+				want,
+				ctx.Err(),
+				last,
+				lastErr,
+			)
 		case <-ticker.C:
 		}
 	}

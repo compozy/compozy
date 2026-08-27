@@ -59,7 +59,10 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 		if stored.State != callspkg.StateRunning || stored.ResultRef != "" || completionRows != 0 {
 			t.Fatalf("settlement rollback = call %#v completion rows %d", stored, completionRows)
 		}
-		if _, err := fixture.database.db.ExecContext(fixture.ctx, `DROP TRIGGER inject_call_result_blob_failure`); err != nil {
+		if _, err := fixture.database.db.ExecContext(
+			fixture.ctx,
+			`DROP TRIGGER inject_call_result_blob_failure`,
+		); err != nil {
 			t.Fatalf("drop result blob failure trigger error = %v", err)
 		}
 		settled, err := fixture.service.Return(fixture.ctx, callspkg.ReturnInput{
@@ -102,7 +105,11 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 		if err != nil {
 			t.Fatalf("Return(overflow store) error = %v", err)
 		}
-		verified, err := fixture.database.loadVerifiedCallPayload(fixture.ctx, fixture.workspaceID, settled.Call.ResultRef)
+		verified, err := fixture.database.loadVerifiedCallPayload(
+			fixture.ctx,
+			fixture.workspaceID,
+			settled.Call.ResultRef,
+		)
 		if err != nil {
 			t.Fatalf("loadVerifiedCallPayload(overflow) error = %v", err)
 		}
@@ -164,7 +171,11 @@ func TestGlobalDBCallSettlementIsAtomicAndRetainsVerifiedOverflow(t *testing.T) 
 			t.Fatalf("Return(silent) error = %v", err)
 		}
 		if settled.Call.State != callspkg.StateCompletedWithoutResult || len(settled.Call.FinalProsePreview) != 4096 {
-			t.Fatalf("Return(silent) = state %s preview bytes %d", settled.Call.State, len(settled.Call.FinalProsePreview))
+			t.Fatalf(
+				"Return(silent) = state %s preview bytes %d",
+				settled.Call.State,
+				len(settled.Call.FinalProsePreview),
+			)
 		}
 		query := callspkg.CallListQuery{CallReadQuery: fixture.readQuery(), Attention: true}
 		before, err := fixture.service.List(fixture.ctx, query)
@@ -229,7 +240,12 @@ func newCallSettlementFixture(t *testing.T) callSettlementFixture {
 	t.Helper()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-settlement", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-settlement",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_settlement_parent"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -298,7 +314,12 @@ func TestGlobalDBCallRuntimeRecoversClaimedActivationAndDurableAwait(t *testing.
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-recovery", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-recovery",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_recovery_parent"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -434,7 +455,12 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-ownership", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-ownership",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	secondProfileID := strings.Repeat("Q", 26)
 	if _, err := database.db.ExecContext(ctx, `INSERT INTO profiles
@@ -545,8 +571,12 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 				t.Fatalf("ResolveOperatorCaller(%q) = %#v", profileID, binding)
 			}
 		}
-		if _, err := database.db.ExecContext(ctx, `UPDATE calls SET profile_id = ? WHERE call_id = ?`,
-			secondProfileID, defaultCall.CallID); err == nil || !strings.Contains(err.Error(), "profile_owner_immutable") {
+		if _, err := database.db.ExecContext(
+			ctx,
+			`UPDATE calls SET profile_id = ? WHERE call_id = ?`,
+			secondProfileID,
+			defaultCall.CallID,
+		); err == nil || !strings.Contains(err.Error(), "profile_owner_immutable") {
 			t.Fatalf("mutate call profile owner error = %v", err)
 		}
 	})
@@ -576,24 +606,40 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 			t.Fatalf("calls.NewService(foreign) error = %v", err)
 		}
 		foreignInput := callspkg.CreateInput{
-			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-			Caller: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "shared-caller", WorkspaceID: workspaceID},
-			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "cross profile", IdempotencyKey: "foreign",
-			Actor:  callspkg.Actor{Kind: "human", ID: "operator:test"},
-			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+			ProfileID:   store.DefaultProfileID,
+			Scope:       callspkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind:        participation.OwnerKindTaskRun,
+				ID:          "shared-caller",
+				WorkspaceID: workspaceID,
+			},
+			Target:         callspkg.Target{Agent: "reviewer"},
+			Prompt:         "cross profile",
+			IdempotencyKey: "foreign",
+			Actor:          callspkg.Actor{Kind: "human", ID: "operator:test"},
+			Narrow:         callspkg.PermissionAtoms{Skills: []string{"review"}},
 		}
 		if _, err := foreignService.Create(ctx, foreignInput); !callspkg.IsCode(err, callspkg.CodeTargetDenied) {
 			t.Fatalf("Create(cross profile) error = %v, want %s", err, callspkg.CodeTargetDenied)
 		}
-		if _, err := database.db.ExecContext(ctx, `UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
-			store.FormatTimestamp(now), secondProfileID); err != nil {
+		if _, err := database.db.ExecContext(
+			ctx,
+			`UPDATE profiles SET state = 'archived', archived_at = ? WHERE id = ?`,
+			store.FormatTimestamp(now),
+			secondProfileID,
+		); err != nil {
 			t.Fatalf("archive secondary profile error = %v", err)
 		}
 		archivedInput := foreignInput
 		archivedInput.ProfileID = secondProfileID
 		archivedInput.Prompt = "archived owner"
 		archivedInput.IdempotencyKey = "archived"
-		if _, err := service.Create(ctx, archivedInput); err == nil || !strings.Contains(err.Error(), "profile_archived") {
+		if _, err := service.Create(
+			ctx,
+			archivedInput,
+		); err == nil ||
+			!strings.Contains(err.Error(), "profile_archived") {
 			t.Fatalf("Create(archived profile) error = %v", err)
 		}
 		actor := taskpkg.ActorContext{
@@ -608,8 +654,11 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		}, actor); !errors.Is(err, taskpkg.ErrNoClaimableRun) {
 			t.Fatalf("ClaimNextRun(archived owner) error = %v, want %v", err, taskpkg.ErrNoClaimableRun)
 		}
-		if _, err := database.db.ExecContext(ctx, `UPDATE profiles SET state = 'active', archived_at = NULL WHERE id = ?`,
-			secondProfileID); err != nil {
+		if _, err := database.db.ExecContext(
+			ctx,
+			`UPDATE profiles SET state = 'active', archived_at = NULL WHERE id = ?`,
+			secondProfileID,
+		); err != nil {
 			t.Fatalf("unarchive secondary profile error = %v", err)
 		}
 		if _, err := database.db.ExecContext(ctx, `INSERT INTO profile_lifecycle_ops
@@ -658,9 +707,14 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		) (callspkg.TargetContext, []callspkg.AgentRosterEntry, error) {
 			parentID := cycleParents[input.Target.Agent]
 			return callspkg.TargetContext{
-				ProfileID: store.DefaultProfileID, WorkspaceID: workspaceID, ParentSessionID: parentID,
-				AgentName: input.Target.Agent, GovernedRootID: nodes[0], Depth: cycleDepths[input.Target.Agent], Allowed: true,
-				CallerPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+				ProfileID:       store.DefaultProfileID,
+				WorkspaceID:     workspaceID,
+				ParentSessionID: parentID,
+				AgentName:       input.Target.Agent,
+				GovernedRootID:  nodes[0],
+				Depth:           cycleDepths[input.Target.Agent],
+				Allowed:         true,
+				CallerPolicy:    store.SessionPermissionPolicy{Skills: []string{"review"}},
 			}, []callspkg.AgentRosterEntry{{Name: input.Target.Agent}}, nil
 		})
 		cycleService, err := callspkg.NewService(
@@ -674,11 +728,19 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		cycleCallIDs := make([]string, 0, len(nodes))
 		for index, agentName := range []string{"node1", "node2", "node3"} {
 			cycleCall, createErr := cycleService.Create(ctx, callspkg.CreateInput{
-				ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-				Caller: participation.OwnerRef{Kind: participation.OwnerKindTaskRun, ID: "cycle-caller", WorkspaceID: workspaceID},
-				Target: callspkg.Target{Agent: agentName}, Prompt: "cycle " + agentName,
-				IdempotencyKey: fmt.Sprintf("cycle-%d", index), Actor: callspkg.Actor{Kind: "daemon", ID: "cycle-test"},
-				Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+				ProfileID:   store.DefaultProfileID,
+				Scope:       callspkg.ScopeWorkspace,
+				WorkspaceID: workspaceID,
+				Caller: participation.OwnerRef{
+					Kind:        participation.OwnerKindTaskRun,
+					ID:          "cycle-caller",
+					WorkspaceID: workspaceID,
+				},
+				Target:         callspkg.Target{Agent: agentName},
+				Prompt:         "cycle " + agentName,
+				IdempotencyKey: fmt.Sprintf("cycle-%d", index),
+				Actor:          callspkg.Actor{Kind: "daemon", ID: "cycle-test"},
+				Narrow:         callspkg.PermissionAtoms{Skills: []string{"review"}},
 			})
 			if createErr != nil {
 				t.Fatalf("Create(%s) error = %v", agentName, createErr)
@@ -698,7 +760,12 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 		if len(openCalls) != 3 {
 			t.Fatalf("ListOpenSubtreeCalls(cycle) = %d, want 3", len(openCalls))
 		}
-		drain, err := cycleService.DrainSubtree(cycleCtx, nodes[0], callspkg.Actor{Kind: "daemon", ID: "recovery"}, "cycle-safe drain")
+		drain, err := cycleService.DrainSubtree(
+			cycleCtx,
+			nodes[0],
+			callspkg.Actor{Kind: "daemon", ID: "recovery"},
+			"cycle-safe drain",
+		)
 		if err != nil {
 			t.Fatalf("DrainSubtree(cycle) error = %v", err)
 		}
@@ -715,7 +782,12 @@ func TestGlobalDBCallOwnershipIsolationAndCycleSafeDrain(t *testing.T) {
 				t.Fatalf("GetCall(%q) after cycle drain error = %v", callID, getErr)
 			}
 			if storedCall.State != callspkg.StateCanceled {
-				t.Fatalf("call %q after cycle drain state = %q, want %q", callID, storedCall.State, callspkg.StateCanceled)
+				t.Fatalf(
+					"call %q after cycle drain state = %q, want %q",
+					callID,
+					storedCall.State,
+					callspkg.StateCanceled,
+				)
 			}
 		}
 		remainingOpen, err := database.ListOpenSubtreeCalls(cycleCtx, nodes[0])
@@ -755,11 +827,19 @@ func TestGlobalDBCallActivationQueueEnforcesExactKindAndGovernedRootBudget(t *te
 	create := func(key string) callspkg.CallRecord {
 		t.Helper()
 		record, createErr := service.Create(ctx, callspkg.CreateInput{
-			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
-			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "queued " + key,
-			IdempotencyKey: key, Actor: callspkg.Actor{Kind: "human", ID: "operator:test"},
-			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+			ProfileID:   store.DefaultProfileID,
+			Scope:       callspkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind:        participation.OwnerKindSession,
+				ID:          parentID,
+				WorkspaceID: workspaceID,
+			},
+			Target:         callspkg.Target{Agent: "reviewer"},
+			Prompt:         "queued " + key,
+			IdempotencyKey: key,
+			Actor:          callspkg.Actor{Kind: "human", ID: "operator:test"},
+			Narrow:         callspkg.PermissionAtoms{Skills: []string{"review"}},
 		})
 		if createErr != nil {
 			t.Fatalf("Create(%q) error = %v", key, createErr)
@@ -852,7 +932,11 @@ func TestGlobalDBWorkspaceDeletionTerminalizesQueuedCalls(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, parentID); err != nil {
+	if _, err := database.db.ExecContext(
+		ctx,
+		`UPDATE sessions SET state = 'stopped' WHERE id = ?`,
+		parentID,
+	); err != nil {
 		t.Fatalf("stop parent fixture error = %v", err)
 	}
 	activationRunID := record.ActivationRunID
@@ -878,7 +962,8 @@ func TestGlobalDBWorkspaceDeletionTerminalizesQueuedCalls(t *testing.T) {
 	).Scan(&runStatus, &runError); err != nil {
 		t.Fatalf("read activation after workspace deletion error = %v", err)
 	}
-	if runStatus != taskpkg.TaskRunStatusCanceled.String() || !runError.Valid || runError.String != "workspace removed" {
+	if runStatus != taskpkg.TaskRunStatusCanceled.String() || !runError.Valid ||
+		runError.String != "workspace removed" {
 		t.Fatalf("activation after workspace deletion = status %q error %#v", runStatus, runError)
 	}
 }
@@ -887,7 +972,12 @@ func TestGlobalDBOperatorCallerBindingConvergesAndSurvivesReopen(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-operator", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-operator",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	for _, sessionID := range []string{"ses_operator_candidate_a", "ses_operator_candidate_b", "ses_operator_candidate_c"} {
 		registerCallSession(ctx, t, database, store.SessionInfo{
@@ -975,7 +1065,11 @@ func TestGlobalDBOperatorCallerBindingConvergesAndSurvivesReopen(t *testing.T) {
 		t.Fatalf("read reopened operator caller error = %v", err)
 	}
 	if state != "stopped" || drainingAt.Valid {
-		t.Fatalf("reopened operator caller = state %q draining %#v, want stopped with no drain fence", state, drainingAt)
+		t.Fatalf(
+			"reopened operator caller = state %q draining %#v, want stopped with no drain fence",
+			state,
+			drainingAt,
+		)
 	}
 }
 
@@ -983,7 +1077,12 @@ func TestGlobalDBCallIdempotencyRaceAndContractBudgetSnapshots(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-idempotency", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-idempotency",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_idempotency_parent"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -1003,7 +1102,9 @@ func TestGlobalDBCallIdempotencyRaceAndContractBudgetSnapshots(t *testing.T) {
 	if err != nil {
 		t.Fatalf("calls.NewService() error = %v", err)
 	}
-	expect := json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`)
+	expect := json.RawMessage(
+		`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+	)
 	base := callspkg.CreateInput{
 		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
 		Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
@@ -1040,10 +1141,12 @@ func TestGlobalDBCallIdempotencyRaceAndContractBudgetSnapshots(t *testing.T) {
 		}
 	}
 	var callCount, runCount int
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM calls WHERE idempotency_key = 'same-key'`).Scan(&callCount); err != nil {
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM calls WHERE idempotency_key = 'same-key'`).
+		Scan(&callCount); err != nil {
 		t.Fatalf("count idempotent calls error = %v", err)
 	}
-	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_activation_runs WHERE call_id = ?`, winnerID).Scan(&runCount); err != nil {
+	if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_activation_runs WHERE call_id = ?`, winnerID).
+		Scan(&runCount); err != nil {
 		t.Fatalf("count idempotent activation runs error = %v", err)
 	}
 	if callCount != 1 || runCount != 1 {
@@ -1090,7 +1193,12 @@ func TestGlobalDBFollowUpAndCompletionUseDistinctDurableDeliveries(t *testing.T)
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-follow-up", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-follow-up",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID, childID := "ses_calls_follow_parent", "ses_calls_follow_child"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -1186,7 +1294,12 @@ func TestGlobalDBCallActivationClaimCancelRaceHasOneFencedOutcome(t *testing.T) 
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-cancel-race", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-cancel-race",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_cancel_race_parent"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -1219,9 +1332,16 @@ func TestGlobalDBCallActivationClaimCancelRaceHasOneFencedOutcome(t *testing.T) 
 	}
 	for iteration := 0; iteration < callIntegrationRaceIterations; iteration++ {
 		record, createErr := service.Create(ctx, callspkg.CreateInput{
-			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
-			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "race",
+			ProfileID:   store.DefaultProfileID,
+			Scope:       callspkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind:        participation.OwnerKindSession,
+				ID:          parentID,
+				WorkspaceID: workspaceID,
+			},
+			Target:         callspkg.Target{Agent: "reviewer"},
+			Prompt:         "race",
 			IdempotencyKey: fmt.Sprintf("race-%d", iteration),
 			Actor:          callspkg.Actor{Kind: "human", ID: "operator:test"},
 			Narrow:         callspkg.PermissionAtoms{Skills: []string{"review"}},
@@ -1274,7 +1394,12 @@ func TestGlobalDBCallCancelReturnRacePreservesOneTerminalOutcome(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-return-race", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-return-race",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_return_race_parent"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -1305,9 +1430,16 @@ func TestGlobalDBCallCancelReturnRacePreservesOneTerminalOutcome(t *testing.T) {
 	}
 	for iteration := 0; iteration < callIntegrationRaceIterations; iteration++ {
 		record, createErr := service.Create(ctx, callspkg.CreateInput{
-			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
-			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
-			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "return race",
+			ProfileID:   store.DefaultProfileID,
+			Scope:       callspkg.ScopeWorkspace,
+			WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind:        participation.OwnerKindSession,
+				ID:          parentID,
+				WorkspaceID: workspaceID,
+			},
+			Target:         callspkg.Target{Agent: "reviewer"},
+			Prompt:         "return race",
 			IdempotencyKey: fmt.Sprintf("return-race-%d", iteration),
 			Actor:          callspkg.Actor{Kind: "human", ID: "operator:test"},
 			Narrow:         callspkg.PermissionAtoms{Skills: []string{"review"}},
@@ -1369,7 +1501,12 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t)
 	database := openFreshTestGlobalDB(t)
-	workspaceID := registerWorkspaceForGlobalTests(t, database, "calls-runtime", filepath.Join(t.TempDir(), "workspace"))
+	workspaceID := registerWorkspaceForGlobalTests(
+		t,
+		database,
+		"calls-runtime",
+		filepath.Join(t.TempDir(), "workspace"),
+	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 	parentID := "ses_calls_parent"
 	registerCallSession(ctx, t, database, store.SessionInfo{
@@ -1406,7 +1543,9 @@ func TestGlobalDBCallsAdmissionActivationSettlementAndReplay(t *testing.T) {
 	}
 
 	prompt := strings.Repeat("inspect this carefully; ", 2048)
-	expect := json.RawMessage(`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`)
+	expect := json.RawMessage(
+		`{"type":"object","required":["answer"],"properties":{"answer":{"type":"integer"}},"additionalProperties":false}`,
+	)
 	input := callspkg.CreateInput{
 		ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
 		Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID},
@@ -1687,7 +1826,11 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 			t.Fatalf("read woken message target error = %v", err)
 		}
 		if parkedAt.Valid || idleExpiresAt.Valid {
-			t.Fatalf("woken message target lifecycle = parked %q idle %q, want active", parkedAt.String, idleExpiresAt.String)
+			t.Fatalf(
+				"woken message target lifecycle = parked %q idle %q, want active",
+				parkedAt.String,
+				idleExpiresAt.String,
+			)
 		}
 		var callWakeRows, networkWakeRows int
 		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
@@ -1700,7 +1843,11 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 			t.Fatalf("count double-booked network wake rows error = %v", err)
 		}
 		if callWakeRows != 1 || networkWakeRows != 0 {
-			t.Fatalf("wake accounting = call %d network %d, want one owner-keyed call row only", callWakeRows, networkWakeRows)
+			t.Fatalf(
+				"wake accounting = call %d network %d, want one owner-keyed call row only",
+				callWakeRows,
+				networkWakeRows,
+			)
 		}
 	})
 
@@ -1777,7 +1924,13 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 		}
 		input := fixture.input
 		input.Body = "blocked target probe"
-		if _, err := fixture.service.SendMessage(fixture.ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetBlocked) {
+		if _, err := fixture.service.SendMessage(
+			fixture.ctx,
+			input,
+		); !callspkg.IsCode(
+			err,
+			callspkg.CodeMessageTargetBlocked,
+		) {
 			t.Fatalf("SendMessage(blocked target) error = %v, want %s", err, callspkg.CodeMessageTargetBlocked)
 		}
 	})
@@ -1795,7 +1948,13 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 		input := fixture.input
 		input.To = outsideID
 		input.Body = "cross-lineage probe"
-		if _, err := fixture.service.SendMessage(fixture.ctx, input); !callspkg.IsCode(err, callspkg.CodeMessageTargetDenied) {
+		if _, err := fixture.service.SendMessage(
+			fixture.ctx,
+			input,
+		); !callspkg.IsCode(
+			err,
+			callspkg.CodeMessageTargetDenied,
+		) {
 			t.Fatalf("SendMessage(outside lineage) error = %v, want %s", err, callspkg.CodeMessageTargetDenied)
 		}
 	})
@@ -1897,7 +2056,11 @@ func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {
 		if parkErr != nil || !parked {
 			t.Fatalf("ParkCallChild(%d) = %v, %v", iteration, parked, parkErr)
 		}
-		if _, err := database.db.ExecContext(ctx, `UPDATE sessions SET state = 'stopped' WHERE id = ?`, childID); err != nil {
+		if _, err := database.db.ExecContext(
+			ctx,
+			`UPDATE sessions SET state = 'stopped' WHERE id = ?`,
+			childID,
+		); err != nil {
 			t.Fatalf("mark parked child stopped (%d) error = %v", iteration, err)
 		}
 		start := make(chan struct{})

@@ -5,10 +5,11 @@ package globaldb
 import (
 	"encoding/json"
 	"errors"
-	"github.com/compozy/compozy/internal/contracts"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/compozy/compozy/internal/contracts"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"

@@ -20,6 +20,18 @@ func defaultSessionConfig() SessionConfig {
 	}
 }
 
+func defaultAutomationConfig() AutomationConfig {
+	return AutomationConfig{
+		Enabled:           true,
+		Timezone:          automationpkg.DefaultTimezone,
+		MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
+		DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
+		Suggestions: AutomationSuggestionsConfig{
+			PendingCap: automationpkg.DefaultSuggestionPendingCap,
+		},
+	}
+}
+
 func DefaultWithHome(homePaths HomePaths) Config {
 	return Config{
 		Daemon:        defaultDaemonConfig(homePaths),
@@ -81,21 +93,13 @@ func DefaultWithHome(homePaths HomePaths) Config {
 		},
 		Extensions: defaultExtensionsConfig(),
 		Tools:      DefaultToolsConfig(),
-		Automation: AutomationConfig{
-			Enabled:           true,
-			Timezone:          automationpkg.DefaultTimezone,
-			MaxConcurrentJobs: automationpkg.DefaultMaxConcurrentJobs,
-			DefaultFireLimit:  automationpkg.DefaultFireLimitConfig(),
-			Suggestions: AutomationSuggestionsConfig{
-				PendingCap: automationpkg.DefaultSuggestionPendingCap,
-			},
-		},
-		Loops:   DefaultLoopsConfig(),
-		Goals:   DefaultGoalsConfig(),
-		Task:    DefaultTaskConfig(),
-		Calls:   DefaultCallsConfig(),
-		Network: DefaultNetworkConfig(),
-		Gateway: defaultGatewayConfig(homePaths),
+		Automation: defaultAutomationConfig(),
+		Loops:      DefaultLoopsConfig(),
+		Goals:      DefaultGoalsConfig(),
+		Task:       DefaultTaskConfig(),
+		Calls:      DefaultCallsConfig(),
+		Network:    DefaultNetworkConfig(),
+		Gateway:    defaultGatewayConfig(homePaths),
 		Autonomy: AutonomyConfig{
 			BlockRecurrenceLimit: DefaultBlockRecurrenceLimit,
 			Scheduler:            DefaultSchedulerConfig(),
