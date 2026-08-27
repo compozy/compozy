@@ -155,8 +155,8 @@ github.com/coder/websocket v1.8.14 h1:9L0p0iKiNOibykf283eHkKUHHrpG7f65OE3BhhO7v9
 github.com/coder/websocket v1.8.14/go.mod h1:NX3SzP+inril6yawo5CQXx8+fk145lPDC6pumgx0mVg=
 github.com/compozy/acp-go-sdk v0.13.5-compozy.2 h1:jrgwxoL6DBHrjzQPVs8LO6rUAyJFiTT3u1qdxcOlbMk=
 github.com/compozy/acp-go-sdk v0.13.5-compozy.2/go.mod h1:yKzM/3R9uELp4+nBAwwtkS0aN1FOFjo11CNPy37yFko=
-github.com/compozy/compozy-web-assets v0.0.192 h1:HIipGDNExLAXJ5XlAjxxhPe+PkFwB8BEFWsSmbly2i4=
-github.com/compozy/compozy-web-assets v0.0.192/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
+github.com/compozy/compozy-web-assets v0.0.193 h1:fX+42hsTL6VBAdQ/EA/SfUQsOynaV9tpJniof4qcQNQ=
+github.com/compozy/compozy-web-assets v0.0.193/go.mod h1:+vAAEpoIVLAjo8/BbhgSB7IMWX+SG7uS/S5edn+suBo=
 github.com/coreos/go-iptables v0.7.1-0.20240112124308-65c67c9f46e6 h1:8h5+bWd7R6AYUslN6c6iuZWTKsKxUFDlpnmilO6R2n0=
 github.com/coreos/go-iptables v0.7.1-0.20240112124308-65c67c9f46e6/go.mod h1:Qe8Bv2Xik5FyTXwgIbLAnv2sWSBmvWdFETJConOQ//Q=
 github.com/coreos/go-oidc/v3 v3.17.0 h1:hWBGaQfbi0iVviX4ibC7bk8OKT5qNr4klBaCHVNvehc=
