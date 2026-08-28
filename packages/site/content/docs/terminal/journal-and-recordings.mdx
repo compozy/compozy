@@ -15,8 +15,8 @@ The journal writes one row for each command boundary detected in a CompozyOS ter
 actor, command, working directory, timing, exit cause, approval, output size, truncation, and detection
 method. While the daemon is running, it may add a bounded typed output tail to recent query results;
 that projection is not stored and disappears on restart. Redacted input contributes only its character
-count, never its bytes. `exact` and `marker` are authenticated boundaries; `idle` is approximate and
-remains labeled. The live tail is diagnostic context, not a full replay.
+count, never its bytes. `exact` and `marker` are authenticated boundaries; the wire value `idle` is
+approximate and the UI labels it estimated. The live tail is diagnostic context, not a full replay.
 
 Query recent rows:
 

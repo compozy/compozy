@@ -107,4 +107,5 @@ compozy terminal journal --workspace my-project --terminal term-4aa01f22e6c3 -o 
 The response contains `entries` and a nullable `next` cursor. Each entry records the actor, command,
 working directory, timing, exit cause, approval, output byte count, and command-boundary detection.
 `detected_by` is `exact`, `marker`, or `idle`. `exact` comes from the execution boundary,
-`marker` comes from an authenticated shell marker, and `idle` is an explicitly approximate fallback.
+`marker` comes from an authenticated shell marker, and `idle` is an explicitly approximate fallback
+that the UI labels estimated.
