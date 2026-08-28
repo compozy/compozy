@@ -6,10 +6,9 @@ import { describe, expect, it } from "vitest";
 import {
   routeStoryExclusions,
   routeStoryRegistry,
-  routeStoryRegistryByRoutePath,
-  routeStorySystems,
   type GeneratedRoutePath,
 } from "../route-story-registry";
+import { routeStoryRegistryByRoutePath, routeStorySystems } from "../route-story-index";
 import { storybookSystemHandlerGroups } from "../msw";
 
 const WEB_SRC_ROOT = join(__dirname, "../..");

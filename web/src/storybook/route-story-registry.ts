@@ -493,11 +493,3 @@ export const routeStoryRegistry = [
     storyName: "DirectDetail",
   },
 ] satisfies RouteStoryRegistryEntry[];
-
-export const routeStoryRegistryByRoutePath = new Map<GeneratedRoutePath, RouteStoryRegistryEntry>(
-  routeStoryRegistry.map(entry => [entry.routePath, entry])
-);
-
-export const routeStorySystems = Array.from(
-  new Set(routeStoryRegistry.map(entry => entry.system))
-).sort();
