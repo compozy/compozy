@@ -12,6 +12,11 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
+const (
+	inputRequestExpiryActorID   = "input-request-expiry"
+	inputRequestNotFoundMessage = "terminal input request was not found"
+)
+
 type pendingInput struct {
 	projection         PendingInputRequest
 	session            *session
@@ -110,7 +115,7 @@ func (r *inputRegistry) expire(pending *pendingInput, generation uint64) {
 		r.mu.Unlock()
 		return
 	}
-	actor := Actor{Kind: ActorKindSystem, ID: "input-request-expiry", ProfileID: pending.projection.ProfileID}
+	actor := Actor{Kind: ActorKindSystem, ID: inputRequestExpiryActorID, ProfileID: pending.projection.ProfileID}
 	resolved := r.resolveLocked(
 		pending,
 		InputOutcome{Outcome: InputResolutionOutcomeExpired, Redacted: pending.projection.Redacted},
@@ -130,7 +135,7 @@ func (r *inputRegistry) emitExpired(pending *pendingInput) {
 	pending.session.emitInputProvided(
 		ctx,
 		pending,
-		Actor{Kind: ActorKindSystem, ID: "input-request-expiry", ProfileID: pending.projection.ProfileID},
+		Actor{Kind: ActorKindSystem, ID: inputRequestExpiryActorID, ProfileID: pending.projection.ProfileID},
 		"expired",
 		0,
 		"",
@@ -146,7 +151,7 @@ func (r *inputRegistry) claim(session *session, id InputRequestID) (*pendingInpu
 			return nil, resolvedInputRequestError(resolved)
 		}
 		return nil, &Error{
-			Code: ErrorCodeInputRequestNotFound, Message: "terminal input request was not found", Err: ErrInputNotFound,
+			Code: ErrorCodeInputRequestNotFound, Message: inputRequestNotFoundMessage, Err: ErrInputNotFound,
 		}
 	}
 	if pending.resolving {
@@ -174,7 +179,7 @@ func (r *inputRegistry) inspect(session *session, id InputRequestID) (*pendingIn
 			return nil, resolvedInputRequestError(resolved)
 		}
 		return nil, &Error{
-			Code: ErrorCodeInputRequestNotFound, Message: "terminal input request was not found", Err: ErrInputNotFound,
+			Code: ErrorCodeInputRequestNotFound, Message: inputRequestNotFoundMessage, Err: ErrInputNotFound,
 		}
 	}
 	if pending.resolving {
@@ -201,7 +206,7 @@ func resolvedInputRequestError(resolved ResolvedInputRequest) error {
 		}
 	case InputResolutionOutcomeExpired:
 		return &Error{
-			Code: ErrorCodeInputRequestNotFound, Message: "terminal input request was not found",
+			Code: ErrorCodeInputRequestNotFound, Message: inputRequestNotFoundMessage,
 			Err: ErrInputNotFound,
 		}
 	default:
@@ -234,7 +239,7 @@ func (r *inputRegistry) release(pending *pendingInput) {
 		r.mu.Unlock()
 		return
 	}
-	actor := Actor{Kind: ActorKindSystem, ID: "input-request-expiry", ProfileID: pending.projection.ProfileID}
+	actor := Actor{Kind: ActorKindSystem, ID: inputRequestExpiryActorID, ProfileID: pending.projection.ProfileID}
 	resolved := r.resolveLocked(
 		pending,
 		InputOutcome{Outcome: InputResolutionOutcomeExpired, Redacted: pending.projection.Redacted},

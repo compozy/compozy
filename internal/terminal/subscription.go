@@ -154,9 +154,9 @@ func (s *session) finishAttach(
 func normalizeAttachOptions(options AttachOptions) (string, string, error) {
 	mode := options.Mode
 	if mode == "" {
-		mode = "read"
+		mode = terminalAccessRead
 	}
-	if mode != "read" && mode != terminalAccessWrite {
+	if mode != terminalAccessRead && mode != terminalAccessWrite {
 		return "", "", fmt.Errorf("terminal attach mode must be read or write: %w", ErrUnsupported)
 	}
 	flow := options.Flow

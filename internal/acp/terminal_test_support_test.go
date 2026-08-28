@@ -16,6 +16,18 @@ import (
 
 type acpTestTerminalJournal struct{}
 
+func (acpTestTerminalJournal) ReserveCommandID(context.Context, string) (string, error) {
+	return "cmd-0000000000000001", nil
+}
+
+func (acpTestTerminalJournal) ReleaseCommandID(string, string) {}
+
+func (acpTestTerminalJournal) ReserveRecordingID(context.Context, string) (string, error) {
+	return "rec-0000000000000001", nil
+}
+
+func (acpTestTerminalJournal) ReleaseRecordingID(string, string) {}
+
 func (acpTestTerminalJournal) Record(context.Context, string, terminalpkg.CommandRow) error {
 	return nil
 }
@@ -68,6 +80,14 @@ func (acpTestTerminalJournal) RemoveWorkspace(context.Context, string) error { r
 
 func (acpTestTerminalJournal) PrepareWorkspaceRemoval(
 	context.Context,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return acpWorkspaceRemovalPreparation{}, nil
+}
+
+func (acpTestTerminalJournal) PrepareWorkspaceRemovalAt(
+	context.Context,
+	string,
 	string,
 ) (workspacepkg.UnregisterPreparation, error) {
 	return acpWorkspaceRemovalPreparation{}, nil
@@ -175,8 +195,8 @@ func beginACPTestRun(t testing.TB, process *AgentProcess, turnID string) *active
 }
 
 func createACPTestTerminal(
-	host *localToolHost,
 	ctx context.Context,
+	host *localToolHost,
 	request acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
 	return host.createTerminal(ctx, request, terminalOwnership{

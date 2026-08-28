@@ -3,7 +3,6 @@ package wire
 import (
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 )
 
@@ -107,8 +106,4 @@ func NewACK(bytes uint32) Frame {
 	payload := make([]byte, 4)
 	binary.BigEndian.PutUint32(payload, bytes)
 	return Frame{Op: ClientOpAck, Payload: payload}
-}
-
-func IsProtocolError(err error) bool {
-	return errors.Is(err, ErrUnknownOpcode) || errors.Is(err, ErrInvalidFrame) || errors.Is(err, ErrInputTooLarge)
 }

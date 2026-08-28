@@ -456,7 +456,7 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 		t.Fatalf("os.MkdirAll(%q) error = %v", cwd, err)
 	}
 	var missingContext context.Context
-	if _, err := createACPTestTerminal(host, missingContext, acpsdk.CreateTerminalRequest{
+	if _, err := createACPTestTerminal(missingContext, host, acpsdk.CreateTerminalRequest{
 		SessionId: "sess-invalid",
 		Command:   "pwd",
 	}); err == nil {
@@ -469,7 +469,7 @@ func TestLocalToolHostCreateTerminalUsesResolvedCwd(t *testing.T) {
 		t.Fatalf("terminal count after rejected create = %d, want 0", terminalCount)
 	}
 
-	response, err := createACPTestTerminal(host, testutil.Context(t), acpsdk.CreateTerminalRequest{
+	response, err := createACPTestTerminal(testutil.Context(t), host, acpsdk.CreateTerminalRequest{
 		SessionId: "sess-terminal",
 		Command:   "pwd",
 		Cwd:       new(cwd),
@@ -508,7 +508,7 @@ func TestLocalToolHostCreateTerminalRegistersProcess(t *testing.T) {
 	}
 	t.Cleanup(host.Close)
 
-	response, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
+	response, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 		SessionId: "sess-terminal",
 		Command:   "pwd",
 	})
@@ -549,7 +549,7 @@ func TestLocalToolHostWaitForTerminalExitSignalOnlyFailure(t *testing.T) {
 
 	t.Run("Should return error for signal-only exit", func(t *testing.T) {
 		host, _ := newTestLocalToolHost(t, compozyconfig.PermissionModeApproveAll)
-		response, err := createACPTestTerminal(host, testutil.Context(t), acpsdk.CreateTerminalRequest{
+		response, err := createACPTestTerminal(testutil.Context(t), host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
 			Args:      []string{"-c", "kill -TERM $$"},
@@ -597,7 +597,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 		}
 		t.Cleanup(host.Close)
 
-		first, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
+		first, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
 			Args:      []string{"-c", "sleep 5"},
@@ -605,7 +605,7 @@ func TestLocalToolHostScopedInterruptStopsOnlyRequestedTerminal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("CreateTerminal(first) error = %v", err)
 		}
-		second, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
+		second, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-terminal",
 			Command:   "/bin/sh",
 			Args:      []string{"-c", "sleep 5"},

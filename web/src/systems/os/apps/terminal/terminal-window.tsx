@@ -59,10 +59,12 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     pathname,
     profile,
     recording,
+    recordings,
     reject,
     replay,
     selectedCommandId,
     setJournalChips,
+    setJournalUnlocked,
     setJournalVisible,
     setReplay,
     setSelectedCommandId,
@@ -240,7 +242,8 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       interactiveAvailable={interactiveAvailable}
       resolvedInputRequests={resolvedInputRequests}
       journal={journalContent}
-      limit={terminalSettings?.max_per_workspace ?? 8}
+      limit={terminalSettings?.max_per_workspace}
+      recordings={recordings}
       onLeaveJournal={() => setJournalVisible(false)}
       onSelectTerminal={terminalId => {
         void coordinator.userRetarget(windowId, {
@@ -250,8 +253,8 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         });
       }}
       onViewJournal={() => {
+        setJournalUnlocked(true);
         setJournalVisible(true);
-        void journal.refetch();
       }}
       profile={profile.destination}
       projectLabel={workspace.runtimeWorkspace?.name}

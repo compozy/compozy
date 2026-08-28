@@ -35,25 +35,24 @@ type AgentEvent struct {
 	SessionID string
 	TurnID    string
 	store.EventCorrelation
-	Timestamp         time.Time
-	Text              string
-	Title             string
-	ToolCallID        string
-	payload           *agentEventPayload
-	StopReason        string
-	PromptStopReason  PromptStopReason
-	Action            string
-	Resource          string
-	Decision          string
-	Error             string
-	Failure           *store.SessionFailure
-	Synthetic         *PromptSyntheticMeta
-	Goal              *GoalPromptMeta
-	AvailableCommands *AvailableCommandSet
-	Usage             *TokenUsage
-	Runtime           *RuntimeActivity
-	ReportedTerminal  *AgentReportedTerminal
-	Raw               json.RawMessage
+	Timestamp        time.Time
+	Text             string
+	Title            string
+	ToolCallID       string
+	payload          *agentEventPayload
+	StopReason       string
+	PromptStopReason PromptStopReason
+	Action           string
+	Resource         string
+	Decision         string
+	Error            string
+	Failure          *store.SessionFailure
+	Synthetic        *PromptSyntheticMeta
+	Goal             *GoalPromptMeta
+	Usage            *TokenUsage
+	Runtime          *RuntimeActivity
+	ReportedTerminal *AgentReportedTerminal
+	Raw              json.RawMessage
 }
 
 // Origin returns the source classification derived from the event type.

@@ -21,7 +21,10 @@ import {
   terminalScope,
   useTerminalCatalogStream,
   useTerminalInputAnswer,
+  useTerminalRecordings,
+  applyRecordingStopSuccess,
   type TerminalInputRequest,
+  type TerminalRecordingMap,
   type TerminalViewerIdentity,
 } from "@/systems/terminal";
 import { useActiveWorkspace } from "@/systems/workspace";
@@ -30,6 +33,7 @@ import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { matchTerminalInstance } from "../../../lib/app-catalog";
 import { decideTerminalCloseHost } from "../lib/terminal-window-close";
+import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
 
 const DEFAULT_ROUTE = "/terminal";
 
@@ -47,6 +51,7 @@ export function useTerminalWindowControllerState(windowId: string) {
   const [replay, setReplay] = useState<TerminalReplaySelection | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
   const [journalVisible, setJournalVisible] = useState(false);
+  const [journalUnlocked, setJournalUnlocked] = useState(false);
   const { coordinator, manager } = useOsShell();
   const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
@@ -62,6 +67,12 @@ export function useTerminalWindowControllerState(windowId: string) {
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
   const journalScope = catalogScope;
+  const journalScopeIdentity = `${workspaceId}:${catalogScope.key.profileKey}`;
+  const [journalScopeSeen, setJournalScopeSeen] = useState(journalScopeIdentity);
+  if (journalScopeSeen !== journalScopeIdentity) {
+    setJournalScopeSeen(journalScopeIdentity);
+    setJournalUnlocked(false);
+  }
   const catalog = useQuery({
     ...terminalCatalogQuery(catalogScope),
     enabled: workspaceId !== "",
@@ -79,8 +90,9 @@ export function useTerminalWindowControllerState(windowId: string) {
   const resolvedInputRequests = inputRequestProjection.data?.resolved ?? [];
   const journal = useInfiniteQuery({
     ...terminalJournalQuery(journalScope, journalFilters),
-    enabled: workspaceId !== "",
+    enabled: terminalJournalQueryEnabled(workspaceId, journalUnlocked),
   });
+  const recordings = useTerminalRecordings(catalogScope.key, workspaceId !== "");
   const recordingScope = terminalScope(workspaceId, replay?.profile ?? profile.destination);
   const recording = useQuery({
     ...terminalRecordingQuery(recordingScope, replay?.id ?? ""),
@@ -199,7 +211,13 @@ export function useTerminalWindowControllerState(windowId: string) {
   const stopRecording = useMutation({
     mutationFn: (terminalId: string) =>
       controlTerminalRecording(workspaceId, terminalId, "stop", terminalSelector(terminalId)),
-    onSuccess: invalidateTerminalReads,
+    onSuccess: async recording => {
+      queryClient.setQueryData<TerminalRecordingMap>(
+        terminalKeys.recordings(catalogScope.key),
+        current => applyRecordingStopSuccess(current ?? {}, recording)
+      );
+      await invalidateTerminalReads();
+    },
     onError: error =>
       toast.error(error instanceof Error ? error.message : "Failed to stop recording"),
   });
@@ -218,10 +236,12 @@ export function useTerminalWindowControllerState(windowId: string) {
     pathname,
     profile,
     recording,
+    recordings,
     reject,
     replay,
     selectedCommandId,
     setJournalChips,
+    setJournalUnlocked,
     setJournalVisible,
     setReplay,
     setSelectedCommandId,

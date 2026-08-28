@@ -5,7 +5,7 @@ import { TerminalSquare } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { useTerminalReplay } from "@/systems/terminal/parts";
+import { terminalReplayFailedCopy, useTerminalReplay } from "@/systems/terminal/parts";
 import type { AgentEventPayload } from "../types";
 
 const REPORTED_COLLAPSED_LINE_LIMIT = 12;
@@ -84,6 +84,14 @@ export function SessionAgentReportedBlock({ data, engineLoader }: SessionAgentRe
           screenReaderMode
         />
       </div>
+      {replay.writeError ? (
+        <div
+          className="flex min-h-7 w-full items-center justify-center border-line-strong border-t bg-terminal-bg px-3 font-mono text-micro text-subtle"
+          role="status"
+        >
+          {terminalReplayFailedCopy()}
+        </div>
+      ) : null}
       {overflow ? (
         <button
           aria-expanded={expanded}

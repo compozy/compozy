@@ -67,6 +67,12 @@ const CONTROLLED_SOCKET = scriptedSocketFactory({
   lease: "human_owned",
   output: DEV_SERVER_SCREEN,
 });
+const JOURNAL_UNAVAILABLE_SOCKET = scriptedSocketFactory({
+  ...PTY_SCREEN,
+  lease: "human_owned",
+  output: DEV_SERVER_SCREEN,
+  error: { code: "journal_unavailable", message: "journal_unavailable" },
+});
 const WATCHING_SOCKET = scriptedSocketFactory({
   ...PTY_SCREEN,
   lease: "agent_owned",
@@ -160,10 +166,10 @@ export const AtLimit: Story = {
   tags: ["play-fn"],
 };
 
-/** VC-06 — a platform that cannot host an interactive terminal. */
+/** VC-06 — a remote environment that cannot host an interactive terminal. */
 export const ExecuteOnly: Story = {
-  name: "VC-06 · Execute-only platform",
-  render: () => stagedWindow({ interactiveAvailable: false }),
+  name: "VC-06 · Execute-only remote environment",
+  render: () => stagedWindow({ interactiveAvailable: false, terminals: [] }),
 };
 
 /**
@@ -275,9 +281,12 @@ export const AuditBlocked: Story = {
   render: () =>
     stagedWindow({
       terminals: [DEV_SERVER_TERMINAL],
-      auditBlockedIds: new Set([DEV_SERVER_TERMINAL.id]),
-      socketFactory: CONTROLLED_SOCKET,
+      socketFactory: JOURNAL_UNAVAILABLE_SOCKET,
     }),
+  play: async ({ canvas }) => {
+    await canvas.findByTestId("terminal-notice-journal_unavailable");
+  },
+  tags: ["play-fn"],
 };
 
 /**

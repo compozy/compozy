@@ -1,7 +1,7 @@
 package journal
 
 // Suite: durable terminal journal
-// Invariant: accepted command rows persist once and reads never escape their workspace/profile scope.
+// Invariant: accepted rows persist once, failures do not wedge later progress, and reads stay workspace/profile scoped.
 // Boundary IN: journal assembly, workspacedb SQLite, retained artifact filesystem.
 // Boundary OUT: HTTP/UDS projections and browser replay, owned by later terminal task suites.
 
@@ -11,6 +11,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -115,6 +116,14 @@ func TestService(t *testing.T) {
 		if persisted.Path == "" || persisted.Digest == "" || persisted.Bytes != int64(len(recordingData)) {
 			t.Fatalf("PersistRecording() = %#v, want retained metadata", persisted)
 		}
+		lateRow := terminalpkg.CommandRow{
+			ID: "cmd-late-recording-link", TerminalID: &terminalID, ProfileID: "profile-a",
+			Actor: row.Actor, Command: "late insert", Cwd: row.Cwd, StartedAt: time.UnixMilli(1200),
+			ExitCause: "exited", DetectedBy: "exact", Approval: "approved_once",
+		}
+		if err := service.Record(ctx, workspaceID, lateRow); err != nil {
+			t.Fatalf("Record(late covered command) error = %v", err)
+		}
 		linked, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: "profile-a"}, terminalpkg.Query{})
 		if err != nil {
 			t.Fatalf("Query(linked) error = %v", err)
@@ -122,6 +131,9 @@ func TestService(t *testing.T) {
 		linkedInside := commandRowByID(t, linked, row.ID)
 		if linkedInside.RecordingID == nil || *linkedInside.RecordingID != "rec-1" {
 			t.Fatalf("inside recording_id = %v, want rec-1", linkedInside.RecordingID)
+		}
+		if id := commandRowByID(t, linked, lateRow.ID).RecordingID; id == nil || *id != "rec-1" {
+			t.Fatalf("late covered recording_id = %v, want rec-1", id)
 		}
 		if before := commandRowByID(t, linked, "cmd-before-recording"); before.RecordingID != nil {
 			t.Fatalf("before recording_id = %v, want nil", before.RecordingID)
@@ -365,6 +377,9 @@ func TestService(t *testing.T) {
 
 		ctx := testutil.Context(t)
 		service, workspaceID := newJournalTestService(ctx, t)
+		entropy := bytes.Repeat([]byte{0x01}, 32)
+		entropy = append(entropy, bytes.Repeat([]byte{0x02}, 16)...)
+		service.entropy = bytes.NewReader(entropy)
 		for _, commandID := range []string{"cmd-first", "cmd-second"} {
 			if err := service.Record(ctx, workspaceID, terminalpkg.CommandRow{
 				ID: commandID, ProfileID: "profile-a",
@@ -392,6 +407,10 @@ func TestService(t *testing.T) {
 		}
 		if first.Path != second.Path {
 			t.Fatalf("shared artifact paths = %q/%q, want equal", first.Path, second.Path)
+		}
+		if first.ArtifactID != "art-01010101010101010101010101010101" ||
+			second.ArtifactID != "art-02020202020202020202020202020202" {
+			t.Fatalf("collision-safe artifact IDs = %q/%q", first.ArtifactID, second.ArtifactID)
 		}
 		if err := service.SweepExpired(ctx, workspaceID, time.UnixMilli(2000)); err != nil {
 			t.Fatalf("SweepExpired(first) error = %v", err)
@@ -948,7 +967,87 @@ func TestService(t *testing.T) {
 		}
 	})
 
-	t.Run("Should block on durable failure and recover one row exactly once", func(t *testing.T) {
+	t.Run("Should regenerate a colliding marker command identity before publishing it", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(ctx, t)
+		terminalID := terminalpkg.ID("term-collision")
+		info := terminalpkg.Info{
+			ID: terminalID, WS: workspaceID, ProfileID: "profile-a",
+			Controller: &terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
+			},
+		}
+		const collisionID = "cmd-000102030405060708090a0b0c0d0e0f"
+		seed := terminalpkg.CommandRow{
+			ID: collisionID, TerminalID: &terminalID, ProfileID: info.ProfileID, Actor: *info.Controller,
+			Command: "seed", Cwd: "/workspace", StartedAt: time.UnixMilli(1),
+			ExitCause: "exited", DetectedBy: "exact", Approval: "human",
+		}
+		if err := service.Record(ctx, workspaceID, seed); err != nil {
+			t.Fatalf("Record(seed) error = %v", err)
+		}
+		service.entropy = bytes.NewReader([]byte{
+			0, 1, 2, 3, 4, 5, 6, 7,
+			8, 9, 10, 11, 12, 13, 14, 15,
+			16, 17, 18, 19, 20, 21, 22, 23,
+			24, 25, 26, 27, 28, 29, 30, 31,
+		})
+		events := make(chan terminalpkg.Event, 2)
+		service.RegisterTerminal(info, nil, func(event terminalpkg.Event) {
+			if event.Kind == terminalpkg.EventKindCommandStarted || event.Kind == terminalpkg.EventKindCommandFinished {
+				events <- event
+			}
+		})
+		if err := service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
+			{Kind: "S", Command: "pwd", Cwd: "/workspace"}, {Kind: "F", Exit: new(0)},
+		}); err != nil {
+			t.Fatalf("ConsumeMarkerFacts() error = %v", err)
+		}
+		page := waitForJournalRows(ctx, t, service, workspaceID, 2)
+		const regeneratedID = "cmd-101112131415161718191a1b1c1d1e1f"
+		if commandRowByID(t, page, regeneratedID).Command != "pwd" {
+			t.Fatalf("persisted rows = %#v, want regenerated marker command", page.Entries)
+		}
+		for range 2 {
+			event := <-events
+			if event.DetailValue().CommandID != regeneratedID {
+				t.Fatalf("%s command_id = %q, want %q", event.Kind, event.DetailValue().CommandID, regeneratedID)
+			}
+		}
+	})
+
+	t.Run("Should regenerate a colliding recording identity before admission", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(ctx, t)
+		terminalID := terminalpkg.ID("term-recording-collision")
+		const collisionID = "rec-000102030405060708090a0b0c0d0e0f"
+		stoppedAt := time.UnixMilli(2)
+		if _, err := service.PersistRecording(ctx, workspaceID, terminalID, terminalpkg.RecordingRef{
+			ID: collisionID, TerminalID: terminalID, ProfileID: "profile-a",
+			StartedAt: time.UnixMilli(1), StoppedAt: &stoppedAt, ExpiresAt: time.UnixMilli(3),
+		}, []byte("recording")); err != nil {
+			t.Fatalf("PersistRecording(seed) error = %v", err)
+		}
+		service.entropy = bytes.NewReader([]byte{
+			0, 1, 2, 3, 4, 5, 6, 7,
+			8, 9, 10, 11, 12, 13, 14, 15,
+			16, 17, 18, 19, 20, 21, 22, 23,
+			24, 25, 26, 27, 28, 29, 30, 31,
+		})
+		id, err := service.ReserveRecordingID(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("ReserveRecordingID() error = %v", err)
+		}
+		defer service.ReleaseRecordingID(workspaceID, id)
+		if id != "rec-101112131415161718191a1b1c1d1e1f" {
+			t.Fatalf("ReserveRecordingID() = %q, want regenerated identity", id)
+		}
+	})
+
+	t.Run("Should retain an observed marker command while its store is unavailable", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t)
@@ -960,7 +1059,7 @@ func TestService(t *testing.T) {
 		var available atomic.Bool
 		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
 			if !available.Load() {
-				return workspacedb.ResolvedRoot{}, errors.New("store unavailable")
+				return workspacedb.ResolvedRoot{}, fmt.Errorf("store unavailable: %w", context.DeadlineExceeded)
 			}
 			return workspacedb.ResolvedRoot{
 				RootDir:     workspaceRoot,
@@ -990,7 +1089,8 @@ func TestService(t *testing.T) {
 		blocked := make(chan bool, 4)
 		service.RegisterTerminal(info, func(value bool) { blocked <- value }, nil)
 		if err := service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
-			{Kind: "S", Command: "pwd", Cwd: "/workspace"}, {Kind: "F", Exit: new(0)},
+			{Kind: "S", Command: "pwd", Cwd: "/workspace"},
+			{Kind: "F", Exit: new(0)},
 		}); err != nil {
 			t.Fatalf("ConsumeMarkerFacts() error = %v", err)
 		}
@@ -1006,8 +1106,98 @@ func TestService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Query() error = %v", err)
 		}
-		if len(page.Entries) != 1 || page.Entries[0].DetectedBy != "marker" {
+		if len(page.Entries) != 1 || page.Entries[0].DetectedBy != "marker" || page.Entries[0].Command != "pwd" {
 			t.Fatalf("recovered entries = %#v, want one marker row", page.Entries)
+		}
+	})
+
+	t.Run("Should retain an exhausted row and keep audit blocked until recovery", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		workspaceRoot := t.TempDir()
+		identity, err := workspacepkg.EnsureIdentity(ctx, workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		var available atomic.Bool
+		pool, err := workspacedb.NewPool(func(context.Context, string) (workspacedb.ResolvedRoot, error) {
+			if !available.Load() {
+				return workspacedb.ResolvedRoot{}, fmt.Errorf("store unavailable: %w", context.DeadlineExceeded)
+			}
+			return workspacedb.ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
+		})
+		if err != nil {
+			t.Fatalf("NewPool() error = %v", err)
+		}
+		ownerCtx, cancelOwner := context.WithCancelCause(context.WithoutCancel(t.Context()))
+		service, err := New(ownerCtx, Options{Databases: pool, HomeDir: t.TempDir()})
+		if err != nil {
+			t.Fatalf("New() error = %v", err)
+		}
+		t.Cleanup(func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			if err := service.Shutdown(shutdownCtx); err != nil {
+				t.Errorf("Shutdown() error = %v", err)
+			}
+			cancelOwner(errors.New("journal exhaustion test cleanup complete"))
+		})
+		terminalID := terminalpkg.ID("term-exhaustion")
+		info := terminalpkg.Info{
+			ID: terminalID, WS: identity.WorkspaceID, ProfileID: "profile-a",
+			Controller: &terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
+			},
+		}
+		blocked := make(chan bool, 4)
+		service.RegisterTerminal(info, func(value bool) { blocked <- value }, nil)
+		row := func(id string) terminalpkg.CommandRow {
+			return terminalpkg.CommandRow{
+				ID: id, TerminalID: &terminalID, ProfileID: info.ProfileID, Actor: *info.Controller,
+				Command: id, Cwd: "/workspace", StartedAt: time.UnixMilli(1),
+				ExitCause: "exited", DetectedBy: "exact", Approval: "human",
+			}
+		}
+		lane := service.lane(info)
+		exhausted := lane.enqueue(row("cmd-exhausted"))
+		waitForAuditState(t, blocked, true)
+		deadline := time.Now().Add(3 * time.Second)
+		for service.WriteFailureCount() <= 5 && time.Now().Before(deadline) {
+			runtime.Gosched()
+		}
+		if failures := service.WriteFailureCount(); failures <= 5 {
+			t.Fatalf("write failures = %d, want retries beyond the old exhaustion limit", failures)
+		}
+		assertJournalResultPending(t, "exhausted row", exhausted)
+		if service.PendingCount(info) != 1 || !lane.blocked {
+			t.Fatalf("retained lane = pending %d blocked %t, want 1/true", service.PendingCount(info), lane.blocked)
+		}
+		available.Store(true)
+		select {
+		case err := <-exhausted:
+			if err != nil {
+				t.Fatalf("recovered row error = %v", err)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatal("retained row did not persist after store recovery")
+		}
+		waitForAuditState(t, blocked, false)
+		successor := lane.enqueue(row("cmd-after-recovery"))
+		if err := <-successor; err != nil {
+			t.Fatalf("successor row error = %v", err)
+		}
+		if service.PendingCount(info) != 0 || lane.blocked {
+			t.Fatalf("lane after recovery = pending %d blocked %t", service.PendingCount(info), lane.blocked)
+		}
+		page, err := service.Query(
+			ctx,
+			identity.WorkspaceID,
+			store.ReadScope{ProfileID: info.ProfileID},
+			terminalpkg.Query{},
+		)
+		if err != nil || len(page.Entries) != 2 {
+			t.Fatalf("Query() entries = %#v error = %v, want original and successor once", page, err)
 		}
 	})
 }

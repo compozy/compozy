@@ -192,11 +192,17 @@ function genericReceipt(
         suffix: "",
       };
     case "reject-once":
-      return { tone: "rejected", prefix: "Not allowed by you", join, subject, suffix: "" };
+      return {
+        tone: "rejected",
+        prefix: `Not allowed by you · ${permission.toolName}`,
+        join,
+        subject,
+        suffix: "",
+      };
     case "reject-always":
       return {
         tone: "rejected",
-        prefix: "Not allowed by you for this project and this agent",
+        prefix: `Not allowed by you · ${permission.toolName} for this project and this agent`,
         join,
         subject,
         suffix: "",

@@ -173,6 +173,40 @@ func (m *Service) List(ctx context.Context, workspaceID string, scope store.Read
 	return items, nil
 }
 
+func (m *Service) ActiveRecordings(
+	ctx context.Context,
+	workspaceID string,
+	scope store.ReadScope,
+) ([]RecordingRef, error) {
+	if err := requestContextError(ctx, "list active recordings"); err != nil {
+		return nil, err
+	}
+	if err := scope.Validate(); err != nil {
+		return nil, fmt.Errorf("terminal: validate active recording scope: %w", err)
+	}
+	m.mu.RLock()
+	items := make([]RecordingRef, 0)
+	for key, session := range m.terminals {
+		if key.workspaceID != workspaceID || !scope.Matches(key.profileID) {
+			continue
+		}
+		if recording, ok := session.activeRecording(); ok {
+			items = append(items, recording)
+		}
+	}
+	m.mu.RUnlock()
+	slices.SortFunc(items, func(left, right RecordingRef) int {
+		if left.StartedAt.Equal(right.StartedAt) {
+			return strings.Compare(string(left.TerminalID), string(right.TerminalID))
+		}
+		if left.StartedAt.Before(right.StartedAt) {
+			return -1
+		}
+		return 1
+	})
+	return items, nil
+}
+
 func (m *Service) Close(
 	ctx context.Context,
 	workspaceID string,
@@ -423,5 +457,3 @@ func (i Info) ControllerGeneration() int64 {
 	}
 	return i.Controller.Generation
 }
-
-var _ Manager = (*Service)(nil)

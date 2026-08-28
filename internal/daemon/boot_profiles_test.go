@@ -68,7 +68,7 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 
 	t.Run("Should sweep terminal runtime state when a profile is archived", func(t *testing.T) {
 		t.Parallel()
-		manager, err := terminalpkg.NewManager()
+		manager, err := terminalpkg.NewManager(terminalpkg.WithJournal(nativeTerminalJournalStub{}))
 		if err != nil {
 			t.Fatalf("terminal.NewManager() error = %v", err)
 		}
@@ -82,7 +82,10 @@ func TestDaemonProfileEventRecorder(t *testing.T) {
 		})
 		handle, err := manager.OpenPipe(t.Context(), terminalpkg.PipeRequest{
 			WS: "workspace-a", Cwd: t.TempDir(), Argv: []string{"sh", "-c", "sleep 300"},
-			Actor: terminalpkg.Actor{Kind: terminalpkg.ActorKindAgent, ID: "agent", ProfileID: "profile-a"},
+			Actor: terminalpkg.Actor{
+				Kind: terminalpkg.ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+				SessionID: "session-a", RunID: "run-a", Generation: 1,
+			},
 		})
 		if err != nil {
 			t.Fatalf("OpenPipe() error = %v", err)

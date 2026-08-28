@@ -20,8 +20,8 @@ export interface UseTerminalWindowAppStateOptions {
   profile: string;
   terminals: readonly TerminalInfo[];
   inputRequests: readonly TerminalInputRequest[];
-  /** The per-project cap, from `[terminal].max_per_workspace`. */
-  limit: number;
+  /** The per-project cap, from `[terminal].max_per_workspace`. Absent until loaded. */
+  limit?: number;
   readOnly: boolean;
   actions: TerminalWindowActions;
   /**
@@ -31,7 +31,7 @@ export interface UseTerminalWindowAppStateOptions {
   requestedTerminalId?: string | null;
   /** Retargets the host route to this PTY. Absent in isolated windows. */
   onSelectTerminal?: (terminalId: string) => void;
-  /** Refreshes the journal when the operator reveals it. */
+  /** Reveals the journal. The host unlocks its fetch on first open. */
   onViewJournal?: (() => void) | undefined;
   /** The journal tab is no longer the surface being read. */
   onLeaveJournal?: (() => void) | undefined;
@@ -124,7 +124,7 @@ export function useTerminalWindowAppState({
     setSelectedTab(tab);
   };
   const destinationTerminals = terminals.filter(terminal => terminal.profile_name === profile);
-  const atLimit = destinationTerminals.length >= limit;
+  const atLimit = limit !== undefined && destinationTerminals.length >= limit;
   const store = useTerminalStore();
   const activeProfile = active?.profile_name ?? profile;
   useTerminalScopeCleanup({ workspaceId, profile: activeProfile, terminals, store });

@@ -1,4 +1,4 @@
-import type { TerminalInputActorProjection, TerminalInputRequest } from "../types";
+import type { TerminalInputRequest } from "../types";
 
 /** The words the pin puts in its title — who is waiting, and for what. */
 export function terminalInputRequestTitle(request: TerminalInputRequest): string {
@@ -16,8 +16,4 @@ export function terminalInputStackNeedsOrigin(
 ): boolean {
   const terminals = new Set(requests.map(request => request.terminal_id));
   return terminals.size > 1;
-}
-
-export function isHumanInputActor(actor: TerminalInputActorProjection | undefined): boolean {
-  return actor?.kind === "human";
 }

@@ -2,10 +2,6 @@ package journal
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/hex"
-	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -74,7 +70,7 @@ func (s *Service) ensureLane(
 
 // ConsumeMarkerFacts assembles authenticated shell facts without parsing bytes again.
 func (s *Service) ConsumeMarkerFacts(
-	_ context.Context,
+	ctx context.Context,
 	info terminalpkg.Info,
 	facts []terminalpkg.MarkerFacts,
 ) error {
@@ -92,16 +88,19 @@ func (s *Service) ConsumeMarkerFacts(
 		switch fact.Kind {
 		case "S":
 			lane.cancelIdleCandidate()
-			id, err := randomCommandID()
+			id, err := s.reserveObservedCommandID(ctx, info.WS)
 			if err != nil {
-				s.logger.Error("terminal journal: generate command id", "terminal_id", info.ID, "error", err)
+				s.logger.Error("terminal journal: reserve command id", "terminal_id", info.ID, "error", err)
 				lane.setAuditBlocked()
 				continue
 			}
-			lane.setAssembly(commandAssembly{
+			if !lane.setAssembly(commandAssembly{
 				id: id, command: scrubCommand(fact.Command), cwd: fact.Cwd, startedAt: s.now(),
 				actor: lane.actor(), detectedBy: commandDetectionMarker,
-			})
+			}) {
+				s.ReleaseCommandID(info.WS, id)
+				continue
+			}
 			lane.emitEvent(terminalpkg.Event{
 				Kind: terminalpkg.EventKindCommandStarted, WorkspaceID: info.WS, ProfileID: info.ProfileID,
 				TerminalID: info.ID, Actor: lane.actor(), At: s.now(),
@@ -176,12 +175,4 @@ func terminalLaneKey(info terminalpkg.Info) string {
 func terminalIDPointer(id terminalpkg.ID) *terminalpkg.ID {
 	result := id
 	return &result
-}
-
-func randomCommandID() (string, error) {
-	bytes := make([]byte, 3)
-	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
-		return "", fmt.Errorf("terminal journal: command id: %w", err)
-	}
-	return "cmd-" + hex.EncodeToString(bytes), nil
 }

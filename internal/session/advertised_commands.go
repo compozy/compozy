@@ -31,7 +31,7 @@ func (m *Manager) persistAdvertisedCommandsFromEvent(
 	if event.Type != acp.EventTypeAvailableCommands {
 		return nil
 	}
-	commands := normalizeAdvertisedCommands(event.AvailableCommands.Values())
+	commands := normalizeAdvertisedCommands(event.AvailableCommandSet().Values())
 	for _, command := range commands {
 		if err := command.Validate(); err != nil {
 			return fmt.Errorf("session: validate advertised command %q: %w", command.Name, err)
@@ -67,7 +67,7 @@ func (m *Manager) restoreAdvertisedCommands(ctx context.Context, session *Sessio
 		return fmt.Errorf("session: advertised command event type changed to %q", event.Type)
 	}
 	session.replaceAdvertisedCommands(
-		normalizeAdvertisedCommands(event.AvailableCommands.Values()),
+		normalizeAdvertisedCommands(event.AvailableCommandSet().Values()),
 		events[len(events)-1].Timestamp,
 	)
 	return nil

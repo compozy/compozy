@@ -117,6 +117,8 @@ func (m *Service) AttachWithTicket(
 	if err := requestContextError(ctx, "attach with ticket"); err != nil {
 		return nil, nil, AttachTicket{}, err
 	}
+	// Claim before attachment so a valid token remains single-use even when Handle or Attach fails.
+	// Callers must mint a new ticket after any post-claim failure.
 	ticket, err := m.tickets.claimStream(token, workspaceID, terminalID, mode, m.now())
 	if err != nil {
 		return nil, nil, AttachTicket{}, err
@@ -150,7 +152,7 @@ func validateAttachTicketBinding(binding AttachTicketBinding) error {
 		strings.TrimSpace(string(binding.TerminalID)) == "" {
 		return newTerminalError(ErrorCodeTicketInvalid, "terminal attach ticket scope is incomplete", ErrTicketInvalid)
 	}
-	if binding.Mode != terminalAccessWrite && binding.Mode != "read" {
+	if binding.Mode != terminalAccessWrite && binding.Mode != terminalAccessRead {
 		return newTerminalError(ErrorCodeTicketInvalid, "terminal attach ticket mode is invalid", ErrTicketInvalid)
 	}
 	return nil

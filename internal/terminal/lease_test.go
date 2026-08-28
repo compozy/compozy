@@ -8,7 +8,9 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"runtime"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -211,6 +213,127 @@ func TestLeaseMachineContract(t *testing.T) {
 		var terminalErr *Error
 		if !errors.As(loser, &terminalErr) || terminalErr.Controller == nil {
 			t.Fatalf("loser error = %#v, want winner identity", loser)
+		}
+	})
+
+	t.Run("Should publish rapid transitions in committed order with truthful controllers", func(t *testing.T) {
+		t.Parallel()
+		type observedTransition struct {
+			to         LeaseState
+			reason     string
+			controller *Actor
+		}
+		firstStarted := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		observed := make(chan observedTransition, 2)
+		var transitionCount atomic.Int64
+		lease := newLeaseMachine(agent, io.Discard, time.Second, func(
+			_ LeaseState,
+			to LeaseState,
+			reason string,
+			_ Actor,
+			controller *Actor,
+		) {
+			if transitionCount.Add(1) == 1 {
+				close(firstStarted)
+				<-releaseFirst
+			}
+			observed <- observedTransition{to: to, reason: reason, controller: controller}
+		})
+		takeoverDone := make(chan error, 1)
+		go func() { takeoverDone <- lease.takeover(humanA, false) }()
+		<-firstStarted
+		if err := lease.yield(humanA); err != nil {
+			t.Fatalf("yield() error = %v", err)
+		}
+		select {
+		case got := <-observed:
+			t.Fatalf("transition overtook blocked predecessor: %#v", got)
+		default:
+		}
+		close(releaseFirst)
+		if err := <-takeoverDone; err != nil {
+			t.Fatalf("takeover() error = %v", err)
+		}
+		first, second := <-observed, <-observed
+		if first.to != LeaseHumanOwned || first.reason != "takeover" || first.controller == nil ||
+			!sameActor(*first.controller, humanA) {
+			t.Fatalf("first transition = %#v, want takeover/human-a", first)
+		}
+		if second.to != LeaseAgentOwned || second.reason != "yield" || second.controller == nil ||
+			!sameActor(*second.controller, agent) {
+			t.Fatalf("second transition = %#v, want yield/original agent", second)
+		}
+	})
+
+	t.Run("Should drain the active transition and discard queued ownership changes on close", func(t *testing.T) {
+		t.Parallel()
+		firstStarted := make(chan struct{})
+		releaseFirst := make(chan struct{})
+		observed := make(chan string, 2)
+		lease := newLeaseMachine(agent, io.Discard, time.Second, func(
+			_ LeaseState,
+			_ LeaseState,
+			reason string,
+			_ Actor,
+			_ *Actor,
+		) {
+			if reason == "takeover" {
+				close(firstStarted)
+				<-releaseFirst
+			}
+			observed <- reason
+		})
+		takeoverDone := make(chan error, 1)
+		go func() { takeoverDone <- lease.takeover(humanA, false) }()
+		<-firstStarted
+		if err := lease.yield(humanA); err != nil {
+			t.Fatalf("yield() error = %v", err)
+		}
+		closeDone := make(chan struct{})
+		go func() {
+			lease.close()
+			close(closeDone)
+		}()
+		deadline := time.Now().Add(time.Second)
+		for {
+			lease.mu.Lock()
+			closed := lease.closed
+			lease.mu.Unlock()
+			if closed {
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("lease close did not seal transitions")
+			}
+			runtime.Gosched()
+		}
+		select {
+		case <-closeDone:
+			t.Fatal("lease close returned before the active transition drained")
+		default:
+		}
+		close(releaseFirst)
+		if err := <-takeoverDone; err != nil {
+			t.Fatalf("takeover() error = %v", err)
+		}
+		select {
+		case <-closeDone:
+		case <-time.After(time.Second):
+			t.Fatal("lease close did not finish after the active transition drained")
+		}
+		if reason := <-observed; reason != "takeover" {
+			t.Fatalf("published transition = %q, want takeover", reason)
+		}
+		select {
+		case reason := <-observed:
+			t.Fatalf("queued transition published after close: %q", reason)
+		default:
+		}
+		lease.runEnded(agent)
+		lease.runtimeRecovered(agent, agent)
+		if err := lease.takeover(humanB, true); !errors.Is(err, ErrExited) {
+			t.Fatalf("takeover(after close) error = %v, want ErrExited", err)
 		}
 	})
 

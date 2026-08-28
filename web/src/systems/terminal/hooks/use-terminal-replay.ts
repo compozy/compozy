@@ -12,17 +12,23 @@ export function useTerminalReplay(instanceId: string, output: string, enabled = 
   // buffer is destroyed and a new one mounts, so a bare boolean would stay
   // stale-true and the write below would never re-run for the new buffer.
   const [attachedFor, setAttachedFor] = useState<string | null>(null);
+  const [writeError, setWriteError] = useState<Error | null>(null);
   const attached = attachedFor === instanceId;
 
   useEffect(() => () => destroyTerminalInstance(instanceId), [instanceId]);
   useEffect(() => {
     if (!attached || !enabled) return;
     handleRef.current?.reset();
-    void handleRef.current?.write(output).catch(cause => {
-      if (cause instanceof TerminalWriteAbandonedError) return;
-      throw cause;
-    });
+    void handleRef.current?.write(output).then(
+      () => {
+        setWriteError(null);
+      },
+      (cause: unknown) => {
+        if (cause instanceof TerminalWriteAbandonedError) return;
+        setWriteError(cause instanceof Error ? cause : new Error(String(cause)));
+      }
+    );
   }, [attached, enabled, output]);
 
-  return { handleRef, onAttached: () => setAttachedFor(instanceId) };
+  return { handleRef, onAttached: () => setAttachedFor(instanceId), writeError };
 }

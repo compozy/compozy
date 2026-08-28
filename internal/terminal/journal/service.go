@@ -3,7 +3,9 @@ package journal
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
+	"io"
 	"log/slog"
 	"strings"
 	"sync"
@@ -25,6 +27,7 @@ type Options struct {
 	HomeDir   string
 	Logger    *slog.Logger
 	Now       func() time.Time
+	Entropy   io.Reader
 }
 
 // Service implements the terminal journal over per-workspace SQLite stores.
@@ -33,17 +36,22 @@ type Service struct {
 	homeDir     string
 	logger      *slog.Logger
 	now         func() time.Time
+	entropy     io.Reader
 	laneCtx     context.Context
 	cancelLanes context.CancelCauseFunc
 
-	mu                sync.Mutex
-	lanes             map[string]*terminalLane
-	writeFailures     atomic.Uint64
-	artifactMu        sync.Mutex
-	liveTailMu        sync.Mutex
-	liveTails         map[string][]terminal.OutputSegment
-	liveTailTerminals map[string]string
-	liveTailOrder     []string
+	mu                   sync.Mutex
+	lanes                map[string]*terminalLane
+	writeFailures        atomic.Uint64
+	commandIDMu          sync.Mutex
+	reservedCommandIDs   map[string]struct{}
+	recordingIDMu        sync.Mutex
+	reservedRecordingIDs map[string]struct{}
+	artifactMu           sync.Mutex
+	liveTailMu           sync.Mutex
+	liveTails            map[string][]terminal.OutputSegment
+	liveTailTerminals    map[string]string
+	liveTailOrder        []string
 }
 
 var (
@@ -68,17 +76,23 @@ func New(ctx context.Context, options Options) (*Service, error) {
 	if options.Now == nil {
 		options.Now = func() time.Time { return time.Now().UTC() }
 	}
+	if options.Entropy == nil {
+		options.Entropy = rand.Reader
+	}
 	laneCtx, cancelLanes := context.WithCancelCause(ctx)
 	return &Service{
-		databases:         options.Databases,
-		homeDir:           options.HomeDir,
-		logger:            options.Logger,
-		now:               options.Now,
-		laneCtx:           laneCtx,
-		cancelLanes:       cancelLanes,
-		lanes:             make(map[string]*terminalLane),
-		liveTails:         make(map[string][]terminal.OutputSegment),
-		liveTailTerminals: make(map[string]string),
+		databases:            options.Databases,
+		homeDir:              options.HomeDir,
+		logger:               options.Logger,
+		now:                  options.Now,
+		entropy:              options.Entropy,
+		laneCtx:              laneCtx,
+		cancelLanes:          cancelLanes,
+		lanes:                make(map[string]*terminalLane),
+		reservedCommandIDs:   make(map[string]struct{}),
+		reservedRecordingIDs: make(map[string]struct{}),
+		liveTails:            make(map[string][]terminal.OutputSegment),
+		liveTailTerminals:    make(map[string]string),
 	}, nil
 }
 

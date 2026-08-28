@@ -372,8 +372,9 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "false");
   });
 
-  it("Should publish identity into the OS head instead of drawing a second row", () => {
+  it("Should publish identity into the OS head instead of drawing a second row", async () => {
     renderWindow({ hostChrome: true });
+    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
 
     expect(screen.queryByTestId("terminal-header")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-journal-head")).not.toBeInTheDocument();
@@ -392,13 +393,17 @@ describe("TerminalWindowApp — S1 states", () => {
   });
 
   it("Should pause commands while the journal cannot record, without stopping output", async () => {
-    renderWindow({ auditBlockedIds: new Set([DEV_SERVER_TERMINAL.id]) });
+    const socket = recordingSocketFactory();
+    renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
+    await screen.findByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`);
 
-    await waitFor(() => expect(screen.getByTestId("terminal-audit-blocked")).toBeInTheDocument());
-    expect(screen.getByTestId("terminal-audit-blocked")).toHaveTextContent(
-      "New commands are paused."
-    );
-    // Watching continues: the grid is still mounted behind the bar.
+    await socket.deliver(TERMINAL_SERVER_OP.error, {
+      error: { code: "journal_unavailable", message: "journal_unavailable" },
+    });
+
+    const notice = await screen.findByTestId("terminal-notice-journal_unavailable");
+    expect(notice).toHaveTextContent("New commands are paused.");
+    // Watching continues: the grid is still mounted behind the stream warning.
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
   });
 
@@ -483,12 +488,52 @@ describe("TerminalWindowApp — S1 states", () => {
   });
 
   it("Should show a recording as running, with the way to stop it", async () => {
-    renderWindow({ recordings: { [DEV_SERVER_TERMINAL.id]: { elapsed: "02:14" } } });
+    const view = renderWindow({
+      recordings: { [DEV_SERVER_TERMINAL.id]: { elapsed: "02:14" } },
+    });
 
     await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
 
     expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 02:14");
-    expect(screen.getByTestId("terminal-stop-recording")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
+
+    view.rerender(
+      <TerminalWindowApp
+        actions={view.actions}
+        engineLoader={stubEngineLoader}
+        inputRequests={[]}
+        interactiveAvailable
+        journal={<div data-testid="journal-slot">journal</div>}
+        limit={TERMINAL_LIMIT}
+        profile={TERMINAL_FIXTURE_PROFILE}
+        recordings={{}}
+        socketFactory={silentSocketFactory}
+        terminals={TERMINAL_FIXTURES}
+        viewerId={TERMINAL_FIXTURE_VIEWER}
+        workspaceId="ws-atlas"
+      />
+    );
+    expect(screen.queryByTestId("terminal-recording-chip")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Stop recording" })).not.toBeInTheDocument();
+
+    view.rerender(
+      <TerminalWindowApp
+        actions={view.actions}
+        engineLoader={stubEngineLoader}
+        inputRequests={[]}
+        interactiveAvailable
+        journal={<div data-testid="journal-slot">journal</div>}
+        limit={TERMINAL_LIMIT}
+        profile={TERMINAL_FIXTURE_PROFILE}
+        recordings={{ [DEV_SERVER_TERMINAL.id]: { elapsed: "05:00" } }}
+        socketFactory={silentSocketFactory}
+        terminals={TERMINAL_FIXTURES}
+        viewerId={TERMINAL_FIXTURE_VIEWER}
+        workspaceId="ws-atlas"
+      />
+    );
+    expect(screen.getByTestId("terminal-recording-chip")).toHaveTextContent("rec 05:00");
+    expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
   });
 
   it("Should open the journal from its pinned tab", async () => {
@@ -737,6 +782,50 @@ describe("TerminalWindowApp — contention", () => {
     await waitFor(() =>
       expect(screen.getByTestId("terminal-size-vote")).toHaveTextContent("80×24")
     );
+  });
+
+  it("Should not claim a cap number until settings.max_per_workspace is known", async () => {
+    const actions = stubWindowActions();
+    renderWindow({
+      actions,
+      limit: undefined,
+      terminals: TERMINAL_FIXTURES_AT_CAP,
+    });
+
+    expect(screen.queryByTestId("terminal-cap-count")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("terminal-open"));
+    expect(actions.onOpenTerminal).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("terminal-limit-dialog")).not.toBeInTheDocument();
+  });
+
+  it("Should count only the destination profile for the cap trail and the limit dialog", async () => {
+    const actions = stubWindowActions();
+    const personal = {
+      ...DEV_SERVER_TERMINAL,
+      id: "term-personal-other",
+      profile_name: "personal",
+      title: "personal notes",
+    };
+    renderWindow({
+      actions,
+      terminals: [...TERMINAL_FIXTURES_AT_CAP, personal],
+    });
+
+    expect(screen.getByTestId("terminal-cap-count")).toHaveTextContent(
+      `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT}`
+    );
+    expect(screen.getByTestId(`terminal-tab-select-${personal.id}`)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("terminal-open"));
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+    const dialog = await screen.findByTestId("terminal-limit-dialog");
+    expect(dialog).toHaveTextContent(
+      `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT} terminals are open`
+    );
+    expect(screen.queryByTestId(`terminal-limit-row-${personal.id}`)).not.toBeInTheDocument();
+    for (const terminal of TERMINAL_FIXTURES_AT_CAP) {
+      expect(screen.getByTestId(`terminal-limit-row-${terminal.id}`)).toBeInTheDocument();
+    }
   });
 
   it("Should keep every tab visible at the cap and name the limit in the identity trail", async () => {

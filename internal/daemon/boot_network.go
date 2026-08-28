@@ -53,7 +53,7 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 	}
 
 	bindable.SetNetworkPeerLifecycle(manager)
-	bindable.SetTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
+	bindable.AddTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
 		manager.OnTurnEnd(identity.SessionID)
 	})
 	cleanup.add(func(ctx context.Context) error {

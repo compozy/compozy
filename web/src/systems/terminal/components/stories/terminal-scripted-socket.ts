@@ -20,6 +20,8 @@ export interface ScriptedTerminalScreen {
   mode: TerminalMode;
   /** Written as one OUTPUT frame from sequence zero. */
   output: string;
+  /** A stream refusal after the screen is live, as the daemon encodes it. */
+  error?: { code: string; message: string };
 }
 
 export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalSocketFactory {
@@ -49,6 +51,13 @@ export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalS
       socket.onmessage?.({
         data: encodeTerminalServerOutputFrame(0n, screen.output),
       } as MessageEvent<unknown>);
+      if (screen.error) {
+        socket.onmessage?.({
+          data: encodeTerminalServerControlFrame(TERMINAL_SERVER_OP.error, {
+            error: screen.error,
+          }),
+        } as MessageEvent<unknown>);
+      }
     }, 0);
     return socket;
   };

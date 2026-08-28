@@ -18,7 +18,7 @@ import type { TerminalInfo } from "../types";
 import { TerminalConnectingLine } from "./terminal-connecting-line";
 import { TerminalSelectionActions } from "./terminal-quote-block";
 import { TerminalExitBar, TerminalSizeVoteBar } from "./terminal-exit-bar";
-import { TerminalAuditBlockedBar, TerminalGapSeam, TerminalStreamNotice } from "./terminal-notices";
+import { TerminalGapSeam, TerminalStreamNotice } from "./terminal-notices";
 
 const RETENTION_REFRESH_MS = 30_000;
 
@@ -32,7 +32,6 @@ export interface TerminalPaneProps {
   /** The live connection, owned by the window body. */
   attachment: TerminalAttachment;
   handleRef: React.RefObject<TerminalViewHandle | null>;
-  auditBlocked?: boolean;
   /** `[terminal].exit_retention`, in milliseconds. Omit when unknown. */
   exitRetentionMs?: number;
   /** Replaces the emulator. Tests and playback harnesses only. */
@@ -83,7 +82,6 @@ export function TerminalPane({
   pane,
   attachment,
   handleRef,
-  auditBlocked = false,
   exitRetentionMs,
   engineLoader,
   selectionActions,
@@ -130,7 +128,6 @@ export function TerminalPane({
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col bg-terminal-bg"
-      data-audit-blocked={auditBlocked ? "true" : undefined}
       data-compact={compact ? "true" : undefined}
       data-testid={`terminal-pane-${terminal.id}`}
     >
@@ -187,7 +184,6 @@ export function TerminalPane({
           onViewJournal={onViewJournal}
         />
       ) : null}
-      {auditBlocked ? <TerminalAuditBlockedBar /> : null}
       {exit ? (
         <TerminalExitBar
           exit={exit}

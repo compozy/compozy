@@ -1,12 +1,14 @@
-// Suite: OS terminal-window controller close path
-// Invariant: a visible journal keeps the terminal host after the last PTY closes;
-// the window closes only when the journal is not visible and no terminals remain.
-// Boundary IN: close-success host decision used by use-terminal-window-controller-state.
-// Boundary OUT: shouldKeepTerminalJournalHost unit cases, owned by the journal helper.
+// Suite: OS terminal-window controller host gates
+// Invariant: a visible journal keeps the host after the last PTY closes; the
+// journal query stays disabled until first reveal.
+// Boundary IN: close-success decision and journal enable gate used by the host.
+// Boundary OUT: recording stop reconcile and elapsed timer, owned by
+// terminal-recording-state / use-terminal-recordings.
 
 import { describe, expect, it } from "vitest";
 
 import { decideTerminalCloseHost } from "../lib/terminal-window-close";
+import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
 
 const LAST = { id: "term-last" };
 const NEXT = { id: "term-next" };
@@ -54,5 +56,13 @@ describe("useTerminalWindowControllerState close path", () => {
         journalVisible: false,
       })
     ).toEqual({ kind: "noop" });
+  });
+});
+
+describe("useTerminalWindowControllerState journal and recording host gates", () => {
+  it("Should keep the journal query disabled until the journal is first opened", () => {
+    expect(terminalJournalQueryEnabled("", false)).toBe(false);
+    expect(terminalJournalQueryEnabled("ws-atlas", false)).toBe(false);
+    expect(terminalJournalQueryEnabled("ws-atlas", true)).toBe(true);
   });
 });

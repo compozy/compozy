@@ -25,6 +25,8 @@ export const TERMINAL_CATALOG_EVENTS = [
   "terminal.title_changed",
   "terminal.lease_changed",
   "terminal.mode_changed",
+  "terminal.recording_started",
+  "terminal.recording_stopped",
 ] as const;
 
 export type TerminalCatalogEventName = (typeof TERMINAL_CATALOG_EVENTS)[number];
@@ -88,7 +90,10 @@ export type TerminalCatalogEvent =
       reason: string | null;
     };
 
-/** Parses a registered catalog frame; unregistered event names are ignored. */
+/**
+ * Parses a catalog list frame. Recording frames are subscribed on the same
+ * socket but owned by `terminal-recording-state` — they are not catalog rows.
+ */
 export function parseTerminalCatalogEvent(name: string, raw: unknown): TerminalCatalogEvent | null {
   switch (name) {
     case "terminal.snapshot": {

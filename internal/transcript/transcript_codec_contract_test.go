@@ -207,11 +207,10 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 			Title:            "assistant",
 			Error:            "",
 			PromptStopReason: acp.PromptStopReasonMaxTokens,
-			AvailableCommands: acp.NewAvailableCommandSet([]store.SessionAdvertisedCommand{
-				{Name: "compact", Description: "Compact context"},
-				{Name: "review", Description: "Review changes"},
-			}),
-			Raw: json.RawMessage(`{"chunk":1}`),
+			Raw:              json.RawMessage(`{"chunk":1}`),
+		}).WithAvailableCommands([]store.SessionAdvertisedCommand{
+			{Name: "compact", Description: "Compact context"},
+			{Name: "review", Description: "Review changes"},
 		}).WithRequestID("req-1").WithAttachments(wantAttachments).
 			WithSkillInvocations(wantInvocations).WithPromptRuntime(&acp.PromptRuntime{
 			Provider:        "codex",
@@ -270,7 +269,7 @@ func TestUnmarshalAgentEventRoundTripPreservesStructuredFieldsWithoutRaw(t *test
 		}); !reflect.DeepEqual(got, want) {
 			t.Fatalf("PromptRuntime = %#v, want %#v", got, want)
 		}
-		if got, want := event.AvailableCommands.Values(), []store.SessionAdvertisedCommand{
+		if got, want := event.AvailableCommandSet().Values(), []store.SessionAdvertisedCommand{
 			{Name: "compact", Description: "Compact context"},
 			{Name: "review", Description: "Review changes"},
 		}; !slices.EqualFunc(got, want, store.SessionAdvertisedCommandsEqual) {

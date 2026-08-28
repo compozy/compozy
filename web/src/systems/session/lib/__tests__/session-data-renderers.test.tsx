@@ -1,12 +1,33 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { type ComponentProps } from "react";
 import { describe, expect, it } from "vitest";
 
+import type { TerminalEngine } from "@compozy/ui";
+
+import { stubEngineLoader } from "@/systems/terminal/components/__tests__/terminal-window-harness";
+import { terminalReplayFailedCopy } from "@/systems/terminal/lib/terminal-copy";
 import type { AgentEventPayload } from "../../types";
 import { SessionAgentReportedBlock } from "../../components/session-agent-reported-block";
 import { CompozyEventDataRenderer } from "../session-data-renderers";
 import { SessionRuntimeRenderProvider } from "../session-runtime-render-context";
+
+function stubThrowingEngineLoader(error: Error) {
+  return async (): Promise<TerminalEngine> => {
+    const engine = await stubEngineLoader();
+    return {
+      ...engine,
+      createTerminal: options => {
+        const terminal = engine.createTerminal(options);
+        return Object.assign(terminal, {
+          write: () => {
+            throw error;
+          },
+        });
+      },
+    };
+  };
+}
 
 const WORKSPACE_ID = "ws_alpha";
 const SESSION_ID = "sess-001";
@@ -231,5 +252,25 @@ describe("CompozyEventDataRenderer", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it("Should show a write failure on the reported block and not reject the replay", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (event: PromiseRejectionEvent) => {
+      unhandled.push(event.reason);
+    };
+    window.addEventListener("unhandledrejection", onUnhandled);
+    render(
+      <SessionAgentReportedBlock
+        data={reportedTerminalEvent}
+        engineLoader={stubThrowingEngineLoader(new Error("emulator parse failed"))}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByRole("status")).toHaveTextContent(terminalReplayFailedCopy());
+    });
+    expect(unhandled).toEqual([]);
+    window.removeEventListener("unhandledrejection", onUnhandled);
   });
 });

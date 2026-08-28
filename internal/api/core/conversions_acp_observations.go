@@ -29,7 +29,7 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		MessageID: event.MessageIDValue(), RequestID: event.RequestIDValue(),
 		Timestamp: event.Timestamp, Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID,
 		StopReason: event.StopReason, PromptStopReason: contract.ACPPromptStopReason(event.PromptStopReason),
-		AvailableCommands: availableCommandPayloads(event.AvailableCommands.Values()), Action: event.Action,
+		AvailableCommands: availableCommandPayloads(event.AvailableCommandSet().Values()), Action: event.Action,
 		Resource: event.Resource, Decision: event.Decision, Error: event.Error,
 		Failure: SessionFailurePayloadFromStore(event.Failure), Usage: TokenUsagePayloadFromUsage(event.Usage),
 		Goal: goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),

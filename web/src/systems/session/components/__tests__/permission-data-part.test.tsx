@@ -74,14 +74,14 @@ describe("PermissionDataPart", () => {
 
     const receipt = screen.getByTestId("permission-rejected-notice");
     expect(receipt).toHaveAttribute("data-tone", "rejected");
-    expect(receipt).toHaveTextContent("Not allowed by you — rm -rf /tmp/test");
+    expect(receipt).toHaveTextContent("Not allowed by you · Bash — rm -rf /tmp/test");
   });
 
   it("Should phrase a reject-always receipt as a project-and-agent refusal", () => {
     render(<PermissionDataPart data={{ ...basePermissionData, decision: "reject-always" }} />);
 
     expect(screen.getByTestId("permission-rejected-notice")).toHaveTextContent(
-      "Not allowed by you for this project and this agent"
+      "Not allowed by you · Bash for this project and this agent — rm -rf /tmp/test"
     );
   });
 

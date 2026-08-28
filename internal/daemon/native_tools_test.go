@@ -90,11 +90,19 @@ func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
 		state := &bootState{
 			logger:    discardLogger(),
 			terminals: manager,
-			sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-				return &session.Info{
-					ID: id, ProfileID: "profile-a", AgentName: "agent-a", RuntimeGeneration: 1,
-				}, nil
-			}},
+			sessions: apitest.StubSessionManager{
+				StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+					return &session.Info{
+						ID: id, ProfileID: "profile-a", AgentName: "agent-a", RuntimeGeneration: 1,
+					}, nil
+				},
+				ActivePromptRunFn: func(_ context.Context, id string) (session.PromptRunIdentity, error) {
+					return session.PromptRunIdentity{
+						WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: id,
+						RunID: "run-a", Generation: 1,
+					}, nil
+				},
+			},
 		}
 		deps := daemon.nativeToolsDeps(state, func() toolspkg.Registry { return nil })
 		registry := newDaemonNativeRegistry(t, &deps, nativeApproveAllPolicyInputs())
@@ -602,6 +610,18 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 
 type nativeTerminalJournalStub struct{}
 
+func (nativeTerminalJournalStub) ReserveCommandID(context.Context, string) (string, error) {
+	return "cmd-0000000000000001", nil
+}
+
+func (nativeTerminalJournalStub) ReleaseCommandID(string, string) {}
+
+func (nativeTerminalJournalStub) ReserveRecordingID(context.Context, string) (string, error) {
+	return "rec-0000000000000001", nil
+}
+
+func (nativeTerminalJournalStub) ReleaseRecordingID(string, string) {}
+
 func (nativeTerminalJournalStub) Record(context.Context, string, terminalpkg.CommandRow) error {
 	return nil
 }
@@ -823,6 +843,13 @@ func (m *terminalNativeManagerStub) List(context.Context, string, store.ReadScop
 		return nil, nil
 	}
 	return []terminalpkg.Info{m.handle.Info()}, nil
+}
+func (*terminalNativeManagerStub) ActiveRecordings(
+	context.Context,
+	string,
+	store.ReadScope,
+) ([]terminalpkg.RecordingRef, error) {
+	return nil, nil
 }
 func (*terminalNativeManagerStub) Capabilities(context.Context, string) (terminalpkg.Capabilities, error) {
 	return terminalpkg.Capabilities{Interactive: true}, nil
@@ -8217,6 +8244,9 @@ func TestDaemonNativeTools(t *testing.T) {
 		)
 		if err != nil {
 			t.Fatalf("Bind() error = %v", err)
+		}
+		if err := service.BindRun(t.Context(), "sess-scope", "run-hosted", 1); err != nil {
+			t.Fatalf("BindRun() error = %v", err)
 		}
 
 		_, err = service.Call(t.Context(), mcppkg.HostedCallRequest{

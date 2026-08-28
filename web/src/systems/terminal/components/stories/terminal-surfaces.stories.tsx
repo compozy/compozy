@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { expect, fn } from "storybook/test";
 
 import { buildTerminalQuote } from "../../lib/terminal-quote";
 import {
@@ -407,15 +407,11 @@ export const RecordingReplay: Story = {
       </div>
     </TerminalVisualStage>
   ),
-  play: async ({ canvas }) => {
-    const scrubber = await canvas.findByTestId("terminal-recording-scrubber");
-    const setValue = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      "value"
-    )?.set;
-    setValue?.call(scrubber, "51000");
-    scrubber.dispatchEvent(new Event("input", { bubbles: true }));
-    scrubber.dispatchEvent(new Event("change", { bubbles: true }));
+  play: async ({ canvas, userEvent }) => {
+    const thumb = await canvas.findByRole("slider", { name: "Playback position" });
+    await userEvent.click(thumb);
+    await userEvent.keyboard("{ArrowRight>510/}");
+    await expect(canvas.getByTestId("terminal-recording-clock")).toHaveTextContent("0:51 / 2:29");
   },
   tags: ["play-fn"],
 };

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"sync"
@@ -412,14 +413,23 @@ func (c *cleanupProbeCheckpoint) Complete(ctx context.Context, _ toolruntime.Pro
 }
 
 type fakeRecordingJournal struct {
-	mu        sync.Mutex
-	contents  []byte
-	ref       RecordingRef
-	called    chan struct{}
-	calledOne sync.Once
-	release   <-chan struct{}
-	rows      []CommandRow
-	inputs    []JournalInput
+	mu              sync.Mutex
+	contents        []byte
+	ref             RecordingRef
+	called          chan struct{}
+	calledOne       sync.Once
+	release         <-chan struct{}
+	rows            []CommandRow
+	inputs          []JournalInput
+	artifactHook    func()
+	artifactCtx     chan cleanupContextObservation
+	artifactRef     SpillRef
+	artifactErr     error
+	commandIDs      atomic.Uint64
+	commandIDHook   func(context.Context, string) (string, error)
+	recordingIDs    atomic.Uint64
+	recordingIDHook func(context.Context, string) (string, error)
+	recordingErr    error
 }
 
 type journalContractOnly struct {
@@ -428,6 +438,22 @@ type journalContractOnly struct {
 
 func (j journalContractOnly) Record(ctx context.Context, workspaceID string, row CommandRow) error {
 	return j.journal.Record(ctx, workspaceID, row)
+}
+
+func (j journalContractOnly) ReserveCommandID(ctx context.Context, workspaceID string) (string, error) {
+	return j.journal.ReserveCommandID(ctx, workspaceID)
+}
+
+func (j journalContractOnly) ReleaseCommandID(workspaceID, commandID string) {
+	j.journal.ReleaseCommandID(workspaceID, commandID)
+}
+
+func (j journalContractOnly) ReserveRecordingID(ctx context.Context, workspaceID string) (string, error) {
+	return j.journal.ReserveRecordingID(ctx, workspaceID)
+}
+
+func (j journalContractOnly) ReleaseRecordingID(workspaceID, recordingID string) {
+	j.journal.ReleaseRecordingID(workspaceID, recordingID)
 }
 
 func (j journalContractOnly) RecordQueued(ctx context.Context, terminal Info, row CommandRow) error {
@@ -544,6 +570,24 @@ func (j *fakeRecordingJournal) Record(_ context.Context, _ string, row CommandRo
 	return nil
 }
 
+func (j *fakeRecordingJournal) ReserveCommandID(ctx context.Context, workspaceID string) (string, error) {
+	if j.commandIDHook != nil {
+		return j.commandIDHook(ctx, workspaceID)
+	}
+	return fmt.Sprintf("cmd-%016x", j.commandIDs.Add(1)), nil
+}
+
+func (*fakeRecordingJournal) ReleaseCommandID(string, string) {}
+
+func (j *fakeRecordingJournal) ReserveRecordingID(ctx context.Context, workspaceID string) (string, error) {
+	if j.recordingIDHook != nil {
+		return j.recordingIDHook(ctx, workspaceID)
+	}
+	return fmt.Sprintf("rec-%016x", j.recordingIDs.Add(1)), nil
+}
+
+func (*fakeRecordingJournal) ReleaseRecordingID(string, string) {}
+
 func (j *fakeRecordingJournal) RecordQueued(ctx context.Context, info Info, row CommandRow) error {
 	return j.Record(ctx, info.WS, row)
 }
@@ -602,16 +646,28 @@ func (*fakeRecordingJournal) ObserveOutput(Info, []byte) {}
 
 func (*fakeRecordingJournal) Shutdown(context.Context) error { return nil }
 
-func (*fakeRecordingJournal) WriteArtifact(
-	context.Context,
-	string,
-	string,
-	string,
-	*ID,
-	[]byte,
-	time.Time,
+func (j *fakeRecordingJournal) WriteArtifact(
+	ctx context.Context,
+	_ string,
+	_ string,
+	_ string,
+	_ *ID,
+	_ []byte,
+	_ time.Time,
 ) (SpillRef, error) {
-	return SpillRef{}, nil
+	j.mu.Lock()
+	hook := j.artifactHook
+	observed := j.artifactCtx
+	ref := j.artifactRef
+	err := j.artifactErr
+	j.mu.Unlock()
+	if hook != nil {
+		hook()
+	}
+	if observed != nil {
+		observed <- observeCleanupContext(ctx)
+	}
+	return ref, err
 }
 
 type emptyWorkspaceRemovalPreparation struct{}
@@ -644,6 +700,12 @@ func (j *fakeRecordingJournal) PersistRecording(
 	}
 	if j.release != nil {
 		<-j.release
+	}
+	j.mu.Lock()
+	persistErr := j.recordingErr
+	j.mu.Unlock()
+	if persistErr != nil {
+		return RecordingRef{}, persistErr
 	}
 	digest := sha256.Sum256(contents)
 	ref.Digest = hex.EncodeToString(digest[:])
@@ -699,6 +761,13 @@ func newTestManager(
 		}
 	})
 	return manager, starter, root
+}
+
+func withShortInputRequestTTL() Option {
+	return func(service *Service) error {
+		service.inputRequestTTL = 100 * time.Millisecond
+		return nil
+	}
 }
 
 func openTestTerminal(t *testing.T, manager *Service, workspaceID, profileID string) Handle {

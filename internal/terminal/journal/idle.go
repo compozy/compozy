@@ -1,6 +1,7 @@
 package journal
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -215,9 +216,11 @@ func (l *terminalLane) finishIdleCandidates(generation uint64) {
 }
 
 func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
-	id, err := randomCommandID()
+	ctx, cancel := context.WithTimeout(l.service.laneCtx, laneCleanupTimeout)
+	defer cancel()
+	id, err := l.service.reserveObservedCommandID(ctx, l.info.WS)
 	if err != nil {
-		l.service.logger.Error("terminal journal: generate idle command id", "terminal_id", l.info.ID, "error", err)
+		l.service.logger.Error("terminal journal: reserve idle command id", "terminal_id", l.info.ID, "error", err)
 		l.setAuditBlocked()
 		return
 	}

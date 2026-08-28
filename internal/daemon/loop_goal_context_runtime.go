@@ -119,7 +119,7 @@ func (r *loopGoalContextRuntime) HasAdvertisedCommand(
 		if agentEvent.Title != acp.SystemEventTitleAvailableCommandsUpdate {
 			continue
 		}
-		for _, advertised := range agentEvent.AvailableCommands.Values() {
+		for _, advertised := range agentEvent.AvailableCommandSet().Values() {
 			if strings.TrimSpace(advertised.Name) == target {
 				return true, nil
 			}

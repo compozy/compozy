@@ -96,7 +96,6 @@ export {
 } from "./lib/query-keys";
 export {
   terminalCatalogQuery,
-  terminalDetailQuery,
   terminalInputRequestsQuery,
   terminalJournalQuery,
   terminalRecordingQuery,
@@ -105,7 +104,6 @@ export {
 } from "./lib/query-options";
 export { terminalAttentionLocation } from "./lib/terminal-attention-location";
 export {
-  isHumanInputActor,
   terminalInputAttentionTitle,
   terminalInputRequestTitle,
   terminalInputStackNeedsOrigin,
@@ -183,11 +181,7 @@ export {
   type TerminalJournalPanelProps,
 } from "./components/terminal-journal-panel";
 export { TerminalLeaseBadge } from "./components/terminal-lease-badge";
-export {
-  TerminalAuditBlockedBar,
-  TerminalGapSeam,
-  TerminalStreamNotice,
-} from "./components/terminal-notices";
+export { TerminalGapSeam, TerminalStreamNotice } from "./components/terminal-notices";
 export { TerminalPane } from "./components/terminal-pane";
 export { TerminalPipeLogPane } from "./components/terminal-pipe-log-pane";
 export { TerminalQuoteBlock, TerminalSelectionActions } from "./components/terminal-quote-block";
@@ -199,6 +193,11 @@ export {
   type TerminalCatalogEventSourceFactory,
   type UseTerminalCatalogStreamOptions,
 } from "./hooks/use-terminal-catalog-stream";
+export { useTerminalRecordings } from "./hooks/use-terminal-recordings";
+export {
+  applyRecordingStopSuccess,
+  type TerminalRecordingMap,
+} from "./lib/terminal-recording-state";
 export {
   TerminalLimitDialog,
   type TerminalLimitDialogProps,

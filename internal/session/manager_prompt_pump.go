@@ -224,9 +224,11 @@ func (m *Manager) finishPromptPump(
 	}
 	if identityErr == nil {
 		m.clearActivePromptRun(identity)
-		notifier := m.currentTurnEndNotifier()
-		if notifier != nil {
-			notifier(lifecycleCtx, identity)
+		if fatalPromptFailure == nil {
+			notifier := m.currentTurnEndNotifier()
+			if notifier != nil {
+				notifier(lifecycleCtx, identity)
+			}
 		}
 	}
 	if session == nil {

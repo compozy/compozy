@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { StreamEventSource } from "@/lib/ticketed-event-source";
 
 import { terminalKeys } from "../../lib/query-keys";
+import type { TerminalRecordingMap } from "../../lib/terminal-recording-state";
 import { DEV_SERVER_TERMINAL, PSQL_TERMINAL } from "../../mocks/terminal-fixtures";
 import type { TerminalInfo } from "../../types";
 import { useTerminalCatalogStream } from "../use-terminal-catalog-stream";
@@ -17,8 +18,11 @@ import { useTerminalCatalogStream } from "../use-terminal-catalog-stream";
  * `(queryClient, workspace, profile)`; extra subscribers share that source,
  * switching scope closes the previous source before opening the next, and a
  * frame that arrives from a closed source never reaches the cache that replaced
- * it. The store's own rebinding reducer is covered where the store lives —
- * this file owns the subscription's lifetime.
+ * it. Recording started/stopped write the scoped recordings map; a matching
+ * snapshot or reconnect open clears only that stream's profile, and the
+ * immediately following in-scope recording_started events rehydrate it.
+ * The store's own rebinding reducer is covered where the store lives — this
+ * file owns the subscription's lifetime.
  */
 
 const WORKSPACE = "ws-atlas";
@@ -115,6 +119,27 @@ function renderAggregateStream() {
 
 function catalog(client: QueryClient, profileKey: string): TerminalInfo[] | undefined {
   return client.getQueryData(terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey }));
+}
+
+function recordings(client: QueryClient, profileKey: string): TerminalRecordingMap | undefined {
+  return client.getQueryData(terminalKeys.recordings({ workspaceId: WORKSPACE, profileKey }));
+}
+
+const RECORDING_AT = "2026-08-25T12:00:00.000Z";
+
+function recordingStarted(overrides: Record<string, unknown> = {}) {
+  return {
+    event: "terminal.recording_started",
+    timestamp: RECORDING_AT,
+    workspace_id: WORKSPACE,
+    profile_id: "01JB4Z2K9QW8XR3TFN6VYD5HAC",
+    terminal_id: DEV_SERVER_TERMINAL.id,
+    actor_kind: "human",
+    actor_id: "pedro",
+    at: RECORDING_AT,
+    recording_id: "rec-1",
+    ...overrides,
+  };
 }
 
 describe("useTerminalCatalogStream", () => {
@@ -379,6 +404,150 @@ describe("useTerminalCatalogStream", () => {
       queryKey: terminalKeys.inputRequests({ workspaceId: WORKSPACE, profileKey: "work" }),
       exact: true,
     });
+  });
+
+  it("Should write a started recording into the scope's recordings cache", () => {
+    const { opened, client } = renderStream("work");
+
+    opened[0].fake.emit("terminal.recording_started", recordingStarted());
+
+    expect(recordings(client, "work")?.[DEV_SERVER_TERMINAL.id]).toEqual({
+      recordingId: "rec-1",
+      at: RECORDING_AT,
+      profileKey: "work",
+    });
+    expect(recordings(client, "personal")).toBeUndefined();
+  });
+
+  it("Should drop a recording on stop and ignore a frame without a terminal id", () => {
+    const { opened, client } = renderStream("work");
+    opened[0].fake.emit("terminal.recording_started", recordingStarted());
+
+    opened[0].fake.emit("terminal.recording_started", recordingStarted({ terminal_id: "" }));
+    expect(recordings(client, "work")?.[DEV_SERVER_TERMINAL.id]?.recordingId).toBe("rec-1");
+
+    opened[0].fake.emit(
+      "terminal.recording_stopped",
+      recordingStarted({ event: "terminal.recording_stopped" })
+    );
+    expect(recordings(client, "work")).toEqual({});
+  });
+
+  it("Should ignore a recording frame addressed to another workspace", () => {
+    const { opened, client } = renderStream("work");
+
+    opened[0].fake.emit(
+      "terminal.recording_started",
+      recordingStarted({ workspace_id: "ws-other" })
+    );
+
+    expect(recordings(client, "work")?.[DEV_SERVER_TERMINAL.id]).toBeUndefined();
+  });
+
+  it("Should rehydrate active recordings after a matching snapshot or reconnect open", () => {
+    const { opened, client } = renderStream("work");
+    const liveAt = "2026-08-25T12:05:00.000Z";
+    opened[0].fake.emit(
+      "terminal.recording_started",
+      recordingStarted({ recording_id: "rec-stale" })
+    );
+
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    expect(recordings(client, "work")).toEqual({});
+
+    opened[0].fake.emit(
+      "terminal.recording_started",
+      recordingStarted({ recording_id: "rec-live", at: liveAt })
+    );
+    expect(recordings(client, "work")?.[DEV_SERVER_TERMINAL.id]).toEqual({
+      recordingId: "rec-live",
+      at: liveAt,
+      profileKey: "work",
+    });
+
+    opened[0].fake.emit("open", {});
+    expect(recordings(client, "work")).toEqual({});
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    expect(recordings(client, "work")).toEqual({});
+    opened[0].fake.emit(
+      "terminal.recording_started",
+      recordingStarted({ recording_id: "rec-live", at: liveAt })
+    );
+    expect(recordings(client, "work")?.[DEV_SERVER_TERMINAL.id]?.recordingId).toBe("rec-live");
+
+    opened[0].fake.emit(
+      "terminal.recording_started",
+      recordingStarted({ workspace_id: "ws-other", recording_id: "rec-foreign" })
+    );
+    opened[0].fake.emit(
+      "terminal.recording_stopped",
+      recordingStarted({
+        event: "terminal.recording_stopped",
+        terminal_id: PSQL_TERMINAL.id,
+        recording_id: "rec-stopped",
+      })
+    );
+    expect(recordings(client, "work")).toEqual({
+      [DEV_SERVER_TERMINAL.id]: {
+        recordingId: "rec-live",
+        at: liveAt,
+        profileKey: "work",
+      },
+    });
+
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    expect(recordings(client, "work")).toEqual({});
+  });
+
+  it("Should drop a closed terminal's recording so its timer cannot linger", () => {
+    const { opened, client } = renderStream("work");
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    opened[0].fake.emit("terminal.recording_started", recordingStarted());
+
+    opened[0].fake.emit("terminal.closed", { terminal_id: DEV_SERVER_TERMINAL.id, exit: null });
+
+    expect(recordings(client, "work")?.[DEV_SERVER_TERMINAL.id]).toBeUndefined();
+  });
+
+  it("Should replace only the owner covered by an aggregate recording snapshot", () => {
+    const { opened, client } = renderAggregateStream();
+    const personal = opened.find(entry => entry.url.includes("profile=personal"));
+    const work = opened.find(entry => entry.url.includes("profile=work"));
+    if (!personal || !work) throw new Error("expected both profile streams");
+
+    work.fake.emit("terminal.recording_started", recordingStarted());
+    personal.fake.emit(
+      "terminal.recording_started",
+      recordingStarted({
+        terminal_id: PSQL_TERMINAL.id,
+        recording_id: "rec-personal",
+      })
+    );
+    expect(Object.keys(recordings(client, "@all") ?? {}).sort()).toEqual(
+      [DEV_SERVER_TERMINAL.id, PSQL_TERMINAL.id].sort()
+    );
+
+    work.fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    expect(Object.keys(recordings(client, "@all") ?? {})).toEqual([PSQL_TERMINAL.id]);
+
+    work.fake.emit("terminal.recording_started", recordingStarted({ recording_id: "rec-work-2" }));
+    expect(recordings(client, "@all")?.[DEV_SERVER_TERMINAL.id]).toEqual({
+      recordingId: "rec-work-2",
+      at: RECORDING_AT,
+      profileKey: "work",
+    });
+    expect(recordings(client, "@all")?.[PSQL_TERMINAL.id]?.recordingId).toBe("rec-personal");
+  });
+
+  it("Should ignore a late recording frame from a source that has already been replaced", () => {
+    const { opened, client, rerender } = renderStream("work");
+    const deliverQueued = opened[0].fake.queue("terminal.recording_started", recordingStarted());
+
+    rerender({ profileKey: "personal", workspaceId: WORKSPACE });
+    deliverQueued();
+
+    expect(recordings(client, "personal")).toBeUndefined();
+    expect(recordings(client, "work")).toBeUndefined();
   });
 
   it("Should ignore hook event names that are not catalog frames", () => {

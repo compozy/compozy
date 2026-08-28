@@ -210,16 +210,6 @@ func WithEntropy(entropy io.Reader) Option {
 	}
 }
 
-func withInputRequestTTL(ttl time.Duration) Option {
-	return func(service *Service) error {
-		if ttl <= 0 {
-			return errors.New("terminal: input request ttl must be positive")
-		}
-		service.inputRequestTTL = ttl
-		return nil
-	}
-}
-
 func defaultServiceOptions(service *Service) {
 	service.pty = pty.New()
 	service.settings = func(context.Context, string, string) (Settings, error) {

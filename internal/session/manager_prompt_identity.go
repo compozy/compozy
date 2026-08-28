@@ -30,37 +30,6 @@ func (m *Manager) ActivePromptRun(ctx context.Context, sessionID string) (Prompt
 	return identity, nil
 }
 
-func (m *Manager) publishActivePromptRun(session *Session, state *promptTurnDispatchState) error {
-	identity, err := promptRunIdentity(session, state)
-	if err != nil {
-		return err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.activePromptRuns == nil {
-		m.activePromptRuns = make(map[string]PromptRunIdentity)
-	}
-	if _, exists := m.activePromptRuns[identity.SessionID]; exists {
-		return ErrPromptInProgress
-	}
-	m.activePromptRuns[identity.SessionID] = identity
-	return nil
-}
-
-func (m *Manager) replaceActivePromptRun(session *Session, state *promptTurnDispatchState) error {
-	identity, err := promptRunIdentity(session, state)
-	if err != nil {
-		return err
-	}
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if _, exists := m.activePromptRuns[identity.SessionID]; !exists {
-		return ErrPromptNotActive
-	}
-	m.activePromptRuns[identity.SessionID] = identity
-	return nil
-}
-
 func (m *Manager) publishOrReplaceActivePromptRun(session *Session, state *promptTurnDispatchState) error {
 	identity, err := promptRunIdentity(session, state)
 	if err != nil {

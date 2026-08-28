@@ -217,6 +217,7 @@ func (m *Manager) submitPromptInReservedSlot(
 	}
 	if turnState.managed != nil {
 		if err := m.recordManagedDriverAttached(ctx, turnState.managed, req.turnID); err != nil {
+			m.clearActivePromptRunForState(session, turnState)
 			m.releaseHostedPromptRun(session, turnState)
 			delivery.cancel()
 			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
@@ -224,6 +225,7 @@ func (m *Manager) submitPromptInReservedSlot(
 		}
 	}
 	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+		m.clearActivePromptRunForState(session, turnState)
 		m.releaseHostedPromptRun(session, turnState)
 		delivery.cancel()
 		return nil, err

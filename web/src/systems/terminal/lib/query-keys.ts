@@ -29,6 +29,9 @@ export const terminalKeys = {
     ] as const,
   recording: (scope: TerminalScopeKey, recordingId: string) =>
     ["terminal", "recording", scope.workspaceId, scope.profileKey, recordingId] as const,
+  /** Live recording presence, distinct from a downloaded recording artifact. */
+  recordings: (scope: TerminalScopeKey) =>
+    ["terminal", "recordings", scope.workspaceId, scope.profileKey] as const,
 } as const;
 
 /** The server's page size. Paging is cursor-driven; there is no total. */

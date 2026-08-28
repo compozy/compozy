@@ -2,7 +2,6 @@ package journal
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -34,7 +33,7 @@ func (s *Service) WriteArtifact(
 ) (terminalpkg.SpillRef, error) {
 	s.artifactMu.Lock()
 	defer s.artifactMu.Unlock()
-	id, err := randomArtifactID()
+	id, err := s.newArtifactID()
 	if err != nil {
 		return terminalpkg.SpillRef{}, err
 	}
@@ -54,11 +53,20 @@ func (s *Service) WriteArtifact(
 			fmt.Errorf("terminal journal: open workspace store: %w", err), cleanupErr,
 		)
 	}
-	err = db.InsertTerminalArtifact(ctx, workspacedb.TerminalArtifactWrite{
-		ID: id, TerminalID: terminalIDString(terminalID), CommandID: commandID,
-		ProfileID: profileID, Digest: digestText, Path: path,
-		Bytes: retainedBytes, ExpiresAt: expiresAt.UnixMilli(),
-	})
+	insert := func(artifactID string) error {
+		return db.InsertTerminalArtifact(ctx, workspacedb.TerminalArtifactWrite{
+			ID: artifactID, TerminalID: terminalIDString(terminalID), CommandID: commandID,
+			ProfileID: profileID, Digest: digestText, Path: path,
+			Bytes: retainedBytes, ExpiresAt: expiresAt.UnixMilli(),
+		})
+	}
+	err = insert(id)
+	if store.IsSQLiteIdentityConstraint(err) {
+		id, err = s.newArtifactID()
+		if err == nil {
+			err = insert(id)
+		}
+	}
 	if err != nil {
 		return terminalpkg.SpillRef{}, errors.Join(
 			fmt.Errorf("terminal journal: insert artifact %q: %w", id, err),
@@ -273,14 +281,6 @@ func writeAndClose(file *os.File, contents []byte) error {
 	syncErr := file.Sync()
 	closeErr := file.Close()
 	return errors.Join(writeErr, syncErr, closeErr)
-}
-
-func randomArtifactID() (string, error) {
-	bytes := make([]byte, 3)
-	if _, err := io.ReadFull(rand.Reader, bytes); err != nil {
-		return "", fmt.Errorf("terminal journal: generate artifact id: %w", err)
-	}
-	return "art-" + hex.EncodeToString(bytes), nil
 }
 
 func millisTimePointer(value *int64) *time.Time {

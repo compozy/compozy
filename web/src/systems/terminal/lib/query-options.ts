@@ -1,7 +1,6 @@
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
-  fetchTerminal,
   fetchTerminalInputRequestProjection,
   fetchTerminalJournal,
   fetchTerminalRecording,
@@ -24,12 +23,6 @@ export {
  * Loaders, hooks, mutations and the live stream reuse these factories, so
  * scope lives in exactly one place and no surface can quietly read unscoped.
  */
-export function terminalDetailQuery(scope: TerminalProfileQueryScope, terminalId: string) {
-  return queryOptions({
-    queryKey: terminalKeys.detail(scope.key, terminalId),
-    queryFn: ({ signal }) => fetchTerminal(scope.key.workspaceId, terminalId, scope.params, signal),
-  });
-}
 
 /** Captured output for a pipe terminal, which has no interactive screen. */
 export function terminalPipeOutputQuery(scope: TerminalProfileQueryScope, terminalId: string) {

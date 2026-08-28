@@ -31,5 +31,6 @@ func (s *Service) PersistRecording(
 			removeCreatedFile(path, created),
 		)
 	}
+	s.ReleaseRecordingID(workspaceID, ref.ID)
 	return ref, nil
 }

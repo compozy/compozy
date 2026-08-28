@@ -390,9 +390,8 @@ describe("SessionDecisionDock", () => {
     });
   });
 
-  // Escape dismissal, outside-press dismissal, and focus return are the
-  // DropdownMenu primitive's contract, tested with the primitive — the dock
-  // only owes reachability and the decision wiring.
+  // Escape, outside-press, and focus-return are owned by the shared
+  // DropdownMenu primitive suite. The dock only owes reachability and wiring.
 
   it("Should disable every decision including reject-always while submission is pending", async () => {
     const user = userEvent.setup();

@@ -14,6 +14,13 @@ import {
   TERMINAL_CATALOG_EVENTS,
 } from "../lib/terminal-catalog-stream";
 import { terminalKeys } from "../lib/query-keys";
+import {
+  applyTerminalRecordingEvent,
+  clearTerminalRecordingsForProfile,
+  dropTerminalRecording,
+  parseTerminalRecordingEvent,
+  type TerminalRecordingMap,
+} from "../lib/terminal-recording-state";
 import type { TerminalInfo } from "../types";
 
 export type TerminalCatalogEventSourceFactory = (url: string) => StreamEventSource;
@@ -115,6 +122,7 @@ function openTerminalCatalogStream(
 ): () => void {
   const queryKey = terminalKeys.catalog({ workspaceId, profileKey });
   const inputQueryKey = terminalKeys.inputRequests({ workspaceId, profileKey });
+  const recordingsKey = terminalKeys.recordings({ workspaceId, profileKey });
   let closed = false;
   const refreshCatalog = () => {
     void queryClient.invalidateQueries({ queryKey, exact: true });
@@ -122,6 +130,11 @@ function openTerminalCatalogStream(
   const refreshFromREST = () => {
     refreshCatalog();
     void queryClient.invalidateQueries({ queryKey: inputQueryKey, exact: true });
+  };
+  const dropRecordingsForStream = () => {
+    queryClient.setQueryData<TerminalRecordingMap>(recordingsKey, current =>
+      clearTerminalRecordingsForProfile(current ?? {}, streamProfile, aggregate)
+    );
   };
 
   const handleFrame = (name: string): EventListener => {
@@ -135,6 +148,17 @@ function openTerminalCatalogStream(
         refreshCatalog();
         return;
       }
+      const recording = parseTerminalRecordingEvent(name, raw);
+      if (recording) {
+        queryClient.setQueryData<TerminalRecordingMap>(recordingsKey, current =>
+          applyTerminalRecordingEvent(current ?? {}, recording, {
+            workspaceId,
+            streamProfile,
+            aggregate,
+          })
+        );
+        return;
+      }
       let parsed: ReturnType<typeof parseTerminalCatalogEvent>;
       try {
         parsed = parseTerminalCatalogEvent(name, raw);
@@ -144,6 +168,13 @@ function openTerminalCatalogStream(
         return;
       }
       if (!parsed) return;
+      if (parsed.name === "terminal.snapshot") {
+        dropRecordingsForStream();
+      } else if (parsed.name === "terminal.closed") {
+        queryClient.setQueryData<TerminalRecordingMap>(recordingsKey, current =>
+          dropTerminalRecording(current ?? {}, parsed.terminalId)
+        );
+      }
       queryClient.setQueryData<TerminalInfo[]>(queryKey, current => {
         if (aggregate && parsed.name === "terminal.snapshot") {
           return reconcileTerminalProfileSnapshot(current, streamProfile, parsed.terminals);
@@ -153,10 +184,12 @@ function openTerminalCatalogStream(
     };
   };
 
-  // A reconnect may have missed frames, so the list rereads from the server
-  // rather than trusting whatever the cache still holds.
+  // A reconnect may have missed a stop, so this stream's live map is dropped.
+  // The daemon then emits `terminal.recording_started` for each still-active
+  // recording after the snapshot or replay. The terminal list rereads from REST.
   const handleOpen: EventListener = () => {
     if (closed) return;
+    dropRecordingsForStream();
     refreshFromREST();
   };
 

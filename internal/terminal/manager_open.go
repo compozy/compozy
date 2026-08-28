@@ -119,7 +119,7 @@ func (m *Service) startOpenedSession(ctx context.Context, item *session, actor A
 	var autoRecording RecordingRef
 	if record {
 		var err error
-		autoRecording, err = item.beginRecording()
+		autoRecording, err = item.beginRecording(ctx)
 		if err != nil {
 			return fmt.Errorf("terminal: start automatic recording: %w", err)
 		}

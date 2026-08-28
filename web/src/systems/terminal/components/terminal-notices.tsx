@@ -126,29 +126,3 @@ export function TerminalGapSeam({ gap }: { gap: TerminalGapNotice }) {
     </div>
   );
 }
-
-/**
- * The audit-blocked bar.
- *
- * The record is load-bearing: when the journal cannot write, new commands and
- * typing pause while output and watching continue untouched. Warning, not
- * danger — nothing was lost.
- */
-export function TerminalAuditBlockedBar() {
-  const copy = terminalErrorCopy("journal_unavailable", "");
-  return (
-    <Alert
-      className="rounded-none"
-      data-testid="terminal-audit-blocked"
-      role="status"
-      variant="warning"
-    >
-      <ShieldAlert aria-hidden="true" />
-      <AlertTitle className={NOTICE_TITLE_CLASS}>{copy.title}</AlertTitle>
-      <AlertDescription>{copy.detail}</AlertDescription>
-      <AlertMeta>
-        <MonoId size="sm" value="journal_unavailable" />
-      </AlertMeta>
-    </Alert>
-  );
-}

@@ -213,6 +213,54 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 			t.Fatalf("AttachWithTicket(reuse) error = %v, want ErrTicketInvalid", err)
 		}
 
+		failedTicket, err := manager.MintAttachTicket(t.Context(), binding, actor)
+		if err != nil {
+			t.Fatalf("MintAttachTicket(before failed attach) error = %v", err)
+		}
+		item := handle.(*session)
+		cause := errors.New("ticket attach canceled after insertion")
+		attachCtx := &cancelWhenSubscriberInsertedContext{
+			Context: t.Context(), session: item, cause: cause, done: make(chan struct{}),
+		}
+		if _, attached, _, err := manager.AttachWithTicket(
+			attachCtx,
+			failedTicket.Token,
+			binding.WorkspaceID,
+			binding.TerminalID,
+			binding.Mode,
+			AttachOptions{},
+		); attached != nil || !errors.Is(err, cause) {
+			t.Fatalf("AttachWithTicket(failed after claim) = %#v error=%v", attached, err)
+		}
+		if _, _, _, err := manager.AttachWithTicket(
+			t.Context(),
+			failedTicket.Token,
+			binding.WorkspaceID,
+			binding.TerminalID,
+			binding.Mode,
+			AttachOptions{},
+		); !errors.Is(err, ErrTicketInvalid) {
+			t.Fatalf("AttachWithTicket(reuse after failed attach) error = %v, want ErrTicketInvalid", err)
+		}
+		freshTicket, err := manager.MintAttachTicket(t.Context(), binding, actor)
+		if err != nil {
+			t.Fatalf("MintAttachTicket(remint) error = %v", err)
+		}
+		_, freshSubscription, _, err := manager.AttachWithTicket(
+			t.Context(),
+			freshTicket.Token,
+			binding.WorkspaceID,
+			binding.TerminalID,
+			binding.Mode,
+			AttachOptions{},
+		)
+		if err != nil {
+			t.Fatalf("AttachWithTicket(remint) error = %v", err)
+		}
+		if err := freshSubscription.Close(); err != nil {
+			t.Fatalf("reminted subscription.Close() error = %v", err)
+		}
+
 		closingTicket, err := manager.MintAttachTicket(t.Context(), binding, actor)
 		if err != nil {
 			t.Fatalf("MintAttachTicket(before close) error = %v", err)
@@ -249,7 +297,6 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 				mutate: func(candidate *Actor) { candidate.Generation++ }, want: ErrGenerationFenced,
 			},
 		} {
-			name, testCase := name, testCase
 			t.Run("Should reject agent ticket "+name+" mismatch", func(t *testing.T) {
 				t.Parallel()
 				candidate := agent
@@ -1570,6 +1617,47 @@ func TestManagerHotSettings(t *testing.T) {
 func TestManagerRecordingLifecycle(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should list only active recordings in the requested workspace and profile", func(t *testing.T) {
+		t.Parallel()
+		manager, _, _ := newTestManager(t, DefaultSettings(), WithJournal(&fakeRecordingJournal{}))
+		profileA := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		profileB := openTestTerminal(t, manager, "workspace-a", "profile-b")
+		workspaceB := openTestTerminal(t, manager, "workspace-b", "profile-a")
+		actors := []Actor{
+			{Kind: ActorKindHuman, ID: "operator-a", ProfileID: "profile-a"},
+			{Kind: ActorKindHuman, ID: "operator-b", ProfileID: "profile-b"},
+			{Kind: ActorKindHuman, ID: "operator-c", ProfileID: "profile-a"},
+		}
+		for index, handle := range []Handle{profileA, profileB, workspaceB} {
+			if _, err := handle.StartRecording(t.Context(), actors[index]); err != nil {
+				t.Fatalf("StartRecording(%d) error = %v", index, err)
+			}
+		}
+
+		active, err := manager.ActiveRecordings(
+			t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"},
+		)
+		if err != nil {
+			t.Fatalf("ActiveRecordings() error = %v", err)
+		}
+		if len(active) != 1 || active[0].TerminalID != profileA.Info().ID || active[0].ProfileID != "profile-a" {
+			t.Fatalf("active recordings = %#v, want only workspace-a/profile-a", active)
+		}
+
+		if _, err := profileA.StopRecording(t.Context(), actors[0]); err != nil {
+			t.Fatalf("StopRecording() error = %v", err)
+		}
+		active, err = manager.ActiveRecordings(
+			t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"},
+		)
+		if err != nil {
+			t.Fatalf("ActiveRecordings(after stop) error = %v", err)
+		}
+		if len(active) != 0 {
+			t.Fatalf("active recordings after stop = %#v, want none", active)
+		}
+	})
+
 	t.Run("Should wait for every accepted stop persistence before finalization", func(t *testing.T) {
 		t.Parallel()
 
@@ -1703,14 +1791,15 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("terminal byte delivery stalled behind recorder storage")
 		}
-		event := receiveRecordingEvent(t, stoppedEvents)
-		if event.Reason != "storage_stall" || !event.Detail.Truncated {
-			t.Fatalf("recording stop event = %#v", event)
-		}
 		select {
 		case <-called:
 		case <-time.After(time.Second):
 			t.Fatal("truncated recording did not enter persistence")
+		}
+		select {
+		case event := <-stoppedEvents:
+			t.Fatalf("recording stop event preceded durable artifact: %#v", event)
+		default:
 		}
 		waitForTerminalTail(
 			t,
@@ -1721,6 +1810,11 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 			},
 		)
 		releaseStorage()
+		event := receiveRecordingEvent(t, stoppedEvents)
+		if event.Reason != "storage_stall" || !event.Detail.Truncated ||
+			event.Detail.Digest == "" || event.Detail.Bytes == 0 {
+			t.Fatalf("recording stop event = %#v, want retained partial artifact metadata", event)
+		}
 		deadline := time.NewTimer(time.Second)
 		defer deadline.Stop()
 		ticker := time.NewTicker(time.Millisecond)
@@ -1738,6 +1832,47 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 				t.Fatal("truncated recording did not finish persistence")
 			case <-ticker.C:
 			}
+		}
+	})
+
+	t.Run("Should retain a storage failure for retry and emit one enriched stop event", func(t *testing.T) {
+		t.Parallel()
+		persistErr := errors.New("recording store failed")
+		journal := &fakeRecordingJournal{recordingErr: persistErr}
+		bus := NewNotifier(nil)
+		stoppedEvents := make(chan Event, 2)
+		bus.Observe(func(_ context.Context, event Event) {
+			if event.Kind == EventKindRecordingStopped {
+				stoppedEvents <- event
+			}
+		})
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal), WithNotifier(bus))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if _, err := handle.StartRecording(t.Context(), actor); err != nil {
+			t.Fatalf("StartRecording() error = %v", err)
+		}
+		if err := starter.latest().emit([]byte("retained output")); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		if _, err := handle.StopRecording(t.Context(), actor); !errors.Is(err, persistErr) {
+			t.Fatalf("StopRecording(failed store) error = %v, want %v", err, persistErr)
+		}
+		event := receiveRecordingEvent(t, stoppedEvents)
+		if event.Reason != "storage_error" || event.Detail.Digest == "" || event.Detail.Bytes == 0 {
+			t.Fatalf("storage failure event = %#v, want retained digest and bytes", event)
+		}
+		journal.mu.Lock()
+		journal.recordingErr = nil
+		journal.mu.Unlock()
+		retried, err := handle.StopRecording(t.Context(), actor)
+		if err != nil || retried.Digest == "" || retried.Bytes == 0 {
+			t.Fatalf("StopRecording(retry) = %#v error = %v", retried, err)
+		}
+		select {
+		case duplicate := <-stoppedEvents:
+			t.Fatalf("recording emitted a second stop event after retry: %#v", duplicate)
+		default:
 		}
 	})
 
@@ -1766,7 +1901,12 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		t.Parallel()
 		settings := DefaultSettings()
 		settings.Recording = true
-		manager, starter, _ := newTestManager(t, settings, WithEntropy(bytes.NewReader(make([]byte, 22))))
+		journal := &fakeRecordingJournal{recordingIDHook: func(context.Context, string) (string, error) {
+			return "", io.EOF
+		}}
+		manager, starter, _ := newTestManager(
+			t, settings, WithEntropy(bytes.NewReader(make([]byte, 22))), WithJournal(journal),
+		)
 
 		_, err := manager.Open(t.Context(), OpenRequest{
 			WS: "workspace-a", Shell: "sh",
@@ -1904,6 +2044,50 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish the collision-resolved command identity before starting exec", func(t *testing.T) {
+		t.Parallel()
+		const resolvedID = "cmd-08090a0b0c0d0e0f"
+		reservationEntered := make(chan struct{})
+		releaseReservation := make(chan struct{})
+		journal := &fakeRecordingJournal{commandIDHook: func(_ context.Context, workspaceID string) (string, error) {
+			if workspaceID != "workspace-a" {
+				t.Fatalf("ReserveCommandID() workspace = %q, want workspace-a", workspaceID)
+			}
+			close(reservationEntered)
+			<-releaseReservation
+			return resolvedID, nil
+		}}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		type execCompletion struct {
+			result *ExecResult
+			err    error
+		}
+		completed := make(chan execCompletion, 1)
+		go func() {
+			result, err := manager.Exec(context.Background(), ExecRequest{
+				WS: "workspace-a", Command: "printf", Args: []string{"ok"}, YieldMs: 1000, Actor: actor,
+			})
+			completed <- execCompletion{result: result, err: err}
+		}()
+		<-reservationEntered
+		if starter.starts.Load() != 0 {
+			t.Fatalf("process starts before identity reservation = %d, want 0", starter.starts.Load())
+		}
+		close(releaseReservation)
+		proc := receiveStartedProc(t, starter)
+		code := 0
+		proc.complete(terminalExit("exited", &code, nil))
+		completion := <-completed
+		if completion.err != nil || completion.result == nil || completion.result.CommandID != resolvedID {
+			t.Fatalf("Exec() = %#v error = %v, want command %q", completion.result, completion.err, resolvedID)
+		}
+		journal.mu.Lock()
+		defer journal.mu.Unlock()
+		if len(journal.rows) != 1 || journal.rows[0].ID != resolvedID {
+			t.Fatalf("journal rows = %#v, want collision-resolved identity", journal.rows)
+		}
+	})
+
 	t.Run("Should return a completed plain command without a terminal object [IT-027]", func(t *testing.T) {
 		t.Parallel()
 		journal := &fakeRecordingJournal{}
@@ -1928,6 +2112,7 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 		proc.complete(terminalExit("exited", &code, nil))
 		completion := <-completed
 		if completion.err != nil || completion.result.TerminalID != nil || completion.result.Output != "plain output" ||
+			len(completion.result.CommandID) != 20 ||
 			!completion.result.Untrusted || completion.result.StillRunning {
 			t.Fatalf("Exec(plain) = %#v error=%v", completion.result, completion.err)
 		}
@@ -1935,6 +2120,71 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 		defer journal.mu.Unlock()
 		if len(journal.rows) != 1 || journal.rows[0].TerminalID != nil || journal.rows[0].DetectedBy != "exact" {
 			t.Fatalf("plain journal rows = %#v", journal.rows)
+		}
+	})
+
+	t.Run("Should finish spill persistence with a bounded context after caller cancellation", func(t *testing.T) {
+		t.Parallel()
+		artifactCtx := make(chan cleanupContextObservation, 1)
+		parentCtx, cancelParent := context.WithCancel(context.WithValue(
+			t.Context(), cleanupContextKey{}, "exec-spill",
+		))
+		journal := &fakeRecordingJournal{
+			artifactHook: cancelParent,
+			artifactCtx:  artifactCtx,
+			artifactRef:  SpillRef{ArtifactID: "art-spill", Path: "/retained/spill"},
+		}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		type execCompletion struct {
+			result *ExecResult
+			err    error
+		}
+		completed := make(chan execCompletion, 1)
+		go func() {
+			result, err := manager.Exec(parentCtx, ExecRequest{
+				WS: "workspace-a", Command: "printf", YieldMs: 1000,
+				Output: OutputShape{MaxBytes: 16, Strategy: "head_tail"}, Actor: actor,
+			})
+			completed <- execCompletion{result: result, err: err}
+		}()
+		proc := receiveStartedProc(t, starter)
+		if err := proc.emit(bytes.Repeat([]byte("output"), 16)); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		code := 0
+		proc.complete(terminalExit("exited", &code, nil))
+		completion := <-completed
+		if completion.err != nil || completion.result == nil || completion.result.Spill == nil ||
+			completion.result.Spill.ArtifactID != "art-spill" {
+			t.Fatalf("Exec(spill after cancellation) = %#v error=%v", completion.result, completion.err)
+		}
+		observation := <-artifactCtx
+		if observation.err != nil || !observation.hasDeadline || observation.value != "exec-spill" {
+			t.Fatalf("spill context = %#v, want active bounded context with values", observation)
+		}
+	})
+
+	t.Run("Should propagate a real final spill persistence failure", func(t *testing.T) {
+		t.Parallel()
+		persistErr := errors.New("artifact store failed")
+		journal := &fakeRecordingJournal{artifactErr: persistErr}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		completed := make(chan error, 1)
+		go func() {
+			_, err := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-a", Command: "printf", YieldMs: 1000,
+				Output: OutputShape{MaxBytes: 16, Strategy: "head_tail"}, Actor: actor,
+			})
+			completed <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		if err := proc.emit(bytes.Repeat([]byte("output"), 16)); err != nil {
+			t.Fatalf("emit() error = %v", err)
+		}
+		code := 0
+		proc.complete(terminalExit("exited", &code, nil))
+		if err := <-completed; !errors.Is(err, persistErr) {
+			t.Fatalf("Exec(spill persistence failure) error = %v, want %v", err, persistErr)
 		}
 	})
 
@@ -2689,7 +2939,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 				t,
 				DefaultSettings(),
 				WithNotifier(bus),
-				withInputRequestTTL(100*time.Millisecond),
+				withShortInputRequestTTL(),
 			)
 			handle, err := manager.Open(t.Context(), OpenRequest{
 				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
@@ -2769,7 +3019,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			})
 			const ttl = 100 * time.Millisecond
 			manager, starter, _ := newTestManager(
-				t, DefaultSettings(), WithNotifier(bus), withInputRequestTTL(ttl),
+				t, DefaultSettings(), WithNotifier(bus), withShortInputRequestTTL(),
 			)
 			handle, err := manager.Open(t.Context(), OpenRequest{
 				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
@@ -2997,7 +3247,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			})
 			const ttl = 100 * time.Millisecond
 			manager, starter, _ := newTestManager(
-				t, DefaultSettings(), WithNotifier(bus), withInputRequestTTL(ttl),
+				t, DefaultSettings(), WithNotifier(bus), withShortInputRequestTTL(),
 			)
 			handle, err := manager.Open(t.Context(), OpenRequest{
 				WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
@@ -3352,7 +3602,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			manager, starter, _ := newTestManager(
 				t,
 				DefaultSettings(),
-				withInputRequestTTL(100*time.Millisecond),
+				withShortInputRequestTTL(),
 				WithNotifier(bus),
 			)
 			handle, err := manager.Open(context.Background(), OpenRequest{

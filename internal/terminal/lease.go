@@ -20,8 +20,6 @@ func (e *PartialWriteError) Error() string {
 
 func (e *PartialWriteError) Unwrap() error { return e.Err }
 
-type leaseTransition func(from, to LeaseState, reason string, actor Actor, controller *Actor)
-
 type leaseMachine struct {
 	mu           sync.Mutex
 	state        LeaseState
@@ -36,6 +34,10 @@ type leaseMachine struct {
 	recoverable  *Actor
 	displaced    *Actor
 	onTransition leaseTransition
+	transitions  []leaseTransitionEvent
+	publishing   bool
+	closed       bool
+	transitionWG sync.WaitGroup
 }
 
 func newLeaseMachine(initial Actor, writer io.Writer, grace time.Duration, onTransition leaseTransition) *leaseMachine {
@@ -71,6 +73,9 @@ func (m *leaseMachine) snapshot() (LeaseState, *Actor) {
 func (m *leaseMachine) withAgentController(register func(Actor) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return leaseClosedError()
+	}
 	if m.controller == nil {
 		return fmt.Errorf("terminal input requires an active agent controller: %w", ErrWriteLeaseRequired)
 	}
@@ -118,6 +123,9 @@ func (m *leaseMachine) authorize(actor Actor) error {
 }
 
 func (m *leaseMachine) authorizeLocked(actor Actor) error {
+	if m.closed {
+		return leaseClosedError()
+	}
 	if actor.Kind == ActorKindAgent && m.recoverable != nil && sameRun(actor, *m.recoverable) &&
 		actor.Generation != m.recoverable.Generation {
 		return &Error{
@@ -159,6 +167,10 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 
 func (m *leaseMachine) takeoverWithReason(actor Actor, force bool, reason string) error {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return leaseClosedError()
+	}
 	if m.controller != nil && actor.Kind == ActorKindAgent && sameRun(actor, *m.controller) &&
 		actor.Generation != m.controller.Generation {
 		m.mu.Unlock()
@@ -213,8 +225,11 @@ func (m *leaseMachine) takeoverWithReason(actor Actor, force bool, reason string
 	m.state = LeaseHumanOwned
 	m.generation++
 	m.cancelGraceLocked()
+	publish := m.queueTransitionLocked(from, LeaseHumanOwned, reason, actor)
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, reason, actor)
+	if publish {
+		m.publishTransitions()
+	}
 	return nil
 }
 
@@ -240,8 +255,11 @@ func (m *leaseMachine) yieldWithReason(actor Actor, reason string) error {
 		m.displaced = nil
 		m.generation++
 		m.cancelGraceLocked()
+		publish := m.queueTransitionLocked(from, LeaseAgentOwned, reason, returned)
 		m.mu.Unlock()
-		m.emit(from, LeaseAgentOwned, reason, returned)
+		if publish {
+			m.publishTransitions()
+		}
 		return nil
 	}
 	from := m.state
@@ -250,13 +268,20 @@ func (m *leaseMachine) yieldWithReason(actor Actor, reason string) error {
 	m.recoverable = nil
 	m.generation++
 	m.cancelGraceLocked()
+	publish := m.queueTransitionLocked(from, LeaseHumanOwned, reason, actor)
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, reason, actor)
+	if publish {
+		m.publishTransitions()
+	}
 	return nil
 }
 
 func (m *leaseMachine) runEnded(actor Actor) {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
 	if m.displaced != nil && sameActor(actor, *m.displaced) {
 		m.displaced = nil
 		m.mu.Unlock()
@@ -272,12 +297,19 @@ func (m *leaseMachine) runEnded(actor Actor) {
 	m.recoverable = nil
 	m.generation++
 	m.cancelGraceLocked()
+	publish := m.queueTransitionLocked(from, LeaseHumanOwned, "run_ended", actor)
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, "run_ended", actor)
+	if publish {
+		m.publishTransitions()
+	}
 }
 
 func (m *leaseMachine) runtimeRecovered(previous, current Actor) {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
 	if m.controller == nil || m.controller.Kind != ActorKindAgent || !sameActor(previous, *m.controller) {
 		m.mu.Unlock()
 		return
@@ -288,12 +320,19 @@ func (m *leaseMachine) runtimeRecovered(previous, current Actor) {
 	m.recoverable = cloneActor(&current)
 	m.generation++
 	m.cancelGraceLocked()
+	publish := m.queueTransitionLocked(from, LeaseHumanOwned, "runtime_recovered", current)
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, "runtime_recovered", current)
+	if publish {
+		m.publishTransitions()
+	}
 }
 
 func (m *leaseMachine) claim(actor Actor) error {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return leaseClosedError()
+	}
 	if actor.Kind != ActorKindAgent {
 		m.mu.Unlock()
 		return fmt.Errorf("only an agent can claim an agent terminal lease: %w", ErrUnsupported)
@@ -317,8 +356,11 @@ func (m *leaseMachine) claim(actor Actor) error {
 		m.recoverable = nil
 		m.generation++
 		m.cancelGraceLocked()
+		publish := m.queueTransitionLocked(from, LeaseAgentOwned, "claim", actor)
 		m.mu.Unlock()
-		m.emit(from, LeaseAgentOwned, "claim", actor)
+		if publish {
+			m.publishTransitions()
+		}
 		return nil
 	}
 	if m.state == LeaseAvailable && m.controller == nil {
@@ -327,8 +369,11 @@ func (m *leaseMachine) claim(actor Actor) error {
 		m.state = LeaseAgentOwned
 		m.generation++
 		m.cancelGraceLocked()
+		publish := m.queueTransitionLocked(from, LeaseAgentOwned, "claim", actor)
 		m.mu.Unlock()
-		m.emit(from, LeaseAgentOwned, "claim", actor)
+		if publish {
+			m.publishTransitions()
+		}
 		return nil
 	}
 	controller := cloneActor(m.controller)
@@ -344,6 +389,9 @@ func (m *leaseMachine) claim(actor Actor) error {
 func (m *leaseMachine) attachWriter(actor Actor) uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closed {
+		return 0
+	}
 	m.nextAttach++
 	m.attachments[m.nextAttach] = actor
 	if m.controller != nil && sameActor(actor, *m.controller) {
@@ -354,6 +402,10 @@ func (m *leaseMachine) attachWriter(actor Actor) uint64 {
 
 func (m *leaseMachine) detachWriter(id uint64) {
 	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return
+	}
 	actor, ok := m.attachments[id]
 	if !ok {
 		m.mu.Unlock()
@@ -372,7 +424,7 @@ func (m *leaseMachine) detachWriter(id uint64) {
 
 func (m *leaseMachine) expireGrace(generation uint64, actor Actor) {
 	m.mu.Lock()
-	if generation != m.generation || m.controller == nil || !sameActor(actor, *m.controller) ||
+	if m.closed || generation != m.generation || m.controller == nil || !sameActor(actor, *m.controller) ||
 		m.controllerAttachmentCountLocked() > 0 {
 		m.mu.Unlock()
 		return
@@ -382,8 +434,11 @@ func (m *leaseMachine) expireGrace(generation uint64, actor Actor) {
 	m.state = LeaseAvailable
 	m.timer = nil
 	m.generation++
+	publish := m.queueTransitionLocked(from, LeaseAvailable, "grace_expired", actor)
 	m.mu.Unlock()
-	m.emit(from, LeaseAvailable, "grace_expired", actor)
+	if publish {
+		m.publishTransitions()
+	}
 }
 
 func (m *leaseMachine) controllerAttachmentCountLocked() int {
@@ -405,29 +460,6 @@ func (m *leaseMachine) cancelGraceLocked() {
 		m.timer = nil
 	}
 	m.generation++
-}
-
-func (m *leaseMachine) close() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.cancelGraceLocked()
-	m.attachments = make(map[uint64]Actor)
-}
-
-func (m *leaseMachine) emit(from, to LeaseState, reason string, actor Actor) {
-	_, controller := m.snapshot()
-	m.emitWithController(from, to, reason, actor, controller)
-}
-
-func (m *leaseMachine) emitWithController(
-	from, to LeaseState,
-	reason string,
-	actor Actor,
-	controller *Actor,
-) {
-	if m.onTransition != nil {
-		m.onTransition(from, to, reason, actor, cloneActor(controller))
-	}
 }
 
 func sameActor(left, right Actor) bool {

@@ -163,6 +163,11 @@ export const TERMINAL_ERROR_COPY: Record<string, { title: string; detail: string
   },
 };
 
+/** The preview never reached a screen. */
+export function terminalReplayFailedCopy(): string {
+  return "Couldn't draw this screen";
+}
+
 export function terminalErrorCopy(
   code: string,
   message: string

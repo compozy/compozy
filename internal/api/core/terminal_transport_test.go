@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -23,6 +24,7 @@ import (
 	"github.com/compozy/compozy/internal/windowmanager"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func TestTerminalBrowserIdentityShouldBindAuthorizedClient(t *testing.T) {
@@ -395,6 +397,90 @@ func TestTerminalStreamShouldHardenOriginHostAndUpgradeCap(t *testing.T) {
 			if status != http.StatusForbidden || code != terminalTransportForbidden || domain {
 				t.Fatalf("read-only frame status/code = %d/%q", status, code)
 			}
+		}
+	})
+
+	t.Run("Should keep the watcher attached after a recoverable lease denial", func(t *testing.T) {
+		subscription := &terminalSubscriptionStub{frames: make(chan terminalpkg.Frame, 1)}
+		provider := &terminalProviderStub{Manager: terminalManagerStub{
+			handle: terminalHandleStub{
+				subscription: subscription,
+				writeErr: &terminalpkg.Error{
+					Code: terminalpkg.ErrorCodeLeaseRevoked, Message: "terminal lease was revoked",
+					Err: terminalpkg.ErrLeaseRevoked,
+				},
+			},
+		}}
+		handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+		router := gin.New()
+		router.GET("/api/workspaces/:workspace_id/terminals/:id/stream", handlers.StreamTerminal)
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+		dialer := websocket.Dialer{Subprotocols: []string{terminalwire.Subprotocol}}
+		connection, response, err := dialer.DialContext(
+			t.Context(),
+			"ws"+strings.TrimPrefix(server.URL, "http")+
+				"/api/workspaces/workspace-a/terminals/term-a/stream?mode=write&ticket=tkt-valid",
+			nil,
+		)
+		if err != nil {
+			if response != nil && response.Body != nil {
+				if closeErr := response.Body.Close(); closeErr != nil {
+					t.Errorf("close failed WebSocket response: %v", closeErr)
+				}
+			}
+			t.Fatalf("DialContext() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := connection.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+				t.Errorf("websocket Close() error = %v", err)
+			}
+		})
+		encoded, err := terminalwire.EncodeClient(terminalwire.Frame{
+			Op: terminalwire.ClientOpInput, Payload: []byte("denied"),
+		})
+		if err != nil {
+			t.Fatalf("EncodeClient() error = %v", err)
+		}
+		if err := connection.WriteMessage(websocket.BinaryMessage, encoded); err != nil {
+			t.Fatalf("WriteMessage() error = %v", err)
+		}
+		errorFrame := terminalReadTransportFrame(t, connection)
+		if errorFrame.Op != terminalwire.ServerOpError {
+			t.Fatalf("denial opcode = %d, want ERROR", errorFrame.Op)
+		}
+		var payload contract.TerminalErrorResponse
+		if err := json.Unmarshal(errorFrame.Payload, &payload); err != nil {
+			t.Fatalf("decode denial payload: %v", err)
+		}
+		if payload.Error.Code != string(terminalpkg.ErrorCodeLeaseRevoked) {
+			t.Fatalf("denial payload = %#v, want lease_revoked", payload)
+		}
+		subscription.frames <- terminalpkg.Frame{
+			Op: terminalwire.ServerOpOutput, Seq: 9, Payload: []byte("still watching"),
+		}
+		output := terminalReadTransportFrame(t, connection)
+		if output.Op != terminalwire.ServerOpOutput || output.Seq != 9 || string(output.Payload) != "still watching" {
+			t.Fatalf("post-denial output = %#v", output)
+		}
+	})
+
+	t.Run("Should classify audit and generation denials as recoverable operations", func(t *testing.T) {
+		t.Parallel()
+		for _, testCase := range []struct {
+			name string
+			err  error
+		}{
+			{name: "journal unavailable", err: terminalpkg.ErrJournalUnavailable},
+			{name: "generation fenced", err: terminalpkg.ErrGenerationFenced},
+		} {
+			t.Run("Should retain the watcher after "+testCase.name, func(t *testing.T) {
+				t.Parallel()
+				wrapped := fmt.Errorf("client operation denied: %w", testCase.err)
+				if !terminalRecoverableClientOperationError(wrapped) {
+					t.Fatalf("terminalRecoverableClientOperationError(%v) = false, want true", wrapped)
+				}
+			})
 		}
 	})
 
@@ -871,6 +957,30 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				wantName:    "terminal.mode_changed",
 				wantPayload: gin.H{"terminal_id": terminalpkg.ID("term-a"), "mode": terminalpkg.ModePipe},
 			},
+			{
+				name: "recording started", event: terminalpkg.Event{
+					Kind: terminalpkg.EventKindRecordingStarted, WorkspaceID: "workspace-a", ProfileID: "profile-a",
+					TerminalID: "term-a", At: time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC),
+					Detail: &terminalpkg.EventDetail{RecordingID: "rec-a"},
+				},
+				wantName: "terminal.recording_started",
+				wantPayload: gin.H{
+					"workspace_id": "workspace-a", "profile_id": "profile-a", "terminal_id": terminalpkg.ID("term-a"),
+					"recording_id": "rec-a", "at": time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC),
+				},
+			},
+			{
+				name: "recording stopped", event: terminalpkg.Event{
+					Kind: terminalpkg.EventKindRecordingStopped, WorkspaceID: "workspace-a", ProfileID: "profile-a",
+					TerminalID: "term-a", At: time.Date(2026, 8, 28, 12, 5, 0, 0, time.UTC),
+					Detail: &terminalpkg.EventDetail{RecordingID: "rec-a"},
+				},
+				wantName: "terminal.recording_stopped",
+				wantPayload: gin.H{
+					"workspace_id": "workspace-a", "profile_id": "profile-a", "terminal_id": terminalpkg.ID("term-a"),
+					"recording_id": "rec-a", "at": time.Date(2026, 8, 28, 12, 5, 0, 0, time.UTC),
+				},
+			},
 		}
 		for _, testCase := range testCases {
 			t.Run("Should project "+testCase.name, func(t *testing.T) {
@@ -880,6 +990,94 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 				}
 				if name != testCase.wantName || !reflect.DeepEqual(payload, testCase.wantPayload) {
 					t.Fatalf("projection = %q/%#v, want %q/%#v", name, payload, testCase.wantName, testCase.wantPayload)
+				}
+			})
+		}
+	})
+
+	t.Run("Should synchronize active recordings after fresh subscribe and reconnect", func(t *testing.T) {
+		startedAt := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+		for _, testCase := range []struct {
+			name          string
+			reconnect     bool
+			replayedStart bool
+		}{
+			{name: "fresh subscribe"},
+			{name: "reconnect", reconnect: true},
+			{name: "reconnect with retained recording start", reconnect: true, replayedStart: true},
+		} {
+			t.Run("Should rehydrate on "+testCase.name, func(t *testing.T) {
+				requestContext, cancelRequest := context.WithCancel(t.Context())
+				t.Cleanup(cancelRequest)
+				query := &terminalRecordingQuery{cancel: cancelRequest}
+				manager := terminalManagerStub{
+					infos: []terminalpkg.Info{{
+						ID: "term-a", WS: "workspace-a", ProfileID: store.DefaultProfileID,
+					}},
+					activeRecordings: []terminalpkg.RecordingRef{{
+						ID: "rec-a", TerminalID: "term-a", ProfileID: store.DefaultProfileID, StartedAt: startedAt,
+					}},
+					activeRecordingQuery: query,
+				}
+				provider := &terminalProviderStub{Manager: manager}
+				handlers := NewBaseHandlers(&BaseHandlerConfig{TransportName: "udsapi", Terminal: provider})
+				if testCase.reconnect {
+					provider.emit(terminalpkg.Event{
+						Kind: terminalpkg.EventKindTitleChanged, WorkspaceID: "workspace-a",
+						ProfileID: store.DefaultProfileID, TerminalID: "term-a",
+						Detail: &terminalpkg.EventDetail{Title: "build"},
+					})
+					if testCase.replayedStart {
+						provider.emit(terminalpkg.Event{
+							Kind: terminalpkg.EventKindRecordingStarted, WorkspaceID: "workspace-a",
+							ProfileID: store.DefaultProfileID, TerminalID: "term-a", At: startedAt,
+							Detail: &terminalpkg.EventDetail{RecordingID: "rec-a"},
+						})
+					}
+				}
+				router := gin.New()
+				router.GET("/api/workspaces/:workspace_id/terminals/stream", handlers.StreamTerminalCatalog)
+				request := httptest.NewRequestWithContext(
+					requestContext, http.MethodGet,
+					"/api/workspaces/workspace-a/terminals/stream?profile=default", http.NoBody,
+				)
+				if testCase.reconnect {
+					request.Header.Set("Last-Event-ID", "1")
+				}
+				response := httptest.NewRecorder()
+				router.ServeHTTP(response, request)
+				body := response.Body.String()
+				if response.Code != http.StatusOK {
+					t.Fatalf("catalog stream status/body = %d/%s, want 200", response.Code, body)
+				}
+				if testCase.reconnect && strings.Contains(body, "event: terminal.snapshot") {
+					t.Fatalf("reconnect stream unexpectedly reset: %q", body)
+				}
+				if count := strings.Count(body, "event: terminal.recording_started"); count != 1 {
+					t.Fatalf("recording start event count = %d, want exactly one; body=%q", count, body)
+				}
+				if !testCase.reconnect {
+					snapshotIndex := strings.Index(body, "event: terminal.snapshot")
+					recordingIndex := strings.Index(body, "event: terminal.recording_started")
+					if snapshotIndex < 0 || recordingIndex <= snapshotIndex {
+						t.Fatalf("fresh stream order = %q, want snapshot before recording state", body)
+					}
+				}
+				for _, expected := range []string{
+					"event: terminal.recording_started",
+					`"workspace_id":"workspace-a"`,
+					`"profile_id":"` + store.DefaultProfileID + `"`,
+					`"terminal_id":"term-a"`,
+					`"recording_id":"rec-a"`,
+					`"at":"2026-08-28T12:00:00Z"`,
+				} {
+					if !strings.Contains(body, expected) {
+						t.Fatalf("recording state frame = %q, want %q", body, expected)
+					}
+				}
+				if query.workspaceID != "workspace-a" || query.scope.ProfileID != store.DefaultProfileID ||
+					query.scope.AllProfiles {
+					t.Fatalf("recording state scope = %#v, want workspace-a/default", query)
 				}
 			})
 		}
@@ -917,6 +1115,20 @@ func TestTerminalCatalogShouldReplayExactlyOnceAndResetOldCursors(t *testing.T) 
 	if changed == nil || reset || fence != 2 || len(replay) != 1 || replay[0].Sequence != 2 ||
 		replay[0].Event.Kind != terminalpkg.EventKindTitleChanged {
 		t.Fatalf("replay = %#v, reset=%v fence=%d", replay, reset, fence)
+	}
+	provider.emit(terminalpkg.Event{
+		Kind: terminalpkg.EventKindRecordingStarted, WorkspaceID: "workspace-a", ProfileID: "profile-a",
+		TerminalID: "term-a", Detail: &terminalpkg.EventDetail{RecordingID: "rec-a"},
+	})
+	select {
+	case <-changed:
+	case <-time.After(time.Second):
+		t.Fatal("catalog observer did not signal the recording event")
+	}
+	replay, reset, fence, changed = catalog.read("workspace-a", "profile-a", 2)
+	if changed == nil || reset || fence != 3 || len(replay) != 1 || replay[0].Sequence != 3 ||
+		replay[0].Event.Kind != terminalpkg.EventKindRecordingStarted {
+		t.Fatalf("recording replay = %#v, reset=%v fence=%d", replay, reset, fence)
 	}
 	for range terminalCatalogRetention + 1 {
 		provider.emit(terminalpkg.Event{
@@ -973,10 +1185,19 @@ func (p *terminalProviderStub) emit(event terminalpkg.Event) {
 }
 
 type terminalManagerStub struct {
-	handle      terminalpkg.Handle
-	info        *terminalpkg.Info
-	mintErr     error
-	mintedActor *terminalpkg.Actor
+	handle               terminalpkg.Handle
+	info                 *terminalpkg.Info
+	infos                []terminalpkg.Info
+	mintErr              error
+	mintedActor          *terminalpkg.Actor
+	activeRecordings     []terminalpkg.RecordingRef
+	activeRecordingQuery *terminalRecordingQuery
+}
+
+type terminalRecordingQuery struct {
+	workspaceID string
+	scope       store.ReadScope
+	cancel      context.CancelFunc
 }
 
 type terminalOpenManagerStub struct {
@@ -1031,6 +1252,18 @@ type terminalAgentJournalStub struct {
 	scope store.ReadScope
 	query terminalpkg.Query
 }
+
+func (*terminalAgentJournalStub) ReserveCommandID(context.Context, string) (string, error) {
+	return "cmd-0000000000000001", nil
+}
+
+func (*terminalAgentJournalStub) ReleaseCommandID(string, string) {}
+
+func (*terminalAgentJournalStub) ReserveRecordingID(context.Context, string) (string, error) {
+	return "rec-0000000000000001", nil
+}
+
+func (*terminalAgentJournalStub) ReleaseRecordingID(string, string) {}
 
 type terminalDownloadManagerStub struct {
 	terminalManagerStub
@@ -1120,6 +1353,13 @@ func (*terminalAgentJournalStub) PrepareWorkspaceRemoval(
 ) (workspacepkg.UnregisterPreparation, error) {
 	return terminalAgentWorkspaceRemovalPreparation{}, nil
 }
+func (*terminalAgentJournalStub) PrepareWorkspaceRemovalAt(
+	context.Context,
+	string,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return terminalAgentWorkspaceRemovalPreparation{}, nil
+}
 func (*terminalAgentJournalStub) ConsumeMarkerFacts(
 	context.Context,
 	terminalpkg.Info,
@@ -1197,8 +1437,23 @@ func (m terminalManagerStub) Get(context.Context, string, string, terminalpkg.ID
 	}
 	return &terminalpkg.Info{}, nil
 }
-func (terminalManagerStub) List(context.Context, string, store.ReadScope) ([]terminalpkg.Info, error) {
-	return []terminalpkg.Info{}, nil
+func (m terminalManagerStub) List(context.Context, string, store.ReadScope) ([]terminalpkg.Info, error) {
+	return append([]terminalpkg.Info(nil), m.infos...), nil
+}
+
+func (m terminalManagerStub) ActiveRecordings(
+	_ context.Context,
+	workspaceID string,
+	scope store.ReadScope,
+) ([]terminalpkg.RecordingRef, error) {
+	if m.activeRecordingQuery != nil {
+		m.activeRecordingQuery.workspaceID = workspaceID
+		m.activeRecordingQuery.scope = scope
+		if m.activeRecordingQuery.cancel != nil {
+			m.activeRecordingQuery.cancel()
+		}
+	}
+	return append([]terminalpkg.RecordingRef(nil), m.activeRecordings...), nil
 }
 
 func (terminalManagerStub) Capabilities(context.Context, string) (terminalpkg.Capabilities, error) {
@@ -1310,6 +1565,7 @@ func (terminalAgentWorkspaceRemovalPreparation) Rollback(context.Context) error 
 type terminalHandleStub struct {
 	info         terminalpkg.Info
 	attachErr    error
+	writeErr     error
 	subscription terminalpkg.Subscription
 	screenResult *terminalpkg.ReadResult
 	screenErr    error
@@ -1355,7 +1611,9 @@ func (terminalHandleStub) MarkerNonce() string      { return "" }
 func (h terminalHandleStub) Attach(context.Context, terminalpkg.AttachOptions) (terminalpkg.Subscription, error) {
 	return h.subscription, h.attachErr
 }
-func (terminalHandleStub) Write(context.Context, terminalpkg.Actor, []byte) error { return nil }
+func (h terminalHandleStub) Write(context.Context, terminalpkg.Actor, []byte) error {
+	return h.writeErr
+}
 func (h terminalHandleStub) Screen(context.Context, terminalpkg.ReadOptions) (*terminalpkg.ReadResult, error) {
 	return h.screenResult, h.screenErr
 }
@@ -1407,4 +1665,20 @@ func (*terminalSubscriptionStub) Resize(uint16, uint16) error        { return ni
 func (s *terminalSubscriptionStub) Close() error {
 	s.closed = true
 	return nil
+}
+
+func terminalReadTransportFrame(t *testing.T, connection *websocket.Conn) terminalwire.Frame {
+	t.Helper()
+	messageType, encoded, err := connection.ReadMessage()
+	if err != nil {
+		t.Fatalf("ReadMessage() error = %v", err)
+	}
+	if messageType != websocket.BinaryMessage {
+		t.Fatalf("message type = %d, want binary", messageType)
+	}
+	frame, err := terminalwire.DecodeServer(encoded)
+	if err != nil {
+		t.Fatalf("DecodeServer() error = %v", err)
+	}
+	return frame
 }

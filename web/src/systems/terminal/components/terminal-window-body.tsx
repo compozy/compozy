@@ -31,7 +31,6 @@ export interface TerminalWindowBodyProps {
   inputRequests: readonly TerminalInputRequest[];
   resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
   inputRequestTitles?: ReadonlyMap<string, string>;
-  auditBlocked: boolean;
   exitRetentionMs?: number;
   recording: TerminalRecordingState | null;
   pipeOutput?: { lines: readonly string[]; firstLineNumber: number };
@@ -74,7 +73,6 @@ function TerminalInteractiveWindowBody({
   inputRequests,
   resolvedInputRequests = EMPTY_RESOLVED,
   inputRequestTitles,
-  auditBlocked,
   exitRetentionMs,
   recording,
   actions,
@@ -143,7 +141,6 @@ function TerminalInteractiveWindowBody({
       />
       <TerminalPane
         attachment={attachment}
-        auditBlocked={auditBlocked}
         compact={compact}
         engineLoader={engineLoader}
         exitRetentionMs={exitRetentionMs}

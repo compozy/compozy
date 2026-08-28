@@ -42,8 +42,8 @@ export interface TerminalWindowAppProps {
   resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
   /** Terminal id → title, for stacked questions that must name their origin. */
   inputRequestTitles?: ReadonlyMap<string, string>;
-  /** The per-project cap, from `[terminal].max_per_workspace`. */
-  limit: number;
+  /** The per-project cap, from `[terminal].max_per_workspace`. Absent until loaded. */
+  limit?: number;
   /** `[terminal].exit_retention` in milliseconds. Omit when unknown. */
   exitRetentionMs?: number;
   /** `[terminal].detached_ttl`, already phrased when known. */
@@ -52,7 +52,6 @@ export interface TerminalWindowAppProps {
   interactiveAvailable: boolean;
   /** Aggregate profile reads cannot mutate terminals owned by another profile. */
   readOnly?: boolean;
-  auditBlockedIds?: ReadonlySet<string>;
   recordings?: Readonly<Record<string, TerminalRecordingState>>;
   /** Pipe terminals render captured output rather than a live stream. */
   pipeOutput?: Readonly<Record<string, { lines: readonly string[]; firstLineNumber: number }>>;
@@ -61,7 +60,7 @@ export interface TerminalWindowAppProps {
   requestedTerminalId?: string | null;
   /** Retargets the host to `/terminal/:id`. Isolated windows omit this. */
   onSelectTerminal?: (terminalId: string) => void;
-  /** Refreshes the journal when the operator reveals it. */
+  /** Reveals the journal. The host unlocks its fetch on first open. */
   onViewJournal?: () => void;
   /** The journal tab is no longer the surface being read. */
   onLeaveJournal?: () => void;
@@ -99,7 +98,6 @@ export function TerminalWindowApp({
   detachedTtl,
   interactiveAvailable,
   readOnly = false,
-  auditBlockedIds,
   recordings,
   pipeOutput,
   journal,
@@ -147,6 +145,7 @@ export function TerminalWindowApp({
         <TerminalTabs
           activeTab={activeTab}
           attentionIds={attentionIds}
+          destinationCount={destinationTerminals.length}
           idBase={tabsIdBase}
           limit={limit}
           onCloseTerminal={readOnly ? undefined : actions.onCloseTerminal}
@@ -183,7 +182,6 @@ export function TerminalWindowApp({
         ) : (
           <TerminalWindowBody
             actions={{ ...actions, onOpenTerminal: openTerminal }}
-            auditBlocked={auditBlockedIds?.has(active.id) ?? false}
             compact={compact}
             detachedTtl={detachedTtl}
             engineLoader={engineLoader}
@@ -205,7 +203,7 @@ export function TerminalWindowApp({
             recording={recordings?.[active.id] ?? null}
             socketFactory={socketFactory}
             terminal={active}
-            terminalCount={terminals.length}
+            terminalCount={destinationTerminals.length}
             limit={limit}
             viewerId={viewerId}
             viewerToken={viewerToken}
@@ -213,7 +211,7 @@ export function TerminalWindowApp({
           />
         )}
       </div>
-      {!readOnly ? (
+      {!readOnly && limit !== undefined ? (
         <TerminalLimitDialog
           limit={limit}
           onCloseTerminal={actions.onCloseTerminal}

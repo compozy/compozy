@@ -19,8 +19,10 @@ export interface TerminalTabsProps {
   idBase: string;
   /** Terminals with a question waiting, by id. */
   attentionIds?: ReadonlySet<string>;
-  /** The project cap. Beyond it, opening is refused by the daemon. */
-  limit: number;
+  /** Destination-profile count for the cap trail. Aggregate rows are not counted. */
+  destinationCount: number;
+  /** The project cap. Absent until settings load; the daemon still refuses create. */
+  limit?: number;
   /** Absent on execute-only platforms — the option does not exist there. */
   onOpenTerminal?: () => void;
   onSelect: (tab: TerminalTabId) => void;
@@ -45,6 +47,7 @@ export function TerminalTabs({
   activeTab,
   idBase,
   attentionIds,
+  destinationCount,
   limit,
   onOpenTerminal,
   onSelect,
@@ -52,7 +55,7 @@ export function TerminalTabs({
   showOwner = false,
 }: TerminalTabsProps) {
   const [tabNodes] = useState(() => new Map<TerminalTabId, HTMLButtonElement>());
-  const atLimit = terminals.length >= limit;
+  const atLimit = limit !== undefined && destinationCount >= limit;
   // Arrow keys move between tabs, as a tablist owes its users; the strip owns
   // the movement because only it knows the order, including the pinned journal.
   // Focus travels with the selection in the same gesture — the tab left behind
@@ -115,7 +118,7 @@ export function TerminalTabs({
             <Plus aria-hidden="true" className="size-3" strokeWidth={1.5} />
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            {atLimit ? `${terminals.length} of ${limit} terminals` : "Open a new terminal"}
+            {atLimit ? `${destinationCount} of ${limit} terminals` : "Open a new terminal"}
           </TooltipContent>
         </Tooltip>
       ) : null}

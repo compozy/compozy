@@ -75,6 +75,30 @@ func (q *Queries) DeleteTerminalRecording(ctx context.Context, id string) error 
 	return err
 }
 
+const findTerminalRecordingForCommand = `-- name: FindTerminalRecordingForCommand :one
+SELECT id
+FROM terminal_recordings
+WHERE terminal_id = ?1
+  AND profile_id = ?2
+  AND ?3 >= started_at
+  AND (stopped_at IS NULL OR ?3 <= stopped_at)
+ORDER BY started_at ASC, id ASC
+LIMIT 1
+`
+
+type FindTerminalRecordingForCommandParams struct {
+	TerminalID string `json:"terminal_id"`
+	ProfileID  string `json:"profile_id"`
+	StartedAt  int64  `json:"started_at"`
+}
+
+func (q *Queries) FindTerminalRecordingForCommand(ctx context.Context, arg FindTerminalRecordingForCommandParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, findTerminalRecordingForCommand, arg.TerminalID, arg.ProfileID, arg.StartedAt)
+	var id string
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getTerminalArtifact = `-- name: GetTerminalArtifact :one
 SELECT id, terminal_id, command_id, profile_id, digest, path, bytes, expires_at
 FROM terminal_artifacts
@@ -321,6 +345,36 @@ func (q *Queries) ListExpiredTerminalRecordings(ctx context.Context, expiresAt i
 		return nil, err
 	}
 	return items, nil
+}
+
+const terminalCommandIDExists = `-- name: TerminalCommandIDExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM terminal_commands
+  WHERE id = ?1
+)
+`
+
+func (q *Queries) TerminalCommandIDExists(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, terminalCommandIDExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const terminalRecordingIDExists = `-- name: TerminalRecordingIDExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM terminal_recordings
+  WHERE id = ?1
+)
+`
+
+func (q *Queries) TerminalRecordingIDExists(ctx context.Context, id string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, terminalRecordingIDExists, id)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const updateTerminalCommandRecording = `-- name: UpdateTerminalCommandRecording :exec

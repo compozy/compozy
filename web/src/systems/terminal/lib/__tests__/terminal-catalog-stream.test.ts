@@ -34,18 +34,20 @@ describe("parseTerminalCatalogEvent", () => {
     expect(parseTerminalCatalogEvent("terminal.future", { anything: true })).toBeNull();
   });
 
-  it.each(["terminal.input_requested", "terminal.input_provided"] as const)(
-    "Should ignore hook event %s — it is not a catalog frame",
-    eventName => {
-      expect(
-        parseTerminalCatalogEvent(eventName, {
-          terminal_id: "term-1",
-          request_id: "req-3f8a",
-          redacted: true,
-        })
-      ).toBeNull();
-    }
-  );
+  it.each([
+    "terminal.input_requested",
+    "terminal.input_provided",
+    "terminal.recording_started",
+    "terminal.recording_stopped",
+  ] as const)("Should ignore hook event %s — it is not a catalog frame", eventName => {
+    expect(
+      parseTerminalCatalogEvent(eventName, {
+        terminal_id: "term-1",
+        request_id: "req-3f8a",
+        redacted: true,
+      })
+    ).toBeNull();
+  });
 
   it.each([
     ["available with a controller", "available", "human", "viewer-1"],

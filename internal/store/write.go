@@ -229,3 +229,16 @@ func IsSQLiteBusy(err error) bool {
 	code := sqliteErr.Code() & sqlitePrimaryResultCodeMask
 	return code == sqlite3.SQLITE_BUSY || code == sqlite3.SQLITE_LOCKED
 }
+
+// IsSQLiteIdentityConstraint reports whether err is a primary-key or unique-key collision.
+func IsSQLiteIdentityConstraint(err error) bool {
+	if err == nil {
+		return false
+	}
+	sqliteErr, ok := errors.AsType[*sqlite.Error](err)
+	if !ok || sqliteErr == nil {
+		return false
+	}
+	return sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY ||
+		sqliteErr.Code() == sqlite3.SQLITE_CONSTRAINT_UNIQUE
+}

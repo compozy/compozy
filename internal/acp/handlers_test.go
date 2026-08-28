@@ -881,7 +881,7 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	if !ok {
 		t.Fatalf("handleInbound(create terminal) type = %T, want CreateTerminalResponse", createResult)
 	}
-	managed, err := proc.terminals.lookup(string(createResponse.TerminalId))
+	managed, err := proc.terminals.lookup(createResponse.TerminalId)
 	if err != nil {
 		t.Fatalf("terminal lookup error = %v", err)
 	}
@@ -1548,7 +1548,7 @@ func TestHandleSessionUpdateAvailableCommands(t *testing.T) {
 		if got, want := events[0].Title, SystemEventTitleAvailableCommandsUpdate; got != want {
 			t.Fatalf("event title = %q, want %q", got, want)
 		}
-		if got, want := events[0].AvailableCommands.Values(), []store.SessionAdvertisedCommand{{
+		if got, want := events[0].AvailableCommandSet().Values(), []store.SessionAdvertisedCommand{{
 			Name:        "compact",
 			Description: "Compact context",
 			Input:       &store.SessionAdvertisedCommandInput{Hint: "optional focus"},

@@ -38,6 +38,7 @@ func (s *Service) Record(ctx context.Context, workspaceID string, row terminalpk
 	if err != nil {
 		return fmt.Errorf("terminal journal: append command %q: %w", row.ID, err)
 	}
+	s.ReleaseCommandID(workspaceID, row.ID)
 	terminalID := ""
 	if row.TerminalID != nil {
 		terminalID = string(*row.TerminalID)

@@ -8,13 +8,15 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 )
 
 const (
 	pendingLaneCapacity = 64
 	retryBlockAttempt   = 3
-	retryInterval       = 50 * time.Millisecond
+	retryMinInterval    = 50 * time.Millisecond
+	retryMaxInterval    = 400 * time.Millisecond
 	laneCleanupTimeout  = 5 * time.Second
 )
 
@@ -114,13 +116,13 @@ func (l *terminalLane) run(ctx context.Context) {
 			}
 			return
 		}
-		attempt := 0
-		for {
-			attempt++
+		for attempt := 1; ; attempt++ {
 			attemptCtx, cancelAttempt := context.WithTimeout(ctx, laneCleanupTimeout)
 			err := l.service.Record(attemptCtx, l.info.WS, command.row)
 			cancelAttempt()
 			if err == nil {
+				l.completeRow()
+				command.result <- nil
 				break
 			}
 			if ctx.Err() != nil {
@@ -128,26 +130,47 @@ func (l *terminalLane) run(ctx context.Context) {
 				return
 			}
 			l.service.writeFailures.Add(1)
-			l.service.logger.Warn("terminal journal: append retry",
+			failureKind := "permanent"
+			if terminalRecordErrorIsTransient(err) {
+				failureKind = "transient"
+			} else if store.IsSQLiteIdentityConstraint(err) {
+				failureKind = "identity_collision"
+			}
+			l.service.logger.Warn("terminal journal: append failure; retaining row",
 				"workspace_id", l.info.WS, "terminal_id", l.info.ID,
-				"command_id", command.row.ID, "attempt", attempt, "error", err,
+				"command_id", command.row.ID, "attempt", attempt, "kind", failureKind, "error", err,
 			)
 			if attempt >= retryBlockAttempt {
 				l.setAuditBlocked()
 			}
-			timer := time.NewTimer(retryInterval)
-			select {
-			case <-timer.C:
-			case <-ctx.Done():
-				if !timer.Stop() {
-					<-timer.C
-				}
+			if !waitForRecordRetry(ctx, recordRetryDelay(attempt)) {
 				l.failAll(command, err, context.Cause(ctx))
 				return
 			}
 		}
-		l.completeRow()
-		command.result <- nil
+	}
+}
+
+func terminalRecordErrorIsTransient(err error) bool {
+	return store.IsSQLiteBusy(err) || errors.Is(err, context.DeadlineExceeded)
+}
+
+func recordRetryDelay(attempt int) time.Duration {
+	if attempt >= 4 {
+		return retryMaxInterval
+	}
+	delay := retryMinInterval << (attempt - 1)
+	return delay
+}
+
+func waitForRecordRetry(ctx context.Context, delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 
@@ -185,6 +208,11 @@ func commandCancellationError(row terminalpkg.CommandRow, recordErr, cause error
 func (l *terminalLane) failAll(command pendingCommand, recordErr, cause error) {
 	l.mu.Lock()
 	queued := append([]pendingCommand(nil), l.rows...)
+	abandonedAssemblyID := ""
+	if l.assembly != nil {
+		abandonedAssemblyID = l.assembly.id
+		l.assembly = nil
+	}
 	failures := make([]error, 0, len(queued)+1)
 	var commandErr error
 	if command.result != nil {
@@ -207,6 +235,15 @@ func (l *terminalLane) failAll(command pendingCommand, recordErr, cause error) {
 	l.err = errors.Join(append([]error{l.err}, failures...)...)
 	publishAudit := l.setAuditBlockedLocked(true)
 	l.mu.Unlock()
+	if abandonedAssemblyID != "" {
+		l.service.ReleaseCommandID(l.info.WS, abandonedAssemblyID)
+	}
+	if command.result != nil {
+		l.service.ReleaseCommandID(l.info.WS, command.row.ID)
+	}
+	for _, queuedCommand := range queued {
+		l.service.ReleaseCommandID(l.info.WS, queuedCommand.row.ID)
+	}
 	if publishAudit {
 		l.publishAuditTransitions()
 	}
@@ -296,12 +333,21 @@ func (l *terminalLane) release(count int) {
 	}
 }
 
-func (l *terminalLane) setAssembly(assembly commandAssembly) {
+func (l *terminalLane) setAssembly(assembly commandAssembly) bool {
 	l.mu.Lock()
-	defer l.mu.Unlock()
+	if l.closed || l.sealed {
+		l.mu.Unlock()
+		return false
+	}
+	previous := l.assembly
 	copyOfAssembly := assembly
 	l.assembly = &copyOfAssembly
 	l.outputTail = nil
+	l.mu.Unlock()
+	if previous != nil {
+		l.service.ReleaseCommandID(l.info.WS, previous.id)
+	}
+	return true
 }
 
 func (l *terminalLane) takeAssembly() (commandAssembly, bool) {

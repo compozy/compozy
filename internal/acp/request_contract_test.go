@@ -134,7 +134,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		host := newContractLocalToolHost(t, root, additional)
 		ctx := testutil.Context(t)
 
-		response, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
+		response, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-additional-terminal",
 			Command:   "sh",
 			Args:      []string{"-c", "printf %s \"$PWD\""},
@@ -166,7 +166,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		host := newContractLocalToolHost(t, root)
 		ctx := testutil.Context(t)
 
-		response, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
+		response, err := createACPTestTerminal(ctx, host, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-path",
 			Command:   "compozy-path-tool",
 			Cwd:       new(root),

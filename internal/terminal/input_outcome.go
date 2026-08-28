@@ -15,15 +15,6 @@ const (
 	InputResolutionOutcomeExpired    InputResolutionOutcome = "expired"
 )
 
-func InputResolutionOutcomeValues() []string {
-	return []string{
-		string(InputResolutionOutcomeAnswered),
-		string(InputResolutionOutcomeRejected),
-		string(InputResolutionOutcomeSuperseded),
-		string(InputResolutionOutcomeExpired),
-	}
-}
-
 func ParseInputResolutionOutcome(value string) (InputResolutionOutcome, error) {
 	outcome := InputResolutionOutcome(value)
 	switch outcome {

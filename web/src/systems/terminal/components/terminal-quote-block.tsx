@@ -110,7 +110,7 @@ export function TerminalSelectionActions({
         aria-label="Selection actions"
         className="min-w-36 rounded-lg bg-canvas-soft p-1 shadow-hairline"
         data-testid="terminal-selection-actions"
-        role="menu"
+        role="group"
       >
         <SelectionAction
           icon={MessagesSquare}
@@ -126,7 +126,7 @@ export function TerminalSelectionActions({
       aria-label="Selection actions — no active session"
       className="min-w-36 rounded-lg bg-canvas-soft p-1 shadow-hairline"
       data-testid="terminal-selection-actions-no-session"
-      role="menu"
+      role="group"
     >
       <Eyebrow className="px-1.5 py-1 text-muted">No active session</Eyebrow>
       <SelectionAction icon={MessagesSquare} label="Choose a session…" onSelect={handleChoose} />
@@ -149,12 +149,13 @@ function SelectionAction({
     <button
       className={cn(
         "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1",
-        "text-left text-small-body outline-hidden select-none",
-        "hover:bg-elevated hover:text-fg-strong focus:bg-elevated focus:text-fg-strong",
+        "text-left text-small-body select-none",
+        "hover:bg-elevated hover:text-fg-strong",
+        "focus-visible:bg-elevated focus-visible:text-fg-strong",
+        "focus-visible:shadow-focus-ring focus-visible:outline-none",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4"
       )}
       onClick={onSelect}
-      role="menuitem"
       type="button"
     >
       <Icon aria-hidden="true" />

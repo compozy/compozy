@@ -21,6 +21,30 @@ WHERE terminal_id = sqlc.arg(terminal_id)
   AND (sqlc.narg(recording_stopped_at) IS NULL OR started_at <= sqlc.narg(recording_stopped_at))
   AND recording_id IS NULL;
 
+-- name: TerminalCommandIDExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM terminal_commands
+  WHERE id = sqlc.arg(id)
+);
+
+-- name: TerminalRecordingIDExists :one
+SELECT EXISTS(
+  SELECT 1
+  FROM terminal_recordings
+  WHERE id = sqlc.arg(id)
+);
+
+-- name: FindTerminalRecordingForCommand :one
+SELECT id
+FROM terminal_recordings
+WHERE terminal_id = sqlc.arg(terminal_id)
+  AND profile_id = sqlc.arg(profile_id)
+  AND sqlc.arg(started_at) >= started_at
+  AND (stopped_at IS NULL OR sqlc.arg(started_at) <= stopped_at)
+ORDER BY started_at ASC, id ASC
+LIMIT 1;
+
 -- name: InsertTerminalArtifact :exec
 INSERT INTO terminal_artifacts (
   id, terminal_id, command_id, profile_id, digest, path, bytes, expires_at

@@ -7208,6 +7208,7 @@ type fakeSessionManager struct {
 	shutdownHook             func()
 	compactionHandler        session.CompactionHandler
 	workspaceAccessPolicy    workspaceaccess.Policy
+	turnEndNotifier          session.TurnEndNotifier
 }
 
 var _ SessionManager = (*fakeSessionManager)(nil)
@@ -7984,7 +7985,28 @@ func (f *fakeSessionManager) ApprovePermission(
 
 func (f *fakeSessionManager) SetNetworkPeerLifecycle(session.NetworkPeerLifecycle) {}
 
-func (f *fakeSessionManager) SetTurnEndNotifier(session.TurnEndNotifier) {}
+func (f *fakeSessionManager) SetTurnEndNotifier(fn session.TurnEndNotifier) {
+	f.mu.Lock()
+	f.turnEndNotifier = fn
+	f.mu.Unlock()
+}
+
+func (f *fakeSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if fn == nil {
+		return
+	}
+	f.mu.Lock()
+	previous := f.turnEndNotifier
+	if previous == nil {
+		f.turnEndNotifier = fn
+	} else {
+		f.turnEndNotifier = func(ctx context.Context, identity session.PromptRunIdentity) {
+			previous(ctx, identity)
+			fn(ctx, identity)
+		}
+	}
+	f.mu.Unlock()
+}
 
 func (f *fakeSessionManager) PromptNetwork(
 	context.Context,
@@ -8164,6 +8186,23 @@ func (f *fakeNetworkBindableSessionManager) SetTurnEndNotifier(fn session.TurnEn
 	f.turnEndNotifier = fn
 }
 
+func (f *fakeNetworkBindableSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if fn == nil {
+		return
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	previous := f.turnEndNotifier
+	if previous == nil {
+		f.turnEndNotifier = fn
+		return
+	}
+	f.turnEndNotifier = func(ctx context.Context, identity session.PromptRunIdentity) {
+		previous(ctx, identity)
+		fn(ctx, identity)
+	}
+}
+
 func (f *fakeNetworkBindableSessionManager) currentTurnEndNotifier() session.TurnEndNotifier {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -8210,6 +8249,12 @@ type nonBindableHarnessSessionManager struct {
 	SessionManager
 	syntheticPrompter     syntheticPrompter
 	workspaceAccessBinder workspaceAccessPolicyBinder
+}
+
+func (m nonBindableHarnessSessionManager) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if registrar, ok := m.SessionManager.(turnEndNotifierRegistrar); ok {
+		registrar.AddTurnEndNotifier(fn)
+	}
 }
 
 func (m nonBindableHarnessSessionManager) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {
@@ -8266,6 +8311,12 @@ func (m nonBindableHarnessSessionManager) StopWithCause(
 type sessionManagerWithoutWorkspaceRemoval struct {
 	SessionManager
 	workspaceAccessBinder workspaceAccessPolicyBinder
+}
+
+func (m sessionManagerWithoutWorkspaceRemoval) AddTurnEndNotifier(fn session.TurnEndNotifier) {
+	if registrar, ok := m.SessionManager.(turnEndNotifierRegistrar); ok {
+		registrar.AddTurnEndNotifier(fn)
+	}
 }
 
 func (m sessionManagerWithoutWorkspaceRemoval) SetWorkspaceAccessPolicy(policy workspaceaccess.Policy) {

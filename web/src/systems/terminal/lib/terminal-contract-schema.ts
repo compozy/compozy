@@ -59,7 +59,39 @@ const terminalRecordingStateSchema = closedGeneratedEnum<
   TerminalRecordingResponse["recording"]["state"]
 >()(["recording", "saved"]);
 
-export const terminalErrorCodeSchema = z.enum([
+type GeneratedApiReasonCode = NonNullable<
+  operations["listTools"]["responses"][200]["content"]["application/json"]["tools"][number]["availability"]["reason_codes"]
+>[number];
+
+/**
+ * Domain refusals in the generated reason-code union.
+ *
+ * Terminal HTTP `error.code` is an open string in OpenAPI. The same frozen
+ * vocabulary is emitted as string-literal members of this generated union, so
+ * a new `terminal_*` / `profile_*` / input / recording / ticket code fails
+ * `closedGeneratedEnum` until the runtime list is updated.
+ */
+export type GeneratedTerminalErrorCode = Extract<
+  GeneratedApiReasonCode,
+  | `terminal_${string}`
+  | `profile_${string}`
+  | `input_request_${string}`
+  | `input_answer_${string}`
+  | `recording_${string}`
+  | `ticket_${string}`
+  | "invalid_cwd"
+  | "timeout_out_of_range"
+  | "write_owner_held"
+  | "lease_revoked"
+  | "generation_fenced"
+  | "typing_grant_rejected"
+  | "approval_rejected"
+  | "slow_consumer"
+  | "journal_unavailable"
+  | "subscriber_limit_reached"
+>;
+
+export const terminalErrorCodeSchema = closedGeneratedEnum<GeneratedTerminalErrorCode>()([
   "terminal_not_found",
   "profile_selection_conflict",
   "profile_session_conflict",

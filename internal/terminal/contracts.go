@@ -27,6 +27,7 @@ const (
 	ModePTY  Mode = "pty"
 	ModePipe Mode = "pipe"
 
+	terminalAccessRead   = "read"
 	terminalAccessWrite  = "write"
 	terminalStateRunning = "running"
 	terminalViewScreen   = "screen"
@@ -384,6 +385,7 @@ type Manager interface {
 	Handle(ctx context.Context, workspaceID, profileID string, id ID) (Handle, error)
 	Get(ctx context.Context, workspaceID, profileID string, id ID) (*Info, error)
 	List(ctx context.Context, workspaceID string, scope store.ReadScope) ([]Info, error)
+	ActiveRecordings(ctx context.Context, workspaceID string, scope store.ReadScope) ([]RecordingRef, error)
 	Close(ctx context.Context, workspaceID string, id ID, actor Actor, signal Signal) (*Exit, error)
 	Capabilities(ctx context.Context, workspaceID string) (Capabilities, error)
 	MintAttachTicket(ctx context.Context, binding AttachTicketBinding, actor Actor) (AttachTicket, error)
@@ -424,6 +426,10 @@ type Manager interface {
 
 type Journal interface {
 	MarkerConsumer
+	ReserveCommandID(ctx context.Context, workspaceID string) (string, error)
+	ReleaseCommandID(workspaceID, commandID string)
+	ReserveRecordingID(ctx context.Context, workspaceID string) (string, error)
+	ReleaseRecordingID(workspaceID, recordingID string)
 	Record(ctx context.Context, workspaceID string, row CommandRow) error
 	RecordQueued(ctx context.Context, terminal Info, row CommandRow) error
 	Query(ctx context.Context, workspaceID string, scope store.ReadScope, query Query) (*Page, error)

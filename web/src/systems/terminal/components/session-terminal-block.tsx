@@ -10,7 +10,7 @@ import {
   type TerminalAttachmentSocketFactory,
 } from "../hooks/use-terminal-attachment";
 import { useTerminalReplay } from "../hooks/use-terminal-replay";
-import { terminalExitCopy } from "../lib/terminal-copy";
+import { terminalExitCopy, terminalReplayFailedCopy } from "../lib/terminal-copy";
 import { sessionPreviewInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalLeaseView } from "../lib/terminal-lease";
 import type { TerminalExit } from "../types";
@@ -154,7 +154,9 @@ function SessionTerminalBlockBody({
         />
       </div>
       <div className="flex min-h-7 items-center gap-2 border-line border-t bg-canvas-soft px-2.5 text-micro text-subtle">
-        {outcome ? (
+        {replay.writeError ? (
+          <span role="status">{terminalReplayFailedCopy()}</span>
+        ) : outcome ? (
           <>
             <Pill size="xs" tone={outcome.tone === "success" ? "success" : "neutral"}>
               {outcome.label}

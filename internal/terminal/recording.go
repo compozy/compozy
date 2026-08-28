@@ -3,12 +3,15 @@ package terminal
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
+	"sync"
 	"time"
+
+	"github.com/compozy/compozy/internal/redact"
 )
 
 const (
@@ -21,6 +24,7 @@ type activeRecording struct {
 	startedAt time.Time
 	buffer    bytes.Buffer
 	truncated bool
+	stopped   sync.Once
 }
 
 func newActiveRecording(id string, info Info, cols, rows uint16, startedAt time.Time) (*activeRecording, error) {
@@ -78,7 +82,7 @@ func (r *activeRecording) contents() []byte {
 }
 
 func (s *session) startRecording(ctx context.Context, actor Actor) (RecordingRef, error) {
-	ref, err := s.beginRecording()
+	ref, err := s.beginRecording(ctx)
 	if err != nil {
 		return RecordingRef{}, err
 	}
@@ -86,7 +90,20 @@ func (s *session) startRecording(ctx context.Context, actor Actor) (RecordingRef
 	return ref, nil
 }
 
-func (s *session) beginRecording() (RecordingRef, error) {
+func (s *session) activeRecording() (RecordingRef, bool) {
+	info := s.Info()
+	s.recordingMu.Lock()
+	defer s.recordingMu.Unlock()
+	if s.recording == nil {
+		return RecordingRef{}, false
+	}
+	return RecordingRef{
+		ID: s.recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
+		StartedAt: s.recording.startedAt,
+	}, true
+}
+
+func (s *session) beginRecording(ctx context.Context) (RecordingRef, error) {
 	if !RecordingAvailable(s.Info().Capabilities) {
 		info := s.Info()
 		return RecordingRef{}, &Error{
@@ -99,12 +116,18 @@ func (s *session) beginRecording() (RecordingRef, error) {
 	if err := s.runningGate(); err != nil {
 		return RecordingRef{}, err
 	}
-	id, err := newRecordingID(s.manager.entropy)
-	if err != nil {
-		return RecordingRef{}, err
-	}
-	startedAt := s.manager.now()
 	info := s.Info()
+	id, err := s.manager.journal.ReserveRecordingID(ctx, info.WS)
+	if err != nil {
+		return RecordingRef{}, fmt.Errorf("terminal: reserve recording id: %w", err)
+	}
+	releaseID := true
+	defer func() {
+		if releaseID {
+			s.manager.journal.ReleaseRecordingID(info.WS, id)
+		}
+	}()
+	startedAt := s.manager.now()
 	s.mu.RLock()
 	cols, rows := s.cols, s.rows
 	s.mu.RUnlock()
@@ -125,6 +148,7 @@ func (s *session) beginRecording() (RecordingRef, error) {
 	}
 	s.recording = recording
 	s.recordingMu.Unlock()
+	releaseID = false
 	ref := RecordingRef{ID: id, TerminalID: info.ID, ProfileID: info.ProfileID, StartedAt: startedAt}
 	return ref, nil
 }
@@ -208,24 +232,7 @@ func (s *session) appendRecording(output []byte) {
 	s.recording = nil
 	s.recordingWG.Add(1)
 	s.recordingMu.Unlock()
-	info := s.Info()
-	stoppedAt := s.manager.now()
-	s.emitRecordingEvent(s.ctx, EventKindRecordingStopped, Actor{
-		Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID,
-	}, RecordingRef{
-		ID: recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
-		StartedAt: recording.startedAt, StoppedAt: &stoppedAt,
-	}, "storage_stall", true)
-	go func() {
-		defer s.recordingWG.Done()
-		actor := Actor{Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID}
-		persistCtx, cancel := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
-		defer cancel()
-		if _, err := s.persistRecording(persistCtx, actor, recording, "storage_stall", false); err != nil {
-			s.retainFailedRecording(recording)
-			s.manager.logger.Warn("terminal: persist truncated recording", "terminal_id", s.Info().ID, "error", err)
-		}
-	}()
+	s.persistTruncatedRecording(recording)
 }
 
 func (s *session) appendRecordingMarker(marker OutputSegment) {
@@ -247,19 +254,12 @@ func (s *session) appendRecordingMarker(marker OutputSegment) {
 
 func (s *session) persistTruncatedRecording(recording *activeRecording) {
 	info := s.Info()
-	stoppedAt := s.manager.now()
-	s.emitRecordingEvent(s.ctx, EventKindRecordingStopped, Actor{
-		Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID,
-	}, RecordingRef{
-		ID: recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
-		StartedAt: recording.startedAt, StoppedAt: &stoppedAt,
-	}, "storage_stall", true)
 	go func() {
 		defer s.recordingWG.Done()
 		actor := Actor{Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID}
 		persistCtx, cancel := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
 		defer cancel()
-		if _, err := s.persistRecording(persistCtx, actor, recording, "storage_stall", false); err != nil {
+		if _, err := s.persistRecording(persistCtx, actor, recording, "storage_stall", true); err != nil {
 			s.retainFailedRecording(recording)
 			s.manager.logger.Warn("terminal: persist truncated recording", "terminal_id", s.Info().ID, "error", err)
 		}
@@ -299,14 +299,40 @@ func (s *session) persistRecording(
 	persisted, err := s.manager.journal.PersistRecording(ctx, info.WS, info.ID, ref, contents)
 	if err != nil {
 		if emit {
-			s.emitRecordingEvent(ctx, EventKindRecordingStopped, actor, ref, "storage_error", recording.truncated)
+			failureRef := recordingFailureRef(ref, contents)
+			s.emitRecordingStoppedOnce(ctx, actor, recording, failureRef, "storage_error")
+			s.manager.logger.Warn("terminal: recording artifact retained in memory after storage failure",
+				"workspace_id", info.WS, "profile_id", info.ProfileID, "terminal_id", info.ID,
+				"recording_id", recording.id, "digest", failureRef.Digest, "bytes", failureRef.Bytes,
+				"reason", "storage_error", "error", err,
+			)
 		}
 		return RecordingRef{}, fmt.Errorf("terminal: persist recording %q: %w", recording.id, err)
 	}
 	if emit {
-		s.emitRecordingEvent(ctx, EventKindRecordingStopped, actor, persisted, reason, recording.truncated)
+		s.emitRecordingStoppedOnce(ctx, actor, recording, persisted, reason)
 	}
 	return persisted, nil
+}
+
+func recordingFailureRef(ref RecordingRef, contents []byte) RecordingRef {
+	redacted := []byte(redact.String(string(contents)))
+	digest := sha256.Sum256(redacted)
+	ref.Digest = hex.EncodeToString(digest[:])
+	ref.Bytes = int64(len(redacted))
+	return ref
+}
+
+func (s *session) emitRecordingStoppedOnce(
+	ctx context.Context,
+	actor Actor,
+	recording *activeRecording,
+	ref RecordingRef,
+	reason string,
+) {
+	recording.stopped.Do(func() {
+		s.emitRecordingEvent(ctx, EventKindRecordingStopped, actor, ref, reason, recording.truncated)
+	})
 }
 
 func (s *session) emitRecordingEvent(
@@ -323,12 +349,4 @@ func (s *session) emitRecordingEvent(
 		TerminalID: info.ID, Actor: actor, Info: &info, Reason: reason, At: s.manager.now(),
 		Detail: &EventDetail{RecordingID: ref.ID, Digest: ref.Digest, Bytes: ref.Bytes, Truncated: truncated},
 	})
-}
-
-func newRecordingID(entropy io.Reader) (string, error) {
-	raw := make([]byte, 8)
-	if _, err := io.ReadFull(entropy, raw); err != nil {
-		return "", fmt.Errorf("terminal: generate recording id: %w", err)
-	}
-	return "rec-" + hex.EncodeToString(raw), nil
 }

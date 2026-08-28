@@ -61,6 +61,7 @@ export {
   terminalConfidenceCopy,
   terminalExitCopy,
   terminalInputOutcomeCopy,
+  terminalReplayFailedCopy,
 } from "./lib/terminal-copy";
 // The dock reads the badge without ever opening a terminal, so the projection
 // belongs on the emulator-free entry alongside the other mention-only surfaces.

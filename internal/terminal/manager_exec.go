@@ -2,10 +2,8 @@ package terminal
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"runtime"
 	"strings"
 	"sync"
@@ -25,15 +23,16 @@ const (
 )
 
 type execRun struct {
-	item            *session
-	key             terminalKey
-	commandID       string
-	startedAt       time.Time
-	journaled       chan error
-	registered      atomic.Bool
-	decision        chan struct{}
-	decideOnce      sync.Once
-	releaseProducer func()
+	item             *session
+	key              terminalKey
+	commandID        string
+	startedAt        time.Time
+	journaled        chan error
+	registered       atomic.Bool
+	decision         chan struct{}
+	decideOnce       sync.Once
+	releaseProducer  func()
+	releaseCommandID func()
 }
 
 func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, error) {
@@ -186,27 +185,23 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if err != nil {
 		return nil, err
 	}
-	commandID, err := newCommandID(m.entropy)
+	commandID, err := m.journal.ReserveCommandID(ctx, workspaceID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("terminal: reserve exec command id: %w", err)
 	}
+	releaseCommandID := true
+	defer func() {
+		if releaseCommandID {
+			m.journal.ReleaseCommandID(workspaceID, commandID)
+		}
+	}()
 	nonce, err := newMarkerNonce(m.entropy)
 	if err != nil {
 		return nil, err
 	}
-	mode := ModePipe
-	ptyMode := terminalpty.ModePipe
-	if request.Visible {
-		if !request.Capabilities.Interactive {
-			return nil, &Error{
-				Code:     ErrorCodeInteractiveUnavailable,
-				Message:  "interactive terminals are unavailable in this workspace",
-				Platform: runtime.GOOS,
-				Err:      ErrInteractive,
-			}
-		}
-		mode = ModePTY
-		ptyMode = terminalpty.ModePTY
+	mode, ptyMode, err := execModes(request.Visible, request.Capabilities)
+	if err != nil {
+		return nil, err
 	}
 	title := SanitizeTitle(strings.Join(argv, " "))
 	spec := ProcSpec{
@@ -243,10 +238,27 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 		return nil, errors.Join(err, cleanupUnregisteredProcess(ctx, proc))
 	}
 	item.processRecord = processRecord
-	return &execRun{
+	run := &execRun{
 		item: item, key: terminalKey{workspaceID: workspaceID, profileID: request.Actor.ProfileID, id: id},
 		commandID: commandID, startedAt: m.now(), journaled: make(chan error, 1), decision: make(chan struct{}),
-	}, nil
+		releaseCommandID: func() { m.journal.ReleaseCommandID(workspaceID, commandID) },
+	}
+	releaseCommandID = false
+	return run, nil
+}
+
+func execModes(visible bool, capabilities Capabilities) (Mode, terminalpty.Mode, error) {
+	if !visible {
+		return ModePipe, terminalpty.ModePipe, nil
+	}
+	if !capabilities.Interactive {
+		return "", "", &Error{
+			Code:     ErrorCodeInteractiveUnavailable,
+			Message:  "interactive terminals are unavailable in this workspace",
+			Platform: runtime.GOOS, Err: ErrInteractive,
+		}
+	}
+	return ModePTY, terminalpty.ModePTY, nil
 }
 
 func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecRequest) error {
@@ -272,6 +284,7 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 
 func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
 	defer run.releaseProducer()
+	defer run.releaseCommandID()
 	<-run.item.done
 	<-run.decision
 	ctx, cancel := boundedCleanupContext(run.item.ctx, defaultJournalShutdownTimeout)
@@ -328,8 +341,9 @@ func (m *Service) execResult(ctx context.Context, run *execRun, request ExecRequ
 		result.TerminalID = &id
 	}
 	if truncated || captureTruncated {
+		spillCtx, cancelSpill := boundedCleanupContext(ctx, defaultJournalShutdownTimeout)
 		spill, err := m.journal.WriteArtifact(
-			ctx,
+			spillCtx,
 			info.WS,
 			info.ProfileID,
 			run.commandID,
@@ -337,6 +351,7 @@ func (m *Service) execResult(ctx context.Context, run *execRun, request ExecRequ
 			content,
 			m.now().Add(infoSettingsRetention(run.item)),
 		)
+		cancelSpill()
 		if err != nil {
 			return nil, fmt.Errorf("terminal: preserve exec spill: %w", err)
 		}
@@ -349,14 +364,6 @@ func infoSettingsRetention(item *session) time.Duration {
 	item.mu.RLock()
 	defer item.mu.RUnlock()
 	return time.Duration(item.policy.RecordingRetentionDays) * 24 * time.Hour
-}
-
-func newCommandID(entropy io.Reader) (string, error) {
-	raw := make([]byte, 3)
-	if _, err := io.ReadFull(entropy, raw); err != nil {
-		return "", fmt.Errorf("terminal: generate command id: %w", err)
-	}
-	return "cmd-" + hex.EncodeToString(raw), nil
 }
 
 func cleanupExecRun(ctx context.Context, item *session, cause error) error {

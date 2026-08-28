@@ -79,7 +79,7 @@ func canonicalPayloadFromAgentEvent(event acp.AgentEvent, authoredText string) c
 		Failure:           store.CloneSessionFailure(event.Failure),
 		Synthetic:         clonePromptSyntheticMeta(event.Synthetic),
 		Goal:              acp.CloneGoalPromptMeta(event.Goal),
-		AvailableCommands: event.AvailableCommands.Values(),
+		AvailableCommands: event.AvailableCommandSet().Values(),
 		SkillInvocations:  event.SkillInvocations(),
 		Attachments:       event.Attachments(),
 		Usage:             event.Usage,
@@ -176,7 +176,7 @@ func UnmarshalAgentEvent(payload string) (acp.AgentEvent, error) {
 		toolErrorDetail,
 	).WithToolKind(decoded.ToolKind)
 	if decoded.AvailableCommands != nil || event.Type == acp.EventTypeAvailableCommands {
-		event.AvailableCommands = acp.NewAvailableCommandSet(decoded.AvailableCommands)
+		event = event.WithAvailableCommands(decoded.AvailableCommands)
 	}
 	return RedactAgentEvent(event), nil
 }

@@ -5,23 +5,25 @@ import (
 	"strings"
 
 	commandpkg "github.com/compozy/compozy/internal/command"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type agentEventPayload struct {
-	eventID          string
-	messageID        string
-	requestID        string
-	resolvedBy       string
-	toolName         string
-	toolKind         string
-	toolInput        json.RawMessage
-	toolErrorDetail  string
-	toolFailed       bool
-	toolPrechecked   bool
-	hasTool          bool
-	promptRuntime    *PromptRuntime
-	skillInvocations []commandpkg.Invocation
-	attachments      []EventAttachment
+	eventID           string
+	messageID         string
+	requestID         string
+	resolvedBy        string
+	toolName          string
+	toolKind          string
+	toolInput         json.RawMessage
+	toolErrorDetail   string
+	toolFailed        bool
+	toolPrechecked    bool
+	hasTool           bool
+	promptRuntime     *PromptRuntime
+	availableCommands *AvailableCommandSet
+	skillInvocations  []commandpkg.Invocation
+	attachments       []EventAttachment
 }
 
 // EventAttachment is durable attachment metadata carried by an agent event.
@@ -43,6 +45,9 @@ func (e AgentEvent) clonePayload() *agentEventPayload {
 	cloned := *e.payload
 	cloned.toolInput = CloneRawMessage(e.payload.toolInput)
 	cloned.promptRuntime = ClonePromptRuntime(e.payload.promptRuntime)
+	if e.payload.availableCommands != nil {
+		cloned.availableCommands = NewAvailableCommandSet(e.payload.availableCommands.Values())
+	}
 	cloned.skillInvocations = append([]commandpkg.Invocation(nil), e.payload.skillInvocations...)
 	cloned.attachments = append([]EventAttachment(nil), e.payload.attachments...)
 	return &cloned
@@ -52,10 +57,27 @@ func normalizeAgentEventPayload(payload *agentEventPayload) *agentEventPayload {
 	if payload == nil || payload.eventID == "" && payload.messageID == "" && payload.requestID == "" &&
 		payload.resolvedBy == "" &&
 		!payload.hasTool && !payload.toolPrechecked && payload.promptRuntime == nil &&
+		payload.availableCommands == nil &&
 		len(payload.skillInvocations) == 0 && len(payload.attachments) == 0 {
 		return nil
 	}
 	return payload
+}
+
+// WithAvailableCommands returns an event carrying an isolated replacement command set.
+func (e AgentEvent) WithAvailableCommands(commands []store.SessionAdvertisedCommand) AgentEvent {
+	payload := e.clonePayload()
+	payload.availableCommands = NewAvailableCommandSet(commands)
+	e.payload = normalizeAgentEventPayload(payload)
+	return e
+}
+
+// AvailableCommandSet returns the optional replacement command set.
+func (e AgentEvent) AvailableCommandSet() *AvailableCommandSet {
+	if e.payload == nil || e.payload.availableCommands == nil {
+		return nil
+	}
+	return NewAvailableCommandSet(e.payload.availableCommands.Values())
 }
 
 // WithSkillInvocations returns an event carrying isolated admitted slash metadata.

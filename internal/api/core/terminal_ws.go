@@ -225,6 +225,8 @@ type terminalSocket struct {
 }
 
 func (s *terminalSocket) run(ctx context.Context) error {
+	runCtx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
 	s.conn.SetReadLimit(terminalwire.MaxInputBytes + 1024)
 	if err := s.conn.SetReadDeadline(time.Now().Add(terminalPongTimeout)); err != nil {
 		return s.cleanup(fmt.Errorf("set terminal read deadline: %w", err))
@@ -233,7 +235,8 @@ func (s *terminalSocket) run(ctx context.Context) error {
 		return s.conn.SetReadDeadline(time.Now().Add(terminalPongTimeout))
 	})
 	readDone := make(chan error, 1)
-	go func() { readDone <- s.readPump(ctx) }()
+	operationErrors := make(chan error, 1)
+	go func() { readDone <- s.readPump(runCtx, operationErrors) }()
 	ticker := time.NewTicker(terminalPingInterval)
 	defer ticker.Stop()
 	for {
@@ -256,6 +259,10 @@ func (s *terminalSocket) run(ctx context.Context) error {
 				return s.cleanup(errors.Join(err, writeErr))
 			}
 			return s.cleanup(err)
+		case operationErr := <-operationErrors:
+			if err := s.writeProtocolError(operationErr); err != nil {
+				return s.cleanup(errors.Join(operationErr, err))
+			}
 		case <-ticker.C:
 			if err := s.writePing(); err != nil {
 				return s.cleanup(err)
@@ -268,7 +275,7 @@ func (s *terminalSocket) run(ctx context.Context) error {
 	}
 }
 
-func (s *terminalSocket) readPump(ctx context.Context) error {
+func (s *terminalSocket) readPump(ctx context.Context, operationErrors chan<- error) error {
 	for {
 		messageType, encoded, err := s.conn.ReadMessage()
 		if err != nil {
@@ -282,9 +289,26 @@ func (s *terminalSocket) readPump(ctx context.Context) error {
 			return terminalRequestError(err)
 		}
 		if err := s.applyClientFrame(ctx, frame); err != nil {
+			if terminalRecoverableClientOperationError(err) {
+				select {
+				case operationErrors <- err:
+					continue
+				case <-ctx.Done():
+					return context.Cause(ctx)
+				}
+			}
 			return err
 		}
 	}
+}
+
+func terminalRecoverableClientOperationError(err error) bool {
+	return errors.Is(err, terminalpkg.ErrWriteAttachmentRequired) ||
+		errors.Is(err, terminalpkg.ErrWriteLeaseRequired) ||
+		errors.Is(err, terminalpkg.ErrWriteOwnerHeld) ||
+		errors.Is(err, terminalpkg.ErrLeaseRevoked) ||
+		errors.Is(err, terminalpkg.ErrJournalUnavailable) ||
+		errors.Is(err, terminalpkg.ErrGenerationFenced)
 }
 
 func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwire.Frame) error {

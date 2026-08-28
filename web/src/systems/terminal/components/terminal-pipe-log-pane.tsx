@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { TerminalSelectionRange } from "@compozy/ui";
 
 import { terminalQuoteFromSelection } from "../lib/terminal-quote";
@@ -32,7 +32,19 @@ export function TerminalPipeLogPane({
   exit,
   selectionActions,
 }: TerminalPipeLogPaneProps) {
+  const logRef = useRef<HTMLDivElement>(null);
   const [selection, setSelection] = useState<TerminalSelectionRange | null>(null);
+
+  useEffect(() => {
+    const root = logRef.current;
+    if (!root) return;
+    const syncSelection = () => {
+      setSelection(pipeSelectionFromDocument(root, firstLineNumber));
+    };
+    document.addEventListener("selectionchange", syncSelection);
+    return () => document.removeEventListener("selectionchange", syncSelection);
+  }, [firstLineNumber]);
+
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col bg-terminal-bg"
@@ -41,9 +53,7 @@ export function TerminalPipeLogPane({
       <div
         aria-label={`${terminal.title} — command output, read-only`}
         className="min-h-0 flex-1 overflow-auto px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono text-terminal-ansi-7"
-        onMouseUp={event =>
-          setSelection(pipeSelectionFromEvent(event.currentTarget, firstLineNumber))
-        }
+        ref={logRef}
         role="log"
       >
         {lines.map((line, index) => (
@@ -74,12 +84,13 @@ export function TerminalPipeLogPane({
   );
 }
 
-function pipeSelectionFromEvent(
+function pipeSelectionFromDocument(
   root: HTMLElement,
   firstLineNumber: number
 ): TerminalSelectionRange | null {
   const native = window.getSelection();
-  if (!native || native.isCollapsed || !root.contains(native.anchorNode)) return null;
+  if (!native || native.isCollapsed || !native.anchorNode || !native.focusNode) return null;
+  if (!root.contains(native.anchorNode) || !root.contains(native.focusNode)) return null;
   const text = native.toString();
   if (text.trim() === "") return null;
   const start = lineNumberFromNode(native.anchorNode, firstLineNumber);
