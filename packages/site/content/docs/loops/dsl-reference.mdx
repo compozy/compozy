@@ -62,14 +62,14 @@ inputs:
   release_token: { type: ref, ref: { kind: secret } }
 ```
 
-| Type      | Accepts                                     | Notes                                                             |
-| --------- | ------------------------------------------- | ----------------------------------------------------------------- |
-| `string`  | text                                        |                                                                   |
-| `number`  | int or float                                |                                                                   |
-| `boolean` | bool                                        |                                                                   |
-| `file`    | text                                        | The value is not browsed or checked for existence.                |
-| `agent`   | an exact agent name                         | The daemon checks the workspace agent catalog.                    |
-| `ref`     | an exact resource name                      | `ref.kind` selects the catalog used for validation.               |
+| Type      | Accepts                                                   | Notes                                                                                                                                          |
+| --------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `string`  | text                                                      |                                                                                                                                                |
+| `number`  | int or float                                              |                                                                                                                                                |
+| `boolean` | bool                                                      |                                                                                                                                                |
+| `file`    | text                                                      | The value is not browsed or checked for existence.                                                                                             |
+| `agent`   | an exact agent name                                       | The daemon checks the workspace agent catalog.                                                                                                 |
+| `ref`     | an exact resource name                                    | `ref.kind` selects the catalog used for validation.                                                                                            |
 | `runtime` | `{ provider?, model?, reasoning?, speed?, acp_options? }` | A partial object that can be bound directly to an action runtime. Each ACP option requires `id` and exactly one of `value_id` or `bool_value`. |
 
 Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
