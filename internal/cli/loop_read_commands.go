@@ -319,9 +319,7 @@ func followLoopEvents(
 	lastSequence := after
 	for {
 		streamErr := streamLoopEventsOnce(cmd, client, workspaceID, runID, view, &lastSequence)
-		if errors.Is(streamErr, errStopSSE) {
-			return nil
-		}
+		terminalObserved := errors.Is(streamErr, errStopSSE)
 		if payloadErr, ok := errors.AsType[*loopFollowPayloadError](streamErr); ok {
 			return payloadErr
 		}
@@ -340,6 +338,9 @@ func followLoopEvents(
 				return err
 			}
 			lastSequence = entry.Seq
+		}
+		if terminalObserved {
+			return nil
 		}
 		briefing, err := client.GetLoopRunBriefing(cmd.Context(), workspaceID, runID)
 		if err != nil {

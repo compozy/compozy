@@ -36,3 +36,12 @@ ended with 11 terminal Tasks, reported no false stall, and matched an independen
 Combined with the already passing CLI/HTTP/UDS briefing, roster, timeline, resume, and corrected
 unblocker walks, this row now passes. Evidence:
 `/Users/pedronauck/dev/qa-labs/compozy-loop-legibility-observer-closure-20260821-130214-633585-lab/qa-artifacts/qa/observer-catalog-comparison.json`.
+
+QA impact 2026-08-28: reset to `untested` after exact-head CI showed `loop events --follow`
+could stop on the terminal SSE frame before emitting a later event already committed in the same
+durable transaction. The canonical disconnect/resume E2E owns the re-walk.
+
+QA result 2026-08-28: passed after the CLI reconciled the durable timeline before returning from a
+terminal SSE frame. The race-enabled E2E disconnected mid-run, resumed after the last observed
+sequence, reached terminal state, and matched the complete sequence set with no gaps or duplicates.
+Command: `go test -race -tags=integration -run '^TestDaemonE2ELoopRunReadCLIJourneys/Should_disconnect_resume_and_wait_for_the_first_event_E2E-003$' -count=1 ./internal/daemon`.
