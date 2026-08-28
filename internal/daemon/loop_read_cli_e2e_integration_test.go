@@ -646,6 +646,9 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 		if err := json.Unmarshal([]byte(body), &conflict); err != nil {
 			t.Fatalf("decode stale requeue conflict body error = %v; body=%s", err, body)
 		}
+		if conflict.Code != string(looppkg.ReasonCodeAlreadyDecided) {
+			logLoopRunTimeoutDebug(t, harness, quarantinedRun.ID, compozycontract.LoopRunPayload{})
+		}
 		assertStaleRequeueConflict(t, status, body, conflict, "primary", request.Reason)
 	})
 	t.Run("Should preserve ordered run summaries across HTTP UDS and CLI pages IT-032", func(t *testing.T) {
@@ -822,7 +825,7 @@ func assertStaleRequeueConflict(
 	details := conflict.Details
 	winnerAt := details[looppkg.ReasonMetaWinnerRequestedAt]
 	if _, err := time.Parse(time.RFC3339Nano, winnerAt); err != nil {
-		t.Fatalf("winner_requested_at = %q, want RFC3339Nano: %v", winnerAt, err)
+		t.Fatalf("winner_requested_at = %q, want RFC3339Nano: %v; body=%s", winnerAt, err, body)
 	}
 	wantError := fmt.Sprintf(
 		"already_decided: loop: transition conflict: node %q was already requeued "+

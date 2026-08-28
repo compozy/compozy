@@ -45,3 +45,14 @@ QA result 2026-08-28: passed after the CLI reconciled the durable timeline befor
 terminal SSE frame. The race-enabled E2E disconnected mid-run, resumed after the last observed
 sequence, reached terminal state, and matched the complete sequence set with no gaps or duplicates.
 Command: `go test -race -tags=integration -run '^TestDaemonE2ELoopRunReadCLIJourneys/Should_disconnect_resume_and_wait_for_the_first_event_E2E-003$' -count=1 ./internal/daemon`.
+
+QA impact 2026-08-28: reset to `untested` after coordinator completion and requeue scheduling
+changed. The owning journey must prove that an older fenced coordinator plan yields to durable
+state, immediately schedules reconciliation, and cannot starve later Loop Runs.
+
+QA result 2026-08-28: passed. The race-enabled reduced reproduction completed ten times (40 tests),
+then the complete HTTP/UDS/CLI Loop read journey completed five times (45 tests). Requeue replay
+kept its durable winner metadata, superseded coordinator snapshots did not fail the Loop, and later
+Runs reached their expected states. Commands:
+`go test -race -tags=integration ./internal/daemon -run '^TestDaemonE2ELoopRunReadCLIJourneys$/.*(IT-022|IT-027|IT-032)$' -count=10 -failfast` and
+`go test -race -tags=integration ./internal/daemon -run '^TestDaemonE2ELoopRunReadCLIJourneys$' -count=5 -failfast`.

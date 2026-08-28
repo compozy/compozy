@@ -1445,6 +1445,18 @@ func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
 		}); err != nil {
 			t.Fatalf("DispatchTaskRunCompleted(coordinator) error = %v", err)
 		}
+		if got, want := len(backstop.calls), 1; got != want {
+			t.Fatalf("coordinator terminal backstop calls = %d, want %d", got, want)
+		}
+		if got := len(nodePayloads); got != 0 {
+			t.Fatalf("coordinator node terminal payloads = %d, want 0", got)
+		}
+		if got := len(loopStore.progress); got != 0 {
+			t.Fatalf("coordinator progress calls = %d, want 0", got)
+		}
+		if got := len(loopStore.wakes); got != 0 {
+			t.Fatalf("coordinator node wake calls = %d, want 0", got)
+		}
 		workerKind := taskpkg.RunKindWorker.String()
 		if _, err := notifier.DispatchTaskRunFailed(t.Context(), hookspkg.TaskRunFailedPayload{
 			PayloadBase: hookspkg.PayloadBase{Event: hookspkg.HookTaskRunFailed, Timestamp: fixedNow},
@@ -1484,7 +1496,7 @@ func TestHooksNotifierLoopNodeTerminalObserverFiltersAndWakes(t *testing.T) {
 		if got, want := wake.idempotencyKey, "loop.coordinator.node_terminal.loop-run-1.run-node"; got != want {
 			t.Fatalf("IdempotencyKey = %q, want %q", got, want)
 		}
-		if got, want := len(backstop.calls), 1; got != want {
+		if got, want := len(backstop.calls), 2; got != want {
 			t.Fatalf("backstop calls = %d, want %d", got, want)
 		}
 	})

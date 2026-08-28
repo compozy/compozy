@@ -225,6 +225,7 @@ exit 0
 			{path: "main.go", want: "go scopes: ./..."},
 			{path: "vitest.config.ts", want: "js lane: all workspaces"},
 			{path: ".vscode/tasks.json", want: "no-lane"},
+			{path: ".repoclone.rc", want: "no-lane"},
 		}
 		for _, tc := range cases {
 			t.Run(tc.path, func(t *testing.T) {
@@ -270,7 +271,11 @@ exit 0
 		if err := os.Mkdir(heldSlot, 0o755); err != nil {
 			t.Fatalf("hold capacity slot: %v", err)
 		}
-		if err := os.WriteFile(filepath.Join(heldSlot, "pid"), []byte(strconv.Itoa(os.Getpid())+"\n"), 0o644); err != nil {
+		if err := os.WriteFile(
+			filepath.Join(heldSlot, "pid"),
+			[]byte(strconv.Itoa(os.Getpid())+"\n"),
+			0o644,
+		); err != nil {
 			t.Fatalf("write slot owner: %v", err)
 		}
 		released := make(chan error, 1)

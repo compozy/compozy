@@ -53,6 +53,8 @@ type inMemoryManagerStore struct {
 	nextEventSequence         int64
 	idempotencyByKey          map[string]RunIdempotency
 	coordinatorCompletionErr  error
+	coordinatorPreCommitErrs  []error
+	coordinatorCompletions    []CoordinatorCompletion
 	coordinatorPublicationErr error
 	coordinatorCompleted      bool
 	coordinatorPlanSuperseded bool
@@ -2554,6 +2556,14 @@ func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
 	completion CoordinatorCompletion,
 	_ GenerationStateFinalizer,
 ) (CoordinatorCompletionResult, error) {
+	s.coordinatorCompletions = append(s.coordinatorCompletions, completion)
+	if len(s.coordinatorPreCommitErrs) > 0 {
+		err := s.coordinatorPreCommitErrs[0]
+		s.coordinatorPreCommitErrs = s.coordinatorPreCommitErrs[1:]
+		if err != nil {
+			return CoordinatorCompletionResult{}, err
+		}
+	}
 	normalized, err := completion.Normalize(time.Now().UTC())
 	if err != nil {
 		return CoordinatorCompletionResult{}, err
@@ -10354,6 +10364,85 @@ func TestManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t *testin
 		testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(t, nil, nil, true)
 	})
 
+	t.Run("Should settle the running lease when the coordinator plan is invalid", func(t *testing.T) {
+		t.Parallel()
+
+		testManagerStartCoordinatorFailureSettlesLease(
+			t,
+			&recordingCoordinatorRunner{},
+			nil,
+			ErrValidation,
+		)
+	})
+
+	t.Run("Should settle the running lease when coordinator completion fails before commit", func(t *testing.T) {
+		t.Parallel()
+
+		completionErr := errors.New("forced coordinator completion failure")
+		testManagerStartCoordinatorFailureSettlesLease(
+			t,
+			&recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{Yield: true}},
+			[]error{completionErr},
+			completionErr,
+		)
+	})
+
+	t.Run("Should settle the running lease when superseded reconciliation fails", func(t *testing.T) {
+		t.Parallel()
+
+		reconciliationErr := errors.New("forced superseded reconciliation failure")
+		testManagerStartCoordinatorFailureSettlesLease(
+			t,
+			&recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
+				Snapshot: GenerationSnapshot{LoopRunID: "loop-run-failure", Generation: 3},
+				Yield:    true,
+			}},
+			[]error{staleCoordinatorPlanTestError{}, reconciliationErr},
+			reconciliationErr,
+		)
+	})
+
+	t.Run("Should reconcile a superseded coordinator plan without failing the Loop", func(t *testing.T) {
+		t.Parallel()
+
+		store := newInMemoryManagerStore()
+		store.coordinatorPreCommitErrs = []error{staleCoordinatorPlanTestError{}}
+		completed, err := testManagerStartCoordinatorWithStore(
+			t,
+			store,
+			&recordingCoordinatorRunner{plan: CoordinatorCompletionPlan{
+				Snapshot: GenerationSnapshot{LoopRunID: "loop-run-superseded", Generation: 3},
+				Yield:    true,
+			}},
+			"superseded",
+		)
+		if err != nil {
+			t.Fatalf("StartRun(superseded coordinator) error = %v", err)
+		}
+		if got, want := completed.Status.Normalize(), TaskRunStatusCompleted; got != want {
+			t.Fatalf("StartRun(superseded coordinator).Status = %q, want %q", got, want)
+		}
+		if got, want := len(store.coordinatorCompletions), 2; got != want {
+			t.Fatalf("coordinator completion attempts = %d, want %d", got, want)
+		}
+		reconciliation := store.coordinatorCompletions[1].Plan
+		if !reconciliation.Yield || !reconciliation.GenerationInFlight ||
+			len(reconciliation.PostCommitWakes) != 1 ||
+			reconciliation.Snapshot.Generation != 3 {
+			t.Fatalf("superseded coordinator reconciliation = %#v", reconciliation)
+		}
+		events, err := store.ListTaskEvents(t.Context(), EventQuery{
+			RunID:     completed.ID,
+			EventType: taskWatchEventRunFailed,
+		})
+		if err != nil {
+			t.Fatalf("ListTaskEvents(run failed) error = %v", err)
+		}
+		if len(events) != 0 {
+			t.Fatalf("superseded coordinator failed events = %d, want 0", len(events))
+		}
+	})
+
 	t.Run("Should reserve every publication event ID before coordinator completion", func(t *testing.T) {
 		t.Parallel()
 
@@ -10726,6 +10815,126 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	if terminalHookCalls != 1 {
 		t.Fatalf("loop.terminal hooks = %d, want 1", terminalHookCalls)
 	}
+}
+
+func testManagerStartCoordinatorFailureSettlesLease(
+	t *testing.T,
+	runner *recordingCoordinatorRunner,
+	completionErrs []error,
+	wantErr error,
+) {
+	t.Helper()
+
+	store := newInMemoryManagerStore()
+	store.coordinatorPreCommitErrs = completionErrs
+	failed, err := testManagerStartCoordinatorWithStore(t, store, runner, "failure")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("StartRun(coordinator failure) error = %v, want errors.Is(%v)", err, wantErr)
+	}
+	if got, want := failed.Status.Normalize(), TaskRunStatusFailed; got != want {
+		t.Fatalf("StartRun(coordinator failure).Status = %q, want %q", got, want)
+	}
+	stored := store.runs[failed.ID]
+	if got, want := stored.Status.Normalize(), TaskRunStatusFailed; got != want {
+		t.Fatalf("stored coordinator status = %q, want %q", got, want)
+	}
+	if !stored.LeaseUntil.IsZero() {
+		t.Fatalf("stored coordinator lease_until = %s, want zero", stored.LeaseUntil)
+	}
+	if _, active := store.claimTokens[failed.ID]; active {
+		t.Fatal("stored coordinator claim token remains active after failure")
+	}
+	events, eventErr := store.ListTaskEvents(t.Context(), EventQuery{
+		RunID:     failed.ID,
+		EventType: taskWatchEventRunFailed,
+	})
+	if eventErr != nil {
+		t.Fatalf("ListTaskEvents(run failed) error = %v", eventErr)
+	}
+	if got, want := len(events), 1; got != want {
+		t.Fatalf("run failed event count = %d, want %d", got, want)
+	}
+}
+
+type staleCoordinatorPlanTestError struct{}
+
+func (staleCoordinatorPlanTestError) Error() string {
+	return "forced superseded coordinator plan"
+}
+
+func (staleCoordinatorPlanTestError) CoordinatorPlanSuperseded() {}
+
+func testManagerStartCoordinatorWithStore(
+	t *testing.T,
+	store *inMemoryManagerStore,
+	runner *recordingCoordinatorRunner,
+	suffix string,
+) (*Run, error) {
+	t.Helper()
+
+	ctx := t.Context()
+	now := time.Date(2026, 7, 4, 12, 30, 0, 0, time.UTC)
+	taskRecord := Task{
+		ID:             "task-loop-coordinator-" + suffix,
+		Scope:          ScopeGlobal,
+		Title:          "Loop coordinator failure",
+		Priority:       PriorityMedium,
+		MaxAttempts:    DefaultTaskMaxAttempts,
+		Status:         TaskStatusReady,
+		ApprovalPolicy: ApprovalPolicyNone,
+		ApprovalState:  ApprovalStateNotRequired,
+		CreatedBy:      ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+		Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := store.CreateTask(ctx, taskRecord); err != nil {
+		t.Fatalf("CreateTask() error = %v", err)
+	}
+	run := Run{
+		ID:             "run-loop-coordinator-" + suffix,
+		TaskID:         taskRecord.ID,
+		RunKind:        RunKindCoordinator,
+		LoopRunID:      "loop-run-" + suffix,
+		Status:         TaskRunStatusQueued,
+		Attempt:        1,
+		IdempotencyKey: "coordinator:" + suffix,
+		Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
+		QueuedAt:       now,
+	}
+	if err := store.CreateTaskRun(ctx, run); err != nil {
+		t.Fatalf("CreateTaskRun() error = %v", err)
+	}
+	manager := newTaskManagerForTestWithOptions(
+		t,
+		store,
+		WithCoordinatorRunner(runner),
+		WithGenerationStateFinalizer(noopLoopFinalizer{}),
+		WithManagerNow(func() time.Time { return now }),
+	)
+	actor, err := DeriveDaemonActorContext("loop", "daemon.loop")
+	if err != nil {
+		t.Fatalf("DeriveDaemonActorContext() error = %v", err)
+	}
+	claim, err := manager.ClaimNextRun(ctx, ClaimCriteria{
+		Scope:            ScopeGlobal,
+		ClaimerSessionID: "daemon-loop",
+		ClaimedBy:        &ActorIdentity{Kind: ActorKindDaemon, Ref: "loop"},
+		LeaseDuration:    time.Minute,
+		Now:              now,
+	}, actor)
+	if err != nil {
+		t.Fatalf("ClaimNextRun() error = %v", err)
+	}
+
+	result, err := manager.StartRun(ctx, claim.Run.ID, StartRun{
+		ClaimToken:     claim.ClaimToken,
+		IdempotencyKey: claim.Run.IdempotencyKey,
+	}, actor)
+	if result == nil {
+		t.Fatalf("StartRun(coordinator %s) run = nil", suffix)
+	}
+	return result, err
 }
 
 func TestManagerStartRunShouldRejectCoordinatorClaimTokenMismatch(t *testing.T) {

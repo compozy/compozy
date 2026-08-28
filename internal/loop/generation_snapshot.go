@@ -323,16 +323,36 @@ func writeGenerationOutput(
 		return fmt.Errorf("loop: inspect generation output %s/%d write: %w", output.NodeID, output.ItemIndex, err)
 	}
 	if affected == 0 {
-		return fmt.Errorf(
-			"%w: output %s/%d expected epoch %d",
-			ErrStaleGenerationOutput,
-			output.NodeID,
-			output.ItemIndex,
-			expectedEpoch,
-		)
+		return staleGenerationOutputError{
+			nodeID:        output.NodeID,
+			itemIndex:     output.ItemIndex,
+			expectedEpoch: expectedEpoch,
+		}
 	}
 	return nil
 }
+
+type staleGenerationOutputError struct {
+	nodeID        string
+	itemIndex     int
+	expectedEpoch int64
+}
+
+func (e staleGenerationOutputError) Error() string {
+	return fmt.Sprintf(
+		"%s: output %s/%d expected epoch %d",
+		ErrStaleGenerationOutput,
+		e.nodeID,
+		e.itemIndex,
+		e.expectedEpoch,
+	)
+}
+
+func (staleGenerationOutputError) Unwrap() error {
+	return ErrStaleGenerationOutput
+}
+
+func (staleGenerationOutputError) CoordinatorPlanSuperseded() {}
 
 func (b GenerationOutputBlob) normalized() GenerationOutputBlob {
 	b.OutputRef = strings.TrimSpace(b.OutputRef)

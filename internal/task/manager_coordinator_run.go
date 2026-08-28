@@ -69,22 +69,37 @@ func (m *Service) startCoordinatorRun(
 
 	plan, err := m.coordinatorRunner.Run(lifecycleCtx, RunID(run.ID))
 	if err != nil {
-		failedRun, failErr := m.FailRunLease(lifecycleCtx, LeaseFailure{
-			RunID:      run.ID,
-			ClaimToken: req.ClaimToken,
-			Failure:    coordinatorRunFailure(err),
-			Now:        m.now().UTC(),
-		}, actor)
-		if failErr != nil {
-			return nil, errorsJoin(err, failErr)
-		}
-		return failedRun, fmt.Errorf("task: coordinator run %q failed: %w", run.ID, err)
+		return m.failStartedCoordinatorRun(lifecycleCtx, run, req.ClaimToken, actor, err)
 	}
 	plan = plan.Normalize()
 	if err := m.validateCoordinatorPlan(plan, "coordinator_completion.plan"); err != nil {
-		return nil, err
+		return m.failStartedCoordinatorRun(lifecycleCtx, run, req.ClaimToken, actor, err)
 	}
-	return m.completeCoordinatorRun(lifecycleCtx, run, req.ClaimToken, plan, actor)
+	return m.completeStartedCoordinatorRun(lifecycleCtx, run, req.ClaimToken, plan, actor)
+}
+
+func (m *Service) failStartedCoordinatorRun(
+	ctx context.Context,
+	run Run,
+	claimToken string,
+	actor ActorContext,
+	cause error,
+) (*Run, error) {
+	failedRun, failErr := m.FailRunLease(ctx, LeaseFailure{
+		RunID:      run.ID,
+		ClaimToken: claimToken,
+		Failure:    coordinatorRunFailure(cause),
+		Now:        m.now().UTC(),
+	}, actor)
+	wrappedCause := fmt.Errorf("task: coordinator run %q failed: %w", run.ID, cause)
+	if failErr != nil {
+		return nil, errorsJoin(wrappedCause, fmt.Errorf(
+			"task: settle coordinator run %q failure: %w",
+			run.ID,
+			failErr,
+		))
+	}
+	return failedRun, wrappedCause
 }
 
 func (m *Service) applyCoordinatorPostCommit(
