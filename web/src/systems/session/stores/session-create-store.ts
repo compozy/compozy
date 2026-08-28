@@ -35,7 +35,7 @@ type SessionCreateOperation =
 interface SessionCreatePendingSubmit {
   agentName: string;
   workspaceId: string;
-  firstMessage: string;
+  pendingPrompt: string | null;
   previousEnvironment: SessionEnvironmentTarget;
   request: CreateSessionParams;
 }
@@ -50,6 +50,8 @@ interface SessionCreateStoreContext {
   operation: SessionCreateOperation;
   /** Non-null while a worktree is materializing for a submit the operator already asked for. */
   pendingSubmit: SessionCreatePendingSubmit | null;
+  /** Prompt already sent from the composer while the fallback waits for agent selection. */
+  pendingPrompt: string | null;
 }
 
 type SessionCreateStoreEvents = {
@@ -58,7 +60,7 @@ type SessionCreateStoreEvents = {
   environmentAwaited: SessionCreatePendingSubmit;
   /** The environment stopped being pending — ready, failed, or canceled. */
   environmentSettled: {};
-  firstMessageChanged: { firstMessage: string };
+  fallbackPromptStaged: { prompt: string };
   dialogOpened: {
     agentName: string;
     workspaceId: string;
@@ -81,6 +83,7 @@ type SessionCreateStoreEvents = {
   submissionRequested: {
     agentName: string;
     execute: () => Promise<SessionPayload>;
+    navigate: (session: SessionPayload) => Promise<void>;
     workspaceId: string;
   };
   sessionCreated: { attempt: number; session: SessionPayload };
@@ -106,6 +109,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
     attempt: 0,
     operation: { status: "idle" },
     pendingSubmit: null,
+    pendingPrompt: null,
   },
   on: {
     dialogOpened: (context, event) => {
@@ -116,6 +120,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         open: true,
         restoreFocusOnClose: true,
         pendingSubmit: null,
+        pendingPrompt: null,
         // A preselected environment lives in Advanced, so opening there is the
         // only way the operator can see what was chosen for them.
         mode: event.environment ? "advanced" : "simple",
@@ -135,6 +140,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
         restoreFocusOnClose: true,
         operation: event.open ? { status: "idle" } : context.operation,
         pendingSubmit: null,
+        pendingPrompt: event.open ? context.pendingPrompt : null,
         submitError: event.open ? context.submitError : null,
       };
     },
@@ -152,9 +158,6 @@ export const sessionCreateStoreLogic = createStoreLogic<
           event.agentName.trim() || DEFAULT_SESSION_AGENT_NAME,
           event.workspaceId
         ),
-        // Both are the operator's own words; swapping agents is not a reason to
-        // throw them away.
-        firstMessage: context.draft.firstMessage,
         sessionName: context.draft.sessionName,
       },
       submitError: null,
@@ -163,9 +166,9 @@ export const sessionCreateStoreLogic = createStoreLogic<
       ...context,
       draft: { ...context.draft, sessionName: event.sessionName },
     }),
-    firstMessageChanged: (context, event) => ({
+    fallbackPromptStaged: (context, event) => ({
       ...context,
-      draft: { ...context.draft, firstMessage: event.firstMessage },
+      pendingPrompt: event.prompt,
     }),
     environmentSelected: (context, event) => ({
       ...context,
@@ -201,7 +204,9 @@ export const sessionCreateStoreLogic = createStoreLogic<
       const attempt = context.attempt + 1;
       enqueue.effect(async ({ trigger }) => {
         try {
-          trigger.sessionCreated({ attempt, session: await event.execute() });
+          const session = await event.execute();
+          trigger.sessionCreated({ attempt, session });
+          trigger.navigationRequested({ attempt, execute: () => event.navigate(session) });
         } catch (cause) {
           trigger.submissionFailed({
             attempt,
@@ -255,6 +260,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
           target: { attempt: event.attempt, session: event.session },
         },
         pendingSubmit: null,
+        pendingPrompt: null,
       };
     },
     fallbackRequested: (context, event) => {
@@ -280,7 +286,7 @@ export const sessionCreateStoreLogic = createStoreLogic<
       ) {
         return;
       }
-      return { ...context, operation: { status: "idle" } };
+      return { ...context, operation: { status: "idle" }, pendingPrompt: null };
     },
     navigationRequested: (context, event, enqueue) => {
       if (

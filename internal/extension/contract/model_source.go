@@ -20,30 +20,32 @@ type ModelSourceListResponse struct {
 
 // ModelSourceRow is one extension-provided model catalog source row.
 type ModelSourceRow struct {
-	SourceID               string                               `json:"source_id"`
-	ProviderID             string                               `json:"provider_id"`
-	ModelID                string                               `json:"model_id"`
-	DisplayName            string                               `json:"display_name,omitempty"`
-	Priority               int                                  `json:"priority,omitempty"`
-	Available              *bool                                `json:"available,omitempty"`
-	Stale                  bool                                 `json:"stale,omitempty"`
-	RefreshedAt            time.Time                            `json:"refreshed_at"`
-	ExpiresAt              time.Time                            `json:"expires_at"`
-	ContextWindow          *int64                               `json:"context_window,omitempty"`
-	MaxInputTokens         *int64                               `json:"max_input_tokens,omitempty"`
-	MaxOutputTokens        *int64                               `json:"max_output_tokens,omitempty"`
-	SupportsTools          *bool                                `json:"supports_tools,omitempty"`
-	SupportsReasoning      *bool                                `json:"supports_reasoning,omitempty"`
-	ReasoningEfforts       []apicontract.ReasoningEffort        `json:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort *apicontract.ReasoningEffort         `json:"default_reasoning_effort,omitempty"`
-	ConfigOptions          []ModelSourceOptionDescriptor        `json:"config_options,omitempty"`
-	TransportBindings      []ModelSourceTransportBinding        `json:"transport_bindings,omitempty"`
-	Cost                   *apicontract.ModelCatalogCostPayload `json:"cost,omitempty"`
-	Deprecated             *bool                                `json:"deprecated,omitempty"`
-	Hidden                 *bool                                `json:"hidden,omitempty"`
-	Featured               *bool                                `json:"featured,omitempty"`
-	ReleaseDate            *string                              `json:"release_date,omitempty"`
-	LastError              string                               `json:"last_error,omitempty"`
+	SourceID               string                        `json:"source_id"`
+	ProviderID             string                        `json:"provider_id"`
+	ModelID                string                        `json:"model_id"`
+	DisplayName            string                        `json:"display_name,omitempty"`
+	Priority               int                           `json:"priority,omitempty"`
+	Available              *bool                         `json:"available,omitempty"`
+	Stale                  bool                          `json:"stale,omitempty"`
+	RefreshedAt            time.Time                     `json:"refreshed_at"`
+	ExpiresAt              time.Time                     `json:"expires_at"`
+	ContextWindow          *int64                        `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                        `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                        `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                         `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                         `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []apicontract.ReasoningEffort `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *apicontract.ReasoningEffort  `json:"default_reasoning_effort,omitempty"`
+	// ConfigOptions declares provider-visible select and boolean controls for this logical model.
+	ConfigOptions []ModelSourceOptionDescriptor `json:"config_options,omitempty"`
+	// TransportBindings maps supported option combinations to private provider transport IDs.
+	TransportBindings []ModelSourceTransportBinding        `json:"transport_bindings,omitempty"`
+	Cost              *apicontract.ModelCatalogCostPayload `json:"cost,omitempty"`
+	Deprecated        *bool                                `json:"deprecated,omitempty"`
+	Hidden            *bool                                `json:"hidden,omitempty"`
+	Featured          *bool                                `json:"featured,omitempty"`
+	ReleaseDate       *string                              `json:"release_date,omitempty"`
+	LastError         string                               `json:"last_error,omitempty"`
 }
 
 // ModelSourceOptionKind identifies the value shape of an extension-provided model option.
@@ -53,6 +55,11 @@ const (
 	ModelSourceOptionKindSelect  ModelSourceOptionKind = "select"
 	ModelSourceOptionKindBoolean ModelSourceOptionKind = "boolean"
 )
+
+// ModelSourceOptionKindValues returns the closed extension option-kind vocabulary.
+func ModelSourceOptionKindValues() []string {
+	return []string{string(ModelSourceOptionKindSelect), string(ModelSourceOptionKindBoolean)}
+}
 
 // ModelSourceOptionDescriptor describes one option supported by a logical model.
 type ModelSourceOptionDescriptor struct {

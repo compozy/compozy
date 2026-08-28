@@ -39,7 +39,7 @@ func BuildCreationProfile(input CreationProfileInput) store.SessionCreationProfi
 		Model:           input.Model,
 		ReasoningEffort: input.ReasoningEffort,
 		Speed:           input.Speed,
-		ACPOptions:      storeSessionACPOptionSelections(input.ACPOptions),
+		ACPOptions:      storeOptionSelectionsFromACP(input.ACPOptions),
 		ProfileID:       input.ProfileID,
 		WorkspaceID:     input.WorkspaceID,
 		CWD:             input.CWD,

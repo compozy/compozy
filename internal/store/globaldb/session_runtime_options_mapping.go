@@ -41,13 +41,23 @@ func decodeSessionACPOptions(raw string, label string) ([]store.SessionACPOption
 	return normalized, nil
 }
 
-func encodeSelectedRuntimeACPOptions(
+func encodeCanonicalSelectedRuntimeACPOptions(
 	selection *store.SessionRuntimeSelection,
 ) (string, error) {
 	if selection == nil {
 		return "[]", nil
 	}
-	return encodeSessionACPOptions(selection.ACPOptions, "selected runtime ACP options")
+	if err := store.ValidateSessionACPOptionSelections(selection.ACPOptions); err != nil {
+		return "", fmt.Errorf("store: validate selected runtime ACP options: %w", err)
+	}
+	if len(selection.ACPOptions) == 0 {
+		return "[]", nil
+	}
+	encoded, err := json.Marshal(selection.ACPOptions)
+	if err != nil {
+		return "", fmt.Errorf("store: encode selected runtime ACP options: %w", err)
+	}
+	return string(encoded), nil
 }
 
 func applySessionACPOptionsScan(
@@ -65,7 +75,7 @@ func applySessionACPOptionsScan(
 	if err != nil {
 		return err
 	}
-	session.ACPOptions = acpOptions
+	session.SetACPOptions(acpOptions)
 	session.SelectedRuntime = decodeSelectedRuntime(
 		row.selectedProvider,
 		row.selectedModel,

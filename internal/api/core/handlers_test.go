@@ -2507,11 +2507,12 @@ func TestBaseHandlersCreateAgentEndpoint(t *testing.T) {
 		if err != nil {
 			t.Fatalf("LoadAgentDefFile(created AGENT.md) error = %v", err)
 		}
+		loadedOptions := loaded.ACPOptionsValue()
 		if loaded.Permissions != string(contract.SettingsPermissionModeApproveReads) ||
-			loaded.ReasoningEffort != "max" || loaded.Speed != contract.SpeedFast || len(loaded.ACPOptions) != 2 ||
-			loaded.ACPOptions[0].ID != "context" || loaded.ACPOptions[0].ValueID != "1m" ||
-			loaded.ACPOptions[1].ID != "thinking" || loaded.ACPOptions[1].BoolValue == nil ||
-			!*loaded.ACPOptions[1].BoolValue ||
+			loaded.ReasoningEffort != "max" || loaded.SpeedValue() != contract.SpeedFast || len(loadedOptions) != 2 ||
+			loadedOptions[0].ID != "context" || loadedOptions[0].ValueID != "1m" ||
+			loadedOptions[1].ID != "thinking" || loadedOptions[1].BoolValue == nil ||
+			!*loadedOptions[1].BoolValue ||
 			len(loaded.Skills.Disabled) != 1 || loaded.Skills.Disabled[0] != "legacy-skill" {
 			t.Fatalf("loaded agent = %#v, want permissions and disabled skill", loaded)
 		}

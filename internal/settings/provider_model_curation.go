@@ -163,11 +163,23 @@ func providerModelCurationConfig(
 	}
 	effort := strings.TrimSpace(string(*req.DefaultReasoningEffort))
 	canonical := modelcatalog.ReasoningEffort(effort)
-	if !modelcatalog.IsValidEffort(effort) || !slices.Contains(model.ReasoningEfforts, canonical) {
+	if !modelcatalog.IsValidEffort(effort) ||
+		!slices.Contains(providerModelReasoningEfforts(model), canonical) {
 		return compozyconfig.ProviderModelConfig{}, providerModelEffortUnsupportedError(model, effort)
 	}
 	curated.DefaultReasoningEffort = effort
 	return curated, nil
+}
+
+func providerModelReasoningEfforts(model modelcatalog.Model) []modelcatalog.ReasoningEffort {
+	efforts := append([]modelcatalog.ReasoningEffort(nil), model.ReasoningEfforts...)
+	for _, binding := range model.TransportBindings {
+		if binding.ReasoningEffort == nil || slices.Contains(efforts, *binding.ReasoningEffort) {
+			continue
+		}
+		efforts = append(efforts, *binding.ReasoningEffort)
+	}
+	return efforts
 }
 
 func configuredProviderModelCurationBase(
@@ -216,8 +228,9 @@ func providerModelNotFoundError(providerID string, modelID string) error {
 }
 
 func providerModelEffortUnsupportedError(model modelcatalog.Model, effort string) error {
-	choices := make([]string, 0, len(model.ReasoningEfforts))
-	for _, choice := range model.ReasoningEfforts {
+	efforts := providerModelReasoningEfforts(model)
+	choices := make([]string, 0, len(efforts))
+	for _, choice := range efforts {
 		choices = append(choices, string(choice))
 	}
 	slices.Sort(choices)

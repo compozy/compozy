@@ -87,20 +87,6 @@ func ValidateModelOptionSelection(selection ModelOptionSelection) error {
 	return nil
 }
 
-func normalizeModelOptionSelection(selection ModelOptionSelection) (ModelOptionSelection, error) {
-	normalized := ModelOptionSelection{
-		ID:      strings.TrimSpace(selection.ID),
-		ValueID: strings.TrimSpace(selection.ValueID),
-	}
-	if selection.BoolValue != nil {
-		normalized.BoolValue = new(*selection.BoolValue)
-	}
-	if err := ValidateModelOptionSelection(normalized); err != nil {
-		return ModelOptionSelection{}, err
-	}
-	return normalized, nil
-}
-
 func sortModelOptionValues(values []ModelOptionValue) {
 	slices.SortFunc(values, func(left ModelOptionValue, right ModelOptionValue) int {
 		if order := cmp.Compare(left.Order, right.Order); order != 0 {

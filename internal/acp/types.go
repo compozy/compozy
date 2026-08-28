@@ -70,30 +70,30 @@ const (
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {
-	AgentName              string
-	Command                string
-	Cwd                    string
-	AdditionalDirs         []string
-	Env                    []string
-	MCPServers             []compozyconfig.MCPServer
-	Permissions            compozyconfig.PermissionMode
-	SystemPrompt           string
-	SystemPromptDelivery   SystemPromptDeliveryMode
-	PreferredModel         string
-	ReasoningEffort        string
-	Speed                  speedpkg.Speed
-	ACPOptions             []SessionConfigOptionSelection
-	RuntimeStrategy        RuntimeApplicationStrategy
-	ExpectedTransportModel string
-	ResumeSessionID        string
-	Launcher               sandbox.Launcher
-	ToolHost               sandbox.ToolHost
-	ToolGateway            ToolExecutionGateway
-	ProviderName           string
-	ProviderConfig         *compozyconfig.ProviderConfig
-	ProviderAuthEnv        *authproviders.ProbeEnv
-	ActivateMCPServers     func(context.Context) error
-	Inspection             bool
+	AgentName            string
+	Command              string
+	Cwd                  string
+	AdditionalDirs       []string
+	Env                  []string
+	MCPServers           []compozyconfig.MCPServer
+	Permissions          compozyconfig.PermissionMode
+	SystemPrompt         string
+	SystemPromptDelivery SystemPromptDeliveryMode
+	PreferredModel       string
+	ReasoningEffort      string
+	Speed                speedpkg.Speed
+	ACPOptions           []SessionConfigOptionSelection
+	RuntimeStrategy      RuntimeApplicationStrategy
+	LaunchModelID        string
+	ResumeSessionID      string
+	Launcher             sandbox.Launcher
+	ToolHost             sandbox.ToolHost
+	ToolGateway          ToolExecutionGateway
+	ProviderName         string
+	ProviderConfig       *compozyconfig.ProviderConfig
+	ProviderAuthEnv      *authproviders.ProbeEnv
+	ActivateMCPServers   func(context.Context) error
+	Inspection           bool
 
 	launchIdentity *preparedLaunchIdentity
 }
@@ -113,6 +113,16 @@ const (
 
 // Validate ensures the start options are minimally usable.
 func (o StartOpts) Validate() error {
+	if err := o.validateBase(); err != nil {
+		return err
+	}
+	if err := validateSessionConfigOptionSelections(o.ACPOptions); err != nil {
+		return fmt.Errorf("acp: validate start ACP options: %w", err)
+	}
+	return nil
+}
+
+func (o StartOpts) validateBase() error {
 	switch {
 	case strings.TrimSpace(o.AgentName) == "":
 		return errors.New("acp: agent name is required")
@@ -148,9 +158,6 @@ func (o StartOpts) Validate() error {
 	case "", RuntimeApplicationSessionConfig, RuntimeApplicationLaunchArg, RuntimeApplicationProviderManaged:
 	default:
 		return fmt.Errorf("acp: invalid runtime application strategy %q", o.RuntimeStrategy)
-	}
-	if _, err := normalizeSessionConfigOptionSelections(o.ACPOptions); err != nil {
-		return fmt.Errorf("acp: validate start ACP options: %w", err)
 	}
 	switch o.SystemPromptDelivery {
 	case "", SystemPromptDeliveryFirstTurnPrefix, SystemPromptDeliveryNative:

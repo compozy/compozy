@@ -670,6 +670,220 @@ func TestGlobalDBSessionPromptAdmissionMigration(t *testing.T) {
 		)
 	})
 
+	t.Run("Should preserve populated runtime rows through the 00094 table rebuild", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		prefixDB, err := openGlobalMigrationPrefixDatabase(
+			t,
+			path,
+			globalMigrationPrefixBefore(t, "00094_schema.sql"),
+		)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(00093 prefix) error = %v", err)
+		}
+		ctx := globalMigrationTestContext(t)
+		now := time.Date(2026, 8, 27, 9, 0, 0, 0, time.UTC)
+		prefixGlobalDB := &GlobalDB{db: prefixDB, path: path, now: func() time.Time { return now }}
+		prefixGlobalDB.initializeRepositories(openConfig{})
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			prefixGlobalDB,
+			"acp-options-migration",
+			filepath.Join(t.TempDir(), "workspace"),
+		)
+		const sessionID = "sess-before-00094"
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO sessions (
+			id, profile_id, name, agent_name,
+			provider, model, reasoning_effort, speed,
+			selected_provider, selected_model, selected_reasoning_effort, selected_speed,
+			workspace_id, state, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			sessionID,
+			store.DefaultProfileID,
+			"Pre-00094 session",
+			"coder",
+			"cursor",
+			"grok-4.6",
+			"high",
+			"fast",
+			"cursor",
+			"grok-4.6",
+			"high",
+			"fast",
+			workspaceID,
+			"active",
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("seed 00093 session error = %v", err)
+		}
+		const admissionID = "admission-before-00094"
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_prompt_admissions (
+			id, workspace_id, session_id, message_id, idempotency_key, operation,
+			fingerprint_version, request_fingerprint, state, mode, authored_text,
+			runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+			turn_id, event_id, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			admissionID,
+			workspaceID,
+			sessionID,
+			"message-before-00094",
+			"idem-before-00094",
+			store.SessionPromptOperationPrompt,
+			"prompt/v1",
+			"sha256:before-00094",
+			store.SessionPromptAdmissionReserved,
+			store.SessionInputQueueModeQueue,
+			"preserve admission",
+			"cursor",
+			"grok-4.6",
+			"high",
+			"fast",
+			"turn-before-00094",
+			"event-before-00094",
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("seed 00093 session_prompt_admissions error = %v", err)
+		}
+		const queueID = "queue-before-00094"
+		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO session_input_queue (
+			id, session_id, prompt_admission_id, message_id, idempotency_key, turn_id, event_id,
+			status, mode, text, runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+			enqueued_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			queueID,
+			sessionID,
+			admissionID,
+			"message-before-00094",
+			"idem-before-00094",
+			"turn-before-00094",
+			"event-before-00094",
+			store.SessionInputQueueStatusQueued,
+			store.SessionInputQueueModeQueue,
+			"preserve queue",
+			"cursor",
+			"grok-4.6",
+			"high",
+			"fast",
+			store.FormatTimestamp(now),
+			store.FormatTimestamp(now),
+		); err != nil {
+			t.Fatalf("seed 00093 session_input_queue error = %v", err)
+		}
+		if err := prefixDB.Close(); err != nil {
+			t.Fatalf("prefixDB.Close() error = %v", err)
+		}
+
+		upgraded, err := openGlobalMigrationUpgrade(t, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(00094 upgrade) error = %v", err)
+		}
+		if err := upgraded.Close(ctx); err != nil {
+			t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
+			}
+		})
+
+		var provider, model, effort, speed, selectedProvider, selectedModel string
+		var selectedEffort, selectedSpeed, acpOptionsJSON, selectedACPOptionsJSON string
+		if err := reopened.db.QueryRowContext(ctx, `SELECT
+			provider, model, reasoning_effort, speed,
+			selected_provider, selected_model, selected_reasoning_effort, selected_speed,
+			acp_options_json, selected_acp_options_json
+			FROM sessions WHERE id = ?`, sessionID).Scan(
+			&provider,
+			&model,
+			&effort,
+			&speed,
+			&selectedProvider,
+			&selectedModel,
+			&selectedEffort,
+			&selectedSpeed,
+			&acpOptionsJSON,
+			&selectedACPOptionsJSON,
+		); err != nil {
+			t.Fatalf("query migrated session error = %v", err)
+		}
+		if provider != "cursor" || model != "grok-4.6" || effort != "high" || speed != "fast" ||
+			selectedProvider != "cursor" || selectedModel != "grok-4.6" || selectedEffort != "high" ||
+			selectedSpeed != "fast" || acpOptionsJSON != "[]" || selectedACPOptionsJSON != "[]" {
+			t.Fatalf(
+				"migrated session runtime = %q/%q/%q/%q selected=%q/%q/%q/%q options=%s/%s",
+				provider,
+				model,
+				effort,
+				speed,
+				selectedProvider,
+				selectedModel,
+				selectedEffort,
+				selectedSpeed,
+				acpOptionsJSON,
+				selectedACPOptionsJSON,
+			)
+		}
+
+		var admissionProvider, admissionModel, admissionEffort, admissionSpeed, admissionOptions string
+		if err := reopened.db.QueryRowContext(ctx, `SELECT
+			runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json
+			FROM session_prompt_admissions WHERE id = ?`, admissionID).Scan(
+			&admissionProvider,
+			&admissionModel,
+			&admissionEffort,
+			&admissionSpeed,
+			&admissionOptions,
+		); err != nil {
+			t.Fatalf("query migrated prompt admission error = %v", err)
+		}
+		if admissionProvider != "cursor" || admissionModel != "grok-4.6" || admissionEffort != "high" ||
+			admissionSpeed != "fast" || admissionOptions != "[]" {
+			t.Fatalf(
+				"migrated admission runtime = %q/%q/%q/%q options=%s",
+				admissionProvider,
+				admissionModel,
+				admissionEffort,
+				admissionSpeed,
+				admissionOptions,
+			)
+		}
+
+		entry, err := reopened.GetSessionInputQueueEntry(ctx, sessionID, queueID)
+		if err != nil {
+			t.Fatalf("GetSessionInputQueueEntry(migrated) error = %v", err)
+		}
+		if got, want := entry.Runtime, (store.SessionInputRuntime{
+			Provider: "cursor", Model: "grok-4.6", ReasoningEffort: "high", Speed: "fast",
+		}); !reflect.DeepEqual(got, want) {
+			t.Fatalf("migrated queue runtime = %#v, want %#v", got, want)
+		}
+		if entry.PromptAdmissionID != admissionID || entry.MessageID != "message-before-00094" ||
+			entry.IdempotencyKey != "idem-before-00094" || entry.TurnID != "turn-before-00094" ||
+			entry.EventID != "event-before-00094" {
+			t.Fatalf("migrated queue identity = %#v, want preserved admission identity", entry)
+		}
+
+		if _, err := reopened.db.ExecContext(ctx, `DELETE FROM workspaces WHERE id = ?`, workspaceID); err != nil {
+			t.Fatalf("delete workspace after 00094 upgrade error = %v", err)
+		}
+		var remainingSessions int
+		if err := reopened.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM sessions WHERE id = ?`,
+			sessionID,
+		).Scan(&remainingSessions); err != nil {
+			t.Fatalf("count sessions after workspace delete error = %v", err)
+		}
+		if remainingSessions != 0 {
+			t.Fatalf("sessions after workspace delete = %d, want 0", remainingSessions)
+		}
+	})
+
 	t.Run("Should require queue admissions to exist and clear deleted receipts", func(t *testing.T) {
 		ctx := testutil.Context(t)
 		globalDB := openTestGlobalDB(t)

@@ -2561,6 +2561,65 @@ display_name = "Raw config row"
 		}
 	})
 
+	t.Run("Should accept a default effort advertised by a launch binding", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths := testHomePaths(t)
+		writeFile(t, homePaths.ConfigFile, baseSettingsConfig())
+		xhigh := modelcatalog.ReasoningEffortXHigh
+		catalog := &settingsModelCatalogStub{models: map[string][]modelcatalog.Model{
+			"cursor": {
+				{
+					ProviderID:  "cursor",
+					ModelID:     "grok-4.6",
+					DisplayName: "Cursor Grok 4.6",
+					TransportBindings: []modelcatalog.ModelTransportBinding{
+						{TransportModelID: "cursor-grok-4.6-extra-high", ReasoningEffort: &xhigh},
+					},
+					Curated: true,
+				},
+			},
+		}}
+		service := testService(t, homePaths, Dependencies{ModelCatalog: catalog})
+		envelope, err := service.ListCollection(context.Background(), CollectionRequest{
+			Collection: CollectionProviders,
+		})
+		if err != nil {
+			t.Fatalf("ListCollection(providers) error = %v", err)
+		}
+		cursor := mustFindProviderItem(t, envelope.Providers, "cursor")
+		settings := cursor.Settings
+		settings.ModelsSet = true
+		settings.Models.Default = "grok-4.6"
+
+		if _, err := service.PutCollectionItem(context.Background(), CollectionItemPutRequest{
+			CollectionRequest: CollectionRequest{Collection: CollectionProviders},
+			Name:              "cursor",
+			Provider:          &settings,
+			ProviderModelCuration: &ProviderModelCurationRequest{
+				ModelID:                "grok-4.6",
+				DefaultReasoningEffort: &xhigh,
+			},
+		}); err != nil {
+			t.Fatalf("PutCollectionItem(Cursor xhigh default) error = %v", err)
+		}
+
+		cfg, err := compozyconfig.LoadForHome(homePaths)
+		if err != nil {
+			t.Fatalf("LoadForHome(after Cursor default write) error = %v", err)
+		}
+		curated := requireConfiguredProviderModel(t, cfg.Providers["cursor"].Models.Curated, "grok-4.6")
+		if got, want := curated.DefaultReasoningEffort, string(modelcatalog.ReasoningEffortXHigh); got != want {
+			t.Fatalf("Cursor default reasoning effort = %q, want %q", got, want)
+		}
+		if curated.ReasoningEfforts != nil {
+			t.Fatalf("Cursor config froze catalog reasoning efforts: %#v", curated.ReasoningEfforts)
+		}
+		if contents := readFile(t, homePaths.ConfigFile); strings.Contains(contents, "cursor-grok-4.6-extra-high") {
+			t.Fatalf("Cursor private transport binding leaked into config:\n%s", contents)
+		}
+	})
+
 	t.Run("Should preserve the raw models overlay when a partial provider PUT omits models", func(t *testing.T) {
 		t.Parallel()
 

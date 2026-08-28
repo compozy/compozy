@@ -21,7 +21,7 @@ import type {
 
 export interface RuntimeSelectorProps {
   value: RuntimeSelectorValue;
-  onChange: (next: RuntimeSelectorValue) => void;
+  onChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => void;
   providers: RuntimeProviderOption[];
   models: RuntimeModelOption[];
   /** Live ACP descriptors for advanced select/boolean controls. */
@@ -86,6 +86,7 @@ export function RuntimeSelector({
     models,
     acpOptions,
     allowCustomProvider,
+    speed,
   });
   const triggerRef = useRef<HTMLButtonElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);

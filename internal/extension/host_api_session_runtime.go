@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	apicontract "github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/session"
 )
 
@@ -34,6 +35,7 @@ func (h *HostAPIHandler) handleSessionsRuntimeSet(ctx context.Context, raw json.
 		Model:           strings.TrimSpace(params.Runtime.Model),
 		ReasoningEffort: strings.TrimSpace(string(params.Runtime.ReasoningEffort)),
 		Speed:           params.Runtime.Speed,
+		ACPOptions:      apicontract.ACPOptionSelectionsFromPayload(params.Runtime.ACPOptions),
 	}
 	info, err := manager.SetRuntimeSelection(ctx, params.SessionID, selection, *params.ExpectedRevision)
 	if err != nil {

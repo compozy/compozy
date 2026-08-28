@@ -11588,6 +11588,11 @@ export interface operations {
                       required_capabilities?: string[];
                     };
                     review: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       agent_name?: string;
                       allowed_agent_names?: string[];
                       allowed_channel_ids?: string[];
@@ -11598,7 +11603,10 @@ export interface operations {
                       preferred_channel_ids?: string[];
                       preferred_peer_ids?: string[];
                       provider?: string;
+                      reasoning_effort?: string;
                       required_capabilities?: string[];
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     runtime: {
                       /** @enum {string} */
@@ -11613,6 +11621,11 @@ export interface operations {
                     /** Format: date-time */
                     updated_at: string;
                     worker: {
+                      acp_options?: {
+                        bool_value?: boolean | null;
+                        id: string;
+                        value_id?: string;
+                      }[];
                       agent_name?: string;
                       allowed_agent_names?: string[];
                       /** @enum {string} */
@@ -11621,7 +11634,10 @@ export interface operations {
                       preferred_agent_names?: string[];
                       preferred_capabilities?: string[];
                       provider?: string;
+                      reasoning_effort?: string;
                       required_capabilities?: string[];
+                      /** @enum {string} */
+                      speed?: "normal" | "fast";
                     };
                     worktree: {
                       /** @enum {string} */
@@ -17787,6 +17803,8 @@ export interface operations {
               value_id?: string;
             }[];
             category_path?: string[];
+            clear_acp_options?: boolean;
+            clear_speed?: boolean;
             command?: string;
             deny_tools?: string[];
             model?: string;
@@ -52466,6 +52484,11 @@ export interface operations {
         content: {
           "application/json": {
             roles: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string | null;
               diagnostics: {
                 agent?: string;
@@ -52474,9 +52497,16 @@ export interface operations {
               }[];
               enabled: boolean;
               fallback_chain: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               }[];
               model: string | null;
               provenance: {
@@ -52487,6 +52517,8 @@ export interface operations {
               /** @enum {string} */
               resolution_mode: "builtin" | "catalog" | "inherit";
               role: string;
+              /** @enum {string|null} */
+              speed: "normal" | "fast" | null;
               timeout?: string | null;
             }[];
           };
@@ -52633,6 +52665,11 @@ export interface operations {
         content: {
           "application/json": {
             role: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string | null;
               diagnostics: {
                 agent?: string;
@@ -52641,9 +52678,16 @@ export interface operations {
               }[];
               enabled: boolean;
               fallback_chain: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort?: string;
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               }[];
               model: string | null;
               provenance: {
@@ -52654,6 +52698,8 @@ export interface operations {
               /** @enum {string} */
               resolution_mode: "builtin" | "catalog" | "inherit";
               role: string;
+              /** @enum {string|null} */
+              speed: "normal" | "fast" | null;
               timeout?: string | null;
             };
           };
@@ -67117,82 +67163,166 @@ export interface operations {
             available_scopes: ("user" | "workspace")[];
             config: {
               auto_title: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent: string;
                 enabled: boolean;
                 fallback_chain: {
+                  acp_options: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model: string;
                   provider: string;
                   reasoning_effort: string;
+                  /** @enum {string|null} */
+                  speed?: "normal" | "fast" | null;
                 }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               };
               checkpoint_summary: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent: string;
                 enabled: boolean;
                 fallback_chain: {
+                  acp_options: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model: string;
                   provider: string;
                   reasoning_effort: string;
+                  /** @enum {string|null} */
+                  speed?: "normal" | "fast" | null;
                 }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               };
               coordinator: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent: string;
                 enabled: boolean;
                 fallback_chain: {
+                  acp_options: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model: string;
                   provider: string;
                   reasoning_effort: string;
+                  /** @enum {string|null} */
+                  speed?: "normal" | "fast" | null;
                 }[];
                 max_active_sessions_per_workspace: number;
                 max_children: number;
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
                 ttl: string;
               };
               dream: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent: string;
                 enabled: boolean;
                 fallback_chain: {
+                  acp_options: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model: string;
                   provider: string;
                   reasoning_effort: string;
+                  /** @enum {string|null} */
+                  speed?: "normal" | "fast" | null;
                 }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               };
               memory_controller: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 enabled: boolean;
                 fallback_chain: {
+                  acp_options: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model: string;
                   provider: string;
                   reasoning_effort: string;
+                  /** @enum {string|null} */
+                  speed?: "normal" | "fast" | null;
                 }[];
                 max_tokens_out: number;
                 model: string;
                 prompt_version: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
                 timeout: string;
                 top_k: number;
               };
               memory_extractor: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent: string;
                 enabled: boolean;
                 fallback_chain: {
+                  acp_options: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model: string;
                   provider: string;
                   reasoning_effort: string;
+                  /** @enum {string|null} */
+                  speed?: "normal" | "fast" | null;
                 }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               };
             };
             /** @enum {string} */
@@ -67260,82 +67390,166 @@ export interface operations {
         "application/json": {
           config: {
             auto_title: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string;
               enabled: boolean;
               fallback_chain: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               }[];
               model: string;
               provider: string;
               reasoning_effort: string;
+              /** @enum {string|null} */
+              speed?: "normal" | "fast" | null;
             };
             checkpoint_summary: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string;
               enabled: boolean;
               fallback_chain: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               }[];
               model: string;
               provider: string;
               reasoning_effort: string;
+              /** @enum {string|null} */
+              speed?: "normal" | "fast" | null;
             };
             coordinator: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string;
               enabled: boolean;
               fallback_chain: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               }[];
               max_active_sessions_per_workspace: number;
               max_children: number;
               model: string;
               provider: string;
               reasoning_effort: string;
+              /** @enum {string|null} */
+              speed?: "normal" | "fast" | null;
               ttl: string;
             };
             dream: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string;
               enabled: boolean;
               fallback_chain: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               }[];
               model: string;
               provider: string;
               reasoning_effort: string;
+              /** @enum {string|null} */
+              speed?: "normal" | "fast" | null;
             };
             memory_controller: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               enabled: boolean;
               fallback_chain: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               }[];
               max_tokens_out: number;
               model: string;
               prompt_version: string;
               provider: string;
               reasoning_effort: string;
+              /** @enum {string|null} */
+              speed?: "normal" | "fast" | null;
               timeout: string;
               top_k: number;
             };
             memory_extractor: {
+              acp_options: {
+                bool_value?: boolean | null;
+                id: string;
+                value_id?: string;
+              }[];
               agent: string;
               enabled: boolean;
               fallback_chain: {
+                acp_options: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model: string;
                 provider: string;
                 reasoning_effort: string;
+                /** @enum {string|null} */
+                speed?: "normal" | "fast" | null;
               }[];
               model: string;
               provider: string;
               reasoning_effort: string;
+              /** @enum {string|null} */
+              speed?: "normal" | "fast" | null;
             };
           };
         };
@@ -83951,6 +84165,11 @@ export interface operations {
                 required_capabilities?: string[];
               };
               review: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent_name?: string;
                 allowed_agent_names?: string[];
                 allowed_channel_ids?: string[];
@@ -83961,7 +84180,10 @@ export interface operations {
                 preferred_channel_ids?: string[];
                 preferred_peer_ids?: string[];
                 provider?: string;
+                reasoning_effort?: string;
                 required_capabilities?: string[];
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               runtime: {
                 /** @enum {string} */
@@ -83976,6 +84198,11 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               worker: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent_name?: string;
                 allowed_agent_names?: string[];
                 /** @enum {string} */
@@ -83984,7 +84211,10 @@ export interface operations {
                 preferred_agent_names?: string[];
                 preferred_capabilities?: string[];
                 provider?: string;
+                reasoning_effort?: string;
                 required_capabilities?: string[];
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               worktree: {
                 /** @enum {string} */
@@ -84211,6 +84441,11 @@ export interface operations {
             required_capabilities?: string[];
           };
           review: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             agent_name?: string;
             allowed_agent_names?: string[];
             allowed_channel_ids?: string[];
@@ -84221,7 +84456,10 @@ export interface operations {
             preferred_channel_ids?: string[];
             preferred_peer_ids?: string[];
             provider?: string;
+            reasoning_effort?: string;
             required_capabilities?: string[];
+            /** @enum {string} */
+            speed?: "normal" | "fast";
           };
           runtime: {
             /** @enum {string} */
@@ -84236,6 +84474,11 @@ export interface operations {
           /** Format: date-time */
           updated_at: string;
           worker: {
+            acp_options?: {
+              bool_value?: boolean | null;
+              id: string;
+              value_id?: string;
+            }[];
             agent_name?: string;
             allowed_agent_names?: string[];
             /** @enum {string} */
@@ -84244,7 +84487,10 @@ export interface operations {
             preferred_agent_names?: string[];
             preferred_capabilities?: string[];
             provider?: string;
+            reasoning_effort?: string;
             required_capabilities?: string[];
+            /** @enum {string} */
+            speed?: "normal" | "fast";
           };
           worktree: {
             /** @enum {string} */
@@ -84344,6 +84590,11 @@ export interface operations {
                 required_capabilities?: string[];
               };
               review: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent_name?: string;
                 allowed_agent_names?: string[];
                 allowed_channel_ids?: string[];
@@ -84354,7 +84605,10 @@ export interface operations {
                 preferred_channel_ids?: string[];
                 preferred_peer_ids?: string[];
                 provider?: string;
+                reasoning_effort?: string;
                 required_capabilities?: string[];
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               runtime: {
                 /** @enum {string} */
@@ -84369,6 +84623,11 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               worker: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent_name?: string;
                 allowed_agent_names?: string[];
                 /** @enum {string} */
@@ -84377,7 +84636,10 @@ export interface operations {
                 preferred_agent_names?: string[];
                 preferred_capabilities?: string[];
                 provider?: string;
+                reasoning_effort?: string;
                 required_capabilities?: string[];
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               worktree: {
                 /** @enum {string} */
@@ -84788,6 +85050,11 @@ export interface operations {
                 required_capabilities?: string[];
               };
               review: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent_name?: string;
                 allowed_agent_names?: string[];
                 allowed_channel_ids?: string[];
@@ -84798,7 +85065,10 @@ export interface operations {
                 preferred_channel_ids?: string[];
                 preferred_peer_ids?: string[];
                 provider?: string;
+                reasoning_effort?: string;
                 required_capabilities?: string[];
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               runtime: {
                 /** @enum {string} */
@@ -84813,6 +85083,11 @@ export interface operations {
               /** Format: date-time */
               updated_at: string;
               worker: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 agent_name?: string;
                 allowed_agent_names?: string[];
                 /** @enum {string} */
@@ -84821,7 +85096,10 @@ export interface operations {
                 preferred_agent_names?: string[];
                 preferred_capabilities?: string[];
                 provider?: string;
+                reasoning_effort?: string;
                 required_capabilities?: string[];
+                /** @enum {string} */
+                speed?: "normal" | "fast";
               };
               worktree: {
                 /** @enum {string} */
@@ -101746,10 +102024,18 @@ export interface operations {
                 node_id: string;
                 output_ref?: string;
                 resolved_runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
                   source: {
+                    acp_options?: {
+                      [key: string]: string;
+                    };
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -102400,6 +102686,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -102409,6 +102700,11 @@ export interface operations {
               }[];
               runtime_defaults: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -102416,6 +102712,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -102430,6 +102731,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -103101,10 +103407,18 @@ export interface operations {
                 node_id: string;
                 output_ref?: string;
                 resolved_runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
                   source: {
+                    acp_options?: {
+                      [key: string]: string;
+                    };
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -103321,6 +103635,11 @@ export interface operations {
               )[];
               runtime_defaults?: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -103328,6 +103647,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -103342,6 +103666,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -103375,6 +103704,11 @@ export interface operations {
                 prompt?: string;
                 rubric?: string;
                 runtime?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -109355,6 +109689,11 @@ export interface operations {
                 )[];
                 runtime_defaults?: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -109362,6 +109701,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -109376,6 +109720,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -109409,6 +109758,11 @@ export interface operations {
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -110956,6 +111310,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -110965,6 +111324,11 @@ export interface operations {
                 }[];
                 runtime_defaults: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -110972,6 +111336,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -110986,6 +111355,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -111892,6 +112266,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -111901,6 +112280,11 @@ export interface operations {
                 }[];
                 runtime_defaults: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -111908,6 +112292,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -111922,6 +112311,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -113574,6 +113968,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -113583,6 +113982,11 @@ export interface operations {
                 }[];
                 runtime_defaults: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -113590,6 +113994,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -113604,6 +114013,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -114196,6 +114610,11 @@ export interface operations {
               reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
               runtime_defaults?: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114203,6 +114622,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114217,6 +114641,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114252,6 +114681,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114261,6 +114695,11 @@ export interface operations {
               }[];
               runtime_defaults: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114268,6 +114707,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114282,6 +114726,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114454,6 +114903,11 @@ export interface operations {
             reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
             runtime_defaults?: {
               judge?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider?: string;
                 reasoning?: string;
@@ -114461,6 +114915,11 @@ export interface operations {
                 speed?: "normal" | "fast";
               };
               worker?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider?: string;
                 reasoning?: string;
@@ -114475,6 +114934,11 @@ export interface operations {
                 type?: string;
               };
               runtime: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider?: string;
                 reasoning?: string;
@@ -114515,6 +114979,11 @@ export interface operations {
               reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
               runtime_defaults?: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114522,6 +114991,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114536,6 +115010,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114571,6 +115050,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114580,6 +115064,11 @@ export interface operations {
               }[];
               runtime_defaults: {
                 judge?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114587,6 +115076,11 @@ export interface operations {
                   speed?: "normal" | "fast";
                 };
                 worker?: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -114601,6 +115095,11 @@ export interface operations {
                   type?: string;
                 };
                 runtime: {
+                  acp_options?: {
+                    bool_value?: boolean | null;
+                    id: string;
+                    value_id?: string;
+                  }[];
                   model?: string;
                   provider?: string;
                   reasoning?: string;
@@ -115735,6 +116234,11 @@ export interface operations {
             reattempt_strategy?: "failed_only" | "full_body" | "halt" | null;
             runtime_defaults?: {
               judge?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider?: string;
                 reasoning?: string;
@@ -115742,6 +116246,11 @@ export interface operations {
                 speed?: "normal" | "fast";
               };
               worker?: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider?: string;
                 reasoning?: string;
@@ -115756,6 +116265,11 @@ export interface operations {
                 type?: string;
               };
               runtime: {
+                acp_options?: {
+                  bool_value?: boolean | null;
+                  id: string;
+                  value_id?: string;
+                }[];
                 model?: string;
                 provider?: string;
                 reasoning?: string;
@@ -115969,6 +116483,11 @@ export interface operations {
                 )[];
                 runtime_defaults?: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -115976,6 +116495,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -115990,6 +116514,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116023,6 +116552,11 @@ export interface operations {
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116060,6 +116594,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116069,6 +116608,11 @@ export interface operations {
                 }[];
                 runtime_defaults: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116076,6 +116620,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116090,6 +116639,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116235,6 +116789,11 @@ export interface operations {
                 )[];
                 runtime_defaults?: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116242,6 +116801,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116256,6 +116820,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116289,6 +116858,11 @@ export interface operations {
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116631,6 +117205,11 @@ export interface operations {
                 )[];
                 runtime_defaults?: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116638,6 +117217,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116652,6 +117236,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116685,6 +117274,11 @@ export interface operations {
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116722,6 +117316,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116731,6 +117330,11 @@ export interface operations {
                 }[];
                 runtime_defaults: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116738,6 +117342,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116752,6 +117361,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116897,6 +117511,11 @@ export interface operations {
                 )[];
                 runtime_defaults?: {
                   judge?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116904,6 +117523,11 @@ export interface operations {
                     speed?: "normal" | "fast";
                   };
                   worker?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116918,6 +117542,11 @@ export interface operations {
                     type?: string;
                   };
                   runtime: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;
@@ -116951,6 +117580,11 @@ export interface operations {
                   prompt?: string;
                   rubric?: string;
                   runtime?: {
+                    acp_options?: {
+                      bool_value?: boolean | null;
+                      id: string;
+                      value_id?: string;
+                    }[];
                     model?: string;
                     provider?: string;
                     reasoning?: string;

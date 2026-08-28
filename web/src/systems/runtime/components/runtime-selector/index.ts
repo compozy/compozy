@@ -1,10 +1,13 @@
 export { RuntimeSelector, type RuntimeSelectorProps } from "./runtime-selector";
 export { runtimeModelKey } from "./model-key";
 export {
+  normalizeRuntimeACPSelections,
+  runtimeACPSelectionsEqual,
+} from "./runtime-advanced-options-model";
+export {
   REASONING_EFFORT_ORDER,
   modelSupportsFast,
   modelSupportsReasoningEffort,
-  modelSupportsThinking,
   reasoningEffortLabel,
 } from "./types";
 export {

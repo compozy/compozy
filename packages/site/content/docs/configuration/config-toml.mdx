@@ -244,9 +244,11 @@ reasoning_effort = "low"
 
 [[roles.auto_title.fallback_chain]]
 # Fallback routes are tried in declaration order before a session is accepted.
-provider = "codex"
-model = "gpt-5.4-mini"
-reasoning_effort = "low"
+provider = "cursor"
+model = "grok-4.6"
+reasoning_effort = "high"
+speed = "fast"
+acp_options = [{ id = "thinking", bool_value = true }]
 
 [roles.memory_controller]
 # This in-process role has no agent field.
@@ -1121,7 +1123,9 @@ These fields apply to `coordinator`, `dream`, `checkpoint_summary`, `memory_extr
 | `provider`         | string                | empty         | Empty or a configured provider key                                           | Optional provider override applied after agent resolution.                                                 |
 | `model`            | string                | empty         | Empty or an exact provider model ID                                          | Optional model override.                                                                                   |
 | `reasoning_effort` | string                | empty         | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`                   | Optional reasoning override.                                                                               |
-| `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`.                                       |
+| `speed`            | string                | empty         | Empty, `normal`, or `fast`                                                    | Optional speed override; `fast` must be valid for the resolved model and provider strategy.                |
+| `acp_options`      | array of typed tables | empty         | Each entry has `id` and exactly one of `value_id` or `bool_value`             | Optional provider-advertised configuration overrides, merged by option ID.                                 |
+| `fallback_chain`   | array of route tables | empty         | Each entry requires `provider` and `model`                                   | Ordered fallback routes; each entry may also set `reasoning_effort`, `speed`, and `acp_options`.            |
 
 Fallback chains replace as a whole when a workspace overlay declares them. A session-backed
 consumer may advance only before ACP accepts a session; CompozyOS never silently reroutes work after
@@ -1130,9 +1134,11 @@ the fallback's one-based `attempt`, provider, and model. The event records an at
 
 ```toml
 [[roles.auto_title.fallback_chain]]
-provider = "codex"
-model = "gpt-5.4-mini"
-reasoning_effort = "low"
+provider = "cursor"
+model = "grok-4.6"
+reasoning_effort = "high"
+speed = "fast"
+acp_options = [{ id = "thinking", bool_value = true }]
 ```
 
 ### `[roles.coordinator]`
@@ -1149,9 +1155,9 @@ enqueued, the role must be enabled, and no healthy workspace coordinator may alr
 
 ### `[roles.memory_controller]`
 
-The memory controller is an in-process model call, so it has no `agent` field. It accepts
-`enabled`, `provider`, `model`, `reasoning_effort`, and `fallback_chain` with the same routing
-semantics above, plus these call-policy fields:
+The memory controller is an in-process model call, so it has no `agent` field. It accepts `enabled`,
+`provider`, `model`, `reasoning_effort`, `speed`, `acp_options`, and `fallback_chain` with the same
+routing semantics above, plus these call-policy fields:
 
 | Field            | Type     | Default                    | Valid values             | Description                                        |
 | ---------------- | -------- | -------------------------- | ------------------------ | -------------------------------------------------- |

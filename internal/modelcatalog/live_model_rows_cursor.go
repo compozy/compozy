@@ -9,6 +9,8 @@ import (
 	"time"
 )
 
+const cursorThinkingOptionID = "thinking"
+
 type cursorModelVariant struct {
 	transportModelID string
 	label            string
@@ -17,6 +19,15 @@ type cursorModelVariant struct {
 	fastKnown        bool
 	thinking         bool
 	thinkingKnown    bool
+}
+
+type cursorTransportSuffixes struct {
+	parts         []string
+	effort        *ReasoningEffort
+	fast          bool
+	fastKnown     bool
+	thinking      bool
+	thinkingKnown bool
 }
 
 // parseCursorModelRows parses the account-scoped output of cursor-agent models.
@@ -78,41 +89,23 @@ func parseCursorModelLine(rawLine string) (cursorModelVariant, bool) {
 }
 
 func cursorLogicalModelID(transportModelID string) string {
-	base := strings.TrimSpace(transportModelID)
-	if base == "" {
-		return ""
-	}
-	if strings.HasSuffix(base, "-fast") {
-		base = strings.TrimSuffix(base, "-fast")
-	}
-	parts := strings.Split(base, "-")
-	for {
-		if len(parts) > 0 && strings.EqualFold(parts[len(parts)-1], "thinking") {
-			parts = parts[:len(parts)-1]
-			continue
-		}
-		if len(parts) >= 2 &&
-			strings.EqualFold(parts[len(parts)-2], "extra") &&
-			strings.EqualFold(parts[len(parts)-1], "high") {
-			parts = parts[:len(parts)-2]
-			continue
-		}
-		if len(parts) > 0 {
-			if _, ok := normalizeReasoningEffort(parts[len(parts)-1]); ok {
-				parts = parts[:len(parts)-1]
-				continue
-			}
-		}
-		break
-	}
-	logicalID, _ := strings.CutPrefix(strings.Join(parts, "-"), "cursor-")
+	parsed := parseCursorTransportSuffixes(transportModelID)
+	logicalID, _ := strings.CutPrefix(strings.Join(parsed.parts, "-"), "cursor-")
 	return strings.TrimSpace(logicalID)
 }
 
 func cursorModelDimensions(
 	transportModelID string,
 ) (*ReasoningEffort, bool, bool, bool, bool) {
+	parsed := parseCursorTransportSuffixes(transportModelID)
+	return parsed.effort, parsed.fast, parsed.fastKnown, parsed.thinking, parsed.thinkingKnown
+}
+
+func parseCursorTransportSuffixes(transportModelID string) cursorTransportSuffixes {
 	trimmed := strings.TrimSpace(transportModelID)
+	if trimmed == "" {
+		return cursorTransportSuffixes{}
+	}
 	base := strings.TrimSuffix(trimmed, "-fast")
 	fast := base != trimmed
 	parts := strings.Split(base, "-")
@@ -120,7 +113,7 @@ func cursorModelDimensions(
 	thinking := false
 	thinkingKnown := false
 	for {
-		if len(parts) > 0 && strings.EqualFold(parts[len(parts)-1], "thinking") {
+		if len(parts) > 0 && strings.EqualFold(parts[len(parts)-1], cursorThinkingOptionID) {
 			thinking = true
 			thinkingKnown = true
 			parts = parts[:len(parts)-1]
@@ -144,7 +137,14 @@ func cursorModelDimensions(
 		effort = new(parsed)
 		parts = parts[:len(parts)-1]
 	}
-	return effort, fast, fast, thinking, thinkingKnown
+	return cursorTransportSuffixes{
+		parts:         parts,
+		effort:        effort,
+		fast:          fast,
+		fastKnown:     fast,
+		thinking:      thinking,
+		thinkingKnown: thinkingKnown,
+	}
 }
 
 func cursorModelRow(
@@ -228,7 +228,7 @@ func cursorModelBindings(
 		if hasThinking {
 			binding.Thinking = new(variant.thinking)
 			binding.OptionSelections = []ModelOptionSelection{{
-				ID:        "thinking",
+				ID:        cursorThinkingOptionID,
 				BoolValue: new(variant.thinking),
 			}}
 		}
@@ -242,7 +242,7 @@ func cursorModelConfigOptions(hasThinking bool) []ModelOptionDescriptor {
 		return nil
 	}
 	return []ModelOptionDescriptor{{
-		ID:          "thinking",
+		ID:          cursorThinkingOptionID,
 		Label:       "Thinking",
 		Category:    "thought_level",
 		Kind:        ModelOptionKindBoolean,

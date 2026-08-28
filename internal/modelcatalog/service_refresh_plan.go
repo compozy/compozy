@@ -229,16 +229,7 @@ func replacementMatchesRow(
 	row ModelRow,
 	opts ListOptions,
 ) bool {
-	executionContext, ok := opts.SourceContexts[row.SourceID]
-	if !ok {
-		return false
-	}
-	key, err := refreshPlanSourceProviderKey(executionContext, row.SourceID, row.ProviderID)
-	if err != nil {
-		return false
-	}
-	_, replaced := replacements[key]
-	return replaced
+	return replacementMatchesSourceProvider(replacements, opts.SourceContexts, row.SourceID, row.ProviderID)
 }
 
 func replacementMatchesStatus(
@@ -246,11 +237,20 @@ func replacementMatchesStatus(
 	status SourceStatus,
 	opts StatusOptions,
 ) bool {
-	executionContext, ok := opts.SourceContexts[status.SourceID]
+	return replacementMatchesSourceProvider(replacements, opts.SourceContexts, status.SourceID, status.ProviderID)
+}
+
+func replacementMatchesSourceProvider(
+	replacements map[string]SourceRowsReplacement,
+	contexts map[string]CatalogExecutionContext,
+	sourceID string,
+	providerID string,
+) bool {
+	executionContext, ok := contexts[sourceID]
 	if !ok {
 		return false
 	}
-	key, err := refreshPlanSourceProviderKey(executionContext, status.SourceID, status.ProviderID)
+	key, err := refreshPlanSourceProviderKey(executionContext, sourceID, providerID)
 	if err != nil {
 		return false
 	}

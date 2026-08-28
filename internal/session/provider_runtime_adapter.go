@@ -67,7 +67,7 @@ func compileCursorRuntime(opts acp.StartOpts) (acp.StartOpts, error) {
 		opts.Speed = ""
 		return opts, nil
 	}
-	transportModel := strings.TrimSpace(opts.ExpectedTransportModel)
+	transportModel := strings.TrimSpace(opts.LaunchModelID)
 	if transportModel == "" {
 		return acp.StartOpts{}, errors.New("session: Cursor transport model binding is required")
 	}
@@ -76,7 +76,7 @@ func compileCursorRuntime(opts acp.StartOpts) (acp.StartOpts, error) {
 		return acp.StartOpts{}, err
 	}
 	opts.Command = command
-	opts.ExpectedTransportModel = transportModel
+	opts.LaunchModelID = transportModel
 	opts.ReasoningEffort = ""
 	opts.Speed = ""
 	return opts, nil
@@ -103,7 +103,7 @@ func compileProviderManagedRuntime(opts acp.StartOpts) (acp.StartOpts, error) {
 			"session: provider-managed runtime does not support ACP options",
 		)
 	}
-	if strings.TrimSpace(opts.ExpectedTransportModel) != "" {
+	if strings.TrimSpace(opts.LaunchModelID) != "" {
 		return acp.StartOpts{}, errors.New(
 			"session: provider-managed runtime cannot use a transport model binding",
 		)
@@ -111,7 +111,7 @@ func compileProviderManagedRuntime(opts acp.StartOpts) (acp.StartOpts, error) {
 	opts.PreferredModel = ""
 	opts.ReasoningEffort = ""
 	opts.Speed = ""
-	opts.ExpectedTransportModel = ""
+	opts.LaunchModelID = ""
 	return opts, nil
 }
 

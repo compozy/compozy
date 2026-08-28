@@ -197,10 +197,8 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg := DefaultRolesConfig()
 		cfg.Dream.FallbackChain = []RoleFallback{{Provider: "missing", Model: "model-a"}}
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.dream.fallback_chain[0].provider") ||
-			!strings.Contains(err.Error(), "missing") {
-			t.Fatalf("Validate() error = %v, want wrapped provider-resolution failure", err)
-		}
+		assertErrorContains(t, err, "roles.dream.fallback_chain[0].provider")
+		assertErrorContains(t, err, "missing")
 	})
 
 	t.Run("Should reject an invalid reasoning effort", func(t *testing.T) {
@@ -209,10 +207,8 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg := DefaultRolesConfig()
 		cfg.MemoryExtractor.ReasoningEffort = "extreme"
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.memory_extractor.reasoning_effort") ||
-			!strings.Contains(err.Error(), "extreme") {
-			t.Fatalf("Validate() error = %v, want reasoning enum error", err)
-		}
+		assertErrorContains(t, err, "roles.memory_extractor.reasoning_effort")
+		assertErrorContains(t, err, "extreme")
 	})
 
 	t.Run("Should reject an invalid role speed", func(t *testing.T) {
@@ -221,9 +217,7 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg := DefaultRolesConfig()
 		cfg.Dream.Speed = "burst"
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.dream.speed") {
-			t.Fatalf("Validate() error = %v, want role speed path", err)
-		}
+		assertErrorContains(t, err, "roles.dream.speed")
 	})
 
 	t.Run("Should reject role speed duplicated by its ACP option", func(t *testing.T) {
@@ -233,9 +227,7 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg.Dream.Speed = speedpkg.SpeedFast
 		cfg.Dream.ACPOptions = []ACPOptionSelection{{ID: "speed", ValueID: "fast"}}
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "duplicates speed") {
-			t.Fatalf("Validate() error = %v, want duplicate semantic option", err)
-		}
+		assertErrorContains(t, err, "duplicates speed")
 	})
 
 	t.Run("Should reject an invalid optional agent reference when configured", func(t *testing.T) {

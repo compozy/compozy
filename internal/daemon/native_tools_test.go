@@ -604,6 +604,12 @@ func TestDaemonNativeTools(t *testing.T) {
 			spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
 			t.Fatalf("Spawn() opts = %#v, want runtime overrides and explicit notify_creator=false", spawnOpts)
 		}
+		if spawnOpts.ACPOptions[0].ID != "context" || spawnOpts.ACPOptions[0].ValueID != "1m" ||
+			spawnOpts.ACPOptions[0].BoolValue != nil || spawnOpts.ACPOptions[1].ID != "thinking" ||
+			spawnOpts.ACPOptions[1].ValueID != "" || spawnOpts.ACPOptions[1].BoolValue == nil ||
+			!*spawnOpts.ACPOptions[1].BoolValue {
+			t.Fatalf("Spawn() ACP options = %#v, want typed context and thinking values", spawnOpts.ACPOptions)
+		}
 		if stopTarget != targetID || approval.RequestID != "perm-1" ||
 			approval.ResolvedBy != "agent_session:"+callerID || canceledTarget != targetID {
 			t.Fatalf("stop/approve/cancel targets = %q/%#v/%q", stopTarget, approval, canceledTarget)
@@ -3201,10 +3207,13 @@ func TestDaemonNativeTools(t *testing.T) {
 				return settingsService
 			},
 		}, nativeApproveAllPolicyInputs())
+		catalogScope := toolspkg.Scope{
+			Operator: true, ProfileID: "profile-marketing", WorkspaceID: "ws-marketing",
+		}
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			catalogScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
 				Input: json.RawMessage(
@@ -3222,7 +3231,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			catalog.lastList.SourceID != modelcatalog.SourceIDConfig ||
 			catalog.lastList.View != modelcatalog.CatalogViewAll ||
 			catalog.lastList.Refresh ||
-			!catalog.lastList.IncludeStale {
+			!catalog.lastList.IncludeStale ||
+			catalog.lastList.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			catalog.lastList.ExecutionContext.ProfileID != "profile-marketing" ||
+			catalog.lastList.ExecutionContext.WorkspaceID != "ws-marketing" {
 			t.Fatalf("ListModels options = %#v after %d calls", catalog.lastList, catalog.listCalls)
 		}
 
@@ -3243,7 +3255,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		refreshResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			catalogScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsRefresh,
 				Input: json.RawMessage(
@@ -3259,13 +3271,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			catalog.lastRefresh.ProviderID != "codex" ||
 			catalog.lastRefresh.SourceID != modelcatalog.SourceIDConfig ||
 			!catalog.lastRefresh.Force ||
-			catalog.lastRefresh.RequestID != "req-1" {
+			catalog.lastRefresh.RequestID != "req-1" ||
+			catalog.lastRefresh.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			catalog.lastRefresh.ExecutionContext.ProfileID != "profile-marketing" ||
+			catalog.lastRefresh.ExecutionContext.WorkspaceID != "ws-marketing" {
 			t.Fatalf("Refresh options = %#v after %d calls", catalog.lastRefresh, catalog.refreshCalls)
 		}
 
 		statusResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			catalogScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsStatus,
 				Input:  json.RawMessage(`{"provider_id":"codex"}`),
@@ -3275,8 +3290,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(provider_models_status) error = %v", err)
 		}
 		requireNativeStructuredContains(t, statusResult, []byte(`"refresh_state":"succeeded"`))
-		if catalog.statusCalls != 1 || catalog.lastStatusProviderID != "codex" {
-			t.Fatalf("ListSourceStatus provider = %q after %d calls", catalog.lastStatusProviderID, catalog.statusCalls)
+		if catalog.statusCalls != 1 || catalog.lastStatus.ProviderID != "codex" ||
+			catalog.lastStatus.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			catalog.lastStatus.ExecutionContext.ProfileID != "profile-marketing" ||
+			catalog.lastStatus.ExecutionContext.WorkspaceID != "ws-marketing" {
+			t.Fatalf("ListSourceStatus options = %#v after %d calls", catalog.lastStatus, catalog.statusCalls)
 		}
 
 		curateResult, err := registry.Call(
@@ -11982,17 +12000,17 @@ func (s *nativeDreamTriggerService) Enabled() bool {
 }
 
 type nativeModelCatalogService struct {
-	models               []modelcatalog.Model
-	statuses             []modelcatalog.SourceStatus
-	listCalls            int
-	refreshCalls         int
-	statusCalls          int
-	lastList             modelcatalog.ListOptions
-	lastRefresh          modelcatalog.RefreshOptions
-	lastStatusProviderID string
-	listErr              error
-	refreshErr           error
-	statusErr            error
+	models       []modelcatalog.Model
+	statuses     []modelcatalog.SourceStatus
+	listCalls    int
+	refreshCalls int
+	statusCalls  int
+	lastList     modelcatalog.ListOptions
+	lastRefresh  modelcatalog.RefreshOptions
+	lastStatus   modelcatalog.StatusOptions
+	listErr      error
+	refreshErr   error
+	statusErr    error
 }
 
 type nativeProviderModelSettingsService struct {
@@ -12061,7 +12079,7 @@ func (s *nativeModelCatalogService) ListSourceStatus(
 	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	s.statusCalls++
-	s.lastStatusProviderID = opts.ProviderID
+	s.lastStatus = opts
 	if s.statusErr != nil {
 		return nil, s.statusErr
 	}

@@ -68,8 +68,8 @@ func validateAgentRuntimeDefaults(agent AgentDef) error {
 			return &reasoning.InvalidEffortError{Path: "agent.reasoning_effort", Value: agent.ReasoningEffort}
 		}
 	}
-	if err := validateAgentSpeed(agent.Speed, "agent.speed"); err != nil {
+	if err := validateAgentSpeed(agent.SpeedValue(), "agent.speed"); err != nil {
 		return err
 	}
-	return validateACPOptionSelections("agent.acp_options", agent.ACPOptions)
+	return validateACPOptionSelections("agent.acp_options", agent.ACPOptionsValue())
 }

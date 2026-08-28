@@ -174,23 +174,23 @@ type LoopConfig struct {
 
 // EffectiveConfig is the fully resolved non-null runtime config.
 type EffectiveConfig struct {
-	HumanGateEnabled   bool                `json:"human_gate_enabled"`
-	ReattemptStrategy  ReattemptStrategy   `json:"reattempt_strategy"`
-	EnabledChecks      json.RawMessage     `json:"enabled_checks_json"`
-	IterationCap       int                 `json:"iteration_cap"`
-	BudgetTokens       int                 `json:"budget_tokens"`
-	BudgetWallSec      int                 `json:"budget_wall_sec"`
-	BudgetOnExceeded   dsl.BudgetExceeded  `json:"budget_on_exceeded"`
-	NoProgressWindow   int                 `json:"no_progress_window"`
-	FanOutWidth        int                 `json:"fan_out_width"`
-	GateMaxRevisions   int                 `json:"gate_max_revisions"`
-	RuntimeDefaults    RuntimeDefaults     `json:"runtime_defaults"`
-	RuntimeRules       []RuntimeRule       `json:"runtime_rules"`
-	RunRuntimeRules    []RuntimeRule       `json:"run_runtime_rules"`
-	Environment        dsl.EnvironmentSpec `json:"environment"`
-	Lifecycle          LifecycleConfig     `json:"lifecycle"`
-	RequestExpireAfter string              `json:"request_expire_after"`
-	Sources            map[string]string   `json:"sources,omitempty"`
+	HumanGateEnabled   bool                 `json:"human_gate_enabled"`
+	ReattemptStrategy  ReattemptStrategy    `json:"reattempt_strategy"`
+	EnabledChecks      *EffectiveChecksJSON `json:"enabled_checks_json"`
+	IterationCap       int                  `json:"iteration_cap"`
+	BudgetTokens       int                  `json:"budget_tokens"`
+	BudgetWallSec      int                  `json:"budget_wall_sec"`
+	BudgetOnExceeded   dsl.BudgetExceeded   `json:"budget_on_exceeded"`
+	NoProgressWindow   int                  `json:"no_progress_window"`
+	FanOutWidth        int                  `json:"fan_out_width"`
+	GateMaxRevisions   int                  `json:"gate_max_revisions"`
+	RuntimeDefaults    RuntimeDefaults      `json:"runtime_defaults"`
+	RuntimeRules       []RuntimeRule        `json:"runtime_rules"`
+	RunRuntimeRules    []RuntimeRule        `json:"run_runtime_rules"`
+	Environment        dsl.EnvironmentSpec  `json:"environment"`
+	Lifecycle          LifecycleConfig      `json:"lifecycle"`
+	RequestExpireAfter string               `json:"request_expire_after"`
+	Sources            map[string]string    `json:"sources,omitempty"`
 }
 
 // ConfigSnapshot keeps the stored override and daemon-resolved runtime config from one read.

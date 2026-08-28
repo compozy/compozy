@@ -95,24 +95,9 @@ func mergeRuntimeSpec(
 		target.Speed = layer.Speed
 		setEffectiveConfigSource(effective, path+"/speed", source)
 	}
-	for _, option := range layer.ACPOptions {
-		option.ID = strings.TrimSpace(option.ID)
-		if option.ID == "" {
-			continue
-		}
-		updated := false
-		for index := range target.ACPOptions {
-			if strings.TrimSpace(target.ACPOptions[index].ID) != option.ID {
-				continue
-			}
-			target.ACPOptions[index] = option
-			updated = true
-			break
-		}
-		if !updated {
-			target.ACPOptions = append(target.ACPOptions, option)
-		}
-		setEffectiveConfigSource(effective, path+"/acp_options/"+option.ID, source)
+	mergedOptions, appliedOptionIDs := dsl.MergeACPOptionSelections(target.ACPOptions, layer.ACPOptions)
+	target.ACPOptions = mergedOptions
+	for _, optionID := range appliedOptionIDs {
+		setEffectiveConfigSource(effective, path+"/acp_options/"+optionID, source)
 	}
-	target.ACPOptions = dsl.CloneACPOptionSelections(target.ACPOptions)
 }

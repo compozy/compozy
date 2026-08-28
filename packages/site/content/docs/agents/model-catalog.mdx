@@ -397,10 +397,13 @@ a recorded source status (with redacted error) instead of corrupting the project
 
 ## Refresh lifetime and serialization
 
-- Claude, Codex, and Cursor discovery runs once on the first catalog read that has no matching
-  `provider_live:<id>` status.
-- Later catalog list calls return stored rows without rerunning the provider CLI.
-- A recorded failed or disabled first attempt is retried only by an explicit refresh.
+- A first catalog read with no matching source status bootstraps the dynamic source before returning.
+- Later reads return persisted rows immediately and schedule non-blocking refresh work. The refresh
+  planner skips a source while its five-minute TTL remains fresh.
+- A 30-second background sweep evaluates provider-live and extension sources, so expired rows refresh
+  even when no catalog client is polling.
+- Failed refreshes record diagnostics and retain the last successful rows as stale data. A later
+  background, read-triggered, or explicit refresh retries the source.
 - Refresh detaches from request cancellation via `context.WithoutCancel(ctx)` and re-attaches an
   explicit deadline through `context.WithDeadline`.
 - Refresh work is **serialized** per `provider_id` before any subprocess or provider-home work.
@@ -409,11 +412,11 @@ a recorded source status (with redacted error) instead of corrupting the project
 - Refreshes for different providers can run concurrently.
 - The daemon joins outstanding refresh workers during shutdown.
 
-HTTP and command discovery paths do not create an ACP session. Claude, Codex, and Cursor use a
-short-lived ACP inspection so catalog values match the runtime transport exactly. Live provider
-sources fail closed by recording source status; an explicit Cursor model is accepted only when a fresh
-Cursor ACP catalog entry advertises its exact value. Stale rows remain visible as fallback metadata but
-cannot authorize that explicit Cursor selection.
+Claude, Codex, and Hermes use short-lived ACP inspection so catalog values match the runtime transport.
+Cursor uses `cursor-agent models`, configured discovery uses its declared command or endpoint, and
+extension sources call their `models/list` capability. Dynamic sources fail closed by recording source
+status; an explicit Cursor model is accepted only when a fresh Cursor catalog row advertises its logical
+identity. Stale rows remain visible as fallback metadata but cannot authorize that explicit selection.
 
 ## Observability
 

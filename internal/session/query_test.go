@@ -352,7 +352,19 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 				t.Errorf("Stop(internal cleanup) error = %v", stopErr)
 			}
 		})
-		catalog.durable = sessionCatalogInfoFromRuntime(stopped.Info())
+		stoppedInfo := stopped.Info()
+		stoppedInfo.ACPOptions = []acp.SessionConfigOptionSelection{{ID: "mode", ValueID: "plan"}}
+		stoppedInfo.SelectedRuntime = &RuntimeSelection{
+			Provider:        "cursor",
+			Model:           "grok-4.6",
+			ReasoningEffort: "xhigh",
+			Speed:           speedpkg.SpeedFast,
+			ACPOptions: []acp.SessionConfigOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}},
+		}
+		stoppedInfo.RuntimeSelectionRevision = 3
+		catalog.durable = sessionCatalogInfoFromRuntime(stoppedInfo)
 		metaReads := 0
 		h.manager.readSessionMeta = func(path string) (store.SessionMeta, error) {
 			metaReads++
@@ -398,8 +410,30 @@ func TestManagerListPageOverlaysActiveAndBindsCursor(t *testing.T) {
 		}
 		for _, page := range []ListPage{first, second} {
 			for _, info := range page.Sessions {
-				if info.ID == stopped.ID && info.Workspace != "" {
+				if info.ID != stopped.ID {
+					continue
+				}
+				if info.Workspace != "" {
 					t.Fatalf("projected stopped info = %#v, want no meta-only workspace path", info)
+				}
+				if len(info.ACPOptions) != 1 || info.ACPOptions[0].ValueID != "plan" {
+					t.Fatalf("projected stopped ACP options = %#v, want mode=plan", info.ACPOptions)
+				}
+				if info.SelectedRuntime == nil || info.SelectedRuntime.Provider != "cursor" ||
+					info.SelectedRuntime.Model != "grok-4.6" ||
+					info.SelectedRuntime.ReasoningEffort != "xhigh" ||
+					info.SelectedRuntime.Speed != speedpkg.SpeedFast || info.RuntimeSelectionRevision != 3 {
+					t.Fatalf(
+						"projected stopped selection = %#v revision %d, want Grok 4.6 xhigh fast at revision 3",
+						info.SelectedRuntime,
+						info.RuntimeSelectionRevision,
+					)
+				}
+				if len(info.SelectedRuntime.ACPOptions) != 1 ||
+					info.SelectedRuntime.ACPOptions[0].BoolValue == nil ||
+					!*info.SelectedRuntime.ACPOptions[0].BoolValue {
+					t.Fatalf("projected stopped selected ACP options = %#v, want thinking=true",
+						info.SelectedRuntime.ACPOptions)
 				}
 			}
 		}

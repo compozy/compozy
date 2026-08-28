@@ -75,6 +75,9 @@ func newSDKConfigOptionCompatibilityReader(input io.Reader) io.Reader {
 }
 
 func (r *sdkConfigOptionCompatibilityReader) Read(target []byte) (int, error) {
+	if len(target) == 0 {
+		return 0, nil
+	}
 	if len(r.buffered) == 0 {
 		if r.terminalErr != nil {
 			err := r.terminalErr

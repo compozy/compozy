@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
@@ -45,24 +44,6 @@ type roleAttemptRoute struct {
 	ReasoningEffort string
 	Speed           speedpkg.Speed
 	ACPOptions      []compozyconfig.ACPOptionSelection
-}
-
-func roleACPOptionsForSession(options []compozyconfig.ACPOptionSelection) []acp.SessionConfigOptionSelection {
-	if len(options) == 0 {
-		return nil
-	}
-	converted := make([]acp.SessionConfigOptionSelection, 0, len(options))
-	for _, option := range options {
-		convertedOption := acp.SessionConfigOptionSelection{
-			ID:      strings.TrimSpace(option.ID),
-			ValueID: strings.TrimSpace(option.ValueID),
-		}
-		if option.BoolValue != nil {
-			convertedOption.BoolValue = new(*option.BoolValue)
-		}
-		converted = append(converted, convertedOption)
-	}
-	return converted
 }
 
 type roleFallbackEventPayload struct {
@@ -110,8 +91,8 @@ func invokeRoleWithFallback[T any](
 		Provider:        strings.TrimSpace(role.Provider),
 		Model:           strings.TrimSpace(role.Model),
 		ReasoningEffort: strings.TrimSpace(role.ReasoningEffort),
-		Speed:           role.Speed,
-		ACPOptions:      compozyconfig.CloneACPOptionSelections(role.ACPOptions),
+		Speed:           role.speedValue(),
+		ACPOptions:      compozyconfig.CloneACPOptionSelections(role.acpOptionsValue()),
 	}
 	value, accepted, err := invoke(ctx, primary)
 	if accepted {

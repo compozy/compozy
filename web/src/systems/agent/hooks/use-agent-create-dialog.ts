@@ -14,14 +14,14 @@ import {
   type AgentCreateDialogDraft,
 } from "../lib/agent-create-draft";
 import type { AgentPayload } from "../types";
-import {
-  providerNeedsAuth,
-  type RuntimeCatalogProvider,
-  useRuntimeModelCatalog,
-} from "@/systems/model-catalog";
+import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
 import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
-import { type SessionProviderOption, type WorkspacePayload } from "@/systems/workspace";
+import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
+import {
+  workspaceProviderToOption,
+  type SessionProviderOption,
+  type WorkspacePayload,
+} from "@/systems/workspace";
 
 interface AgentCreateDialogContext {
   activeWorkspace: WorkspacePayload | undefined;
@@ -64,33 +64,6 @@ function describeError(fallback: string, error: unknown): string {
     return error.message;
   }
   return fallback;
-}
-
-function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProviderOption {
-  const displayName = provider.settings.display_name?.trim();
-  const harness = provider.settings.harness?.trim();
-  const runtimeProvider = provider.settings.runtime_provider?.trim();
-  return {
-    id: provider.name,
-    name: displayName || provider.name,
-    ...(harness ? { harness } : {}),
-    ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
-    runtime_strategy: provider.runtime_strategy,
-    needs_auth: providerNeedsAuth(provider.auth_status?.state),
-  };
-}
-
-function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProviderOption {
-  const displayName = provider.display_name?.trim();
-  const harness = provider.harness?.trim();
-  const runtimeProvider = provider.runtime_provider?.trim();
-  return {
-    id: provider.name,
-    name: displayName || provider.name,
-    ...(harness ? { harness } : {}),
-    runtime_provider: runtimeProvider || provider.name,
-    runtime_strategy: provider.runtime_strategy,
-  };
 }
 
 export function useAgentCreateDialog({

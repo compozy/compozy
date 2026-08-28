@@ -1,5 +1,11 @@
 package modelcatalog
 
+import (
+	"cmp"
+	"slices"
+	"strings"
+)
+
 // ModelTransportBinding maps one logical model configuration to its provider-owned identifier.
 type ModelTransportBinding struct {
 	TransportModelID string
@@ -32,9 +38,19 @@ func appendTransportBinding(bindings []ModelTransportBinding, binding ModelTrans
 	for index := range bindings {
 		if bindings[index].TransportModelID == binding.TransportModelID {
 			mergeTransportBinding(&bindings[index], binding)
-			return bindings
+			return sortTransportBindings(bindings)
 		}
 	}
 	binding.OptionSelections = CloneModelOptionSelections(binding.OptionSelections)
-	return append(bindings, binding)
+	return sortTransportBindings(append(bindings, binding))
+}
+
+func sortTransportBindings(bindings []ModelTransportBinding) []ModelTransportBinding {
+	slices.SortFunc(bindings, func(left, right ModelTransportBinding) int {
+		return cmp.Compare(
+			strings.TrimSpace(left.TransportModelID),
+			strings.TrimSpace(right.TransportModelID),
+		)
+	})
+	return bindings
 }

@@ -14,12 +14,13 @@ import (
 
 func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
+	session.SelectedRuntime = store.NormalizeSessionRuntimeSelection(session.SelectedRuntime)
 	speedResolutionJSON, network, acpOptionsJSON, selectedACPOptionsJSON, err :=
 		sessionCatalogRuntimeProjections(session)
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}
-	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(session.RuntimeRecovery)
+	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(session.RuntimeRecoveryValue())
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}
@@ -142,11 +143,11 @@ func sessionCatalogRuntimeProjections(
 	if err != nil {
 		return "", participationSnapshotFields{}, "", "", err
 	}
-	acpOptionsJSON, err := encodeSessionACPOptions(session.ACPOptions, "session ACP options")
+	acpOptionsJSON, err := encodeSessionACPOptions(session.ACPOptionsValue(), "session ACP options")
 	if err != nil {
 		return "", participationSnapshotFields{}, "", "", err
 	}
-	selectedACPOptionsJSON, err := encodeSelectedRuntimeACPOptions(session.SelectedRuntime)
+	selectedACPOptionsJSON, err := encodeCanonicalSelectedRuntimeACPOptions(session.SelectedRuntime)
 	if err != nil {
 		return "", participationSnapshotFields{}, "", "", err
 	}

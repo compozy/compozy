@@ -62,12 +62,12 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	agent := compozyconfig.AgentDef{
 		Name:   "reviewer",
 		Prompt: "Review changes.",
-		Speed:  "fast",
-		ACPOptions: []compozyconfig.ACPOptionSelection{
-			{ID: "context", ValueID: "1m"},
-			{ID: "thinking", BoolValue: &fast},
-		},
 	}
+	agent.SetSpeed("fast")
+	agent.SetACPOptions([]compozyconfig.ACPOptionSelection{
+		{ID: "context", ValueID: "1m"},
+		{ID: "thinking", BoolValue: &fast},
+	})
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
 	codexConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
 	claudeConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}}

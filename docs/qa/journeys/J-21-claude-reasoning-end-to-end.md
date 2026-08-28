@@ -20,7 +20,7 @@ flowchart TD
     APPLY --> EXTRA[Apply Fast, then remaining ACP options in stable ID order]
     EXTRA --> DISPATCH[Dispatch this prompt]
     NORPC --> EXTRA
-    DISPATCH --> TRACE[ACP trace: model → effort when selected → prompt]
+    DISPATCH --> TRACE[ACP trace: model → effort when selected → Fast when requested → remaining ACP options → prompt]
     TRACE --> LATER[Later prompt may choose a different snapshot]
     LATER --> END[Earlier prompt history remains unchanged — true end]
     OPTIONS -->|missing or unsupported| FAIL[Typed 422 / CLI code; no dispatch]

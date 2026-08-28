@@ -122,10 +122,14 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		t.Parallel()
 
 		role := fallbackTestRole(nil)
-		role.Speed = speedpkg.SpeedFast
-		role.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		role.setRuntime(
+			speedpkg.SpeedFast,
+			[]compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+		)
 		role.Fallbacks[0].Speed = speedpkg.SpeedNormal
 		role.Fallbacks[0].ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}}
+		role.Fallbacks[1].Speed = speedpkg.SpeedFast
+		role.Fallbacks[1].ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(false)}}
 		var routes []roleAttemptRoute
 		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
 			_ context.Context,
@@ -137,14 +141,40 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		if err == nil || len(routes) != 3 {
 			t.Fatalf("invokeRoleWithFallback() error/routes = %v/%d, want exhaustion/3", err, len(routes))
 		}
-		if routes[0].Speed != speedpkg.SpeedFast || len(routes[0].ACPOptions) != 1 ||
-			routes[0].ACPOptions[0].ID != "thinking" || routes[0].ACPOptions[0].BoolValue == nil ||
-			!*routes[0].ACPOptions[0].BoolValue {
-			t.Fatalf("primary route = %#v, want speed and ACP option", routes[0])
+		want := []roleAttemptRoute{
+			{
+				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				Provider:        "primary",
+				Model:           "m1",
+				ReasoningEffort: "low",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []compozyconfig.ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(true)},
+				},
+			},
+			{
+				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				Provider:        "secondary",
+				Model:           "m2",
+				ReasoningEffort: "medium",
+				Speed:           speedpkg.SpeedNormal,
+				ACPOptions: []compozyconfig.ACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+				},
+			},
+			{
+				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				Provider:        "tertiary",
+				Model:           "m3",
+				ReasoningEffort: "high",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []compozyconfig.ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(false)},
+				},
+			},
 		}
-		if routes[1].Speed != speedpkg.SpeedNormal || len(routes[1].ACPOptions) != 1 ||
-			routes[1].ACPOptions[0].ID != "context" || routes[1].ACPOptions[0].ValueID != "1m" {
-			t.Fatalf("fallback route = %#v, want speed and ACP option", routes[1])
+		if !reflect.DeepEqual(routes, want) {
+			t.Fatalf("routes = %#v, want %#v", routes, want)
 		}
 	})
 

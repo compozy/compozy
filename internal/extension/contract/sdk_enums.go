@@ -16,6 +16,7 @@ func SDKEnumContracts() []SDKEnumContract {
 	return []SDKEnumContract{
 		{Value: IssueSeverity(""), Values: IssueSeverityValues()},
 		{Value: CommandFlagType(""), Values: CommandFlagTypeValues()},
+		{Value: ModelSourceOptionKind(""), Values: ModelSourceOptionKindValues()},
 		{Value: hooks.LoopGenerationOrigin(""), Values: hooks.LoopGenerationOriginValues()},
 		{Value: apicontract.LoopProvenanceRole(""), Values: apicontract.LoopProvenanceRoleValues()},
 	}

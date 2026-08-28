@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +25,7 @@ const (
 	modelCatalogRefreshSegment   = "refresh"
 	modelCatalogSourcesSegment   = "sources"
 	statusKey                    = "status"
+	modelCatalogWorkspaceAction  = "model_catalog.workspace"
 )
 
 var errModelCatalogRouteNotFound = errors.New("model catalog route not found")
@@ -341,11 +345,48 @@ func (h *BaseHandlers) modelCatalogExecutionContext(
 			ProfileID: profileID,
 		}, nil
 	}
+	if h == nil || h.Workspaces == nil {
+		return modelcatalog.CatalogExecutionContext{}, fmt.Errorf(
+			"api: %w",
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceID)
+	if err != nil {
+		return modelcatalog.CatalogExecutionContext{}, fmt.Errorf(
+			"api: resolve model catalog workspace %q: %w",
+			workspaceID,
+			err,
+		)
+	}
+	canonicalWorkspaceID := strings.TrimSpace(resolved.ID)
+	if canonicalWorkspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{}, errors.New(
+			"api: resolved model catalog workspace has no canonical id",
+		)
+	}
+	if err := h.authorizeModelCatalogWorkspace(c, canonicalWorkspaceID); err != nil {
+		return modelcatalog.CatalogExecutionContext{}, err
+	}
 	return modelcatalog.CatalogExecutionContext{
 		Scope:       modelcatalog.ExecutionScopeWorkspace,
 		ProfileID:   profileID,
-		WorkspaceID: workspaceID,
+		WorkspaceID: canonicalWorkspaceID,
 	}, nil
+}
+
+func (h *BaseHandlers) authorizeModelCatalogWorkspace(c *gin.Context, workspaceID string) error {
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return nil
+	}
+	caller, err := h.resolveAgentCaller(c.Request.Context(), credentials, modelCatalogWorkspaceAction)
+	if err != nil {
+		return err
+	}
+	request := workspaceAccessRequestForCaller(caller, workspaceID)
+	request.Seam = workspaceaccess.SeamCatalog
+	return agentidentity.ValidateWorkspaceAccess(c.Request.Context(), h.WorkspaceAccess, request)
 }
 
 func (h *BaseHandlers) modelCatalogService() (ModelCatalogService, error) {

@@ -26,10 +26,10 @@ func (f *sessionPromptRuntimeFlags) selection(
 	flags := cmd.Flags()
 	if !flags.Changed(sessionProviderKey) && !flags.Changed("model") &&
 		!flags.Changed("reasoning-effort") && !flags.Changed("speed") &&
-		!flags.Changed("acp-option") && !flags.Changed("acp-toggle") {
+		!flags.Changed(runtimeACPOptionFlag) && !flags.Changed(runtimeACPToggleFlag) {
 		return nil, nil
 	}
-	acpOptions, err := parseAgentACPFlags(f.acpOptions, f.acpToggles)
+	acpOptions, err := parseACPFlags(f.acpOptions, f.acpToggles)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,11 @@ func bindSessionPromptRuntimeFlags(cmd *cobra.Command, flags *sessionPromptRunti
 		"Runtime reasoning effort for this prompt (none|minimal|low|medium|high|xhigh|max)",
 	)
 	cmd.Flags().StringVar(&flags.speed, "speed", "", "Runtime speed for this prompt (normal|fast)")
-	cmd.Flags().StringArrayVar(&flags.acpOptions, "acp-option", nil, "ACP select override as id=value (repeatable)")
-	cmd.Flags().
-		StringArrayVar(&flags.acpToggles, "acp-toggle", nil, "ACP boolean override as id=true|false (repeatable)")
+	bindACPOptionFlags(
+		cmd,
+		&flags.acpOptions,
+		&flags.acpToggles,
+		"ACP select override as id=value (repeatable)",
+		"ACP boolean override as id=true|false (repeatable)",
+	)
 }

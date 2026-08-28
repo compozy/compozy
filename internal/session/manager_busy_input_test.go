@@ -950,7 +950,7 @@ func TestManagerPromptAdmissionReplay(t *testing.T) {
 			h := newHarness(
 				t,
 				WithSessionInputQueueStore(queueStore),
-				WithModelCatalog(cursorModelCatalogStub{}),
+				WithModelCatalog(modelCatalogStub{}),
 			)
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			session := createCursorPromptAdmissionSession(t, h)
@@ -2171,7 +2171,8 @@ const (
 func createCursorPromptAdmissionSession(t *testing.T, h *harness) *Session {
 	t.Helper()
 	originalCatalog := h.manager.modelCatalog
-	h.manager.modelCatalog = cursorModelCatalogStub{models: []modelcatalog.Model{{
+	t.Cleanup(func() { h.manager.modelCatalog = originalCatalog })
+	h.manager.modelCatalog = modelCatalogStub{models: []modelcatalog.Model{{
 		ProviderID:             "cursor",
 		ModelID:                cursorPromptAdmissionModel,
 		AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,

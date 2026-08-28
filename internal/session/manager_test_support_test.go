@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -249,6 +250,10 @@ func newHostedMCPHarness(t *testing.T, extraOpts ...Option) *harness {
 
 func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manager {
 	t.Helper()
+	claudeProvider, err := h.cfg.ResolveProvider(runtimeProviderClaude)
+	if err != nil {
+		t.Fatalf("ResolveProvider(%q) error = %v", runtimeProviderClaude, err)
+	}
 
 	opts := []Option{
 		WithHomePaths(h.homePaths),
@@ -287,6 +292,16 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithTurnIDGenerator(sequentialIDGenerator("turn")),
 		WithSandboxRegistry(h.sandbox),
 		WithSandboxIDGenerator(sequentialIDGenerator("env")),
+		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        runtimeProviderClaude,
+			ModelID:           claudeProvider.Models.Default,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: "default"}},
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID(runtimeProviderClaude),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}),
 	}
 	opts = append(opts, extraOpts...)
 

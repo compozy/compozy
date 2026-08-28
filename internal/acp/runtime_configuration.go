@@ -68,11 +68,11 @@ func (d *Driver) ConfigureRuntime(ctx context.Context, process *AgentProcess, co
 	process.runtimeConfigMu.Lock()
 	defer process.runtimeConfigMu.Unlock()
 
-	if _, err := d.applySessionModel(ctx, process, normalized.Model); err != nil {
-		return fmt.Errorf("acp: configure runtime model: %w", err)
-	}
 	if err := validateDedicatedConfigOptionConflicts(process.CapsSnapshot().ConfigOptions, normalized); err != nil {
 		return err
+	}
+	if _, err := d.applySessionModel(ctx, process, normalized.Model); err != nil {
+		return fmt.Errorf("acp: configure runtime model: %w", err)
 	}
 	if _, err := d.applySessionReasoningEffort(ctx, process, normalized.ReasoningEffort); err != nil {
 		return fmt.Errorf("acp: configure runtime reasoning effort: %w", err)

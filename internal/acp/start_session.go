@@ -3,7 +3,6 @@ package acp
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	acpsdk "github.com/coder/acp-go-sdk"
@@ -109,6 +108,18 @@ func (d *Driver) applySessionConfiguration(
 	if normalized.Inspection {
 		return nil
 	}
+	if err := validateDedicatedConfigOptionConflicts(process.CapsSnapshot().ConfigOptions, RuntimeConfig{
+		Model:           normalized.PreferredModel,
+		ReasoningEffort: normalized.ReasoningEffort,
+		Speed:           normalized.Speed,
+		ACPOptions:      normalized.ACPOptions,
+	}); err != nil {
+		return WrapFailure(
+			store.FailureProtocol,
+			"ACP session option negotiation failed",
+			fmt.Errorf("acp: validate session ACP options for %q: %w", normalized.AgentName, err),
+		)
+	}
 	stageStartedAt := time.Now()
 	applied, err := d.applySessionMode(ctx, process, normalized.Permissions)
 	d.logStartStage(normalized, process, "set_mode", stageOutcome(err, !applied), stageStartedAt)
@@ -120,7 +131,7 @@ func (d *Driver) applySessionConfiguration(
 		)
 	}
 	if normalized.RuntimeStrategy != RuntimeApplicationSessionConfig {
-		return verifyLaunchBoundRuntime(process, normalized)
+		return nil
 	}
 
 	stageStartedAt = time.Now()
@@ -165,33 +176,5 @@ func (d *Driver) applySessionConfiguration(
 		)
 	}
 	d.logStartStage(normalized, process, "set_acp_options", startOutcomeSucceeded, stageStartedAt)
-	return nil
-}
-
-func verifyLaunchBoundRuntime(process *AgentProcess, normalized StartOpts) error {
-	if normalized.RuntimeStrategy != RuntimeApplicationLaunchArg || normalized.ExpectedTransportModel == "" {
-		return nil
-	}
-	option, ok := ModelConfigOption(process.CapsSnapshot().ConfigOptions)
-	if !ok {
-		return newNegotiationError(
-			NegotiationCodeModelUnavailable,
-			sessionConfigModelKey,
-			normalized.ExpectedTransportModel,
-			"",
-			nil,
-			errModelConfigOptionRequired,
-		)
-	}
-	if strings.TrimSpace(option.CurrentValueID) != normalized.ExpectedTransportModel {
-		return newNegotiationError(
-			NegotiationCodeModelUnavailable,
-			sessionConfigModelKey,
-			normalized.ExpectedTransportModel,
-			option.ID,
-			configOptionChoices(option),
-			nil,
-		)
-	}
 	return nil
 }

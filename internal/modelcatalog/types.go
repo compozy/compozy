@@ -89,9 +89,10 @@ const (
 
 // ListOptions filters persisted catalog source rows.
 type ListOptions struct {
-	ProviderID         string
-	SourceID           string
-	ExecutionContext   CatalogExecutionContext
+	ProviderID       string
+	SourceID         string
+	ExecutionContext CatalogExecutionContext
+	// SourceContexts owns the resolved execution scope for each selected source ID.
 	SourceContexts     map[string]CatalogExecutionContext
 	View               CatalogView
 	Refresh            bool

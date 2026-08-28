@@ -353,9 +353,11 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			Model:           "gpt-5.4",
 			ReasoningEffort: "high",
 			Speed:           speedpkg.SpeedFast,
-			ACPOptions: []store.SessionACPOptionSelection{
-				{ID: "context", ValueID: "1m"},
-				{ID: "thinking", BoolValue: new(true)},
+			SessionRuntimeDetails: &store.SessionRuntimeDetails{
+				ACPOptions: []store.SessionACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
 			},
 			SelectedRuntime: &store.SessionRuntimeSelection{
 				Provider: "claude",

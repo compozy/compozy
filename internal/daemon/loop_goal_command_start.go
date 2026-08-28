@@ -195,7 +195,7 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 		return nil, nil
 	}
 	resolved := *runtime
-	resolved.ACPOptions = loopACPOptionsFromSession(loopACPOptionsForSession(runtime.ACPOptions))
+	resolved.ACPOptions = cloneLoopACPOptions(runtime.ACPOptions)
 	provider := compozyconfig.CanonicalProviderName(resolved.Provider)
 	if provider == "" {
 		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
@@ -324,7 +324,7 @@ func goalStartInputs(
 	}
 	if runtime != nil {
 		worker := *runtime
-		worker.ACPOptions = loopACPOptionsFromSession(loopACPOptionsForSession(runtime.ACPOptions))
+		worker.ACPOptions = cloneLoopACPOptions(runtime.ACPOptions)
 		inputs.ConfigOverrides.RuntimeDefaults = &looppkg.RuntimeDefaults{Worker: worker}
 	}
 	return inputs

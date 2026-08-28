@@ -172,10 +172,11 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.RuntimeStatus, store.SessionRuntimeReady; got != want {
 			t.Fatalf("info.RuntimeStatus = %q, want %q", got, want)
 		}
-		if len(info.ACPOptions) != 2 || info.ACPOptions[0].ID != "context" ||
-			info.ACPOptions[0].ValueID != "large" || info.ACPOptions[1].ID != "thinking" ||
-			info.ACPOptions[1].BoolValue == nil || !*info.ACPOptions[1].BoolValue {
-			t.Fatalf("info ACP options = %#v, want context=large and thinking=true", info.ACPOptions)
+		infoOptions := info.ACPOptionsValue()
+		if len(infoOptions) != 2 || infoOptions[0].ID != "context" ||
+			infoOptions[0].ValueID != "large" || infoOptions[1].ID != "thinking" ||
+			infoOptions[1].BoolValue == nil || !*infoOptions[1].BoolValue {
+			t.Fatalf("info ACP options = %#v, want context=large and thinking=true", infoOptions)
 		}
 		if got, want := info.RuntimeTransition, store.SessionRuntimeTransitionLiveConfiguration; got != want {
 			t.Fatalf("info.RuntimeTransition = %q, want %q", got, want)

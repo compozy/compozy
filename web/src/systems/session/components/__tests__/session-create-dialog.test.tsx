@@ -9,9 +9,8 @@ import type { WorkspacePayload } from "@/systems/workspace";
 
 import { SessionCreateDialog, type SessionCreateDialogProps } from "../session-create-dialog";
 
-// Invariant: session creation selects durable session identity and, since US-004, the first
-// message the session will send — this dialog is the draft composer, because a session does not
-// exist until it is created. Runtime selection still belongs to the created session's composer.
+// Invariant: session creation selects only durable identity and launch context; the destination
+// composer owns every prompt and runtime selection after the session exists.
 // Cancel means "stop creating the environment" while one is being built, and "dismiss" otherwise.
 // Owning layer: session create dialog presentation. Canonical suite: this component test.
 vi.mock("@/systems/status", () => ({
@@ -68,8 +67,6 @@ function makeProps(overrides: Partial<SessionCreateDialogProps> = {}): SessionCr
     destinationReady: true,
     sessionName: "",
     onSessionNameChange: vi.fn(),
-    firstMessage: "",
-    onFirstMessageChange: vi.fn(),
     selectedAgentName: "claude-agent",
     networkParticipation: { mode: "local", channelId: "", channelStrategy: "" },
     onAgentChange: vi.fn(),
@@ -133,13 +130,12 @@ function renderDialogWithFocusSource(overrides: Partial<SessionCreateDialogProps
   };
 }
 describe("SessionCreateDialog", () => {
-  it("Should show only the Agent and first-message fields in Simple mode", () => {
+  it("Should show only the Agent field in Simple mode", () => {
     renderDialog();
 
     expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
-    // The first message is the point of starting a session, not a launch detail,
-    // so it is never behind the Advanced disclosure.
-    expect(screen.getByTestId("session-create-composer")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-create-composer")).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "First message" })).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-workspace-select")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-name-input")).not.toBeInTheDocument();
     expect(screen.queryByTestId("session-create-participation-mode")).not.toBeInTheDocument();
@@ -150,7 +146,7 @@ describe("SessionCreateDialog", () => {
     renderDialog({ mode: "advanced" });
 
     expect(screen.getByTestId("session-create-agent-select")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-composer")).toBeInTheDocument();
+    expect(screen.queryByTestId("session-create-composer")).not.toBeInTheDocument();
     expect(screen.getByTestId("session-create-name-input")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-participation-mode")).toBeInTheDocument();
     expect(screen.getByTestId("workspace-scope-statement")).toHaveTextContent(
@@ -166,16 +162,6 @@ describe("SessionCreateDialog", () => {
     renderDialog({ mode: "advanced", profileDestination: "marketing" });
 
     expect(screen.getByTestId("profile-destination-chip")).toHaveTextContent("marketing");
-  });
-
-  it("Should report the typed first message to the owner", async () => {
-    const user = userEvent.setup();
-    const onFirstMessageChange = vi.fn();
-    renderDialog({ onFirstMessageChange });
-
-    await user.type(screen.getByTestId("session-create-composer"), "Go");
-
-    expect(onFirstMessageChange).toHaveBeenCalled();
   });
 
   it("Should route Cancel to the environment while one is being created", async () => {
@@ -231,11 +217,9 @@ describe("SessionCreateDialog", () => {
     expect(onCancelEnvironment).not.toHaveBeenCalled();
   });
 
-  // US-004 AC-3: a failed environment must never be a dead end, and never cost
-  // the operator the message they already wrote.
+  // A failed environment must never be a dead end or discard launch details.
   it("Should offer retry, another environment, and the workspace root when creation fails", () => {
     renderDialog({
-      firstMessage: "Investigate the regression",
       mode: "advanced",
       environment: {
         value: { kind: "new", name: "hotfix-cors" },
@@ -257,7 +241,7 @@ describe("SessionCreateDialog", () => {
     expect(screen.getByTestId("session-environment-retry")).toBeInTheDocument();
     expect(screen.getByTestId("session-environment-root")).toBeInTheDocument();
     expect(screen.getByTestId("session-create-environment")).toBeInTheDocument();
-    expect(screen.getByTestId("session-create-composer")).toHaveValue("Investigate the regression");
+    expect(screen.queryByTestId("session-create-composer")).not.toBeInTheDocument();
   });
 
   it("Should report mode changes through the shared toolbar", async () => {

@@ -68,7 +68,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		const thinkingTransport = "claude-opus-5-thinking-high"
 		thinkingOff := false
 		thinkingOn := true
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        cursorRuntimeProvider,
 			ModelID:           logicalModel,
 			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
@@ -130,8 +130,8 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 		startCalls := append([]acp.StartOpts(nil), h.driver.startCalls...)
 		stopCalls := h.driver.stopCalls
 		h.driver.mu.Unlock()
-		if len(startCalls) != 2 || startCalls[0].ExpectedTransportModel != regularTransport ||
-			startCalls[1].ExpectedTransportModel != thinkingTransport {
+		if len(startCalls) != 2 || startCalls[0].LaunchModelID != regularTransport ||
+			startCalls[1].LaunchModelID != thinkingTransport {
 			t.Fatalf("Cursor starts = %#v, want regular then thinking transport", startCalls)
 		}
 		if stopCalls != 1 {
@@ -799,7 +799,7 @@ func TestManagerLifecycleCatalogTransitions(t *testing.T) {
 
 		const advertisedModel = "grok-4.5"
 		const transportModel = "cursor-grok-4.5-high"
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:             "cursor",
 			ModelID:                advertisedModel,
 			AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,

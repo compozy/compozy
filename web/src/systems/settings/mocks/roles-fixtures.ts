@@ -3,6 +3,7 @@ import type { RolesStatusResponse, SettingsRolesSection } from "../types";
 /** Editable `[roles]` section — defaults preserving current runtime behavior. */
 export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
   coordinator: {
+    acp_options: [],
     agent: "",
     enabled: false,
     fallback_chain: [],
@@ -14,6 +15,7 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     ttl: "2h",
   },
   dream: {
+    acp_options: [],
     agent: "",
     enabled: true,
     fallback_chain: [],
@@ -22,6 +24,7 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     reasoning_effort: "",
   },
   checkpoint_summary: {
+    acp_options: [],
     agent: "",
     enabled: true,
     fallback_chain: [],
@@ -30,6 +33,7 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     reasoning_effort: "",
   },
   memory_extractor: {
+    acp_options: [],
     agent: "",
     enabled: true,
     fallback_chain: [],
@@ -38,6 +42,7 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     reasoning_effort: "",
   },
   auto_title: {
+    acp_options: [],
     agent: "",
     enabled: true,
     fallback_chain: [],
@@ -46,6 +51,7 @@ export const settingsRolesConfigFixture: SettingsRolesSection["config"] = {
     reasoning_effort: "",
   },
   memory_controller: {
+    acp_options: [],
     enabled: true,
     fallback_chain: [],
     max_tokens_out: 256,
@@ -80,6 +86,8 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provider: null,
       model: null,
       reasoning_effort: null,
+      speed: null,
+      acp_options: [],
       fallback_chain: [],
       provenance: { enabled: "default", fallback_chain: "default" },
       diagnostics: [],
@@ -92,6 +100,8 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provider: null,
       model: null,
       reasoning_effort: null,
+      speed: null,
+      acp_options: [],
       fallback_chain: [],
       provenance: { enabled: "default", fallback_chain: "default", agent: "default" },
       diagnostics: [],
@@ -104,6 +114,8 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provider: null,
       model: null,
       reasoning_effort: null,
+      speed: null,
+      acp_options: [],
       fallback_chain: [],
       provenance: { enabled: "default", fallback_chain: "default", agent: "default" },
       diagnostics: [],
@@ -116,6 +128,8 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provider: null,
       model: null,
       reasoning_effort: null,
+      speed: null,
+      acp_options: [],
       fallback_chain: [],
       provenance: { enabled: "default", fallback_chain: "default", agent: "default" },
       diagnostics: [],
@@ -128,6 +142,8 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provider: "pi",
       model: "anthropic/claude-haiku-4",
       reasoning_effort: null,
+      speed: null,
+      acp_options: [],
       timeout: "250ms",
       fallback_chain: [],
       provenance: {
@@ -147,6 +163,8 @@ export const rolesStatusFixture: RolesStatusResponse = {
       provider: null,
       model: null,
       reasoning_effort: null,
+      speed: null,
+      acp_options: [],
       fallback_chain: [],
       provenance: { enabled: "default", fallback_chain: "default" },
       diagnostics: [],
@@ -181,8 +199,8 @@ export const settingsRolesConfigWithFallbackFixture: SettingsRolesSection["confi
   dream: {
     ...settingsRolesConfigFixture.dream,
     fallback_chain: [
-      { provider: "anthropic", model: "claude-sonnet-5", reasoning_effort: "" },
-      { provider: "openai", model: "gpt-5", reasoning_effort: "high" },
+      { provider: "anthropic", model: "claude-sonnet-5", reasoning_effort: "", acp_options: [] },
+      { provider: "openai", model: "gpt-5", reasoning_effort: "high", acp_options: [] },
     ],
   },
 };

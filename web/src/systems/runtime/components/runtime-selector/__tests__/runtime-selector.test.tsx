@@ -2093,7 +2093,17 @@ describe("RuntimeSelector reasoning footer modes", () => {
 // ---------------------------------------------------------------------------
 
 describe("RuntimeSelector speed request", () => {
-  const leveledModels = [model("leveled", { name: "Leveled", efforts: ["low", "medium", "high"] })];
+  const leveledModels = [
+    model("leveled", {
+      name: "Leveled",
+      efforts: ["low", "medium", "high"],
+      configurations: [
+        { reasoning_effort: "low", fast: true },
+        { reasoning_effort: "medium", fast: true },
+        { reasoning_effort: "high", fast: true },
+      ],
+    }),
+  ];
 
   it("Should render no speed switch when the surface does not wire onSpeedChange", async () => {
     const user = userEvent.setup();

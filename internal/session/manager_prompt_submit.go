@@ -32,9 +32,6 @@ func (m *Manager) prepareReservedPromptSlot(
 	runtime *RuntimeSelection,
 	proc *AgentProcess,
 ) (*AgentProcess, error) {
-	if err := m.validateReservedRuntimeModel(session, proc, runtime); err != nil {
-		return nil, err
-	}
 	return m.ensurePromptRuntime(ctx, session, runtime, proc)
 }
 

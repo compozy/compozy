@@ -146,13 +146,7 @@ func TestSessionPromptPassesRuntimeSelection(t *testing.T) {
 			len(gotRequest.Runtime.ACPOptions) != 2 {
 			t.Fatalf("SendSessionPrompt() Runtime = %#v", gotRequest.Runtime)
 		}
-		if gotRequest.Runtime.ACPOptions[0].ID != "context" ||
-			gotRequest.Runtime.ACPOptions[0].ValueID != "1m" ||
-			gotRequest.Runtime.ACPOptions[1].ID != "thinking" ||
-			gotRequest.Runtime.ACPOptions[1].BoolValue == nil ||
-			!*gotRequest.Runtime.ACPOptions[1].BoolValue {
-			t.Fatalf("SendSessionPrompt() ACP options = %#v", gotRequest.Runtime.ACPOptions)
-		}
+		assertACPOptions(t, gotRequest.Runtime.ACPOptions, "context", "1m", "thinking", true)
 		var decoded SessionPromptRecord
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(session prompt) error = %v", err)
@@ -262,6 +256,7 @@ func TestSessionGoalCommandForwardsTypedMutation(t *testing.T) {
 			gotRequest.Runtime.Speed != contract.SpeedFast || len(gotRequest.Runtime.ACPOptions) != 2 {
 			t.Fatalf("MutateSessionGoal() runtime = %#v", gotRequest.Runtime)
 		}
+		assertACPOptions(t, gotRequest.Runtime.ACPOptions, "context", "1m", "thinking", true)
 		var decoded contract.GoalCommandResult
 		if err := json.Unmarshal([]byte(stdout), &decoded); err != nil {
 			t.Fatalf("json.Unmarshal(session goal result) error = %v", err)
@@ -390,6 +385,7 @@ func TestSessionRuntimeCommandsPersistSelection(t *testing.T) {
 					len(request.Runtime.ACPOptions) != 2 {
 					t.Fatalf("SetSessionRuntime() id = %q request = %#v", id, request)
 				}
+				assertACPOptions(t, request.Runtime.ACPOptions, "context", "1m", "thinking", false)
 				return SessionRecord{
 					ID: id,
 					Runtime: contract.SessionRuntimePayload{

@@ -164,7 +164,7 @@ func claudeLabelIdentifiesCandidate(label string, candidate claudeModelCandidate
 		return false
 	}
 	for _, token := range claudeModelTokens(candidate.id) {
-		if token == "claude" || token == "1m" {
+		if token == liveSourcesClaudeKey || token == "1m" {
 			continue
 		}
 		if !slices.Contains(labelTokens, token) {

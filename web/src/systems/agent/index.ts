@@ -88,6 +88,7 @@ export {
 // Lib
 export {
   inheritedAgentRuntimeFields,
+  normalizeRuntimeSpeed,
   resolveAgentRuntimeValue,
 } from "./lib/agent-effective-runtime";
 export {

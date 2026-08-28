@@ -10,7 +10,7 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-// RuntimeSpec is the provider/model/reasoning/speed intent resolved by the Loop engine.
+// RuntimeSpec is provider, model, reasoning, speed, and typed ACP option intent resolved by the Loop engine.
 type RuntimeSpec = dsl.RuntimeSpec
 
 // ACPOptionSelection is one typed provider-advertised ACP option value.

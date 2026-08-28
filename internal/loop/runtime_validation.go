@@ -8,6 +8,7 @@ import (
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/runtimeoption"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
@@ -240,27 +241,34 @@ func validateRuntimeSpec(
 
 func validateRuntimeACPOptionConflicts(path string, runtime RuntimeSpec) error {
 	for _, option := range runtime.ACPOptions {
-		id := strings.ToLower(strings.TrimSpace(option.ID))
+		id := runtimeoption.SemanticID(option.ID)
 		switch id {
 		case "fast", "speed", "speedmode":
 			if strings.TrimSpace(string(runtime.Speed)) != "" {
 				return runtimeValidation(
 					path+"."+runtimeFieldACPOptions+"."+option.ID,
-					option.ValueID,
+					runtimeACPOptionDiagnosticValue(option),
 					"duplicate_semantic_option",
 				)
 			}
-		case "reasoning", "reasoning_effort", "reasoning-effort", "effort":
+		case "reasoning", "reasoningeffort", "effort":
 			if strings.TrimSpace(runtime.Reasoning) != "" {
 				return runtimeValidation(
 					path+"."+runtimeFieldACPOptions+"."+option.ID,
-					option.ValueID,
+					runtimeACPOptionDiagnosticValue(option),
 					"duplicate_semantic_option",
 				)
 			}
 		}
 	}
 	return nil
+}
+
+func runtimeACPOptionDiagnosticValue(option ACPOptionSelection) string {
+	if option.BoolValue != nil {
+		return fmt.Sprintf("%t", *option.BoolValue)
+	}
+	return strings.TrimSpace(option.ValueID)
 }
 
 func runtimeValidation(field string, value any, reason string) error {

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -46,15 +47,30 @@ func TestGlobalDBExecutionProfileStore(t *testing.T) {
 				Guidance: "Keep the next worker on the failing acceptance criterion.",
 			},
 			Worker: taskpkg.WorkerProfile{
-				Mode:                  taskpkg.WorkerModeSelect,
-				AgentName:             "coder",
+				Mode:            taskpkg.WorkerModeSelect,
+				AgentName:       "coder",
+				Provider:        "cursor",
+				Model:           "grok-4.6",
+				ReasoningEffort: "xhigh",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []taskpkg.ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(true)},
+					{ID: "context", ValueID: "1m"},
+				},
 				AllowedAgentNames:     []string{"coder"},
 				PreferredAgentNames:   []string{"coder"},
 				RequiredCapabilities:  []string{"go"},
 				PreferredCapabilities: []string{"tests"},
 			},
 			Review: taskpkg.ReviewProfile{
-				AgentName:             "reviewer",
+				AgentName:       "reviewer",
+				Provider:        "claude",
+				Model:           "opus-5",
+				ReasoningEffort: "high",
+				Speed:           speedpkg.SpeedNormal,
+				ACPOptions: []taskpkg.ACPOptionSelection{{
+					ID: "thinking", BoolValue: new(false),
+				}},
 				AllowedAgentNames:     []string{"reviewer"},
 				PreferredAgentNames:   []string{"reviewer"},
 				AllowedChannelIDs:     []string{"review-channel"},
@@ -191,6 +207,16 @@ func assertStoredProfileShape(t *testing.T, profile *taskpkg.ExecutionProfile) {
 	}
 	if got, want := profile.Review.AgentName, "reviewer"; got != want {
 		t.Fatalf("Review.AgentName = %q, want %q", got, want)
+	}
+	if profile.Worker.ReasoningEffort != "xhigh" || profile.Worker.Speed != speedpkg.SpeedFast ||
+		len(profile.Worker.ACPOptions) != 2 || profile.Worker.ACPOptions[0].ID != "context" ||
+		profile.Worker.ACPOptions[1].BoolValue == nil || !*profile.Worker.ACPOptions[1].BoolValue {
+		t.Fatalf("Worker runtime = %#v, want canonical persisted runtime", profile.Worker)
+	}
+	if profile.Review.ReasoningEffort != "high" || profile.Review.Speed != speedpkg.SpeedNormal ||
+		len(profile.Review.ACPOptions) != 1 || profile.Review.ACPOptions[0].BoolValue == nil ||
+		*profile.Review.ACPOptions[0].BoolValue {
+		t.Fatalf("Review runtime = %#v, want persisted thinking=false", profile.Review)
 	}
 	if got, want := profile.Sandbox.Mode, taskpkg.SandboxModeRef; got != want {
 		t.Fatalf("Sandbox.Mode = %q, want %q", got, want)

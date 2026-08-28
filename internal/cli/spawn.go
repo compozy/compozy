@@ -79,9 +79,13 @@ func registerSpawnFlags(cmd *cobra.Command, flags *spawnCommandFlags) {
 	cmd.Flags().StringVar(&flags.model, "model", "", "Optional model override")
 	cmd.Flags().StringVar(&flags.reasoningEffort, "reasoning-effort", "", "Optional reasoning effort override")
 	cmd.Flags().StringVar(&flags.speed, "speed", "", "Optional runtime speed override (normal or fast)")
-	cmd.Flags().StringArrayVar(&flags.acpOptions, "acp-option", nil, "ACP select override as id=value (repeatable)")
-	cmd.Flags().
-		StringArrayVar(&flags.acpToggles, "acp-toggle", nil, "ACP boolean override as id=true|false (repeatable)")
+	bindACPOptionFlags(
+		cmd,
+		&flags.acpOptions,
+		&flags.acpToggles,
+		"ACP select override as id=value (repeatable)",
+		"ACP boolean override as id=true|false (repeatable)",
+	)
 	cmd.Flags().StringVar(&flags.name, "name", "", "Optional child session display name")
 	cmd.Flags().StringVar(&flags.workspace, "workspace", "", "Override child workspace (ID, name, or path)")
 	cmd.Flags().StringVar(&flags.promptOverlay, "prompt-overlay", "", "Prompt overlay for the child session")
@@ -162,7 +166,7 @@ func (flags *spawnCommandFlags) request(
 		}
 		requestedSpeed = parsedSpeed
 	}
-	acpOptions, err := parseAgentACPFlags(flags.acpOptions, flags.acpToggles)
+	acpOptions, err := parseACPFlags(flags.acpOptions, flags.acpToggles)
 	if err != nil {
 		return AgentSpawnRequest{}, err
 	}

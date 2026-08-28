@@ -65,10 +65,11 @@ type SessionRuntimeRecoverySucceededPayload struct {
 }
 
 type SessionRuntimeSelectionPayload struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model,omitempty"`
-	ReasoningEffort Effort `json:"reasoning_effort,omitempty"`
-	Speed           Speed  `json:"speed,omitempty"`
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort Effort                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
 
 type SessionRuntimeSetParams struct {

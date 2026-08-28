@@ -119,7 +119,8 @@ Agent, skill, Loop, worktree, and session reads resolve the exact workspace. Wor
 the caller's workspace-access policy. Vault reads are global and return reference metadata only.
 Runtime accepts a partial `{provider, model, reasoning, speed, acp_options}` object; `speed` is
 `normal|fast`, each ACP option is a typed select or boolean selection, and exact custom model IDs remain
-valid. For CLI input, `provider/model@reasoning:speed=normal|fast` is
+valid. See `references/agent-definitions.md#fields` for the exact `acp_options` entry shape. For CLI
+input, `provider/model@reasoning:speed=normal|fast` is
 the compact form, `-` leaves provider or model unset, and `-/-:speed=fast` is speed-only intent.
 
 Values resolve per field as run > workspace config > global config > definition default. Validation

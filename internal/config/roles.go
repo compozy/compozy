@@ -3,7 +3,10 @@ package config
 import (
 	"fmt"
 	"strings"
+
 	"time"
+
+	"github.com/compozy/compozy/internal/runtimeoption"
 
 	"github.com/compozy/compozy/internal/reasoning"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -86,14 +89,16 @@ func cloneRoleFallbacks(source []RoleFallback) []RoleFallback {
 
 // RoleConfig controls one session-backed role.
 type RoleConfig struct {
-	Enabled         bool                 `toml:"enabled"`
-	Agent           string               `toml:"agent,omitempty"`
-	Provider        string               `toml:"provider,omitempty"`
-	Model           string               `toml:"model,omitempty"`
-	ReasoningEffort string               `toml:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed       `toml:"speed,omitempty"`
-	ACPOptions      []ACPOptionSelection `toml:"acp_options,omitempty"`
-	FallbackChain   []RoleFallback       `toml:"fallback_chain,omitempty"`
+	Enabled         bool   `toml:"enabled"`
+	Agent           string `toml:"agent,omitempty"`
+	Provider        string `toml:"provider,omitempty"`
+	Model           string `toml:"model,omitempty"`
+	ReasoningEffort string `toml:"reasoning_effort,omitempty"`
+	// Speed selects normal or Fast execution when the provider advertises it.
+	Speed speedpkg.Speed `toml:"speed,omitempty"`
+	// ACPOptions selects provider-advertised typed session configuration values.
+	ACPOptions    []ACPOptionSelection `toml:"acp_options,omitempty"`
+	FallbackChain []RoleFallback       `toml:"fallback_chain,omitempty"`
 }
 
 // RoleFallback is one ordered invocation fallback route.
@@ -382,16 +387,7 @@ func validateRoleACPOptionConflicts(
 	reasoningEffort string,
 ) error {
 	for _, option := range options {
-		semanticID := strings.Map(func(r rune) rune {
-			switch {
-			case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-				return r
-			case r >= 'A' && r <= 'Z':
-				return r + ('a' - 'A')
-			default:
-				return -1
-			}
-		}, strings.TrimSpace(option.ID))
+		semanticID := runtimeoption.SemanticID(option.ID)
 		switch semanticID {
 		case "fast", "speed", "speedmode":
 			if strings.TrimSpace(string(speed)) != "" {

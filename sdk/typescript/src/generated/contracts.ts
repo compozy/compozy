@@ -5148,6 +5148,7 @@ export interface SessionRuntimeSelectionPayload {
   model?: string;
   reasoning_effort?: ReasoningEffort;
   speed?: Speed;
+  acp_options?: AgentACPOptionSelection[];
 }
 
 export interface SessionRuntimeSetParams {

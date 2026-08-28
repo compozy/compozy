@@ -30,6 +30,8 @@ func configSetKindFromToolKind(kind compozyconfig.ValueKind) configSetValueKind 
 		return configSetStringSlice
 	case compozyconfig.ConfigValueTable:
 		return configSetTable
+	case compozyconfig.ConfigValueACPOptions:
+		return configSetACPOptions
 	default:
 		panic("cli: unsupported role config value kind")
 	}

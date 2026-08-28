@@ -17,6 +17,7 @@ func TestRoleStatusJSONContract(t *testing.T) {
 			Role:           "auto_title",
 			Enabled:        true,
 			ResolutionMode: RoleResolutionModeInherit,
+			ACPOptions:     []AgentACPOptionSelection{},
 			FallbackChain:  []RoleFallbackStatus{},
 			Provenance:     map[string]string{"enabled": "default", "fallback_chain": "default"},
 			Diagnostics:    []RoleDiagnostic{},
@@ -34,6 +35,7 @@ func TestRoleStatusJSONContract(t *testing.T) {
 		}
 		sort.Strings(keys)
 		want := []string{
+			"acp_options",
 			"agent",
 			"diagnostics",
 			"enabled",
@@ -44,17 +46,24 @@ func TestRoleStatusJSONContract(t *testing.T) {
 			"reasoning_effort",
 			"resolution_mode",
 			"role",
+			"speed",
 		}
 		if !reflect.DeepEqual(keys, want) {
 			t.Fatalf("RoleStatus JSON fields = %#v, want %#v", keys, want)
 		}
-		for _, field := range []string{"agent", "provider", "model", "reasoning_effort"} {
+		for _, field := range []string{"agent", "provider", "model", "reasoning_effort", "speed"} {
 			if string(fields[field]) != "null" {
 				t.Fatalf("RoleStatus.%s JSON = %s, want null", field, fields[field])
 			}
 		}
-		if string(fields["fallback_chain"]) != "[]" || string(fields["diagnostics"]) != "[]" {
-			t.Fatalf("RoleStatus arrays = %s/%s, want []/[]", fields["fallback_chain"], fields["diagnostics"])
+		if string(fields["acp_options"]) != "[]" || string(fields["fallback_chain"]) != "[]" ||
+			string(fields["diagnostics"]) != "[]" {
+			t.Fatalf(
+				"RoleStatus arrays = %s/%s/%s, want []/[]/[]",
+				fields["acp_options"],
+				fields["fallback_chain"],
+				fields["diagnostics"],
+			)
 		}
 	})
 

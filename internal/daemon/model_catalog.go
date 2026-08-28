@@ -27,6 +27,7 @@ type modelCatalogRuntime struct {
 	timeout            time.Duration
 	configSource       *modelcatalog.ProviderConfigSource
 	liveSources        map[string]*modelcatalog.LiveProviderSource
+	dynamicSources     map[string]modelcatalog.Source
 	executionContextMu sync.RWMutex
 	executionContexts  map[string]modelcatalog.CatalogExecutionContext
 	// generationGate keeps source snapshots and persisted rows in one public generation.
@@ -85,10 +86,12 @@ func newModelCatalogRuntime(
 	}
 	defaultExecutionContext, err := runtime.resolveCatalogExecutionContext(modelcatalog.CatalogExecutionContext{})
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 	if setter, ok := service.(modelCatalogDefaultExecutionContextSetter); ok {
 		if err := setter.SetDefaultExecutionContext(defaultExecutionContext); err != nil {
+			cancel()
 			return nil, fmt.Errorf("daemon: configure model catalog default execution context: %w", err)
 		}
 	}
@@ -134,7 +137,7 @@ func (r *modelCatalogRuntime) ListModels(
 		if len(models) == 0 && refreshErr != nil {
 			return nil, refreshErr
 		}
-		r.refreshLiveSourcesInBackground()
+		r.refreshDynamicSourcesInBackground()
 		return models, nil
 	}
 	opts.Now = now
@@ -143,38 +146,8 @@ func (r *modelCatalogRuntime) ListModels(
 	if err != nil {
 		return nil, err
 	}
-	r.refreshLiveSourcesInBackground()
+	r.refreshDynamicSourcesInBackground()
 	return models, nil
-}
-
-func (r *modelCatalogRuntime) refreshLiveSourcesInBackground() {
-	if r == nil || len(r.liveSources) == 0 {
-		return
-	}
-	complete, admitted := r.workers.Begin()
-	if !admitted {
-		return
-	}
-	go func() {
-		defer complete()
-		var warmups sync.WaitGroup
-		for _, executionContext := range r.catalogExecutionContexts() {
-			for providerID, source := range r.liveSources {
-				warmups.Go(func() {
-					if _, err := r.Refresh(r.ctx, modelcatalog.RefreshOptions{
-						ProviderID:       providerID,
-						SourceID:         source.ID(),
-						ExecutionContext: executionContext,
-						RequestID:        "model-catalog-warmup-" + providerID,
-					}); err != nil {
-						// Refresh owns source-failure logging; warmup has no synchronous caller.
-						return
-					}
-				})
-			}
-		}
-		warmups.Wait()
-	}()
 }
 
 func (r *modelCatalogRuntime) listModelsInGeneration(
@@ -399,6 +372,12 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		return err
 	}
 	for _, source := range sources {
+		if ttlSource, ok := source.(interface{ TTL() time.Duration }); ok && ttlSource.TTL() > 0 {
+			if runtime.dynamicSources == nil {
+				runtime.dynamicSources = make(map[string]modelcatalog.Source)
+			}
+			runtime.dynamicSources[source.ID()] = source
+		}
 		switch typed := source.(type) {
 		case *modelcatalog.ProviderConfigSource:
 			if typed.ID() == modelcatalog.SourceIDConfig {
@@ -412,7 +391,7 @@ func (d *Daemon) bootModelCatalog(ctx context.Context, state *bootState, cleanup
 		}
 	}
 	state.modelCatalog = runtime
-	runtime.startLiveRefreshLoop()
+	runtime.startDynamicRefreshLoop()
 	if cleanup != nil {
 		cleanup.add(runtime.Shutdown)
 	}

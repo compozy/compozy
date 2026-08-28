@@ -1,5 +1,7 @@
 import { useSelector, useStore } from "@xstate/store-react";
 
+import type { RuntimeSpeed } from "@/lib/api-contract";
+
 import { runtimeModelKey } from "./model-key";
 import { buildRuntimeListModel, type RailFilter } from "./runtime-list-model";
 import {
@@ -30,11 +32,16 @@ export type {
 
 export interface UseRuntimeSelectorArgs {
   value: RuntimeSelectorValue;
-  onChange: (next: RuntimeSelectorValue) => void;
+  onChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => void;
   providers: RuntimeProviderOption[];
   models: RuntimeModelOption[];
   acpOptions?: RuntimeACPOption[];
   allowCustomProvider?: boolean;
+  speed?: RuntimeSpeed;
+}
+
+function isProviderManaged(provider: RuntimeProviderOption | undefined): boolean {
+  return provider?.runtime_strategy === "provider_managed";
 }
 
 function resolveActiveCustomProvider(
@@ -55,6 +62,7 @@ export function useRuntimeSelector({
   models,
   acpOptions,
   allowCustomProvider = false,
+  speed,
 }: UseRuntimeSelectorArgs) {
   const popupStore = useStore(runtimeSelectorPopupLogic);
   const popupState = useSelector(popupStore, snapshot => snapshot.context);
@@ -176,27 +184,29 @@ export function useRuntimeSelector({
       (normalizedValue.reasoning_effort === "" ||
         rz.levels.includes(normalizedValue.reasoning_effort));
     const targetACPOptions = acpOptions ?? model?.acp_options;
-    const nextSelections = sanitizeRuntimeACPSelections(
-      normalizedValue.acp_options,
-      targetACPOptions
-    );
+    const nextSelections = targetACPOptions
+      ? sanitizeRuntimeACPSelections(normalizedValue.acp_options, targetACPOptions)
+      : undefined;
     const nextValue: RuntimeSelectorValue = {
       ...normalizedValue,
       provider,
       model: id,
       reasoning_effort: keepsLevel ? normalizedValue.reasoning_effort : "",
     };
-    if (targetACPOptions) {
-      nextValue.acp_options = nextSelections;
-    }
-    onChange(nextValue);
+    nextValue.acp_options = nextSelections;
+    const normalizedSpeed =
+      speed === "fast" &&
+      (isProviderManaged(providerById.get(provider)) || !modelSupportsFast(model))
+        ? "normal"
+        : undefined;
+    onChange(nextValue, normalizedSpeed);
     favorites.pushRecent(runtimeModelKey(provider, id));
   };
 
   const pickModel = (provider: string, modelId: string) => {
     const id = modelId.trim();
     if (id.length === 0) return;
-    if (providerById.get(provider)?.runtime_strategy === "provider_managed") return;
+    if (isProviderManaged(providerById.get(provider))) return;
     const model = modelByKey.get(runtimeModelKey(provider, id));
     if (model?.disabled) return;
     emitSelection(provider, id, model);
@@ -216,7 +226,7 @@ export function useRuntimeSelector({
     // emitted with an empty or guessed provider (no default substitution).
     if (provider.length === 0 || (!allowCustomProvider && !providerById.has(provider)))
       return false;
-    if (providerById.get(provider)?.runtime_strategy === "provider_managed") return false;
+    if (isProviderManaged(providerById.get(provider))) return false;
     // A custom ID may coincide with a known row for the active provider; reuse
     // its reasoning profile, otherwise commit it as a provisional exact ID.
     emitSelection(provider, id, modelByKey.get(runtimeModelKey(provider, id)));
@@ -230,13 +240,13 @@ export function useRuntimeSelector({
   };
 
   const setReasoning = (effort: RuntimeSelectorValue["reasoning_effort"]) => {
-    if (activeProvider?.runtime_strategy === "provider_managed") return;
+    if (isProviderManaged(activeProvider)) return;
     if (effort !== "" && !modelSupportsReasoningEffort(selectedModel, effort)) return;
     onChange({ ...normalizedValue, reasoning_effort: effort });
   };
 
   const setACPOption = (selection: RuntimeACPOptionSelection | null) => {
-    if (activeProvider?.runtime_strategy === "provider_managed") return;
+    if (isProviderManaged(activeProvider)) return;
     const nextSelections = setRuntimeACPSelection(
       normalizedValue.acp_options,
       selection,
@@ -358,7 +368,7 @@ export function useRuntimeSelector({
     selectedModel,
     activeProvider,
     reasoningState,
-    providerManaged: activeProvider?.runtime_strategy === "provider_managed",
+    providerManaged: isProviderManaged(activeProvider),
     speedSupported: modelSupportsFast(selectedModel),
     value: normalizedValue,
     pickModel,

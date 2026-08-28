@@ -1870,12 +1870,7 @@ func TestCatalogServiceRefresh(t *testing.T) {
 				storedStatuses, err := backingStore.ListSourceStatus(testutil.Context(t), StatusOptions{
 					ProviderID: "codex",
 					SourceContexts: map[string]CatalogExecutionContext{
-						source.ID(): {
-							Scope:              ExecutionScopeWorkspace,
-							ProfileID:          "profile-test",
-							WorkspaceID:        "workspace-test",
-							CommandFingerprint: CatalogExecutionFingerprint(source.ID(), string(source.Kind())),
-						},
+						source.ID(): testExecutionContextForSource(source),
 					},
 				})
 				if err != nil {
@@ -2681,7 +2676,7 @@ func (s *sourceWithoutProviderIDs) Priority() int {
 }
 
 func (s *sourceWithoutProviderIDs) CatalogExecutionFingerprint() (string, error) {
-	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
+	return testSourceExecutionFingerprint(s), nil
 }
 
 func (s *sourceWithoutProviderIDs) ListModels(_ context.Context, opts ListOptions) ([]ModelRow, error) {
@@ -2708,7 +2703,7 @@ func (s *fakeSource) Priority() int {
 }
 
 func (s *fakeSource) CatalogExecutionFingerprint() (string, error) {
-	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
+	return testSourceExecutionFingerprint(s), nil
 }
 
 func (s *fakeSource) ProviderIDs() []string {
@@ -2773,7 +2768,7 @@ func (s *blockingRefreshSource) Priority() int {
 }
 
 func (s *blockingRefreshSource) CatalogExecutionFingerprint() (string, error) {
-	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
+	return testSourceExecutionFingerprint(s), nil
 }
 
 func (s *blockingRefreshSource) ProviderIDs() []string {
@@ -2898,7 +2893,7 @@ func (s *mutableRefreshSource) Kind() SourceKind   { return SourceKindProviderLi
 func (s *mutableRefreshSource) Priority() int      { return PriorityProviderLive }
 func (s *mutableRefreshSource) TTL() time.Duration { return 0 }
 func (s *mutableRefreshSource) CatalogExecutionFingerprint() (string, error) {
-	return CatalogExecutionFingerprint(s.ID(), string(s.Kind())), nil
+	return testSourceExecutionFingerprint(s), nil
 }
 
 func (s *mutableRefreshSource) ProviderIDs() []string {
@@ -3194,6 +3189,13 @@ func testExecutionContextForSource(source Source) CatalogExecutionContext {
 	return executionContext
 }
 
+func testSourceExecutionFingerprint(source Source) string {
+	if source == nil {
+		panic("test source is required")
+	}
+	return CatalogExecutionFingerprint(source.ID(), string(source.Kind()))
+}
+
 func newTestService(t *testing.T, store Store, sources []Source) *CatalogService {
 	t.Helper()
 
@@ -3201,10 +3203,12 @@ func newTestService(t *testing.T, store Store, sources []Source) *CatalogService
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	service.defaultExecutionContext = CatalogExecutionContext{
+	if err := service.SetDefaultExecutionContext(CatalogExecutionContext{
 		Scope:       ExecutionScopeWorkspace,
 		ProfileID:   "profile-test",
 		WorkspaceID: "workspace-test",
+	}); err != nil {
+		t.Fatalf("SetDefaultExecutionContext() error = %v", err)
 	}
 	return service
 }

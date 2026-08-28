@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -26,6 +27,8 @@ type TransientModelCall struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []compozyconfig.ACPOptionSelection
 	CWD             string
 	SystemPrompt    string
 	Prompt          string
@@ -60,14 +63,17 @@ func (m *Manager) InvokeTransientModel(
 		return result, errors.New("session: transient model output bound must be positive")
 	}
 
-	resolved, err := call.Config.ResolveAgent(compozyconfig.AgentDef{
+	agent := compozyconfig.AgentDef{
 		Name:            transientMemoryControllerAgentName,
 		Provider:        strings.TrimSpace(call.Provider),
 		Model:           strings.TrimSpace(call.Model),
 		ReasoningEffort: strings.TrimSpace(call.ReasoningEffort),
 		Permissions:     string(compozyconfig.PermissionModeDenyAll),
 		Prompt:          transientMemoryControllerPrompt,
-	})
+	}
+	agent.SetSpeed(call.Speed)
+	agent.SetACPOptions(call.ACPOptions)
+	resolved, err := call.Config.ResolveAgent(agent)
 	if err != nil {
 		return result, fmt.Errorf("session: resolve transient model runtime: %w", err)
 	}
@@ -81,6 +87,8 @@ func (m *Manager) InvokeTransientModel(
 		SystemPrompt:    strings.TrimSpace(call.SystemPrompt),
 		PreferredModel:  resolved.Model,
 		ReasoningEffort: resolved.ReasoningEffort,
+		Speed:           resolved.SpeedValue(),
+		ACPOptions:      ACPOptionSelectionsFromConfig(resolved.ACPOptionsValue()),
 	}
 	startOpts, cleanup, err := m.prepareTransientModelProvider(ctx, resolved, startOpts)
 	if err != nil {

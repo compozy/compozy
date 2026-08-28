@@ -167,6 +167,10 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	profileName, err := n.nativeAgentCreateProfileName(ctx, createReq.Scope, scope.ProfileID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
+	}
 	agentSkills := n.deps.agentSkills()
 	if agentSkills == nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
@@ -181,6 +185,7 @@ func (n *daemonNativeTools) agentCreate(
 		&n.deps.Config,
 		n.deps.Workspaces,
 		string(req.ToolID),
+		profileName,
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
@@ -203,6 +208,32 @@ func (n *daemonNativeTools) agentCreate(
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(entry, &created.RuntimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
+}
+
+func (n *daemonNativeTools) nativeAgentCreateProfileName(
+	ctx context.Context,
+	scope contract.AgentCreateScope,
+	profileID string,
+) (string, error) {
+	if scope != contract.AgentCreateScopeWorkspace {
+		return "", nil
+	}
+	profileID = strings.TrimSpace(profileID)
+	if n.deps.Profiles != nil {
+		profileName, err := n.deps.Profiles.ProfileName(ctx, profileID)
+		if err != nil {
+			return "", fmt.Errorf("daemon: resolve agent create profile: %w", err)
+		}
+		profileName = strings.TrimSpace(profileName)
+		if profileName == "" {
+			return "", errors.New("daemon: resolved agent create profile is empty")
+		}
+		return profileName, nil
+	}
+	if profileID == "" || profileID == store.DefaultProfileID {
+		return daemonDefaultProfileName, nil
+	}
+	return "", errors.New("daemon: profile lookup is unavailable for agent create")
 }
 
 func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) error {

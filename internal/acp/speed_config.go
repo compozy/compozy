@@ -168,16 +168,6 @@ func isSpeedToken(value string) bool {
 	}
 }
 
-func countConfigOptionID(options []SessionConfigOption, id string) int {
-	count := 0
-	for _, option := range options {
-		if strings.TrimSpace(option.ID) == strings.TrimSpace(id) {
-			count++
-		}
-	}
-	return count
-}
-
 func selectSpeedTarget(
 	requested speedpkg.Speed,
 	values []SessionConfigOptionValue,
@@ -252,14 +242,6 @@ func (m speedConfigMatch) request(
 }
 
 func (m speedConfigMatch) confirmed(options []SessionConfigOption) bool {
-	if countConfigOptionID(options, m.option.ID) != 1 {
-		return false
-	}
-	for _, option := range options {
-		if strings.TrimSpace(option.ID) != strings.TrimSpace(m.option.ID) {
-			continue
-		}
-		return m.selection.matches(option)
-	}
-	return false
+	option, ok := findConfigOptionByID(options, m.option.ID)
+	return ok && m.selection.matches(option)
 }

@@ -167,11 +167,11 @@ func applySessionRuntimeScan(session *store.SessionInfo, row *sessionInfoRow) er
 	if err != nil {
 		return err
 	}
-	session.RuntimeRecovery = recovery
+	session.SetRuntimeRecovery(recovery)
 	if err := store.ValidateSessionRuntimeRecovery(
 		session.RuntimeStatus,
 		session.RuntimeGeneration,
-		session.RuntimeRecovery,
+		session.RuntimeRecoveryValue(),
 	); err != nil {
 		return err
 	}

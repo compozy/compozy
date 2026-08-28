@@ -81,7 +81,7 @@ func normalizePromptRuntimeSelectionFromMeta(
 		selection = &RuntimeSelection{
 			Provider: meta.Provider, Model: meta.Model,
 			ReasoningEffort: meta.ReasoningEffort, Speed: meta.Speed,
-			ACPOptions: acpSessionACPOptionSelections(meta.ACPOptions),
+			ACPOptions: ACPOptionSelectionsFromStore(meta.ACPOptionsValue()),
 		}
 	}
 	normalized, err := NormalizeRuntimeSelection(*selection)

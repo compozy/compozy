@@ -362,9 +362,6 @@ func (m *Manager) submitAdmittedGoalPrompt(
 		return *replayed, nil
 	}
 	preparation.request = bindPromptAdmissionRequest(preparation.request, admission)
-	if err := m.validateActiveCursorRuntimeModel(session, preparation.request.runtime); err != nil {
-		return SendPromptResult{}, err
-	}
 	if session == nil {
 		session, err = m.lookupPromptRequestSession(ctx, preparation.request)
 		if err != nil {

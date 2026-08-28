@@ -89,6 +89,11 @@ func (s *ModelSource) Priority() int {
 	return modelcatalog.PriorityExtension
 }
 
+// TTL keeps extension-provided releases on the same automatic refresh cadence as live providers.
+func (s *ModelSource) TTL() time.Duration {
+	return modelcatalog.DefaultLiveDiscoveryTTL
+}
+
 // CatalogExecutionFingerprint isolates rows produced by one installed extension generation.
 func (s *ModelSource) CatalogExecutionFingerprint() (string, error) {
 	if s == nil {

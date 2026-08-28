@@ -99,12 +99,12 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		RuntimeTransition:        info.RuntimeTransition,
 		RuntimeFailure:           strings.TrimSpace(info.RuntimeFailure),
 		RuntimeGeneration:        info.RuntimeGeneration,
-		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(info.RuntimeRecovery),
+		RuntimeRecovery:          info.RuntimeRecoveryValue(),
 		Provider:                 strings.TrimSpace(info.Provider),
 		Model:                    strings.TrimSpace(info.Model),
 		ReasoningEffort:          strings.TrimSpace(info.ReasoningEffort),
 		Speed:                    info.Speed,
-		ACPOptions:               acpOptionSelectionsFromStore(info.ACPOptions),
+		ACPOptions:               session.ACPOptionSelectionsFromStore(info.ACPOptionsValue()),
 		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
 		SelectedRuntime:          runtimeSelectionFromStoreInfo(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
@@ -217,28 +217,8 @@ func runtimeSelectionFromStoreInfo(selection *store.SessionRuntimeSelection) *se
 		Model:           normalized.Model,
 		ReasoningEffort: normalized.ReasoningEffort,
 		Speed:           normalized.Speed,
-		ACPOptions:      acpOptionSelectionsFromStore(normalized.ACPOptions),
+		ACPOptions:      session.ACPOptionSelectionsFromStore(normalized.ACPOptions),
 	}
-}
-
-func acpOptionSelectionsFromStore(
-	options []store.SessionACPOptionSelection,
-) []acp.SessionConfigOptionSelection {
-	if len(options) == 0 {
-		return nil
-	}
-	converted := make([]acp.SessionConfigOptionSelection, 0, len(options))
-	for _, option := range options {
-		selection := acp.SessionConfigOptionSelection{
-			ID:      strings.TrimSpace(option.ID),
-			ValueID: strings.TrimSpace(option.ValueID),
-		}
-		if option.BoolValue != nil {
-			selection.BoolValue = new(*option.BoolValue)
-		}
-		converted = append(converted, selection)
-	}
-	return converted
 }
 
 func visibleSessionInfosInternal(infos []*session.Info) []*session.Info {

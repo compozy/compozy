@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/subprocess"
 	"github.com/compozy/compozy/internal/testutil"
 )
@@ -19,9 +20,13 @@ func TestInvokeTransientModel(t *testing.T) {
 		h := newHarness(t)
 		provider := "claude"
 		result, err := h.manager.InvokeTransientModel(testutil.Context(t), TransientModelCall{
-			Config:         &h.cfg,
-			Provider:       provider,
-			Model:          h.cfg.Providers[provider].Models.Default,
+			Config:   &h.cfg,
+			Provider: provider,
+			Model:    h.cfg.Providers[provider].Models.Default,
+			Speed:    speedpkg.SpeedFast,
+			ACPOptions: []compozyconfig.ACPOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}},
 			CWD:            h.workspace,
 			Prompt:         "Choose the memory operation.",
 			MaxOutputBytes: 64,
@@ -48,6 +53,16 @@ func TestInvokeTransientModel(t *testing.T) {
 				"Start().Permissions = %q, want %q",
 				h.driver.startCalls[0].Permissions,
 				compozyconfig.PermissionModeDenyAll,
+			)
+		}
+		start := h.driver.startCalls[0]
+		if start.Speed != speedpkg.SpeedFast || len(start.ACPOptions) != 1 ||
+			start.ACPOptions[0].ID != "thinking" || start.ACPOptions[0].BoolValue == nil ||
+			!*start.ACPOptions[0].BoolValue {
+			t.Fatalf(
+				"StartOpts runtime = speed %q options %#v, want fast and thinking=true",
+				start.Speed,
+				start.ACPOptions,
 			)
 		}
 	})

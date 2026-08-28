@@ -30,13 +30,14 @@ func CreateAgentFromRequest(
 	globalConfig *compozyconfig.Config,
 	workspaces WorkspaceService,
 	transportName string,
+	profileName string,
 ) (CreatedAgentDefinition, error) {
 	draft, err := createAgentDraftFromRequest(req)
 	if err != nil {
 		return CreatedAgentDefinition{}, err
 	}
 	target, err := createAgentDefinitionTargetFor(
-		ctx, req, homePaths, globalConfig, workspaces, transportName,
+		ctx, req, homePaths, globalConfig, workspaces, transportName, profileName,
 	)
 	if err != nil {
 		return CreatedAgentDefinition{}, err

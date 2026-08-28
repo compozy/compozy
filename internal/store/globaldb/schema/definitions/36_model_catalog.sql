@@ -140,11 +140,6 @@ CREATE TABLE model_catalog_transport_binding_selections (
 			CHECK ((value_id IS NOT NULL AND bool_value IS NULL) OR (value_id IS NULL AND bool_value IS NOT NULL))
 		);
 
-CREATE INDEX idx_model_catalog_binding_selections_binding
-			ON model_catalog_transport_binding_selections(
-				context_id, source_id, provider_id, model_id, transport_model_id, option_id
-			);
-
 CREATE TABLE model_catalog_sources (
 			context_id      TEXT NOT NULL CHECK (trim(context_id) <> ''),
 			source_id       TEXT NOT NULL CHECK (trim(source_id) <> ''),

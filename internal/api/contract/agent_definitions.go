@@ -33,6 +33,8 @@ type DuplicateAgentOverrides struct {
 	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
 	Speed           Speed                     `json:"speed,omitempty"`
 	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	ClearSpeed      bool                      `json:"clear_speed,omitempty"`
+	ClearACPOptions bool                      `json:"clear_acp_options,omitempty"`
 	Tools           []string                  `json:"tools,omitempty"`
 	Toolsets        []string                  `json:"toolsets,omitempty"`
 	DenyTools       []string                  `json:"deny_tools,omitempty"`

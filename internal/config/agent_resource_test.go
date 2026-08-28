@@ -155,15 +155,10 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 				Scopes:       []string{" read ", " write "},
 			},
 		}
-		raw, err := codec.Encode(AgentDef{
+		spec := AgentDef{
 			Name:   " coder ",
 			Prompt: " Build things. ",
-			Speed:  " fast ",
-			ACPOptions: []ACPOptionSelection{
-				{ID: " thinking ", BoolValue: new(true)},
-				{ID: " context ", ValueID: " 1m "},
-			},
-			Tools: []string{" mcp__github__search ", "mcp__github__search", " compozy__skill_* "},
+			Tools:  []string{" mcp__github__search ", "mcp__github__search", " compozy__skill_* "},
 			Toolsets: []string{
 				" compozy__catalog ",
 				"compozy__catalog",
@@ -184,7 +179,13 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 				}},
 			},
 			MCPServers: []MCPServer{stdioServer, remoteServer},
+		}
+		spec.SetSpeed(" fast ")
+		spec.SetACPOptions([]ACPOptionSelection{
+			{ID: " thinking ", BoolValue: new(true)},
+			{ID: " context ", ValueID: " 1m "},
 		})
+		raw, err := codec.Encode(spec)
 		if err != nil {
 			t.Fatalf("Encode() error = %v", err)
 		}
@@ -200,9 +201,10 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		if got.Name != "coder" || got.Prompt != "Build things." {
 			t.Fatalf("decoded agent = %#v, want trimmed name and prompt", got)
 		}
-		if got.Speed != "fast" || len(got.ACPOptions) != 2 || got.ACPOptions[0].ID != "context" ||
-			got.ACPOptions[0].ValueID != "1m" || got.ACPOptions[1].ID != "thinking" ||
-			got.ACPOptions[1].BoolValue == nil || !*got.ACPOptions[1].BoolValue {
+		gotOptions := got.ACPOptionsValue()
+		if got.SpeedValue() != "fast" || len(gotOptions) != 2 || gotOptions[0].ID != "context" ||
+			gotOptions[0].ValueID != "1m" || gotOptions[1].ID != "thinking" ||
+			gotOptions[1].BoolValue == nil || !*gotOptions[1].BoolValue {
 			t.Fatalf("runtime defaults = %#v, want canonical speed and sorted ACP options", got)
 		}
 		if want := []string{
@@ -301,9 +303,10 @@ func TestAgentResourceCodecCanonicalizesTypedRecordSpec(t *testing.T) {
 		if got.Name != "coder" || got.Provider != "openai" || got.Prompt != "Build things." {
 			t.Fatalf("decoded agent = %#v, want trimmed scalar fields", got)
 		}
-		if got.Speed != "fast" || len(got.ACPOptions) != 2 || got.ACPOptions[0].ID != "context" ||
-			got.ACPOptions[0].ValueID != "1m" || got.ACPOptions[1].ID != "thinking" ||
-			got.ACPOptions[1].BoolValue == nil || !*got.ACPOptions[1].BoolValue {
+		gotOptions := got.ACPOptionsValue()
+		if got.SpeedValue() != "fast" || len(gotOptions) != 2 || gotOptions[0].ID != "context" ||
+			gotOptions[0].ValueID != "1m" || gotOptions[1].ID != "thinking" ||
+			gotOptions[1].BoolValue == nil || !*gotOptions[1].BoolValue {
 			t.Fatalf("runtime defaults = %#v, want canonical speed and sorted ACP options", got)
 		}
 		if want := []string{"compozy__task_*"}; strings.Join(got.DenyTools, ",") != strings.Join(want, ",") {

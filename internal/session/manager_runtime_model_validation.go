@@ -1,13 +1,14 @@
 package session
 
 import (
+	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -20,43 +21,24 @@ func (m *Manager) validateRuntimeModelAtAdmission(
 	session *Session,
 	selection RuntimeSelection,
 ) error {
-	if !isCursorRuntimeSelection(selection) {
+	providerID := strings.TrimSpace(selection.Provider)
+	if providerID != cursorRuntimeProvider {
 		return nil
 	}
 	if session != nil {
 		snapshot := session.runtimeBindingSnapshot()
 		if snapshot.process != nil &&
-			strings.TrimSpace(snapshot.selection.Provider) == cursorRuntimeProvider &&
+			strings.TrimSpace(snapshot.selection.Provider) == providerID &&
 			runtimeSelectionsEqual(snapshot.selection, selection) {
 			return nil
 		}
 	}
-	_, err := m.resolveCursorCatalogBinding(ctx, selection, modelCatalogExecutionContextForSession(session))
+	_, err := m.resolveCatalogTransportModel(
+		ctx,
+		selection,
+		modelCatalogExecutionContextForSession(session),
+	)
 	return err
-}
-
-func (m *Manager) validateReservedRuntimeModel(
-	session *Session,
-	reservedProcess *AgentProcess,
-	selection *RuntimeSelection,
-) error {
-	// Cursor selections are immutable launch arguments. Admission already
-	// validated the logical selection against the live catalog; the reserved
-	// process will either be reused for the same selection or replaced.
-	_ = session
-	_ = reservedProcess
-	_ = selection
-	return nil
-}
-
-// validateActiveCursorRuntimeModel is intentionally a no-op for Cursor. Its
-// launch-bound selection cannot become invalid through an ACP capability update
-// after prompt admission.
-func (m *Manager) validateActiveCursorRuntimeModel(session *Session, selection *RuntimeSelection) error {
-	_ = m
-	_ = session
-	_ = selection
-	return nil
 }
 
 func (m *Manager) resolveCursorCatalogBinding(
@@ -64,24 +46,12 @@ func (m *Manager) resolveCursorCatalogBinding(
 	selection RuntimeSelection,
 	executionContext modelcatalog.CatalogExecutionContext,
 ) (string, error) {
-	if m == nil || m.modelCatalog == nil {
-		return "", errors.New("session: Cursor model catalog is unavailable")
-	}
-	models, err := m.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
-		ProviderID:       cursorRuntimeProvider,
-		ExecutionContext: executionContext,
-		Refresh:          true,
-	})
+	models, err := m.listLiveProviderModels(ctx, cursorRuntimeProvider, executionContext)
 	if err != nil {
-		return "", fmt.Errorf("session: refresh Cursor model catalog: %w", err)
+		return "", err
 	}
 	logicalModels := make([]acp.SessionConfigOptionValue, 0, len(models))
 	for _, model := range models {
-		if strings.TrimSpace(model.ProviderID) != cursorRuntimeProvider ||
-			model.AvailabilityState != modelcatalog.AvailabilityStateAvailableLive ||
-			!cursorLiveSourcePresent(model) {
-			continue
-		}
 		logicalModels = append(logicalModels, acp.SessionConfigOptionValue{Value: model.ModelID})
 		if strings.TrimSpace(model.ModelID) == strings.TrimSpace(selection.Model) {
 			binding, bindingErr := selectCursorTransportBinding(model, selection)
@@ -92,8 +62,8 @@ func (m *Manager) resolveCursorCatalogBinding(
 		}
 	}
 	validationErr := acp.ValidateModelConfigValue([]acp.SessionConfigOption{{
-		ID:       "model",
-		Category: "model",
+		ID:       sessionModelConfigKey,
+		Category: sessionModelConfigKey,
 		Kind:     acp.SessionConfigOptionKindSelect,
 		Values:   logicalModels,
 	}}, selection.Model)
@@ -102,6 +72,122 @@ func (m *Manager) resolveCursorCatalogBinding(
 		selection.Model,
 		validationErr,
 	)
+}
+
+func (m *Manager) resolveClaudeCatalogBinding(
+	ctx context.Context,
+	selection RuntimeSelection,
+	executionContext modelcatalog.CatalogExecutionContext,
+) (string, error) {
+	modelID := strings.TrimSpace(selection.Model)
+	models, err := m.listLiveProviderModels(ctx, runtimeProviderClaude, executionContext)
+	if err != nil {
+		if !claudeLogicalModelRequiresCatalogBinding(modelID) {
+			return modelID, nil
+		}
+		return "", err
+	}
+	logicalModels := make([]acp.SessionConfigOptionValue, 0, len(models))
+	for _, model := range models {
+		logicalModels = append(logicalModels, acp.SessionConfigOptionValue{Value: model.ModelID})
+		if strings.TrimSpace(model.ModelID) != modelID {
+			continue
+		}
+		return selectClaudeTransportModel(model)
+	}
+	if !claudeLogicalModelRequiresCatalogBinding(modelID) {
+		return modelID, nil
+	}
+	validationErr := acp.ValidateModelConfigValue([]acp.SessionConfigOption{{
+		ID:       sessionModelConfigKey,
+		Category: sessionModelConfigKey,
+		Kind:     acp.SessionConfigOptionKindSelect,
+		Values:   logicalModels,
+	}}, selection.Model)
+	return "", fmt.Errorf(
+		"session: Claude model %q is not advertised by the live ACP catalog: %w",
+		selection.Model,
+		validationErr,
+	)
+}
+
+func claudeLogicalModelRequiresCatalogBinding(modelID string) bool {
+	modelID = strings.TrimSpace(modelID)
+	provider, ok := compozyconfig.BuiltinProviders()[runtimeProviderClaude]
+	if !ok {
+		return false
+	}
+	for _, model := range provider.Models.Curated {
+		if strings.TrimSpace(model.ID) == modelID {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *Manager) resolveCatalogTransportModel(
+	ctx context.Context,
+	selection RuntimeSelection,
+	executionContext modelcatalog.CatalogExecutionContext,
+) (string, error) {
+	switch strings.TrimSpace(selection.Provider) {
+	case cursorRuntimeProvider:
+		return m.resolveCursorCatalogBinding(ctx, selection, executionContext)
+	case runtimeProviderClaude:
+		return m.resolveClaudeCatalogBinding(ctx, selection, executionContext)
+	default:
+		return strings.TrimSpace(selection.Model), nil
+	}
+}
+
+func (m *Manager) listLiveProviderModels(
+	ctx context.Context,
+	providerID string,
+	executionContext modelcatalog.CatalogExecutionContext,
+) ([]modelcatalog.Model, error) {
+	if m == nil || m.modelCatalog == nil {
+		return nil, fmt.Errorf("session: %s model catalog is unavailable", providerID)
+	}
+	models, err := m.modelCatalog.ListModels(ctx, modelcatalog.ListOptions{
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+		View:             modelcatalog.CatalogViewAll,
+		Refresh:          true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("session: refresh %s model catalog: %w", providerID, err)
+	}
+	live := make([]modelcatalog.Model, 0, len(models))
+	for _, model := range models {
+		if strings.TrimSpace(model.ProviderID) != providerID ||
+			model.AvailabilityState != modelcatalog.AvailabilityStateAvailableLive ||
+			!providerLiveSourcePresent(model, providerID) {
+			continue
+		}
+		live = append(live, model)
+	}
+	return live, nil
+}
+
+func selectClaudeTransportModel(model modelcatalog.Model) (string, error) {
+	bindings := append([]modelcatalog.ModelTransportBinding(nil), model.TransportBindings...)
+	slices.SortFunc(bindings, func(left, right modelcatalog.ModelTransportBinding) int {
+		leftDefault := strings.EqualFold(strings.TrimSpace(left.TransportModelID), "default")
+		rightDefault := strings.EqualFold(strings.TrimSpace(right.TransportModelID), "default")
+		if leftDefault != rightDefault {
+			if leftDefault {
+				return 1
+			}
+			return -1
+		}
+		return cmp.Compare(strings.TrimSpace(left.TransportModelID), strings.TrimSpace(right.TransportModelID))
+	})
+	for _, binding := range bindings {
+		if transportModel := strings.TrimSpace(binding.TransportModelID); transportModel != "" {
+			return transportModel, nil
+		}
+	}
+	return "", fmt.Errorf("session: Claude model %q has no live transport binding", model.ModelID)
 }
 
 func selectCursorTransportBinding(
@@ -304,22 +390,22 @@ func (m *Manager) validateExplicitStartModel(
 	if providerID == "" {
 		providerID = strings.TrimSpace(runtime.agent.Provider)
 	}
-	if providerID != cursorRuntimeProvider {
+	if providerID != cursorRuntimeProvider && providerID != runtimeProviderClaude {
 		return nil
 	}
 	modelID := preferredACPModel(runtime.agent, startModelSelectionIsExplicit(spec, runtime.agent))
 	if strings.TrimSpace(modelID) == "" {
 		return nil
 	}
-	transportModel, err := m.resolveCursorCatalogBinding(ctx, RuntimeSelection{
-		Provider:        cursorRuntimeProvider,
+	transportModel, err := m.resolveCatalogTransportModel(ctx, RuntimeSelection{
+		Provider:        providerID,
 		Model:           modelID,
 		ReasoningEffort: spec.reasoningEffort,
 		Speed:           spec.speed,
 		ACPOptions:      acp.CloneSessionConfigOptionSelections(spec.acpOptions),
 	}, modelCatalogExecutionContext(spec.profileID, spec.workspace.ID))
 	if err != nil {
-		return fmt.Errorf("session: validate Cursor create model: %w", err)
+		return fmt.Errorf("session: validate %s create model: %w", providerID, err)
 	}
 	spec.transportModel = transportModel
 	return nil
@@ -356,9 +442,9 @@ func isCursorRuntimeSelection(selection RuntimeSelection) bool {
 		strings.TrimSpace(selection.Model) != ""
 }
 
-func cursorLiveSourcePresent(model modelcatalog.Model) bool {
+func providerLiveSourcePresent(model modelcatalog.Model, providerID string) bool {
 	for _, source := range model.Sources {
-		if source.SourceID == modelcatalog.SourceKindProviderLiveID(cursorRuntimeProvider) && !source.Stale {
+		if source.SourceID == modelcatalog.SourceKindProviderLiveID(providerID) && !source.Stale {
 			return true
 		}
 	}

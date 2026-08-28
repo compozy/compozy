@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -169,16 +170,16 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(offline discovery) error = %v", err)
 		}
-		model, ok := findCatalogModel(models, "new-model")
-		if !ok || !model.Stale {
-			t.Fatalf("offline discovery model = %#v, want stale new-model", model)
-		}
 		statuses, err := service.ListSourceStatus(
 			ctx,
 			modelcatalog.StatusOptions{ProviderID: "cursor"},
 		)
 		if err != nil {
 			t.Fatalf("ListSourceStatus(offline discovery) error = %v", err)
+		}
+		model, ok := findCatalogModel(models, "new-model")
+		if !ok || !model.Stale {
+			t.Fatalf("offline discovery model/statuses = %#v/%#v, want stale new-model", model, statuses)
 		}
 		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor"))
 		if !ok || status.RefreshState != modelcatalog.RefreshStateFailed {
@@ -773,7 +774,15 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Run("Should record live source status when optional dependency is missing", func(t *testing.T) {
 		t.Parallel()
 
-		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, nil)
+		missingHermes := filepath.Join(t.TempDir(), "missing-hermes")
+		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, func(cfg *compozyconfig.Config) {
+			provider, err := cfg.ResolveProvider("hermes")
+			if err != nil {
+				t.Fatalf("ResolveProvider(hermes) error = %v", err)
+			}
+			provider.Command = missingHermes
+			cfg.Providers["hermes"] = provider
+		})
 		ctx := testutil.Context(t)
 		refreshStatuses, err := daemonInstance.modelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
 			ProviderID: "hermes",
@@ -781,7 +790,11 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			Force:      true,
 		})
 		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
-			t.Fatalf("ModelCatalog.Refresh(hermes live) error = %v, want ErrAllSourcesFailed", err)
+			t.Fatalf(
+				"ModelCatalog.Refresh(hermes live) statuses/error = %#v/%v, want ErrAllSourcesFailed",
+				refreshStatuses,
+				err,
+			)
 		}
 		if _, ok := findSourceStatus(
 			refreshStatuses,
@@ -939,7 +952,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			}
 		})
 
-		for call := 0; call < 2; call++ {
+		for call := range 2 {
 			models, listErr := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
 			if listErr != nil {
 				t.Fatalf("ListModels(call %d) error = %v", call+1, listErr)
@@ -956,49 +969,66 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		}
 	})
 
-	t.Run("Should refresh live sources periodically and stop the ticker on shutdown", func(t *testing.T) {
-		t.Parallel()
+	t.Run(
+		"Should refresh provider and extension sources periodically and stop the ticker on shutdown",
+		func(t *testing.T) {
+			t.Parallel()
 
-		service := newCatalogReadRefreshService()
-		runtime, err := newModelCatalogRuntime(
-			testutil.Context(t),
-			service,
-			discardLogger(),
-			time.Now,
-			5*time.Second,
-		)
-		if err != nil {
-			t.Fatalf("newModelCatalogRuntime() error = %v", err)
-		}
-		provider := compozyconfig.BuiltinProviders()["cursor"]
-		liveSource, err := modelcatalog.NewLiveProviderSource(
-			"cursor",
-			provider,
-			&modelcatalog.LiveProviderSourcesConfig{},
-		)
-		if err != nil {
-			t.Fatalf("NewLiveProviderSource() error = %v", err)
-		}
-		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
-		ticker := newManualModelCatalogRefreshTicker()
-		runtime.newRefreshTicker = func(interval time.Duration) modelCatalogRefreshTicker {
-			if interval != modelCatalogLiveRefreshSweepInterval {
-				t.Fatalf("refresh ticker interval = %s, want %s", interval, modelCatalogLiveRefreshSweepInterval)
+			service := newCatalogReadRefreshService()
+			runtime, err := newModelCatalogRuntime(
+				testutil.Context(t),
+				service,
+				discardLogger(),
+				time.Now,
+				5*time.Second,
+			)
+			if err != nil {
+				t.Fatalf("newModelCatalogRuntime() error = %v", err)
 			}
-			return ticker
-		}
-		runtime.startLiveRefreshLoop()
+			provider := compozyconfig.BuiltinProviders()["cursor"]
+			liveSource, err := modelcatalog.NewLiveProviderSource(
+				"cursor",
+				provider,
+				&modelcatalog.LiveProviderSourcesConfig{},
+			)
+			if err != nil {
+				t.Fatalf("NewLiveProviderSource() error = %v", err)
+			}
+			runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+			extensionSource := catalogDynamicSource{id: "extension/acme"}
+			runtime.dynamicSources = map[string]modelcatalog.Source{
+				liveSource.ID():      liveSource,
+				extensionSource.ID(): extensionSource,
+			}
+			ticker := newManualModelCatalogRefreshTicker()
+			runtime.newRefreshTicker = func(interval time.Duration) modelCatalogRefreshTicker {
+				if interval != modelCatalogDynamicRefreshSweepInterval {
+					t.Fatalf("refresh ticker interval = %s, want %s", interval, modelCatalogDynamicRefreshSweepInterval)
+				}
+				return ticker
+			}
+			runtime.startDynamicRefreshLoop()
 
-		ticker.tick <- time.Now()
-		refresh := service.waitForRefresh(t)
-		if refresh.ProviderID != "cursor" || refresh.Force {
-			t.Fatalf("periodic refresh = %#v, want non-forced Cursor refresh", refresh)
-		}
-		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
-			t.Fatalf("Shutdown() error = %v", err)
-		}
-		waitForCatalogTestSignal(t, ticker.stopped, "model catalog refresh ticker stop")
-	})
+			ticker.tick <- time.Now()
+			refreshes := map[string]modelcatalog.RefreshOptions{}
+			for range 2 {
+				refresh := service.waitForRefresh(t)
+				refreshes[refresh.SourceID] = refresh
+			}
+			cursorRefresh := refreshes[liveSource.ID()]
+			if cursorRefresh.ProviderID != "cursor" || cursorRefresh.Force {
+				t.Fatalf("periodic Cursor refresh = %#v, want non-forced provider refresh", cursorRefresh)
+			}
+			extensionRefresh := refreshes[extensionSource.ID()]
+			if extensionRefresh.ProviderID != "" || extensionRefresh.Force {
+				t.Fatalf("periodic extension refresh = %#v, want non-forced source refresh", extensionRefresh)
+			}
+			if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+			waitForCatalogTestSignal(t, ticker.stopped, "model catalog refresh ticker stop")
+		},
+	)
 
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
@@ -1517,6 +1547,21 @@ type recordingModelCatalogService struct {
 
 type catalogReadRefreshService struct {
 	refreshes chan modelcatalog.RefreshOptions
+}
+
+type catalogDynamicSource struct {
+	id string
+}
+
+func (s catalogDynamicSource) ID() string                  { return s.id }
+func (catalogDynamicSource) Kind() modelcatalog.SourceKind { return modelcatalog.SourceKindExtension }
+func (catalogDynamicSource) Priority() int                 { return modelcatalog.PriorityExtension }
+func (catalogDynamicSource) TTL() time.Duration            { return modelcatalog.DefaultLiveDiscoveryTTL }
+func (catalogDynamicSource) ListModels(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.ModelRow, error) {
+	return nil, nil
 }
 
 type manualModelCatalogRefreshTicker struct {

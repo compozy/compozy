@@ -2402,7 +2402,13 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 			loop.WithRuntimeCatalog(rejectingServiceRuntimeCatalogFactory{}),
 		)
 		inputs := loop.Inputs{ProfileID: storepkg.DefaultProfileID, Values: map[string]any{
-			"tasks": "task-ref", "runtime": map[string]any{"provider": "flarp"},
+			"tasks": "task-ref", "runtime": map[string]any{
+				"provider": "flarp",
+				"acp_options": []any{
+					map[string]any{"id": "thinking", "bool_value": true},
+					map[string]any{"id": "context", "value_id": "secret-value"},
+				},
+			},
 		}}
 		for _, invoke := range []struct {
 			name string
@@ -2421,8 +2427,12 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 				err := invoke.call()
 				validation, ok := loop.AsInputValidationError(err)
 				if !ok || validation.Field != "runtime" ||
-					validation.Reason != loop.InputValidationReasonInvalidRuntime {
+					validation.Reason != loop.InputValidationReasonInvalidRuntime ||
+					validation.Value != "flarp/-:acp_options=context,thinking" {
 					t.Fatalf("service error = %#v, want runtime input diagnostic", err)
+				}
+				if strings.Contains(validation.Value, "secret-value") {
+					t.Fatalf("diagnostic value = %q, want ACP option IDs without values", validation.Value)
 				}
 			})
 		}

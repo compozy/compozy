@@ -37,15 +37,16 @@ func normalizeModelCatalogTransportBindings(
 		binding.Label = strings.TrimSpace(binding.Label)
 		if binding.ReasoningEffort != nil {
 			effort := modelcatalog.ReasoningEffort(strings.TrimSpace(string(*binding.ReasoningEffort)))
-			if effort == "" {
+			switch {
+			case effort == "":
 				binding.ReasoningEffort = nil
-			} else if !modelcatalog.IsValidEffort(string(effort)) {
+			case !modelcatalog.IsValidEffort(string(effort)):
 				return nil, fmt.Errorf(
 					"store: transport binding %q reasoning effort %q is unsupported",
 					transportModelID,
 					effort,
 				)
-			} else {
+			default:
 				binding.ReasoningEffort = new(effort)
 			}
 		}
@@ -123,8 +124,9 @@ func listModelCatalogTransportBindings(
 		return nil, err
 	}
 	rows := make([]sqlcgen.ModelCatalogTransportBinding, 0)
+	queries := sqlcgen.New(exec)
 	for _, contextQuery := range contextQueries {
-		queried, queryErr := sqlcgen.New(exec).ListModelCatalogTransportBindings(
+		queried, queryErr := queries.ListModelCatalogTransportBindings(
 			ctx,
 			sqlcgen.ListModelCatalogTransportBindingsParams{
 				ContextID:    contextQuery.contextID,
@@ -202,4 +204,105 @@ func nullableModelCatalogBindingReasoningEffort(
 		return nil, fmt.Errorf("store: transport binding reasoning effort %q is unsupported", effort)
 	}
 	return new(effort), nil
+}
+
+func insertModelCatalogBindingSelections(
+	ctx context.Context,
+	exec modelCatalogSQLExecutor,
+	contextID string,
+	row modelcatalog.ModelRow,
+) error {
+	queries := sqlcgen.New(exec)
+	for _, binding := range row.TransportBindings {
+		for _, selection := range binding.OptionSelections {
+			if err := queries.InsertModelCatalogTransportBindingSelection(
+				ctx,
+				sqlcgen.InsertModelCatalogTransportBindingSelectionParams{
+					ContextID:        contextID,
+					SourceID:         row.SourceID,
+					ProviderID:       row.ProviderID,
+					ModelID:          row.ModelID,
+					TransportModelID: binding.TransportModelID,
+					OptionID:         selection.ID,
+					ValueID:          nullableModelCatalogString(selection.ValueID),
+					BoolValue:        nullableBoolToSQLiteInt(selection.BoolValue),
+				},
+			); err != nil {
+				return fmt.Errorf("store: insert binding option %q/%q: %w", binding.TransportModelID, selection.ID, err)
+			}
+		}
+	}
+	return nil
+}
+
+func listModelCatalogBindingSelections(
+	ctx context.Context,
+	exec modelCatalogSQLExecutor,
+	opts modelcatalog.ListOptions,
+) (map[modelCatalogBindingKey][]modelcatalog.ModelOptionSelection, error) {
+	contextQueries, err := modelCatalogContextQueries(opts)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]sqlcgen.ModelCatalogTransportBindingSelection, 0)
+	queries := sqlcgen.New(exec)
+	for _, contextQuery := range contextQueries {
+		queried, queryErr := queries.ListModelCatalogTransportBindingSelections(
+			ctx,
+			sqlcgen.ListModelCatalogTransportBindingSelectionsParams{
+				ContextID: contextQuery.contextID, ProviderID: strings.TrimSpace(opts.ProviderID),
+				SourceID:     contextQuery.sourceID,
+				IncludeStale: int64(boolToSQLiteInt(opts.IncludeStale)),
+				IncludeAll:   int64(boolToSQLiteInt(opts.IncludeAll)),
+			},
+		)
+		if queryErr != nil {
+			return nil, fmt.Errorf("store: query model catalog binding options: %w", queryErr)
+		}
+		rows = append(rows, queried...)
+	}
+	selections := make(map[modelCatalogBindingKey][]modelcatalog.ModelOptionSelection, len(rows))
+	for _, row := range rows {
+		selection, err := modelCatalogBindingSelectionFromGenerated(row)
+		if err != nil {
+			return nil, err
+		}
+		key := modelCatalogBindingKey{
+			row:              modelCatalogKey(row.SourceID, row.ProviderID, row.ModelID),
+			transportModelID: row.TransportModelID,
+		}
+		selections[key] = append(selections[key], selection)
+	}
+	return selections, nil
+}
+
+type modelCatalogBindingKey struct {
+	row              modelCatalogRowKey
+	transportModelID string
+}
+
+func modelCatalogBindingSelectionFromGenerated(
+	row sqlcgen.ModelCatalogTransportBindingSelection,
+) (modelcatalog.ModelOptionSelection, error) {
+	boolValue, err := nullableSQLiteIntToBool(row.BoolValue, "binding option bool value")
+	if err != nil {
+		return modelcatalog.ModelOptionSelection{}, err
+	}
+	valueID := ""
+	if row.ValueID.Valid {
+		valueID = strings.TrimSpace(row.ValueID.String)
+	}
+	selection := modelcatalog.ModelOptionSelection{ID: row.OptionID, ValueID: valueID, BoolValue: boolValue}
+	if err := modelcatalog.ValidateModelOptionSelection(selection); err != nil {
+		return modelcatalog.ModelOptionSelection{}, fmt.Errorf("store: scan binding option %q: %w", row.OptionID, err)
+	}
+	return selection, nil
+}
+
+func nullableModelCatalogString(value string) sql.NullString {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: trimmed, Valid: true}
 }

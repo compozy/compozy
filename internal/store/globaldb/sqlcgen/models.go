@@ -2020,9 +2020,15 @@ type TaskExecutionProfile struct {
 	WorkerAgentName        string         `json:"worker_agent_name"`
 	WorkerProvider         string         `json:"worker_provider"`
 	WorkerModel            string         `json:"worker_model"`
+	WorkerReasoningEffort  string         `json:"worker_reasoning_effort"`
+	WorkerSpeed            string         `json:"worker_speed"`
+	WorkerAcpOptionsJson   string         `json:"worker_acp_options_json"`
 	ReviewAgentName        string         `json:"review_agent_name"`
 	ReviewProvider         string         `json:"review_provider"`
 	ReviewModel            string         `json:"review_model"`
+	ReviewReasoningEffort  string         `json:"review_reasoning_effort"`
+	ReviewSpeed            string         `json:"review_speed"`
+	ReviewAcpOptionsJson   string         `json:"review_acp_options_json"`
 	SandboxMode            string         `json:"sandbox_mode"`
 	SandboxRef             string         `json:"sandbox_ref"`
 	WorktreeMode           string         `json:"worktree_mode"`

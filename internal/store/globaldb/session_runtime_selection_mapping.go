@@ -22,7 +22,7 @@ func decodeSelectedRuntime(
 		Model:           model,
 		ReasoningEffort: reasoningEffort,
 		Speed:           speedpkg.Speed(strings.TrimSpace(speed)),
-		ACPOptions:      store.CloneSessionACPOptionSelections(options),
+		ACPOptions:      options,
 	})
 }
 
@@ -52,9 +52,8 @@ func selectedRuntimeValue(
 	selection *store.SessionRuntimeSelection,
 	value func(*store.SessionRuntimeSelection) string,
 ) string {
-	normalized := store.NormalizeSessionRuntimeSelection(selection)
-	if normalized == nil {
+	if selection == nil {
 		return ""
 	}
-	return value(normalized)
+	return value(selection)
 }

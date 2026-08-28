@@ -18,6 +18,7 @@ import {
   type AgentCreatePermissionChoice,
 } from "../lib/agent-create-draft";
 import {
+  hasAgentRuntimeOverride,
   inheritedAgentRuntimeFields,
   resolveAgentRuntimeValue,
 } from "../lib/agent-effective-runtime";
@@ -92,13 +93,7 @@ export function AgentSettingsRuntimeSection({
         : {}),
   };
   const inheritedFields = inheritedAgentRuntimeFields(agent);
-  const hasRuntimeOverride = Boolean(
-    draft.provider.trim() ||
-    draft.model.trim() ||
-    draft.reasoningEffort ||
-    draft.speed ||
-    (draft.acpOptions?.length ?? 0) > 0
-  );
+  const hasRuntimeOverride = hasAgentRuntimeOverride(draft);
 
   return (
     <FormSection data-testid="agent-settings-runtime" icon={Settings2} title="Runtime">
@@ -117,7 +112,7 @@ export function AgentSettingsRuntimeSection({
         ) : null}
         <RuntimeSelector
           value={runtimeValue}
-          onChange={next =>
+          onChange={(next, normalizedSpeed) =>
             readOnly
               ? undefined
               : onPatch({
@@ -125,6 +120,7 @@ export function AgentSettingsRuntimeSection({
                   model: next.model,
                   reasoningEffort: next.reasoning_effort,
                   acpOptions: next.acp_options ?? [],
+                  ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
                 })
           }
           providers={providerOptions}

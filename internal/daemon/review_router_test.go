@@ -9,6 +9,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -155,7 +156,14 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 			profile: taskpkg.ExecutionProfile{
 				TaskID: "task-1",
 				Review: taskpkg.ReviewProfile{
-					AgentName:           "reviewer",
+					AgentName:       "reviewer",
+					Provider:        "claude",
+					Model:           "opus-5",
+					ReasoningEffort: "high",
+					Speed:           speedpkg.SpeedFast,
+					ACPOptions: []taskpkg.ACPOptionSelection{{
+						ID: "thinking", BoolValue: new(false),
+					}},
 					PreferredChannelIDs: []string{"reviews"},
 				},
 			},
@@ -187,6 +195,12 @@ func TestReviewRouterRoutesRunReviewRequests(t *testing.T) {
 				create.NetworkParticipation,
 				create.ResolvedNetworkParticipation,
 			)
+		}
+		if create.Provider != "claude" || create.Model != "opus-5" ||
+			create.ReasoningEffort != "high" || create.Speed != speedpkg.SpeedFast ||
+			len(create.ACPOptions) != 1 || create.ACPOptions[0].BoolValue == nil ||
+			*create.ACPOptions[0].BoolValue {
+			t.Fatalf("CreateOpts runtime = %#v, want full reviewer runtime with thinking=false", create)
 		}
 		if !strings.Contains(create.PromptOverlay, "references/tasks-and-orchestration.md") ||
 			!strings.Contains(create.PromptOverlay, "submit_run_review") {

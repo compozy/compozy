@@ -242,13 +242,14 @@ func roleACPOptionTables(options []compozyconfig.ACPOptionSelection) []map[strin
 }
 
 func roleACPOptionsEqual(left, right []compozyconfig.ACPOptionSelection) bool {
-	if len(left) == 0 && len(right) == 0 {
-		return true
-	}
-	return reflect.DeepEqual(left, right)
+	return nilEmptyRoleSliceEqual(left, right)
 }
 
 func roleFallbacksEqual(left, right []compozyconfig.RoleFallback) bool {
+	return nilEmptyRoleSliceEqual(left, right)
+}
+
+func nilEmptyRoleSliceEqual[T any](left, right []T) bool {
 	if len(left) == 0 && len(right) == 0 {
 		return true
 	}

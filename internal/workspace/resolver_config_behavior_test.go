@@ -708,6 +708,7 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		t.Parallel()
 
 		toolReadOnly := true
+		roleThinking := true
 		original := compozyconfig.Config{
 			Agents: compozyconfig.AgentsConfig{
 				Soul: compozyconfig.SoulConfig{
@@ -738,11 +739,16 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 			Roles: compozyconfig.RolesConfig{
 				Coordinator: compozyconfig.CoordinatorRoleConfig{
 					RoleConfig: compozyconfig.RoleConfig{
-						Enabled:       true,
-						Agent:         "coordinator",
-						Provider:      "codex",
-						Model:         "gpt-4o",
-						FallbackChain: []compozyconfig.RoleFallback{{Provider: "claude", Model: "sonnet"}},
+						Enabled:    true,
+						Agent:      "coordinator",
+						Provider:   "codex",
+						Model:      "gpt-4o",
+						ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: &roleThinking}},
+						FallbackChain: []compozyconfig.RoleFallback{{
+							Provider:   "claude",
+							Model:      "sonnet",
+							ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}},
+						}},
 					},
 					TTL:                           45 * time.Minute,
 					MaxChildren:                   5,
@@ -812,7 +818,9 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		cloned.Roles.Coordinator.Enabled = false
 		cloned.Roles.Coordinator.Agent = "mutated-coordinator"
 		cloned.Roles.Coordinator.TTL = 2 * time.Hour
+		*cloned.Roles.Coordinator.ACPOptions[0].BoolValue = false
 		cloned.Roles.Coordinator.FallbackChain[0].Model = "mutated-model"
+		cloned.Roles.Coordinator.FallbackChain[0].ACPOptions[0].ValueID = "200k"
 		cloned.RoleSources[compozyconfig.RoleCoordinator]["model"] = "overlay"
 		cloned.Providers["claude"] = compozyconfig.ProviderConfig{}
 		cloned.Skills.DisabledSkills[0] = "beta"
@@ -841,6 +849,11 @@ func TestCloneConfigProducesDeepCopy(t *testing.T) {
 		}
 		if got, want := original.Roles.Coordinator.FallbackChain[0].Model, "sonnet"; got != want {
 			t.Fatalf("original.Roles.Coordinator.FallbackChain[0].Model = %q, want %q", got, want)
+		}
+		if original.Roles.Coordinator.ACPOptions[0].BoolValue == nil ||
+			!*original.Roles.Coordinator.ACPOptions[0].BoolValue ||
+			original.Roles.Coordinator.FallbackChain[0].ACPOptions[0].ValueID != "1m" {
+			t.Fatalf("original role ACP options mutated through clone: %#v", original.Roles.Coordinator)
 		}
 		if got := original.RoleSources[compozyconfig.RoleCoordinator]["model"]; got != compozyconfig.RoleFieldSourceDefault {
 			t.Fatalf("original RoleSources mutated through clone: %#v", original.RoleSources)

@@ -1,6 +1,7 @@
 package store
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -26,6 +27,15 @@ func TestSessionCreationProfileShouldBindRuntimePolicyToVersionedIdentity(t *tes
 			!strings.Contains(encoded, `"acp_options":[{"id":"thinking","bool_value":true}]`) ||
 			!strings.Contains(encoded, `"profile_id":"00000000000000000000000000"`) {
 			t.Fatalf("CanonicalJSON() = %s, want version 5 with typed runtime defaults", encoded)
+		}
+		var decoded SessionCreationProfile
+		if err := json.Unmarshal(payload, &decoded); err != nil {
+			t.Fatalf("json.Unmarshal(CanonicalJSON()) error = %v", err)
+		}
+		if decoded.Version != 5 || decoded.Speed != speedpkg.SpeedNormal ||
+			len(decoded.ACPOptions) != 1 || decoded.ACPOptions[0].ID != "thinking" ||
+			decoded.ACPOptions[0].BoolValue == nil || !*decoded.ACPOptions[0].BoolValue {
+			t.Fatalf("decoded creation profile = %#v, want structural typed runtime fields", decoded)
 		}
 	})
 

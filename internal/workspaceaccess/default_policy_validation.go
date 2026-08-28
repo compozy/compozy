@@ -50,7 +50,7 @@ func validActorKind(kind ActorKind) bool {
 
 func validSeam(seam Seam) bool {
 	switch seam {
-	case SeamIdentity, SeamTask, SeamTool, SeamSpawn, SeamCoordination:
+	case SeamIdentity, SeamTask, SeamTool, SeamSpawn, SeamCoordination, SeamCatalog:
 		return true
 	default:
 		return false

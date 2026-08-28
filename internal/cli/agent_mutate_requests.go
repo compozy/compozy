@@ -39,16 +39,11 @@ func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
 	cmd.Flags().StringVar(&flags.reasoningEffort, agentReasoningEffortKey, "", "Optional default reasoning effort")
 	cmd.Flags().StringVar(&flags.speed, "speed", "", "Optional default runtime speed (normal or fast)")
-	cmd.Flags().StringArrayVar(
+	bindACPOptionFlags(
+		cmd,
 		&flags.acpOptions,
-		"acp-option",
-		nil,
-		"ACP select option default (repeatable: id=value_id)",
-	)
-	cmd.Flags().StringArrayVar(
 		&flags.acpToggles,
-		"acp-toggle",
-		nil,
+		"ACP select option default (repeatable: id=value_id)",
 		"ACP boolean option default (repeatable: id=true|false)",
 	)
 	cmd.Flags().StringVar(&flags.prompt, "prompt", "", "Agent system prompt body")
@@ -88,7 +83,7 @@ func createAgentRequestFromFlags(
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
-	acpOptions, err := parseAgentACPFlags(flags.acpOptions, flags.acpToggles)
+	acpOptions, err := parseACPFlags(flags.acpOptions, flags.acpToggles)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
@@ -242,8 +237,8 @@ func applyAgentDefinitionOverrides(
 		}
 		payload.Speed = speed
 	}
-	if cmd.Flags().Changed("acp-option") || cmd.Flags().Changed("acp-toggle") {
-		options, err := parseAgentACPFlags(flags.acpOptions, flags.acpToggles)
+	if cmd.Flags().Changed(runtimeACPOptionFlag) || cmd.Flags().Changed(runtimeACPToggleFlag) {
+		options, err := parseACPFlags(flags.acpOptions, flags.acpToggles)
 		if err != nil {
 			return err
 		}
@@ -290,7 +285,7 @@ func duplicateAgentOverridesFromFlags(
 	changed := false
 	for _, name := range []string{
 		cliProviderKey, agentCommandKey, agentModelKey, agentReasoningEffortKey,
-		"speed", "acp-option", "acp-toggle",
+		"speed", runtimeACPOptionFlag, runtimeACPToggleFlag,
 		clientToolsPromptKey, "prompt-file", toolToolKey, "toolset", "deny-tool", configPermissionsKey, agentCategoryKey,
 		agentDisableSkillFlag,
 	} {

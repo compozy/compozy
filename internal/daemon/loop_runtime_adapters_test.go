@@ -226,6 +226,15 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 				binding.AppliedRuntime,
 			)
 		}
+		if len(binding.AppliedRuntime.ACPOptions) != 1 ||
+			binding.AppliedRuntime.ACPOptions[0].ID != "thinking" ||
+			binding.AppliedRuntime.ACPOptions[0].BoolValue == nil ||
+			!*binding.AppliedRuntime.ACPOptions[0].BoolValue {
+			t.Fatalf(
+				"binding AppliedRuntime ACPOptions = %#v, want thinking=true",
+				binding.AppliedRuntime.ACPOptions,
+			)
+		}
 	})
 
 	t.Run("Should carry provenance in run-owned managed creation options", func(t *testing.T) {

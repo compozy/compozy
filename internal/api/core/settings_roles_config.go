@@ -27,6 +27,8 @@ func settingsRolesConfigPayload(value *compozyconfig.RolesConfig) contract.Setti
 			Provider:        strings.TrimSpace(value.MemoryController.Provider),
 			Model:           strings.TrimSpace(value.MemoryController.Model),
 			ReasoningEffort: strings.TrimSpace(value.MemoryController.ReasoningEffort),
+			Speed:           settingsRoleSpeedPayload(value.MemoryController.Speed),
+			ACPOptions:      settingsACPOptionPayloads(value.MemoryController.ACPOptions),
 			Timeout:         value.MemoryController.Timeout.String(),
 			TopK:            value.MemoryController.TopK,
 			PromptVersion:   strings.TrimSpace(value.MemoryController.PromptVersion),
@@ -43,6 +45,8 @@ func settingsRoleConfigPayload(value compozyconfig.RoleConfig) contract.Settings
 		Provider:        strings.TrimSpace(value.Provider),
 		Model:           strings.TrimSpace(value.Model),
 		ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
+		Speed:           settingsRoleSpeedPayload(value.Speed),
+		ACPOptions:      settingsACPOptionPayloads(value.ACPOptions),
 		FallbackChain:   settingsRoleFallbackPayloads(value.FallbackChain),
 	}
 }
@@ -54,6 +58,8 @@ func settingsRoleFallbackPayloads(values []compozyconfig.RoleFallback) []contrac
 			Provider:        strings.TrimSpace(value.Provider),
 			Model:           strings.TrimSpace(value.Model),
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
+			Speed:           settingsRoleSpeedPayload(value.Speed),
+			ACPOptions:      settingsACPOptionPayloads(value.ACPOptions),
 		})
 	}
 	return payloads
@@ -89,6 +95,8 @@ func rolesConfigFromPayload(payload *contract.SettingsRolesConfigPayload) (compo
 			Provider:        strings.TrimSpace(payload.MemoryController.Provider),
 			Model:           strings.TrimSpace(payload.MemoryController.Model),
 			ReasoningEffort: strings.TrimSpace(payload.MemoryController.ReasoningEffort),
+			Speed:           settingsRoleSpeedFromPayload(payload.MemoryController.Speed),
+			ACPOptions:      settingsACPOptionsFromPayload(payload.MemoryController.ACPOptions),
 			Timeout:         timeout,
 			TopK:            payload.MemoryController.TopK,
 			PromptVersion:   strings.TrimSpace(payload.MemoryController.PromptVersion),
@@ -105,6 +113,8 @@ func roleConfigFromSettingsPayload(payload contract.SettingsRoleConfigPayload) c
 		Provider:        strings.TrimSpace(payload.Provider),
 		Model:           strings.TrimSpace(payload.Model),
 		ReasoningEffort: strings.TrimSpace(payload.ReasoningEffort),
+		Speed:           settingsRoleSpeedFromPayload(payload.Speed),
+		ACPOptions:      settingsACPOptionsFromPayload(payload.ACPOptions),
 		FallbackChain:   roleFallbacksFromSettingsPayload(payload.FallbackChain),
 	}
 }
@@ -116,7 +126,63 @@ func roleFallbacksFromSettingsPayload(values []contract.SettingsRoleFallbackPayl
 			Provider:        strings.TrimSpace(value.Provider),
 			Model:           strings.TrimSpace(value.Model),
 			ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
+			Speed:           settingsRoleSpeedFromPayload(value.Speed),
+			ACPOptions:      settingsACPOptionsFromPayload(value.ACPOptions),
 		})
 	}
 	return fallbacks
+}
+
+func settingsRoleSpeedPayload(value contract.Speed) *contract.Speed {
+	if strings.TrimSpace(string(value)) == "" {
+		return nil
+	}
+	return new(value)
+}
+
+func settingsRoleSpeedFromPayload(value *contract.Speed) contract.Speed {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func settingsACPOptionPayloads(
+	options []compozyconfig.ACPOptionSelection,
+) []contract.AgentACPOptionSelection {
+	if len(options) == 0 {
+		return []contract.AgentACPOptionSelection{}
+	}
+	payloads := make([]contract.AgentACPOptionSelection, 0, len(options))
+	for _, option := range options {
+		payload := contract.AgentACPOptionSelection{
+			ID:      strings.TrimSpace(option.ID),
+			ValueID: strings.TrimSpace(option.ValueID),
+		}
+		if option.BoolValue != nil {
+			payload.BoolValue = new(*option.BoolValue)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func settingsACPOptionsFromPayload(
+	options []contract.AgentACPOptionSelection,
+) []compozyconfig.ACPOptionSelection {
+	if len(options) == 0 {
+		return nil
+	}
+	converted := make([]compozyconfig.ACPOptionSelection, 0, len(options))
+	for _, option := range options {
+		selection := compozyconfig.ACPOptionSelection{
+			ID:      strings.TrimSpace(option.ID),
+			ValueID: strings.TrimSpace(option.ValueID),
+		}
+		if option.BoolValue != nil {
+			selection.BoolValue = new(*option.BoolValue)
+		}
+		converted = append(converted, selection)
+	}
+	return converted
 }

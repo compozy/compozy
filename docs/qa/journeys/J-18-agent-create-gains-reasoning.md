@@ -46,7 +46,7 @@ journey:
   actions:
     - step: 1
       verb: "Reach the Runtime step of the create-agent wizard"
-      expected_observable: "The step shows one RuntimeSelector with provider, logical model, Reasoning, Fast, and advertised advanced options plus a Command override field; no transport alias is visible."
+      expected_observable: "The step shows one RuntimeSelector rather than separate leaf selects, uses curated model browsing with availability and capability chips, and includes provider, logical model, Reasoning, Fast, and advertised advanced options plus a Command override field; no raw or transport model alias is visible."
     - step: 2
       verb: "Pick a provider, model, Reasoning, Fast, and advertised advanced options"
       expected_observable: "Only valid controls and combinations are selectable; changing provider or model clears values the new descriptor cannot honor."

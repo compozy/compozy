@@ -11,9 +11,9 @@ import {
 } from "@compozy/ui";
 
 import type { RuntimeACPOption, RuntimeACPOptionSelection } from "./types";
-import { advancedRuntimeOptions } from "./runtime-advanced-options-model";
 
 export interface RuntimeAdvancedOptionsProps {
+  /** Controller-normalized advanced descriptors in stable ID order. */
   options: readonly RuntimeACPOption[];
   selections: readonly RuntimeACPOptionSelection[];
   expanded: boolean;
@@ -22,6 +22,14 @@ export interface RuntimeAdvancedOptionsProps {
   onExpandedChange: (expanded: boolean) => void;
   onChange: (selection: RuntimeACPOptionSelection | null) => void;
 }
+
+type RuntimeAdvancedOptionControlProps = Pick<
+  RuntimeAdvancedOptionsProps,
+  "selections" | "disabled" | "onChange"
+> & {
+  option: RuntimeACPOption;
+  descriptionId?: string;
+};
 
 function optionLabel(option: RuntimeACPOption): string {
   return option.label?.trim() || option.id;
@@ -55,13 +63,7 @@ function SelectOption({
   disabled,
   descriptionId,
   onChange,
-}: {
-  option: RuntimeACPOption;
-  selections: readonly RuntimeACPOptionSelection[];
-  disabled: boolean;
-  descriptionId?: string;
-  onChange: (selection: RuntimeACPOptionSelection | null) => void;
-}) {
+}: RuntimeAdvancedOptionControlProps) {
   const values = option.values ?? [];
   const value = selectedValue(option, selections);
   const ungrouped = values.filter(candidate => !candidate.group_id && !candidate.group_label);
@@ -113,13 +115,7 @@ function BooleanOption({
   disabled,
   descriptionId,
   onChange,
-}: {
-  option: RuntimeACPOption;
-  selections: readonly RuntimeACPOptionSelection[];
-  disabled: boolean;
-  descriptionId?: string;
-  onChange: (selection: RuntimeACPOptionSelection | null) => void;
-}) {
+}: RuntimeAdvancedOptionControlProps) {
   return (
     <Switch
       aria-describedby={descriptionId}
@@ -150,13 +146,7 @@ function OptionRow({
   disabled,
   descriptionId,
   onChange,
-}: {
-  option: RuntimeACPOption;
-  selections: readonly RuntimeACPOptionSelection[];
-  disabled: boolean;
-  descriptionId?: string;
-  onChange: (selection: RuntimeACPOptionSelection | null) => void;
-}) {
+}: RuntimeAdvancedOptionControlProps) {
   const label = optionLabel(option);
   const description = optionDescription(option);
   const supported = option.kind === "select" || option.kind === "boolean";
@@ -219,8 +209,7 @@ export function RuntimeAdvancedOptions({
   onChange,
 }: RuntimeAdvancedOptionsProps) {
   const instanceId = useId();
-  const visibleOptions = advancedRuntimeOptions(options);
-  if (visibleOptions.length === 0) return null;
+  if (options.length === 0) return null;
 
   const panelId = `${instanceId}-panel`;
   const controlsDisabled = disabled || providerManaged;
@@ -254,7 +243,7 @@ export function RuntimeAdvancedOptions({
           data-testid="runtime-selector-advanced-panel"
           id={panelId}
         >
-          {visibleOptions.map(option => (
+          {options.map(option => (
             <OptionRow
               disabled={controlsDisabled || (option.kind !== "select" && option.kind !== "boolean")}
               key={option.id}

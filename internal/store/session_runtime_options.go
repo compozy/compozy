@@ -16,6 +16,13 @@ type SessionACPOptionSelection struct {
 	BoolValue *bool  `json:"bool_value,omitempty"`
 }
 
+// SessionRuntimeDetails keeps optional ACP selections and recovery metadata
+// compact while preserving their flat session metadata JSON fields.
+type SessionRuntimeDetails struct {
+	ACPOptions      []SessionACPOptionSelection `json:"acp_options,omitempty"`
+	RuntimeRecovery *SessionRuntimeRecovery     `json:"runtime_recovery,omitempty"`
+}
+
 // Normalize trims values, copies boolean pointers, and orders selections by ID.
 func NormalizeSessionACPOptionSelections(
 	selections []SessionACPOptionSelection,
@@ -45,6 +52,94 @@ func CloneSessionACPOptionSelections(
 	selections []SessionACPOptionSelection,
 ) []SessionACPOptionSelection {
 	return NormalizeSessionACPOptionSelections(selections)
+}
+
+// ACPOptionsValue returns the persisted session option selections.
+func (m SessionMeta) ACPOptionsValue() []SessionACPOptionSelection {
+	if m.SessionRuntimeDetails == nil {
+		return nil
+	}
+	return m.ACPOptions
+}
+
+// SetACPOptions stores an ownership-safe session option selection set.
+func (m *SessionMeta) SetACPOptions(selections []SessionACPOptionSelection) {
+	setSessionRuntimeACPOptions(&m.SessionRuntimeDetails, selections)
+}
+
+// ACPOptionsValue returns the indexed session option selections.
+func (s SessionInfo) ACPOptionsValue() []SessionACPOptionSelection {
+	if s.SessionRuntimeDetails == nil {
+		return nil
+	}
+	return s.ACPOptions
+}
+
+// SetACPOptions stores an ownership-safe indexed option selection set.
+func (s *SessionInfo) SetACPOptions(selections []SessionACPOptionSelection) {
+	setSessionRuntimeACPOptions(&s.SessionRuntimeDetails, selections)
+}
+
+// RuntimeRecoveryValue returns independent persisted recovery metadata.
+func (m SessionMeta) RuntimeRecoveryValue() *SessionRuntimeRecovery {
+	if m.SessionRuntimeDetails == nil {
+		return nil
+	}
+	return CloneSessionRuntimeRecovery(m.RuntimeRecovery)
+}
+
+// SetRuntimeRecovery stores independent persisted recovery metadata.
+func (m *SessionMeta) SetRuntimeRecovery(recovery *SessionRuntimeRecovery) {
+	setSessionRuntimeRecovery(&m.SessionRuntimeDetails, recovery)
+}
+
+// RuntimeRecoveryValue returns independent indexed recovery metadata.
+func (s SessionInfo) RuntimeRecoveryValue() *SessionRuntimeRecovery {
+	if s.SessionRuntimeDetails == nil {
+		return nil
+	}
+	return CloneSessionRuntimeRecovery(s.RuntimeRecovery)
+}
+
+// SetRuntimeRecovery stores independent indexed recovery metadata.
+func (s *SessionInfo) SetRuntimeRecovery(recovery *SessionRuntimeRecovery) {
+	setSessionRuntimeRecovery(&s.SessionRuntimeDetails, recovery)
+}
+
+func setSessionRuntimeACPOptions(
+	state **SessionRuntimeDetails,
+	selections []SessionACPOptionSelection,
+) {
+	cloned := CloneSessionACPOptionSelections(selections)
+	if *state == nil {
+		if len(cloned) == 0 {
+			return
+		}
+		*state = &SessionRuntimeDetails{}
+	}
+	(*state).ACPOptions = cloned
+	clearEmptySessionRuntimeDetails(state)
+}
+
+func setSessionRuntimeRecovery(
+	state **SessionRuntimeDetails,
+	recovery *SessionRuntimeRecovery,
+) {
+	cloned := CloneSessionRuntimeRecovery(recovery)
+	if *state == nil {
+		if cloned == nil {
+			return
+		}
+		*state = &SessionRuntimeDetails{}
+	}
+	(*state).RuntimeRecovery = cloned
+	clearEmptySessionRuntimeDetails(state)
+}
+
+func clearEmptySessionRuntimeDetails(state **SessionRuntimeDetails) {
+	if *state != nil && len((*state).ACPOptions) == 0 && (*state).RuntimeRecovery == nil {
+		*state = nil
+	}
 }
 
 // ValidateSessionACPOptionSelections checks the persisted typed option shape.

@@ -380,30 +380,56 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		if err := json.Unmarshal(input.Items, &option); err != nil {
 			t.Fatalf("%s acp_options item schema unmarshal error = %v", descriptor.ID, err)
 		}
-		assertClosedObjectSchema(t, descriptor.ID.String()+" acp_options item", option,
-			[]string{"bool_value", "id", "value_id"})
-		for _, property := range []string{"id", "value_id"} {
-			var field nativeObjectSchema
-			if err := json.Unmarshal(option.Properties[property], &field); err != nil {
-				t.Fatalf("%s acp_options.%s schema unmarshal error = %v", descriptor.ID, property, err)
-			}
-			if field.Type != "string" || field.MinLength != 1 {
-				t.Fatalf("%s acp_options.%s schema = %#v, want non-empty string", descriptor.ID, property, field)
-			}
-		}
-		var boolField nativeObjectSchema
-		if err := json.Unmarshal(option.Properties["bool_value"], &boolField); err != nil {
-			t.Fatalf("%s acp_options.bool_value schema unmarshal error = %v", descriptor.ID, err)
-		}
-		if boolField.Type != "boolean" {
-			t.Fatalf("%s acp_options.bool_value type = %q, want boolean", descriptor.ID, boolField.Type)
-		}
+		assertACPOptionSelectionInputSchema(t, descriptor.ID.String()+" acp_options item", option)
 		var speedField nativeObjectSchema
 		if err := json.Unmarshal(topLevel.Properties["speed"], &speedField); err != nil {
 			t.Fatalf("%s speed schema unmarshal error = %v", descriptor.ID, err)
 		}
-		if speedField.Type != "string" {
-			t.Fatalf("%s speed type = %q, want string", descriptor.ID, speedField.Type)
+		if speedField.Type != "string" || !slices.Equal(speedField.Enum, []string{"normal", "fast"}) {
+			t.Fatalf("%s speed schema = %#v, want normal/fast string enum", descriptor.ID, speedField)
+		}
+		compiled := compileNativeSchema(t, descriptor, descriptor.InputSchema, "input")
+		for _, testCase := range []struct {
+			name    string
+			payload string
+			valid   bool
+		}{
+			{
+				name: "Should accept select and boolean ACP option values",
+				payload: `{"scope":"global","name":"coder","prompt":"Code.","speed":"fast",` +
+					`"acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}]}`,
+				valid: true,
+			},
+			{
+				name: "Should reject an ACP option without a typed value",
+				payload: `{"scope":"global","name":"coder","prompt":"Code.",` +
+					`"acp_options":[{"id":"thinking"}]}`,
+			},
+			{
+				name: "Should reject an ACP option with both typed values",
+				payload: `{"scope":"global","name":"coder","prompt":"Code.",` +
+					`"acp_options":[{"id":"thinking","value_id":"high","bool_value":true}]}`,
+			},
+			{
+				name:    "Should reject an unsupported speed",
+				payload: `{"scope":"global","name":"coder","prompt":"Code.","speed":"turbo"}`,
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
+				instance, err := jsonschema.UnmarshalJSON(strings.NewReader(testCase.payload))
+				if err != nil {
+					t.Fatalf("%s payload parse error = %v", descriptor.ID, err)
+				}
+				err = compiled.Validate(instance)
+				if testCase.valid && err != nil {
+					t.Fatalf("%s input schema rejected valid payload: %v", descriptor.ID, err)
+				}
+				if !testCase.valid && err == nil {
+					t.Fatalf("%s input schema accepted forbidden payload", descriptor.ID)
+				}
+			})
 		}
 	})
 
@@ -1225,6 +1251,54 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 			t.Fatal("gateway output schema is missing or invalid")
 		}
 	})
+}
+
+func assertACPOptionSelectionInputSchema(t *testing.T, owner string, schema nativeObjectSchema) {
+	t.Helper()
+
+	if len(schema.OneOf) != 2 {
+		t.Fatalf("%s oneOf branches = %d, want 2", owner, len(schema.OneOf))
+	}
+	wantValueFields := [][]string{{"id", "value_id"}, {"bool_value", "id"}}
+	for index, rawBranch := range schema.OneOf {
+		var branch nativeObjectSchema
+		if err := json.Unmarshal(rawBranch, &branch); err != nil {
+			t.Fatalf("%s oneOf[%d] schema unmarshal error = %v", owner, index, err)
+		}
+		assertClosedObjectSchema(t, fmt.Sprintf("%s oneOf[%d]", owner, index), branch, wantValueFields[index])
+		if !slices.Contains(branch.Required, "id") || len(branch.Required) != 2 {
+			t.Fatalf("%s oneOf[%d] required = %#v, want id plus one typed value", owner, index, branch.Required)
+		}
+		var idField nativeObjectSchema
+		if err := json.Unmarshal(branch.Properties["id"], &idField); err != nil {
+			t.Fatalf("%s oneOf[%d].id schema unmarshal error = %v", owner, index, err)
+		}
+		if idField.Type != "string" || idField.MinLength != 1 {
+			t.Fatalf("%s oneOf[%d].id schema = %#v, want non-empty string", owner, index, idField)
+		}
+	}
+	var selectBranch nativeObjectSchema
+	if err := json.Unmarshal(schema.OneOf[0], &selectBranch); err != nil {
+		t.Fatalf("%s select branch unmarshal error = %v", owner, err)
+	}
+	var valueField nativeObjectSchema
+	if err := json.Unmarshal(selectBranch.Properties["value_id"], &valueField); err != nil {
+		t.Fatalf("%s value_id schema unmarshal error = %v", owner, err)
+	}
+	if valueField.Type != "string" || valueField.MinLength != 1 {
+		t.Fatalf("%s value_id schema = %#v, want non-empty string", owner, valueField)
+	}
+	var booleanBranch nativeObjectSchema
+	if err := json.Unmarshal(schema.OneOf[1], &booleanBranch); err != nil {
+		t.Fatalf("%s boolean branch unmarshal error = %v", owner, err)
+	}
+	var boolField nativeObjectSchema
+	if err := json.Unmarshal(booleanBranch.Properties["bool_value"], &boolField); err != nil {
+		t.Fatalf("%s bool_value schema unmarshal error = %v", owner, err)
+	}
+	if boolField.Type != "boolean" {
+		t.Fatalf("%s bool_value type = %q, want boolean", owner, boolField.Type)
+	}
 }
 
 type nativeDescriptorExpectation struct {

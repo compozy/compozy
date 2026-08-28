@@ -12,9 +12,11 @@ import {
 
 import type { TaskExecutionProfileSetRequest } from "../types";
 import {
+  normalizeRuntimeACPSelections,
   type RuntimeModelOption,
   type RuntimeProviderOption,
   RuntimeSelector,
+  REASONING_EFFORT_ORDER,
   type RuntimeSelectorValue,
 } from "@/systems/runtime";
 
@@ -54,8 +56,20 @@ function parseList(value: string): string[] | undefined {
   return items.length > 0 ? items : undefined;
 }
 
-function runtimeValue(provider?: string, model?: string): RuntimeSelectorValue {
-  return { provider: provider ?? "", model: model ?? "", reasoning_effort: "" };
+function runtimeValue(
+  profile: TaskExecutionProfileSetRequest["worker"] | TaskExecutionProfileSetRequest["review"]
+): RuntimeSelectorValue {
+  const reasoningEffort = profile.reasoning_effort ?? "";
+  return {
+    provider: profile.provider ?? "",
+    model: profile.model ?? "",
+    reasoning_effort: REASONING_EFFORT_ORDER.includes(
+      reasoningEffort as (typeof REASONING_EFFORT_ORDER)[number]
+    )
+      ? (reasoningEffort as RuntimeSelectorValue["reasoning_effort"])
+      : "",
+    acp_options: normalizeRuntimeACPSelections(profile.acp_options),
+  };
 }
 
 export function TaskSetupForm({
@@ -116,19 +130,24 @@ export function TaskSetupForm({
             disabled={disabled}
             loading={runtime.catalogLoading}
             models={runtime.models}
-            onChange={next =>
+            onChange={(next, normalizedSpeed) =>
               update("worker", {
                 ...value.worker,
                 provider: next.provider || undefined,
                 model: next.model || undefined,
+                reasoning_effort: next.reasoning_effort || undefined,
+                speed: normalizedSpeed ?? value.worker.speed,
+                acp_options: next.acp_options?.length ? next.acp_options : undefined,
               })
             }
+            onSpeedChange={speed => update("worker", { ...value.worker, speed })}
             onRefreshCatalog={runtime.onRefreshCatalog}
             providers={runtime.providers}
             refreshing={runtime.catalogRefreshing}
             triggerId="tasks-setup-worker-runtime"
             triggerTestId="tasks-setup-worker-runtime"
-            value={runtimeValue(value.worker.provider, value.worker.model)}
+            speed={value.worker.speed ?? "normal"}
+            value={runtimeValue(value.worker)}
           />
           {runtime.errorMessage ? (
             <p className="text-form-hint text-warning">{runtime.errorMessage}</p>
@@ -210,19 +229,24 @@ export function TaskSetupForm({
             disabled={disabled}
             loading={runtime.catalogLoading}
             models={runtime.models}
-            onChange={next =>
+            onChange={(next, normalizedSpeed) =>
               update("review", {
                 ...value.review,
                 provider: next.provider || undefined,
                 model: next.model || undefined,
+                reasoning_effort: next.reasoning_effort || undefined,
+                speed: normalizedSpeed ?? value.review.speed,
+                acp_options: next.acp_options?.length ? next.acp_options : undefined,
               })
             }
+            onSpeedChange={speed => update("review", { ...value.review, speed })}
             onRefreshCatalog={runtime.onRefreshCatalog}
             providers={runtime.providers}
             refreshing={runtime.catalogRefreshing}
             triggerId="tasks-setup-review-runtime"
             triggerTestId="tasks-setup-review-runtime"
-            value={runtimeValue(value.review.provider, value.review.model)}
+            speed={value.review.speed ?? "normal"}
+            value={runtimeValue(value.review)}
           />
         </Field>
         <Field>

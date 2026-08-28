@@ -203,4 +203,65 @@ describe("useSessionPromptRuntime", () => {
     unmount();
     expect(signal.aborted).toBe(true);
   });
+
+  it("Should inherit the agent speed before the first runtime bind", async () => {
+    const workspaceId = workspaceDetailFixture.workspace.id;
+    const workspace: WorkspaceDetailPayload = {
+      ...workspaceDetailFixture,
+      providers: [
+        {
+          display_name: "Cursor",
+          harness: "acp",
+          name: "cursor",
+          runtime_provider: "cursor",
+        },
+      ],
+    };
+    const session = {
+      ...primarySessionFixture,
+      agent_name: "qa-runtime-agent",
+      runtime: {
+        status: "unbound" as const,
+        selection_revision: 0,
+      },
+      workspace_id: workspaceId,
+    };
+    const agent = {
+      name: session.agent_name,
+      provider: "cursor",
+      model: "grok-4.5",
+      reasoning_effort: "high",
+      speed: "fast",
+    } as AgentPayload;
+    const { queryClient, wrapper } = createHarness();
+    queryClient.setQueryData(workspaceKeys.detail(workspaceId), workspace);
+    queryClient.setQueryData<AgentPayload[]>(agentKeys.list(workspaceId), [agent]);
+    queryClient.setQueryData(providerKeys.lists(), {
+      providers: [provider("cursor", "authenticated")],
+    } satisfies ProviderListResponse);
+    queryClient.setQueryData(modelCatalogKeys.allModels("all", undefined, undefined, true), {
+      models: [model("cursor", "grok-4.5")],
+    } satisfies AllModelsListResponse);
+    const store = sessionPromptRuntimeStoreLogic.createStore(
+      sessionPromptRuntimeInput({
+        agentName: session.agent_name,
+        canPrompt: true,
+        effectiveRuntime: undefined,
+        selectedRuntime: undefined,
+        selectionRevision: session.runtime.selection_revision,
+        sessionId: session.id,
+        workspaceId: session.workspace_id,
+      })
+    );
+
+    const { result } = renderHook(() => useSessionPromptRuntime(store), { wrapper });
+
+    await waitFor(() => expect(result.current.speed).toBe("fast"));
+    expect(result.current.getRuntimeSnapshot()).toEqual({
+      provider: "cursor",
+      model: "grok-4.5",
+      reasoning_effort: "high",
+      speed: "fast",
+    });
+  });
 });

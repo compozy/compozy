@@ -7,12 +7,12 @@ journey: J-17
 expected: Clicking New session opens launch details without a first-message composer; Create gives visible feedback within 100 ms, creates one durable session and activates its owner workspace before navigation within 250 ms, then the destination composer accepts the separate first prompt and its runtime selection without duplicate creation.
 entry_points: web agent detail New session; web Agents Start session
 qa_status: pass
-bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race; BUG-20260730-session-create-window-intent
-fix_status: fixed
+bug_ids: BUG-20260713-cursor-model-startup-contract; BUG-20260713-new-session-modal-lingers; BUG-20260713-first-prompt-optimistic-stuck; BUG-20260713-stop-generation-local-stuck; BUG-20260729-accepted-start-stop-identity-race; BUG-20260730-session-create-window-intent; BUG-20260827-session-create-first-message-regression; BUG-20260827-unbound-session-fast-inheritance; BUG-20260828-unbound-session-start-latency
+fix_status: fixed-pending-commit
 retest_status: pass
 fix_commits: 8eeb8a38
-evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-live-create.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-default-unset.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-create.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md
-last_report: docs/qa/reports/2026-08-13-issue-389-cursor-model.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-live-create.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-default-unset.json;/Users/pedronauck/dev/qa-labs/compozy-issue-389-cursor-model-final-20260813-222525-271707-lab/qa-artifacts/qa/cursor-native-create.json;docs/qa/reports/2026-08-13-issue-389-cursor-model.md;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-fast-feedback.json;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-fast-feedback-pass.png
+last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
 overlaps: RT-010
 ---
 
@@ -53,3 +53,15 @@ and serializes the terminal transition with the immutable launch-identity commit
 QA impact 2026-08-13: an explicit Cursor model now has to match a fresh ACP-advertised catalog value
 before creation; an omitted Cursor model must still use Cursor's native default. Reset for a fresh
 create walk.
+
+QA impact 2026-08-27: targeted QA found that the launch dialog had regained prompt submission.
+The prompt field is removed; reset remains `untested` for launch feedback, navigation, and separate
+composer submission timing.
+
+QA 2026-08-27: the functional launch-to-composer path and separate first prompt passed with inherited
+Grok 4.5 High/Fast. The scenario remains `untested` because the replay did not capture its 100 ms
+feedback and 250 ms navigation budgets.
+
+QA 2026-08-28: pass. A click-listener capture measured feedback at 14.8 ms, navigation at 207.4 ms,
+and the separate composer ready at 392 ms. Exactly one `POST /api/sessions` returned 201; the
+destination retained Cursor Grok 4.5, High, and Fast before its first bind.

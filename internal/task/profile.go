@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/network/participation"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -75,29 +76,35 @@ type CoordinatorProfile struct {
 
 // WorkerProfile narrows eligible task workers without granting runtime authority.
 type WorkerProfile struct {
-	Mode                  WorkerMode `json:"mode"`
-	AgentName             string     `json:"agent_name,omitempty"`
-	Provider              string     `json:"provider,omitempty"`
-	Model                 string     `json:"model,omitempty"`
-	AllowedAgentNames     []string   `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string   `json:"preferred_agent_names,omitempty"`
-	RequiredCapabilities  []string   `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string   `json:"preferred_capabilities,omitempty"`
+	Mode                  WorkerMode           `json:"mode"`
+	AgentName             string               `json:"agent_name,omitempty"`
+	Provider              string               `json:"provider,omitempty"`
+	Model                 string               `json:"model,omitempty"`
+	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
+	Speed                 speedpkg.Speed       `json:"speed,omitempty"`
+	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
+	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
 }
 
 // ReviewProfile narrows reviewer execution shape; verdict authority stays in task review APIs.
 type ReviewProfile struct {
-	AgentName             string   `json:"agent_name,omitempty"`
-	Provider              string   `json:"provider,omitempty"`
-	Model                 string   `json:"model,omitempty"`
-	AllowedAgentNames     []string `json:"allowed_agent_names,omitempty"`
-	PreferredAgentNames   []string `json:"preferred_agent_names,omitempty"`
-	AllowedChannelIDs     []string `json:"allowed_channel_ids,omitempty"`
-	PreferredChannelIDs   []string `json:"preferred_channel_ids,omitempty"`
-	AllowedPeerIDs        []string `json:"allowed_peer_ids,omitempty"`
-	PreferredPeerIDs      []string `json:"preferred_peer_ids,omitempty"`
-	RequiredCapabilities  []string `json:"required_capabilities,omitempty"`
-	PreferredCapabilities []string `json:"preferred_capabilities,omitempty"`
+	AgentName             string               `json:"agent_name,omitempty"`
+	Provider              string               `json:"provider,omitempty"`
+	Model                 string               `json:"model,omitempty"`
+	ReasoningEffort       string               `json:"reasoning_effort,omitempty"`
+	Speed                 speedpkg.Speed       `json:"speed,omitempty"`
+	ACPOptions            []ACPOptionSelection `json:"acp_options,omitempty"`
+	AllowedAgentNames     []string             `json:"allowed_agent_names,omitempty"`
+	PreferredAgentNames   []string             `json:"preferred_agent_names,omitempty"`
+	AllowedChannelIDs     []string             `json:"allowed_channel_ids,omitempty"`
+	PreferredChannelIDs   []string             `json:"preferred_channel_ids,omitempty"`
+	AllowedPeerIDs        []string             `json:"allowed_peer_ids,omitempty"`
+	PreferredPeerIDs      []string             `json:"preferred_peer_ids,omitempty"`
+	RequiredCapabilities  []string             `json:"required_capabilities,omitempty"`
+	PreferredCapabilities []string             `json:"preferred_capabilities,omitempty"`
 }
 
 // ParticipantPolicy is an upper-bound routing policy, not a permission grant.
@@ -175,7 +182,7 @@ func normalizeCoordinatorProfile(profile CoordinatorProfile) CoordinatorProfile 
 	return profile
 }
 
-func normalizeWorkerProfile(profile WorkerProfile) WorkerProfile {
+func normalizeWorkerProfile(profile WorkerProfile) (WorkerProfile, error) {
 	profile.Mode = profile.Mode.Normalize()
 	if profile.Mode == "" {
 		profile.Mode = WorkerModeInherit
@@ -183,17 +190,37 @@ func normalizeWorkerProfile(profile WorkerProfile) WorkerProfile {
 	profile.AgentName = strings.TrimSpace(profile.AgentName)
 	profile.Provider = strings.TrimSpace(profile.Provider)
 	profile.Model = strings.TrimSpace(profile.Model)
+	var err error
+	profile.ReasoningEffort, profile.Speed, profile.ACPOptions, err = normalizeProfileRuntime(
+		profile.ReasoningEffort,
+		profile.Speed,
+		profile.ACPOptions,
+		"task_execution_profile.worker",
+	)
+	if err != nil {
+		return WorkerProfile{}, err
+	}
 	profile.AllowedAgentNames = normalizeProfileSelectorList(profile.AllowedAgentNames)
 	profile.PreferredAgentNames = normalizeProfileSelectorList(profile.PreferredAgentNames)
 	profile.RequiredCapabilities = normalizeProfileSelectorList(profile.RequiredCapabilities)
 	profile.PreferredCapabilities = normalizeProfileSelectorList(profile.PreferredCapabilities)
-	return profile
+	return profile, nil
 }
 
-func normalizeReviewProfile(profile ReviewProfile) ReviewProfile {
+func normalizeReviewProfile(profile ReviewProfile) (ReviewProfile, error) {
 	profile.AgentName = strings.TrimSpace(profile.AgentName)
 	profile.Provider = strings.TrimSpace(profile.Provider)
 	profile.Model = strings.TrimSpace(profile.Model)
+	var err error
+	profile.ReasoningEffort, profile.Speed, profile.ACPOptions, err = normalizeProfileRuntime(
+		profile.ReasoningEffort,
+		profile.Speed,
+		profile.ACPOptions,
+		"task_execution_profile.review",
+	)
+	if err != nil {
+		return ReviewProfile{}, err
+	}
 	profile.AllowedAgentNames = normalizeProfileSelectorList(profile.AllowedAgentNames)
 	profile.PreferredAgentNames = normalizeProfileSelectorList(profile.PreferredAgentNames)
 	profile.AllowedChannelIDs = normalizeProfileSelectorList(profile.AllowedChannelIDs)
@@ -202,7 +229,7 @@ func normalizeReviewProfile(profile ReviewProfile) ReviewProfile {
 	profile.PreferredPeerIDs = normalizeProfileSelectorList(profile.PreferredPeerIDs)
 	profile.RequiredCapabilities = normalizeProfileSelectorList(profile.RequiredCapabilities)
 	profile.PreferredCapabilities = normalizeProfileSelectorList(profile.PreferredCapabilities)
-	return profile
+	return profile, nil
 }
 
 func normalizeParticipantPolicy(policy ParticipantPolicy) ParticipantPolicy {

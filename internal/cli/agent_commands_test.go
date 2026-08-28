@@ -277,8 +277,9 @@ func TestAgentCreateCommand(t *testing.T) {
 				},
 			})
 			_, _, err := executeRootCommand(t, deps, tc.args...)
-			if err == nil || !strings.Contains(err.Error(), tc.want) || called {
-				t.Fatalf("agent create prompt error/called = %v/%t, want %q", err, called, tc.want)
+			assertErrorContains(t, err, tc.want)
+			if called {
+				t.Fatal("CreateAgent() called after invalid input")
 			}
 		})
 	}

@@ -15,6 +15,7 @@ import {
   type RoleFieldDescriptor,
   type RoleRuntimeValue,
 } from "./roles-config";
+import { normalizeRuntimeACPSelections } from "@/systems/runtime";
 
 /**
  * Compact header pill states. `off` is carried by the header switch, and
@@ -126,6 +127,8 @@ function buildRoleViewModel(
     provider: String(roleConfig.provider ?? ""),
     model: String(roleConfig.model ?? ""),
     reasoning_effort: String(roleConfig.reasoning_effort ?? ""),
+    speed: roleConfig.speed === "normal" || roleConfig.speed === "fast" ? roleConfig.speed : "",
+    acp_options: normalizeRuntimeACPSelections(config[role].acp_options),
   };
   const supportsAgent = ROLE_SUPPORTS_AGENT[role];
   return {
@@ -136,7 +139,12 @@ function buildRoleViewModel(
     supportsAgent,
     agent: supportsAgent ? String(roleConfig.agent ?? "") : "",
     runtime,
-    hasRuntimeOverride: Object.values(runtime).some(value => value.trim() !== ""),
+    hasRuntimeOverride:
+      runtime.provider.trim() !== "" ||
+      runtime.model.trim() !== "" ||
+      runtime.reasoning_effort.trim() !== "" ||
+      runtime.speed !== "" ||
+      (runtime.acp_options?.length ?? 0) > 0,
     fields,
     advancedFields,
     values,

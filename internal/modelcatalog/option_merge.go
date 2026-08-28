@@ -162,8 +162,10 @@ func mergeModelOptionSelections(
 		if _, exists := indexes[id]; exists {
 			continue
 		}
+		candidate := incomingSelection
+		candidate.BoolValue = cloneModelRowPointer(incomingSelection.BoolValue)
 		indexes[id] = len(selections)
-		selections = append(selections, incomingSelection)
+		selections = append(selections, candidate)
 	}
 	slices.SortFunc(selections, func(left ModelOptionSelection, right ModelOptionSelection) int {
 		return cmp.Compare(left.ID, right.ID)

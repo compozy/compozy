@@ -97,12 +97,13 @@ func sessionProviderOptionPayloadFromConfig(
 	if err != nil {
 		return contract.SessionProviderOptionPayload{}, false
 	}
+	runtimeProvider := strings.TrimSpace(resolved.RuntimeProviderName(providerName))
 	return contract.SessionProviderOptionPayload{
 		Name:            providerName,
 		DisplayName:     strings.TrimSpace(resolved.DisplayName),
 		Harness:         string(resolved.EffectiveHarness()),
-		RuntimeProvider: strings.TrimSpace(resolved.RuntimeProviderName(providerName)),
-		RuntimeStrategy: providerRuntimeStrategy(providerName, resolved.RuntimeProviderName(providerName)),
+		RuntimeProvider: runtimeProvider,
+		RuntimeStrategy: providerRuntimeStrategy(providerName, runtimeProvider),
 		AuthMode:        string(resolved.EffectiveAuthMode()),
 		EnvPolicy:       string(resolved.EffectiveEnvPolicy()),
 		HomePolicy:      string(resolved.EffectiveHomePolicy()),
@@ -117,8 +118,7 @@ func sessionProviderOptionPayloads(names []string) []contract.SessionProviderOpt
 			continue
 		}
 		values[trimmed] = contract.SessionProviderOptionPayload{
-			Name:            trimmed,
-			RuntimeStrategy: contract.ProviderRuntimeStrategySessionConfig,
+			Name: trimmed,
 		}
 	}
 	return sortSessionProviderOptionPayloads(values, "")

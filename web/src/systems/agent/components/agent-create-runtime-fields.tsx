@@ -12,6 +12,7 @@ import {
 } from "@compozy/ui";
 
 import type { AgentCreateDialogDraft } from "../lib/agent-create-draft";
+import { hasAgentRuntimeOverride } from "../lib/agent-effective-runtime";
 import {
   type RuntimeModelOption,
   type RuntimeProviderOption,
@@ -65,13 +66,7 @@ export function AgentCreateRuntimeFields({
     reasoning_effort: draft.reasoningEffort,
     ...(draft.acpOptions ? { acp_options: draft.acpOptions } : {}),
   };
-  const hasRuntimeOverride = Boolean(
-    draft.provider.trim() ||
-    draft.model.trim() ||
-    draft.reasoningEffort ||
-    draft.speed ||
-    (draft.acpOptions?.length ?? 0) > 0
-  );
+  const hasRuntimeOverride = hasAgentRuntimeOverride(draft);
   return (
     <div
       className={cn("grid min-w-0 gap-4.5 md:grid-cols-2", className)}
@@ -119,13 +114,14 @@ export function AgentCreateRuntimeFields({
           disabled={providersLoading || providerOptions.length === 0}
           loading={modelCatalogLoading}
           models={runtimeModels}
-          onChange={next =>
+          onChange={(next, normalizedSpeed) =>
             onDraftChange({
               ...draft,
               provider: next.provider,
               model: next.model,
               reasoningEffort: next.reasoning_effort,
               acpOptions: next.acp_options,
+              ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
             })
           }
           onOpenProviderSettings={onOpenProviderSettings}

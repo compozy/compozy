@@ -3,6 +3,7 @@ package modelcatalog
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -71,16 +72,23 @@ func executionContextIsEmpty(value CatalogExecutionContext) bool {
 
 func sourcesUseGlobalExecutionContext(sources []Source) bool {
 	for _, source := range sources {
-		if source == nil {
-			return false
-		}
-		switch source.Kind() {
-		case SourceKindBuiltin, SourceKindConfig, SourceKindModelsDev:
-		default:
+		if !sourceUsesGlobalExecutionContext(source) {
 			return false
 		}
 	}
 	return true
+}
+
+func sourceUsesGlobalExecutionContext(source Source) bool {
+	if source == nil {
+		return false
+	}
+	switch source.Kind() {
+	case SourceKindBuiltin, SourceKindConfig, SourceKindModelsDev:
+		return true
+	default:
+		return false
+	}
 }
 
 func resolveReadSourceExecutionContexts(
@@ -96,9 +104,7 @@ func resolveReadSourceExecutionContexts(
 	if err != nil {
 		return nil, err
 	}
-	for sourceID, executionContext := range resolved {
-		contexts[sourceID] = executionContext
-	}
+	maps.Copy(contexts, resolved)
 	return contexts, nil
 }
 
@@ -109,9 +115,10 @@ func resolveSourceExecutionContext(
 	if source == nil {
 		return CatalogExecutionContext{}, errors.New("model catalog: execution context source is required")
 	}
-	switch source.Kind() {
-	case SourceKindBuiltin, SourceKindConfig, SourceKindModelsDev:
+	if sourceUsesGlobalExecutionContext(source) {
 		return GlobalCatalogExecutionContext(), nil
+	}
+	switch source.Kind() {
 	case SourceKindProviderLive, SourceKindExtension, SourceKindACPSession:
 		if requested.Scope == ExecutionScopeGlobal {
 			return CatalogExecutionContext{}, fmt.Errorf(
@@ -164,17 +171,12 @@ func cloneSourceExecutionContexts(
 	if len(source) == 0 {
 		return nil
 	}
-	cloned := make(map[string]CatalogExecutionContext, len(source))
-	for sourceID, contextValue := range source {
-		cloned[sourceID] = contextValue
-	}
-	return cloned
+	return maps.Clone(source)
 }
 
-func sourceExecutionContextKey(sourceID string, contextValue CatalogExecutionContext) (string, error) {
-	contextID, err := contextValue.ID()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(sourceID) + "\x00" + contextID, nil
+func singleSourceExecutionContext(
+	sourceID string,
+	contextValue CatalogExecutionContext,
+) map[string]CatalogExecutionContext {
+	return map[string]CatalogExecutionContext{strings.TrimSpace(sourceID): contextValue}
 }

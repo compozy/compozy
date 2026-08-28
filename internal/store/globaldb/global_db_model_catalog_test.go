@@ -115,6 +115,161 @@ func modelCatalogPricingMigrationPrefix(t *testing.T) store.MigrationStream {
 	)
 }
 
+// Suite: global model-catalog execution-context migration
+// Invariant: provider-independent rows survive in global scope while scoped live observations are rediscovered.
+// Boundary IN: a populated production 00095 GlobalDB prefix.
+// Boundary OUT: head repository reads after close and reopen.
+func TestGlobalDBModelCatalogExecutionContextMigration(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should preserve static rows and discard provider-live observations during the 00096 rebuild",
+		func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prefixDB, err := openGlobalMigrationPrefixDatabase(
+				t,
+				path,
+				globalMigrationPrefixBefore(t, "00096_schema.sql"),
+			)
+			if err != nil {
+				t.Fatalf("OpenSQLiteDatabase(00095 prefix) error = %v", err)
+			}
+			ctx := globalMigrationTestContext(t)
+			liveSourceID := modelcatalog.SourceKindProviderLiveID("cursor")
+			seedPreContextCatalogRow := func(sourceID string, sourceKind modelcatalog.SourceKind, modelID string) {
+				t.Helper()
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_sources (
+				source_id, provider_id, source_kind, priority, refresh_state, row_count, stale
+			) VALUES (?, 'cursor', ?, 120, 'succeeded', 1, 0)`, sourceID, sourceKind); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_sources(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_rows (
+				source_id, provider_id, model_id, source_kind, priority,
+				display_name, supports_reasoning, default_reasoning_effort
+			) VALUES (?, 'cursor', ?, ?, 120, ?, 1, 'high')`,
+					sourceID,
+					modelID,
+					sourceKind,
+					"Model "+modelID,
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_rows(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_reasoning_efforts (
+				source_id, provider_id, model_id, effort, rank
+			) VALUES (?, 'cursor', ?, 'high', 0)`, sourceID, modelID); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_reasoning_efforts(%s) error = %v", sourceID, execErr)
+				}
+				transportModelID := modelID + "[effort=high,fast=true]"
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_transport_bindings (
+				source_id, provider_id, model_id, transport_model_id,
+				label, reasoning_effort, fast, thinking, rank
+			) VALUES (?, 'cursor', ?, ?, ?, 'high', 1, 0, 0)`,
+					sourceID,
+					modelID,
+					transportModelID,
+					"High fast",
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_transport_bindings(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_options (
+				source_id, provider_id, model_id, option_id,
+				label, category, kind, current_value_id
+			) VALUES (?, 'cursor', ?, 'context', 'Context', 'runtime', 'select', 'large')`,
+					sourceID,
+					modelID,
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_options(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_option_values (
+				source_id, provider_id, model_id, option_id, value_id, label, rank
+			) VALUES (?, 'cursor', ?, 'context', 'large', 'Large', 0)`, sourceID, modelID); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_option_values(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_transport_binding_selections (
+				source_id, provider_id, model_id, transport_model_id, option_id, value_id
+			) VALUES (?, 'cursor', ?, ?, 'context', 'large')`,
+					sourceID,
+					modelID,
+					transportModelID,
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_transport_binding_selections(%s) error = %v", sourceID, execErr)
+				}
+			}
+			seedPreContextCatalogRow("config", modelcatalog.SourceKindConfig, "grok-static")
+			seedPreContextCatalogRow(liveSourceID, modelcatalog.SourceKindProviderLive, "grok-live")
+			if err := prefixDB.Close(); err != nil {
+				t.Fatalf("prefixDB.Close() error = %v", err)
+			}
+
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(00096 upgrade) error = %v", err)
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
+			}
+			reopened, err := OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+					t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
+				}
+			})
+
+			rows, err := reopened.ListRows(ctx, modelcatalog.ListOptions{
+				ProviderID:       "cursor",
+				SourceID:         "config",
+				ExecutionContext: modelcatalog.GlobalCatalogExecutionContext(),
+				SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+					"config": modelcatalog.GlobalCatalogExecutionContext(),
+				},
+				IncludeAll:   true,
+				IncludeStale: true,
+			})
+			if err != nil {
+				t.Fatalf("ListRows(static after 00096) error = %v", err)
+			}
+			if len(rows) != 1 || rows[0].ModelID != "grok-static" ||
+				!slices.Equal(
+					rows[0].ReasoningEfforts,
+					[]modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
+				) ||
+				len(rows[0].ConfigOptions) != 1 || rows[0].ConfigOptions[0].CurrentValueID != "large" ||
+				len(rows[0].ConfigOptions[0].Values) != 1 || rows[0].ConfigOptions[0].Values[0].ValueID != "large" ||
+				len(rows[0].TransportBindings) != 1 ||
+				rows[0].TransportBindings[0].TransportModelID != "grok-static[effort=high,fast=true]" ||
+				len(rows[0].TransportBindings[0].OptionSelections) != 1 ||
+				rows[0].TransportBindings[0].OptionSelections[0].ValueID != "large" {
+				t.Fatalf("static rows after 00096 = %#v, want complete config row", rows)
+			}
+
+			var liveRecords int
+			if err := reopened.db.QueryRowContext(ctx, `SELECT
+			(SELECT COUNT(*) FROM model_catalog_sources WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_rows WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_reasoning_efforts WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_transport_bindings WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_options WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_option_values WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_transport_binding_selections WHERE source_id = ?)`,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+			).Scan(&liveRecords); err != nil {
+				t.Fatalf("count provider-live records after 00096 error = %v", err)
+			}
+			if liveRecords != 0 {
+				t.Fatalf("provider-live records after 00096 = %d, want 0 for rediscovery", liveRecords)
+			}
+		},
+	)
+}
+
 func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Parallel()
 
@@ -218,14 +373,15 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 
 		configRow := modelCatalogRow("config", "cursor", "static-model", modelcatalog.SourceKindConfig, 120)
 		configStatus := modelCatalogStatus("config", "cursor", modelcatalog.SourceKindConfig, 120)
-		if err := globalDB.ReplaceSourceRows(
+		err = globalDB.ReplaceSourceRows(
 			ctx,
 			modelcatalog.GlobalCatalogExecutionContext(),
 			"config",
 			"cursor",
 			[]modelcatalog.ModelRow{configRow},
 			configStatus,
-		); err != nil {
+		)
+		if err != nil {
 			t.Fatalf("ReplaceSourceRows(config) error = %v", err)
 		}
 		combined, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
@@ -283,29 +439,27 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			modelcatalog.SourceKindProviderLive,
 			110,
 		)
-		if err := globalDB.ReplaceSourceRows(
+		err := globalDB.ReplaceSourceRows(
 			ctx,
 			modelcatalog.GlobalCatalogExecutionContext(),
 			liveRow.SourceID,
 			liveRow.ProviderID,
 			[]modelcatalog.ModelRow{liveRow},
 			liveStatus,
-		); err == nil || !strings.Contains(err.Error(), "requires a scoped execution context") {
-			t.Fatalf("ReplaceSourceRows(live global) error = %v, want scope rejection", err)
-		}
+		)
+		assertGlobalDBErrorContains(t, err, "requires a scoped execution context")
 
 		configRow := modelCatalogRow("config", "cursor", "model", modelcatalog.SourceKindConfig, 120)
 		configStatus := modelCatalogStatus("config", "cursor", modelcatalog.SourceKindConfig, 120)
-		if err := globalDB.ReplaceSourceRows(
+		err = globalDB.ReplaceSourceRows(
 			ctx,
 			modelCatalogTestExecutionContext(modelcatalog.SourceKindProviderLive),
 			configRow.SourceID,
 			configRow.ProviderID,
 			[]modelcatalog.ModelRow{configRow},
 			configStatus,
-		); err == nil || !strings.Contains(err.Error(), "requires the global execution context") {
-			t.Fatalf("ReplaceSourceRows(config scoped) error = %v, want scope rejection", err)
-		}
+		)
+		assertGlobalDBErrorContains(t, err, "requires the global execution context")
 	})
 
 	t.Run("Should join reasoning-effort scan and rows-close errors", func(t *testing.T) {
@@ -429,7 +583,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			[]modelcatalog.ModelRow{row},
 		)
 
-		assertTransportBindingRoundTrip(t, globalDB, ctx, row.TransportBindings)
+		assertTransportBindingRoundTrip(ctx, t, globalDB, row.TransportBindings)
 		if err := globalDB.Close(ctx); err != nil {
 			t.Fatalf("Close(before reopen) error = %v", err)
 		}
@@ -442,7 +596,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
-		assertTransportBindingRoundTrip(t, reopened, ctx, row.TransportBindings)
+		assertTransportBindingRoundTrip(ctx, t, reopened, row.TransportBindings)
 	})
 
 	t.Run("Should replace transport bindings without leaving old rows", func(t *testing.T) {
@@ -1428,9 +1582,9 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 }
 
 func assertTransportBindingRoundTrip(
+	ctx context.Context,
 	t *testing.T,
 	globalDB *GlobalDB,
-	ctx context.Context,
 	want []modelcatalog.ModelTransportBinding,
 ) {
 	t.Helper()
@@ -1466,7 +1620,27 @@ func assertTransportBindingRoundTrip(
 			(got[index].Thinking != nil && *got[index].Thinking != *want[index].Thinking) {
 			t.Fatalf("transport binding[%d] thinking = %#v, want %#v", index, got[index], want[index])
 		}
+		if !modelOptionSelectionsEqual(got[index].OptionSelections, want[index].OptionSelections) {
+			t.Fatalf(
+				"transport binding[%d] option selections = %#v, want %#v",
+				index,
+				got[index].OptionSelections,
+				want[index].OptionSelections,
+			)
+		}
 	}
+}
+
+func modelOptionSelectionsEqual(
+	left []modelcatalog.ModelOptionSelection,
+	right []modelcatalog.ModelOptionSelection,
+) bool {
+	return slices.EqualFunc(left, right, func(a, b modelcatalog.ModelOptionSelection) bool {
+		if a.ID != b.ID || a.ValueID != b.ValueID || (a.BoolValue == nil) != (b.BoolValue == nil) {
+			return false
+		}
+		return a.BoolValue == nil || *a.BoolValue == *b.BoolValue
+	})
 }
 
 func replaceModelCatalogRows(
@@ -1501,8 +1675,10 @@ func modelCatalogTestExecutionContext(sourceKind modelcatalog.SourceKind) modelc
 			WorkspaceID:        "workspace-test",
 			CommandFingerprint: modelcatalog.CatalogExecutionFingerprint("test", string(sourceKind)),
 		}
-	default:
+	case modelcatalog.SourceKindBuiltin, modelcatalog.SourceKindConfig, modelcatalog.SourceKindModelsDev:
 		return modelcatalog.GlobalCatalogExecutionContext()
+	default:
+		panic("unhandled model catalog test source kind: " + string(sourceKind))
 	}
 }
 
@@ -1569,6 +1745,17 @@ func assertModelCatalogModelIDs(t *testing.T, rows []modelcatalog.ModelRow, want
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("model ids = %#v, want %#v", got, want)
+	}
+}
+
+func assertGlobalDBErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want error containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want error containing %q", err, want)
 	}
 }
 

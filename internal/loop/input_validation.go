@@ -124,6 +124,14 @@ func safeInputValue(input dsl.Input, value any) string {
 	if runtime.Speed != "" {
 		display += ":speed=" + string(runtime.Speed)
 	}
+	if len(runtime.ACPOptions) > 0 {
+		options := dsl.CanonicalACPOptionSelections(runtime.ACPOptions)
+		ids := make([]string, 0, len(options))
+		for _, option := range options {
+			ids = append(ids, strings.TrimSpace(option.ID))
+		}
+		display += ":acp_options=" + strings.Join(ids, ",")
+	}
 	return display
 }
 

@@ -1085,7 +1085,7 @@ func testDreamRouteResolver(cfg *compozyconfig.Config) SessionRouteResolver {
 			Model:           role.Model,
 			ReasoningEffort: role.ReasoningEffort,
 			Speed:           role.Speed,
-			ACPOptions:      dreamACPOptionsForSession(role.ACPOptions),
+			ACPOptions:      session.ACPOptionSelectionsFromConfig(role.ACPOptions),
 			Fallbacks:       append([]compozyconfig.RoleFallback(nil), role.FallbackChain...),
 		}, nil
 	}

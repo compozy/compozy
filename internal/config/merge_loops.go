@@ -131,7 +131,7 @@ func (o *loopsOverlay) recordInputSources(dst *LoopsConfig, source string) {
 	}
 }
 
-func (o loopsDefaultsOverlay) Apply(dst *LoopsDefaultsConfig) {
+func (o *loopsDefaultsOverlay) Apply(dst *LoopsDefaultsConfig) {
 	o.Delivery.Apply(&dst.Delivery)
 	o.Watch.Apply(&dst.Watch)
 }

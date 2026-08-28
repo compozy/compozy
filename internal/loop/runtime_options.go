@@ -8,6 +8,12 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
+const (
+	runtimeACPOptionIDKey        = "id"
+	runtimeACPOptionValueIDKey   = "value_id"
+	runtimeACPOptionBoolValueKey = "bool_value"
+)
+
 func runtimeACPOptionsFromValue(value any) ([]dsl.ACPOptionSelection, error) {
 	var rawSelections []any
 	switch typed := value.(type) {
@@ -48,17 +54,17 @@ func runtimeACPOptionFromValue(value any) (dsl.ACPOptionSelection, error) {
 	for _, key := range keys {
 		raw := fields[key]
 		switch key {
-		case "id", "value_id":
+		case runtimeACPOptionIDKey, runtimeACPOptionValueIDKey:
 			text, ok := raw.(string)
 			if !ok {
 				return dsl.ACPOptionSelection{}, fmt.Errorf("%s must be a string", key)
 			}
-			if key == "id" {
+			if key == runtimeACPOptionIDKey {
 				selection.ID = text
 			} else {
 				selection.ValueID = text
 			}
-		case "bool_value":
+		case runtimeACPOptionBoolValueKey:
 			boolValue, ok := raw.(bool)
 			if !ok {
 				return dsl.ACPOptionSelection{}, fmt.Errorf("%s must be a boolean", key)
@@ -90,12 +96,12 @@ func runtimeACPOptionFields(value any) (map[string]any, error) {
 		}
 		return fields, nil
 	case dsl.ACPOptionSelection:
-		fields := map[string]any{"id": typed.ID}
+		fields := map[string]any{runtimeACPOptionIDKey: typed.ID}
 		if typed.ValueID != "" {
-			fields["value_id"] = typed.ValueID
+			fields[runtimeACPOptionValueIDKey] = typed.ValueID
 		}
 		if typed.BoolValue != nil {
-			fields["bool_value"] = *typed.BoolValue
+			fields[runtimeACPOptionBoolValueKey] = *typed.BoolValue
 		}
 		return fields, nil
 	default:
@@ -114,13 +120,13 @@ func runtimeACPOptionsValue(options []dsl.ACPOptionSelection) []map[string]any {
 	value := make([]map[string]any, len(cloned))
 	for index, option := range cloned {
 		entry := map[string]any{
-			"id": option.ID,
+			runtimeACPOptionIDKey: option.ID,
 		}
 		if option.ValueID != "" {
-			entry["value_id"] = option.ValueID
+			entry[runtimeACPOptionValueIDKey] = option.ValueID
 		}
 		if option.BoolValue != nil {
-			entry["bool_value"] = *option.BoolValue
+			entry[runtimeACPOptionBoolValueKey] = *option.BoolValue
 		}
 		value[index] = entry
 	}

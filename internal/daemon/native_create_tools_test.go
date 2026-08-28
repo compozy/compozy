@@ -327,8 +327,11 @@ func TestNativeAgentCreate(t *testing.T) {
 			ResolveForProfileFn: func(
 				_ context.Context,
 				ref string,
-				_ string,
+				profileName string,
 			) (workspacepkg.ResolvedWorkspace, error) {
+				if profileName != daemonDefaultProfileName {
+					t.Fatalf("ResolveForProfile() profile = %q, want %q", profileName, daemonDefaultProfileName)
+				}
 				return resolveTarget(ref)
 			},
 		}
@@ -486,10 +489,11 @@ func TestNativeAgentCreate(t *testing.T) {
 		if got, want := agent.ReasoningEffort, "max"; got != want {
 			t.Fatalf("agent.ReasoningEffort = %q, want %q", got, want)
 		}
-		if agent.Speed != "fast" || len(agent.ACPOptions) != 2 || agent.ACPOptions[0].ID != "context" ||
-			agent.ACPOptions[0].ValueID != "1m" || agent.ACPOptions[1].ID != "thinking" ||
-			agent.ACPOptions[1].BoolValue == nil || !*agent.ACPOptions[1].BoolValue {
-			t.Fatalf("agent runtime defaults = speed %q options %#v", agent.Speed, agent.ACPOptions)
+		agentOptions := agent.ACPOptionsValue()
+		if agent.SpeedValue() != "fast" || len(agentOptions) != 2 || agentOptions[0].ID != "context" ||
+			agentOptions[0].ValueID != "1m" || agentOptions[1].ID != "thinking" ||
+			agentOptions[1].BoolValue == nil || !*agentOptions[1].BoolValue {
+			t.Fatalf("agent runtime defaults = speed %q options %#v", agent.SpeedValue(), agentOptions)
 		}
 	})
 

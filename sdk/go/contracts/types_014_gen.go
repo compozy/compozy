@@ -229,6 +229,11 @@ type ModelSourceOptionDescriptor struct {
 
 type ModelSourceOptionKind string
 
+const (
+	ModelSourceOptionKindSelect  ModelSourceOptionKind = "select"
+	ModelSourceOptionKindBoolean ModelSourceOptionKind = "boolean"
+)
+
 type ModelSourceOptionSelection struct {
 	ID        string `json:"id"`
 	ValueID   string `json:"value_id,omitempty"`

@@ -4,14 +4,12 @@ import "strings"
 
 // CloneAgentDef returns a normalized deep copy of an agent definition.
 func CloneAgentDef(agent AgentDef) AgentDef {
-	return AgentDef{
+	cloned := AgentDef{
 		Name:            strings.TrimSpace(agent.Name),
 		Provider:        strings.TrimSpace(agent.Provider),
 		Command:         strings.TrimSpace(agent.Command),
 		Model:           strings.TrimSpace(agent.Model),
 		ReasoningEffort: strings.TrimSpace(agent.ReasoningEffort),
-		Speed:           normalizeAgentSpeed(agent.Speed),
-		ACPOptions:      CloneACPOptionSelections(agent.ACPOptions),
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),
@@ -29,4 +27,7 @@ func CloneAgentDef(agent AgentDef) AgentDef {
 			agent.ShadowedDefinitions...,
 		),
 	}
+	cloned.SetSpeed(agent.SpeedValue())
+	cloned.SetACPOptions(agent.ACPOptionsValue())
+	return cloned
 }

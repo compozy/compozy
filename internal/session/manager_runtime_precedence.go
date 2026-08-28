@@ -18,7 +18,7 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(resolved compozyconfig.R
 		return nil
 	}
 	if s.speed == "" {
-		s.speed = resolved.Speed
+		s.speed = resolved.SpeedValue()
 	}
 	normalizedSpeed, err := normalizeRequestedSpeed(s.speed)
 	if err != nil {
@@ -26,8 +26,9 @@ func (s *sessionStartSpec) applyResolvedRuntimeDefaults(resolved compozyconfig.R
 	}
 	s.speed = normalizedSpeed
 
-	agentOptions := make([]acp.SessionConfigOptionSelection, 0, len(resolved.ACPOptions))
-	for _, option := range resolved.ACPOptions {
+	resolvedOptions := resolved.ACPOptionsValue()
+	agentOptions := make([]acp.SessionConfigOptionSelection, 0, len(resolvedOptions))
+	for _, option := range resolvedOptions {
 		selection := acp.SessionConfigOptionSelection{
 			ID:      strings.TrimSpace(option.ID),
 			ValueID: strings.TrimSpace(option.ValueID),

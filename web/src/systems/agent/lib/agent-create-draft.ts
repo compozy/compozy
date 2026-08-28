@@ -1,9 +1,13 @@
 import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 
 import { joinAgentCategorySegments } from "./agent-category";
-import { runtimeACPSelections } from "./agent-effective-runtime";
+import { normalizeRuntimeSpeed, runtimeACPSelections } from "./agent-effective-runtime";
 import type { AgentPayload, CreateAgentParams, DuplicateAgentParams } from "../types";
-import type { RuntimeACPOptionSelection, RuntimeProviderOption } from "@/systems/runtime";
+import {
+  runtimeACPSelectionsEqual,
+  type RuntimeACPOptionSelection,
+  type RuntimeProviderOption,
+} from "@/systems/runtime";
 
 const agentNameMaxLength = 106;
 const agentNamePattern = /^[a-z][a-z0-9_-]{0,105}$/;
@@ -318,7 +322,7 @@ export function buildDraftFromAgentPayload(
     provider: agent.provider ?? "",
     model: agent.model ?? "",
     reasoningEffort: reasoning,
-    speed: agentRuntimeSpeed(agent.speed),
+    speed: normalizeRuntimeSpeed(agent.speed),
     acpOptions: runtimeACPSelections(agent.acp_options),
     command: agent.command ?? "",
     prompt: agent.prompt ?? "",
@@ -376,7 +380,7 @@ export function buildDuplicateAgentParams(
       ? source.reasoning_effort
       : "";
   const sourceACPOptions = runtimeACPSelections(source.acp_options);
-  const sourceSpeed = agentRuntimeSpeed(source.speed);
+  const sourceSpeed = normalizeRuntimeSpeed(source.speed);
 
   const overrides: NonNullable<DuplicateAgentParams["overrides"]> = {};
   if (provider !== (source.provider ?? "")) overrides.provider = provider;
@@ -386,9 +390,13 @@ export function buildDuplicateAgentParams(
   if (reasoningEffort !== sourceReasoning) {
     overrides.reasoning_effort = reasoningEffort || undefined;
   }
-  if (draft.speed !== sourceSpeed) overrides.speed = draft.speed || undefined;
-  if (!sameACPSelections(draft.acpOptions, sourceACPOptions)) {
-    overrides.acp_options = draft.acpOptions ? [...draft.acpOptions] : [];
+  if (draft.speed !== sourceSpeed) {
+    if (draft.speed) overrides.speed = draft.speed;
+    else overrides.clear_speed = true;
+  }
+  if (!runtimeACPSelectionsEqual(draft.acpOptions, sourceACPOptions)) {
+    if (draft.acpOptions) overrides.acp_options = [...draft.acpOptions];
+    else overrides.clear_acp_options = true;
   }
   if (permissions !== sourcePermissions) overrides.permissions = permissions;
   if (!sameTokenList(tools, sourceTools)) overrides.tools = tools;
@@ -413,10 +421,6 @@ export function buildDuplicateAgentParams(
   };
 }
 
-function agentRuntimeSpeed(value: string | null | undefined): RuntimeSpeed | "" {
-  return value === "normal" || value === "fast" ? value : "";
-}
-
 function normalizeOrderedTokens(values: readonly string[]): string[] {
   const seen = new Set<string>();
   const normalized: string[] = [];
@@ -427,20 +431,6 @@ function normalizeOrderedTokens(values: readonly string[]): string[] {
     normalized.push(trimmed);
   }
   return normalized;
-}
-
-function sameACPSelections(
-  left: readonly RuntimeACPOptionSelection[] | undefined,
-  right: readonly RuntimeACPOptionSelection[] | undefined
-): boolean {
-  if (left === undefined || right === undefined) return left === right;
-  if (left.length !== right.length) return false;
-  return left.every(
-    (selection, index) =>
-      selection.id === right[index]?.id &&
-      selection.value_id === right[index]?.value_id &&
-      selection.bool_value === right[index]?.bool_value
-  );
 }
 
 function validateToolPatternList(values: readonly string[], label: string): string | null {

@@ -184,15 +184,13 @@ func resolvedAgentFromProvider(
 	reasoningEffort string,
 	mcpServers []MCPServer,
 ) ResolvedAgent {
-	return ResolvedAgent{
+	resolved := ResolvedAgent{
 		Name:            agent.Name,
 		Provider:        providerName,
 		Command:         command,
 		DisplayName:     provider.DisplayName,
 		Model:           model,
 		ReasoningEffort: reasoningEffort,
-		Speed:           normalizeAgentSpeed(agent.Speed),
-		ACPOptions:      CloneACPOptionSelections(agent.ACPOptions),
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),
@@ -213,6 +211,9 @@ func resolvedAgentFromProvider(
 		Reasoning:       provider.Models.Reasoning,
 		Prompt:          agent.Prompt,
 	}
+	resolved.SetSpeed(agent.SpeedValue())
+	resolved.SetACPOptions(agent.ACPOptionsValue())
+	return resolved
 }
 
 // ResolveSessionAgent resolves a parsed agent definition for one session.

@@ -14,12 +14,13 @@ type LoopRuntimeValidationItemPayload struct {
 	Reason string `json:"reason"`
 }
 
-// LoopRuntimeSpec is one provider/model/reasoning/speed selection layer.
+// LoopRuntimeSpec is one provider/model/reasoning/speed/ACP-option selection layer.
 type LoopRuntimeSpec struct {
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
-	Reasoning string `json:"reasoning,omitempty"`
-	Speed     Speed  `json:"speed,omitempty"`
+	Provider   string                    `json:"provider,omitempty"`
+	Model      string                    `json:"model,omitempty"`
+	Reasoning  string                    `json:"reasoning,omitempty"`
+	Speed      Speed                     `json:"speed,omitempty"`
+	ACPOptions []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
 
 // UnmarshalJSON keeps runtime objects closed while the surrounding Loop DSL remains extensible.
@@ -63,18 +64,20 @@ type LoopRuntimeRule struct {
 
 // LoopRuntimeProvenance identifies the source of each applied field.
 type LoopRuntimeProvenance struct {
-	Provider  string `json:"provider,omitempty"`
-	Model     string `json:"model,omitempty"`
-	Reasoning string `json:"reasoning,omitempty"`
-	Speed     string `json:"speed,omitempty"`
+	Provider   string            `json:"provider,omitempty"`
+	Model      string            `json:"model,omitempty"`
+	Reasoning  string            `json:"reasoning,omitempty"`
+	Speed      string            `json:"speed,omitempty"`
+	ACPOptions map[string]string `json:"acp_options,omitempty"`
 }
 
 // LoopResolvedRuntime is the runtime applied by the daemon plus field provenance.
 type LoopResolvedRuntime struct {
-	Provider        string                `json:"provider,omitempty"`
-	Model           string                `json:"model,omitempty"`
-	Reasoning       string                `json:"reasoning,omitempty"`
-	Speed           Speed                 `json:"speed,omitempty"`
-	SpeedResolution *SpeedResolution      `json:"speed_resolution,omitempty"`
-	Source          LoopRuntimeProvenance `json:"source"`
+	Provider        string                    `json:"provider,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	Reasoning       string                    `json:"reasoning,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	SpeedResolution *SpeedResolution          `json:"speed_resolution,omitempty"`
+	Source          LoopRuntimeProvenance     `json:"source"`
 }

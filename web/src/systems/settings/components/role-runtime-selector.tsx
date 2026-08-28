@@ -30,6 +30,7 @@ export function RoleRuntimeSelector({
     provider: value.provider,
     model: value.model,
     reasoning_effort: value.reasoning_effort as RuntimeSelectorValue["reasoning_effort"],
+    ...(value.acp_options ? { acp_options: value.acp_options } : {}),
   };
   return (
     <RuntimeSelector
@@ -41,16 +42,20 @@ export function RoleRuntimeSelector({
       refreshing={options.refreshing}
       onRefreshCatalog={options.refresh}
       disabled={disabled}
+      speed={value.speed || "normal"}
+      onSpeedChange={speed => onChange({ ...value, speed })}
       modelPlaceholder="Inherit"
       triggerId={triggerId}
       triggerTestId={triggerTestId}
       {...(ariaLabelledby ? { ariaLabelledby } : {})}
       {...(options.catalogError ? { catalogStatus: options.catalogError } : {})}
-      onChange={next =>
+      onChange={(next, normalizedSpeed) =>
         onChange({
           provider: next.provider,
           model: next.model,
           reasoning_effort: next.reasoning_effort,
+          speed: normalizedSpeed ?? value.speed,
+          acp_options: next.acp_options,
         })
       }
     />

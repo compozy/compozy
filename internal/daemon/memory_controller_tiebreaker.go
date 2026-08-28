@@ -77,6 +77,8 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 		Provider:        prepared.options.resolvedRole.Provider,
 		Model:           prepared.options.resolvedRole.Model,
 		ReasoningEffort: prepared.options.resolvedRole.ReasoningEffort,
+		Speed:           prepared.options.resolvedRole.speedValue(),
+		ACPOptions:      compozyconfig.CloneACPOptionSelections(prepared.options.resolvedRole.acpOptionsValue()),
 	}
 	invocation, invokeErr := invokeRoleWithFallback(
 		callCtx,
@@ -89,6 +91,8 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 				Provider:        route.Provider,
 				Model:           route.Model,
 				ReasoningEffort: route.ReasoningEffort,
+				Speed:           route.Speed,
+				ACPOptions:      compozyconfig.CloneACPOptionSelections(route.ACPOptions),
 				CWD:             prepared.cwd,
 				Prompt:          prepared.prompt,
 				MaxOutputBytes:  prepared.maxOutputBytes,

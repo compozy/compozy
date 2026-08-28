@@ -44,7 +44,7 @@ func newSessionRuntimeSetCommand(deps commandDeps) *cobra.Command {
 				}
 				speed = parsed
 			}
-			acpOptions, err := parseAgentACPFlags(flags.acpOptions, flags.acpToggles)
+			acpOptions, err := parseACPFlags(flags.acpOptions, flags.acpToggles)
 			if err != nil {
 				return err
 			}
@@ -76,8 +76,13 @@ func newSessionRuntimeSetCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().StringVar(&flags.model, "model", "", "Runtime model")
 	cmd.Flags().StringVar(&flags.reasoningEffort, "reasoning-effort", "", "Runtime reasoning effort")
 	cmd.Flags().StringVar(&flags.speed, "speed", string(speedpkg.SpeedNormal), "Runtime speed (normal|fast)")
-	cmd.Flags().StringArrayVar(&flags.acpOptions, "acp-option", nil, "ACP select as id=value (repeatable)")
-	cmd.Flags().StringArrayVar(&flags.acpToggles, "acp-toggle", nil, "ACP boolean as id=true|false (repeatable)")
+	bindACPOptionFlags(
+		cmd,
+		&flags.acpOptions,
+		&flags.acpToggles,
+		"ACP select as id=value (repeatable)",
+		"ACP boolean as id=true|false (repeatable)",
+	)
 	cmd.Flags().Int64Var(&flags.expectedRevision, "expected-revision", 0, "Current runtime selection revision")
 	return cmd
 }

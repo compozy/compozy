@@ -56,7 +56,7 @@ func runtimeItemString(values map[string]any, key string) string {
 func runtimeSpecFromValue(value any) (RuntimeSpec, error) {
 	runtime, err := runtimeInputSpec(value)
 	if err != nil {
-		return RuntimeSpec{}, fmt.Errorf("unknown runtime value: %w", err)
+		return RuntimeSpec{}, fmt.Errorf("invalid runtime value: %w", err)
 	}
 	return runtime, nil
 }

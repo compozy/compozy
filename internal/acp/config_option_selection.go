@@ -27,20 +27,18 @@ type setSessionConfigOptionWireRequest struct {
 func normalizeSessionConfigOptionSelections(
 	selections []SessionConfigOptionSelection,
 ) ([]SessionConfigOptionSelection, error) {
+	if err := validateSessionConfigOptionSelections(selections); err != nil {
+		return nil, err
+	}
 	if len(selections) == 0 {
 		return nil, nil
 	}
 	normalized := make([]SessionConfigOptionSelection, 0, len(selections))
-	seen := make(map[string]struct{}, len(selections))
 	for _, selection := range selections {
 		candidate, err := selection.normalize()
 		if err != nil {
 			return nil, err
 		}
-		if _, exists := seen[candidate.ID]; exists {
-			return nil, fmt.Errorf("acp: config option %q is selected more than once", candidate.ID)
-		}
-		seen[candidate.ID] = struct{}{}
 		if candidate.BoolValue != nil {
 			candidate.BoolValue = new(*candidate.BoolValue)
 		}
@@ -50,6 +48,21 @@ func normalizeSessionConfigOptionSelections(
 		return cmp.Compare(left.ID, right.ID)
 	})
 	return normalized, nil
+}
+
+func validateSessionConfigOptionSelections(selections []SessionConfigOptionSelection) error {
+	seen := make(map[string]struct{}, len(selections))
+	for _, selection := range selections {
+		candidate, err := selection.normalize()
+		if err != nil {
+			return err
+		}
+		if _, exists := seen[candidate.ID]; exists {
+			return fmt.Errorf("acp: config option %q is selected more than once", candidate.ID)
+		}
+		seen[candidate.ID] = struct{}{}
+	}
+	return nil
 }
 
 // NormalizeSessionConfigOptionSelections validates and canonicalizes typed ACP selections.

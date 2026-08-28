@@ -52,13 +52,17 @@ func CloneSessionConfigOptions(options []SessionConfigOption) []SessionConfigOpt
 	}
 	cloned := make([]SessionConfigOption, 0, len(options))
 	for _, option := range options {
-		copyOption := option
-		if option.CurrentBool != nil {
-			copyOption.CurrentBool = new(*option.CurrentBool)
-		}
-		copyOption.Values = append([]SessionConfigOptionValue(nil), option.Values...)
-		cloned = append(cloned, copyOption)
+		cloned = append(cloned, cloneSessionConfigOption(option))
 	}
+	return cloned
+}
+
+func cloneSessionConfigOption(option SessionConfigOption) SessionConfigOption {
+	cloned := option
+	if option.CurrentBool != nil {
+		cloned.CurrentBool = new(*option.CurrentBool)
+	}
+	cloned.Values = append([]SessionConfigOptionValue(nil), option.Values...)
 	return cloned
 }
 
@@ -216,6 +220,16 @@ func findConfigOptionByID(options []SessionConfigOption, id string) (SessionConf
 		}
 	}
 	return SessionConfigOption{}, false
+}
+
+func countConfigOptionID(options []SessionConfigOption, id string) int {
+	count := 0
+	for _, option := range options {
+		if strings.TrimSpace(option.ID) == strings.TrimSpace(id) {
+			count++
+		}
+	}
+	return count
 }
 
 func configOptionAllowsValue(option SessionConfigOption, value string) bool {

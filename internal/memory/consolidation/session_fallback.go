@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
-	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
@@ -56,7 +55,7 @@ func createDreamSessionWithFallback(
 			fallback.Model,
 			fallback.ReasoningEffort,
 			fallback.Speed,
-			dreamACPOptionsForSession(fallback.ACPOptions),
+			session.ACPOptionSelectionsFromConfig(fallback.ACPOptions),
 		)
 		if created != nil {
 			return created, err
@@ -68,26 +67,6 @@ func createDreamSessionWithFallback(
 		len(route.Fallbacks)+1,
 		errors.Join(attemptErrors...),
 	)
-}
-
-func dreamACPOptionsForSession(
-	options []compozyconfig.ACPOptionSelection,
-) []acp.SessionConfigOptionSelection {
-	if len(options) == 0 {
-		return nil
-	}
-	converted := make([]acp.SessionConfigOptionSelection, 0, len(options))
-	for _, option := range options {
-		candidate := acp.SessionConfigOptionSelection{
-			ID:      strings.TrimSpace(option.ID),
-			ValueID: strings.TrimSpace(option.ValueID),
-		}
-		if option.BoolValue != nil {
-			candidate.BoolValue = new(*option.BoolValue)
-		}
-		converted = append(converted, candidate)
-	}
-	return converted
 }
 
 func dreamAttemptError(attempt int, err error) error {

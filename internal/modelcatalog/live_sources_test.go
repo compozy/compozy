@@ -459,9 +459,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 
 		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
-		if err == nil || !strings.Contains(err.Error(), "cursor model command returned no model rows") {
-			t.Fatalf("ListModels() error = %v, want missing Cursor model rows", err)
-		}
+		assertModelCatalogErrorContains(t, err, "cursor model command returned no model rows")
 	})
 
 	t.Run("Should reject a configured Cursor discovery endpoint", func(t *testing.T) {
@@ -474,9 +472,7 @@ func TestLiveProviderSources(t *testing.T) {
 		})
 
 		_, err := source.ListModels(testutil.Context(t), ListOptions{ProviderID: "cursor", Now: testTime(0)})
-		if err == nil || !strings.Contains(err.Error(), "requires a model discovery command") {
-			t.Fatalf("ListModels() error = %v, want model command configuration rejection", err)
-		}
+		assertModelCatalogErrorContains(t, err, "requires a model discovery command")
 	})
 
 	t.Run("Should parse OpenCode model command output and apply effective env home policy", func(t *testing.T) {
@@ -581,7 +577,7 @@ func TestLiveProviderSources(t *testing.T) {
 		}
 	})
 
-	t.Run("Should discover Hermes models through a real ACP probe", func(t *testing.T) {
+	t.Run("Should discover Hermes models through an injected ACP probe", func(t *testing.T) {
 		t.Parallel()
 
 		probe := &fakeACPModelProbe{options: []acp.SessionConfigOption{{
@@ -1030,12 +1026,46 @@ func TestLiveProviderParsingHelpers(t *testing.T) {
 func TestLiveDiscoverySupportTypes(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should invalidate only Claude model mapping inputs", func(t *testing.T) {
+		t.Parallel()
+
+		claude := compozyconfig.BuiltinProviders()[liveSourcesClaudeKey]
+		claudeSource := newLiveSourceForTest(t, liveSourcesClaudeKey, claude, &LiveProviderSourcesConfig{})
+		metadataOnly := compozyconfig.CloneProviderConfig(claude)
+		metadataOnly.Models.Curated[0].DisplayName = "Metadata-only label"
+		if _, changed, err := claudeSource.CloneWithProvider(metadataOnly); err != nil {
+			t.Fatalf("CloneWithProvider(Claude metadata) error = %v", err)
+		} else if changed {
+			t.Fatal("CloneWithProvider(Claude metadata) changed = true, want false")
+		}
+
+		mapping := compozyconfig.CloneProviderConfig(claude)
+		mapping.Models.Curated[0].ID = "claude-remapped-model"
+		if _, changed, err := claudeSource.CloneWithProvider(mapping); err != nil {
+			t.Fatalf("CloneWithProvider(Claude mapping) error = %v", err)
+		} else if !changed {
+			t.Fatal("CloneWithProvider(Claude mapping) changed = false, want true")
+		}
+
+		cursor := compozyconfig.BuiltinProviders()[liveSourcesCursorKey]
+		cursorSource := newLiveSourceForTest(t, liveSourcesCursorKey, cursor, &LiveProviderSourcesConfig{})
+		cursorMetadata := compozyconfig.CloneProviderConfig(cursor)
+		cursorMetadata.Models.Curated = append(cursorMetadata.Models.Curated, compozyconfig.ProviderModelConfig{
+			ID: "metadata-only",
+		})
+		if _, changed, err := cursorSource.CloneWithProvider(cursorMetadata); err != nil {
+			t.Fatalf("CloneWithProvider(Cursor metadata) error = %v", err)
+		} else if changed {
+			t.Fatal("CloneWithProvider(Cursor metadata) changed = true, want false")
+		}
+	})
+
 	t.Run("Should apply the live refresh TTL without adding provider config state", func(t *testing.T) {
 		t.Parallel()
 
 		provider := compozyconfig.BuiltinProviders()["cursor"]
 		defaultSource := newLiveSourceForTest(t, "cursor", provider, &LiveProviderSourcesConfig{})
-		if got, want := defaultSource.TTL(), defaultLiveDiscoveryTTL; got != want {
+		if got, want := defaultSource.TTL(), DefaultLiveDiscoveryTTL; got != want {
 			t.Fatalf("TTL() = %s, want %s", got, want)
 		}
 
@@ -1212,12 +1242,6 @@ func (e *fakeDiscoveryExecutor) RunDiscoveryCommand(
 	return e.result, e.err
 }
 
-func (e *fakeDiscoveryExecutor) callCount() int {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return len(e.requests)
-}
-
 func (e *fakeDiscoveryExecutor) singleRequest(t *testing.T) DiscoveryCommandRequest {
 	t.Helper()
 
@@ -1383,8 +1407,25 @@ func assertCursorBinding(
 					*thinking,
 				)
 			}
+		} else if len(binding.OptionSelections) != 0 {
+			t.Fatalf(
+				"binding %q option selections = %#v, want none",
+				transportModelID,
+				binding.OptionSelections,
+			)
 		}
 		return
 	}
 	t.Fatalf("row %q missing transport binding %q", row.ModelID, transportModelID)
+}
+
+func assertModelCatalogErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want error containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want error containing %q", err, want)
+	}
 }

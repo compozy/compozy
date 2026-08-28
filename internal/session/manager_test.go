@@ -623,11 +623,11 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			if resolvedWorkspace.Agents[index].Name != "coder" {
 				continue
 			}
-			resolvedWorkspace.Agents[index].Speed = speedpkg.SpeedFast
-			resolvedWorkspace.Agents[index].ACPOptions = []compozyconfig.ACPOptionSelection{
+			resolvedWorkspace.Agents[index].SetSpeed(speedpkg.SpeedFast)
+			resolvedWorkspace.Agents[index].SetACPOptions([]compozyconfig.ACPOptionSelection{
 				{ID: "context", ValueID: "1m"},
 				{ID: "thinking", BoolValue: new(true)},
-			}
+			})
 		}
 		h.resolver.upsert(&resolvedWorkspace)
 
@@ -661,7 +661,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		info := session.Info()
 		meta := readMeta(t, session.MetaPath())
 		if info.Speed != speedpkg.SpeedFast || len(info.ACPOptions) != 2 ||
-			meta.Speed != speedpkg.SpeedFast || len(meta.ACPOptions) != 2 {
+			meta.Speed != speedpkg.SpeedFast || len(meta.ACPOptionsValue()) != 2 {
 			t.Fatalf(
 				"effective runtime info=%#v meta=%#v, want materialized defaults",
 				info.ACPOptions,
@@ -682,7 +682,7 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 
 		const cursorModel = "grok-4.6"
 		const transportModel = "cursor-grok-4.6-high-fast"
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        "cursor",
 			ModelID:           cursorModel,
 			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
@@ -720,8 +720,8 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		if got := h.driver.startCalls[0].RuntimeStrategy; got != acp.RuntimeApplicationLaunchArg {
 			t.Fatalf("StartOpts.RuntimeStrategy = %q, want launch_arg", got)
 		}
-		if got := h.driver.startCalls[0].ExpectedTransportModel; got != transportModel {
-			t.Fatalf("StartOpts.ExpectedTransportModel = %q, want %q", got, transportModel)
+		if got := h.driver.startCalls[0].LaunchModelID; got != transportModel {
+			t.Fatalf("StartOpts.LaunchModelID = %q, want %q", got, transportModel)
 		}
 		argv, splitErr := shellquote.Split(h.driver.startCalls[0].Command)
 		if splitErr != nil {
@@ -741,10 +741,50 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		}
 	})
 
+	t.Run("Should resolve a logical Claude model to its live transport alias at start", func(t *testing.T) {
+		t.Parallel()
+
+		const logicalModel = "claude-opus-5"
+		const transportModel = "opus"
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        runtimeProviderClaude,
+			ModelID:           logicalModel,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: transportModel}},
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID(runtimeProviderClaude),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  runtimeProviderClaude,
+			Model:     logicalModel,
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := h.driver.startCalls[0].PreferredModel; got != transportModel {
+			t.Fatalf("StartOpts.PreferredModel = %q, want private alias %q", got, transportModel)
+		}
+		if got := session.Info().Model; got != logicalModel {
+			t.Fatalf("session.Info().Model = %q, want logical model %q", got, logicalModel)
+		}
+		if got := readMeta(t, session.MetaPath()).Model; got != logicalModel {
+			t.Fatalf("meta.Model = %q, want logical model %q", got, logicalModel)
+		}
+	})
+
 	t.Run("Should reject an aliased Cursor agent default before session reservation", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        "cursor",
 			ModelID:           "grok-4.5",
 			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
@@ -790,21 +830,26 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 
 		const cursorModel = "grok-4.5"
 		const transportModel = "cursor-grok-4.5-high"
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
-			ProviderID:             "cursor",
-			ModelID:                cursorModel,
-			AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
-			DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
-			TransportBindings: []modelcatalog.ModelTransportBinding{{
-				TransportModelID: transportModel,
-				ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
-				Fast:             new(false),
-			}},
-			Sources: []modelcatalog.SourceRef{{
-				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
-				SourceKind: modelcatalog.SourceKindProviderLive,
-			}},
-		}}}))
+		var requestedView modelcatalog.CatalogView
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{
+			onList: func(opts modelcatalog.ListOptions) {
+				requestedView = opts.View
+			},
+			models: []modelcatalog.Model{{
+				ProviderID:             "cursor",
+				ModelID:                cursorModel,
+				AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
+				DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+				TransportBindings: []modelcatalog.ModelTransportBinding{{
+					TransportModelID: transportModel,
+					ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+					Fast:             new(false),
+				}},
+				Sources: []modelcatalog.SourceRef{{
+					SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+					SourceKind: modelcatalog.SourceKindProviderLive,
+				}},
+			}}}))
 		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -832,11 +877,14 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		if got := h.driver.startCalls[0].PreferredModel; got != cursorModel {
 			t.Fatalf("StartOpts.PreferredModel = %q, want %q", got, cursorModel)
 		}
-		if got := h.driver.startCalls[0].ExpectedTransportModel; got != transportModel {
-			t.Fatalf("StartOpts.ExpectedTransportModel = %q, want %q", got, transportModel)
+		if got := h.driver.startCalls[0].LaunchModelID; got != transportModel {
+			t.Fatalf("StartOpts.LaunchModelID = %q, want %q", got, transportModel)
 		}
 		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
 			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+		if requestedView != modelcatalog.CatalogViewAll {
+			t.Fatalf("model catalog view = %q, want all live discovered models", requestedView)
 		}
 	})
 
@@ -1146,25 +1194,35 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	})
 }
 
-type cursorModelCatalogStub struct {
+type modelCatalogStub struct {
 	models []modelcatalog.Model
+	onList func(modelcatalog.ListOptions)
 }
 
-func (s cursorModelCatalogStub) ListModels(
-	context.Context,
-	modelcatalog.ListOptions,
+func (s modelCatalogStub) ListModels(
+	_ context.Context,
+	opts modelcatalog.ListOptions,
 ) ([]modelcatalog.Model, error) {
-	return append([]modelcatalog.Model(nil), s.models...), nil
+	if s.onList != nil {
+		s.onList(opts)
+	}
+	models := make([]modelcatalog.Model, 0, len(s.models))
+	for _, model := range s.models {
+		if opts.ProviderID == "" || model.ProviderID == opts.ProviderID {
+			models = append(models, model)
+		}
+	}
+	return models, nil
 }
 
-func (cursorModelCatalogStub) Refresh(
+func (modelCatalogStub) Refresh(
 	context.Context,
 	modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
 
-func (cursorModelCatalogStub) ListSourceStatus(
+func (modelCatalogStub) ListSourceStatus(
 	context.Context,
 	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {

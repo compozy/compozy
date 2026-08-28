@@ -15,8 +15,15 @@ func (p *ExecutionProfile) Normalize(options ExecutionProfileValidationOptions) 
 	normalized := *p
 	normalized.TaskID = strings.TrimSpace(normalized.TaskID)
 	normalized.Coordinator = normalizeCoordinatorProfile(normalized.Coordinator)
-	normalized.Worker = normalizeWorkerProfile(normalized.Worker)
-	normalized.Review = normalizeReviewProfile(normalized.Review)
+	var err error
+	normalized.Worker, err = normalizeWorkerProfile(normalized.Worker)
+	if err != nil {
+		return ExecutionProfile{}, err
+	}
+	normalized.Review, err = normalizeReviewProfile(normalized.Review)
+	if err != nil {
+		return ExecutionProfile{}, err
+	}
 	normalized.Participants = normalizeParticipantPolicy(normalized.Participants)
 	normalized.Sandbox = normalizeSandboxPolicy(normalized.Sandbox)
 	normalized.Worktree = normalizeWorktreePolicy(normalized.Worktree)

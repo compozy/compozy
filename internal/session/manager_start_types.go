@@ -51,6 +51,7 @@ type sessionStartSpec struct {
 	creationIdentity         *store.SessionCreationIdentity
 	creationIdentityPinned   bool
 	creationIdentityEnabled  bool
+	deferRuntimeValidation   bool
 	discardStartFailure      bool
 	advertisedCommands       []store.SessionAdvertisedCommand
 	postEvent                hookspkg.HookEvent
@@ -75,8 +76,19 @@ type sessionStartSpec struct {
 }
 
 func normalizeRequestedSpeed(requested speedpkg.Speed) (speedpkg.Speed, error) {
+	return normalizeRuntimeSpeed(requested, speedpkg.SpeedNormal)
+}
+
+func normalizeRuntimeSpeed(
+	requested speedpkg.Speed,
+	defaultValue speedpkg.Speed,
+) (speedpkg.Speed, error) {
+	requested = speedpkg.Speed(strings.TrimSpace(string(requested)))
 	if requested == "" {
-		requested = speedpkg.SpeedNormal
+		requested = defaultValue
+	}
+	if requested == "" {
+		return "", nil
 	}
 	return speedpkg.Parse(string(requested))
 }
@@ -84,13 +96,9 @@ func normalizeRequestedSpeed(requested speedpkg.Speed) (speedpkg.Speed, error) {
 func normalizeCreateRuntimeOptions(
 	opts CreateOpts,
 ) (speedpkg.Speed, []acp.SessionConfigOptionSelection, error) {
-	requestedSpeed := speedpkg.Speed(strings.TrimSpace(string(opts.Speed)))
-	if requestedSpeed != "" {
-		parsed, err := speedpkg.Parse(string(requestedSpeed))
-		if err != nil {
-			return "", nil, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
-		}
-		requestedSpeed = parsed
+	requestedSpeed, err := normalizeRuntimeSpeed(opts.Speed, "")
+	if err != nil {
+		return "", nil, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
 	}
 	acpOptions, err := acp.NormalizeSessionConfigOptionSelections(opts.ACPOptions)
 	if err != nil {

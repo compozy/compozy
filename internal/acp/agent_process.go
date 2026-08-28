@@ -164,7 +164,7 @@ func (p *AgentProcess) setConfigOptions(options []SessionConfigOption) {
 	}
 	p.capsMu.Lock()
 	defer p.capsMu.Unlock()
-	p.caps.ConfigOptions = CloneSessionConfigOptions(options)
+	p.caps.ConfigOptions = preserveSyntheticModelConfigOption(p.caps.ConfigOptions, options)
 }
 
 func (p *AgentProcess) setSpeedResolution(resolution *speedpkg.Resolution) {

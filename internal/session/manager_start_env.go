@@ -22,22 +22,36 @@ func (m *Manager) sessionStartOpts(
 		resolved.EnvPolicy,
 		strings.TrimSpace(s.reasoningEffort),
 	)
+	providerID := strings.TrimSpace(resolved.RuntimeProvider)
+	if providerID == "" {
+		providerID = strings.TrimSpace(resolved.Provider)
+	}
+	preferredModel := preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved))
+	launchModelID := ""
+	switch providerID {
+	case runtimeProviderClaude:
+		if transportModel := strings.TrimSpace(s.transportModel); transportModel != "" {
+			preferredModel = transportModel
+		}
+	case cursorRuntimeProvider:
+		launchModelID = strings.TrimSpace(s.transportModel)
+	}
 	opts := acp.StartOpts{
-		AgentName:              resolved.Name,
-		Command:                resolved.Command,
-		Cwd:                    s.cwd,
-		AdditionalDirs:         s.executionAdditionalDirs(),
-		Env:                    env,
-		MCPServers:             mcpServers,
-		Permissions:            m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
-		SystemPrompt:           resolved.Prompt,
-		PreferredModel:         preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved)),
-		ExpectedTransportModel: strings.TrimSpace(s.transportModel),
-		ReasoningEffort:        strings.TrimSpace(s.reasoningEffort),
-		Speed:                  s.speed,
-		ACPOptions:             acp.CloneSessionConfigOptionSelections(s.acpOptions),
-		ResumeSessionID:        s.acpSessionID,
-		ToolGateway:            newProviderNativeToolGateway(m, session, s.runtimeMode),
+		AgentName:       resolved.Name,
+		Command:         resolved.Command,
+		Cwd:             s.cwd,
+		AdditionalDirs:  s.executionAdditionalDirs(),
+		Env:             env,
+		MCPServers:      mcpServers,
+		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
+		SystemPrompt:    resolved.Prompt,
+		PreferredModel:  preferredModel,
+		LaunchModelID:   launchModelID,
+		ReasoningEffort: strings.TrimSpace(s.reasoningEffort),
+		Speed:           s.speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(s.acpOptions),
+		ResumeSessionID: s.acpSessionID,
+		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
 		ActivateMCPServers: m.sessionMCPServerActivator(
 			s.sessionID,
 			mcpServers,

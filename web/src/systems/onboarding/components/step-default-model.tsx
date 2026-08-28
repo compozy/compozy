@@ -67,6 +67,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
           </p>
         ) : (
           <RuntimeSelector
+            acpOptions={[]}
             value={model.runtimeValue}
             onChange={model.onRuntimeChange}
             providers={model.runtimeProviders}

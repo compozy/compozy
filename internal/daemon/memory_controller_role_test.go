@@ -10,6 +10,7 @@ import (
 	memcontract "github.com/compozy/compozy/internal/memory/contract"
 	"github.com/compozy/compozy/internal/memory/controller"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestMemoryControllerRoleCallOptions(t *testing.T) {
@@ -101,9 +102,13 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 			"mock": {Command: "mock acp"},
 		}
 		cfg.Roles.MemoryController = compozyconfig.MemoryControllerRoleConfig{
-			Enabled:       true,
-			Provider:      "mock",
-			Model:         "controller-model",
+			Enabled:  true,
+			Provider: "mock",
+			Model:    "controller-model",
+			Speed:    speedpkg.SpeedFast,
+			ACPOptions: []compozyconfig.ACPOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}},
 			Timeout:       time.Second,
 			TopK:          2,
 			PromptVersion: "v1",
@@ -136,7 +141,10 @@ func TestMemoryControllerTiebreakerUsesTheLiveRoleCallContract(t *testing.T) {
 			t.Fatalf("InvokeTransientModel() calls = %d, want 1", len(invoker.calls))
 		}
 		call := invoker.calls[0]
-		if call.Provider != "mock" || call.Model != "controller-model" || call.MaxOutputBytes != 128 {
+		if call.Provider != "mock" || call.Model != "controller-model" ||
+			call.Speed != speedpkg.SpeedFast || call.MaxOutputBytes != 128 ||
+			len(call.ACPOptions) != 1 || call.ACPOptions[0].ID != "thinking" ||
+			call.ACPOptions[0].BoolValue == nil || !*call.ACPOptions[0].BoolValue {
 			t.Fatalf("TransientModelCall = %#v, want resolved route and 128-byte bound", call)
 		}
 		if !strings.Contains(call.Prompt, "target-a") || !strings.Contains(call.Prompt, "target-b") ||

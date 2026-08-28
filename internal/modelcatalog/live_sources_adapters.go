@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,13 +37,22 @@ type liveProviderAdapter struct {
 	defaultCommand    string
 	bootstrapOnList   bool
 	commandOnly       bool
-	parseCommandRows  func(string, string, time.Time) ([]ModelRow, error)
-	parseACPModelRows func(string, compozyconfig.ProviderModelsConfig, acp.SessionConfigOption, time.Time) []ModelRow
+	parseCommandRows  liveCommandRowsParser
+	parseACPModelRows liveACPModelRowsParser
 	authScheme        liveAuthScheme
 	authRequired      bool
 	credentialEnvKeys []string
 	headers           map[string]string
 }
+
+type liveCommandRowsParser func(string, string, time.Time) ([]ModelRow, error)
+
+type liveACPModelRowsParser func(
+	string,
+	compozyconfig.ProviderModelsConfig,
+	acp.SessionConfigOption,
+	time.Time,
+) []ModelRow
 
 type liveDiscoveryTarget struct {
 	kind     liveDiscoveryKind
@@ -246,6 +256,10 @@ func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
 			fmt.Sprintf("%t", slot.Required),
 		}, "\x1f"))
 	}
+	modelMappings := ""
+	if s.adapter.parseACPModelRows != nil {
+		modelMappings = providerModelMappingFingerprint(provider.Models)
+	}
 	return CatalogExecutionFingerprint(
 		s.providerID,
 		string(target.kind),
@@ -257,7 +271,18 @@ func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
 		string(provider.EffectiveEnvPolicy()),
 		string(provider.EffectiveHomePolicy()),
 		strings.Join(credentialShape, "\x1e"),
+		modelMappings,
 	), nil
+}
+
+func providerModelMappingFingerprint(models compozyconfig.ProviderModelsConfig) string {
+	modelIDs := make([]string, 0, len(models.Curated)+1)
+	modelIDs = append(modelIDs, strings.TrimSpace(models.Default))
+	for _, model := range models.Curated {
+		modelIDs = append(modelIDs, strings.TrimSpace(model.ID))
+	}
+	slices.Sort(modelIDs)
+	return strings.Join(modelIDs, "\x1e")
 }
 
 func (s *LiveProviderSource) discoveryFingerprintTarget(

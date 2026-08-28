@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/acp"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -132,7 +133,7 @@ func storeSessionRuntimeSelection(selection *RuntimeSelection) *store.SessionRun
 		Model:           selection.Model,
 		ReasoningEffort: selection.ReasoningEffort,
 		Speed:           selection.Speed,
-		ACPOptions:      storeSessionACPOptionSelections(selection.ACPOptions),
+		ACPOptions:      storeOptionSelectionsFromACP(selection.ACPOptions),
 	})
 }
 
@@ -146,7 +147,7 @@ func runtimeSelectionFromSessionStore(selection *store.SessionRuntimeSelection) 
 		Model:           normalized.Model,
 		ReasoningEffort: normalized.ReasoningEffort,
 		Speed:           normalized.Speed,
-		ACPOptions:      acpSessionACPOptionSelections(normalized.ACPOptions),
+		ACPOptions:      ACPOptionSelectionsFromStore(normalized.ACPOptions),
 	}
 }
 
@@ -159,7 +160,7 @@ func storeRuntimeSelection(selection *RuntimeSelection) store.SessionInputRuntim
 		Model:           strings.TrimSpace(selection.Model),
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           string(selection.Speed),
-		ACPOptions:      storeSessionACPOptionSelections(selection.ACPOptions),
+		ACPOptions:      storeOptionSelectionsFromACP(selection.ACPOptions),
 	}
 }
 
@@ -176,11 +177,11 @@ func runtimeSelectionFromStore(selection store.SessionInputRuntime) *RuntimeSele
 		Model:           strings.TrimSpace(selection.Model),
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           speedpkg.Speed(strings.TrimSpace(selection.Speed)),
-		ACPOptions:      acpSessionACPOptionSelections(selection.ACPOptions),
+		ACPOptions:      ACPOptionSelectionsFromStore(selection.ACPOptions),
 	}
 }
 
-func storeSessionACPOptionSelections(
+func storeOptionSelectionsFromACP(
 	selections []acp.SessionConfigOptionSelection,
 ) []store.SessionACPOptionSelection {
 	if len(selections) == 0 {
@@ -200,7 +201,8 @@ func storeSessionACPOptionSelections(
 	return store.NormalizeSessionACPOptionSelections(cloned)
 }
 
-func acpSessionACPOptionSelections(
+// ACPOptionSelectionsFromStore converts persisted ACP selections to their runtime representation.
+func ACPOptionSelectionsFromStore(
 	selections []store.SessionACPOptionSelection,
 ) []acp.SessionConfigOptionSelection {
 	if len(selections) == 0 {
@@ -218,6 +220,48 @@ func acpSessionACPOptionSelections(
 		cloned = append(cloned, candidate)
 	}
 	return candidateACPOptionSelections(cloned)
+}
+
+// ACPOptionSelectionsFromConfig converts configuration-owned ACP selections to runtime values.
+func ACPOptionSelectionsFromConfig(
+	selections []compozyconfig.ACPOptionSelection,
+) []acp.SessionConfigOptionSelection {
+	if len(selections) == 0 {
+		return nil
+	}
+	converted := make([]acp.SessionConfigOptionSelection, 0, len(selections))
+	for _, selection := range selections {
+		candidate := acp.SessionConfigOptionSelection{
+			ID:      strings.TrimSpace(selection.ID),
+			ValueID: strings.TrimSpace(selection.ValueID),
+		}
+		if selection.BoolValue != nil {
+			candidate.BoolValue = new(*selection.BoolValue)
+		}
+		converted = append(converted, candidate)
+	}
+	return candidateACPOptionSelections(converted)
+}
+
+// ConfigACPOptionSelectionsFromACP converts runtime ACP selections to the shared authored representation.
+func ConfigACPOptionSelectionsFromACP(
+	selections []acp.SessionConfigOptionSelection,
+) []compozyconfig.ACPOptionSelection {
+	if len(selections) == 0 {
+		return nil
+	}
+	converted := make([]compozyconfig.ACPOptionSelection, 0, len(selections))
+	for _, selection := range candidateACPOptionSelections(selections) {
+		candidate := compozyconfig.ACPOptionSelection{
+			ID:      selection.ID,
+			ValueID: selection.ValueID,
+		}
+		if selection.BoolValue != nil {
+			candidate.BoolValue = new(*selection.BoolValue)
+		}
+		converted = append(converted, candidate)
+	}
+	return converted
 }
 
 func candidateACPOptionSelections(

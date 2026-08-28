@@ -84,11 +84,9 @@ export interface RuntimeACPOption {
 }
 
 /** A typed ACP option override; exactly one of value_id or bool_value is set. */
-export interface RuntimeACPOptionSelection {
-  id: string;
-  value_id?: string;
-  bool_value?: boolean;
-}
+export type RuntimeACPOptionSelection =
+  | { id: string; value_id: string; bool_value?: never }
+  | { id: string; value_id?: never; bool_value: boolean };
 
 /** Public model capability combinations, independent of provider transport IDs. */
 export interface RuntimeModelConfiguration {
@@ -110,19 +108,14 @@ export function modelSupportsReasoningEffort(
 }
 
 /**
- * Fast is an explicit model capability when a public configuration matrix is
- * present. Older catalog rows without a matrix stay intentionally permissive;
- * the daemon remains the authority for the final request resolution.
+ * An observed configuration matrix is authoritative for Fast support. Rows
+ * without a matrix stay permissive because they represent provider-default or
+ * not-yet-observed capability data; the daemon still validates the request at
+ * dispatch time.
  */
 export function modelSupportsFast(model: RuntimeModelOption | undefined): boolean {
   if (!model?.configurations || model.configurations.length === 0) return true;
   return model.configurations.some(configuration => configuration.fast === true);
-}
-
-/** Whether the model matrix exposes a thinking dimension at all. */
-export function modelSupportsThinking(model: RuntimeModelOption | undefined): boolean {
-  if (!model?.configurations || model.configurations.length === 0) return false;
-  return model.configurations.some(configuration => typeof configuration.thinking === "boolean");
 }
 
 /** Provider rail option. Auth state drives dimming + disabled model rows. */

@@ -43,11 +43,11 @@ func (s *CatalogService) bootstrapSourcesOnList(
 			}
 			providers = []string{requestedProvider}
 		}
+		executionContext, contextErr := sourceExecutionContext(opts.SourceContexts, source.ID())
+		if contextErr != nil {
+			return statuses, handled, contextErr
+		}
 		for _, providerID := range providers {
-			executionContext, contextErr := sourceExecutionContext(opts.SourceContexts, source.ID())
-			if contextErr != nil {
-				return statuses, handled, contextErr
-			}
 			handled = true
 			refreshed, refreshErr := s.withBootstrapFlight(
 				ctx,

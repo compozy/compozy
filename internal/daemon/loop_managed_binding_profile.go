@@ -193,7 +193,7 @@ func createOptionsFromProfile(
 		Model:                        profile.Model,
 		ReasoningEffort:              profile.ReasoningEffort,
 		Speed:                        profile.Speed,
-		ACPOptions:                   sessionACPOptionsFromStore(profile.ACPOptions),
+		ACPOptions:                   session.ACPOptionSelectionsFromStore(profile.ACPOptions),
 		CWD:                          profile.CWD,
 		Worktree:                     profile.WorktreeRef,
 		SandboxRef:                   profile.SandboxRef,

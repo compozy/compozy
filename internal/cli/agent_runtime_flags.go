@@ -16,82 +16,9 @@ func parseAgentSpeedFlag(value string) (contract.Speed, error) {
 	}
 	parsed, err := speedpkg.Parse(trimmed)
 	if err != nil {
-		return "", fmt.Errorf("cli: invalid agent speed: %w", err)
+		return "", fmt.Errorf("cli: invalid --speed: %w", err)
 	}
-	return contract.Speed(parsed), nil
-}
-
-func parseAgentACPFlags(optionValues, toggleValues []string) ([]contract.AgentACPOptionSelection, error) {
-	options, err := parseAgentACPOptionFlags(optionValues)
-	if err != nil {
-		return nil, err
-	}
-	toggles, err := parseAgentACPToggleFlags(toggleValues)
-	if err != nil {
-		return nil, err
-	}
-	seen := make(map[string]struct{}, len(options)+len(toggles))
-	for _, option := range options {
-		seen[option.ID] = struct{}{}
-	}
-	for _, toggle := range toggles {
-		if _, exists := seen[toggle.ID]; exists {
-			return nil, fmt.Errorf("cli: duplicate ACP option ID %q across --acp-option and --acp-toggle", toggle.ID)
-		}
-		seen[toggle.ID] = struct{}{}
-	}
-	return append(options, toggles...), nil
-}
-
-func parseAgentACPOptionFlags(values []string) ([]contract.AgentACPOptionSelection, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	options := make([]contract.AgentACPOptionSelection, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, raw := range values {
-		id, value, found := strings.Cut(strings.TrimSpace(raw), "=")
-		id = strings.TrimSpace(id)
-		value = strings.TrimSpace(value)
-		if !found || id == "" || value == "" {
-			return nil, fmt.Errorf(
-				"cli: invalid --acp-option %q: expected id=value_id",
-				raw,
-			)
-		}
-		if _, exists := seen[id]; exists {
-			return nil, fmt.Errorf("cli: duplicate --acp-option ID %q", id)
-		}
-		seen[id] = struct{}{}
-		options = append(options, contract.AgentACPOptionSelection{ID: id, ValueID: value})
-	}
-	return options, nil
-}
-
-func parseAgentACPToggleFlags(values []string) ([]contract.AgentACPOptionSelection, error) {
-	if len(values) == 0 {
-		return nil, nil
-	}
-	toggles := make([]contract.AgentACPOptionSelection, 0, len(values))
-	seen := make(map[string]struct{}, len(values))
-	for _, raw := range values {
-		id, value, found := strings.Cut(strings.TrimSpace(raw), "=")
-		id = strings.TrimSpace(id)
-		value = strings.TrimSpace(value)
-		if !found || id == "" || value == "" {
-			return nil, fmt.Errorf("cli: invalid --acp-toggle %q: expected id=true|false", raw)
-		}
-		if _, exists := seen[id]; exists {
-			return nil, fmt.Errorf("cli: duplicate --acp-toggle ID %q", id)
-		}
-		seen[id] = struct{}{}
-		if value != "true" && value != "false" {
-			return nil, fmt.Errorf("cli: invalid --acp-toggle %q: expected id=true|false", raw)
-		}
-		parsed := value == "true"
-		toggles = append(toggles, contract.AgentACPOptionSelection{ID: id, BoolValue: new(parsed)})
-	}
-	return toggles, nil
+	return parsed, nil
 }
 
 func cloneAgentACPOptions(options []contract.AgentACPOptionSelection) []contract.AgentACPOptionSelection {

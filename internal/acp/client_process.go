@@ -80,7 +80,7 @@ func processRecordContext(parent context.Context, timeout time.Duration) (contex
 }
 
 func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
-	if err := opts.Validate(); err != nil {
+	if err := opts.validateBase(); err != nil {
 		return StartOpts{}, err
 	}
 
@@ -120,7 +120,7 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.SystemPromptDelivery = SystemPromptDeliveryFirstTurnPrefix
 	}
 	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
-	normalized.ExpectedTransportModel = strings.TrimSpace(normalized.ExpectedTransportModel)
+	normalized.LaunchModelID = strings.TrimSpace(normalized.LaunchModelID)
 	if normalized.RuntimeStrategy == "" {
 		normalized.RuntimeStrategy = RuntimeApplicationSessionConfig
 	}

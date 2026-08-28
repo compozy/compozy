@@ -10,32 +10,20 @@ import { agentKeys } from "../lib/query-keys";
 import type { AgentPayload } from "../types";
 import { useUpdateAgent } from "./use-agents";
 import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
+import { type RuntimeSpeed } from "@/lib/api-contract";
 import type {
   RuntimeModelOption,
   RuntimeProviderOption,
   RuntimeSelectorValue,
 } from "@/systems/runtime";
 import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
-import { type SessionProviderOption, useWorkspace } from "@/systems/workspace";
+import { useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
 
 function describeError(fallback: string, error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message;
   }
   return fallback;
-}
-
-function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProviderOption {
-  const displayName = provider.display_name?.trim();
-  const harness = provider.harness?.trim();
-  const runtimeProvider = provider.runtime_provider?.trim();
-  return {
-    id: provider.name,
-    name: displayName || provider.name,
-    ...(harness ? { harness } : {}),
-    runtime_provider: runtimeProvider || provider.name,
-    runtime_strategy: provider.runtime_strategy,
-  };
 }
 
 export interface UseAgentRuntimeEditorOptions {
@@ -45,7 +33,9 @@ export interface UseAgentRuntimeEditorOptions {
 
 export interface UseAgentRuntimeEditorResult {
   value: RuntimeSelectorValue;
-  onChange: (next: RuntimeSelectorValue) => void;
+  speed: RuntimeSpeed;
+  onChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => void;
+  onSpeedChange: (next: RuntimeSpeed) => void;
   providerOptions: RuntimeProviderOption[];
   providersLoading: boolean;
   providerSourceError: string | null;
@@ -103,7 +93,9 @@ export function useAgentRuntimeEditor({
 
   const value: RuntimeSelectorValue = resolveAgentRuntimeValue(agent);
 
-  const onChange = (next: RuntimeSelectorValue) => {
+  const speed = agent?.effective_runtime?.speed ?? agent?.speed ?? "normal";
+
+  const onChange = (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => {
     if (!agent || updateAgent.isPending) return;
     const draft = {
       ...buildSettingsDraftFromAgent(agent),
@@ -111,6 +103,7 @@ export function useAgentRuntimeEditor({
       model: next.model ?? "",
       reasoningEffort: next.reasoning_effort,
       acpOptions: next.acp_options ?? [],
+      ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
     };
     const params = buildUpdateAgentParams(draft, workspaceId);
     if (!params) {
@@ -151,7 +144,9 @@ export function useAgentRuntimeEditor({
 
   return {
     value,
+    speed,
     onChange,
+    onSpeedChange: next => onChange(value, next),
     providerOptions,
     providersLoading,
     providerSourceError,

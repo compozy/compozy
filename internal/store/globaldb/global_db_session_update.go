@@ -71,7 +71,7 @@ func appendSelectedRuntimeAssignments(
 	}
 	selection := store.NormalizeSessionRuntimeSelection(update.SelectedRuntime)
 	provider, model, reasoningEffort, speed := "", "", "", ""
-	optionsJSON, err := encodeSelectedRuntimeACPOptions(selection)
+	optionsJSON, err := encodeCanonicalSelectedRuntimeACPOptions(selection)
 	if err != nil {
 		return nil, nil, err
 	}

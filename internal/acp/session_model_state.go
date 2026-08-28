@@ -96,3 +96,18 @@ func sessionModelConfigOption(state *wireSessionModelState) (SessionConfigOption
 		Values:         values,
 	}, true
 }
+
+func preserveSyntheticModelConfigOption(
+	current []SessionConfigOption,
+	updated []SessionConfigOption,
+) []SessionConfigOption {
+	next := CloneSessionConfigOptions(updated)
+	if _, ok := ModelConfigOption(next); ok {
+		return next
+	}
+	model, ok := ModelConfigOption(current)
+	if !ok || !model.ReadOnly {
+		return next
+	}
+	return append(next, cloneSessionConfigOption(model))
+}

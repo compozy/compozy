@@ -159,13 +159,11 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		Model:                    info.Model,
 		ReasoningEffort:          info.ReasoningEffort,
 		Speed:                    info.Speed,
-		ACPOptions:               storeSessionACPOptionSelections(info.ACPOptions),
 		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
 		RuntimeStatus:            info.RuntimeStatus,
 		RuntimeTransition:        info.RuntimeTransition,
 		RuntimeFailure:           info.RuntimeFailure,
 		RuntimeGeneration:        info.RuntimeGeneration,
-		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(info.RuntimeRecovery),
 		SelectedRuntime:          storeSessionRuntimeSelection(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
 		WorkspaceID:              info.WorkspaceID,
@@ -196,6 +194,8 @@ func sessionCatalogInfoFromRuntime(info *Info) store.SessionInfo {
 		CreatedAt:  info.CreatedAt,
 		UpdatedAt:  info.UpdatedAt,
 	}
+	result.SetACPOptions(storeOptionSelectionsFromACP(info.ACPOptions))
+	result.SetRuntimeRecovery(info.RuntimeRecovery)
 	result.SetNetworkSpec(info.NetworkParticipation)
 	return result
 }
@@ -213,7 +213,7 @@ func sessionCatalogStateUpdate(info *Info) store.SessionStateUpdate {
 		Model:                    info.Model,
 		ReasoningEffort:          info.ReasoningEffort,
 		Speed:                    info.Speed,
-		ACPOptions:               storeSessionACPOptionSelections(info.ACPOptions),
+		ACPOptions:               storeOptionSelectionsFromACP(info.ACPOptions),
 		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
 		RuntimeStatus:            info.RuntimeStatus,
 		RuntimeTransition:        info.RuntimeTransition,

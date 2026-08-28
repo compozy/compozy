@@ -1,5 +1,10 @@
 import type { AgentPayload } from "../types";
-import type { RuntimeACPOptionSelection, RuntimeSelectorValue } from "@/systems/runtime";
+import type { RuntimeSpeed } from "@/lib/api-contract";
+import {
+  normalizeRuntimeACPSelections,
+  type RuntimeACPOptionSelection,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
 
 type AgentACPOption = NonNullable<AgentPayload["acp_options"]>[number];
 type EffectiveACPOption = NonNullable<
@@ -9,21 +14,29 @@ type EffectiveACPOption = NonNullable<
 export function runtimeACPSelections(
   options: readonly (AgentACPOption | EffectiveACPOption)[] | undefined
 ): RuntimeACPOptionSelection[] | undefined {
-  if (!options || options.length === 0) return undefined;
-  const selections: RuntimeACPOptionSelection[] = [];
-  for (const option of options) {
-    const id = option.id.trim();
-    if (id.length === 0) continue;
-    const valueID = option.value_id?.trim();
-    if (valueID) {
-      selections.push({ id, value_id: valueID });
-      continue;
-    }
-    if (typeof option.bool_value === "boolean") {
-      selections.push({ id, bool_value: option.bool_value });
-    }
-  }
-  return selections.length > 0 ? selections : undefined;
+  return normalizeRuntimeACPSelections(options);
+}
+
+export interface AgentRuntimeOverrideValue {
+  provider: string;
+  model: string;
+  reasoningEffort: string;
+  speed: string;
+  acpOptions?: readonly RuntimeACPOptionSelection[];
+}
+
+export function hasAgentRuntimeOverride(value: AgentRuntimeOverrideValue): boolean {
+  return Boolean(
+    value.provider.trim() ||
+    value.model.trim() ||
+    value.reasoningEffort ||
+    value.speed ||
+    (value.acpOptions?.length ?? 0) > 0
+  );
+}
+
+export function normalizeRuntimeSpeed(value: string | null | undefined): RuntimeSpeed | "" {
+  return value === "normal" || value === "fast" ? value : "";
 }
 
 export function resolveAgentRuntimeValue(agent: AgentPayload | undefined): RuntimeSelectorValue {

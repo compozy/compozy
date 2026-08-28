@@ -6,7 +6,46 @@ function sortByID<T extends { id: string }>(values: readonly T[]): T[] {
   return [...values].sort((left, right) => left.id.localeCompare(right.id));
 }
 
-export function isAdvancedRuntimeOption(option: RuntimeACPOption): boolean {
+interface RuntimeACPOptionSelectionInput {
+  id: string;
+  value_id?: string;
+  bool_value?: boolean | null;
+}
+
+export function normalizeRuntimeACPSelections(
+  selections: readonly RuntimeACPOptionSelectionInput[] | undefined
+): RuntimeACPOptionSelection[] | undefined {
+  if (!selections || selections.length === 0) return undefined;
+  const normalized: RuntimeACPOptionSelection[] = [];
+  const seen = new Set<string>();
+  for (const selection of selections) {
+    const id = selection.id.trim();
+    const valueID = selection.value_id?.trim() ?? "";
+    const hasBool = typeof selection.bool_value === "boolean";
+    if (!id || seen.has(id) || Number(valueID.length > 0) + Number(hasBool) !== 1) continue;
+    seen.add(id);
+    normalized.push(
+      valueID ? { id, value_id: valueID } : { id, bool_value: selection.bool_value as boolean }
+    );
+  }
+  return normalized.length > 0 ? sortByID(normalized) : undefined;
+}
+
+export function runtimeACPSelectionsEqual(
+  left: readonly RuntimeACPOptionSelection[] | undefined,
+  right: readonly RuntimeACPOptionSelection[] | undefined
+): boolean {
+  if (left === undefined || right === undefined) return left === right;
+  if (left.length !== right.length) return false;
+  return left.every(
+    (selection, index) =>
+      selection.id === right[index]?.id &&
+      selection.value_id === right[index]?.value_id &&
+      selection.bool_value === right[index]?.bool_value
+  );
+}
+
+function isAdvancedRuntimeOption(option: RuntimeACPOption): boolean {
   return !DEDICATED_OPTION_IDS.has(option.id.trim().toLowerCase());
 }
 

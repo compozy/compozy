@@ -6,17 +6,17 @@ persona: Dora
 journey: J-17
 expected: Opening Start session shows agent selection, with workspace, optional name, and Network participation in Advanced; it contains neither a first-message composer nor a runtime selector. Launch creates one durable session at the selected workspace root, activates its returned owner workspace, and navigates to its composer. Choosing another workspace clears only workspace-scoped launch selections. The session composer owns the "Next prompt" RuntimeSelector and its catalog state; the header carries the only close control.
 entry_points: web desktop shell → Start session (dock, command palette, agent catalog, agent detail, dashboard)
-qa_status: untested
-bug_ids: BUG-20260730-session-create-window-intent
+qa_status: pass
+bug_ids: BUG-20260730-session-create-window-intent; BUG-20260827-session-create-first-message-regression; BUG-20260827-unbound-session-fast-inheritance
 fix_status: fixed
 retest_status: pass
 fix_commits:
-evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-logs/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/01-create-simple.png;docs/qa/evidence/2026-07-30-session-runtime-selector/02-create-advanced.png;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png
-last_report: docs/qa/reports/2026-07-30-session-runtime-selector.md
+evidence: .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-01; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-02; .compozy/tasks/modals-redesign/evidence/visual/task_02/VC-09;/Users/pedronauck/dev/qa-labs/compozy-ms-wave2-current-20260730-061842-796290-lab/qa-logs/qa;docs/qa/evidence/2026-07-30-session-runtime-selector/01-create-simple.png;docs/qa/evidence/2026-07-30-session-runtime-selector/02-create-advanced.png;docs/qa/evidence/2026-07-30-session-runtime-selector/04-session-open-after-create.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-no-first-message.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-create-advanced-no-first-message.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/web-session-first-prompt-grok45-fast-pass.png
+last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
 overlaps: MS-web-entity-modal-shell; NB-participation-controls-serialize
 ---
 
-story: As a person running agent work I choose who runs and where, write the first message, and send one durable session-create request without losing access to runtime or advanced launch controls.
+story: As a person running agent work I choose who runs and where, launch one durable session, then write the first prompt in its composer without losing access to runtime or advanced launch controls.
 
 Introduced by the modal redesign (`.compozy/tasks/modals-redesign/`, `_techspec.md` §4.2), task_02, implemented 2026-07-25. Before this change the dialog was runtime-first: it had no workspace picker and no session name, and it always sent the active workspace.
 
@@ -42,3 +42,9 @@ lines while creating an environment or starting the session stay visible. Status
 2026-08-27 qa-impact: the destination composer Runtime Selector now includes catalog-backed Fast,
 advanced ACP options, and provider-managed state. Status remains untested for the launch-to-composer
 handoff.
+
+2026-08-27 qa-impact: targeted QA found a regressed First message field in Start session. The field
+was removed and the launch/composer boundary was restored.
+
+QA 2026-08-27: Simple and Advanced were prompt-free. Start created one durable session and opened
+its composer; the separate first prompt completed once with the agent's Grok 4.5 High/Fast runtime.

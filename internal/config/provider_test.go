@@ -1066,29 +1066,31 @@ func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
 		agent := AgentDef{
 			Name:     "coder",
 			Provider: "claude",
-			Speed:    speedpkg.SpeedFast,
-			ACPOptions: []ACPOptionSelection{
-				{ID: "thinking", BoolValue: new(true)},
-				{ID: "context", ValueID: "1m"},
-			},
-			Prompt: "prompt",
+			Prompt:   "prompt",
 		}
+		agent.SetSpeed(speedpkg.SpeedFast)
+		agent.SetACPOptions([]ACPOptionSelection{
+			{ID: "thinking", BoolValue: new(true)},
+			{ID: "context", ValueID: "1m"},
+		})
 
 		resolved, err := cfg.ResolveAgent(agent)
 		if err != nil {
 			t.Fatalf("ResolveAgent() error = %v", err)
 		}
-		if resolved.Speed != speedpkg.SpeedFast || len(resolved.ACPOptions) != 2 {
+		resolvedOptions := resolved.ACPOptionsValue()
+		if resolved.SpeedValue() != speedpkg.SpeedFast || len(resolvedOptions) != 2 {
 			t.Fatalf("ResolveAgent() runtime defaults = %#v", resolved)
 		}
-		if resolved.ACPOptions[0].BoolValue == nil || !*resolved.ACPOptions[0].BoolValue ||
-			resolved.ACPOptions[1].ValueID != "1m" {
-			t.Fatalf("ResolveAgent() ACPOptions = %#v", resolved.ACPOptions)
+		if resolvedOptions[0].BoolValue == nil || !*resolvedOptions[0].BoolValue ||
+			resolvedOptions[1].ValueID != "1m" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v", resolvedOptions)
 		}
-		*agent.ACPOptions[0].BoolValue = false
-		agent.ACPOptions[1].ValueID = "changed"
-		if !*resolved.ACPOptions[0].BoolValue || resolved.ACPOptions[1].ValueID != "1m" {
-			t.Fatalf("ResolveAgent() ACPOptions alias source data: %#v", resolved.ACPOptions)
+		agentOptions := agent.ACPOptionsValue()
+		*agentOptions[0].BoolValue = false
+		agentOptions[1].ValueID = "changed"
+		if !*resolvedOptions[0].BoolValue || resolvedOptions[1].ValueID != "1m" {
+			t.Fatalf("ResolveAgent() ACPOptions alias source data: %#v", resolvedOptions)
 		}
 	})
 }

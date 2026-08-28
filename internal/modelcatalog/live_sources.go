@@ -37,7 +37,8 @@ const (
 
 const (
 	defaultLiveDiscoveryTimeout = 10 * time.Second
-	defaultLiveDiscoveryTTL     = 5 * time.Minute
+	// DefaultLiveDiscoveryTTL is the refresh interval for dynamic provider and extension discovery.
+	DefaultLiveDiscoveryTTL     = 5 * time.Minute
 	maxLiveDiscoveryPayloadSize = 8 << 20
 )
 
@@ -203,7 +204,7 @@ func NewLiveProviderSource(
 	}
 	refreshTTL := cfg.RefreshTTL
 	if refreshTTL <= 0 {
-		refreshTTL = defaultLiveDiscoveryTTL
+		refreshTTL = DefaultLiveDiscoveryTTL
 	}
 	executor := cfg.CommandExecutor
 	if executor == nil {
@@ -272,7 +273,7 @@ var _ Source = (*LiveProviderSource)(nil)
 // live source in the background.
 func (s *LiveProviderSource) TTL() time.Duration {
 	if s == nil || s.refreshTTL <= 0 {
-		return defaultLiveDiscoveryTTL
+		return DefaultLiveDiscoveryTTL
 	}
 	return s.refreshTTL
 }
@@ -307,7 +308,7 @@ func (s *LiveProviderSource) ReplaceProvider(provider compozyconfig.ProviderConf
 	next := compozyconfig.CloneProviderConfig(provider)
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
-	changed := liveDiscoveryConfigChanged(s.provider, next)
+	changed := s.discoveryConfigChanged(s.provider, next)
 	s.provider = next
 	return changed
 }
@@ -320,7 +321,7 @@ func (s *LiveProviderSource) CloneWithProvider(
 		return nil, false, errors.New("model catalog: live provider source is required")
 	}
 	next := compozyconfig.CloneProviderConfig(provider)
-	changed := liveDiscoveryConfigChanged(s.providerSnapshot(), next)
+	changed := s.discoveryConfigChanged(s.providerSnapshot(), next)
 	clone, err := NewLiveProviderSource(s.providerID, next, &LiveProviderSourcesConfig{
 		HomePaths:       s.homePaths,
 		BaseEnv:         s.baseEnv,
@@ -336,6 +337,17 @@ func (s *LiveProviderSource) CloneWithProvider(
 		return nil, false, err
 	}
 	return clone, changed, nil
+}
+
+func (s *LiveProviderSource) discoveryConfigChanged(
+	current compozyconfig.ProviderConfig,
+	next compozyconfig.ProviderConfig,
+) bool {
+	if liveDiscoveryConfigChanged(current, next) {
+		return true
+	}
+	return s.adapter.parseACPModelRows != nil &&
+		providerModelMappingFingerprint(current.Models) != providerModelMappingFingerprint(next.Models)
 }
 
 func liveDiscoveryConfigChanged(

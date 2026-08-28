@@ -152,14 +152,42 @@ func loopResolvedRuntimePayload(runtime *looppkg.ResolvedRuntime) *contract.Loop
 		Model:           runtime.Runtime.Model,
 		Reasoning:       runtime.Runtime.Reasoning,
 		Speed:           runtime.Runtime.Speed,
+		ACPOptions:      loopACPOptionPayloads(runtime.Runtime.ACPOptions),
 		SpeedResolution: speedpkg.CloneResolution(runtime.SpeedResolution),
 		Source: contract.LoopRuntimeProvenance{
-			Provider:  string(runtime.Source.Provider),
-			Model:     string(runtime.Source.Model),
-			Reasoning: string(runtime.Source.Reasoning),
-			Speed:     string(runtime.Source.Speed),
+			Provider:   string(runtime.Source.Provider),
+			Model:      string(runtime.Source.Model),
+			Reasoning:  string(runtime.Source.Reasoning),
+			Speed:      string(runtime.Source.Speed),
+			ACPOptions: loopACPOptionProvenance(runtime.Source.ACPOptions),
 		},
 	}
+}
+
+func loopACPOptionPayloads(options []looppkg.ACPOptionSelection) []contract.AgentACPOptionSelection {
+	if len(options) == 0 {
+		return nil
+	}
+	payloads := make([]contract.AgentACPOptionSelection, 0, len(options))
+	for _, option := range options {
+		payload := contract.AgentACPOptionSelection{ID: option.ID, ValueID: option.ValueID}
+		if option.BoolValue != nil {
+			payload.BoolValue = new(*option.BoolValue)
+		}
+		payloads = append(payloads, payload)
+	}
+	return payloads
+}
+
+func loopACPOptionProvenance(values map[string]looppkg.RuntimeSource) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	result := make(map[string]string, len(values))
+	for id, source := range values {
+		result[id] = string(source)
+	}
+	return result
 }
 
 func transcodeLoopAPI(value any, target any) error {

@@ -4,8 +4,6 @@ import (
 	"errors"
 
 	"regexp"
-
-	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 const (
@@ -199,8 +197,7 @@ type ResolvedAgent struct {
 	DisplayName     string
 	Model           string
 	ReasoningEffort string
-	Speed           speedpkg.Speed
-	ACPOptions      []ACPOptionSelection
+	*AgentRuntimeDefaults
 	Tools           []string
 	Toolsets        []string
 	DenyTools       []string

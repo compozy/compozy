@@ -16,7 +16,6 @@ import (
 	"github.com/compozy/compozy/internal/gateway"
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/memory"
-	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network"
 	presetspkg "github.com/compozy/compozy/internal/notifications/presets"
 	"github.com/compozy/compozy/internal/resources"
@@ -411,33 +410,6 @@ func StatusForNetworkError(err error) int {
 		errors.Is(err, network.ErrReplayTooOld),
 		errors.Is(err, network.ErrLegacyFieldRejected):
 		return http.StatusBadRequest
-	default:
-		return http.StatusInternalServerError
-	}
-}
-
-// NewModelCatalogValidationError wraps a model catalog request validation failure.
-func NewModelCatalogValidationError(err error) error {
-	if err == nil {
-		return nil
-	}
-	return fmt.Errorf("%w: %w", ErrModelCatalogValidation, err)
-}
-
-// StatusForModelCatalogError maps model catalog failures to transport statuses.
-func StatusForModelCatalogError(err error) int {
-	var maxBytesErr *http.MaxBytesError
-	switch {
-	case err == nil:
-		return http.StatusOK
-	case errors.As(err, &maxBytesErr):
-		return http.StatusRequestEntityTooLarge
-	case errors.Is(err, ErrModelCatalogValidation),
-		errors.Is(err, modelcatalog.ErrSourceNotRegistered):
-		return http.StatusBadRequest
-	case errors.Is(err, ErrModelCatalogUnavailable),
-		errors.Is(err, modelcatalog.ErrAllSourcesFailed):
-		return http.StatusServiceUnavailable
 	default:
 		return http.StatusInternalServerError
 	}

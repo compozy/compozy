@@ -93,6 +93,9 @@ func startHelperProcess(
 		opts.ReasoningEffort = overrides.ReasoningEffort
 	}
 	opts.Speed = overrides.Speed
+	opts.ACPOptions = CloneSessionConfigOptionSelections(overrides.ACPOptions)
+	opts.RuntimeStrategy = overrides.RuntimeStrategy
+	opts.LaunchModelID = overrides.LaunchModelID
 	opts.ResumeSessionID = overrides.ResumeSessionID
 	opts.Launcher = overrides.Launcher
 	opts.ToolHost = overrides.ToolHost
@@ -554,10 +557,17 @@ func (a *helperACPAgent) NewSession(context.Context, acpsdk.NewSessionRequest) (
 		a.scenario == "config_options_reject_speed" ||
 		a.scenario == "config_options_no_model" ||
 		a.scenario == "config_options_no_reasoning" ||
+		a.scenario == "launch_bound_model" ||
 		a.scenario == "model_specific_config_options" ||
 		a.scenario == "runtime_config_options" ||
 		a.scenario == "config_option_update" {
 		configOptions := helperConfigOptions("new-model", "medium")
+		if a.scenario == "launch_bound_model" {
+			const currentModel = "shared-provider-default[]"
+			configOptions = []acpsdk.SessionConfigOption{
+				helperSelectConfigOption("model", "Model", currentModel, currentModel),
+			}
+		}
 		if a.scenario == "model_specific_config_options" {
 			configOptions = append(
 				helperModelConfigOptions("new-model"),

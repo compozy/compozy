@@ -49,6 +49,14 @@ func validateWorkerProfile(profile WorkerProfile, options ExecutionProfileValida
 	); err != nil {
 		return err
 	}
+	if err := validateProfileRuntime(
+		profile.ReasoningEffort,
+		profile.Speed,
+		profile.ACPOptions,
+		"task_execution_profile.worker",
+	); err != nil {
+		return err
+	}
 	if err := validateProfileSelectorIDs(
 		profile.AllowedAgentNames,
 		"task_execution_profile.worker.allowed_agent_names",
@@ -85,6 +93,14 @@ func validateReviewProfile(profile ReviewProfile, options ExecutionProfileValida
 		profile.Provider,
 		profile.Model,
 		options,
+		"task_execution_profile.review",
+	); err != nil {
+		return err
+	}
+	if err := validateProfileRuntime(
+		profile.ReasoningEffort,
+		profile.Speed,
+		profile.ACPOptions,
 		"task_execution_profile.review",
 	); err != nil {
 		return err

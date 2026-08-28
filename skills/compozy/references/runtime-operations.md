@@ -198,7 +198,9 @@ cannot be validated fail closed.
 unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
 select `--provider`; `--model`, `--reasoning-effort`, `--speed`, repeatable `--acp-option id=value`,
 and repeatable `--acp-toggle id=true|false` refine that prompt's snapshot. `--speed` defaults to
-`normal`; live catalog descriptors and valid option combinations remain authoritative.
+`normal`; live catalog descriptors and valid option combinations remain authoritative. Fast is applied
+only when the live descriptor exposes one unambiguous speed option; absent or ambiguous support is
+`unsupported`, and provider refusal is `rejected`.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or
@@ -347,10 +349,10 @@ CompozyOS routes six daemon-owned background responsibilities through the closed
     compozy roles show dream --workspace <id|name|path> -o json
 
 HTTP and UDS expose the same `GET /api/roles` and `GET /api/roles/{role}` payloads. Each projection
-reports `enabled`, `resolution_mode`, nullable agent/provider/model/reasoning values, controller-only
-`timeout`, the ordered `fallback_chain`, per-field `provenance`, and current `diagnostics`. Preserve
-nulls: `resolution_mode=inherit` means the invoking context decides at invocation, not that a client
-should substitute `[defaults]`.
+reports `enabled`, `resolution_mode`, nullable agent/provider/model/reasoning/speed values, typed
+`acp_options`, controller-only `timeout`, the ordered `fallback_chain`, per-field `provenance`, and
+current `diagnostics`. Preserve nulls: `resolution_mode=inherit` means the invoking context decides at
+invocation, not that a client should substitute `[defaults]`.
 
 `coordinator` and `dreaming-curator` are virtual builtin identities and never fleet entries. A
 configured authored agent that cannot be resolved produces `role_agent_not_found`; an unknown role
@@ -364,10 +366,11 @@ a workspace overlay. A fallback may advance only at the owning invocation's pre-
 an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, CompozyOS
 emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
 
-Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, and
-`fallback_chain`. Coordinator additionally owns `ttl`, `max_children`, and
+Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, `speed`,
+`acp_options`, and `fallback_chain`. ACP option entries require `id` and exactly one of `value_id` or
+`bool_value`; fallback routes may set the same runtime fields. Coordinator additionally owns `ttl`, `max_children`, and
 `max_active_sessions_per_workspace`. The in-process `memory_controller` has no `agent`; it owns
-`timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop runtime defaults/rules,
+the same runtime fields plus `timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop runtime defaults/rules,
 TaskExecutionProfile selectors, automation resources, or subsystem policy into `[roles]`.
 
 ### Usage cost truth
@@ -381,12 +384,9 @@ provider/source filters, `force`, and `request_id`; it retains successful source
 and redacts credential material from errors. CLI fallbacks are `compozy provider models status` and
 `compozy provider models refresh`.
 
-Claude, Codex, and Hermes discover live models through ACP; Cursor discovers aliases through
-`cursor-agent models` and publishes only logical models and valid option combinations. Live sources
-refresh periodically and when their five-minute TTL expires, retaining stale rows on failure. New
-provider-advertised models therefore need no CompozyOS code change, though an explicit curated set can
-keep them out of the default view. OpenClaw is provider-managed: do not send model, Reasoning, Fast, or
-ACP-option overrides to it.
+Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, curated views, and
+OpenClaw's provider-managed limits are defined once in
+`references/native-tools.md#runtime-and-workspace-tools`.
 
 The session usage endpoint
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage` returns token totals plus

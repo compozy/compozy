@@ -338,7 +338,7 @@ func (s *CatalogService) storedProvidersForSource(
 	providerSet := make(map[string]struct{})
 	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
 		ExecutionContext: executionContext,
-		SourceContexts:   map[string]CatalogExecutionContext{source.ID(): executionContext},
+		SourceContexts:   singleSourceExecutionContext(source.ID(), executionContext),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list stored source providers for %q: %w", source.ID(), err)
@@ -354,7 +354,7 @@ func (s *CatalogService) storedProvidersForSource(
 	rows, err := s.store.ListRows(ctx, ListOptions{
 		SourceID:         source.ID(),
 		ExecutionContext: executionContext,
-		SourceContexts:   map[string]CatalogExecutionContext{source.ID(): executionContext},
+		SourceContexts:   singleSourceExecutionContext(source.ID(), executionContext),
 		IncludeAll:       true,
 		IncludeStale:     true,
 		Now:              now,

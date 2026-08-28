@@ -44,23 +44,23 @@ func (r *roleResolver) resolveMemoryControllerCallOptions(
 			resolvedRole:  resolved,
 		}, nil
 	}
-	runtime, err := effectiveConfig.ResolveAgent(compozyconfig.AgentDef{
+	agent := compozyconfig.AgentDef{
 		Name:            memoryControllerTransientAgentName,
 		Provider:        resolved.Provider,
 		Model:           resolved.Model,
 		ReasoningEffort: resolved.ReasoningEffort,
-		Speed:           resolved.Speed,
-		ACPOptions:      compozyconfig.CloneACPOptionSelections(resolved.ACPOptions),
 		Prompt:          "Compozy memory controller transient runtime.",
-	})
+	}
+	agent.SetSpeed(resolved.speedValue())
+	agent.SetACPOptions(resolved.acpOptionsValue())
+	runtime, err := effectiveConfig.ResolveAgent(agent)
 	if err != nil {
 		return memoryControllerCallOptions{}, fmt.Errorf("daemon: resolve memory controller runtime: %w", err)
 	}
 	resolved.Provider = runtime.Provider
 	resolved.Model = runtime.Model
 	resolved.ReasoningEffort = runtime.ReasoningEffort
-	resolved.Speed = runtime.Speed
-	resolved.ACPOptions = compozyconfig.CloneACPOptionSelections(runtime.ACPOptions)
+	resolved.setRuntime(runtime.SpeedValue(), runtime.ACPOptionsValue())
 	resolved.eventWriter = r.events
 	return memoryControllerCallOptions{
 		Timeout:       effective.Timeout,

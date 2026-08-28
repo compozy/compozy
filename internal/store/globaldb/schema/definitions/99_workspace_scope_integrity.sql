@@ -250,6 +250,7 @@ BEGIN
 	SELECT RAISE(ABORT, 'workspace not found');
 END;
 
+-- This trigger references sessions and must be recreated after any sessions table rebuild.
 CREATE TRIGGER workspace_scope_cleanup_after_delete
 AFTER DELETE ON workspaces
 BEGIN

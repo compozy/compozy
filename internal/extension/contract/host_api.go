@@ -67,10 +67,11 @@ type SessionRuntimeSetParams struct {
 
 // SessionRuntimeSelectionPayload is the extension-owned wire shape for a durable runtime choice.
 type SessionRuntimeSelectionPayload struct {
-	Provider        string                       `json:"provider"`
-	Model           string                       `json:"model,omitempty"`
-	ReasoningEffort modelcatalog.ReasoningEffort `json:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed               `json:"speed,omitempty"`
+	Provider        string                                `json:"provider"`
+	Model           string                                `json:"model,omitempty"`
+	ReasoningEffort modelcatalog.ReasoningEffort          `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed                        `json:"speed,omitempty"`
+	ACPOptions      []apicontract.AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
 
 // SessionRuntimeClearParams clears the durable runtime selection.

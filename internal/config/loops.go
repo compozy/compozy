@@ -264,7 +264,7 @@ func validateLoopRuntimeSpec(path string, runtime dsl.RuntimeSpec) error {
 }
 
 func validateLoopACPOptions(path string, options []dsl.ACPOptionSelection) error {
-	if _, err := dsl.NormalizeACPOptionSelections(options); err != nil {
+	if _, err := dsl.NormalizeACPOptionSelectionsAt(path, options); err != nil {
 		return ValidationError{Path: path, Message: err.Error()}
 	}
 	return nil

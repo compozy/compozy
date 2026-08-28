@@ -15,7 +15,7 @@ type commandCheckOverride struct {
 }
 
 func applyEffectiveGateConfig(runtimeGate gate.Gate, effective EffectiveConfig) (gate.Gate, bool, error) {
-	overrides, err := commandCheckOverrides(effective.EnabledChecks)
+	overrides, err := commandCheckOverrides(effectiveChecksBytes(effective.EnabledChecks))
 	if err != nil {
 		return gate.Gate{}, false, err
 	}

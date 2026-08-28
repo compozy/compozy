@@ -66,8 +66,7 @@ type ResolvedRole struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
-	Speed           speedpkg.Speed
-	ACPOptions      []compozyconfig.ACPOptionSelection
+	runtime         *resolvedRoleRuntime
 	Fallbacks       []compozyconfig.RoleFallback
 	Provenance      map[string]string
 	eventWriter     roleEventSummaryWriter
@@ -134,9 +133,8 @@ func (r *roleResolver) resolveEffective(
 		Provider:        strings.TrimSpace(common.Provider),
 		Model:           strings.TrimSpace(common.Model),
 		ReasoningEffort: strings.TrimSpace(common.ReasoningEffort),
-		Speed:           speedpkg.Speed(strings.TrimSpace(string(common.Speed))),
-		ACPOptions:      compozyconfig.CloneACPOptionSelections(common.ACPOptions),
 	}
+	resolved.setRuntime(speedpkg.Speed(strings.TrimSpace(string(common.Speed))), common.ACPOptions)
 	if !resolved.Enabled {
 		populateDisabledRoleIdentity(role, common, &resolved)
 		return resolved, effectiveConfig, nil
@@ -249,13 +247,12 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	route.Model = firstRoleValue(common.Model, route.Model)
 	route.ReasoningEffort = firstRoleValue(common.ReasoningEffort, route.ReasoningEffort)
 	if strings.TrimSpace(string(common.Speed)) != "" {
-		route.Speed = common.Speed
+		route.SetSpeed(common.Speed)
 	}
 	if len(common.ACPOptions) > 0 {
-		route.ACPOptions = compozyconfig.CloneACPOptionSelections(common.ACPOptions)
+		route.SetACPOptions(common.ACPOptions)
 	}
-	resolved.Speed = route.Speed
-	resolved.ACPOptions = compozyconfig.CloneACPOptionSelections(route.ACPOptions)
+	resolved.setRuntime(route.SpeedValue(), route.ACPOptionsValue())
 	if strings.TrimSpace(route.Provider) == "" && cfg != nil {
 		route.Provider = strings.TrimSpace(cfg.Defaults.Provider)
 	}
@@ -276,8 +273,7 @@ func resolveRoleRuntime(cfg *compozyconfig.Config, common compozyconfig.RoleConf
 	resolved.Provider = runtime.Provider
 	resolved.Model = runtime.Model
 	resolved.ReasoningEffort = runtime.ReasoningEffort
-	resolved.Speed = runtime.Speed
-	resolved.ACPOptions = compozyconfig.CloneACPOptionSelections(runtime.ACPOptions)
+	resolved.setRuntime(runtime.SpeedValue(), runtime.ACPOptionsValue())
 	return nil
 }
 

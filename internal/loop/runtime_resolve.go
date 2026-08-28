@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
@@ -198,28 +199,13 @@ func applyRuntime(resolved *ResolvedRuntime, runtime RuntimeSpec, source Runtime
 		resolved.Runtime.Speed = speedpkg.Speed(value)
 		resolved.Source.Speed = source
 	}
-	for _, option := range runtime.ACPOptions {
-		option.ID = strings.TrimSpace(option.ID)
-		if option.ID == "" {
-			continue
-		}
-		option.ValueID = strings.TrimSpace(option.ValueID)
-		updated := false
-		for index := range resolved.Runtime.ACPOptions {
-			if strings.TrimSpace(resolved.Runtime.ACPOptions[index].ID) != option.ID {
-				continue
-			}
-			resolved.Runtime.ACPOptions[index] = option
-			updated = true
-			break
-		}
-		if !updated {
-			resolved.Runtime.ACPOptions = append(resolved.Runtime.ACPOptions, option)
-		}
+	mergedOptions, appliedOptionIDs := dsl.MergeACPOptionSelections(resolved.Runtime.ACPOptions, runtime.ACPOptions)
+	resolved.Runtime.ACPOptions = mergedOptions
+	for _, optionID := range appliedOptionIDs {
 		if resolved.Source.ACPOptions == nil {
 			resolved.Source.ACPOptions = make(map[string]RuntimeSource)
 		}
-		resolved.Source.ACPOptions[option.ID] = source
+		resolved.Source.ACPOptions[optionID] = source
 	}
 }
 
@@ -228,13 +214,7 @@ func normalizeResolvedRuntime(resolved ResolvedRuntime) ResolvedRuntime {
 	resolved.Runtime.Model = strings.TrimSpace(resolved.Runtime.Model)
 	resolved.Runtime.Reasoning = strings.TrimSpace(resolved.Runtime.Reasoning)
 	resolved.Runtime.Speed = speedpkg.Speed(strings.TrimSpace(string(resolved.Runtime.Speed)))
-	for index := range resolved.Runtime.ACPOptions {
-		resolved.Runtime.ACPOptions[index].ID = strings.TrimSpace(resolved.Runtime.ACPOptions[index].ID)
-		resolved.Runtime.ACPOptions[index].ValueID = strings.TrimSpace(resolved.Runtime.ACPOptions[index].ValueID)
-	}
-	slices.SortFunc(resolved.Runtime.ACPOptions, func(left ACPOptionSelection, right ACPOptionSelection) int {
-		return strings.Compare(left.ID, right.ID)
-	})
+	resolved.Runtime.ACPOptions = dsl.CanonicalACPOptionSelections(resolved.Runtime.ACPOptions)
 	if len(resolved.Source.ACPOptions) == 0 {
 		resolved.Source.ACPOptions = nil
 	} else {
