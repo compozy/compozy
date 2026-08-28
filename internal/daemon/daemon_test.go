@@ -36,6 +36,7 @@ import (
 	attachmentspkg "github.com/compozy/compozy/internal/attachments"
 	automationpkg "github.com/compozy/compozy/internal/automation"
 	bridgepkg "github.com/compozy/compozy/internal/bridges"
+	callspkg "github.com/compozy/compozy/internal/calls"
 	"github.com/compozy/compozy/internal/cmdpalette"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
@@ -7199,6 +7200,7 @@ var _ memoryExtractorSessionManager = (*fakeSessionManager)(nil)
 var _ autoTitleSessionManager = (*fakeSessionManager)(nil)
 var _ clarifyEventPublisher = (*fakeSessionManager)(nil)
 var _ workspaceAccessPolicyBinder = (*fakeSessionManager)(nil)
+var _ callSessionManager = (*fakeSessionManager)(nil)
 
 func (f *fakeSessionManager) SetCompactionHandler(handler session.CompactionHandler) {
 	f.mu.Lock()
@@ -8247,6 +8249,23 @@ func (m nonBindableHarnessSessionManager) StopWithCause(
 	return checkpointSessions.StopWithCause(ctx, id, cause, detail)
 }
 
+func (m nonBindableHarnessSessionManager) IsPrompting(sessionID string) bool {
+	calls, ok := m.SessionManager.(callSessionManager)
+	return ok && calls.IsPrompting(sessionID)
+}
+
+func (m nonBindableHarnessSessionManager) QueuedInputDeliveryStatus(
+	ctx context.Context,
+	sessionID string,
+	queueEntryID string,
+) (session.InputDeliveryStatus, error) {
+	calls, ok := m.SessionManager.(callSessionManager)
+	if !ok {
+		return session.InputDeliveryStatus{}, errors.New("daemon test: call session surface is required")
+	}
+	return calls.QueuedInputDeliveryStatus(ctx, sessionID, queueEntryID)
+}
+
 type sessionManagerWithoutWorkspaceRemoval struct {
 	SessionManager
 	workspaceAccessBinder workspaceAccessPolicyBinder
@@ -8308,6 +8327,7 @@ var (
 	_ SessionManager                = (*fakeNetworkBindableSessionManager)(nil)
 	_ SessionManager                = nonBindableHarnessSessionManager{}
 	_ networkBindableSessionManager = (*fakeNetworkBindableSessionManager)(nil)
+	_ callSessionManager            = nonBindableHarnessSessionManager{}
 	_ syntheticPrompter             = (*fakeSessionManager)(nil)
 	_ syntheticPrompter             = nonBindableHarnessSessionManager{}
 	_ spawnSurface                  = nonBindableHarnessSessionManager{}
@@ -8731,6 +8751,7 @@ func (f *fakeResourceReconcileDriver) Close(context.Context) error {
 }
 
 type recordingRegistry struct {
+	daemonBootCallsStoreSupport
 	path                      string
 	onClose                   func()
 	onListTaskRunsByStatus    func([]taskpkg.RunStatus)
@@ -8748,6 +8769,8 @@ type recordingRegistry struct {
 	onNeutralizeLoopOrphans   func()
 	onBackfillLoopProvenance  func()
 }
+
+var _ callspkg.Store = (*recordingRegistry)(nil)
 
 type blockingLoopReconciliationRegistry struct {
 	*globaldb.GlobalDB
