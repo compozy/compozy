@@ -16,7 +16,9 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -174,6 +176,110 @@ func TestUnixPTYHardening(t *testing.T) {
 			t.Fatal("Close() did not unblock live-child read")
 		}
 		stopTestProc(t, proc)
+	})
+
+	t.Run("Should interrupt a blocked write before closing PTY ownership", func(t *testing.T) {
+		proc := startTestProc(t, ProcSpec{
+			Argv: []string{"sh", "-c", "sleep 300"}, Mode: ModePTY, Cols: 80, Rows: 24,
+		})
+		var attempted atomic.Int64
+		var completed atomic.Int64
+		writeDone := make(chan error, 1)
+		go func() {
+			payload := bytes.Repeat([]byte("x"), 64<<10)
+			for {
+				attempted.Add(1)
+				if _, err := proc.Write(payload); err != nil {
+					writeDone <- err
+					return
+				}
+				completed.Add(1)
+			}
+		}()
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		for completed.Load() == 0 {
+			select {
+			case err := <-writeDone:
+				t.Fatalf("PTY writer stopped before reaching backpressure: %v", err)
+			case <-deadline.C:
+				t.Fatal("PTY writer made no initial progress")
+			default:
+				runtime.Gosched()
+			}
+		}
+		for attempted.Load() == completed.Load() {
+			select {
+			case err := <-writeDone:
+				t.Fatalf("PTY writer stopped before an active write was observed: %v", err)
+			case <-deadline.C:
+				t.Fatal("PTY writer never exposed an active write")
+			default:
+				runtime.Gosched()
+			}
+		}
+		closeDone := make(chan error, 1)
+		go func() { closeDone <- proc.Close() }()
+		select {
+		case err := <-closeDone:
+			if err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("Close() did not interrupt the blocked PTY write")
+		}
+		select {
+		case err := <-writeDone:
+			if errors.Is(err, unix.EAGAIN) || errors.Is(err, unix.EWOULDBLOCK) {
+				t.Fatalf("blocked PTY writer returned a readiness error: %v", err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("blocked PTY writer retained device ownership after Close()")
+		}
+		stopTestProc(t, proc)
+	})
+
+	t.Run("Should deliver redacted input and restore terminal echo", func(t *testing.T) {
+		t.Parallel()
+
+		proc := startTestProc(t, ProcSpec{
+			Argv: []string{
+				"sh",
+				"-c",
+				"stty -icanon; printf 'redacted-ready\\n'; head -c 65536 >/dev/null; printf 'redacted-accepted\\n'",
+			},
+			Mode: ModePTY,
+			Cols: 80,
+			Rows: 24,
+		})
+		defer stopTestProc(t, proc)
+		unixProcess := proc.(*unixProc)
+		reader := bufio.NewReader(unixProcess.reader)
+		if line, err := readUntilContaining(reader, "redacted-ready"); err != nil {
+			t.Fatalf("read readiness = %q error=%v", line, err)
+		}
+		secret := bytes.Repeat([]byte("x"), 64<<10)
+		result, err := unixProcess.WriteRedacted(secret)
+		if err != nil || result.RestoreError != nil || result.BytesDelivered != len(secret) {
+			t.Fatalf(
+				"WriteRedacted() = %#v error=%v, want %d delivered bytes and restored echo",
+				result, err, len(secret),
+			)
+		}
+		visible, err := unixProcess.InputVisible()
+		if err != nil {
+			t.Fatalf("InputVisible(after redacted write) error = %v", err)
+		}
+		if !visible {
+			t.Fatal("InputVisible(after redacted write) = false, want restored echo")
+		}
+		line, err := readUntilContaining(reader, "redacted-accepted")
+		if err != nil {
+			t.Fatalf("read redacted completion = %q error=%v", line, err)
+		}
+		if bytes.Contains([]byte(line), secret) {
+			t.Fatalf("redacted output = %q", line)
+		}
 	})
 
 	t.Run("Should isolate the child process group and controlling terminal [UT-003]", func(t *testing.T) {

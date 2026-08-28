@@ -15,14 +15,14 @@ import type { TerminalGapBuffer } from "./terminal-gap-buffer";
 
 export interface TerminalResyncPort {
   /** Fetches the current screen and the sequence it ends at. */
-  readSnapshot: () => Promise<{ content: string; seq: number; busy: boolean }>;
+  readSnapshot: () => Promise<{ content: string; seq: bigint; busy: boolean }>;
   /** Clears the emulator. Runs inside the serialized emulator chain. */
   reset: () => void;
   write: (content: string) => Promise<void>;
   /** Runs one emulator operation after every operation queued before it. */
   enqueue: (run: () => Promise<void>) => Promise<void>;
   gapBuffer: TerminalGapBuffer;
-  commit: (seqEnd: number) => void;
+  commit: (seqEnd: bigint) => void;
   setStatus: (status: "resyncing" | "connected") => void;
   setInputEnabled: (enabled: boolean) => void;
   /** Reports that the snapshot and held tail now form one continuous screen. */

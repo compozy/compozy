@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/gin-gonic/gin"
@@ -30,6 +31,13 @@ func (h *BaseHandlers) resolveProfileReadScope(c *gin.Context) (profilepkg.ReadS
 }
 
 func (h *BaseHandlers) resolveProfileReadSelection(c *gin.Context) (resolvedProfileReadScope, error) {
+	return h.resolveProfileReadSelectionForWorkspace(c, "")
+}
+
+func (h *BaseHandlers) resolveProfileReadSelectionForWorkspace(
+	c *gin.Context,
+	workspaceID string,
+) (resolvedProfileReadScope, error) {
 	allProfiles, err := parseBoolQuery(c, "all_profiles")
 	if err != nil {
 		return resolvedProfileReadScope{}, fmt.Errorf("%w: %v", profilepkg.ErrInvalidInput, err)
@@ -46,13 +54,29 @@ func (h *BaseHandlers) resolveProfileReadSelection(c *gin.Context) (resolvedProf
 	sessionProfileID := ""
 	credentials := agentCallerCredentialsFromRequest(c)
 	if hasAgentCallerIdentityCredentials(credentials) {
-		caller, resolveErr := h.resolveAgentCaller(c.Request.Context(), credentials, "profile.read")
+		var caller agentidentity.Caller
+		var resolveErr error
+		if strings.TrimSpace(workspaceID) == "" {
+			caller, resolveErr = h.resolveAgentCaller(c.Request.Context(), credentials, "profile.read")
+		} else {
+			caller, resolveErr = h.resolveAgentCallerForWorkspace(
+				c.Request.Context(), credentials, "terminal.read", workspaceID,
+			)
+		}
 		if resolveErr != nil {
 			return resolvedProfileReadScope{}, resolveErr
 		}
 		sessionProfileID = strings.TrimSpace(caller.Session.ProfileID)
 	}
 	if allProfiles {
+		if sessionProfileID != "" {
+			return resolvedProfileReadScope{}, &profilepkg.Error{
+				Code:    profileSelectionConflictCode,
+				Message: "all_profiles is only available to operators",
+				Action:  "read the agent profile selected by the authenticated session",
+				Cause:   profilepkg.ErrInvalidInput,
+			}
+		}
 		return resolvedProfileReadScope{Scope: profilepkg.ReadScope{AllProfiles: true}}, nil
 	}
 	if requested == "" && sessionProfileID == "" {
@@ -94,7 +118,14 @@ func (h *BaseHandlers) resolveProfileMutationScope(c *gin.Context) (profilepkg.R
 }
 
 func (h *BaseHandlers) resolveProfileMutationSelection(c *gin.Context) (resolvedProfileReadScope, error) {
-	resolved, err := h.resolveProfileReadSelection(c)
+	return h.resolveProfileMutationSelectionForWorkspace(c, "")
+}
+
+func (h *BaseHandlers) resolveProfileMutationSelectionForWorkspace(
+	c *gin.Context,
+	workspaceID string,
+) (resolvedProfileReadScope, error) {
+	resolved, err := h.resolveProfileReadSelectionForWorkspace(c, workspaceID)
 	if err != nil {
 		return resolvedProfileReadScope{}, err
 	}

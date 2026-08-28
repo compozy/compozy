@@ -13,6 +13,7 @@ function inputRequest(overrides: Partial<TerminalInputRequest> = {}): TerminalIn
     prompt_excerpt: "Password:",
     redacted: true,
     requested_at: "2026-08-25T12:44:00Z",
+    requester: { kind: "agent", id: "agent-coder" },
     ...overrides,
   };
 }

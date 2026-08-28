@@ -74,6 +74,7 @@ func assertTerminalOutputWindow(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+	beginACPTestRun(t, proc, "turn-output-window")
 	run := func(payload string, limit *int) acpsdk.TerminalOutputResponse {
 		create, err := proc.handleCreateTerminal(context.Background(), acpsdk.CreateTerminalRequest{
 			SessionId:       "sess-direct",
@@ -173,12 +174,10 @@ func assertCanceledTerminalRequests(t *testing.T) {
 func assertIndependentCloseAllBudgets(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		core := &closeAllTerminalCore{observed: make(chan cleanupContextState, 2)}
-		shutdown := &terminalShutdownProbe{observed: make(chan cleanupContextState, 1)}
 		lifecycle := context.WithValue(t.Context(), acpCleanupContextKey{}, "lifecycle-value")
 		manager := &terminalManager{
 			lifecycle: lifecycle,
 			core:      core,
-			ownedCore: shutdown,
 			terminals: map[string]*managedTerminal{
 				"term-a": {
 					handle: &terminalInfoHandle{info: terminalpkg.Info{
@@ -195,14 +194,10 @@ func assertIndependentCloseAllBudgets(t *testing.T) {
 		manager.closeAll()
 		first := <-core.observed
 		second := <-core.observed
-		shutdownState := <-shutdown.observed
 		if !errors.Is(first.err, context.DeadlineExceeded) || !first.hasDeadline {
 			t.Fatalf("first terminal cleanup context = %#v, want exhausted bounded context", first)
 		}
-		for name, state := range map[string]cleanupContextState{
-			"second terminal": second,
-			"core shutdown":   shutdownState,
-		} {
+		for name, state := range map[string]cleanupContextState{"second terminal": second} {
 			if state.err != nil || !state.hasDeadline || state.value != "lifecycle-value" {
 				t.Fatalf("%s context = %#v, want active independent bounded context", name, state)
 			}
@@ -265,15 +260,6 @@ func (c *closeAllTerminalCore) Release(
 	}
 	c.observed <- observeACPContext(ctx)
 	return ctx.Err()
-}
-
-type terminalShutdownProbe struct {
-	observed chan cleanupContextState
-}
-
-func (p *terminalShutdownProbe) Shutdown(ctx context.Context) error {
-	p.observed <- observeACPContext(ctx)
-	return nil
 }
 
 type terminalInfoHandle struct {

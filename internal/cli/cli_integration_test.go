@@ -376,12 +376,12 @@ func TestTerminalAgentCommandBodiesShouldMatchHTTPClientContracts(t *testing.T) 
 		if exitCode != 1 || stdout != "" {
 			t.Fatalf("missing input request exit/stdout = %d/%q, want 1/empty", exitCode, stdout)
 		}
-		var payload contract.ErrorPayload
+		var payload contract.TerminalErrorResponse
 		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
 			t.Fatalf("json.Unmarshal(missing input request) error = %v; stderr=%s", err, stderr)
 		}
-		if payload.Code != "input_request_not_found" {
-			t.Fatalf("missing input request code = %q", payload.Code)
+		if payload.Error.Code != "input_request_not_found" {
+			t.Fatalf("missing input request code = %q", payload.Error.Code)
 		}
 	})
 	if client.exec.Workspace != "workspace-a" || client.exec.Request.YieldMs != 250 ||
@@ -396,7 +396,7 @@ func TestTerminalAttachCommand(t *testing.T) {
 	t.Parallel()
 	t.Run("Should report the exited terminal code and cause before opening a stream", func(t *testing.T) {
 		t.Parallel()
-		signal := terminalpkg.SignalHUP
+		signal := contract.TerminalSignal(terminalpkg.SignalHUP)
 		client := &terminalAgentCommandClient{
 			DaemonClient: newDefaultProfileTestClient(&stubClient{}),
 			terminal: contract.TerminalInfoPayload{
@@ -434,24 +434,27 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 
 	fixed := time.Date(2026, time.August, 25, 12, 30, 0, 0, time.UTC)
 	exitCode := 7
-	exitSignal := "TERM"
+	exitSignal := contract.TerminalSignal("TERM")
 	next := "journal-next"
-	terminalID := terminalpkg.ID("term-a")
+	terminalID := contract.TerminalID("term-a")
 	terminalPayload := contract.TerminalInfoPayload{
-		ID:           terminalID,
-		WorkspaceID:  "workspace-a",
-		ProfileID:    "profile-work",
-		ProfileName:  "work",
-		Title:        "Build",
-		Shell:        "/bin/zsh",
-		Cwd:          "/workspace",
-		Mode:         terminalpkg.ModePTY,
-		State:        "exited",
-		Controller:   &contract.TerminalControllerPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
-		Lease:        terminalpkg.LeaseAgentOwned,
+		ID:          terminalID,
+		WorkspaceID: "workspace-a",
+		ProfileID:   "profile-work",
+		ProfileName: "work",
+		Title:       "Build",
+		Shell:       "/bin/zsh",
+		Cwd:         "/workspace",
+		Mode:        contract.TerminalMode(terminalpkg.ModePTY),
+		State:       "exited",
+		Controller: &contract.TerminalControllerPayload{
+			Kind: contract.TerminalActorKind(terminalpkg.ActorKindAgent),
+			ID:   "atlas",
+		},
+		Lease:        contract.TerminalLeaseState(terminalpkg.LeaseAgentOwned),
 		Viewers:      2,
 		BoundRun:     &contract.TerminalRunPayload{SessionID: "session-a", RunID: "run-a", Generation: 7},
-		Capabilities: terminalpkg.Capabilities{Interactive: true},
+		Capabilities: contract.TerminalCapabilitiesPayload{Interactive: true},
 		CreatedAt:    fixed,
 		Exit: &contract.TerminalExitPayload{
 			Cause:  "signal",
@@ -461,12 +464,26 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 		},
 	}
 	journalPayload := contract.TerminalJournalResponse{
-		Entries: []contract.TerminalCommandRowPayload{{
-			ID: "command-a", TerminalID: &terminalID, ProfileID: "profile-work", ProfileName: "work",
-			Actor:   contract.TerminalCommandActorPayload{Kind: terminalpkg.ActorKindAgent, ID: "atlas"},
-			Command: "make gate", Cwd: "/workspace", StartedAt: fixed, ExitCode: &exitCode,
-			ExitCause: "exit", DetectedBy: "marker", Approval: "allowed", OutputBytes: 2048,
-		}},
+		Entries: []contract.TerminalCommandRowPayload{
+			{
+				ID:          "command-a",
+				TerminalID:  &terminalID,
+				ProfileID:   "profile-work",
+				ProfileName: "work",
+				Actor: contract.TerminalCommandActorPayload{
+					Kind: contract.TerminalActorKind(terminalpkg.ActorKindAgent),
+					ID:   "atlas",
+				},
+				Command:     "make gate",
+				Cwd:         "/workspace",
+				StartedAt:   fixed,
+				ExitCode:    &exitCode,
+				ExitCause:   "exit",
+				DetectedBy:  "marker",
+				Approval:    "allowed",
+				OutputBytes: 2048,
+			},
+		},
 		Next: &next,
 	}
 
@@ -479,6 +496,7 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 			writeRemoteCLIJSON(writer, http.StatusOK, []contract.Profile{
 				{ID: "profile-default", Name: "default", State: "active"},
 				{ID: "profile-work", Name: "work", State: "active"},
+				{ID: "profile-archived", Name: "archived", State: "archived"},
 			})
 		case request.Method == http.MethodGet && path == "/api/profiles/selection":
 			writeRemoteCLIJSON(writer, http.StatusOK, []contract.ProfileSelection{})
@@ -588,6 +606,21 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 			wantRequest: "/api/workspaces/workspace-a/terminals/journal?limit=50&profile=work",
 		},
 		{
+			name: "journal with an archived profile",
+			args: []string{
+				"terminal",
+				"journal",
+				"--workspace",
+				"workspace-a",
+				"--profile",
+				"archived",
+				"-o",
+				"json",
+			},
+			wantPayload: journalPayload,
+			wantRequest: "/api/workspaces/workspace-a/terminals/journal?limit=50&profile=archived",
+		},
+		{
 			name:        "journal across profiles",
 			args:        []string{"terminal", "journal", "--workspace", "workspace-a", "--all-profiles", "-o", "json"},
 			wantPayload: journalPayload,
@@ -651,6 +684,32 @@ func TestTerminalCLIJSONShouldMatchHTTPAcrossProfileSelectors(t *testing.T) { //
 			t.Fatalf("aggregate mutation error = %#v, want %q field", payload, clientErrorKey)
 		}
 	})
+
+	t.Run("Should reject an archived profile for terminal mutations", func(t *testing.T) {
+		exit, stdout, stderr := executeRootCommandWithExit(
+			t,
+			deps,
+			"terminal",
+			"open",
+			"--workspace",
+			"workspace-a",
+			"--profile",
+			"archived",
+			"--detach",
+			"-o",
+			"json",
+		)
+		if exit != 1 || stdout != "" {
+			t.Fatalf("archived mutation exit = %d, stdout = %q; want exit 1 and empty stdout", exit, stdout)
+		}
+		var payload contract.ProfileErrorPayload
+		if err := json.Unmarshal([]byte(stderr), &payload); err != nil {
+			t.Fatalf("json.Unmarshal(archived mutation) error = %v; stderr=%s", err, stderr)
+		}
+		if payload.Error.Code != "profile_archived" {
+			t.Fatalf("archived mutation code = %q, want profile_archived", payload.Error.Code)
+		}
+	})
 }
 
 func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
@@ -661,6 +720,10 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 		profileName = "work profile"
 		basePath    = "/api/workspaces/workspace%20%2Fa/terminals"
 	)
+	exitCode := 0
+	terminalIDPayload := contract.TerminalID(terminalID)
+	requestedAt := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
+	resolvedAt := requestedAt.Add(time.Minute)
 	testCases := []struct {
 		name     string
 		method   string
@@ -669,21 +732,69 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 		body     string
 		status   int
 		response string
+		wantErr  string
 		invoke   func(context.Context, *daemonClient) error
 	}{
 		{
-			name:     "Should send terminal exec fields through the concrete HTTP client",
-			method:   http.MethodPost,
-			path:     basePath + "/exec",
-			query:    "profile=work+profile",
-			body:     `{"command":"printf","args":["%s","ok"],"cwd":"sub dir","env":{"MODE":"test"},"yield_ms":250,"visible":true,"output":{"max_bytes":1024,"strategy":"head_tail","grep":"warn"}}`,
-			status:   http.StatusOK,
-			response: `{}`,
+			name:   "Should accept a completed terminal exec response without terminal ownership",
+			method: http.MethodPost,
+			path:   basePath + "/exec",
+			query:  "profile=work+profile",
+			body:   `{"command":"printf","args":["%s","ok"],"cwd":"sub dir","env":{"MODE":"test"},"yield_ms":250,"visible":true,"output":{"max_bytes":1024,"strategy":"head_tail","grep":"warn"}}`,
+			status: http.StatusOK,
+			response: string(mustJSON(t, contract.TerminalExecResponse{
+				ExitCode: &exitCode, Output: "ok", Untrusted: true, DurationMs: 12,
+				CommandID: "command-a",
+			})),
 			invoke: func(ctx context.Context, client *daemonClient) error {
-				_, err := client.ExecTerminal(ctx, workspaceID, TerminalExecRequest{
+				result, err := client.ExecTerminal(ctx, workspaceID, TerminalExecRequest{
 					Command: "printf", Args: []string{"%s", "ok"}, Cwd: "sub dir",
 					Env: map[string]string{"MODE": "test"}, YieldMs: 250, Visible: true,
 					Output: terminalpkg.OutputShape{MaxBytes: 1024, Strategy: "head_tail", Grep: "warn"},
+				})
+				if err == nil && (result.CommandID != "command-a" || result.Output != "ok" ||
+					result.ExitCode == nil || *result.ExitCode != exitCode || result.DurationMs != 12 ||
+					result.TerminalID != nil || result.StillRunning || !result.Untrusted) {
+					return fmt.Errorf("exec result = %#v, want complete command-a response", result)
+				}
+				return err
+			},
+		},
+		{
+			name:   "Should require terminal ownership for a running terminal exec response",
+			method: http.MethodPost,
+			path:   basePath + "/exec",
+			query:  "profile=work+profile",
+			body:   `{"command":"sleep","args":["30"],"yield_ms":250,"visible":true}`,
+			status: http.StatusAccepted,
+			response: string(mustJSON(t, contract.TerminalExecResponse{
+				CommandID: "command-running", TerminalID: &terminalIDPayload, StillRunning: true,
+			})),
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				result, err := client.ExecTerminal(ctx, workspaceID, TerminalExecRequest{
+					Command: "sleep", Args: []string{"30"}, YieldMs: 250, Visible: true,
+				})
+				if err == nil && (result.CommandID != "command-running" || result.TerminalID == nil ||
+					string(*result.TerminalID) != terminalID || !result.StillRunning) {
+					return fmt.Errorf("exec result = %#v, want running command with terminal ownership", result)
+				}
+				return err
+			},
+		},
+		{
+			name:   "Should reject a running terminal exec response without terminal ownership",
+			method: http.MethodPost,
+			path:   basePath + "/exec",
+			query:  "profile=work+profile",
+			body:   `{"command":"sleep","args":["30"],"yield_ms":250,"visible":true}`,
+			status: http.StatusAccepted,
+			response: string(mustJSON(t, contract.TerminalExecResponse{
+				CommandID: "command-running", StillRunning: true,
+			})),
+			wantErr: "missing terminal_id for a running command",
+			invoke: func(ctx context.Context, client *daemonClient) error {
+				_, err := client.ExecTerminal(ctx, workspaceID, TerminalExecRequest{
+					Command: "sleep", Args: []string{"30"}, YieldMs: 250, Visible: true,
 				})
 				return err
 			},
@@ -692,11 +803,18 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			name:   "Should encode terminal read scope and filters",
 			method: http.MethodGet, path: basePath + "/term%20%2Fa/read",
 			query:  "from=2&grep=fail+%2Fnow&max_bytes=2048&profile=work+profile&since_seq=9&to=4&view=lines",
-			status: http.StatusOK, response: `{}`,
+			status: http.StatusOK,
+			response: string(mustJSON(t, contract.TerminalReadResponse{
+				Content: "screen", Seq: contract.TerminalSequence("9"), Truncated: true, Untrusted: true,
+			})),
 			invoke: func(ctx context.Context, client *daemonClient) error {
-				_, err := client.ReadTerminal(ctx, workspaceID, terminalID, TerminalReadOptions{
+				result, err := client.ReadTerminal(ctx, workspaceID, terminalID, TerminalReadOptions{
 					View: "lines", MaxBytes: 2048, SinceSeq: 9, FromLine: 2, ToLine: 4, Grep: "fail /now",
 				})
+				if err == nil && (result.Content != "screen" || result.Seq != 9 || !result.Truncated ||
+					result.Busy || !result.Untrusted) {
+					return fmt.Errorf("read result = %#v, want complete screen response", result)
+				}
 				return err
 			},
 		},
@@ -712,13 +830,34 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			name:   "Should list scoped terminal input requests",
 			method: http.MethodGet, path: basePath + "/input-requests",
 			query: "profile=work+profile&terminal_id=term+%2Fa", status: http.StatusOK,
-			response: `{"requests":[]}`,
+			response: string(mustJSON(t, contract.TerminalInputRequestsResponse{
+				Pending: []contract.TerminalPendingInputRequest{{
+					ID: requestID, TerminalID: terminalIDPayload, WorkspaceID: workspaceID,
+					ProfileID: "profile-a", ProfileName: profileName, Reason: "password",
+					PromptExcerpt: "Password:", Redacted: true, RequestedAt: requestedAt,
+					Requester: contract.TerminalInputActorPayload{Kind: "agent", ID: "agent-a"},
+				}},
+				Resolved: []contract.TerminalResolvedInputRequest{{
+					ID: "resolved-a", TerminalID: terminalIDPayload, WorkspaceID: workspaceID,
+					ProfileID: "profile-a", ProfileName: profileName,
+					Requester:  contract.TerminalInputActorPayload{Kind: "agent", ID: "agent-a"},
+					Outcome:    contract.TerminalInputResolutionOutcomeAnswered,
+					ResolvedBy: contract.TerminalInputActorPayload{Kind: "human", ID: "operator"},
+					Redacted:   true, Length: 4, RequestedAt: requestedAt, ResolvedAt: resolvedAt,
+				}},
+			})),
 			invoke: func(ctx context.Context, client *daemonClient) error {
-				_, err := client.ListTerminalInputRequests(
+				requests, err := client.ListTerminalInputRequests(
 					ctx,
 					workspaceID,
 					TerminalInputRequestQuery{TerminalID: terminalID},
 				)
+				if err == nil && (len(requests.Pending) != 1 || len(requests.Resolved) != 1 ||
+					requests.Pending[0].Requester.ID != "agent-a" ||
+					requests.Resolved[0].Outcome != terminalpkg.InputResolutionOutcomeAnswered ||
+					requests.Resolved[0].Length != 4) {
+					return fmt.Errorf("input requests = %#v, want complete pending/resolved response", requests)
+				}
 				return err
 			},
 		},
@@ -764,17 +903,25 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			},
 		},
 		{
-			name:     "Should control recording on the escaped terminal",
-			method:   http.MethodPost,
-			path:     basePath + "/term%20%2Fa/recording",
-			query:    "profile=work+profile",
-			body:     `{"action":"start"}`,
-			status:   http.StatusOK,
-			response: `{"recording":{"id":"recording-a","terminal_id":"term /a","profile_id":"profile-a","digest":"digest-a","started_at":"2026-08-25T12:00:00Z","bytes":0,"expires_at":"2026-09-25T12:00:00Z"}}`,
+			name:   "Should control recording on the escaped terminal",
+			method: http.MethodPost,
+			path:   basePath + "/term%20%2Fa/recording",
+			query:  "profile=work+profile",
+			body:   `{"action":"start"}`,
+			status: http.StatusOK,
+			response: string(
+				mustJSON(t, contract.TerminalRecordingResponse{Recording: contract.TerminalRecordingPayload{
+					ID: "recording-a", State: contract.TerminalRecordingStateRecording, TerminalID: terminalIDPayload,
+					ProfileID: "profile-a", Digest: "digest-a", StartedAt: requestedAt, Bytes: 0,
+					ExpiresAt: time.Date(2026, time.September, 25, 12, 0, 0, 0, time.UTC),
+				}}),
+			),
 			invoke: func(ctx context.Context, client *daemonClient) error {
 				recording, err := client.ControlTerminalRecording(ctx, workspaceID, terminalID, "start")
-				if err == nil && recording.ID != "recording-a" {
-					return fmt.Errorf("recording id = %q, want recording-a", recording.ID)
+				if err == nil && (recording.ID != "recording-a" || recording.State != "recording" ||
+					string(recording.TerminalID) != terminalID || recording.ProfileID != "profile-a" ||
+					recording.Digest != "digest-a") {
+					return fmt.Errorf("recording = %#v, want complete recording response", recording)
 				}
 				return err
 			},
@@ -816,8 +963,12 @@ func TestTerminalAgentHTTPClientShouldHonorBoundaryContract(t *testing.T) {
 			ctx := context.WithValue(
 				t.Context(), profileReadSelectionContextKey{}, profileReadSelection{Profile: profileName},
 			)
-			if err := testCase.invoke(ctx, concrete); err != nil {
-				t.Fatalf("terminal client invocation error = %v", err)
+			invokeErr := testCase.invoke(ctx, concrete)
+			if testCase.wantErr == "" && invokeErr != nil {
+				t.Fatalf("terminal client invocation error = %v", invokeErr)
+			}
+			if testCase.wantErr != "" && (invokeErr == nil || !strings.Contains(invokeErr.Error(), testCase.wantErr)) {
+				t.Fatalf("terminal client invocation error = %v, want containing %q", invokeErr, testCase.wantErr)
 			}
 			request := <-captured
 			if request.err != nil {
@@ -960,13 +1111,15 @@ func (c *terminalAgentCommandClient) ListTerminalInputRequests(
 	ctx context.Context,
 	_ string,
 	_ TerminalInputRequestQuery,
-) ([]terminalpkg.PendingInputRequest, error) {
+) (TerminalInputRequests, error) {
 	selection, ok := ctx.Value(profileReadSelectionContextKey{}).(profileReadSelection)
 	c.inputAllProfiles = ok && selection.AllProfiles
 	if c.noInputRequests {
-		return nil, nil
+		return TerminalInputRequests{}, nil
 	}
-	return []terminalpkg.PendingInputRequest{{ID: "input-a", TerminalID: "term-a"}}, nil
+	return TerminalInputRequests{
+		Pending: []terminalpkg.PendingInputRequest{{ID: "input-a", TerminalID: "term-a"}},
+	}, nil
 }
 func (*terminalAgentCommandClient) AnswerTerminalInputRequest(
 	context.Context,
@@ -5708,7 +5861,9 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		return fmt.Errorf("new network manager: %w", err)
 	}
 	manager.SetNetworkPeerLifecycle(networkManager)
-	manager.SetTurnEndNotifier(networkManager.OnTurnEnd)
+	manager.SetTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
+		networkManager.OnTurnEnd(identity.SessionID)
+	})
 
 	soulAuthoring, err := soul.NewManagedSoulAuthoringService(registry)
 	if err != nil {

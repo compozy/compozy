@@ -17,6 +17,7 @@ import {
 import { runCommand, startCommand, type RunningCommand } from "../process";
 import { completeOnboarding } from "../helpers";
 import { executableSha256File } from "../../../src/bootstrap/executable-digest";
+import { TERMINAL_SUBPROTOCOL } from "../../../../web/src/generated/terminal-wire";
 
 const testDirectory = fileURLToPath(new URL(".", import.meta.url));
 const repositoryRoot = resolve(testDirectory, "../../../..");
@@ -1272,7 +1273,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
     return Array.isArray(violations) ? violations : [];
   });
   expect(initialCSPViolations.filter(directive => directive.startsWith("font-src"))).toEqual([]);
-  const cspProbe = await product.evaluate(async () => {
+  const cspProbe = await product.evaluate(async terminalSubprotocol => {
     const observeViolations = async (probe: () => Promise<void> | void) => {
       const directives: string[] = [];
       const onViolation = (event: SecurityPolicyViolationEvent) => {
@@ -1306,7 +1307,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
           resolveAttempt();
         };
         try {
-          socket = new WebSocket(url, "compozy.terminal.v1");
+          socket = new WebSocket(url, terminalSubprotocol);
         } catch {
           finish();
           return;
@@ -1337,7 +1338,7 @@ test("E2E-034: packaged windows enforce security boundaries and intentional debu
       crossOriginSocketDirectives,
       inlineScriptRan: Reflect.get(globalThis, "__compozyInlineScriptRan") === true,
     };
-  });
+  }, TERMINAL_SUBPROTOCOL);
   expect(cspProbe.inlineScriptRan).toBe(false);
   expect(
     cspProbe.inlineScriptDirectives.some(directive => directive.startsWith("script-src"))

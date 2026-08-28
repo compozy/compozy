@@ -1,6 +1,7 @@
 package terminal
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -34,20 +35,14 @@ func shapeOutput(content []byte, shape OutputShape) (string, bool, error) {
 	case "head_tail":
 		return elidedHeadTail(content, maximum), true, nil
 	default:
-		return "", false, &Error{
-			Code:    "terminal_output_strategy_invalid",
-			Message: "terminal output strategy must be tail or head_tail",
-			Err:     ErrUnsupported,
-		}
+		return "", false, fmt.Errorf("terminal output strategy must be tail or head_tail: %w", ErrUnsupported)
 	}
 }
 
 func grepOutput(content []byte, pattern string) ([]byte, error) {
 	expression, err := regexp.Compile(pattern)
 	if err != nil {
-		return nil, &Error{
-			Code: "terminal_grep_pattern_invalid", Message: "terminal grep pattern is invalid", Err: ErrUnsupported,
-		}
+		return nil, fmt.Errorf("terminal grep pattern is invalid: %w", errors.Join(ErrUnsupported, err))
 	}
 	lines := strings.Split(string(content), "\n")
 	matches := make([]string, 0)

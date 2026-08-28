@@ -224,6 +224,16 @@ func (r *ActionRegistry) resolve(
 	if err := id.Validate(); err != nil {
 		return nil, unknownActionKindError(trimmed, err)
 	}
+	if tools.IsTerminalTool(id) {
+		return nil, reasonError(
+			ReasonCodeActionDependencyMissing,
+			fmt.Errorf(
+				"%w: terminal tools require an active session run and cannot execute as loop actions",
+				ErrActionDependencyMissing,
+			),
+			map[string]string{actionDependencyMetaKey: "session_run_identity"},
+		)
+	}
 	view, err := r.runtime.Get(ctx, scope, id)
 	if err != nil {
 		return nil, unknownActionKindError(trimmed, err)

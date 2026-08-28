@@ -165,3 +165,13 @@ func (p *AgentProcess) activeTurnID() string {
 	}
 	return active.turnID
 }
+
+func (p *AgentProcess) activeRunIdentity() (string, int64) {
+	p.promptMu.RLock()
+	defer p.promptMu.RUnlock()
+	active := p.activePrompt
+	if active == nil {
+		return "", 0
+	}
+	return strings.TrimSpace(active.runID), active.generation
+}

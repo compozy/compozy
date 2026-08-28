@@ -24,7 +24,7 @@ export interface OpenTerminalStreamOptions {
   /** Watchers drop what they cannot keep up with; writers return credit. */
   flow: "drop" | "ack";
   /** Resume point: the last byte this viewer actually saw, or none. */
-  afterSeq: number | undefined;
+  afterSeq: bigint | undefined;
   /** The size this viewer would like, carried into the upgrade. */
   proposed: { cols: number; rows: number } | null;
   socketFactory?: TerminalSocketFactory;

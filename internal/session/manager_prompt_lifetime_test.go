@@ -357,6 +357,11 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		if len(promptRequests) != 2 || promptRequests[0].TurnID != promptRequests[1].TurnID {
 			t.Fatalf("driver Prompt() requests = %#v, want one replay with the original turn id", promptRequests)
 		}
+		if promptRequests[0].RunID == "" || promptRequests[0].RunID != promptRequests[1].RunID ||
+			promptRequests[0].RunID == promptRequests[0].TurnID ||
+			promptRequests[0].Generation != 1 || promptRequests[1].Generation != 2 {
+			t.Fatalf("driver Prompt() identities = %#v, want one run across generations 1 and 2", promptRequests)
+		}
 		if got := countEventType(readStoredEvents(t, session), acp.EventTypeUserMessage); got != 1 {
 			t.Fatalf("stored user messages = %d, want exactly one across replay", got)
 		}
@@ -368,7 +373,9 @@ func TestPromptRuntimeRecovery(t *testing.T) {
 		}
 		started := <-startedHooks
 		succeeded := <-succeededHooks
-		if started.TurnID != succeeded.TurnID || started.Generation != 2 || succeeded.Generation != 2 ||
+		if started.TurnID != succeeded.TurnID || started.RunID != promptRequests[0].RunID ||
+			succeeded.RunID != promptRequests[0].RunID || started.RunID == started.TurnID ||
+			started.Generation != 2 || succeeded.Generation != 2 ||
 			started.Attempt != 1 || succeeded.Attempt != 1 {
 			t.Fatalf("recovery hooks = started %#v, succeeded %#v", started, succeeded)
 		}

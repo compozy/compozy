@@ -125,6 +125,12 @@ func schemaRefForParameter(spec ParameterSpec) *openapi3.SchemaRef {
 			schema.Enum = append(schema.Enum, value)
 		}
 	}
+	if spec.Pattern != "" {
+		schema.Pattern = spec.Pattern
+	}
+	if spec.MaxLength != nil {
+		schema.MaxLength = spec.MaxLength
+	}
 	if spec.Maximum != nil {
 		schema.WithMax(*spec.Maximum)
 	}

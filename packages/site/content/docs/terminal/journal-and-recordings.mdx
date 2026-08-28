@@ -7,13 +7,16 @@ CompozyOS separates terminal history into three data classes.
 
 | Data                       | Default                                     | Lifetime                                                    |
 | -------------------------- | ------------------------------------------- | ----------------------------------------------------------- |
-| Command journal            | Always on                                   | Until the workspace is deleted                              |
-| Live output and scrollback | Ephemeral and bounded                       | Until terminal or daemon runtime ends                       |
+| Command facts              | Always on                                   | Until the workspace is deleted                              |
+| Live output, scrollback, and bounded output tail | Ephemeral and bounded       | Until terminal or daemon runtime ends                       |
 | Full recording             | Off; per terminal or `[terminal].recording` | Until its configured retention expiry or workspace deletion |
 
 The journal writes one row for each command boundary detected in a CompozyOS terminal. It records the
 actor, command, working directory, timing, exit cause, approval, output size, truncation, and detection
-method. `exact` and `marker` are authenticated boundaries; `idle` is approximate and remains labeled.
+method. While the daemon is running, it may add a bounded typed output tail to recent query results;
+that projection is not stored and disappears on restart. Redacted input contributes only its character
+count, never its bytes. `exact` and `marker` are authenticated boundaries; `idle` is approximate and
+remains labeled. The live tail is diagnostic context, not a full replay.
 
 Query recent rows:
 
@@ -43,8 +46,9 @@ operations through supported CLI, API, and native-tool surfaces. The default is 
 does not add a recording to terminals that are already open.
 
 Recording uses a bounded writer. Storage failure stops the recording and reports the failure; it does
-not stop the live terminal. Input marked redacted never enters a recording. Output not explicitly
-recorded cannot be reconstructed after its ephemeral buffer is gone.
+not stop the live terminal. Redacted bytes never enter a recording; only the trusted
+`hidden input · N characters` marker does. Output not explicitly recorded cannot be reconstructed
+after its ephemeral buffer is gone.
 
 Spilled bounded-output artifacts follow the same workspace and profile checks. Clients download an
 artifact from `GET /api/workspaces/{workspace_id}/terminals/artifacts/{artifact_id}`; a foreign-profile

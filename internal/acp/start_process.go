@@ -43,13 +43,13 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 		)
 	}
 	procCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
-	terminalScope := terminalScope{
-		workspaceID:  normalized.WorkspaceID,
-		profileID:    normalized.ProfileID,
-		sessionID:    normalized.CompozySessionID,
-		generation:   normalized.RuntimeGeneration,
-		actorID:      normalized.AgentName,
-		allowedRoots: append([]string{normalized.Cwd}, normalized.AdditionalDirs...),
+	terminalScope := LocalTerminalScope{
+		WorkspaceID:  normalized.WorkspaceID,
+		ProfileID:    normalized.ProfileID,
+		SessionID:    normalized.CompozySessionID,
+		Generation:   normalized.RuntimeGeneration,
+		ActorID:      normalized.AgentName,
+		AllowedRoots: append([]string{normalized.Cwd}, normalized.AdditionalDirs...),
 	}
 
 	toolHost := normalized.ToolHost
@@ -62,8 +62,7 @@ func (d *Driver) launchAgentProcess(ctx context.Context, normalized StartOpts) (
 			normalized.Cwd,
 			policy,
 			d.logger,
-			WithLocalProcessRegistry(d.processRegistry),
-			withLocalTerminalManager(d.terminals, terminalScope),
+			WithLocalTerminalManager(d.terminals, terminalScope),
 		)
 	}
 
@@ -127,7 +126,7 @@ func (d *Driver) newAgentProcess(
 	handle sandbox.Handle,
 	toolHost ToolHost,
 	policy permissionPolicy,
-	terminalScope terminalScope,
+	terminalScope LocalTerminalScope,
 ) *AgentProcess {
 	return &AgentProcess{
 		PID:                  handle.PID(),

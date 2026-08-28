@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 
@@ -88,18 +89,27 @@ func (b *terminalPermissionBridge) AuthorizeTerminalExec(
 		"risk":             terminalPermissionRisk(classification),
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("prepare terminal exec approval: %w", err)
 	}
 	scope := toolspkg.Scope{
 		ProfileID: request.Actor.ProfileID, WorkspaceID: request.WS, SessionID: request.Actor.SessionID,
+		RunID: request.Actor.RunID, Generation: request.Actor.Generation,
 		AgentName: request.Actor.ID, ActorKind: string(request.Actor.Kind),
 	}
 	call := toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec, ProfileID: request.Actor.ProfileID,
 		WorkspaceID: request.WS, SessionID: request.Actor.SessionID,
+		RunID: request.Actor.RunID, Generation: request.Actor.Generation,
 		AgentName: request.Actor.ID, ActorKind: string(request.Actor.Kind), Input: input,
 	}
-	return b.ApproveTerminalExec(ctx, scope, call)
+	label, err := b.ApproveTerminalExec(ctx, scope, call)
+	if errors.Is(err, errToolApprovalRejected) {
+		return "", &terminalpkg.Error{
+			Code: terminalpkg.ErrorCodeApprovalRejected, Message: "terminal command approval was rejected",
+			Err: terminalpkg.ErrApprovalRejected,
+		}
+	}
+	return label, err
 }
 
 func terminalPermissionRisk(classification terminalpkg.CommandClassification) string {
@@ -119,24 +129,26 @@ func (b *terminalPermissionBridge) AuthorizeTerminalInput(
 		"grant_generation": info.TypingGeneration,
 	})
 	if err != nil {
-		return &terminalpkg.Error{
-			Code: "typing_grant_rejected", Message: "terminal typing grant could not be prepared",
-			Err: errors.Join(terminalpkg.ErrTypingGrant, err),
-		}
+		return fmt.Errorf("prepare terminal typing grant: %w", err)
 	}
 	scope := toolspkg.Scope{
 		ProfileID: info.ProfileID, WorkspaceID: info.WS, SessionID: actor.SessionID,
+		RunID: actor.RunID, Generation: actor.Generation,
 		AgentName: actor.ID, ActorKind: string(actor.Kind),
 	}
 	call := toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalWrite, ProfileID: info.ProfileID, WorkspaceID: info.WS,
-		SessionID: actor.SessionID, AgentName: actor.ID, ActorKind: string(actor.Kind), Input: input,
+		SessionID: actor.SessionID, RunID: actor.RunID, Generation: actor.Generation,
+		AgentName: actor.ID, ActorKind: string(actor.Kind), Input: input,
 	}
 	if _, err := b.ApproveTerminalExec(ctx, scope, call); err != nil {
-		return &terminalpkg.Error{
-			Code: "typing_grant_rejected", Message: "agent typing requires a terminal grant",
-			Err: errors.Join(terminalpkg.ErrTypingGrant, err),
+		if errors.Is(err, errToolApprovalRejected) {
+			return &terminalpkg.Error{
+				Code: terminalpkg.ErrorCodeTypingGrantRejected, Message: "terminal typing grant was rejected",
+				Err: terminalpkg.ErrTypingGrant,
+			}
 		}
+		return fmt.Errorf("terminal typing grant evaluation failed: %w", err)
 	}
 	return nil
 }

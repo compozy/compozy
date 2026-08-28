@@ -71,9 +71,12 @@ func (m *leaseMachine) snapshot() (LeaseState, *Actor) {
 func (m *leaseMachine) withAgentController(register func(Actor) error) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.controller == nil || m.controller.Kind != ActorKindAgent {
+	if m.controller == nil {
+		return fmt.Errorf("terminal input requires an active agent controller: %w", ErrWriteLeaseRequired)
+	}
+	if m.controller.Kind != ActorKindAgent {
 		return &Error{
-			Code: errorCodeWriteOwnerHeld, Message: "only the controlling agent can request terminal input",
+			Code: ErrorCodeWriteOwnerHeld, Message: "only the controlling agent can request terminal input",
 			Controller: cloneActor(m.controller), Err: ErrWriteOwnerHeld,
 		}
 	}
@@ -118,31 +121,27 @@ func (m *leaseMachine) authorizeLocked(actor Actor) error {
 	if actor.Kind == ActorKindAgent && m.recoverable != nil && sameRun(actor, *m.recoverable) &&
 		actor.Generation != m.recoverable.Generation {
 		return &Error{
-			Code:    errorCodeGenerationFenced,
+			Code:    ErrorCodeGenerationFenced,
 			Message: errorMessageGenerationFenced,
 			Err:     ErrGenerationFenced,
 		}
 	}
 	if m.controller == nil {
-		return &Error{
-			Code:    errorCodeWriteOwnerHeld,
-			Message: "terminal has no active controller",
-			Err:     ErrWriteOwnerHeld,
-		}
+		return fmt.Errorf("terminal has no active controller: %w", ErrWriteLeaseRequired)
 	}
 	if actor.Kind == ActorKindAgent && sameRun(actor, *m.controller) && actor.Generation != m.controller.Generation {
 		return &Error{
-			Code:    errorCodeGenerationFenced,
+			Code:    ErrorCodeGenerationFenced,
 			Message: errorMessageGenerationFenced,
 			Err:     ErrGenerationFenced,
 		}
 	}
 	if !sameActor(actor, *m.controller) {
 		sentinel := ErrWriteOwnerHeld
-		code := errorCodeWriteOwnerHeld
+		code := ErrorCodeWriteOwnerHeld
 		if actor.Kind == ActorKindAgent {
 			sentinel = ErrLeaseRevoked
-			code = "lease_revoked"
+			code = ErrorCodeLeaseRevoked
 		}
 		return &Error{
 			Code:       code,
@@ -155,12 +154,16 @@ func (m *leaseMachine) authorizeLocked(actor Actor) error {
 }
 
 func (m *leaseMachine) takeover(actor Actor, force bool) error {
+	return m.takeoverWithReason(actor, force, "takeover")
+}
+
+func (m *leaseMachine) takeoverWithReason(actor Actor, force bool, reason string) error {
 	m.mu.Lock()
 	if m.controller != nil && actor.Kind == ActorKindAgent && sameRun(actor, *m.controller) &&
 		actor.Generation != m.controller.Generation {
 		m.mu.Unlock()
 		return &Error{
-			Code:    errorCodeGenerationFenced,
+			Code:    ErrorCodeGenerationFenced,
 			Message: errorMessageGenerationFenced,
 			Err:     ErrGenerationFenced,
 		}
@@ -173,8 +176,14 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 	if actor.Kind != ActorKindHuman {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
+		if controller == nil {
+			return fmt.Errorf(
+				"agents must claim an available terminal instead of taking it over: %w",
+				ErrWriteLeaseRequired,
+			)
+		}
 		return &Error{
-			Code:       errorCodeWriteOwnerHeld,
+			Code:       ErrorCodeWriteOwnerHeld,
 			Message:    "agents cannot displace the current controller",
 			Controller: controller,
 			Err:        ErrWriteOwnerHeld,
@@ -186,7 +195,7 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 		controller := cloneActor(m.controller)
 		m.mu.Unlock()
 		return &Error{
-			Code:       errorCodeWriteOwnerHeld,
+			Code:       ErrorCodeWriteOwnerHeld,
 			Message:    "another human controls the terminal",
 			Controller: controller,
 			Err:        ErrWriteOwnerHeld,
@@ -205,11 +214,15 @@ func (m *leaseMachine) takeover(actor Actor, force bool) error {
 	m.generation++
 	m.cancelGraceLocked()
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, "takeover", actor)
+	m.emit(from, LeaseHumanOwned, reason, actor)
 	return nil
 }
 
 func (m *leaseMachine) yield(actor Actor) error {
+	return m.yieldWithReason(actor, "yield")
+}
+
+func (m *leaseMachine) yieldWithReason(actor Actor, reason string) error {
 	m.mu.Lock()
 	if err := m.authorizeLocked(actor); err != nil {
 		m.mu.Unlock()
@@ -228,7 +241,7 @@ func (m *leaseMachine) yield(actor Actor) error {
 		m.generation++
 		m.cancelGraceLocked()
 		m.mu.Unlock()
-		m.emit(from, LeaseAgentOwned, "claim", returned)
+		m.emit(from, LeaseAgentOwned, reason, returned)
 		return nil
 	}
 	from := m.state
@@ -238,7 +251,7 @@ func (m *leaseMachine) yield(actor Actor) error {
 	m.generation++
 	m.cancelGraceLocked()
 	m.mu.Unlock()
-	m.emit(from, LeaseHumanOwned, "yield", actor)
+	m.emit(from, LeaseHumanOwned, reason, actor)
 	return nil
 }
 
@@ -283,12 +296,7 @@ func (m *leaseMachine) claim(actor Actor) error {
 	m.mu.Lock()
 	if actor.Kind != ActorKindAgent {
 		m.mu.Unlock()
-		return &Error{
-			Code:       errorCodeWriteOwnerHeld,
-			Message:    "only an agent can claim an agent terminal lease",
-			Controller: cloneActor(m.controller),
-			Err:        ErrWriteOwnerHeld,
-		}
+		return fmt.Errorf("only an agent can claim an agent terminal lease: %w", ErrUnsupported)
 	}
 	if m.controller != nil && sameActor(actor, *m.controller) {
 		m.mu.Unlock()
@@ -298,7 +306,7 @@ func (m *leaseMachine) claim(actor Actor) error {
 		if actor.Generation != m.recoverable.Generation {
 			m.mu.Unlock()
 			return &Error{
-				Code:    errorCodeGenerationFenced,
+				Code:    ErrorCodeGenerationFenced,
 				Message: errorMessageGenerationFenced,
 				Err:     ErrGenerationFenced,
 			}
@@ -326,7 +334,7 @@ func (m *leaseMachine) claim(actor Actor) error {
 	controller := cloneActor(m.controller)
 	m.mu.Unlock()
 	return &Error{
-		Code:       errorCodeWriteOwnerHeld,
+		Code:       ErrorCodeWriteOwnerHeld,
 		Message:    "terminal is controlled by another actor",
 		Controller: controller,
 		Err:        ErrWriteOwnerHeld,

@@ -180,7 +180,7 @@ func parseMarkerFact(content, nonce string) (MarkerFacts, bool) {
 		values := markerValues(parts[4:])
 		command, commandErr := url.PathUnescape(values["cmd"])
 		cwd, cwdErr := url.PathUnescape(values["cwd"])
-		if commandErr != nil || cwdErr != nil || command == "" {
+		if commandErr != nil || cwdErr != nil || command == "" || cwd == "" {
 			return MarkerFacts{}, false
 		}
 		fact.Command, fact.Cwd = command, cwd

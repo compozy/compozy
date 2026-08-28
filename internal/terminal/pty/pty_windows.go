@@ -21,6 +21,8 @@ import (
 
 const windowsJobExitCode = 1
 
+const windowsProcessCleanupWaitMS = uint32(2_000)
+
 type windowsProc struct {
 	device    *conpty.ConPty
 	job       *windowsJob
@@ -29,15 +31,23 @@ type windowsProc struct {
 	startedAt time.Time
 
 	processMu  sync.Mutex
+	inputMu    sync.Mutex
+	readMu     sync.Mutex
+	io         ioLifecycle
 	process    windows.Handle
 	killSignal string
+	inputIO    *windowsSyncIO
+	outputIO   *windowsSyncIO
 	closeOnce  sync.Once
 	closeErr   error
 }
 
-func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
+func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if len(spec.Argv) == 0 || spec.Argv[0] == "" {
 		return nil, errors.New("terminal pty: command is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("terminal pty: start context: %w", err)
 	}
 	environmentList := environment(spec.Env)
 	path, err := interp.LookPathDir(spec.Cwd, expand.ListEnviron(environmentList...), spec.Argv[0])
@@ -51,9 +61,15 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(fmt.Errorf("terminal pty: start context: %w", err), job.close())
+	}
 	device, err := conpty.New(int(cols), int(rows), 0)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("terminal pty: open ConPTY: %w", err), job.close())
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Join(fmt.Errorf("terminal pty: start context: %w", err), device.Close(), job.close())
 	}
 	pid, rawHandle, err := device.Spawn(path, argv, &syscall.ProcAttr{
 		Dir: spec.Cwd,
@@ -67,6 +83,12 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 		)
 	}
 	process := windows.Handle(rawHandle)
+	if err := ctx.Err(); err != nil {
+		cleanupErr := terminateUnassignedWindowsProcess(process)
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start context: %w", err), cleanupErr, device.Close(), job.close(),
+		)
+	}
 	if err := job.assign(process); err != nil {
 		cleanupErr := terminateUnassignedWindowsProcess(process)
 		return nil, errors.Join(
@@ -74,11 +96,23 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 			cleanupErr, device.Close(), job.close(),
 		)
 	}
+	if err := ctx.Err(); err != nil {
+		cleanupErr := errors.Join(job.terminate(windowsJobExitCode), waitAndCloseWindowsProcess(process, pid))
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start context: %w", err), cleanupErr, device.Close(), job.close(),
+		)
+	}
 	if err := resumeWindowsProcess(process); err != nil {
 		cleanupErr := errors.Join(job.terminate(windowsJobExitCode), waitAndCloseWindowsProcess(process, pid))
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: resume process %d: %w", pid, err),
 			cleanupErr, device.Close(), job.close(),
+		)
+	}
+	if err := ctx.Err(); err != nil {
+		cleanupErr := errors.Join(job.terminate(windowsJobExitCode), waitAndCloseWindowsProcess(process, pid))
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start context: %w", err), cleanupErr, device.Close(), job.close(),
 		)
 	}
 	startedAt, err := procutil.StartedAt(pid)
@@ -89,9 +123,29 @@ func startInteractive(_ context.Context, spec ProcSpec) (Proc, error) {
 			cleanupErr, device.Close(), job.close(),
 		)
 	}
+	inputIO, err := newWindowsSyncIO("input write", device.Write)
+	if err != nil {
+		cleanupErr := errors.Join(job.terminate(windowsJobExitCode), waitAndCloseWindowsProcess(process, pid))
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start input worker: %w", err),
+			cleanupErr, device.Close(), job.close(),
+		)
+	}
+	outputIO, err := newWindowsSyncIO("output read", device.Read)
+	if err != nil {
+		cleanupErr := errors.Join(
+			inputIO.stop(),
+			job.terminate(windowsJobExitCode),
+			waitAndCloseWindowsProcess(process, pid),
+		)
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: start output worker: %w", err),
+			cleanupErr, device.Close(), job.close(),
+		)
+	}
 	proc := &windowsProc{
 		device: device, job: job, waiter: newProcessWaiter(), pid: pid,
-		process: process, startedAt: startedAt,
+		process: process, startedAt: startedAt, inputIO: inputIO, outputIO: outputIO,
 	}
 	proc.waiter.start(proc.waitForExit)
 	return proc, nil
@@ -103,18 +157,24 @@ func (p *windowsProc) ProcessGroupID() int { return p.pid }
 
 func (p *windowsProc) StartedAt() time.Time { return p.startedAt }
 
-func (p *windowsProc) Reader() io.Reader { return windowsPTYReader{device: p.device} }
+func (p *windowsProc) Reader() io.Reader { return windowsPTYReader{process: p} }
 
 type windowsPTYReader struct {
-	device *conpty.ConPty
+	process *windowsProc
 }
 
 func (r windowsPTYReader) Read(buffer []byte) (int, error) {
 	if len(buffer) == 0 {
 		return 0, nil
 	}
+	r.process.readMu.Lock()
+	defer r.process.readMu.Unlock()
+	if err := r.process.io.begin(); err != nil {
+		return 0, err
+	}
+	defer r.process.io.end()
 	for {
-		read, err := r.device.Read(buffer)
+		read, err := r.process.outputIO.do(buffer)
 		if read != 0 || err != nil {
 			return read, err
 		}
@@ -122,7 +182,17 @@ func (r windowsPTYReader) Read(buffer []byte) (int, error) {
 }
 
 func (p *windowsProc) Write(input []byte) (int, error) {
-	written, err := p.device.Write(input)
+	p.inputMu.Lock()
+	defer p.inputMu.Unlock()
+	if err := p.io.begin(); err != nil {
+		return 0, err
+	}
+	defer p.io.end()
+	return p.write(input)
+}
+
+func (p *windowsProc) write(input []byte) (int, error) {
+	written, err := p.inputIO.do(input)
 	if err != nil {
 		return written, fmt.Errorf("terminal pty: write: %w", err)
 	}
@@ -130,6 +200,10 @@ func (p *windowsProc) Write(input []byte) (int, error) {
 }
 
 func (p *windowsProc) Resize(cols, rows uint16) error {
+	if err := p.io.begin(); err != nil {
+		return err
+	}
+	defer p.io.end()
 	cols, rows = normalizedSize(cols, rows)
 	if err := p.device.Resize(int(cols), int(rows)); err != nil {
 		return fmt.Errorf("terminal pty: resize: %w", err)
@@ -140,6 +214,10 @@ func (p *windowsProc) Resize(cols, rows uint16) error {
 func (p *windowsProc) Wait(ctx context.Context) (Exit, error) { return p.waiter.wait(ctx) }
 
 func (p *windowsProc) Kill(signal Signal) error {
+	return p.kill(signal)
+}
+
+func (p *windowsProc) kill(signal Signal) error {
 	if err := validateWindowsSignal(signal); err != nil {
 		return err
 	}
@@ -167,9 +245,12 @@ func (p *windowsProc) Kill(signal Signal) error {
 
 func (p *windowsProc) Close() error {
 	p.closeOnce.Do(func() {
-		killErr := p.Kill(SignalHUP)
-		cancelErr := cancelWindowsRead(p.device)
-		p.closeErr = errors.Join(killErr, cancelErr, p.job.close(), p.device.Close())
+		p.io.seal()
+		killErr := p.kill(SignalHUP)
+		cancelErr := errors.Join(p.outputIO.cancel(), p.inputIO.cancel())
+		p.io.wait()
+		workerErr := errors.Join(p.outputIO.stop(), p.inputIO.stop())
+		p.closeErr = errors.Join(killErr, cancelErr, workerErr, p.job.close(), p.device.Close())
 	})
 	return p.closeErr
 }
@@ -216,27 +297,13 @@ func validateWindowsSignal(signal Signal) error {
 	}
 }
 
-func cancelWindowsRead(device *conpty.ConPty) error {
-	if device == nil || device.OutPipeReadFd() == 0 {
-		return nil
-	}
-	err := windows.CancelIoEx(windows.Handle(device.OutPipeReadFd()), nil)
-	if errors.Is(err, windows.ERROR_NOT_FOUND) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("terminal pty: cancel output read: %w", err)
-	}
-	return nil
-}
-
 func terminateUnassignedWindowsProcess(process windows.Handle) error {
 	terminateErr := procutil.TerminateProcessHandle(uintptr(process), windowsJobExitCode)
 	return errors.Join(terminateErr, waitAndCloseWindowsProcess(process, 0))
 }
 
 func waitAndCloseWindowsProcess(process windows.Handle, pid int) error {
-	event, waitErr := windows.WaitForSingleObject(process, windows.INFINITE)
+	event, waitErr := windows.WaitForSingleObject(process, windowsProcessCleanupWaitMS)
 	if waitErr == nil && event != windows.WAIT_OBJECT_0 {
 		waitErr = fmt.Errorf("unexpected wait status %d", event)
 	}

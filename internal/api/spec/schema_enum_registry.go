@@ -18,79 +18,79 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
-	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 )
 
 var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 	withGoalSchemaEnumValues(map[reflect.Type][]string{
-		reflect.TypeFor[terminalpkg.Mode]():                     terminalModeValues(),
-		reflect.TypeFor[terminalpkg.LeaseState]():               terminalLeaseStateValues(),
-		reflect.TypeFor[terminalpkg.ActorKind]():                terminalActorKindValues(),
-		reflect.TypeFor[terminalpkg.Signal]():                   terminalSignalValues(),
-		reflect.TypeFor[contract.TerminalState]():               contract.TerminalStateValues(),
-		reflect.TypeFor[contract.TerminalExitCause]():           contract.TerminalExitCauseValues(),
-		reflect.TypeFor[contract.TerminalCommandDetection]():    contract.TerminalCommandDetectionValues(),
-		reflect.TypeFor[contract.TerminalCommandApproval]():     contract.TerminalCommandApprovalValues(),
-		reflect.TypeFor[contract.TerminalAttachMode]():          contract.TerminalAttachModeValues(),
-		reflect.TypeFor[contract.TerminalRecordingAction]():     contract.TerminalRecordingActionValues(),
-		reflect.TypeFor[contract.TerminalRecordingState]():      contract.TerminalRecordingStateValues(),
-		reflect.TypeFor[contract.TerminalInputRejectOutcome]():  contract.TerminalInputRejectOutcomeValues(),
-		reflect.TypeFor[contract.TerminalErrorCode]():           contract.TerminalErrorCodeValues(),
-		reflect.TypeFor[contract.IssueSeverity]():               contract.IssueSeverityValues(),
-		reflect.TypeFor[contract.MarketplaceKind]():             contract.MarketplaceKindValues(),
-		reflect.TypeFor[contract.DrainState]():                  drainStateValues(),
-		reflect.TypeFor[contract.SettingsShellSessionSort]():    settingsShellSessionSortValues(),
-		reflect.TypeFor[contract.SettingsShellSessionScope]():   settingsShellSessionScopeValues(),
-		reflect.TypeFor[automationpkg.Scope]():                  automationScopeValues(),
-		reflect.TypeFor[automationpkg.JobSource]():              automationSourceValues(),
-		reflect.TypeFor[automationpkg.ScheduleMode]():           automationScheduleModeValues(),
-		reflect.TypeFor[automationpkg.SchedulerCatchUpPolicy](): automationSchedulerCatchUpPolicyValues(),
-		reflect.TypeFor[automationpkg.RetryStrategy]():          automationRetryStrategyValues(),
-		reflect.TypeFor[automationpkg.RunStatus]():              automationRunStatusValues(),
-		reflect.TypeFor[taskpkg.Scope]():                        taskScopeValues(),
-		reflect.TypeFor[taskpkg.Status]():                       taskStatusValues(),
-		reflect.TypeFor[taskpkg.Priority]():                     taskPriorityValues(),
-		reflect.TypeFor[taskpkg.ApprovalPolicy]():               taskApprovalPolicyValues(),
-		reflect.TypeFor[taskpkg.ApprovalState]():                taskApprovalStateValues(),
-		reflect.TypeFor[taskpkg.RunStatus]():                    taskRunStatusValues(),
-		reflect.TypeFor[taskpkg.ActorKind]():                    taskActorKindValues(),
-		reflect.TypeFor[taskpkg.OwnerKind]():                    taskOwnerKindValues(),
-		reflect.TypeFor[taskpkg.OriginKind]():                   taskOriginKindValues(),
-		reflect.TypeFor[taskpkg.DependencyKind]():               taskDependencyKindValues(),
-		reflect.TypeFor[taskpkg.BlockKind]():                    taskBlockKindValues(),
-		reflect.TypeFor[taskpkg.BlockedSource]():                taskBlockedSourceValues(),
-		reflect.TypeFor[taskpkg.CoordinatorMode]():              taskCoordinatorModeValues(),
-		reflect.TypeFor[taskpkg.WorkerMode]():                   taskWorkerModeValues(),
-		reflect.TypeFor[taskpkg.SandboxMode]():                  taskSandboxModeValues(),
-		reflect.TypeFor[taskpkg.WorktreeMode]():                 taskWorktreeModeValues(),
-		reflect.TypeFor[contract.ResolvedWorktreeMode]():        contract.ResolvedWorktreeModeValues(),
-		reflect.TypeFor[taskpkg.RuntimeMode]():                  taskRuntimeModeValues(),
-		reflect.TypeFor[taskpkg.ReviewPolicy]():                 taskReviewPolicyValues(),
-		reflect.TypeFor[taskpkg.RunReviewStatus]():              taskRunReviewStatusValues(),
-		reflect.TypeFor[taskpkg.RunReviewOutcome]():             taskRunReviewOutcomeValues(),
-		reflect.TypeFor[contract.TaskInboxLane]():               taskInboxLaneValues(),
-		reflect.TypeFor[contract.LoopProvenanceRole]():          contract.LoopProvenanceRoleValues(),
-		reflect.TypeFor[contract.CoordinationMessageKind]():     coordinationMessageKindValues(),
-		reflect.TypeFor[contract.AgentCreateScope]():            agentCreateScopeValues(),
-		reflect.TypeFor[contract.AgentOrigin]():                 agentOriginValues(),
-		reflect.TypeFor[contract.CoordinatorConfigSource]():     coordinatorConfigSourceValues(),
-		reflect.TypeFor[contract.RoleResolutionMode]():          roleResolutionModeValues(),
-		reflect.TypeFor[contract.LoopSource]():                  loopSourceValues(),
-		reflect.TypeFor[contract.LoopRunStatus]():               loopRunStatusValues(),
-		reflect.TypeFor[contract.LoopCompletionState]():         contract.LoopCompletionStateValues(),
-		reflect.TypeFor[contract.LoopRunTransitionCause]():      contract.LoopRunTransitionCauseValues(),
-		reflect.TypeFor[contract.LoopRunEventKind]():            loopRunEventKindValues(),
-		reflect.TypeFor[contract.LoopNodeInventoryState]():      contract.LoopNodeInventoryStateValues(),
-		reflect.TypeFor[contract.LoopGenerationOrigin]():        contract.LoopGenerationOriginValues(),
-		reflect.TypeFor[contract.LoopGateVerdictOutcome]():      contract.LoopGateVerdictOutcomeValues(),
-		reflect.TypeFor[contract.LoopMetricDirection]():         contract.LoopMetricDirectionValues(),
-		reflect.TypeFor[contract.LoopWatchEventKind]():          contract.LoopWatchEventKindValues(),
-		reflect.TypeFor[contract.LoopNodeClass]():               loopNodeClassValues(),
-		reflect.TypeFor[contract.LoopReattemptStrategy]():       loopReattemptStrategyValues(),
-		reflect.TypeFor[contract.LoopBudgetExceeded]():          loopBudgetExceededValues(),
-		reflect.TypeFor[dsl.BudgetExceeded]():                   loopBudgetExceededValues(),
+		reflect.TypeFor[contract.TerminalMode]():                   contract.TerminalModeValues(),
+		reflect.TypeFor[contract.TerminalLeaseState]():             contract.TerminalLeaseStateValues(),
+		reflect.TypeFor[contract.TerminalActorKind]():              contract.TerminalActorKindValues(),
+		reflect.TypeFor[contract.TerminalSignal]():                 contract.TerminalSignalValues(),
+		reflect.TypeFor[contract.TerminalState]():                  contract.TerminalStateValues(),
+		reflect.TypeFor[contract.TerminalExitCause]():              contract.TerminalExitCauseValues(),
+		reflect.TypeFor[contract.TerminalCommandDetection]():       contract.TerminalCommandDetectionValues(),
+		reflect.TypeFor[contract.TerminalCommandApproval]():        contract.TerminalCommandApprovalValues(),
+		reflect.TypeFor[contract.TerminalAttachMode]():             contract.TerminalAttachModeValues(),
+		reflect.TypeFor[contract.TerminalRecordingAction]():        contract.TerminalRecordingActionValues(),
+		reflect.TypeFor[contract.TerminalRecordingState]():         contract.TerminalRecordingStateValues(),
+		reflect.TypeFor[contract.TerminalInputRejectOutcome]():     contract.TerminalInputRejectOutcomeValues(),
+		reflect.TypeFor[contract.TerminalInputResolutionOutcome](): contract.TerminalInputResolutionOutcomeValues(),
+		reflect.TypeFor[contract.TerminalErrorCode]():              contract.TerminalErrorCodeValues(),
+		reflect.TypeFor[contract.IssueSeverity]():                  contract.IssueSeverityValues(),
+		reflect.TypeFor[contract.MarketplaceKind]():                contract.MarketplaceKindValues(),
+		reflect.TypeFor[contract.DrainState]():                     drainStateValues(),
+		reflect.TypeFor[contract.SettingsShellSessionSort]():       settingsShellSessionSortValues(),
+		reflect.TypeFor[contract.SettingsShellSessionScope]():      settingsShellSessionScopeValues(),
+		reflect.TypeFor[automationpkg.Scope]():                     automationScopeValues(),
+		reflect.TypeFor[automationpkg.JobSource]():                 automationSourceValues(),
+		reflect.TypeFor[automationpkg.ScheduleMode]():              automationScheduleModeValues(),
+		reflect.TypeFor[automationpkg.SchedulerCatchUpPolicy]():    automationSchedulerCatchUpPolicyValues(),
+		reflect.TypeFor[automationpkg.RetryStrategy]():             automationRetryStrategyValues(),
+		reflect.TypeFor[automationpkg.RunStatus]():                 automationRunStatusValues(),
+		reflect.TypeFor[taskpkg.Scope]():                           taskScopeValues(),
+		reflect.TypeFor[taskpkg.Status]():                          taskStatusValues(),
+		reflect.TypeFor[taskpkg.Priority]():                        taskPriorityValues(),
+		reflect.TypeFor[taskpkg.ApprovalPolicy]():                  taskApprovalPolicyValues(),
+		reflect.TypeFor[taskpkg.ApprovalState]():                   taskApprovalStateValues(),
+		reflect.TypeFor[taskpkg.RunStatus]():                       taskRunStatusValues(),
+		reflect.TypeFor[taskpkg.ActorKind]():                       taskActorKindValues(),
+		reflect.TypeFor[taskpkg.OwnerKind]():                       taskOwnerKindValues(),
+		reflect.TypeFor[taskpkg.OriginKind]():                      taskOriginKindValues(),
+		reflect.TypeFor[taskpkg.DependencyKind]():                  taskDependencyKindValues(),
+		reflect.TypeFor[taskpkg.BlockKind]():                       taskBlockKindValues(),
+		reflect.TypeFor[taskpkg.BlockedSource]():                   taskBlockedSourceValues(),
+		reflect.TypeFor[taskpkg.CoordinatorMode]():                 taskCoordinatorModeValues(),
+		reflect.TypeFor[taskpkg.WorkerMode]():                      taskWorkerModeValues(),
+		reflect.TypeFor[taskpkg.SandboxMode]():                     taskSandboxModeValues(),
+		reflect.TypeFor[taskpkg.WorktreeMode]():                    taskWorktreeModeValues(),
+		reflect.TypeFor[contract.ResolvedWorktreeMode]():           contract.ResolvedWorktreeModeValues(),
+		reflect.TypeFor[taskpkg.RuntimeMode]():                     taskRuntimeModeValues(),
+		reflect.TypeFor[taskpkg.ReviewPolicy]():                    taskReviewPolicyValues(),
+		reflect.TypeFor[taskpkg.RunReviewStatus]():                 taskRunReviewStatusValues(),
+		reflect.TypeFor[taskpkg.RunReviewOutcome]():                taskRunReviewOutcomeValues(),
+		reflect.TypeFor[contract.TaskInboxLane]():                  taskInboxLaneValues(),
+		reflect.TypeFor[contract.LoopProvenanceRole]():             contract.LoopProvenanceRoleValues(),
+		reflect.TypeFor[contract.CoordinationMessageKind]():        coordinationMessageKindValues(),
+		reflect.TypeFor[contract.AgentCreateScope]():               agentCreateScopeValues(),
+		reflect.TypeFor[contract.AgentOrigin]():                    agentOriginValues(),
+		reflect.TypeFor[contract.CoordinatorConfigSource]():        coordinatorConfigSourceValues(),
+		reflect.TypeFor[contract.RoleResolutionMode]():             roleResolutionModeValues(),
+		reflect.TypeFor[contract.LoopSource]():                     loopSourceValues(),
+		reflect.TypeFor[contract.LoopRunStatus]():                  loopRunStatusValues(),
+		reflect.TypeFor[contract.LoopCompletionState]():            contract.LoopCompletionStateValues(),
+		reflect.TypeFor[contract.LoopRunTransitionCause]():         contract.LoopRunTransitionCauseValues(),
+		reflect.TypeFor[contract.LoopRunEventKind]():               loopRunEventKindValues(),
+		reflect.TypeFor[contract.LoopNodeInventoryState]():         contract.LoopNodeInventoryStateValues(),
+		reflect.TypeFor[contract.LoopGenerationOrigin]():           contract.LoopGenerationOriginValues(),
+		reflect.TypeFor[contract.LoopGateVerdictOutcome]():         contract.LoopGateVerdictOutcomeValues(),
+		reflect.TypeFor[contract.LoopMetricDirection]():            contract.LoopMetricDirectionValues(),
+		reflect.TypeFor[contract.LoopWatchEventKind]():             contract.LoopWatchEventKindValues(),
+		reflect.TypeFor[contract.LoopNodeClass]():                  loopNodeClassValues(),
+		reflect.TypeFor[contract.LoopReattemptStrategy]():          loopReattemptStrategyValues(),
+		reflect.TypeFor[contract.LoopBudgetExceeded]():             loopBudgetExceededValues(),
+		reflect.TypeFor[dsl.BudgetExceeded]():                      loopBudgetExceededValues(),
 		reflect.TypeFor[dsl.MetricDirection](): {
 			string(dsl.MetricMaximize),
 			string(dsl.MetricMinimize),
@@ -275,35 +275,6 @@ var schemaEnumValues = withSettingsWindowManagerSchemaEnumValues(
 		reflect.TypeFor[participation.OwnerKind]():            participationOwnerKindValues(),
 	}),
 )
-
-func terminalModeValues() []string {
-	return []string{string(terminalpkg.ModePTY), string(terminalpkg.ModePipe)}
-}
-
-func terminalLeaseStateValues() []string {
-	return []string{
-		string(terminalpkg.LeaseHumanOwned),
-		string(terminalpkg.LeaseAgentOwned),
-		string(terminalpkg.LeaseAvailable),
-	}
-}
-
-func terminalActorKindValues() []string {
-	return []string{
-		string(terminalpkg.ActorKindHuman),
-		string(terminalpkg.ActorKindAgent),
-		string(terminalpkg.ActorKindSystem),
-	}
-}
-
-func terminalSignalValues() []string {
-	return []string{
-		string(terminalpkg.SignalINT),
-		string(terminalpkg.SignalTERM),
-		string(terminalpkg.SignalKILL),
-		string(terminalpkg.SignalHUP),
-	}
-}
 
 func notificationScopeKindValues() []string {
 	return []string{

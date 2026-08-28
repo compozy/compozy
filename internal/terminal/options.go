@@ -177,17 +177,6 @@ func WithJournal(journal Journal) Option {
 	}
 }
 
-// WithMarkerConsumer sets the authenticated shell-marker consumer.
-func WithMarkerConsumer(consumer MarkerConsumer) Option {
-	return func(service *Service) error {
-		if consumer == nil {
-			return errors.New("terminal: marker consumer is required")
-		}
-		service.markers = consumer
-		return nil
-	}
-}
-
 // WithLogger sets the structured logger.
 func WithLogger(logger *slog.Logger) Option {
 	return func(service *Service) error {
@@ -237,13 +226,8 @@ func defaultServiceOptions(service *Service) {
 		return DefaultSettings(), nil
 	}
 	service.events = NewNotifier(nil)
-	service.markers = noopMarkerConsumer{}
 	service.logger = slog.Default()
 	service.now = func() time.Time { return time.Now().UTC() }
 	service.entropy = rand.Reader
 	service.inputRequestTTL = inputRequestTTL
 }
-
-type noopMarkerConsumer struct{}
-
-func (noopMarkerConsumer) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) error { return nil }

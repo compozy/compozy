@@ -681,6 +681,27 @@ func (s *sandboxReconcileWorkspaceStore) DeleteWorkspace(context.Context, string
 	return nil
 }
 
+func (s *sandboxReconcileWorkspaceStore) StageWorkspaceDeletion(context.Context, string) error {
+	return nil
+}
+
+func (s *sandboxReconcileWorkspaceStore) GetWorkspaceDeletionIntent(
+	context.Context,
+	string,
+) (workspacepkg.DeletionIntent, error) {
+	return workspacepkg.DeletionIntent{}, workspacepkg.ErrWorkspaceDeletionIntentNotFound
+}
+
+func (s *sandboxReconcileWorkspaceStore) ListWorkspaceDeletionIntents(
+	context.Context,
+) ([]workspacepkg.DeletionIntent, error) {
+	return nil, nil
+}
+
+func (s *sandboxReconcileWorkspaceStore) CompleteWorkspaceDeletion(context.Context, string) error {
+	return nil
+}
+
 func (s *sandboxReconcileWorkspaceStore) GetWorkspace(
 	_ context.Context,
 	id string,

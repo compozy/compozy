@@ -28,16 +28,11 @@ type terminalManager struct {
 	logger    *slog.Logger
 	lifecycle context.Context
 	core      TerminalHost
-	ownedCore terminalShutdowner
 	coreErr   error
-	scope     terminalScope
+	scope     LocalTerminalScope
 
 	mu        sync.RWMutex
 	terminals map[string]*managedTerminal
-}
-
-type terminalShutdowner interface {
-	Shutdown(context.Context) error
 }
 
 type managedTerminal struct {
@@ -48,9 +43,11 @@ type managedTerminal struct {
 }
 
 type terminalOwnership struct {
-	networkOwned   bool
-	ownerSessionID string
-	ownerTurnID    string
+	networkOwned    bool
+	ownerSessionID  string
+	ownerTurnID     string
+	ownerRunID      string
+	ownerGeneration int64
 }
 
 func (p *AgentProcess) handleCreateTerminal(
@@ -62,9 +59,12 @@ func (p *AgentProcess) handleCreateTerminal(
 		return acpsdk.CreateTerminalResponse{}, err
 	}
 
+	runID, generation := p.activeRunIdentity()
 	ownership := terminalOwnership{
-		ownerSessionID: p.SessionID,
-		ownerTurnID:    p.activeTurnID(),
+		ownerSessionID:  p.SessionID,
+		ownerTurnID:     p.activeTurnID(),
+		ownerRunID:      runID,
+		ownerGeneration: generation,
 	}
 	if p.isNetworkTurn() {
 		argv, err := terminalArgv(request)
@@ -75,9 +75,11 @@ func (p *AgentProcess) handleCreateTerminal(
 			return acpsdk.CreateTerminalResponse{}, ErrToolBlockedForNetworkTurn
 		}
 		ownership = terminalOwnership{
-			networkOwned:   true,
-			ownerSessionID: p.SessionID,
-			ownerTurnID:    p.activeTurnID(),
+			networkOwned:    true,
+			ownerSessionID:  p.SessionID,
+			ownerTurnID:     p.activeTurnID(),
+			ownerRunID:      runID,
+			ownerGeneration: generation,
 		}
 	}
 
@@ -159,6 +161,8 @@ func (p *AgentProcess) registerExternalTerminalProcess(
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  ownership.ownerSessionID,
 			TurnID:     ownership.ownerTurnID,
+			RunID:      ownership.ownerRunID,
+			Generation: ownership.ownerGeneration,
 			TerminalID: id,
 		},
 		Command: argv[0],
@@ -401,8 +405,7 @@ func (p *AgentProcess) toolHostOrDefault() (ToolHost, error) {
 		p.Cwd,
 		p.permissions,
 		slog.Default(),
-		WithLocalProcessRegistry(p.processRegistry),
-		withLocalTerminalManager(p.terminalCore, p.terminalScope),
+		WithLocalTerminalManager(p.terminalCore, p.terminalScope),
 	)
 	if p.terminals != nil {
 		host.terminals = p.terminals

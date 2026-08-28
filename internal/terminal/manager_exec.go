@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -23,41 +24,48 @@ const (
 	execCaptureLimit = 4 << 20
 )
 
-type artifactWriter interface {
-	WriteArtifact(context.Context, string, string, string, *ID, []byte, time.Time) (SpillRef, error)
-}
-
-type queuedJournal interface {
-	RecordQueued(context.Context, Info, CommandRow) error
-}
-
 type execRun struct {
-	item       *session
-	key        terminalKey
-	commandID  string
-	startedAt  time.Time
-	journaled  chan error
-	registered atomic.Bool
-	decision   chan struct{}
-	decideOnce sync.Once
+	item            *session
+	key             terminalKey
+	commandID       string
+	startedAt       time.Time
+	journaled       chan error
+	registered      atomic.Bool
+	decision        chan struct{}
+	decideOnce      sync.Once
+	releaseProducer func()
 }
 
 func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, error) {
 	if ctx == nil {
 		return nil, errors.New("terminal: exec context is required")
 	}
-	if err := m.admit(ctx, request.WS, request.Actor); err != nil {
-		return nil, err
-	}
 	argv := append([]string{strings.TrimSpace(request.Command)}, request.Args...)
 	if argv[0] == "" {
 		return nil, errors.New("terminal: exec command is required")
 	}
-	request, err := m.authorizeExec(ctx, request, argv)
+	yield, err := execYieldDuration(request.YieldMs)
 	if err != nil {
 		return nil, err
 	}
-	yield, err := execYieldDuration(request.YieldMs)
+	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	request.WS, request.Cwd = workspaceID, cwd
+	releaseProducer, err := m.beginWorkspaceProducer(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if releaseProducer != nil {
+			releaseProducer()
+		}
+	}()
+	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
+		return nil, err
+	}
+	request, err = m.authorizeExec(ctx, request, argv)
 	if err != nil {
 		return nil, err
 	}
@@ -65,8 +73,12 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	if err != nil {
 		return nil, err
 	}
+	run.releaseProducer = releaseProducer
+	releaseProducer = nil
 	if request.Visible {
 		if err := m.publishExec(ctx, run, request); err != nil {
+			run.releaseProducer()
+			run.releaseProducer = func() {}
 			return nil, cleanupExecRun(ctx, run.item, err)
 		}
 		run.settlePublication()
@@ -108,22 +120,19 @@ func (m *Service) authorizeExec(ctx context.Context, request ExecRequest, argv [
 	if request.Actor.Kind != ActorKindAgent {
 		return request, nil
 	}
+	classification := ClassifyArgv(argv, nil)
+	if classification.Verdict == CommandVerdictDenied {
+		return ExecRequest{}, fmt.Errorf(
+			"terminal command is blocked by the irreversible-operation policy: %w",
+			ErrPolicyDenied,
+		)
+	}
 	switch strings.TrimSpace(request.Approval) {
 	case "approved_once", "approved_always", "allowlisted":
 		return request, nil
 	}
-	classification := ClassifyArgv(argv, nil)
-	if classification.Verdict == CommandVerdictDenied {
-		return ExecRequest{}, &Error{
-			Code: "approval_rejected", Message: "terminal command is blocked by the irreversible-operation policy",
-			Err: ErrApprovalRejected,
-		}
-	}
 	if m.execApprovals == nil {
-		return ExecRequest{}, &Error{
-			Code: errorCodeApprovalRequired, Message: "agent terminal execution requires approval",
-			Err: ErrApprovalRequired,
-		}
+		return ExecRequest{}, fmt.Errorf("agent terminal execution requires approval: %w", ErrApprovalRequired)
 	}
 	approval, err := m.execApprovals.AuthorizeTerminalExec(ctx, request, classification)
 	if err != nil {
@@ -131,10 +140,7 @@ func (m *Service) authorizeExec(ctx context.Context, request ExecRequest, argv [
 	}
 	request.Approval = strings.TrimSpace(approval)
 	if request.Approval == "" {
-		return ExecRequest{}, &Error{
-			Code: "approval_required", Message: "agent terminal execution requires approval",
-			Err: ErrApprovalRequired,
-		}
+		return ExecRequest{}, fmt.Errorf("agent terminal execution requires approval: %w", ErrApprovalRequired)
 	}
 	return request, nil
 }
@@ -154,7 +160,7 @@ func execYieldDuration(value int) (time.Duration, error) {
 func ValidateExecYieldDuration(duration time.Duration) error {
 	if duration < minimumExecYield || duration > maximumExecYield {
 		return &Error{
-			Code:    "timeout_out_of_range",
+			Code:    ErrorCodeTimeoutOutOfRange,
 			Message: "terminal exec yield_ms must be between 250 and 30000",
 			Err:     ErrUnsupported,
 		}
@@ -163,7 +169,9 @@ func ValidateExecYieldDuration(duration time.Duration) error {
 }
 
 func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []string) (*execRun, error) {
-	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	cwd, workspaceID := request.Cwd, request.WS
+	var err error
+	request.Capabilities, err = m.Capabilities(ctx, workspaceID)
 	if err != nil {
 		return nil, err
 	}
@@ -191,9 +199,10 @@ func (m *Service) startExec(ctx context.Context, request ExecRequest, argv []str
 	if request.Visible {
 		if !request.Capabilities.Interactive {
 			return nil, &Error{
-				Code:    "terminal_interactive_unavailable",
-				Message: "Interactive terminals are not available on this platform yet — command execution is.",
-				Err:     ErrInteractive,
+				Code:     ErrorCodeInteractiveUnavailable,
+				Message:  "interactive terminals are unavailable in this workspace",
+				Platform: runtime.GOOS,
+				Err:      ErrInteractive,
 			}
 		}
 		mode = ModePTY
@@ -262,14 +271,11 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 }
 
 func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
+	defer run.releaseProducer()
 	<-run.item.done
 	<-run.decision
 	ctx, cancel := boundedCleanupContext(run.item.ctx, defaultJournalShutdownTimeout)
 	defer cancel()
-	if m.journal == nil {
-		run.journaled <- nil
-		return
-	}
 	info := run.item.Info()
 	duration := m.now().Sub(run.startedAt).Milliseconds()
 	digest := argvDigest(argv)
@@ -277,22 +283,19 @@ func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
 	if request.Actor.Kind == ActorKindHuman {
 		approval = "human"
 	}
-	_, captureTruncated, outputBytes := run.item.capturedOutput()
+	content, captureTruncated, outputBytes := run.item.capturedOutput()
 	row := CommandRow{
 		ID: run.commandID, ProfileID: info.ProfileID, ProfileName: run.item.profileName, Actor: request.Actor,
 		Command: redact.String(strings.Join(argv, " ")), ArgvDigest: &digest, Cwd: info.Cwd, StartedAt: run.startedAt,
 		DurationMs: &duration, ExitCause: info.Exit.Cause, ExitCode: info.Exit.Code, ExitSignal: info.Exit.Signal,
 		DetectedBy: "exact", Approval: approval, OutputBytes: outputBytes, Truncated: captureTruncated,
+		OutputTail: OutputTailFromBytes(content),
 	}
 	if run.registered.Load() {
 		id := info.ID
 		row.TerminalID = &id
 	}
-	if queued, ok := m.journal.(queuedJournal); ok {
-		run.journaled <- queued.RecordQueued(ctx, info, row)
-		return
-	}
-	run.journaled <- m.journal.Record(ctx, info.WS, row)
+	run.journaled <- m.journal.RecordQueued(ctx, info, row)
 }
 
 func terminalApprovalLabel(value string) string {
@@ -325,22 +328,19 @@ func (m *Service) execResult(ctx context.Context, run *execRun, request ExecRequ
 		result.TerminalID = &id
 	}
 	if truncated || captureTruncated {
-		writer, ok := m.journal.(artifactWriter)
-		if ok {
-			spill, err := writer.WriteArtifact(
-				ctx,
-				info.WS,
-				info.ProfileID,
-				run.commandID,
-				result.TerminalID,
-				content,
-				m.now().Add(infoSettingsRetention(run.item)),
-			)
-			if err != nil {
-				return nil, fmt.Errorf("terminal: preserve exec spill: %w", err)
-			}
-			result.Spill = &spill
+		spill, err := m.journal.WriteArtifact(
+			ctx,
+			info.WS,
+			info.ProfileID,
+			run.commandID,
+			result.TerminalID,
+			content,
+			m.now().Add(infoSettingsRetention(run.item)),
+		)
+		if err != nil {
+			return nil, fmt.Errorf("terminal: preserve exec spill: %w", err)
 		}
+		result.Spill = &spill
 	}
 	return result, nil
 }

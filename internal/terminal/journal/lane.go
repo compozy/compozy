@@ -29,18 +29,22 @@ type terminalLane struct {
 	cancel     context.CancelCauseFunc
 	pending    atomic.Int64
 
-	mu              sync.Mutex
-	assembly        *commandAssembly
-	idle            []idleCandidate
-	idleTimer       *time.Timer
-	input           []byte
-	reservations    int64
-	idleGeneration  uint64
-	blocked         bool
-	auditPending    []bool
-	auditPublishing bool
-	closed          bool
-	err             error
+	mu                  sync.Mutex
+	assembly            *commandAssembly
+	idle                []idleCandidate
+	idleTimer           *time.Timer
+	input               []byte
+	outputTail          []terminalpkg.OutputSegment
+	reservations        int64
+	inputReservations   int64
+	reservationsChanged chan struct{}
+	sealed              bool
+	idleGeneration      uint64
+	blocked             bool
+	auditPending        []bool
+	auditPublishing     bool
+	closed              bool
+	err                 error
 }
 
 type pendingCommand struct {
@@ -60,7 +64,8 @@ func newTerminalLane(
 		service: service, info: info, setBlocked: setBlocked, emit: emit,
 		rows: make([]pendingCommand, 0, pendingLaneCapacity),
 		wake: make(chan struct{}, 1), done: make(chan struct{}),
-		cancel: cancel,
+		cancel:              cancel,
+		reservationsChanged: make(chan struct{}),
 	}
 	go lane.run(runCtx)
 	return lane
@@ -112,7 +117,9 @@ func (l *terminalLane) run(ctx context.Context) {
 		attempt := 0
 		for {
 			attempt++
-			err := l.service.Record(ctx, l.info.WS, command.row)
+			attemptCtx, cancelAttempt := context.WithTimeout(ctx, laneCleanupTimeout)
+			err := l.service.Record(attemptCtx, l.info.WS, command.row)
+			cancelAttempt()
 			if err == nil {
 				break
 			}
@@ -243,6 +250,39 @@ func (l *terminalLane) reserve(count int) bool {
 	return true
 }
 
+func (l *terminalLane) reserveInput(count int) (*inputReservation, bool) {
+	if count == 0 {
+		return &inputReservation{lane: l}, true
+	}
+	l.mu.Lock()
+	if l.closed || l.sealed || l.pending.Load()+l.reservations+int64(count) > pendingLaneCapacity {
+		publishAudit := l.setAuditBlockedLocked(true)
+		l.mu.Unlock()
+		if publishAudit {
+			l.publishAuditTransitions()
+		}
+		return nil, false
+	}
+	l.reservations += int64(count)
+	l.inputReservations++
+	publishAudit := l.pending.Load()+l.reservations == pendingLaneCapacity && l.setAuditBlockedLocked(true)
+	l.mu.Unlock()
+	if publishAudit {
+		l.publishAuditTransitions()
+	}
+	return &inputReservation{lane: l, count: count}, true
+}
+
+func (l *terminalLane) finishInputReservation() {
+	l.mu.Lock()
+	if l.inputReservations > 0 {
+		l.inputReservations--
+		close(l.reservationsChanged)
+		l.reservationsChanged = make(chan struct{})
+	}
+	l.mu.Unlock()
+}
+
 func (l *terminalLane) release(count int) {
 	if count == 0 {
 		return
@@ -261,6 +301,7 @@ func (l *terminalLane) setAssembly(assembly commandAssembly) {
 	defer l.mu.Unlock()
 	copyOfAssembly := assembly
 	l.assembly = &copyOfAssembly
+	l.outputTail = nil
 }
 
 func (l *terminalLane) takeAssembly() (commandAssembly, bool) {
@@ -346,89 +387,5 @@ func (l *terminalLane) publishAuditTransition(blocked bool) {
 func (l *terminalLane) emitEvent(event terminalpkg.Event) {
 	if l.emit != nil {
 		l.emit(event)
-	}
-}
-
-func (l *terminalLane) close(ctx context.Context) error {
-	l.mu.Lock()
-	if l.closed {
-		l.mu.Unlock()
-		return l.waitUntilClosed(ctx)
-	}
-	if l.idleTimer != nil {
-		l.idleTimer.Stop()
-	}
-	l.idleGeneration++
-	candidates := append([]idleCandidate(nil), l.idle...)
-	l.idle = nil
-	l.mu.Unlock()
-	for _, candidate := range candidates {
-		l.finishIdleCandidate(candidate)
-	}
-	l.finishAssembly(nil, l.service.now())
-	l.mu.Lock()
-	l.closed = true
-	l.mu.Unlock()
-	select {
-	case l.wake <- struct{}{}:
-	default:
-	}
-	return l.waitUntilClosed(ctx)
-}
-
-func (l *terminalLane) waitUntilClosed(ctx context.Context) error {
-	select {
-	case <-ctx.Done():
-		flushErr := fmt.Errorf("terminal journal: flush %q: %w", l.info.ID, context.Cause(ctx))
-		l.cancel(flushErr)
-		cleanupCtx, cancelCleanup := context.WithTimeout(context.WithoutCancel(ctx), laneCleanupTimeout)
-		defer cancelCleanup()
-		select {
-		case <-l.done:
-			l.mu.Lock()
-			defer l.mu.Unlock()
-			return errors.Join(flushErr, l.err)
-		case <-cleanupCtx.Done():
-			return errors.Join(
-				flushErr,
-				fmt.Errorf("terminal journal: drain %q: %w", l.info.ID, context.Cause(cleanupCtx)),
-			)
-		}
-	case <-l.done:
-		l.mu.Lock()
-		defer l.mu.Unlock()
-		return l.err
-	}
-}
-
-func (s *Service) closeLanes(ctx context.Context, matches func(*terminalLane) bool) error {
-	s.mu.Lock()
-	lanes := make([]*terminalLane, 0)
-	for key, lane := range s.lanes {
-		if matches(lane) {
-			lanes = append(lanes, lane)
-			delete(s.lanes, key)
-		}
-	}
-	s.mu.Unlock()
-	var errs []error
-	for _, lane := range lanes {
-		laneCtx, cancelLane := independentLaneCloseContext(ctx)
-		if err := lane.close(laneCtx); err != nil {
-			errs = append(errs, err)
-		}
-		cancelLane()
-	}
-	return errors.Join(errs...)
-}
-
-func independentLaneCloseContext(parent context.Context) (context.Context, context.CancelFunc) {
-	timeoutCtx, cancelTimeout := context.WithTimeout(context.WithoutCancel(parent), laneCleanupTimeout)
-	closeCtx, cancelCause := context.WithCancelCause(timeoutCtx)
-	stopParent := context.AfterFunc(parent, func() { cancelCause(context.Cause(parent)) })
-	return closeCtx, func() {
-		stopParent()
-		cancelCause(context.Canceled)
-		cancelTimeout()
 	}
 }

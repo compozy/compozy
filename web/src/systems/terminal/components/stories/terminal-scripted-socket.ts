@@ -38,7 +38,7 @@ export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalS
       socket.onopen?.(new Event("open"));
       socket.onmessage?.({
         data: encodeTerminalServerControlFrame(TERMINAL_SERVER_OP.attached, {
-          seq: 0,
+          seq: "0",
           truncated: false,
           cols: screen.cols,
           rows: screen.rows,
@@ -47,7 +47,7 @@ export function scriptedSocketFactory(screen: ScriptedTerminalScreen): TerminalS
         }),
       } as MessageEvent<unknown>);
       socket.onmessage?.({
-        data: encodeTerminalServerOutputFrame(0, screen.output),
+        data: encodeTerminalServerOutputFrame(0n, screen.output),
       } as MessageEvent<unknown>);
     }, 0);
     return socket;

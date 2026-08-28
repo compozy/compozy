@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/gorilla/websocket"
 )
@@ -69,7 +70,7 @@ func (c *daemonClient) takeoverTerminal(
 		return err
 	}
 	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, TerminalAttachOptions{
+	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, TerminalAttachOptions{
 		Mode: terminalStreamModeRead, Flow: terminalStreamFlowDrop,
 	})
 	if err != nil {
@@ -150,7 +151,7 @@ func (c *daemonClient) attachTerminalOnce(
 		return options.AfterSeq, err
 	}
 	dialer := c.terminalWebSocketDialer()
-	target, headers, err := c.terminalStreamTarget(workspace, id, ticket, options)
+	target, headers, err := c.terminalStreamTarget(ctx, workspace, id, ticket, options)
 	if err != nil {
 		return options.AfterSeq, err
 	}
@@ -202,6 +203,7 @@ func (c *daemonClient) mintTerminalTicket(ctx context.Context, workspace, id, mo
 }
 
 func (c *daemonClient) terminalStreamTarget(
+	ctx context.Context,
 	workspace, id, ticket string,
 	options TerminalAttachOptions,
 ) (string, http.Header, error) {
@@ -224,6 +226,13 @@ func (c *daemonClient) terminalStreamTarget(
 	target := base + terminalClientPath(workspace) + "/" +
 		url.PathEscape(strings.TrimSpace(id)) + "/stream?" + query.Encode()
 	headers := http.Header{}
+	credentials := clientAgentCredentials(ctx)
+	if credentials.SessionID != "" {
+		headers.Set(agentidentity.HeaderSessionID, credentials.SessionID)
+	}
+	if credentials.AgentName != "" {
+		headers.Set(agentidentity.HeaderAgent, credentials.AgentName)
+	}
 	if c.target.kind != clientTargetLocal {
 		parsed, parseErr := url.Parse(target)
 		if parseErr != nil {
@@ -291,7 +300,6 @@ func runTerminalClientStreamWithInput(
 	serverReads := make(chan terminalServerRead, 1)
 	go readTerminalServer(streamCtx, conn, serverReads)
 	ackPending := 0
-	attachedSeq := uint64(0)
 	for {
 		select {
 		case inputErr := <-inputDone:
@@ -305,7 +313,7 @@ func runTerminalClientStreamWithInput(
 				return afterSeq, fmt.Errorf("cli: read terminal stream: %w", read.err)
 			}
 			done, err := handleTerminalServerFrame(
-				conn, &writes, output, read.frame, &ackPending, &afterSeq, &attachedSeq,
+				conn, &writes, output, read.frame, &ackPending, &afterSeq,
 			)
 			if err != nil {
 				return afterSeq, err

@@ -1746,8 +1746,9 @@ func TestHooksNotifierShouldFenceTerminalRuntimeRecoveryGeneration(t *testing.T)
 	notifier.setTerminalRuntime(spy)
 	payload := hookspkg.SessionRuntimeRecoveryStartedPayload{
 		SessionContext: hookspkg.SessionContext{
-			ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a",
+			ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a", WorkspaceID: "workspace-a",
 		},
+		RunID:      "run-a",
 		Generation: 2,
 	}
 	if _, err := notifier.DispatchSessionRuntimeRecoveryStarted(context.Background(), payload); err != nil {
@@ -1773,12 +1774,14 @@ func TestTerminalRunLifecycleObserverShouldReleaseCurrentSessionGeneration(t *te
 		}},
 	}
 	err := observer.OnTaskRunTerminal(context.Background(), hookspkg.TaskRunLeasePayload{
-		TaskRunContext: hookspkg.TaskRunContext{ProfileID: "profile-a", SessionID: "session-a"},
+		TaskRunContext: hookspkg.TaskRunContext{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", RunID: "run-a",
+		},
 	})
 	if err != nil {
 		t.Fatalf("OnTaskRunTerminal() error = %v", err)
 	}
-	if got, want := spy.calls, []string{"profile-a/session-a/7"}; !slices.Equal(got, want) {
+	if got, want := spy.calls, []string{"workspace-a/profile-a/session-a/run-a/7"}; !slices.Equal(got, want) {
 		t.Fatalf("terminal run-end calls = %#v, want %#v", got, want)
 	}
 }
@@ -1789,15 +1792,16 @@ type spyTerminalSessionRunEnder struct {
 
 func (s *spyTerminalSessionRunEnder) SessionRunEnded(
 	_ context.Context,
-	profileID, sessionID string,
+	workspaceID, profileID, sessionID, runID string,
 	generation int64,
 ) int {
-	s.calls = append(s.calls, fmt.Sprintf("%s/%s/%d", profileID, sessionID, generation))
+	s.calls = append(s.calls, fmt.Sprintf("%s/%s/%s/%s/%d", workspaceID, profileID, sessionID, runID, generation))
 	return 1
 }
 
 type spyTerminalRuntimeRecovery struct {
-	calls []struct {
+	workspaceID string
+	calls       []struct {
 		previous terminalpkg.Actor
 		current  terminalpkg.Actor
 	}
@@ -1805,9 +1809,11 @@ type spyTerminalRuntimeRecovery struct {
 
 func (s *spyTerminalRuntimeRecovery) RuntimeRecovered(
 	_ context.Context,
+	workspaceID string,
 	previous terminalpkg.Actor,
 	current terminalpkg.Actor,
 ) int {
+	s.workspaceID = workspaceID
 	s.calls = append(s.calls, struct {
 		previous terminalpkg.Actor
 		current  terminalpkg.Actor

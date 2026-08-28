@@ -84,7 +84,7 @@ func (h *BaseHandlers) streamTerminalDownload(c *gin.Context, reader io.ReadClos
 func terminalDownloadError(id string, err error) error {
 	if errors.Is(err, os.ErrNotExist) {
 		return &terminalpkg.Error{
-			Code: "terminal_not_found", Message: fmt.Sprintf("terminal artifact %s was not found", id),
+			Code: terminalpkg.ErrorCodeNotFound, Message: fmt.Sprintf("terminal artifact %s was not found", id),
 			Err: terminalpkg.ErrNotFound,
 		}
 	}

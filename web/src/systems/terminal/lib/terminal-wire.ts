@@ -1,46 +1,27 @@
-/**
- * The `compozy.terminal.v1` frame codec.
- *
- * Mirrors `internal/terminal/wire/codec.go` byte for byte. Opcode numbers are
- * permanent, so they are written as literals here rather than derived: a
- * generated table would hide a divergence, and there is exactly one place on
- * each side to read.
- */
+import {
+  TERMINAL_CLIENT_OP,
+  TERMINAL_MAX_COLS,
+  TERMINAL_MAX_INPUT_BYTES,
+  TERMINAL_MAX_ROWS,
+  TERMINAL_MIN_COLS,
+  TERMINAL_MIN_ROWS,
+  TERMINAL_SERVER_OP,
+  TERMINAL_SUBPROTOCOL,
+} from "@/generated/terminal-wire";
 
-export const TERMINAL_SUBPROTOCOL = "compozy.terminal.v1";
-
-export const TERMINAL_SERVER_OP = {
-  output: 0x01,
-  attached: 0x02,
-  exit: 0x03,
-  error: 0x04,
-  title: 0x05,
-  resized: 0x06,
-  gap: 0x07,
-  owner: 0x08,
-  presence: 0x09,
-} as const;
-
-export const TERMINAL_CLIENT_OP = {
-  input: 0x01,
-  ack: 0x02,
-  resize: 0x03,
-  signal: 0x04,
-  takeover: 0x05,
-  detach: 0x06,
-  release: 0x07,
-} as const;
-
-/** 64 KiB per input frame; the daemon rejects anything larger. */
-export const TERMINAL_MAX_INPUT_BYTES = 64 * 1024;
-
-/** The daemon clamps to these bounds; proposing outside them is pointless. */
-export const TERMINAL_MIN_COLS = 20;
-export const TERMINAL_MAX_COLS = 2000;
-export const TERMINAL_MIN_ROWS = 5;
-export const TERMINAL_MAX_ROWS = 1000;
+export {
+  TERMINAL_CLIENT_OP,
+  TERMINAL_MAX_COLS,
+  TERMINAL_MAX_INPUT_BYTES,
+  TERMINAL_MAX_ROWS,
+  TERMINAL_MIN_COLS,
+  TERMINAL_MIN_ROWS,
+  TERMINAL_SERVER_OP,
+  TERMINAL_SUBPROTOCOL,
+};
 
 export type TerminalServerOpcode = (typeof TERMINAL_SERVER_OP)[keyof typeof TERMINAL_SERVER_OP];
+export type TerminalSequence = bigint;
 
 export type TerminalControlOpcode = Exclude<TerminalServerOpcode, typeof TERMINAL_SERVER_OP.output>;
 
@@ -50,7 +31,7 @@ export type TerminalFrameBytes = Uint8Array<ArrayBuffer>;
 /** An OUTPUT frame carries raw bytes behind an absolute sequence number. */
 export interface TerminalOutputFrame {
   op: typeof TERMINAL_SERVER_OP.output;
-  seq: number;
+  seq: TerminalSequence;
   bytes: Uint8Array;
 }
 
@@ -84,9 +65,7 @@ export function decodeTerminalServerFrame(raw: ArrayBuffer | Uint8Array): Termin
       throw new TerminalFrameError("short OUTPUT frame");
     }
     const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    // The sequence is a u64; JS numbers hold it exactly well past any real
-    // stream, and `getBigUint64` would force BigInt through every hot path.
-    const seq = Number(view.getBigUint64(1, false));
+    const seq = view.getBigUint64(1, false);
     return { op, seq, bytes: bytes.subarray(9) };
   }
   if (!isControlOpcode(op)) {
@@ -104,7 +83,7 @@ function parseControlPayload(bytes: Uint8Array): unknown {
 }
 
 function isControlOpcode(op: number): op is TerminalControlOpcode {
-  return op > TERMINAL_SERVER_OP.output && op <= TERMINAL_SERVER_OP.presence;
+  return op > TERMINAL_SERVER_OP.output && op <= TERMINAL_SERVER_OP.redactedInput;
 }
 
 /**
@@ -172,16 +151,24 @@ export function encodeTerminalServerControlFrame(
 }
 
 /** Builds one daemon OUTPUT frame with its absolute sequence position. */
-export function encodeTerminalServerOutputFrame(seq: number, text: string): TerminalFrameBytes {
-  if (!Number.isSafeInteger(seq) || seq < 0) {
-    throw new TerminalFrameError("server output sequence must be a non-negative safe integer");
+export function encodeTerminalServerOutputFrame(
+  seq: TerminalSequence,
+  text: string
+): TerminalFrameBytes {
+  if (seq < 0n || seq > 0xffff_ffff_ffff_ffffn) {
+    throw new TerminalFrameError("server output sequence must fit an unsigned 64-bit integer");
   }
   const body = encoder.encode(text);
   const frame = new Uint8Array(body.byteLength + 9);
   frame[0] = TERMINAL_SERVER_OP.output;
-  new DataView(frame.buffer).setBigUint64(1, BigInt(seq), false);
+  new DataView(frame.buffer).setBigUint64(1, seq, false);
   frame.set(body, 9);
   return frame;
+}
+
+/** Renders trusted REDACTED_INPUT metadata. PTY output never calls this boundary. */
+export function renderTerminalRedactedInput(characters: number): string {
+  return `hidden input · ${characters} characters`;
 }
 
 function prefix(op: number, payload: Uint8Array): TerminalFrameBytes {

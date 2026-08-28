@@ -27,6 +27,24 @@ func TestLeaseMachineContract(t *testing.T) {
 	humanA := Actor{Kind: ActorKindHuman, ID: "human-a", ProfileID: "profile-a"}
 	humanB := Actor{Kind: ActorKindHuman, ID: "human-b", ProfileID: "profile-a"}
 
+	t.Run("Should reserve write-owner-held for a real competing controller", func(t *testing.T) {
+		t.Parallel()
+		lease := newLeaseMachine(Actor{}, io.Discard, time.Second, nil)
+		for operation, err := range map[string]error{
+			"write without lease":          lease.authorize(humanA),
+			"agent takeover without owner": lease.takeover(agent, false),
+			"input request without owner":  lease.withAgentController(func(Actor) error { return nil }),
+		} {
+			var terminalErr *Error
+			if !errors.Is(err, ErrWriteLeaseRequired) || errors.As(err, &terminalErr) {
+				t.Fatalf("%s error = %v, want untyped write-lease requirement", operation, err)
+			}
+		}
+		if err := lease.claim(humanA); !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("human Claim() error = %v, want unsupported", err)
+		}
+	})
+
 	t.Run("Should allow only the controller to write [UT-017][UT-021]", func(t *testing.T) {
 		t.Parallel()
 		var output lockedBuffer

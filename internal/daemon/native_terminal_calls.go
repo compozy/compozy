@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -28,20 +29,15 @@ func (n *daemonNativeTools) terminalExec(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	capabilities, err := n.nativeTerminalCapabilities(ctx, workspaceID)
-	if err != nil {
-		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
-	}
 	result, err := manager.Exec(ctx, terminalpkg.ExecRequest{
 		WS: workspaceID, Command: input.Command, Args: input.Args, Cwd: input.Cwd, Env: input.Env,
 		YieldMs: input.YieldMS, Visible: input.Visible, Output: input.Output,
 		Approval: approval, Actor: actor,
-		Capabilities: capabilities,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(result, terminalExecPreview(result))
+	return untrustedTerminalResult(result, terminalExecPreview(result))
 }
 
 func (n *daemonNativeTools) terminalOpen(
@@ -57,19 +53,14 @@ func (n *daemonNativeTools) terminalOpen(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	capabilities, err := n.nativeTerminalCapabilities(ctx, workspaceID)
-	if err != nil {
-		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
-	}
 	handle, err := manager.Open(ctx, terminalpkg.OpenRequest{
 		WS: workspaceID, Cwd: input.Cwd, Shell: input.Shell, Title: input.Title,
 		Cols: input.Cols, Rows: input.Rows, Actor: actor,
-		Capabilities: capabilities,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"terminal_id": handle.Info().ID}, "interactive terminal opened")
+	return untrustedTerminalResult(map[string]any{"terminal_id": handle.Info().ID}, "interactive terminal opened")
 }
 
 func terminalExecPreview(result *terminalpkg.ExecResult) string {
@@ -86,11 +77,12 @@ func (n *daemonNativeTools) authorizeNativeTerminalExec(
 	classification terminalpkg.CommandClassification,
 ) (string, error) {
 	if classification.Verdict == terminalpkg.CommandVerdictDenied {
-		return "", terminalCodeToolError(
+		return "", toolspkg.NewToolError(
+			toolspkg.ErrorCodeDenied,
 			req.ToolID,
-			"approval_rejected",
-			"irreversible terminal command refused",
-			toolspkg.ErrToolDenied,
+			"irreversible terminal command refused by policy",
+			fmt.Errorf("terminal command denied by policy: %w", terminalpkg.ErrPolicyDenied),
+			toolspkg.ReasonPolicyDenied,
 		)
 	}
 	if classification.Verdict == terminalpkg.CommandVerdictAllowlisted {
@@ -108,14 +100,21 @@ func (n *daemonNativeTools) authorizeNativeTerminalExec(
 	if n != nil && n.deps != nil && n.deps.TerminalExecApprover != nil {
 		label, err := n.deps.TerminalExecApprover.ApproveTerminalExec(ctx, scope, req)
 		if err != nil {
+			if errors.Is(err, errToolApprovalRejected) {
+				return "", terminalToolError(req.ToolID, &terminalpkg.Error{
+					Code: terminalpkg.ErrorCodeApprovalRejected, Message: "terminal command approval was rejected",
+					Err: terminalpkg.ErrApprovalRejected,
+				})
+			}
 			return "", err
 		}
 		return label, nil
 	}
-	return "", terminalCodeToolError(
+	return "", toolspkg.NewToolError(
+		toolspkg.ErrorCodeApprovalRequired,
 		req.ToolID,
-		"approval_required",
 		"terminal command requires operator approval",
 		toolspkg.ErrToolApprovalRequired,
+		toolspkg.ReasonApprovalRequired,
 	)
 }

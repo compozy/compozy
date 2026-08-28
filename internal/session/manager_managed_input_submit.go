@@ -117,12 +117,7 @@ func (m *Manager) startManagedInputPrompt(session *Session, entry managedInput) 
 		m.failManagedInputPrompt(setup, err)
 		return
 	}
-	turnState := newPromptTurnDispatchState(
-		session,
-		setup.request.turnID,
-		setup.request.turnSource,
-		message,
-	)
+	turnState := newPromptRequestDispatchState(session, setup.request, message)
 	turnState.managed = setup.execution
 	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
 		m.failManagedInputPrompt(setup, err)
@@ -348,6 +343,7 @@ func managedInputPromptRequest(
 	}
 	return promptRequest{
 		turnID:          submission.PromptMeta.PromptID,
+		runID:           entry.taskRunID,
 		target:          entry.sessionID,
 		message:         entry.text,
 		authoredMessage: entry.text,

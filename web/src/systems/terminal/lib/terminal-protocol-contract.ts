@@ -15,6 +15,7 @@ import type {
   TerminalGapFrame,
   TerminalOwnerFrame,
   TerminalPresenceFrame,
+  TerminalRedactedInputFrame,
   TerminalResizedFrame,
 } from "./terminal-wire-schema";
 import type {
@@ -45,6 +46,8 @@ export interface TerminalStreamHandlers {
   /** The daemon's word on who holds the lease. The only source there is. */
   onLease?(frame: TerminalOwnerFrame): void;
   onPresence?(frame: TerminalPresenceFrame): void;
+  /** Trusted daemon metadata; matching PTY text remains ordinary output. */
+  onRedactedInput?(frame: TerminalRedactedInputFrame): void;
   onTitle?(title: string): void;
   onResized?(frame: TerminalResizedFrame): void;
   onGap?(frame: TerminalGapFrame): void;

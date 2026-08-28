@@ -24,7 +24,11 @@ import {
   TERMINAL_MIN_ROWS,
 } from "./terminal-wire";
 
-const sequenceSchema = z.number().int().nonnegative();
+const sequenceSchema = z
+  .string()
+  .regex(/^(0|[1-9]\d*)$/)
+  .transform(value => BigInt(value))
+  .refine(value => value <= 0xffff_ffff_ffff_ffffn, "sequence exceeds u64");
 const colsSchema = z.number().int().min(TERMINAL_MIN_COLS).max(TERMINAL_MAX_COLS);
 const rowsSchema = z.number().int().min(TERMINAL_MIN_ROWS).max(TERMINAL_MAX_ROWS);
 
@@ -35,6 +39,7 @@ export const terminalAttachedFrameSchema = z.strictObject({
   rows: rowsSchema,
   lease: terminalLeaseStateSchema,
   mode: terminalModeSchema,
+  preamble: z.string().optional(),
 });
 
 export const terminalExitFrameSchema = z.strictObject({
@@ -58,11 +63,16 @@ export const terminalResizedFrameSchema = z.strictObject({
 export const terminalGapFrameSchema = z.strictObject({
   from_seq: sequenceSchema,
   to_seq: sequenceSchema,
-  dropped_bytes: z.number().int().positive(),
+  dropped_bytes: z.number().int().nonnegative(),
 });
 
 export const terminalPresenceFrameSchema = z.strictObject({
   viewers: z.number().int().nonnegative(),
+});
+
+export const terminalRedactedInputFrameSchema = z.strictObject({
+  seq: sequenceSchema,
+  characters: z.number().int().nonnegative(),
 });
 
 /** The only authority on who holds the write lease. */
@@ -94,4 +104,5 @@ export type TerminalTitleFrame = z.infer<typeof terminalTitleFrameSchema>;
 export type TerminalResizedFrame = z.infer<typeof terminalResizedFrameSchema>;
 export type TerminalGapFrame = z.infer<typeof terminalGapFrameSchema>;
 export type TerminalPresenceFrame = z.infer<typeof terminalPresenceFrameSchema>;
+export type TerminalRedactedInputFrame = z.infer<typeof terminalRedactedInputFrameSchema>;
 export type TerminalOwnerFrame = z.infer<typeof terminalOwnerFrameSchema>;

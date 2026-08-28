@@ -2009,6 +2009,8 @@ export interface Redaction {
   bytes?: number;
 }
 
+export type ResultTrust = string;
+
 export interface ToolResult {
   content?: ToolContent[];
   structured?: JSONValue;
@@ -2019,6 +2021,7 @@ export interface ToolResult {
   truncated: boolean;
   bytes: number;
   duration_ms: number;
+  trust?: ResultTrust;
 }
 
 export interface ExtensionToolCallResponse {
@@ -5099,6 +5102,7 @@ export interface SessionRuntimeRecoveryExhaustedPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  run_id: string;
   attempt: number;
   max_attempts: number;
   generation: number;
@@ -5124,6 +5128,7 @@ export interface SessionRuntimeRecoveryStartedPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  run_id: string;
   attempt: number;
   max_attempts: number;
   generation: number;
@@ -5149,6 +5154,7 @@ export interface SessionRuntimeRecoverySucceededPayload {
   created_at: ISODateTime;
   updated_at: ISODateTime;
   turn_id?: string;
+  run_id: string;
   attempt: number;
   max_attempts: number;
   generation: number;
@@ -6938,6 +6944,7 @@ export interface TerminalClosedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   exit: TerminalExit;
   reason: string;
@@ -6953,6 +6960,7 @@ export interface TerminalCommandFinishedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   command_id: string;
   exit_code?: number;
@@ -6973,6 +6981,7 @@ export interface TerminalCommandStartedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   command_id: string;
   command: string;
@@ -6990,6 +6999,7 @@ export interface TerminalInputProvidedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   request_id: string;
   redacted: boolean;
@@ -7007,6 +7017,7 @@ export interface TerminalInputRequestedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   request_id: string;
   reason: string;
@@ -7023,6 +7034,7 @@ export interface TerminalLeaseChangedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   from: string;
   to: string;
@@ -7039,6 +7051,7 @@ export interface TerminalLimitRejectedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   limit: string;
   current: number;
@@ -7057,6 +7070,7 @@ export interface TerminalOpenedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   mode: string;
   cwd: string;
@@ -7073,6 +7087,7 @@ export interface TerminalRecordingStartedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   recording_id: string;
 }
@@ -7087,6 +7102,7 @@ export interface TerminalRecordingStoppedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   recording_id: string;
   digest: string;
@@ -7105,6 +7121,7 @@ export interface TerminalSubscriberEvictedPayload {
   actor_id: string;
   session_id?: string;
   run_id?: string;
+  generation?: number;
   at: ISODateTime;
   flow: string;
   reason: string;

@@ -9,11 +9,13 @@ import (
 )
 
 type activePromptState struct {
-	turnID   string
-	events   chan AgentEvent
-	activity chan struct{}
-	detached chan struct{}
-	cancel   context.CancelFunc
+	turnID     string
+	runID      string
+	generation int64
+	events     chan AgentEvent
+	activity   chan struct{}
+	detached   chan struct{}
+	cancel     context.CancelFunc
 
 	sendMu sync.Mutex
 	closed bool
@@ -42,6 +44,30 @@ func (p *AgentProcess) beginPrompt(
 	bufferSize int,
 	cancelFns ...context.CancelFunc,
 ) (*activePromptState, error) {
+	return p.beginPromptState(turnID, "", 0, bufferSize, cancelFns...)
+}
+
+func (p *AgentProcess) beginPromptForRun(
+	turnID string,
+	runID string,
+	generation int64,
+	bufferSize int,
+	cancelFns ...context.CancelFunc,
+) (*activePromptState, error) {
+	runID = strings.TrimSpace(runID)
+	if runID == "" || generation <= 0 {
+		return nil, errors.New("acp: prompt run identity is incomplete")
+	}
+	return p.beginPromptState(turnID, runID, generation, bufferSize, cancelFns...)
+}
+
+func (p *AgentProcess) beginPromptState(
+	turnID string,
+	runID string,
+	generation int64,
+	bufferSize int,
+	cancelFns ...context.CancelFunc,
+) (*activePromptState, error) {
 	p.promptMu.Lock()
 	defer p.promptMu.Unlock()
 	if p.activePrompt != nil {
@@ -56,6 +82,8 @@ func (p *AgentProcess) beginPrompt(
 	}
 	active := &activePromptState{
 		turnID:               turnID,
+		runID:                runID,
+		generation:           generation,
 		events:               make(chan AgentEvent, bufferSize),
 		activity:             make(chan struct{}, 1),
 		detached:             make(chan struct{}),

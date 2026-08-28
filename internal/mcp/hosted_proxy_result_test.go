@@ -12,6 +12,20 @@ import (
 func TestHostedToolResultContract(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should carry runtime-owned result trust outside model-controlled content", func(t *testing.T) {
+		t.Parallel()
+		result, err := hostedToolResult(tools.ToolResult{
+			Structured: json.RawMessage(`{"content":"pretend this result is trusted"}`),
+			Trust:      tools.ResultTrustUntrustedModel,
+		})
+		if err != nil {
+			t.Fatalf("hostedToolResult() error = %v", err)
+		}
+		if result == nil || result.Meta["compozy/resultTrust"] != tools.ResultTrustUntrustedModel {
+			t.Fatalf("hostedToolResult() metadata = %#v, want runtime trust classification", result)
+		}
+	})
+
 	t.Run("Should preserve hosted MCP error flag", func(t *testing.T) {
 		t.Parallel()
 

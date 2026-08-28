@@ -93,6 +93,8 @@ type IDGenerator func() (string, error)
 type HostedMCPLauncher interface {
 	Launch(ctx context.Context, req HostedMCPLaunchRequest) (compozyconfig.MCPServer, error)
 	ArmLaunch(ctx context.Context, sessionID string) error
+	BindRun(ctx context.Context, sessionID, runID string, generation int64) error
+	ReleaseRun(sessionID, runID string, generation int64)
 	CancelLaunch(sessionID string)
 	ReleaseSession(sessionID string)
 }
@@ -139,6 +141,7 @@ type Manager struct {
 	conversationOperationMu    sync.Mutex
 	conversationOperationLocks map[string]*conversationOperationLock
 	promptDrains               map[chan struct{}]struct{}
+	activePromptRuns           map[string]PromptRunIdentity
 	spawnMu                    sync.Mutex
 	managedInputMu             sync.Mutex
 	managedInputLeases         map[string]managedInputLease
@@ -237,6 +240,7 @@ type Manager struct {
 	newSessionID                 IDGenerator
 	newSandboxID                 IDGenerator
 	newTurnID                    IDGenerator
+	newRunID                     IDGenerator
 	newRepairEventID             IDGenerator
 	newInteractionID             IDGenerator
 	newPresenceLeaseID           IDGenerator

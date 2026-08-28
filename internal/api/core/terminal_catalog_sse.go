@@ -31,14 +31,7 @@ func (h *BaseHandlers) StreamTerminalCatalog(c *gin.Context) {
 	replay, reset, fence, changed := h.terminalCatalog.read(workspaceID, profileID, after)
 	stop, done, accepting := h.terminalStreams.begin()
 	if !accepting {
-		h.respondTerminalError(
-			c,
-			&terminalpkg.Error{
-				Code:    "terminal_shutting_down",
-				Message: "terminal streams are shutting down",
-				Err:     terminalpkg.ErrShuttingDown,
-			},
-		)
+		h.respondTerminalError(c, fmt.Errorf("terminal streams are shutting down: %w", terminalpkg.ErrShuttingDown))
 		return
 	}
 	defer done()
@@ -135,11 +128,7 @@ func terminalCatalogCursor(raw string) (uint64, error) {
 	}
 	value, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
 	if err != nil {
-		return 0, &terminalpkg.Error{
-			Code:    "terminal_cursor_invalid",
-			Message: "terminal catalog cursor is invalid",
-			Err:     terminalpkg.ErrUnsupported,
-		}
+		return 0, fmt.Errorf("terminal catalog cursor is invalid: %w", terminalpkg.ErrUnsupported)
 	}
 	return value, nil
 }

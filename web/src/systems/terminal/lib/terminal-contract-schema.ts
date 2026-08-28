@@ -8,12 +8,8 @@ type TerminalExitResponse =
   operations["deleteTerminal"]["responses"][200]["content"]["application/json"];
 type TerminalAttachTicketResponse =
   operations["mintTerminalAttachTicket"]["responses"][201]["content"]["application/json"];
-type TerminalReadResponse =
-  operations["readTerminal"]["responses"][200]["content"]["application/json"];
 type TerminalSignalResponse =
   operations["signalTerminal"]["responses"][200]["content"]["application/json"];
-type TerminalInputRequestsResponse =
-  operations["listTerminalInputRequests"]["responses"][200]["content"]["application/json"];
 type TerminalInputAnswerResponse =
   operations["answerTerminalInputRequest"]["responses"][200]["content"]["application/json"];
 type TerminalInputRejectResponse =
@@ -22,11 +18,8 @@ type TerminalJournalResponse =
   operations["queryTerminalJournal"]["responses"][200]["content"]["application/json"];
 type TerminalRecordingResponse =
   operations["controlTerminalRecording"]["responses"][200]["content"]["application/json"];
-type TerminalErrorEnvelope =
-  operations["listTerminals"]["responses"][422]["content"]["application/json"];
 
 export type TerminalInfo = TerminalListResponse["terminals"][number];
-export type TerminalErrorCode = TerminalErrorEnvelope["error"]["code"];
 
 function closedGeneratedEnum<Generated extends string>() {
   return <const Values extends readonly [Generated, ...Generated[]]>(
@@ -64,7 +57,7 @@ const terminalRecordingStateSchema = closedGeneratedEnum<
   TerminalRecordingResponse["recording"]["state"]
 >()(["recording", "saved"]);
 
-export const terminalErrorCodeSchema = closedGeneratedEnum<TerminalErrorCode>()([
+export const terminalErrorCodeSchema = z.enum([
   "terminal_not_found",
   "profile_selection_conflict",
   "profile_session_conflict",
@@ -97,6 +90,7 @@ export const terminalErrorCodeSchema = closedGeneratedEnum<TerminalErrorCode>()(
   "slow_consumer",
   "journal_unavailable",
 ]);
+export type TerminalErrorCode = z.infer<typeof terminalErrorCodeSchema>;
 
 const dateTimeSchema = z.iso.datetime({ offset: true });
 const terminalActorSchema = z.strictObject({
@@ -149,10 +143,16 @@ export const terminalAttachTicketResponseSchema: z.ZodType<TerminalAttachTicketR
     ticket: z.string(),
     expires_at: dateTimeSchema,
   });
-export const terminalReadResponseSchema: z.ZodType<TerminalReadResponse> = z.strictObject({
+const terminalSequenceSchema = z
+  .string()
+  .regex(/^(0|[1-9]\d*)$/)
+  .transform(value => BigInt(value))
+  .refine(value => value <= 0xffff_ffff_ffff_ffffn, "sequence exceeds u64");
+
+export const terminalReadResponseSchema = z.strictObject({
   busy: z.boolean(),
   content: z.string(),
-  seq: z.number().int().nonnegative(),
+  seq: terminalSequenceSchema,
   spill: z
     .strictObject({
       artifact_id: z.string(),
@@ -166,22 +166,41 @@ export const terminalReadResponseSchema: z.ZodType<TerminalReadResponse> = z.str
 export const terminalSignalResponseSchema: z.ZodType<TerminalSignalResponse> = z.strictObject({
   delivered: z.boolean(),
 });
-export const terminalInputRequestsResponseSchema: z.ZodType<TerminalInputRequestsResponse> =
-  z.strictObject({
-    requests: z.array(
-      z.strictObject({
-        id: z.string(),
-        profile_id: z.string(),
-        profile_name: z.string(),
-        prompt_excerpt: z.string(),
-        reason: z.string(),
-        redacted: z.boolean(),
-        requested_at: dateTimeSchema,
-        terminal_id: z.string(),
-        workspace_id: z.string().optional(),
-      })
-    ),
-  });
+const terminalInputActorSchema = z.strictObject({
+  kind: terminalActorKindSchema,
+  id: z.string().min(1),
+});
+const terminalPendingInputRequestSchema = z.strictObject({
+  id: z.string(),
+  profile_id: z.string(),
+  profile_name: z.string(),
+  prompt_excerpt: z.string(),
+  reason: z.string(),
+  redacted: z.boolean(),
+  requested_at: dateTimeSchema,
+  requester: terminalInputActorSchema,
+  terminal_id: z.string(),
+  workspace_id: z.string().optional(),
+});
+const terminalResolvedInputRequestSchema = z.strictObject({
+  id: z.string(),
+  profile_id: z.string(),
+  profile_name: z.string(),
+  requester: terminalInputActorSchema,
+  outcome: z.enum(["answered", "rejected", "superseded", "expired"]),
+  resolved_by: terminalInputActorSchema,
+  reason: z.string().optional(),
+  redacted: z.boolean(),
+  length: z.number().int().nonnegative(),
+  requested_at: dateTimeSchema,
+  resolved_at: dateTimeSchema,
+  terminal_id: z.string(),
+  workspace_id: z.string().optional(),
+});
+export const terminalInputRequestsResponseSchema = z.strictObject({
+  pending: z.array(terminalPendingInputRequestSchema),
+  resolved: z.array(terminalResolvedInputRequestSchema),
+});
 export const terminalInputAnswerResponseSchema: z.ZodType<TerminalInputAnswerResponse> =
   z.strictObject({
     delivered_bytes: z.number().int().nonnegative(),
@@ -231,10 +250,21 @@ export const terminalRecordingResponseSchema: z.ZodType<TerminalRecordingRespons
     }),
   }
 );
-export const terminalErrorEnvelopeSchema: z.ZodType<TerminalErrorEnvelope> = z.strictObject({
+export const terminalErrorDetailsSchema = z.strictObject({
+  current: z.number().int().nonnegative().optional(),
+  max: z.number().int().positive().optional(),
+  controller: terminalInputActorSchema.optional(),
+  path: z.string().optional(),
+  mode: terminalModeSchema.optional(),
+  platform: z.string().optional(),
+  action: z.string().optional(),
+});
+export type TerminalErrorDetails = z.infer<typeof terminalErrorDetailsSchema>;
+
+export const terminalErrorEnvelopeSchema = z.strictObject({
   error: z.strictObject({
-    code: terminalErrorCodeSchema,
+    code: z.string().regex(/\S/),
     message: z.string().regex(/\S/),
-    details: z.record(z.string(), z.string()).optional(),
+    details: terminalErrorDetailsSchema.optional(),
   }),
 });

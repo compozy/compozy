@@ -9,48 +9,23 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
-	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 func newTerminalManager(
 	ctx context.Context,
 	logger *slog.Logger,
-	root string,
 	core TerminalHost,
-	scope terminalScope,
-	registries ...*toolruntime.Registry,
+	scope LocalTerminalScope,
 ) *terminalManager {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	if strings.TrimSpace(scope.workspaceID) == "" {
-		scope.workspaceID = "acp-local:" + root
-	}
-	if strings.TrimSpace(scope.profileID) == "" {
-		scope.profileID = "acp-local"
-	}
-	if strings.TrimSpace(scope.actorID) == "" {
-		scope.actorID = "acp-agent"
-	}
-	ownedCore := (*terminalpkg.Service)(nil)
 	var coreErr error
 	if core == nil {
-		options := []terminalpkg.Option{terminalpkg.WithLogger(logger)}
-		if len(registries) > 0 && registries[0] != nil {
-			options = append(options, terminalpkg.WithProcessRegistry(registries[0]))
-		}
-		service, err := terminalpkg.NewManager(options...)
-		if err != nil {
-			coreErr = fmt.Errorf("acp: create local terminal core: %w", err)
-		} else if err := service.Start(ctx); err != nil {
-			coreErr = fmt.Errorf("acp: start local terminal core: %w", err)
-		} else {
-			core = service
-			ownedCore = service
-		}
+		coreErr = errors.New("acp: terminal core is required")
 	}
 	return &terminalManager{
-		logger: logger, lifecycle: ctx, core: core, ownedCore: ownedCore, coreErr: coreErr, scope: scope,
+		logger: logger, lifecycle: ctx, core: core, coreErr: coreErr, scope: scope,
 		terminals: make(map[string]*managedTerminal),
 	}
 }
@@ -82,9 +57,9 @@ func (m *terminalManager) create(
 	}
 	actor := m.actor(ownership)
 	handle, err := m.core.OpenPipe(ctx, terminalpkg.PipeRequest{
-		WS: m.scope.workspaceID, Argv: argv, Cwd: cwd, Env: env,
+		WS: m.scope.WorkspaceID, Argv: argv, Cwd: cwd, Env: env,
 		Title: strings.Join(argv, " "), Actor: actor,
-		AllowedRoots: append([]string(nil), m.scope.allowedRoots...),
+		AllowedRoots: append([]string(nil), m.scope.AllowedRoots...),
 		Capabilities: terminalpkg.Capabilities{Interactive: false},
 	})
 	if err != nil {
@@ -107,11 +82,11 @@ func (m *terminalManager) create(
 func (m *terminalManager) actor(ownership terminalOwnership) terminalpkg.Actor {
 	sessionID := strings.TrimSpace(ownership.ownerSessionID)
 	if sessionID == "" {
-		sessionID = strings.TrimSpace(m.scope.sessionID)
+		sessionID = strings.TrimSpace(m.scope.SessionID)
 	}
 	return terminalpkg.Actor{
-		Kind: terminalpkg.ActorKindAgent, ID: m.scope.actorID, ProfileID: m.scope.profileID,
-		SessionID: sessionID, RunID: strings.TrimSpace(ownership.ownerTurnID),
-		Generation: m.scope.generation,
+		Kind: terminalpkg.ActorKindAgent, ID: m.scope.ActorID, ProfileID: m.scope.ProfileID,
+		SessionID: sessionID, RunID: strings.TrimSpace(ownership.ownerRunID),
+		Generation: ownership.ownerGeneration,
 	}
 }

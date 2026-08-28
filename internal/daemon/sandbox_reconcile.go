@@ -246,6 +246,9 @@ func (d *Daemon) reattachDaemonSandbox(
 	prepared, err := provider.Prepare(ctx, sandbox.PrepareRequest{
 		SessionID:           strings.TrimSpace(meta.ID),
 		WorkspaceID:         strings.TrimSpace(meta.WorkspaceID),
+		ProfileID:           strings.TrimSpace(meta.ProfileID),
+		AgentName:           strings.TrimSpace(meta.AgentName),
+		RuntimeGeneration:   meta.RuntimeGeneration,
 		SandboxID:           strings.TrimSpace(envMeta.SandboxID),
 		InstanceID:          strings.TrimSpace(providerState.InstanceID),
 		LocalRootDir:        localRoot,

@@ -26,6 +26,7 @@ type profileResolution struct {
 }
 
 type profileResolutionContextKey struct{}
+type historicalProfileReadContextKey struct{}
 
 func resolveCommandProfile(
 	ctx context.Context,
@@ -34,6 +35,30 @@ func resolveCommandProfile(
 	profiles profileResolutionClient,
 	workspaces workspaceLookupClient,
 ) (profileResolution, error) {
+	return resolveCommandProfileWithArchived(ctx, cmd, deps, profiles, workspaces, false)
+}
+
+func resolveHistoricalCommandProfile(
+	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
+	profiles profileResolutionClient,
+	workspaces workspaceLookupClient,
+) (profileResolution, error) {
+	return resolveCommandProfileWithArchived(ctx, cmd, deps, profiles, workspaces, true)
+}
+
+func resolveCommandProfileWithArchived(
+	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
+	profiles profileResolutionClient,
+	workspaces workspaceLookupClient,
+	allowArchived bool,
+) (profileResolution, error) {
+	if allowArchived {
+		recordHistoricalProfileRead(cmd)
+	}
 	if resolution, ok := commandProfileResolution(cmd); ok {
 		return resolution, nil
 	}
@@ -46,13 +71,14 @@ func resolveCommandProfile(
 			return profileResolution{}, fmt.Errorf("cli: read all-workspaces flag: %w", err)
 		}
 		if allWorkspaces {
-			return resolveProfileForWorkspace(
+			return resolveProfileForWorkspaceWithArchived(
 				ctx,
 				cmd,
 				deps,
 				profiles,
 				workspaceResolution{},
 				false,
+				allowArchived,
 			)
 		}
 	}
@@ -68,7 +94,7 @@ func resolveCommandProfile(
 	if err != nil {
 		return profileResolution{}, err
 	}
-	return resolveProfileForWorkspace(ctx, cmd, deps, profiles, workspace, hasWorkspace)
+	return resolveProfileForWorkspaceWithArchived(ctx, cmd, deps, profiles, workspace, hasWorkspace, allowArchived)
 }
 
 func resolveProfileForWorkspace(
@@ -78,6 +104,18 @@ func resolveProfileForWorkspace(
 	profiles profileResolutionClient,
 	workspace workspaceResolution,
 	hasWorkspace bool,
+) (profileResolution, error) {
+	return resolveProfileForWorkspaceWithArchived(ctx, cmd, deps, profiles, workspace, hasWorkspace, false)
+}
+
+func resolveProfileForWorkspaceWithArchived(
+	ctx context.Context,
+	cmd *cobra.Command,
+	deps commandDeps,
+	profiles profileResolutionClient,
+	workspace workspaceResolution,
+	hasWorkspace bool,
+	allowArchived bool,
 ) (profileResolution, error) {
 	if resolution, ok := commandProfileResolution(cmd); ok {
 		return resolution, nil
@@ -100,10 +138,10 @@ func resolveProfileForWorkspace(
 		base.WorkspaceName = workspace.Detail.Workspace.Name
 	}
 	if explicit := strings.TrimSpace(flag); explicit != "" {
-		return resolveExplicitProfile(cmd, byName, explicit, profileResolutionFlag, base)
+		return resolveExplicitProfile(cmd, byName, explicit, profileResolutionFlag, base, allowArchived)
 	}
 	if explicit := strings.TrimSpace(deps.getenv(profileEnvName)); explicit != "" {
-		return resolveExplicitProfile(cmd, byName, explicit, profileResolutionEnv, base)
+		return resolveExplicitProfile(cmd, byName, explicit, profileResolutionEnv, base, allowArchived)
 	}
 	selections, err := profiles.ListProfileSelections(ctx)
 	if err != nil {
@@ -146,7 +184,9 @@ func resolveProfileAtWorkspaceBoundary(
 	if !ok {
 		return nil
 	}
-	_, err := resolveProfileForWorkspace(ctx, cmd, deps, profiles, workspace, true)
+	_, err := resolveProfileForWorkspaceWithArchived(
+		ctx, cmd, deps, profiles, workspace, true, historicalProfileReadAllowed(cmd),
+	)
 	return err
 }
 
@@ -171,6 +211,7 @@ func resolveExplicitProfile(
 	profiles map[string]contract.Profile,
 	name, source string,
 	base profileResolution,
+	allowArchived bool,
 ) (profileResolution, error) {
 	selected, found := profiles[name]
 	if !found {
@@ -178,7 +219,7 @@ func resolveExplicitProfile(
 			"profile_not_found", fmt.Sprintf("profile %q was not found", name), "run compozy profile list",
 		)
 	}
-	if selected.State == "archived" {
+	if selected.State == "archived" && !allowArchived {
 		return profileResolution{}, newProfileSelectionError(
 			"profile_archived", fmt.Sprintf("profile %q is archived", name), "run compozy profile unarchive "+name,
 		)
@@ -231,6 +272,21 @@ func recordProfileResolution(cmd *cobra.Command, resolution profileResolution) {
 		parent = context.Background()
 	}
 	cmd.SetContext(context.WithValue(parent, profileResolutionContextKey{}, resolution))
+}
+
+func recordHistoricalProfileRead(cmd *cobra.Command) {
+	if cmd == nil {
+		return
+	}
+	cmd.SetContext(context.WithValue(cmd.Context(), historicalProfileReadContextKey{}, true))
+}
+
+func historicalProfileReadAllowed(cmd *cobra.Command) bool {
+	if cmd == nil || cmd.Context() == nil {
+		return false
+	}
+	allowed, ok := cmd.Context().Value(historicalProfileReadContextKey{}).(bool)
+	return ok && allowed
 }
 
 func commandProfileResolution(cmd *cobra.Command) (profileResolution, bool) {

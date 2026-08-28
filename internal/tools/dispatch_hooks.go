@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-
 	"errors"
 	"fmt"
 	"strings"
@@ -123,6 +122,12 @@ func mergeHookCallRequest(original CallRequest, patched CallRequest) CallRequest
 	}
 	if patched.TurnID == "" {
 		patched.TurnID = original.TurnID
+	}
+	if patched.RunID == "" {
+		patched.RunID = original.RunID
+	}
+	if patched.Generation == 0 {
+		patched.Generation = original.Generation
 	}
 	if patched.SessionID == "" {
 		patched.SessionID = original.SessionID

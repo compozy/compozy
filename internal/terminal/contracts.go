@@ -8,6 +8,7 @@ import (
 	"github.com/compozy/compozy/internal/store"
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
 type ID string
@@ -153,6 +154,22 @@ type AttachOptions struct {
 	Actor    Actor
 }
 
+// AttachTicketBinding is the complete immutable scope of one attach grant.
+type AttachTicketBinding struct {
+	WorkspaceID string
+	ProfileID   string
+	TerminalID  ID
+	Mode        string
+}
+
+// AttachTicket is a short-lived, single-use grant minted by the terminal domain.
+type AttachTicket struct {
+	Token     string
+	Binding   AttachTicketBinding
+	Actor     Actor
+	ExpiresAt time.Time
+}
+
 type ReadOptions struct {
 	View     string
 	MaxBytes int
@@ -163,12 +180,13 @@ type ReadOptions struct {
 }
 
 type ReadResult struct {
-	Content   string    `json:"content"`
-	Seq       uint64    `json:"seq"`
-	Truncated bool      `json:"truncated"`
-	Busy      bool      `json:"busy"`
-	Untrusted bool      `json:"untrusted"`
-	Spill     *SpillRef `json:"spill,omitempty"`
+	Content   string          `json:"content"`
+	Segments  []OutputSegment `json:"segments,omitempty"`
+	Seq       uint64          `json:"seq"`
+	Truncated bool            `json:"truncated"`
+	Busy      bool            `json:"busy"`
+	Untrusted bool            `json:"untrusted"`
+	Spill     *SpillRef       `json:"spill,omitempty"`
 }
 
 type WaitCondition struct {
@@ -191,9 +209,16 @@ type InputRequest struct {
 }
 
 type InputOutcome struct {
-	Outcome  string `json:"outcome"`
-	Redacted bool   `json:"redacted"`
-	Length   int    `json:"length"`
+	Outcome        InputResolutionOutcome `json:"outcome"`
+	Redacted       bool                   `json:"redacted"`
+	Length         int                    `json:"length"`
+	DeliveredBytes int                    `json:"-"`
+}
+
+// InputActorProjection identifies an input requester or resolver without exposing run authority.
+type InputActorProjection struct {
+	Kind ActorKind `json:"kind"`
+	ID   string    `json:"id"`
 }
 
 type InputAnswer struct {
@@ -202,15 +227,33 @@ type InputAnswer struct {
 
 // PendingInputRequest is the profile-scoped public projection of one unresolved prompt.
 type PendingInputRequest struct {
-	ID            InputRequestID `json:"id"`
-	TerminalID    ID             `json:"terminal_id"`
-	WorkspaceID   string         `json:"workspace_id,omitempty"`
-	ProfileID     string         `json:"profile_id"`
-	ProfileName   string         `json:"profile_name"`
-	Reason        string         `json:"reason"`
-	PromptExcerpt string         `json:"prompt_excerpt"`
-	Redacted      bool           `json:"redacted"`
-	RequestedAt   time.Time      `json:"requested_at"`
+	ID            InputRequestID       `json:"id"`
+	TerminalID    ID                   `json:"terminal_id"`
+	WorkspaceID   string               `json:"workspace_id,omitempty"`
+	ProfileID     string               `json:"profile_id"`
+	ProfileName   string               `json:"profile_name"`
+	Reason        string               `json:"reason"`
+	PromptExcerpt string               `json:"prompt_excerpt"`
+	Redacted      bool                 `json:"redacted"`
+	RequestedAt   time.Time            `json:"requested_at"`
+	Requester     InputActorProjection `json:"requester"`
+}
+
+// ResolvedInputRequest is the bounded, secret-free outcome projection of an input request.
+type ResolvedInputRequest struct {
+	ID          InputRequestID         `json:"id"`
+	TerminalID  ID                     `json:"terminal_id"`
+	WorkspaceID string                 `json:"workspace_id,omitempty"`
+	ProfileID   string                 `json:"profile_id"`
+	ProfileName string                 `json:"profile_name"`
+	Requester   InputActorProjection   `json:"requester"`
+	Outcome     InputResolutionOutcome `json:"outcome"`
+	ResolvedBy  InputActorProjection   `json:"resolved_by"`
+	Reason      string                 `json:"reason,omitempty"`
+	Redacted    bool                   `json:"redacted"`
+	Length      int                    `json:"length"`
+	RequestedAt time.Time              `json:"requested_at"`
+	ResolvedAt  time.Time              `json:"resolved_at"`
 }
 
 type RecordingRef struct {
@@ -229,24 +272,25 @@ type RecordingRef struct {
 type Frame = terminalwire.Frame
 
 type CommandRow struct {
-	ID          string    `json:"command_id"`
-	TerminalID  *ID       `json:"terminal_id"`
-	ProfileID   string    `json:"profile_id"`
-	ProfileName string    `json:"profile_name"`
-	Actor       Actor     `json:"actor"`
-	Command     string    `json:"command"`
-	ArgvDigest  *string   `json:"argv_digest,omitempty"`
-	Cwd         string    `json:"cwd"`
-	StartedAt   time.Time `json:"started_at"`
-	DurationMs  *int64    `json:"duration_ms"`
-	ExitCode    *int      `json:"exit_code"`
-	ExitSignal  *string   `json:"signal"`
-	ExitCause   string    `json:"exit_cause"`
-	DetectedBy  string    `json:"detected_by"`
-	Approval    string    `json:"approval"`
-	OutputBytes int64     `json:"output_bytes"`
-	Truncated   bool      `json:"truncated"`
-	RecordingID *string   `json:"recording,omitempty"`
+	ID          string          `json:"command_id"`
+	TerminalID  *ID             `json:"terminal_id"`
+	ProfileID   string          `json:"profile_id"`
+	ProfileName string          `json:"profile_name"`
+	Actor       Actor           `json:"actor"`
+	Command     string          `json:"command"`
+	ArgvDigest  *string         `json:"argv_digest,omitempty"`
+	Cwd         string          `json:"cwd"`
+	StartedAt   time.Time       `json:"started_at"`
+	DurationMs  *int64          `json:"duration_ms"`
+	ExitCode    *int            `json:"exit_code"`
+	ExitSignal  *string         `json:"signal"`
+	ExitCause   string          `json:"exit_cause"`
+	DetectedBy  string          `json:"detected_by"`
+	Approval    string          `json:"approval"`
+	OutputBytes int64           `json:"output_bytes"`
+	Truncated   bool            `json:"truncated"`
+	RecordingID *string         `json:"recording,omitempty"`
+	OutputTail  []OutputSegment `json:"output_tail"`
 }
 
 type Query struct {
@@ -275,8 +319,33 @@ type MarkerFacts struct {
 	Exit    *int
 }
 
+type OutputSegmentKind string
+
+const (
+	OutputSegmentBytes         OutputSegmentKind = "output"
+	OutputSegmentRedactedInput OutputSegmentKind = "redacted_input"
+)
+
+type OutputSegment struct {
+	Kind       OutputSegmentKind `json:"kind"`
+	Text       string            `json:"text,omitempty"`
+	Characters int               `json:"characters,omitempty"`
+}
+
 type MarkerConsumer interface {
 	ConsumeMarkerFacts(ctx context.Context, terminal Info, facts []MarkerFacts) error
+}
+
+type JournalInput struct {
+	Content    []byte
+	Redacted   bool
+	Characters int
+}
+
+// JournalInputReservation pins one terminal journal lane across PTY delivery.
+type JournalInputReservation interface {
+	Commit(actor Actor, input JournalInput)
+	Release()
 }
 
 type ProcSpec = terminalpty.ProcSpec
@@ -285,6 +354,7 @@ type Proc = terminalpty.Proc
 
 type Subscription interface {
 	Frames() <-chan Frame
+	Err() error
 	Ack(bytes int)
 	Resize(cols, rows uint16) error
 	Close() error
@@ -302,6 +372,7 @@ type Handle interface {
 	RequestInput(ctx context.Context, request InputRequest) (*InputOutcome, error)
 	AnswerInput(ctx context.Context, actor Actor, id InputRequestID, answer InputAnswer) (*InputOutcome, error)
 	RejectInput(ctx context.Context, actor Actor, id InputRequestID, reason string) error
+	PendingInput(id InputRequestID) (*PendingInputRequest, error)
 	Signal(ctx context.Context, actor Actor, signal Signal) error
 	StartRecording(ctx context.Context, actor Actor) (RecordingRef, error)
 	StopRecording(ctx context.Context, actor Actor) (RecordingRef, error)
@@ -314,16 +385,65 @@ type Manager interface {
 	Get(ctx context.Context, workspaceID, profileID string, id ID) (*Info, error)
 	List(ctx context.Context, workspaceID string, scope store.ReadScope) ([]Info, error)
 	Close(ctx context.Context, workspaceID string, id ID, actor Actor, signal Signal) (*Exit, error)
+	Capabilities(ctx context.Context, workspaceID string) (Capabilities, error)
+	MintAttachTicket(ctx context.Context, binding AttachTicketBinding, actor Actor) (AttachTicket, error)
+	AttachWithTicket(
+		ctx context.Context,
+		token string,
+		workspaceID string,
+		terminalID ID,
+		mode string,
+		options AttachOptions,
+	) (Handle, Subscription, AttachTicket, error)
+	Claim(ctx context.Context, workspaceID string, id ID, actor Actor) error
+	RunEnded(ctx context.Context, workspaceID string, actor Actor) int
+	SessionRunEnded(ctx context.Context, workspaceID, profileID, sessionID, runID string, generation int64) int
+	RuntimeRecovered(ctx context.Context, workspaceID string, previous, current Actor) int
+	InputRequests(
+		ctx context.Context,
+		workspaceID string,
+		scope store.ReadScope,
+		terminalID ID,
+	) ([]PendingInputRequest, error)
+	ResolvedInputRequests(
+		ctx context.Context,
+		workspaceID string,
+		scope store.ReadScope,
+		terminalID ID,
+	) ([]ResolvedInputRequest, error)
 	Journal() Journal
 	Shutdown(ctx context.Context) error
 	Observe(fn func(context.Context, Event))
 	ArchiveProfile(ctx context.Context, profileID string) error
+	ArchiveWorkspace(ctx context.Context, workspaceID string) error
+	PrepareWorkspaceRemoval(
+		ctx context.Context,
+		workspaceID string,
+	) (workspacepkg.UnregisterPreparation, error)
 }
 
 type Journal interface {
+	MarkerConsumer
 	Record(ctx context.Context, workspaceID string, row CommandRow) error
+	RecordQueued(ctx context.Context, terminal Info, row CommandRow) error
 	Query(ctx context.Context, workspaceID string, scope store.ReadScope, query Query) (*Page, error)
 	LinkRecording(ctx context.Context, workspaceID string, terminalID ID, recording RecordingRef) error
+	PersistRecording(
+		ctx context.Context,
+		workspaceID string,
+		terminalID ID,
+		recording RecordingRef,
+		contents []byte,
+	) (RecordingRef, error)
+	WriteArtifact(
+		ctx context.Context,
+		workspaceID string,
+		profileID string,
+		commandID string,
+		terminalID *ID,
+		contents []byte,
+		expiresAt time.Time,
+	) (SpillRef, error)
 	Recording(
 		ctx context.Context,
 		workspaceID string,
@@ -331,6 +451,21 @@ type Journal interface {
 		id string,
 	) (*RecordingRef, io.ReadCloser, error)
 	Artifact(ctx context.Context, workspaceID string, scope store.ReadScope, id string) (io.ReadCloser, error)
+	RegisterTerminal(terminal Info, setBlocked func(bool), emit func(Event))
+	CloseTerminal(ctx context.Context, terminal Info) error
+	ReserveInput(terminal Info, input JournalInput) (JournalInputReservation, bool)
+	ObserveOutput(terminal Info, output []byte)
+	PrepareWorkspaceRemoval(
+		ctx context.Context,
+		workspaceID string,
+	) (workspacepkg.UnregisterPreparation, error)
+	PrepareWorkspaceRemovalAt(
+		ctx context.Context,
+		workspaceID string,
+		rootDir string,
+	) (workspacepkg.UnregisterPreparation, error)
+	RemoveWorkspace(ctx context.Context, workspaceID string) error
+	Shutdown(ctx context.Context) error
 }
 
 type ProfileGuard interface {

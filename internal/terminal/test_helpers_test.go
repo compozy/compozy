@@ -69,6 +69,9 @@ type fakeProc struct {
 	writeStarted   chan struct{}
 	writeRelease   <-chan struct{}
 	writeErr       error
+	partialBytes   int
+	partialErr     error
+	restoreErr     error
 }
 
 type fakeResize struct {
@@ -93,6 +96,10 @@ func (p *fakeProc) writeInput(input []byte, allowEcho bool) (int, error) {
 	p.writeStarted = nil
 	release := p.writeRelease
 	writeErr := p.writeErr
+	partialBytes := p.partialBytes
+	partialErr := p.partialErr
+	p.partialBytes = 0
+	p.partialErr = nil
 	p.mu.Unlock()
 	if started != nil {
 		close(started)
@@ -102,6 +109,13 @@ func (p *fakeProc) writeInput(input []byte, allowEcho bool) (int, error) {
 	}
 	if writeErr != nil {
 		return 0, writeErr
+	}
+	if partialBytes > 0 {
+		partialBytes = min(partialBytes, len(input))
+		p.mu.Lock()
+		written, bufferErr := p.input.Write(input[:partialBytes])
+		p.mu.Unlock()
+		return written, errors.Join(partialErr, bufferErr)
 	}
 	p.mu.Lock()
 	written, err := p.input.Write(input)
@@ -128,9 +142,13 @@ func (p *fakeProc) InputVisible() (bool, error) {
 	return visible, nil
 }
 
-func (p *fakeProc) WriteRedacted(input []byte) (int, error) {
+func (p *fakeProc) WriteRedacted(input []byte) (terminalpty.RedactedWriteResult, error) {
 	p.redactedWrites.Add(1)
-	return p.writeInput(input, false)
+	written, err := p.writeInput(input, false)
+	p.mu.Lock()
+	restoreErr := p.restoreErr
+	p.mu.Unlock()
+	return terminalpty.RedactedWriteResult{BytesDelivered: written, RestoreError: restoreErr}, err
 }
 
 func (p *fakeProc) enableWriteEcho() { p.echoWrites.Store(true) }
@@ -140,6 +158,19 @@ func (p *fakeProc) blockWrites(started chan struct{}, release <-chan struct{}, e
 	p.writeStarted = started
 	p.writeRelease = release
 	p.writeErr = err
+	p.mu.Unlock()
+}
+
+func (p *fakeProc) failEchoRestore(err error) {
+	p.mu.Lock()
+	p.restoreErr = err
+	p.mu.Unlock()
+}
+
+func (p *fakeProc) failNextWriteAfter(bytesDelivered int, err error) {
+	p.mu.Lock()
+	p.partialBytes = bytesDelivered
+	p.partialErr = err
 	p.mu.Unlock()
 }
 
@@ -231,6 +262,17 @@ type staticWorkspaceResolver struct {
 	profileCalls   atomic.Int32
 	lastProfile    string
 	lastProfileMux sync.Mutex
+}
+
+type fixedWorkspaceResolver struct {
+	workspace workspacepkg.ResolvedWorkspace
+}
+
+func (r *fixedWorkspaceResolver) Resolve(
+	context.Context,
+	string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	return r.workspace, nil
 }
 
 func (r *staticWorkspaceResolver) Resolve(_ context.Context, id string) (workspacepkg.ResolvedWorkspace, error) {
@@ -377,13 +419,133 @@ type fakeRecordingJournal struct {
 	calledOne sync.Once
 	release   <-chan struct{}
 	rows      []CommandRow
+	inputs    []JournalInput
 }
+
+type journalContractOnly struct {
+	journal Journal
+}
+
+func (j journalContractOnly) Record(ctx context.Context, workspaceID string, row CommandRow) error {
+	return j.journal.Record(ctx, workspaceID, row)
+}
+
+func (j journalContractOnly) RecordQueued(ctx context.Context, terminal Info, row CommandRow) error {
+	return j.journal.RecordQueued(ctx, terminal, row)
+}
+
+func (j journalContractOnly) Query(
+	ctx context.Context,
+	workspaceID string,
+	scope store.ReadScope,
+	query Query,
+) (*Page, error) {
+	return j.journal.Query(ctx, workspaceID, scope, query)
+}
+
+func (j journalContractOnly) LinkRecording(
+	ctx context.Context,
+	workspaceID string,
+	terminalID ID,
+	recording RecordingRef,
+) error {
+	return j.journal.LinkRecording(ctx, workspaceID, terminalID, recording)
+}
+
+func (j journalContractOnly) PersistRecording(
+	ctx context.Context,
+	workspaceID string,
+	terminalID ID,
+	recording RecordingRef,
+	contents []byte,
+) (RecordingRef, error) {
+	return j.journal.PersistRecording(ctx, workspaceID, terminalID, recording, contents)
+}
+
+func (j journalContractOnly) WriteArtifact(
+	ctx context.Context,
+	workspaceID string,
+	profileID string,
+	commandID string,
+	terminalID *ID,
+	contents []byte,
+	expiresAt time.Time,
+) (SpillRef, error) {
+	return j.journal.WriteArtifact(ctx, workspaceID, profileID, commandID, terminalID, contents, expiresAt)
+}
+
+func (j journalContractOnly) Recording(
+	ctx context.Context,
+	workspaceID string,
+	scope store.ReadScope,
+	id string,
+) (*RecordingRef, io.ReadCloser, error) {
+	return j.journal.Recording(ctx, workspaceID, scope, id)
+}
+
+func (j journalContractOnly) Artifact(
+	ctx context.Context,
+	workspaceID string,
+	scope store.ReadScope,
+	id string,
+) (io.ReadCloser, error) {
+	return j.journal.Artifact(ctx, workspaceID, scope, id)
+}
+
+func (j journalContractOnly) RemoveWorkspace(ctx context.Context, workspaceID string) error {
+	return j.journal.RemoveWorkspace(ctx, workspaceID)
+}
+
+func (j journalContractOnly) PrepareWorkspaceRemoval(
+	ctx context.Context,
+	workspaceID string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return j.journal.PrepareWorkspaceRemoval(ctx, workspaceID)
+}
+
+func (j journalContractOnly) PrepareWorkspaceRemovalAt(
+	ctx context.Context,
+	workspaceID string,
+	rootDir string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return j.journal.PrepareWorkspaceRemovalAt(ctx, workspaceID, rootDir)
+}
+
+func (j journalContractOnly) ConsumeMarkerFacts(ctx context.Context, info Info, facts []MarkerFacts) error {
+	return j.journal.ConsumeMarkerFacts(ctx, info, facts)
+}
+
+func (j journalContractOnly) RegisterTerminal(
+	info Info,
+	setBlocked func(bool),
+	emit func(Event),
+) {
+	j.journal.RegisterTerminal(info, setBlocked, emit)
+}
+
+func (j journalContractOnly) CloseTerminal(ctx context.Context, info Info) error {
+	return j.journal.CloseTerminal(ctx, info)
+}
+
+func (j journalContractOnly) ReserveInput(info Info, input JournalInput) (JournalInputReservation, bool) {
+	return j.journal.ReserveInput(info, input)
+}
+
+func (j journalContractOnly) ObserveOutput(info Info, output []byte) {
+	j.journal.ObserveOutput(info, output)
+}
+
+func (j journalContractOnly) Shutdown(ctx context.Context) error { return j.journal.Shutdown(ctx) }
 
 func (j *fakeRecordingJournal) Record(_ context.Context, _ string, row CommandRow) error {
 	j.mu.Lock()
 	j.rows = append(j.rows, row)
 	j.mu.Unlock()
 	return nil
+}
+
+func (j *fakeRecordingJournal) RecordQueued(ctx context.Context, info Info, row CommandRow) error {
+	return j.Record(ctx, info.WS, row)
 }
 
 func (j *fakeRecordingJournal) Query(context.Context, string, store.ReadScope, Query) (*Page, error) {
@@ -406,6 +568,69 @@ func (j *fakeRecordingJournal) Recording(
 func (j *fakeRecordingJournal) Artifact(context.Context, string, store.ReadScope, string) (io.ReadCloser, error) {
 	return nil, errors.New("artifact not found")
 }
+
+func (*fakeRecordingJournal) RemoveWorkspace(context.Context, string) error { return nil }
+
+func (*fakeRecordingJournal) PrepareWorkspaceRemoval(
+	context.Context,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return emptyWorkspaceRemovalPreparation{}, nil
+}
+
+func (*fakeRecordingJournal) PrepareWorkspaceRemovalAt(
+	context.Context,
+	string,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return emptyWorkspaceRemovalPreparation{}, nil
+}
+
+func (*fakeRecordingJournal) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) error {
+	return nil
+}
+
+func (*fakeRecordingJournal) RegisterTerminal(Info, func(bool), func(Event)) {}
+
+func (*fakeRecordingJournal) CloseTerminal(context.Context, Info) error { return nil }
+
+func (j *fakeRecordingJournal) ReserveInput(Info, JournalInput) (JournalInputReservation, bool) {
+	return &fakeJournalInputReservation{journal: j}, true
+}
+
+func (*fakeRecordingJournal) ObserveOutput(Info, []byte) {}
+
+func (*fakeRecordingJournal) Shutdown(context.Context) error { return nil }
+
+func (*fakeRecordingJournal) WriteArtifact(
+	context.Context,
+	string,
+	string,
+	string,
+	*ID,
+	[]byte,
+	time.Time,
+) (SpillRef, error) {
+	return SpillRef{}, nil
+}
+
+type emptyWorkspaceRemovalPreparation struct{}
+
+func (emptyWorkspaceRemovalPreparation) BeforeDelete(context.Context) error { return nil }
+func (emptyWorkspaceRemovalPreparation) Commit(context.Context) error       { return nil }
+func (emptyWorkspaceRemovalPreparation) Rollback(context.Context) error     { return nil }
+
+type fakeJournalInputReservation struct {
+	journal *fakeRecordingJournal
+}
+
+func (r *fakeJournalInputReservation) Commit(_ Actor, input JournalInput) {
+	r.journal.mu.Lock()
+	r.journal.inputs = append(r.journal.inputs, input)
+	r.journal.mu.Unlock()
+}
+
+func (*fakeJournalInputReservation) Release() {}
 
 func (j *fakeRecordingJournal) PersistRecording(
 	_ context.Context,
@@ -457,6 +682,7 @@ func newTestManager(
 	}}
 	base := []Option{
 		WithPTY(starter),
+		WithJournal(journalContractOnly{journal: &fakeRecordingJournal{}}),
 		WithWorkspaceResolver(resolver),
 		WithSettingsProvider(func(context.Context, string, string) (Settings, error) { return settings, nil }),
 	}

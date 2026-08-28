@@ -29,7 +29,7 @@ func terminalExitedAttachError(terminal contract.TerminalInfoPayload) error {
 		}
 	}
 	err := &terminalpkg.Error{
-		Code:    "terminal_exited",
+		Code:    terminalpkg.ErrorCodeExited,
 		Message: fmt.Sprintf("%s already exited (%s)", terminal.ID, detail),
 		Err:     terminalpkg.ErrExited,
 	}

@@ -1,17 +1,8 @@
 package pty
 
+import terminalwire "github.com/compozy/compozy/internal/terminal/wire"
+
 func normalizedSize(cols, rows uint16) (uint16, uint16) {
-	if cols < 20 {
-		cols = 20
-	}
-	if cols > 2000 {
-		cols = 2000
-	}
-	if rows < 5 {
-		rows = 5
-	}
-	if rows > 1000 {
-		rows = 1000
-	}
+	cols, rows, _ = terminalwire.ClampDimensions(cols, rows)
 	return cols, rows
 }

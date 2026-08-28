@@ -7,6 +7,7 @@ package wire
 import (
 	"context"
 	"encoding/json"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -108,14 +109,15 @@ func TestFlowQueueShouldBoundDropAndDemoteAck(t *testing.T) {
 			t.Fatalf("demotion opcode = 0x%02x, want GAP", frame.Op)
 		}
 		var gap struct {
-			From    uint64 `json:"from_seq"`
-			To      uint64 `json:"to_seq"`
+			From    string `json:"from_seq"`
+			To      string `json:"to_seq"`
 			Dropped uint64 `json:"dropped_bytes"`
 		}
 		if err := json.Unmarshal(frame.Payload, &gap); err != nil {
 			t.Fatalf("decode demotion GAP: %v", err)
 		}
-		if gap.From != 7 || gap.To != 7+uint64(len(payload)) || gap.Dropped != uint64(len(payload)) {
+		if gap.From != "7" || gap.To != strconv.FormatUint(7+uint64(len(payload)), 10) ||
+			gap.Dropped != uint64(len(payload)) {
 			t.Fatalf("demotion GAP = %#v", gap)
 		}
 	})

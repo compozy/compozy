@@ -16,8 +16,8 @@ import type { TerminalActor, TerminalExitNotice, TerminalLeaseState, TerminalMod
 
 export interface TerminalGapNotice {
   droppedBytes: number;
-  fromSeq: number;
-  toSeq: number;
+  fromSeq: bigint;
+  toSeq: bigint;
 }
 
 export interface TerminalPaneState {

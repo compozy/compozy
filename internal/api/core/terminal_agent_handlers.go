@@ -1,13 +1,11 @@
 package core
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
-	"github.com/compozy/compozy/internal/store"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/gin-gonic/gin"
 )
@@ -18,14 +16,6 @@ type signalTerminalRequest = contract.TerminalSignalRequest
 type answerTerminalInputRequest = contract.TerminalAnswerInputRequest
 type rejectTerminalInputRequest = contract.TerminalRejectInputRequest
 type terminalRecordingRequest = contract.TerminalRecordingRequest
-
-type terminalInputRequestLister interface {
-	InputRequests(context.Context, string, store.ReadScope, terminalpkg.ID) ([]terminalpkg.PendingInputRequest, error)
-}
-
-type terminalInputRequestInspector interface {
-	PendingInput(terminalpkg.InputRequestID) (*terminalpkg.PendingInputRequest, error)
-}
 
 func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
 	service, profileID, ok := h.terminalService(c, true)
@@ -42,15 +32,15 @@ func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
-	if err != nil {
-		h.respondTerminalMappedError(c, StatusForWorkspaceError(err), "terminal_workspace_unavailable", err)
-		return
-	}
 	result, err := service.Exec(c.Request.Context(), terminalpkg.ExecRequest{
 		WS: workspaceID, Command: request.Command, Args: request.Args, Cwd: request.Cwd,
-		Env: request.Env, YieldMs: request.YieldMs, Visible: request.Visible, Output: request.Output,
-		Actor: actor, Capabilities: capabilities,
+		Env: request.Env, YieldMs: request.YieldMs, Visible: request.Visible,
+		Output: terminalpkg.OutputShape{
+			MaxBytes: request.Output.MaxBytes,
+			Strategy: request.Output.Strategy,
+			Grep:     request.Output.Grep,
+		},
+		Actor: actor,
 	})
 	if err != nil {
 		h.respondTerminalError(c, err)
@@ -60,7 +50,7 @@ func (h *BaseHandlers) ExecTerminal(c *gin.Context) {
 	if result.StillRunning {
 		status = http.StatusAccepted
 	}
-	c.JSON(status, result)
+	c.JSON(status, contract.TerminalExecResponseFromDomain(*result))
 }
 
 func (h *BaseHandlers) ReadTerminal(c *gin.Context) {
@@ -96,7 +86,7 @@ func (h *BaseHandlers) ReadTerminal(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, contract.TerminalReadResponseFromDomain(*result))
 }
 
 func (h *BaseHandlers) WaitTerminal(c *gin.Context) {
@@ -113,7 +103,7 @@ func (h *BaseHandlers) WaitTerminal(c *gin.Context) {
 		h.respondTerminalError(
 			c,
 			&terminalpkg.Error{
-				Code:    "timeout_out_of_range",
+				Code:    terminalpkg.ErrorCodeTimeoutOutOfRange,
 				Message: "terminal wait timeout_ms must not exceed 60000",
 				Err:     terminalpkg.ErrUnsupported,
 			},
@@ -128,7 +118,7 @@ func (h *BaseHandlers) WaitTerminal(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, result)
+	c.JSON(http.StatusOK, contract.TerminalWaitResponseFromDomain(*result))
 }
 
 func (h *BaseHandlers) SignalTerminal(c *gin.Context) {
@@ -141,11 +131,11 @@ func (h *BaseHandlers) SignalTerminal(c *gin.Context) {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	if !validTerminalSignal(request.Signal) {
+	if !validTerminalSignal(terminalpkg.Signal(request.Signal)) {
 		h.respondTerminalError(c, terminalRequestError(errors.New("signal must be INT, TERM, KILL, or HUP")))
 		return
 	}
-	if err := handle.Signal(c.Request.Context(), actor, request.Signal); err != nil {
+	if err := handle.Signal(c.Request.Context(), actor, terminalpkg.Signal(request.Signal)); err != nil {
 		h.respondTerminalError(c, err)
 		return
 	}
@@ -157,12 +147,7 @@ func (h *BaseHandlers) ListTerminalInputRequests(c *gin.Context) {
 	if !ok {
 		return
 	}
-	lister, ok := service.(terminalInputRequestLister)
-	if !ok {
-		h.respondTerminalUnavailable(c)
-		return
-	}
-	requests, err := lister.InputRequests(
+	requests, err := service.InputRequests(
 		c.Request.Context(),
 		strings.TrimSpace(c.Param("workspace_id")),
 		scope,
@@ -172,7 +157,22 @@ func (h *BaseHandlers) ListTerminalInputRequests(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"requests": requests})
+	resolved, err := service.ResolvedInputRequests(
+		c.Request.Context(),
+		strings.TrimSpace(c.Param("workspace_id")),
+		scope,
+		terminalpkg.ID(strings.TrimSpace(c.Query("terminal_id"))),
+	)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
+	}
+	response, err := contract.TerminalInputRequestsResponseFromDomain(requests, resolved)
+	if err != nil {
+		h.respondTerminalMappedError(c, http.StatusInternalServerError, err)
+		return
+	}
+	c.JSON(http.StatusOK, response)
 }
 
 func (h *BaseHandlers) AnswerTerminalInputRequest(c *gin.Context) {
@@ -186,14 +186,10 @@ func (h *BaseHandlers) AnswerTerminalInputRequest(c *gin.Context) {
 		return
 	}
 	requestID := terminalpkg.InputRequestID(strings.TrimSpace(c.Param("request_id")))
-	redacted := false
-	if inspector, available := handle.(terminalInputRequestInspector); available {
-		pending, err := inspector.PendingInput(requestID)
-		if err != nil {
-			h.respondTerminalError(c, err)
-			return
-		}
-		redacted = pending.Redacted
+	pending, err := handle.PendingInput(requestID)
+	if err != nil {
+		h.respondTerminalError(c, err)
+		return
 	}
 	outcome, err := handle.AnswerInput(
 		c.Request.Context(),
@@ -205,7 +201,7 @@ func (h *BaseHandlers) AnswerTerminalInputRequest(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"delivered_bytes": outcome.Length, "redacted": redacted})
+	c.JSON(http.StatusOK, gin.H{"delivered_bytes": outcome.DeliveredBytes, "redacted": pending.Redacted})
 }
 
 func (h *BaseHandlers) RejectTerminalInputRequest(c *gin.Context) {
@@ -292,7 +288,7 @@ func (h *BaseHandlers) QueryTerminalJournal(c *gin.Context) {
 	}
 	identities, err := h.profileOwnerIdentities(c.Request.Context())
 	if err != nil {
-		h.respondTerminalMappedError(c, http.StatusInternalServerError, "terminal_profile_catalog_failed", err)
+		h.respondTerminalMappedError(c, http.StatusInternalServerError, err)
 		return
 	}
 	entries := make([]contract.TerminalCommandRowPayload, 0, len(page.Entries))

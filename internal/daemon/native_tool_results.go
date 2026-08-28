@@ -25,6 +25,15 @@ func structuredResult(value any, preview string) (toolspkg.ToolResult, error) {
 	return result, nil
 }
 
+func untrustedTerminalResult(value any, preview string) (toolspkg.ToolResult, error) {
+	result, err := structuredResult(value, preview)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	result.Trust = toolspkg.ResultTrustUntrustedModel
+	return result, nil
+}
+
 func structuredNetworkResult(value any, preview string) (toolspkg.ToolResult, error) {
 	result, err := structuredResult(value, preview)
 	if err != nil {

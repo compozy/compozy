@@ -27,6 +27,8 @@ import { defaultSchedule, terminalBackoffDelay } from "./terminal-backoff";
 import { dispatchTerminalControlFrame } from "./terminal-control-frames";
 import { TerminalCreditWindow } from "./terminal-credit-window";
 import { TerminalEmulatorQueue } from "./terminal-emulator-queue";
+import { TerminalOutputConsumer } from "./terminal-output-consumer";
+import { TerminalRedactedInputConsumer } from "./terminal-redacted-input-consumer";
 import type {
   TerminalAttachedFrame,
   TerminalGapFrame,
@@ -66,7 +68,7 @@ export class TerminalProtocolClient {
    * A connection that dies mid-catch-up asks again from here, and the daemon
    * replays what was never drawn.
    */
-  private committedSeq = 0;
+  private committedSeq = 0n;
   private readonly sender = new TerminalCommandSender({
     socket: () => this.socket,
     reportError: (cause: unknown, fallback: string) => this.reportClientError(cause, fallback),
@@ -78,7 +80,7 @@ export class TerminalProtocolClient {
   private readonly gapBuffer = new TerminalGapBuffer({
     write: (bytes: Uint8Array) => this.options.sink.write(bytes),
     returnCredit: (bytes: number) => this.returnCredit(bytes),
-    commit: (seqEnd: number) => this.commit(seqEnd),
+    commit: (seqEnd: bigint) => this.commit(seqEnd),
     // The held tail belongs to the connection that reported the gap. Once that
     // connection is gone, the rest of it is not written — the reconnection asks
     // for it again from the last byte that did reach the screen.
@@ -87,12 +89,46 @@ export class TerminalProtocolClient {
   /** The connection whose catch-up is running, so a takeover cancels it. */
   private resyncEpoch = 0;
   /** The resume point this attempt asked for, or zero for a first attach. */
-  private resumedFrom = 0;
+  private resumedFrom = 0n;
   /** Where the replay announced by `ATTACHED` ends, until it has been drawn. */
-  private replayTarget: number | null = null;
+  private replayTarget: bigint | null = null;
   /** Set when the daemon called the attach truncated: the replay is not usable. */
   private discardReplay = false;
   private readonly emulator = new TerminalEmulatorQueue();
+  private readonly output = new TerminalOutputConsumer({
+    emulator: this.emulator,
+    gapBuffer: this.gapBuffer,
+    write: bytes => this.options.sink.write(bytes),
+    replayTarget: () => this.replayTarget,
+    discardReplay: () => this.discardReplay,
+    finishReplay: () => this.finishReplay(),
+    isResyncing: () => this.resync.isRunning,
+    currentEpoch: () => this.connectionEpoch,
+    isStopped: () => this.stopped,
+    commit: seqEnd => this.commit(seqEnd),
+    returnCredit: bytes => this.returnCredit(bytes),
+    onReplayComplete: () => this.setInputEnabled(this.options.mode === "write"),
+    reportError: cause =>
+      this.reportClientError(cause, "The terminal could not render its output."),
+    reconnect: () => this.reconnectFromCommitted(),
+  });
+  private readonly redactedInput = new TerminalRedactedInputConsumer({
+    emulator: this.emulator,
+    gapBuffer: this.gapBuffer,
+    write: bytes => this.options.sink.write(bytes),
+    onTrustedFrame: frame => this.options.handlers?.onRedactedInput?.(frame),
+    replayTarget: () => this.replayTarget,
+    discardReplay: () => this.discardReplay,
+    finishReplay: () => this.finishReplay(),
+    isResyncing: () => this.resync.isRunning,
+    currentEpoch: () => this.connectionEpoch,
+    isStopped: () => this.stopped,
+    commit: seqEnd => this.commit(seqEnd),
+    onReplayComplete: () => this.setInputEnabled(this.options.mode === "write"),
+    reportError: cause =>
+      this.reportClientError(cause, "The terminal could not render a redacted input marker."),
+    reconnect: () => this.reconnectFromCommitted(),
+  });
   private readonly resync = new TerminalResync({
     readSnapshot: () =>
       readTerminal(
@@ -106,7 +142,7 @@ export class TerminalProtocolClient {
     write: (content: string) => this.options.sink.write(content),
     enqueue: (run: () => Promise<void>) => this.emulator.run(run),
     gapBuffer: this.gapBuffer,
-    commit: (seqEnd: number) => this.commit(seqEnd),
+    commit: (seqEnd: bigint) => this.commit(seqEnd),
     setStatus: (status: "resyncing" | "connected") => this.setStatus(status),
     setInputEnabled: (enabled: boolean) => this.setInputEnabled(enabled),
     onRecovered: () => this.options.handlers?.onGapCleared?.(),
@@ -230,7 +266,7 @@ export class TerminalProtocolClient {
         mode: this.options.mode,
         viewer: this.options.viewer,
         flow: this.flow,
-        afterSeq: this.committedSeq > 0 ? this.committedSeq : undefined,
+        afterSeq: this.committedSeq > 0n ? this.committedSeq : undefined,
         proposed: this.sender.proposed,
         ...(this.options.socketFactory ? { socketFactory: this.options.socketFactory } : {}),
         signal: this.abort.signal,
@@ -290,76 +326,20 @@ export class TerminalProtocolClient {
       return;
     }
     if (frame.op === TERMINAL_SERVER_OP.output) {
-      this.consumeOutput(frame.seq, frame.bytes);
+      this.output.consume(frame.seq, frame.bytes);
       return;
     }
     this.consumeControl(frame.op, frame.payload);
   }
 
-  /**
-   * Writes bytes and returns credit only once the emulator reports the parse.
-   * Acking on receipt would let a viewer that cannot keep up pull more work
-   * than it can render, which is exactly what the credit window exists to stop.
-   *
-   * While a gap is being reconciled the frame is held instead. The daemon keeps
-   * sending the live tail across a gap, and writing it straight through would
-   * put bytes on a screen that is about to be reset — the snapshot would then
-   * erase them, or land interleaved with them.
-   */
-  private consumeOutput(seq: number, bytes: Uint8Array): void {
-    // The first frame after `ATTACHED` is the replay, and it ends exactly where
-    // the daemon said it would. Every later frame is live and measures itself.
-    const replayTarget = this.replayTarget;
-    const discarding = this.discardReplay && replayTarget !== null;
+  private finishReplay(): void {
     this.replayTarget = null;
     this.discardReplay = false;
-    const size = bytes.byteLength;
-    const end = replayTarget ?? seq + size;
-    if (discarding) {
-      // Never drawn, but the daemon counted it against this viewer's window.
-      this.returnCredit(size);
-      return;
-    }
-    if (this.resync.isRunning) {
-      // A replay held across a gap is covered up to the target the daemon named
-      // — its synthetic prefix would otherwise read as a continuation past the
-      // snapshot and be written a second time.
-      this.gapBuffer.hold(replayTarget !== null ? end - size : seq, bytes);
-      return;
-    }
-    const epoch = this.connectionEpoch;
-    void this.emulator
-      .run(async () => {
-        // A write whose connection died before it started never reaches the
-        // screen, so the cursor stays put and the reconnection asks for it again.
-        if (epoch !== this.connectionEpoch) return;
-        await this.options.sink.write(bytes);
-        // Past this point the bytes *are* drawn, whatever happened to the socket
-        // meanwhile. Not committing them would make the reconnection replay bytes
-        // already on screen and paint them twice.
-        this.commit(end);
-        this.returnCredit(size);
-        // The replay is on screen, so the keyboard can open — if this is still
-        // the connection that owns it.
-        if (replayTarget !== null && epoch === this.connectionEpoch) {
-          this.setInputEnabled(this.options.mode === "write");
-        }
-      })
-      .catch(cause => {
-        // A view that went away took its screen with it. That is a teardown, not
-        // a failure: nothing was drawn, the cursor never moved, and whoever
-        // mounts next attaches from where this viewer actually got to.
-        if (this.stopped || epoch !== this.connectionEpoch) return;
-        this.reportClientError(cause, "The terminal could not render its output.");
-        // The screen no longer matches what the cursor claims was drawn, so the
-        // connection is abandoned and the missing bytes asked for again.
-        this.reconnectFromCommitted();
-      });
   }
 
   /** Marks everything up to `seqEnd` as drawn, so a resume starts after it. */
-  private commit(seqEnd: number): void {
-    this.committedSeq = Math.max(this.committedSeq, seqEnd);
+  private commit(seqEnd: bigint): void {
+    if (seqEnd > this.committedSeq) this.committedSeq = seqEnd;
   }
 
   /**
@@ -394,6 +374,7 @@ export class TerminalProtocolClient {
         onAttached: frame => this.applyAttached(frame),
         onOwner: frame => handlers?.onLease?.(frame),
         onPresence: frame => handlers?.onPresence?.(frame),
+        onRedactedInput: frame => this.redactedInput.consume(frame),
         onTitle: title => handlers?.onTitle?.(title),
         onResized: frame => this.applyResized(frame),
         onGap: frame => void this.resynchronize(frame),
@@ -432,7 +413,7 @@ export class TerminalProtocolClient {
     // top of the very bytes it repeats. The daemon prefixes its own reset only
     // on the truncated branch; the from-zero branch is this client's to clear.
     // Queued on the emulator so it lands ahead of the replay's writes.
-    if (this.resumedFrom === 0 && this.replayTarget !== null) {
+    if (this.resumedFrom === 0n && this.replayTarget !== null) {
       const epoch = this.connectionEpoch;
       void this.emulator.run(async () => {
         if (epoch === this.connectionEpoch && !this.stopped) this.options.sink.reset();
@@ -454,11 +435,7 @@ export class TerminalProtocolClient {
       // it would have drawn. Marked as state, not inferred from arrival order —
       // it can land before or after the snapshot request resolves.
       this.discardReplay = this.replayTarget !== null;
-      void this.resynchronize({
-        dropped_bytes: 0,
-        from_seq: this.committedSeq,
-        to_seq: frame.seq,
-      });
+      void this.startResync();
       return;
     }
     // The keyboard waits for the replay. Typing into a screen the emulator has
@@ -474,6 +451,10 @@ export class TerminalProtocolClient {
   /** Reports the gap, then hands the catch-up to the resync pass. */
   private async resynchronize(frame: TerminalGapFrame): Promise<void> {
     this.options.handlers?.onGap?.(frame);
+    await this.startResync();
+  }
+
+  private async startResync(): Promise<void> {
     this.resyncEpoch = this.connectionEpoch;
     await this.resync.run();
   }

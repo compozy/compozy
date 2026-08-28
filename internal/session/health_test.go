@@ -55,7 +55,8 @@ func TestManagerSessionHealthTransitions(t *testing.T) {
 			return source, nil
 		}
 		turnEnded := make(chan string, 1)
-		h.manager.SetTurnEndNotifier(func(sessionID string) {
+		h.manager.SetTurnEndNotifier(func(_ context.Context, identity PromptRunIdentity) {
+			sessionID := identity.SessionID
 			turnEnded <- sessionID
 		})
 

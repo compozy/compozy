@@ -1,12 +1,14 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -48,6 +50,9 @@ func StatusForToolError(err error) int {
 }
 
 func statusForToolCode(code toolspkg.ErrorCode, reasons []toolspkg.ReasonCode) int {
+	if status, ok := TerminalDomainStatus(terminalpkg.ErrorCode(code)); ok {
+		return status
+	}
 	switch code {
 	case toolspkg.ErrorCodeInvalidInput:
 		return http.StatusBadRequest
@@ -115,6 +120,15 @@ func ToolErrorResponseForError(err error, status int, maskInternal bool) contrac
 		payload.Message = safeToolErrorMessage(status, toolErr.Code, payload.ReasonCodes)
 		payload.Layer = toolErrorLayer(toolErr.ReasonCodes)
 		payload.Details = contract.ToolOperatorFailureDetails(toolErr.Operator)
+		if terminalErr, terminal := errors.AsType[*terminalpkg.Error](err); terminal &&
+			contract.IsTerminalErrorCode(contract.TerminalErrorCode(terminalErr.Code)) {
+			for key, value := range contract.TerminalErrorToolDetailsFromDomain(terminalErr) {
+				if payload.Details == nil {
+					payload.Details = make(map[string]json.RawMessage)
+				}
+				payload.Details[key] = value
+			}
+		}
 		if toolErr.PartialResult != nil {
 			partial := *toolErr.PartialResult
 			payload.PartialResult = &partial

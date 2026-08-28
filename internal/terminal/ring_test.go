@@ -44,7 +44,7 @@ func TestRingReplayContract(t *testing.T) {
 			t.Fatalf("Append(world) = %d..%d, want 5..11", start, end)
 		}
 		replay := ring.ReplayFrom(6)
-		if got, want := string(replay.Payload), "world"; got != want || replay.Seq != 11 || replay.Truncated {
+		if got, want := string(replay.Bytes()), "world"; got != want || replay.Seq != 11 || replay.Truncated {
 			t.Fatalf("ReplayFrom(6) = %#v %q, want seq 11 world", replay, got)
 		}
 	})
@@ -58,16 +58,17 @@ func TestRingReplayContract(t *testing.T) {
 			ring.SetModePreamble(preamble)
 			ring.Append([]byte("discarded\nframe"))
 			replay := ring.ReplayFrom(0)
-			if !replay.Truncated || !bytes.HasPrefix(replay.Payload, []byte(resetSequence)) {
+			payload := replay.Bytes()
+			if !replay.Truncated || !bytes.HasPrefix(payload, []byte(resetSequence)) {
 				t.Fatalf("ReplayFrom(0) = %#v, want reset + mode preamble resync", replay)
 			}
 			for _, sequence := range [][]byte{[]byte("\x1b[?1h"), []byte("\x1b[?1049h"), []byte("\x1b[?2004h")} {
-				if !bytes.Contains(replay.Payload, sequence) {
-					t.Fatalf("replay = %q, want canonical mode %q", replay.Payload, sequence)
+				if !bytes.Contains(payload, sequence) {
+					t.Fatalf("replay = %q, want canonical mode %q", payload, sequence)
 				}
 			}
-			if bytes.Contains(replay.Payload, []byte("?1000")) || bytes.Contains(replay.Payload, []byte("?1006")) {
-				t.Fatalf("replay contains mouse tracking: %q", replay.Payload)
+			if bytes.Contains(payload, []byte("?1000")) || bytes.Contains(payload, []byte("?1006")) {
+				t.Fatalf("replay contains mouse tracking: %q", payload)
 			}
 		},
 	)
@@ -93,9 +94,30 @@ func TestRingReplayContract(t *testing.T) {
 		ring.SetModePreamble([]byte("\x1b[?1049h"))
 		ring.Append([]byte("discarded discarded discarded discarded\n\x1b[2J\x1b[Halternate\x1b[?1049lprimary"))
 		replay := ring.ReplayFrom(0)
-		if !bytes.Contains(replay.Payload, []byte("\x1b[?1049h")) ||
-			!bytes.Contains(replay.Payload, []byte("\x1b[?1049l")) {
-			t.Fatalf("replay = %q, want enter and leave alternate screen", replay.Payload)
+		payload := replay.Bytes()
+		if !bytes.Contains(payload, []byte("\x1b[?1049h")) ||
+			!bytes.Contains(payload, []byte("\x1b[?1049l")) {
+			t.Fatalf("replay = %q, want enter and leave alternate screen", payload)
+		}
+	})
+
+	t.Run("Should preserve trusted redacted markers as typed replay segments [UT-073]", func(t *testing.T) {
+		t.Parallel()
+		ring := NewRing(256)
+		ring.Append([]byte("before"))
+		start, end := ring.AppendRedactedInput(6)
+		ring.Append([]byte("hidden input · 6 characters"))
+		if start != 6 || end != 7 {
+			t.Fatalf("AppendRedactedInput() = %d..%d, want 6..7", start, end)
+		}
+		replay := ring.ReplayFrom(6)
+		if len(replay.Segments) != 2 || replay.Segments[0].Segment.Kind != OutputSegmentRedactedInput ||
+			replay.Segments[0].Segment.Characters != 6 || replay.Segments[1].Segment.Kind != OutputSegmentBytes {
+			t.Fatalf("typed replay = %#v", replay.Segments)
+		}
+		continued := ring.ReplayFrom(7)
+		if len(continued.Segments) != 1 || continued.Segments[0].Segment.Kind != OutputSegmentBytes {
+			t.Fatalf("continued replay = %#v, want only shell output", continued.Segments)
 		}
 	})
 

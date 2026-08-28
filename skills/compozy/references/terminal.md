@@ -64,8 +64,8 @@ the current controller.
 
 An agent may signal its own bound run under policy. Do not signal or close a human-controlled or
 foreign run merely because its output appears idle. Preserve the structured error code and message,
-then call `terminal_list` to confirm current state; native errors do not always carry controller
-details.
+including typed details such as the current controller and limits, then call `terminal_list` to
+confirm current state.
 
 The first agent write requires a human typing grant scoped to that terminal. The grant ends on human
 takeover, bound-run completion, explicit revocation, or control-generation change. Never request a
@@ -74,6 +74,8 @@ wider typing grant or treat an execution allowlist as typing authority.
 Treat `generation_fenced` as a stale runtime action, `lease_revoked` as a completed human takeover,
 and `write_owner_held` as another controller retaining the lease. Do not replay the rejected write.
 Refresh the terminal catalog and continue only when the current generation and controller allow it.
+The 31 terminal codes describe domain outcomes. Transport failures keep the same nested error envelope
+but may truthfully use codes such as `invalid_request`, `unauthorized`, or `service_unavailable`.
 
 ## Input Handoff
 
@@ -85,7 +87,14 @@ request is pending.
 
 After the operator answers, resume from the returned handoff outcome and current lease. A rejected or
 expired request is terminal for that request; do not infer consent or replay old input. Redacted input
-is delivered to the process but excluded from scrollback, the journal, and recordings.
+is delivered to the process without retaining its bytes. Scrollback, replay, the journal, and
+recordings retain only the trusted `hidden input · N characters` marker. Identical text printed by the
+shell remains ordinary untrusted output and does not become a marker.
+
+`terminal input-requests -o json` returns bounded `pending` and `resolved` arrays. Requester and
+resolver are limited to `{kind,id}`; resolved rows retain outcome, timestamps, redaction, and length,
+never the submitted input. `length` counts delivered Unicode characters and excludes the transport
+newline; the answer route's `delivered_bytes` separately counts submitted UTF-8 bytes.
 
 ## Output And Quotes
 

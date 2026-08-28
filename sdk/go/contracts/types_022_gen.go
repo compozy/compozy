@@ -7,6 +7,21 @@ import (
 	"time"
 )
 
+type SessionInput struct {
+	ID              string                         `json:"id"`
+	SessionID       string                         `json:"session_id"`
+	MessageID       string                         `json:"message_id,omitempty"`
+	IdempotencyKey  string                         `json:"idempotency_key,omitempty"`
+	TargetTurnID    string                         `json:"target_turn_id,omitempty"`
+	Status          string                         `json:"status"`
+	Mode            PromptMode                     `json:"mode"`
+	Delivery        PromptDelivery                 `json:"delivery"`
+	Text            string                         `json:"text"`
+	QueueGeneration int64                          `json:"queue_generation"`
+	EnqueuedAt      time.Time                      `json:"enqueued_at"`
+	Runtime         *PromptRuntimeSelectionPayload `json:"runtime,omitempty"`
+}
+
 type SessionInputListResult struct {
 	Inputs []SessionInput `json:"inputs"`
 }
@@ -301,29 +316,4 @@ type SessionRuntimePayload struct {
 	Effective         *RuntimeSelectionPayload       `json:"effective,omitempty"`
 	ACPSessionID      string                         `json:"acp_session_id,omitempty"`
 	ACPCaps           *ACPCapsPayload                `json:"acp_caps,omitempty"`
-}
-
-type SessionRuntimeRecoveryExhaustedPayload struct {
-	Event          HookEvent `json:"event"`
-	Timestamp      time.Time `json:"timestamp"`
-	ProfileID      string    `json:"profile_id,omitempty"`
-	SessionID      string    `json:"session_id,omitempty"`
-	SessionName    string    `json:"session_name,omitempty"`
-	SessionType    string    `json:"session_type,omitempty"`
-	AgentName      string    `json:"agent_name,omitempty"`
-	WorkspaceID    string    `json:"workspace_id,omitempty"`
-	Workspace      string    `json:"workspace,omitempty"`
-	WorktreeID     string    `json:"worktree_id,omitempty"`
-	ACPSessionID   string    `json:"acp_session_id,omitempty"`
-	State          string    `json:"state,omitempty"`
-	SoulSnapshotID string    `json:"soul_snapshot_id,omitempty"`
-	SoulDigest     string    `json:"soul_digest,omitempty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
-	TurnID         string    `json:"turn_id,omitempty"`
-	Attempt        int       `json:"attempt"`
-	MaxAttempts    int       `json:"max_attempts"`
-	Generation     int64     `json:"generation"`
-	FailureKind    string    `json:"failure_kind,omitempty"`
-	FailureDetail  string    `json:"failure_detail,omitempty"`
 }

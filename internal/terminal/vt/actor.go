@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	charmvt "github.com/charmbracelet/x/vt"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 const DefaultMailboxBytes = 256 * 1024
@@ -367,17 +368,6 @@ func screenText(emulator *charmvt.Emulator) string {
 }
 
 func normalizeSize(cols, rows int) (int, int) {
-	if cols < 20 {
-		cols = 20
-	}
-	if cols > 2000 {
-		cols = 2000
-	}
-	if rows < 5 {
-		rows = 5
-	}
-	if rows > 1000 {
-		rows = 1000
-	}
-	return cols, rows
+	return min(max(cols, terminalwire.MinCols), terminalwire.MaxCols),
+		min(max(rows, terminalwire.MinRows), terminalwire.MaxRows)
 }

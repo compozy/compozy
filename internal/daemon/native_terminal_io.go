@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -28,7 +29,7 @@ func (n *daemonNativeTools) terminalWrite(
 	if err := handle.Write(ctx, actor, []byte(input.Data)); err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(
+	return untrustedTerminalResult(
 		map[string]any{"accepted": true, nativeToolsLeaseStateKey: handle.Info().Lease},
 		"terminal input accepted",
 	)
@@ -47,18 +48,47 @@ func (n *daemonNativeTools) terminalRead(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	sinceSeq, err := parseNativeTerminalSequence(req.ToolID, input.SinceSeq)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	handle, err := manager.Handle(ctx, workspaceID, actor.ProfileID, terminalpkg.ID(input.TerminalID))
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
 	result, err := handle.Screen(ctx, terminalpkg.ReadOptions{
-		View: input.View, MaxBytes: input.MaxBytes, SinceSeq: input.SinceSeq,
+		View: input.View, MaxBytes: input.MaxBytes, SinceSeq: sinceSeq,
 		FromLine: input.From, ToLine: input.To, Grep: input.Grep,
 	})
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(result, "untrusted terminal output read")
+	return untrustedTerminalResult(terminalReadToolResult{
+		Content: result.Content, Seq: strconv.FormatUint(result.Seq, 10), Truncated: result.Truncated,
+		Busy: result.Busy, Untrusted: result.Untrusted,
+	}, "untrusted terminal output read")
+}
+
+type terminalReadToolResult struct {
+	Content   string `json:"content"`
+	Seq       string `json:"seq"`
+	Truncated bool   `json:"truncated"`
+	Busy      bool   `json:"busy"`
+	Untrusted bool   `json:"untrusted"`
+}
+
+func parseNativeTerminalSequence(id toolspkg.ToolID, value string) (uint64, error) {
+	if value == "" {
+		return 0, nil
+	}
+	sequence, err := strconv.ParseUint(value, 10, 64)
+	if err != nil {
+		return 0, toolspkg.NewToolError(
+			toolspkg.ErrorCodeInvalidInput, id, "terminal since_seq must be a decimal uint64", err,
+			toolspkg.ReasonSchemaInvalid,
+		)
+	}
+	return sequence, nil
 }
 
 func (n *daemonNativeTools) terminalWait(
@@ -84,7 +114,7 @@ func (n *daemonNativeTools) terminalWait(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(result, terminalWaitPreview(result))
+	return untrustedTerminalResult(result, terminalWaitPreview(result))
 }
 
 func (n *daemonNativeTools) terminalSignal(
@@ -107,7 +137,7 @@ func (n *daemonNativeTools) terminalSignal(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]bool{"delivered": true}, "terminal signal delivered")
+	return untrustedTerminalResult(map[string]bool{"delivered": true}, "terminal signal delivered")
 }
 
 func terminalWaitPreview(result *terminalpkg.WaitResult) string {

@@ -25,7 +25,8 @@ const (
 )
 
 const usage = "usage: compozy-codegen " +
-	"<host-api|openapi|sdk-contracts|sdk-contracts-go|loop-enums|lifecycle-matrix|native-tool-catalog|all|check>"
+	"<host-api|openapi|sdk-contracts|sdk-contracts-go|loop-enums|terminal-wire|" +
+	"lifecycle-matrix|native-tool-catalog|all|check>"
 
 const defaultSDKContractsPath = "sdk/typescript/src/generated/contracts.ts"
 const defaultLoopEnumsPath = "web/src/generated/loop-enums.ts"
@@ -65,6 +66,7 @@ func runWithAllPaths(
 	loopEnumsPath := loopEnumsPathFor(openapiPath)
 	lifecycleMatrixPath := lifecycleMatrixPathFor(openapiPath)
 	nativeToolCatalogPath := nativeToolCatalogPathFor(openapiPath)
+	terminalWirePaths := terminalWirePathsFor(openapiPath)
 
 	switch args[0] {
 	case "host-api":
@@ -81,8 +83,8 @@ func runWithAllPaths(
 			return checkSDKGoContracts(sdkGoContractsPath)
 		}
 		return writeSDKGoContracts(sdkGoContractsPath)
-	case "loop-enums":
-		return writeLoopEnums(ctx, loopEnumsPath)
+	case "loop-enums", "terminal-wire":
+		return runProtocolCodegenTarget(ctx, args[0], loopEnumsPath, terminalWirePaths)
 	case "lifecycle-matrix":
 		return writeLifecycleMatrix(lifecycleMatrixPath)
 	case "native-tool-catalog":
@@ -97,22 +99,12 @@ func runWithAllPaths(
 			nativeToolCatalogPath,
 		)
 	case subcommandCheck:
-		if err := checkOpenAPI(openapiPath); err != nil {
-			return err
-		}
-		if err := checkSDKContracts(ctx, sdkContractsPath); err != nil {
-			return err
-		}
-		if err := checkSDKGoContracts(sdkGoContractsPath); err != nil {
-			return err
-		}
-		if err := checkLoopEnums(ctx, loopEnumsPath); err != nil {
-			return err
-		}
-		if err := checkLifecycleMatrix(lifecycleMatrixPath); err != nil {
-			return err
-		}
-		return checkNativeToolCatalog(nativeToolCatalogPath)
+		return checkAllCodegenArtifacts(ctx, codegenArtifactPaths{
+			openapi: openapiPath, sdkContracts: sdkContractsPath,
+			sdkGoContracts: sdkGoContractsPath, loopEnums: loopEnumsPath,
+			terminalWire: terminalWirePaths, lifecycleMatrix: lifecycleMatrixPath,
+			nativeToolCatalog: nativeToolCatalogPath,
+		})
 	default:
 		return fmt.Errorf("unknown codegen target %q", args[0])
 	}
@@ -137,89 +129,6 @@ func writeSDKContracts(ctx context.Context, path string) error {
 	if err := publishGeneratedFile(path, content); err != nil {
 		return fmt.Errorf("write sdk contracts to %q: %w", path, err)
 	}
-	return nil
-}
-
-func writeAll(
-	ctx context.Context,
-	openapiPath string,
-	sdkContractsPath string,
-	sdkGoContractsPath string,
-	lifecycleMatrixPath string,
-	nativeToolCatalogPath string,
-) error {
-	goContracts, err := generateSDKGoContracts()
-	if err != nil {
-		return err
-	}
-	if err := writeAllWith(
-		ctx,
-		openapiPath,
-		sdkContractsPath,
-		func() ([]byte, error) {
-			return generateFormattedOpenAPI(ctx, openapiPath)
-		},
-		generateFormattedSDKContracts,
-		publishGeneratedFile,
-	); err != nil {
-		return err
-	}
-	if err := publishGeneratedTree(sdkGoContractsPath, goContracts.Files); err != nil {
-		return fmt.Errorf("write Go SDK contracts to %q: %w", sdkGoContractsPath, err)
-	}
-	if err := writeLifecycleMatrix(lifecycleMatrixPath); err != nil {
-		return err
-	}
-	if err := writeLoopEnums(ctx, loopEnumsPathFor(openapiPath)); err != nil {
-		return err
-	}
-	return writeNativeToolCatalog(nativeToolCatalogPath)
-}
-
-func writeAllWith(
-	ctx context.Context,
-	openapiPath string,
-	sdkContractsPath string,
-	generateOpenAPI func() ([]byte, error),
-	generateSDK func(context.Context, string) ([]byte, error),
-	publishFile func(string, []byte) error,
-) error {
-	openapiContent, err := generateOpenAPI()
-	if err != nil {
-		return fmt.Errorf("write openapi to %q: %w", openapiPath, err)
-	}
-
-	sdkContent, err := generateSDK(ctx, sdkContractsPath)
-	if err != nil {
-		return err
-	}
-
-	previousOpenAPI, openapiExisted, err := readGeneratedFile(openapiPath)
-	if err != nil {
-		return fmt.Errorf("read existing openapi %q: %w", openapiPath, err)
-	}
-
-	if err := publishFile(openapiPath, openapiContent); err != nil {
-		return fmt.Errorf("write openapi to %q: %w", openapiPath, err)
-	}
-	if err := publishFile(sdkContractsPath, sdkContent); err != nil {
-		if restoreErr := restoreGeneratedFile(
-			openapiPath,
-			previousOpenAPI,
-			openapiExisted,
-			publishFile,
-		); restoreErr != nil {
-			return fmt.Errorf(
-				"write sdk contracts to %q: %w; restore openapi %q: %v",
-				sdkContractsPath,
-				err,
-				openapiPath,
-				restoreErr,
-			)
-		}
-		return fmt.Errorf("write sdk contracts to %q: %w", sdkContractsPath, err)
-	}
-
 	return nil
 }
 

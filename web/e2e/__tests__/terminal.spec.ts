@@ -21,6 +21,7 @@ import {
 } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { ensureProjectWorkspace } from "../fixtures/workspace";
+import { TERMINAL_SUBPROTOCOL } from "../../src/generated/terminal-wire";
 
 const execFileAsync = promisify(execFile);
 const repositoryRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -284,7 +285,7 @@ async function connectTerminalWatcher(
         )}/terminals/${encodeURIComponent(input.terminalId)}/stream?mode=read&flow=drop&ticket=${encodeURIComponent(
           input.ticket
         )}`,
-        "compozy.terminal.v1"
+        input.subprotocol
       );
       socket.binaryType = "arraybuffer";
       const attached = await new Promise<{ cols: number; rows: number }>((resolve, reject) => {
@@ -311,7 +312,7 @@ async function connectTerminalWatcher(
       Reflect.set(globalThis, key, watchers);
       return attached;
     },
-    { ticket: ticket.ticket, terminalId, workspaceId }
+    { subprotocol: TERMINAL_SUBPROTOCOL, ticket: ticket.ticket, terminalId, workspaceId }
   );
 }
 
@@ -1075,14 +1076,14 @@ test("E2E-016: CLI returns structured selector, timeout, and missing-terminal fa
 });
 
 async function terminalSocketCSPProbe(page: Page) {
-  return await page.evaluate(async () => {
+  return await page.evaluate(async terminalSubprotocol => {
     const violations: string[] = [];
     const onViolation = (event: SecurityPolicyViolationEvent) => {
       if (event.effectiveDirective === "connect-src") violations.push(event.blockedURI);
     };
     const attempt = async (url: string) => {
       await new Promise<void>(resolve => {
-        const socket = new WebSocket(url, "compozy.terminal.v1");
+        const socket = new WebSocket(url, terminalSubprotocol);
         socket.onopen = () => {
           socket.close();
           queueMicrotask(resolve);
@@ -1101,7 +1102,7 @@ async function terminalSocketCSPProbe(page: Page) {
     const crossOriginViolations = violations.length;
     document.removeEventListener("securitypolicyviolation", onViolation);
     return { sameOriginViolations, crossOriginViolations };
-  });
+  }, TERMINAL_SUBPROTOCOL);
 }
 
 test("E2E-017: production CSP admits the same-origin terminal socket and refuses cross-origin", async ({

@@ -25,15 +25,14 @@ type commandAssembly struct {
 
 // RegisterTerminal creates the bounded writer lane before terminal bytes flow.
 func (s *Service) RegisterTerminal(
-	ctx context.Context,
 	info terminalpkg.Info,
 	setBlocked func(bool),
 	emit func(terminalpkg.Event),
 ) {
-	if s == nil || ctx == nil || info.ID == "" {
+	if s == nil || info.ID == "" {
 		return
 	}
-	s.ensureLane(ctx, info, setBlocked, emit)
+	s.ensureLane(info, setBlocked, emit)
 }
 
 // CloseTerminal flushes and removes the writer lane owned by one terminal.
@@ -44,18 +43,20 @@ func (s *Service) CloseTerminal(ctx context.Context, info terminalpkg.Info) erro
 	key := terminalLaneKey(info)
 	s.mu.Lock()
 	lane := s.lanes[key]
-	if lane != nil {
-		delete(s.lanes, key)
-	}
 	s.mu.Unlock()
 	if lane == nil {
+		s.removeTerminalLiveTails(info.WS, info.ID)
 		return nil
 	}
-	return lane.close(ctx)
+	err := lane.close(ctx)
+	if err == nil {
+		s.removeStoppedLane(key, lane)
+		s.removeTerminalLiveTails(info.WS, info.ID)
+	}
+	return err
 }
 
 func (s *Service) ensureLane(
-	ctx context.Context,
 	info terminalpkg.Info,
 	setBlocked func(bool),
 	emit func(terminalpkg.Event),
@@ -66,7 +67,7 @@ func (s *Service) ensureLane(
 	if lane := s.lanes[key]; lane != nil {
 		return lane, false
 	}
-	lane := newTerminalLane(ctx, s, info, setBlocked, emit)
+	lane := newTerminalLane(s.laneCtx, s, info, setBlocked, emit)
 	s.lanes[key] = lane
 	return lane, true
 }
@@ -83,7 +84,7 @@ func (s *Service) ConsumeMarkerFacts(
 	lane := s.lane(info)
 	if lane == nil {
 		return &terminalpkg.Error{
-			Code: "journal_unavailable", Message: "terminal journal lane is unavailable",
+			Code: terminalpkg.ErrorCodeJournalUnavailable, Message: "terminal journal lane is unavailable",
 			Err: terminalpkg.ErrJournalUnavailable,
 		}
 	}
@@ -141,6 +142,7 @@ func (l *terminalLane) finishAssembly(exitCode *int, finishedAt time.Time) {
 		Actor: actor, Command: assembly.command, Cwd: assembly.cwd,
 		StartedAt: assembly.startedAt, DurationMs: &duration, ExitCode: exitCode,
 		ExitCause: exitCause, DetectedBy: detectedBy, Approval: approvalForActor(actor),
+		OutputTail: l.takeOutputTail(),
 	}
 	l.finishCommand(row, finishedAt)
 }

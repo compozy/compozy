@@ -14,6 +14,7 @@ type TerminalContext struct {
 	ActorID     string    `json:"actor_id"`
 	SessionID   string    `json:"session_id,omitempty"`
 	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
 	At          time.Time `json:"at"`
 }
 

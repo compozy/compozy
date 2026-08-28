@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
@@ -26,23 +27,29 @@ type subscription struct {
 var _ Subscription = (*subscription)(nil)
 
 type attachedFramePayload struct {
-	Seq       uint64     `json:"seq"`
+	Seq       string     `json:"seq"`
 	Truncated bool       `json:"truncated"`
 	Cols      uint16     `json:"cols"`
 	Rows      uint16     `json:"rows"`
 	Lease     LeaseState `json:"lease"`
 	Mode      Mode       `json:"mode"`
+	Preamble  string     `json:"preamble,omitempty"`
 }
 
 type exitFramePayload struct {
 	Cause    string  `json:"cause"`
 	ExitCode *int    `json:"exit_code"`
 	Signal   *string `json:"signal"`
-	Seq      uint64  `json:"seq"`
+	Seq      string  `json:"seq"`
 }
 
 type presenceFramePayload struct {
 	Viewers int `json:"viewers"`
+}
+
+type redactedInputFramePayload struct {
+	Seq        string `json:"seq"`
+	Characters int    `json:"characters"`
 }
 
 func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscription, error) {
@@ -53,9 +60,11 @@ func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscripti
 		return nil, err
 	}
 	if s.Info().Mode != ModePTY {
+		mode := s.Info().Mode
 		return nil, &Error{
-			Code:    errorCodeNotInteractive,
+			Code:    ErrorCodeNotInteractive,
 			Message: errorMessageNotInteractive,
+			Mode:    mode,
 			Err:     ErrNotInteractive,
 		}
 	}
@@ -78,18 +87,18 @@ func (s *session) Attach(ctx context.Context, options AttachOptions) (Subscripti
 	s.mu.Lock()
 	if s.reaping {
 		s.mu.Unlock()
-		return nil, &Error{Code: errorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
+		return nil, &Error{Code: ErrorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
 	}
 	if s.exit != nil {
 		s.mu.Unlock()
-		return nil, &Error{Code: errorCodeExited, Message: errorMessageExited, Err: ErrExited}
+		return nil, &Error{Code: ErrorCodeExited, Message: errorMessageExited, Err: ErrExited}
 	}
 	if len(s.subscribers) >= settings.MaxSubscribers {
 		current := len(s.subscribers)
 		s.mu.Unlock()
 		s.emitSubscriberLimit(options.Actor, current, settings.MaxSubscribers)
 		return nil, &Error{
-			Code:    "subscriber_limit_reached",
+			Code:    ErrorCodeSubscriberLimitReached,
 			Message: "terminal subscriber limit reached",
 			Current: current,
 			Max:     settings.MaxSubscribers,
@@ -148,11 +157,7 @@ func normalizeAttachOptions(options AttachOptions) (string, string, error) {
 		mode = "read"
 	}
 	if mode != "read" && mode != terminalAccessWrite {
-		return "", "", &Error{
-			Code:    "terminal_attach_mode_invalid",
-			Message: "terminal attach mode must be read or write",
-			Err:     ErrUnsupported,
-		}
+		return "", "", fmt.Errorf("terminal attach mode must be read or write: %w", ErrUnsupported)
 	}
 	flow := options.Flow
 	if flow == "" && mode == terminalAccessWrite {
@@ -162,11 +167,7 @@ func normalizeAttachOptions(options AttachOptions) (string, string, error) {
 		flow = string(terminalwire.FlowDrop)
 	}
 	if flow != string(terminalwire.FlowAck) && flow != string(terminalwire.FlowDrop) {
-		return "", "", &Error{
-			Code:    "terminal_flow_invalid",
-			Message: "terminal flow must be ack or drop",
-			Err:     ErrUnsupported,
-		}
+		return "", "", fmt.Errorf("terminal flow must be ack or drop: %w", ErrUnsupported)
 	}
 	return mode, flow, nil
 }
@@ -174,40 +175,62 @@ func normalizeAttachOptions(options AttachOptions) (string, string, error) {
 func (s *subscription) enqueueInitialFrames(options AttachOptions, info Info, cols, rows uint16) error {
 	replay := s.session.ring.ReplayFrom(options.AfterSeq)
 	attached, err := json.Marshal(attachedFramePayload{
-		Seq: replay.Seq, Truncated: replay.Truncated, Cols: cols,
-		Rows: rows, Lease: info.Lease, Mode: info.Mode,
+		Seq: terminalSequenceString(replay.Seq), Truncated: replay.Truncated, Cols: cols,
+		Rows: rows, Lease: info.Lease, Mode: info.Mode, Preamble: string(replay.Preamble),
 	})
 	if err != nil {
 		return fmt.Errorf("terminal: encode ATTACHED frame: %w", err)
 	}
 	s.queue.Enqueue(Frame{Op: terminalwire.ServerOpAttached, Seq: replay.Seq, Payload: attached}, replay.Seq)
-	if len(replay.Payload) > 0 {
-		start := replay.Seq - min(replay.Seq, uint64(len(replay.Payload)))
-		s.queue.Enqueue(Frame{Op: terminalwire.ServerOpOutput, Seq: start, Payload: replay.Payload}, replay.Seq)
+	for _, segment := range replay.Segments {
+		if segment.Segment.Kind == OutputSegmentBytes {
+			s.queue.Enqueue(Frame{
+				Op: terminalwire.ServerOpOutput, Seq: segment.Seq, Payload: []byte(segment.Segment.Text),
+			}, segment.End)
+			continue
+		}
+		payload, encodeErr := json.Marshal(redactedInputFramePayload{
+			Seq: terminalSequenceString(segment.Seq), Characters: segment.Segment.Characters,
+		})
+		if encodeErr != nil {
+			return fmt.Errorf("terminal: encode redacted input replay frame: %w", encodeErr)
+		}
+		s.queue.Enqueue(Frame{
+			Op: terminalwire.ServerOpRedactedInput, Seq: segment.Seq, Payload: payload,
+		}, segment.End)
 	}
 	return nil
 }
 
+func terminalSequenceString(sequence uint64) string {
+	return strconv.FormatUint(sequence, 10)
+}
+
 func (s *subscription) Frames() <-chan Frame { return s.queue.Frames() }
+
+func (s *subscription) Err() error {
+	if s.queue.CloseReason() != "slow_consumer" {
+		return nil
+	}
+	return &Error{
+		Code: ErrorCodeSlowConsumer, Message: "terminal subscriber could not keep up with output",
+		Err: ErrSlowConsumer,
+	}
+}
 
 func (s *subscription) Ack(bytes int) { s.queue.Ack(bytes) }
 
 func (s *subscription) Resize(cols, rows uint16) error {
 	if s.mode != terminalAccessWrite {
-		return &Error{
-			Code: errorCodeWriteOwnerHeld, Message: "terminal resize requires a write attachment",
-			Err: ErrWriteOwnerHeld,
-		}
+		return fmt.Errorf("terminal resize requires a write attachment: %w", ErrWriteAttachmentRequired)
 	}
 	if err := s.session.lease.authorize(s.actor); err != nil {
 		return err
 	}
-	cols, rows, ok := terminalwire.ClampDimensions(cols, rows)
-	if !ok {
-		return &Error{
-			Code: "terminal_resize_invalid", Message: "terminal resize dimensions are invalid", Err: ErrUnsupported,
-		}
+	if cols == 0 || rows == 0 {
+		return nil
 	}
+	cols, rows, _ = terminalwire.ClampDimensions(cols, rows)
 	s.session.mu.Lock()
 	previousVoteCols, previousVoteRows := s.cols, s.rows
 	previousCols, previousRows := s.session.cols, s.session.rows
@@ -243,7 +266,8 @@ func (s *subscription) deliver(frame Frame, end uint64) {
 
 func (s *subscription) finish(exit Exit) {
 	payload, err := json.Marshal(exitFramePayload{
-		Cause: exit.Cause, ExitCode: exit.Code, Signal: exit.Signal, Seq: s.session.ringNext(),
+		Cause: exit.Cause, ExitCode: exit.Code, Signal: exit.Signal,
+		Seq: terminalSequenceString(s.session.ringNext()),
 	})
 	if err != nil {
 		if closeErr := s.Close(); closeErr != nil {

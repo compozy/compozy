@@ -18,7 +18,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json({ entries: JOURNAL_FIXTURES, next: null })
   ),
   http.get(`${TERMINALS_PATH}/input-requests`, () =>
-    HttpResponse.json({ requests: [PASSWORD_REQUEST] })
+    HttpResponse.json({ pending: [PASSWORD_REQUEST], resolved: [] })
   ),
   http.post(`${TERMINALS_PATH}/:terminalId/attach-ticket`, () =>
     HttpResponse.json(
@@ -29,7 +29,7 @@ export const handlers: HttpHandler[] = [
   http.get(`${TERMINALS_PATH}/:terminalId/read`, () =>
     HttpResponse.json({
       content: "current screen",
-      seq: 4096,
+      seq: "4096",
       truncated: false,
       busy: false,
       untrusted: true,

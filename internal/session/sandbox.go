@@ -97,6 +97,9 @@ func (m *Manager) prepareSandboxForStart(
 	req := envpkg.PrepareRequest{
 		SessionID:           session.ID,
 		WorkspaceID:         session.WorkspaceID,
+		ProfileID:           session.ProfileID,
+		AgentName:           session.AgentName,
+		RuntimeGeneration:   session.Info().RuntimeGeneration,
 		SandboxID:           sandboxID,
 		InstanceID:          meta.InstanceID,
 		LocalRootDir:        spec.executionRoot(),

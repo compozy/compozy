@@ -103,3 +103,21 @@ const TerminalInputRejectOutcomeRejected TerminalInputRejectOutcome = "rejected"
 func TerminalInputRejectOutcomeValues() []string {
 	return []string{string(TerminalInputRejectOutcomeRejected)}
 }
+
+type TerminalInputResolutionOutcome string
+
+const (
+	TerminalInputResolutionOutcomeAnswered   TerminalInputResolutionOutcome = "answered"
+	TerminalInputResolutionOutcomeRejected   TerminalInputResolutionOutcome = "rejected"
+	TerminalInputResolutionOutcomeSuperseded TerminalInputResolutionOutcome = "superseded"
+	TerminalInputResolutionOutcomeExpired    TerminalInputResolutionOutcome = "expired"
+)
+
+func TerminalInputResolutionOutcomeValues() []string {
+	return []string{
+		string(TerminalInputResolutionOutcomeAnswered),
+		string(TerminalInputResolutionOutcomeRejected),
+		string(TerminalInputResolutionOutcomeSuperseded),
+		string(TerminalInputResolutionOutcomeExpired),
+	}
+}

@@ -2,9 +2,7 @@ package tools
 
 import (
 	"context"
-
 	"fmt"
-
 	"strings"
 	"time"
 )
@@ -118,6 +116,12 @@ func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {
 	if err := bindCallScopeField(req.ToolID, "session_id", scope.SessionID, &req.SessionID); err != nil {
 		return CallRequest{}, err
 	}
+	if err := bindCallScopeField(req.ToolID, "run_id", scope.RunID, &req.RunID); err != nil {
+		return CallRequest{}, err
+	}
+	if err := bindCallScopeGeneration(req.ToolID, scope.Generation, &req.Generation); err != nil {
+		return CallRequest{}, err
+	}
 	if err := bindCallScopeField(req.ToolID, "workspace_id", scope.WorkspaceID, &req.WorkspaceID); err != nil {
 		return CallRequest{}, err
 	}
@@ -128,6 +132,20 @@ func normalizeCallRequest(scope Scope, req CallRequest) (CallRequest, error) {
 		return CallRequest{}, err
 	}
 	return req, nil
+}
+
+func bindCallScopeGeneration(id ToolID, trusted int64, supplied *int64) error {
+	if supplied == nil {
+		return nil
+	}
+	if *supplied == 0 {
+		*supplied = trusted
+		return nil
+	}
+	if trusted != 0 && *supplied != trusted {
+		return callScopeMismatchError(id, "generation")
+	}
+	return nil
 }
 
 func bindCallScopeField(id ToolID, field string, trusted string, supplied *string) error {
@@ -165,12 +183,16 @@ func validateHookCallRequestIdentity(original CallRequest, patched CallRequest) 
 	}{
 		{field: "tool_call_id", left: original.ToolCallID, right: patched.ToolCallID},
 		{field: "turn_id", left: original.TurnID, right: patched.TurnID},
+		{field: "run_id", left: original.RunID, right: patched.RunID},
 		{field: "profile_id", left: original.ProfileID, right: patched.ProfileID},
 		{field: "session_id", left: original.SessionID, right: patched.SessionID},
 		{field: "workspace_id", left: original.WorkspaceID, right: patched.WorkspaceID},
 		{field: "agent_name", left: original.AgentName, right: patched.AgentName},
 		{field: "actor_kind", left: original.ActorKind, right: patched.ActorKind},
 		{field: "approval_token", left: original.ApprovalToken, right: patched.ApprovalToken},
+	}
+	if original.Generation != patched.Generation {
+		return callScopeMismatchError(original.ToolID, "generation")
 	}
 	for _, check := range checks {
 		if strings.TrimSpace(check.left) != strings.TrimSpace(check.right) {

@@ -2,7 +2,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 
 import {
   fetchTerminal,
-  fetchTerminalInputRequests,
+  fetchTerminalInputRequestProjection,
   fetchTerminalJournal,
   fetchTerminalRecording,
   fetchTerminals,
@@ -97,8 +97,15 @@ export function terminalPipeOutputQuery(scope: TerminalProfileQueryScope, termin
 export function terminalInputRequestsQuery(scope: TerminalQueryScope) {
   return queryOptions({
     queryKey: terminalKeys.inputRequests(scope.key),
-    queryFn: ({ signal }) =>
-      fetchTerminalInputRequests(scope.key.workspaceId, scope.params, undefined, signal),
+    queryFn: async ({ signal }) => {
+      const projection = await fetchTerminalInputRequestProjection(
+        scope.key.workspaceId,
+        scope.params,
+        undefined,
+        signal
+      );
+      return projection.pending;
+    },
   });
 }
 

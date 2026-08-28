@@ -37,8 +37,8 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Status(first) error = %v", err)
 		}
-		if firstStatus.Version != 3 || firstStatus.AppliedCount != 3 {
-			t.Fatalf("Status(first) = %#v, want version/applied count 3", firstStatus)
+		if firstStatus.Version != 4 || firstStatus.AppliedCount != 4 {
+			t.Fatalf("Status(first) = %#v, want version/applied count 4", firstStatus)
 		}
 		assertTerminalSchema(ctx, t, db.DB())
 		if _, err := db.DB().ExecContext(ctx, `INSERT INTO terminal_recordings (
@@ -210,6 +210,86 @@ func TestOpen(t *testing.T) {
 		}
 	})
 
+	t.Run("Should retain workspace removal ownership until a failed commit retry succeeds", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		workspaceRoot := t.TempDir()
+		identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		pool, err := NewPool(func(context.Context, string) (ResolvedRoot, error) {
+			return ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
+		})
+		if err != nil {
+			t.Fatalf("NewPool() error = %v", err)
+		}
+		if _, err := pool.Open(ctx, "workspace-a"); err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		preparation, err := pool.PrepareWorkspaceRemoval(ctx, "workspace-a")
+		if err != nil {
+			t.Fatalf("PrepareWorkspaceRemoval() error = %v", err)
+		}
+		if err := preparation.BeforeDelete(ctx); err != nil {
+			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := preparation.Commit(canceled); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Commit(canceled) error = %v, want context canceled", err)
+		}
+		if _, err := pool.Open(ctx, "workspace-a"); err == nil || !strings.Contains(err.Error(), "removal is pending") {
+			t.Fatalf("Open(during retry) error = %v, want removal pending", err)
+		}
+		if err := preparation.Commit(ctx); err != nil {
+			t.Fatalf("Commit(retry) error = %v", err)
+		}
+		if err := preparation.Commit(ctx); err != nil {
+			t.Fatalf("Commit(idempotent) error = %v", err)
+		}
+	})
+
+	t.Run("Should close a detached removal handle during pool shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := t.Context()
+		workspaceRoot := t.TempDir()
+		identity, err := compozyworkspace.EnsureIdentity(ctx, workspaceRoot)
+		if err != nil {
+			t.Fatalf("EnsureIdentity() error = %v", err)
+		}
+		pool, err := NewPool(func(context.Context, string) (ResolvedRoot, error) {
+			return ResolvedRoot{RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID}, nil
+		})
+		if err != nil {
+			t.Fatalf("NewPool() error = %v", err)
+		}
+		database, err := pool.Open(ctx, "workspace-a")
+		if err != nil {
+			t.Fatalf("Open() error = %v", err)
+		}
+		preparation, err := pool.PrepareWorkspaceRemovalAt(ctx, "workspace-a", workspaceRoot)
+		if err != nil {
+			t.Fatalf("PrepareWorkspaceRemovalAt() error = %v", err)
+		}
+		if err := preparation.BeforeDelete(ctx); err != nil {
+			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		canceled, cancel := context.WithCancel(ctx)
+		cancel()
+		if err := preparation.Commit(canceled); !errors.Is(err, context.Canceled) {
+			t.Fatalf("Commit(canceled) error = %v, want context canceled", err)
+		}
+		if err := pool.Close(ctx); err != nil {
+			t.Fatalf("Pool.Close() error = %v", err)
+		}
+		if err := database.DB().PingContext(ctx); err == nil {
+			t.Fatal("detached database remained open after Pool.Close()")
+		}
+	})
+
 	t.Run("Should remove workspace database files after its handle was closed", func(t *testing.T) {
 		t.Parallel()
 
@@ -358,6 +438,21 @@ func assertTerminalSchema(ctx context.Context, t *testing.T, db *sql.DB) {
 		if count != 1 {
 			t.Fatalf("%s profile trigger count = %d, want 1", table, count)
 		}
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('terminal_commands')
+		WHERE name = 'id' AND type = 'TEXT' AND "notnull" = 1 AND pk = 1`).Scan(&count); err != nil {
+		t.Fatalf("Inspect terminal_commands.id error = %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("terminal_commands.id schema count = %d, want NOT NULL primary key", count)
+	}
+	if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('terminal_commands')
+		WHERE name = 'output_tail_json'`).Scan(&count); err != nil {
+		t.Fatalf("Inspect terminal_commands.output_tail_json error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("terminal_commands.output_tail_json schema count = %d, want no durable output tail", count)
 	}
 }
 

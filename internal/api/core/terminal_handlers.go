@@ -3,6 +3,7 @@ package core
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -37,15 +38,10 @@ func (h *BaseHandlers) CreateTerminal(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	capabilities, err := h.terminalCapabilities(c.Request.Context(), workspaceID)
-	if err != nil {
-		h.respondTerminalMappedError(c, StatusForWorkspaceError(err), "terminal_workspace_unavailable", err)
-		return
-	}
 	handle, err := service.Open(c.Request.Context(), terminalpkg.OpenRequest{
 		WS: workspaceID, Cwd: request.Cwd, Shell: request.Shell,
 		Cols: request.Cols, Rows: request.Rows, Title: terminalpkg.SanitizeTitle(request.Title),
-		Actor: actor, Capabilities: capabilities,
+		Actor: actor,
 	})
 	if err != nil {
 		h.respondTerminalError(c, err)
@@ -108,17 +104,18 @@ func (h *BaseHandlers) DeleteTerminal(c *gin.Context) {
 	if !ok {
 		return
 	}
-	request := closeTerminalRequest{Signal: terminalpkg.SignalHUP}
+	request := closeTerminalRequest{Signal: contract.TerminalSignal(terminalpkg.SignalHUP)}
 	if err := decodeOptionalTerminalJSON(c, &request); err != nil {
 		h.respondTerminalError(c, terminalRequestError(err))
 		return
 	}
-	if !validTerminalSignal(request.Signal) {
+	if !validTerminalSignal(terminalpkg.Signal(request.Signal)) {
 		h.respondTerminalError(c, terminalRequestError(errors.New("signal must be INT, TERM, KILL, or HUP")))
 		return
 	}
 	exit, err := service.Close(
-		c.Request.Context(), workspaceID, terminalpkg.ID(strings.TrimSpace(c.Param("id"))), actor, request.Signal,
+		c.Request.Context(), workspaceID, terminalpkg.ID(strings.TrimSpace(c.Param("id"))), actor,
+		terminalpkg.Signal(request.Signal),
 	)
 	if err != nil {
 		h.respondTerminalError(c, err)
@@ -146,11 +143,7 @@ func (h *BaseHandlers) MintTerminalAttachTicket(c *gin.Context) {
 	if request.Mode != contract.TerminalAttachModeRead && request.Mode != contract.TerminalAttachModeWrite {
 		h.respondTerminalError(
 			c,
-			&terminalpkg.Error{
-				Code:    "terminal_attach_mode_invalid",
-				Message: "terminal attach mode must be read or write",
-				Err:     terminalpkg.ErrUnsupported,
-			},
+			fmt.Errorf("terminal attach mode must be read or write: %w", terminalpkg.ErrUnsupported),
 		)
 		return
 	}
@@ -159,24 +152,7 @@ func (h *BaseHandlers) MintTerminalAttachTicket(c *gin.Context) {
 		h.respondTerminalError(c, err)
 		return
 	}
-	info, err := service.Get(c.Request.Context(), workspaceID, profileID, terminalID)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return
-	}
-	maxSubscribers := h.Config.Terminal.MaxSubscribers
-	if maxSubscribers > 0 && info.Viewers >= maxSubscribers {
-		h.respondTerminalError(c, &terminalpkg.Error{
-			Code: "subscriber_limit_reached", Message: "terminal subscriber limit reached",
-			Current: info.Viewers, Max: maxSubscribers, Err: terminalpkg.ErrSubscriberLimit,
-		})
-		return
-	}
-	if h.terminalTickets == nil {
-		h.respondTerminalUnavailable(c)
-		return
-	}
-	ticket, err := h.terminalTickets.Mint(terminalTicketBinding{
+	ticket, err := service.MintAttachTicket(c.Request.Context(), terminalpkg.AttachTicketBinding{
 		WorkspaceID: workspaceID, ProfileID: profileID, TerminalID: terminalID, Mode: string(request.Mode),
 	}, actor)
 	if err != nil {

@@ -291,7 +291,7 @@ func (d *Daemon) buildSandboxRegistry(state *bootState) (*sandbox.Registry, erro
 	}
 	registry, err := local.NewRegistry(
 		local.WithLogger(state.logger),
-		local.WithProcessRegistry(state.processRegistry),
+		local.WithTerminalManager(state.terminals),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("daemon: create sandbox registry: %w", err)

@@ -141,7 +141,8 @@ func terminalHookEnvelope(event terminalpkg.Event) (hookspkg.PayloadBase, hooksp
 	return hookspkg.PayloadBase{Timestamp: event.At}, hookspkg.TerminalContext{
 		WorkspaceID: event.WorkspaceID, ProfileID: event.ProfileID, TerminalID: string(event.TerminalID),
 		ActorKind: string(event.Actor.Kind), ActorID: event.Actor.ID,
-		SessionID: event.Actor.SessionID, RunID: event.Actor.RunID, At: event.At,
+		SessionID: event.Actor.SessionID, RunID: event.Actor.RunID,
+		Generation: event.Actor.Generation, At: event.At,
 	}
 }
 

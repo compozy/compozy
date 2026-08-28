@@ -3066,6 +3066,59 @@ func TestGlobalDBDeleteWorkspaceCascadeDeletesStoppedSessions(t *testing.T) {
 func TestGlobalDBDeleteWorkspaceWithoutSessions(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should retain the complete deletion intent across reopen until finalization", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, path)
+		globalDB := openGlobalDBForTest(t, path)
+		workspaceID := registerWorkspaceForGlobalTests(
+			t,
+			globalDB,
+			"ws-durable-deletion-intent",
+			filepath.Join(t.TempDir(), "ws-durable-deletion-intent"),
+		)
+		workspace, err := globalDB.GetWorkspace(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("GetWorkspace() error = %v", err)
+		}
+		if err := globalDB.StageWorkspaceDeletion(ctx, workspaceID); err != nil {
+			t.Fatalf("StageWorkspaceDeletion() error = %v", err)
+		}
+		if _, err := globalDB.GetWorkspace(ctx, workspaceID); !errors.Is(
+			err, compozyworkspace.ErrWorkspaceNotFound,
+		) {
+			t.Fatalf("GetWorkspace(staged) error = %v, want ErrWorkspaceNotFound", err)
+		}
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+
+		reopened := openGlobalDBForTest(t, path)
+		intent, err := reopened.GetWorkspaceDeletionIntent(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("GetWorkspaceDeletionIntent() error = %v", err)
+		}
+		if intent.Workspace.ID != workspace.ID || intent.Workspace.RootDir != workspace.RootDir ||
+			intent.Workspace.Name != workspace.Name || intent.RequestedAt.IsZero() {
+			t.Fatalf("deletion intent = %#v, want complete snapshot %#v", intent, workspace)
+		}
+		if err := reopened.InsertWorkspace(ctx, workspace); !errors.Is(
+			err, compozyworkspace.ErrWorkspaceDeletionPending,
+		) {
+			t.Fatalf("InsertWorkspace(pending deletion) error = %v, want ErrWorkspaceDeletionPending", err)
+		}
+		if err := reopened.CompleteWorkspaceDeletion(ctx, workspaceID); err != nil {
+			t.Fatalf("CompleteWorkspaceDeletion() error = %v", err)
+		}
+		if _, err := reopened.GetWorkspaceDeletionIntent(
+			ctx, workspaceID,
+		); !errors.Is(err, compozyworkspace.ErrWorkspaceDeletionIntentNotFound) {
+			t.Fatalf("GetWorkspaceDeletionIntent(completed) error = %v, want not found", err)
+		}
+	})
+
 	t.Run("Should delete a workspace without sessions", func(t *testing.T) {
 		t.Parallel()
 
@@ -3364,9 +3417,17 @@ func TestGlobalDBDeleteWorkspaceRejectsActiveSessions(t *testing.T) {
 		t.Fatalf("RegisterSession() error = %v", err)
 	}
 
-	err := globalDB.DeleteWorkspace(testutil.Context(t), workspaceID)
+	err := globalDB.StageWorkspaceDeletion(testutil.Context(t), workspaceID)
 	if !errors.Is(err, compozyworkspace.ErrWorkspaceHasActiveSessions) {
-		t.Fatalf("DeleteWorkspace() error = %v, want ErrWorkspaceHasActiveSessions", err)
+		t.Fatalf("StageWorkspaceDeletion() error = %v, want ErrWorkspaceHasActiveSessions", err)
+	}
+	if _, err := globalDB.GetWorkspace(testutil.Context(t), workspaceID); err != nil {
+		t.Fatalf("GetWorkspace(after rejected stage) error = %v", err)
+	}
+	if _, err := globalDB.GetWorkspaceDeletionIntent(
+		testutil.Context(t), workspaceID,
+	); !errors.Is(err, compozyworkspace.ErrWorkspaceDeletionIntentNotFound) {
+		t.Fatalf("GetWorkspaceDeletionIntent(after rejected stage) error = %v, want not found", err)
 	}
 }
 

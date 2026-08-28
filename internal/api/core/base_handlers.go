@@ -209,7 +209,6 @@ type BaseHandlers struct {
 	windowManagerStreams      *windowManagerStreamLifecycle
 	windowManagerPingInterval time.Duration
 	terminalStreams           *terminalStreamLifecycle
-	terminalTickets           *terminalTicketStore
 	terminalCatalog           *terminalCatalog
 }
 
@@ -226,7 +225,6 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.windowManagerPingInterval = cfg.WindowManagerPingInterval
 	handlers.terminalStreams = newTerminalStreamLifecycle()
 	if cfg.Terminal != nil {
-		handlers.terminalTickets = newTerminalTicketStore(cfg.Terminal, defaults.now)
 		handlers.terminalCatalog = newTerminalCatalog(cfg.Terminal)
 	}
 	handlers.httpPort.Store(int64(cfg.HTTPPort))

@@ -7,6 +7,8 @@
  * a different question.
  */
 
+import { renderTerminalRedactedInput } from "./terminal-wire";
+
 export interface AsciicastHeader {
   version: number;
   width: number;
@@ -14,11 +16,22 @@ export interface AsciicastHeader {
   title?: string;
 }
 
-export interface AsciicastFrame {
+interface AsciicastFrameBase {
   /** Offset from the start of the capture, in milliseconds. */
   atMs: number;
+}
+
+export interface AsciicastOutputFrame extends AsciicastFrameBase {
+  kind: "output";
   data: string;
 }
+
+export interface AsciicastRedactedInputFrame extends AsciicastFrameBase {
+  kind: "redacted_input";
+  characters: number;
+}
+
+export type AsciicastFrame = AsciicastOutputFrame | AsciicastRedactedInputFrame;
 
 export interface Asciicast {
   header: AsciicastHeader;
@@ -37,8 +50,8 @@ export class AsciicastParseError extends Error {
 /**
  * Reads one artifact.
  *
- * Only output events are replayed. Input events, where a recorder wrote them,
- * are not the screen and are dropped rather than painted as if they were.
+ * Output and daemon-authored redacted-input markers are replayed. Raw input
+ * events, where a recorder wrote them, are not the screen and are dropped.
  */
 export function parseAsciicast(source: string): Asciicast {
   const lines = source.split("\n").filter(line => line.trim() !== "");
@@ -107,17 +120,36 @@ function parseFrame(line: string): AsciicastFrame | null {
     throw new AsciicastParseError("A recording event is not readable.");
   }
   const [at, kind, data] = parsed as [unknown, unknown, unknown];
-  if (kind !== "o") return null;
-  if (typeof data !== "string") {
-    throw new AsciicastParseError("A recording output event is not readable.");
-  }
-  // A non-finite or negative offset is not a moment in the capture. Dropping it
-  // keeps every remaining frame on a real timeline, which is what `seek` and the
-  // transport both depend on.
+  if (kind !== "o" && kind !== "m") return null;
   if (typeof at !== "number" || !Number.isFinite(at) || at < 0) {
     throw new AsciicastParseError("A recording event has an invalid timestamp.");
   }
-  return { atMs: Math.round(at * 1000), data };
+  const atMs = Math.round(at * 1000);
+  if (kind === "o") {
+    if (typeof data !== "string") {
+      throw new AsciicastParseError("A recording output event is not readable.");
+    }
+    return { atMs, kind: "output", data };
+  }
+  if (
+    typeof data !== "object" ||
+    data === null ||
+    (data as Record<string, unknown>).kind !== "redacted_input" ||
+    typeof (data as Record<string, unknown>).characters !== "number" ||
+    !Number.isSafeInteger((data as Record<string, unknown>).characters) ||
+    ((data as Record<string, unknown>).characters as number) < 0
+  ) {
+    throw new AsciicastParseError("A recording redacted-input event is not readable.");
+  }
+  return {
+    atMs,
+    kind: "redacted_input",
+    characters: (data as Record<string, unknown>).characters as number,
+  };
+}
+
+function renderAsciicastFrame(frame: AsciicastFrame): string {
+  return frame.kind === "output" ? frame.data : renderTerminalRedactedInput(frame.characters);
 }
 
 export interface AsciicastPlaybackSink {
@@ -181,7 +213,7 @@ export class AsciicastPlayback {
       this.index < this.options.cast.frames.length &&
       this.options.cast.frames[this.index].atMs <= this.positionMs
     ) {
-      this.options.sink.write(this.options.cast.frames[this.index].data);
+      this.options.sink.write(renderAsciicastFrame(this.options.cast.frames[this.index]));
       this.index += 1;
     }
     this.options.onProgress(this.positionMs);
@@ -204,7 +236,7 @@ export class AsciicastPlayback {
     this.cancel = schedule(() => {
       this.cancel = null;
       if (!this.playing) return;
-      this.options.sink.write(frame.data);
+      this.options.sink.write(renderAsciicastFrame(frame));
       this.index += 1;
       this.positionMs = frame.atMs;
       this.options.onProgress(this.positionMs);

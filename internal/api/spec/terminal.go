@@ -2,7 +2,7 @@ package spec
 
 import (
 	"github.com/compozy/compozy/internal/api/contract"
-	terminalpkg "github.com/compozy/compozy/internal/terminal"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 )
 
 const terminalPath = "/api/workspaces/{workspace_id}/terminals"
@@ -47,7 +47,7 @@ func terminalCatalogOperation(transports []Transport, workspace ParameterSpec) O
 			workspace,
 			optionalLastEventIDHeaderParam("Resume after the last terminal catalog event"),
 		),
-		Responses: []ResponseSpec{
+		Responses: terminalResponseMatrix([]ResponseSpec{
 			{
 				Status:      200,
 				Description: "Terminal catalog event stream",
@@ -56,7 +56,7 @@ func terminalCatalogOperation(transports []Transport, workspace ParameterSpec) O
 			},
 			terminalErrorResponse(422, "Invalid terminal catalog cursor"),
 			terminalErrorResponse(503, "Terminal catalog unavailable"),
-		},
+		}),
 	}
 }
 
@@ -159,8 +159,7 @@ func terminalTicketOperation(transports []Transport, workspace, id ParameterSpec
 }
 
 func terminalStreamOperation(transports []Transport, workspace, id ParameterSpec) OperationSpec {
-	after := intQueryParam("after_seq", "Resume after the last parsed terminal byte sequence")
-	after.Format = specFormatInt64
+	after := decimalUint64QueryParam("after_seq", "Decimal uint64 after the last parsed terminal sequence", false)
 	return terminalOperation(
 		httpMethodGet,
 		terminalPath+"/{id}/stream",
@@ -177,13 +176,8 @@ func terminalStreamOperation(transports []Transport, workspace, id ParameterSpec
 		nil,
 		[]ResponseSpec{
 			{
-				Status: 101,
-				Description: "WebSocket upgrade using the binary compozy.terminal.v1 subprotocol. " +
-					"Server frames: OUTPUT=0x01 (u64 big-endian sequence followed by raw bytes), " +
-					"ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, " +
-					"OWNER=0x08, PRESENCE=0x09. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, " +
-					"SIGNAL=0x04, TAKEOVER=0x05, DETACH=0x06, RELEASE=0x07. " +
-					"Every non-OUTPUT frame is one opcode byte followed by a JSON payload.",
+				Status:      101,
+				Description: terminalwire.ProtocolDescription,
 			},
 			terminalErrorResponse(403, "Terminal ticket invalid or expired"),
 			terminalErrorResponse(409, "Subscriber limit reached"),
@@ -201,8 +195,8 @@ func terminalExecOperation(transports []Transport, workspace ParameterSpec) Oper
 		withProfileSelector(workspace),
 		contract.TerminalExecRequest{},
 		[]ResponseSpec{
-			{Status: 200, Description: "Command finished", Body: terminalpkg.ExecResult{}},
-			{Status: 202, Description: "Command continues in a terminal", Body: terminalpkg.ExecResult{}},
+			{Status: 200, Description: "Command finished", Body: contract.TerminalExecResponse{}},
+			{Status: 202, Description: "Command continues in a terminal", Body: contract.TerminalExecResponse{}},
 			terminalErrorResponse(403, "Approval required or rejected"),
 			terminalErrorResponse(422, "Invalid execution request"),
 		},
@@ -214,7 +208,8 @@ func terminalReadOperation(transports []Transport, workspace, id ParameterSpec) 
 		workspace, id,
 		enumQueryParam("view", "Terminal read view", []string{"screen", "tail", "lines"}),
 		intQueryParam("max_bytes", "Maximum returned bytes"), queryParam("grep", "Optional regular expression", false),
-		intQueryParam("since_seq", "Read bytes after this sequence"), intQueryParam("from", "First scrollback line"),
+		decimalUint64QueryParam("since_seq", "Decimal uint64 after the last consumed sequence", false),
+		intQueryParam("from", "First scrollback line"),
 		intQueryParam("to", "Last scrollback line"),
 	)
 	return terminalOperation(
@@ -226,8 +221,9 @@ func terminalReadOperation(transports []Transport, workspace, id ParameterSpec) 
 		params,
 		nil,
 		[]ResponseSpec{
-			{Status: 200, Description: "OK", Body: terminalpkg.ReadResult{}},
+			{Status: 200, Description: "OK", Body: contract.TerminalReadResponse{}},
 			terminalErrorResponse(404, "Terminal not found"),
+			terminalErrorResponse(410, "Terminal expired"),
 			terminalErrorResponse(422, "Unsupported terminal read"),
 		},
 	)
@@ -261,8 +257,9 @@ func terminalWaitOperation(transports []Transport, workspace, id ParameterSpec) 
 		withProfileSelector(workspace, id),
 		contract.TerminalWaitRequest{},
 		[]ResponseSpec{
-			{Status: 200, Description: "Wait result", Body: terminalpkg.WaitResult{}},
+			{Status: 200, Description: "Wait result", Body: contract.TerminalWaitResponse{}},
 			terminalErrorResponse(404, "Terminal not found"),
+			terminalErrorResponse(410, "Terminal expired"),
 			terminalErrorResponse(422, "Invalid wait request"),
 		},
 	)
@@ -410,8 +407,29 @@ func terminalOperation(
 	return OperationSpec{
 		Method: method, Path: path, OperationID: operationID, Summary: summary,
 		Tags: []string{specWorkspacesKey}, Transports: transports, Parameters: parameters,
-		RequestBody: request, Responses: responses,
+		RequestBody: request, Responses: terminalResponseMatrix(responses),
 	}
+}
+
+func terminalResponseMatrix(responses []ResponseSpec) []ResponseSpec {
+	common := []ResponseSpec{
+		terminalErrorResponse(400, "Malformed terminal request"),
+		terminalErrorResponse(401, "Terminal authentication required"),
+		terminalErrorResponse(403, "Terminal operation forbidden"),
+		terminalErrorResponse(409, "Terminal state or profile conflict"),
+		terminalErrorResponse(500, "Terminal transport failed"),
+		terminalErrorResponse(503, "Terminal service unavailable"),
+	}
+	seen := make(map[int]struct{}, len(responses))
+	for _, response := range responses {
+		seen[response.Status] = struct{}{}
+	}
+	for _, response := range common {
+		if _, exists := seen[response.Status]; !exists {
+			responses = append(responses, response)
+		}
+	}
+	return responses
 }
 
 func terminalErrorResponse(status int, description string) ResponseSpec {

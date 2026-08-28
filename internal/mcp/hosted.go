@@ -36,6 +36,7 @@ var (
 	ErrHostedNonceExpired      = errors.New("mcp: hosted MCP bind nonce expired")
 	ErrHostedBindRequired      = errors.New("mcp: hosted MCP bind id is required")
 	ErrHostedBindNotFound      = errors.New("mcp: hosted MCP bind not found")
+	ErrHostedRunRequired       = errors.New("mcp: hosted MCP active run identity is required")
 	ErrHostedPeerInvalid       = errors.New("mcp: hosted MCP peer validation failed")
 	ErrHostedBinaryInvalid     = errors.New("mcp: hosted MCP binary validation failed")
 	ErrHostedRegistryRequired  = errors.New("mcp: hosted MCP registry is required")
@@ -140,6 +141,9 @@ type hostedLaunchRecord struct {
 	createdAt     time.Time
 	established   bool
 	correlationID string
+	runID         string
+	generation    int64
+	bindID        string
 }
 
 type hostedBindRecord struct {
@@ -152,6 +156,8 @@ type hostedBindRecord struct {
 	peer          PeerInfo
 	createdAt     time.Time
 	correlationID string
+	runID         string
+	generation    int64
 }
 
 // NewHostedService builds a hosted MCP lifecycle service.
@@ -228,8 +234,18 @@ func (s *HostedService) Launch(ctx context.Context, req HostedLaunchRequest) (co
 		correlationID: correlation,
 	}
 	s.mu.Lock()
+	releasedBindIDs := make([]string, 0)
+	for bindID, bind := range s.binds {
+		if bind != nil && bind.sessionID == sessionID {
+			delete(s.binds, bindID)
+			releasedBindIDs = append(releasedBindIDs, bindID)
+		}
+	}
 	s.launches[sessionID] = record
 	s.mu.Unlock()
+	for _, bindID := range releasedBindIDs {
+		s.projectionCache.remove(bindID)
+	}
 
 	env := map[string]string{}
 	if home := strings.TrimSpace(s.homePaths.HomeDir); home != "" {

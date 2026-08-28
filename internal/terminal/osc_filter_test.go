@@ -73,7 +73,8 @@ func TestOSCSecurityFilterShouldDeliverTypedFactsBeforeDisplayFanout(t *testing.
 	t.Run("Should deliver typed facts before filtered display bytes", func(t *testing.T) {
 		t.Parallel()
 		consumer := &recordingMarkerConsumer{facts: make(chan MarkerFacts, 1)}
-		manager, starter, _ := newTestManager(t, DefaultSettings(), WithMarkerConsumer(consumer))
+		journal := &markerTestJournal{fakeRecordingJournal: &fakeRecordingJournal{}, consumer: consumer}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		marker := "visible\x1b]7113;v1;" + handle.MarkerNonce() + ";S;cmd=bun%20test;cwd=%2Ftmp\x1b\\after"
 		if err := starter.latest().emit([]byte(marker)); err != nil {
@@ -102,7 +103,8 @@ func TestOSCSecurityFilterShouldBlockInputWhenAuthenticatedFactsCannotBeJournale
 	t.Run("Should block input after authenticated facts miss the journal lane", func(t *testing.T) {
 		t.Parallel()
 		consumer := &failingMarkerConsumer{called: make(chan struct{}, 1)}
-		manager, starter, _ := newTestManager(t, DefaultSettings(), WithMarkerConsumer(consumer))
+		journal := &markerTestJournal{fakeRecordingJournal: &fakeRecordingJournal{}, consumer: consumer}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
 		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
 		marker := "\x1b]7113;v1;" + handle.MarkerNonce() + ";S;cmd=pwd;cwd=%2Ftmp\x1b\\"
 		if err := starter.latest().emit([]byte(marker)); err != nil {
@@ -128,6 +130,15 @@ type recordingMarkerConsumer struct {
 
 type failingMarkerConsumer struct {
 	called chan struct{}
+}
+
+type markerTestJournal struct {
+	*fakeRecordingJournal
+	consumer MarkerConsumer
+}
+
+func (j *markerTestJournal) ConsumeMarkerFacts(ctx context.Context, info Info, facts []MarkerFacts) error {
+	return j.consumer.ConsumeMarkerFacts(ctx, info, facts)
 }
 
 func (c *failingMarkerConsumer) ConsumeMarkerFacts(context.Context, Info, []MarkerFacts) error {

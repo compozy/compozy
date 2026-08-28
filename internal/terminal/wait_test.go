@@ -87,7 +87,7 @@ func TestWaitEngineContract(t *testing.T) {
 			)
 		}
 		timedOut, err := handle.Wait(t.Context(), WaitCondition{Until: "exit", TimeoutMs: 25})
-		if !errors.Is(err, ErrWaitTimeout) || timedOut == nil || timedOut.Reason != "timeout" ||
+		if err != nil || timedOut == nil || timedOut.Reason != "timeout" ||
 			!timedOut.Untrusted || timedOut.Screen != expectedScreen.Content {
 			t.Fatalf("Wait(timeout) = %#v error=%v", timedOut, err)
 		}

@@ -112,6 +112,101 @@ func TestProductionMigrationStreams(t *testing.T) {
 		}
 	})
 
+	t.Run("Should roll back and retry workspace v4 while preserving terminal relations", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := migrationTestContext(t)
+		db := openStreamTestDB(t, "workspace-v4-upgrade.db")
+		stream := workspacedb.MigrationStream()
+		if err := store.Apply(ctx, db, migrationPrefixStream(t, stream, 3)); err != nil {
+			t.Fatalf("Apply(workspace v3) error = %v", err)
+		}
+		statements := []string{
+			`INSERT INTO terminal_recordings (
+				id, terminal_id, profile_id, digest, path, started_at, bytes, expires_at
+			) VALUES ('rec-v3', 'term-v3', 'profile-v3', 'digest-rec', '/tmp/rec-v3', 10, 12, 100)`,
+			`INSERT INTO terminal_commands (
+				id, terminal_id, profile_id, actor_kind, actor_id, command, cwd, started_at,
+				exit_cause, detected_by, approval, output_bytes, truncated, recording_id
+			) VALUES ('cmd-v3', 'term-v3', 'profile-v3', 'human', 'operator', 'pwd', '/tmp', 10,
+				'exited', 'exact', 'human', 4, 0, 'rec-v3')`,
+			`INSERT INTO terminal_artifacts (
+				id, terminal_id, command_id, profile_id, digest, path, bytes, expires_at
+			) VALUES ('art-v3', 'term-v3', 'cmd-v3', 'profile-v3', 'digest-art', '/tmp/art-v3', 4, 100)`,
+			`INSERT INTO terminal_commands (
+				id, profile_id, actor_kind, actor_id, command, cwd, started_at,
+				exit_cause, detected_by, approval, output_bytes, truncated
+			) VALUES (NULL, 'profile-v3', 'human', 'operator', 'invalid', '/tmp', 11,
+				'exited', 'idle', 'human', 0, 0)`,
+		}
+		for index, statement := range statements {
+			if _, err := db.ExecContext(ctx, statement); err != nil {
+				t.Fatalf("seed workspace v3 statement %d: %v", index+1, err)
+			}
+		}
+
+		stream.Bootstrap = nil
+		if err := store.Apply(ctx, db, stream); err == nil {
+			t.Fatal("Apply(workspace v4 with nullable id) error = nil, want transactional copy failure")
+		}
+		status, err := store.Status(ctx, db, stream)
+		if err != nil {
+			t.Fatalf("Status(after failed v4) error = %v", err)
+		}
+		if status.Version != 3 || status.AppliedCount != 3 {
+			t.Fatalf("Status(after failed v4) = %#v, want v3 unchanged", status)
+		}
+		var temporaryTables int
+		if err := db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name LIKE 'new_terminal_%'`,
+		).Scan(&temporaryTables); err != nil {
+			t.Fatalf("query temporary rebuild tables: %v", err)
+		}
+		if temporaryTables != 0 {
+			t.Fatalf("temporary rebuild tables = %d, want rollback to remove all", temporaryTables)
+		}
+		assertTerminalRelationCounts(t, db, 1, 2, 1)
+
+		if _, err := db.ExecContext(ctx, `DELETE FROM terminal_commands WHERE id IS NULL`); err != nil {
+			t.Fatalf("remove invalid v3 command: %v", err)
+		}
+		if err := store.Apply(ctx, db, stream); err != nil {
+			t.Fatalf("retry workspace v4 error = %v", err)
+		}
+		assertTerminalRelationCounts(t, db, 1, 1, 1)
+		var relationCount int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*)
+			FROM terminal_artifacts a
+			JOIN terminal_commands c ON c.id = a.command_id
+			JOIN terminal_recordings r ON r.id = c.recording_id
+			WHERE a.id = 'art-v3' AND c.id = 'cmd-v3' AND r.id = 'rec-v3'`,
+		).Scan(&relationCount); err != nil {
+			t.Fatalf("query preserved terminal relation: %v", err)
+		}
+		if relationCount != 1 {
+			t.Fatalf("preserved terminal relation count = %d, want 1", relationCount)
+		}
+		for _, table := range []string{"terminal_recordings", "terminal_commands", "terminal_artifacts"} {
+			var hardenedID int
+			if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info(?)
+				WHERE name = 'id' AND type = 'TEXT' AND "notnull" = 1 AND pk = 1`, table).Scan(&hardenedID); err != nil {
+				t.Fatalf("inspect %s.id after migration: %v", table, err)
+			}
+			if hardenedID != 1 {
+				t.Fatalf("%s.id hardened schema count = %d, want 1", table, hardenedID)
+			}
+		}
+		var durableOutputTail int
+		if err := db.QueryRowContext(ctx, `SELECT COUNT(*) FROM pragma_table_info('terminal_commands')
+			WHERE name = 'output_tail_json'`).Scan(&durableOutputTail); err != nil {
+			t.Fatalf("inspect removed durable output tail: %v", err)
+		}
+		if durableOutputTail != 0 {
+			t.Fatalf("durable output tail column count = %d, want 0", durableOutputTail)
+		}
+	})
+
 	t.Run("Should keep global and memory domain table ownership disjoint", func(t *testing.T) {
 		t.Parallel()
 
@@ -777,6 +872,30 @@ func migrationPrefixStream(t *testing.T, stream store.MigrationStream, head int)
 	stream.FS = files
 	stream.Bootstrap = nil
 	return stream
+}
+
+func assertTerminalRelationCounts(
+	t *testing.T,
+	db *sql.DB,
+	recordings int,
+	commands int,
+	artifacts int,
+) {
+	t.Helper()
+	ctx := testutil.Context(t)
+	for table, want := range map[string]int{
+		"terminal_recordings": recordings,
+		"terminal_commands":   commands,
+		"terminal_artifacts":  artifacts,
+	} {
+		var got int
+		if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&got); err != nil {
+			t.Fatalf("query %s count: %v", table, err)
+		}
+		if got != want {
+			t.Fatalf("%s count = %d, want %d", table, got, want)
+		}
+	}
 }
 
 func embeddedMigrationVersions(t *testing.T, stream store.MigrationStream) []int {

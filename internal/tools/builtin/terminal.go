@@ -3,6 +3,7 @@ package builtin
 import (
 	"encoding/json"
 
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
@@ -201,9 +202,9 @@ const terminalWriteInputSchema = `{"type":"object","required":["terminal_id","da
 
 const terminalWriteOutputSchema = `{"type":"object","required":["accepted","lease_state"],"additionalProperties":false,"properties":{"accepted":{"type":"boolean"},"lease_state":{"enum":["agent_owned","human_owned","available"]}}}`
 
-const terminalReadInputSchema = `{"type":"object","required":["terminal_id","view"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"view":{"enum":["screen","tail","lines"]},"max_bytes":{"type":"integer","minimum":1},"since_seq":{"type":"integer","minimum":0},"from":{"type":"integer","minimum":0},"to":{"type":"integer","minimum":0},"grep":{"type":"string"}}}`
+const terminalReadInputSchema = `{"type":"object","required":["terminal_id","view"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"view":{"enum":["screen","tail","lines"]},"max_bytes":{"type":"integer","minimum":1},"since_seq":` + terminalpkg.DecimalUint64JSONSchema + `,"from":{"type":"integer","minimum":0},"to":{"type":"integer","minimum":0},"grep":{"type":"string"}}}`
 
-const terminalReadOutputSchema = `{"type":"object","required":["content","seq","truncated","busy","untrusted"],"properties":{"content":{"type":"string"},"seq":{"type":"integer"},"truncated":{"type":"boolean"},"busy":{"type":"boolean"},"untrusted":{"const":true}}}`
+const terminalReadOutputSchema = `{"type":"object","required":["content","seq","truncated","busy","untrusted"],"properties":{"content":{"type":"string"},"seq":` + terminalpkg.DecimalUint64JSONSchema + `,"truncated":{"type":"boolean"},"busy":{"type":"boolean"},"untrusted":{"const":true}}}`
 
 const terminalWaitInputSchema = `{"type":"object","required":["terminal_id","until"],"additionalProperties":false,"properties":{"terminal_id":` + terminalIDPropertySchema + `,"until":{"enum":["exit","idle","match"]},"pattern":{"type":"string"},"timeout_ms":{"type":"integer","minimum":0,"maximum":60000}}}`
 

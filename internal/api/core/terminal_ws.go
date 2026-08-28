@@ -40,7 +40,6 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 		h.respondTerminalStatus(
 			c,
 			http.StatusForbidden,
-			"terminal_origin_forbidden",
 			"terminal stream origin or host is not allowed",
 		)
 		return
@@ -50,8 +49,7 @@ func (h *BaseHandlers) StreamTerminal(c *gin.Context) {
 		h.respondTerminalStatus(
 			c,
 			http.StatusUpgradeRequired,
-			"terminal_protocol_required",
-			"terminal stream requires compozy.terminal.v1",
+			"terminal stream requires "+terminalwire.Subprotocol,
 		)
 		return
 	}
@@ -107,59 +105,27 @@ func (h *BaseHandlers) attachTerminalStream(
 	workspaceID string,
 	terminalID terminalpkg.ID,
 	mode string,
-) (terminalpkg.Handle, terminalpkg.Subscription, terminalTicket, bool) {
-	service, ticket, ok := h.terminalStreamService(c, workspaceID, terminalID, mode)
-	if !ok {
-		return nil, nil, terminalTicket{}, false
+) (terminalpkg.Handle, terminalpkg.Subscription, terminalpkg.AttachTicket, bool) {
+	if h == nil || h.Terminal == nil {
+		h.respondTerminalUnavailable(c)
+		return nil, nil, terminalpkg.AttachTicket{}, false
 	}
-	handle, err := service.Handle(c.Request.Context(), workspaceID, ticket.Binding.ProfileID, terminalID)
+	options, err := terminalAttachOptions(c, mode)
 	if err != nil {
 		h.respondTerminalError(c, err)
-		return nil, nil, terminalTicket{}, false
+		return nil, nil, terminalpkg.AttachTicket{}, false
 	}
-	options, err := terminalAttachOptions(c, ticket)
+	handle, subscription, ticket, err := h.Terminal.AttachWithTicket(
+		c.Request.Context(), c.Query("ticket"), workspaceID, terminalID, mode, options,
+	)
 	if err != nil {
 		h.respondTerminalError(c, err)
-		return nil, nil, terminalTicket{}, false
-	}
-	ticket, err = h.terminalTickets.ConsumeStream(c.Query("ticket"), workspaceID, terminalID, mode)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return nil, nil, terminalTicket{}, false
-	}
-	options.Actor = ticket.Actor
-	subscription, err := handle.Attach(c.Request.Context(), options)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return nil, nil, terminalTicket{}, false
+		return nil, nil, terminalpkg.AttachTicket{}, false
 	}
 	return handle, subscription, ticket, true
 }
 
-func (h *BaseHandlers) terminalStreamService(
-	c *gin.Context,
-	workspaceID string,
-	terminalID terminalpkg.ID,
-	mode string,
-) (terminalpkg.Manager, terminalTicket, bool) {
-	if h.terminalTickets == nil {
-		h.respondTerminalUnavailable(c)
-		return nil, terminalTicket{}, false
-	}
-	ticket, err := h.terminalTickets.PeekStream(c.Query("ticket"), workspaceID, terminalID, mode)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return nil, terminalTicket{}, false
-	}
-	service, err := h.Terminal.TerminalFor(ticket.Binding.ProfileID)
-	if err != nil {
-		h.respondTerminalError(c, err)
-		return nil, terminalTicket{}, false
-	}
-	return service, ticket, true
-}
-
-func terminalAttachOptions(c *gin.Context, ticket terminalTicket) (terminalpkg.AttachOptions, error) {
+func terminalAttachOptions(c *gin.Context, mode string) (terminalpkg.AttachOptions, error) {
 	afterSeq, err := parseTerminalUint(c.Query("after_seq"), 64)
 	if err != nil {
 		return terminalpkg.AttachOptions{}, err
@@ -181,17 +147,14 @@ func terminalAttachOptions(c *gin.Context, ticket terminalTicket) (terminalpkg.A
 		return terminalpkg.AttachOptions{}, err
 	}
 	return terminalpkg.AttachOptions{
-		Mode: ticket.Binding.Mode, Flow: c.Query("flow"), AfterSeq: afterSeq,
-		Cols: cols16, Rows: rows16, Actor: ticket.Actor,
+		Mode: mode, Flow: c.Query("flow"), AfterSeq: afterSeq,
+		Cols: cols16, Rows: rows16,
 	}, nil
 }
 
 func terminalUint16(value uint64) (uint16, error) {
 	if value > math.MaxUint16 {
-		return 0, &terminalpkg.Error{
-			Code: "terminal_stream_parameter_invalid", Message: "terminal stream parameter is invalid",
-			Err: terminalpkg.ErrUnsupported,
-		}
+		return 0, fmt.Errorf("terminal stream parameter is invalid: %w", terminalpkg.ErrUnsupported)
 	}
 	return uint16(value), nil
 }
@@ -202,11 +165,7 @@ func parseTerminalUint(value string, bits int) (uint64, error) {
 	}
 	parsed, err := strconv.ParseUint(value, 10, bits)
 	if err != nil {
-		return 0, &terminalpkg.Error{
-			Code:    "terminal_stream_parameter_invalid",
-			Message: "terminal stream parameter is invalid",
-			Err:     terminalpkg.ErrUnsupported,
-		}
+		return 0, fmt.Errorf("terminal stream parameter is invalid: %w", terminalpkg.ErrUnsupported)
 	}
 	return parsed, nil
 }
@@ -281,6 +240,11 @@ func (s *terminalSocket) run(ctx context.Context) error {
 		select {
 		case frame, ok := <-s.subscription.Frames():
 			if !ok {
+				if streamErr := s.subscription.Err(); streamErr != nil {
+					writeErr := s.writeProtocolError(streamErr)
+					closeErr := s.writeClose(websocket.ClosePolicyViolation, "slow_consumer")
+					return s.cleanup(errors.Join(streamErr, writeErr, closeErr))
+				}
 				return s.cleanup(nil)
 			}
 			if err := s.writeFrame(frame); err != nil {
@@ -311,11 +275,11 @@ func (s *terminalSocket) readPump(ctx context.Context) error {
 			return err
 		}
 		if messageType != websocket.BinaryMessage {
-			return fmt.Errorf("%w: terminal frames must be binary", terminalwire.ErrInvalidFrame)
+			return terminalRequestError(fmt.Errorf("%w: terminal frames must be binary", terminalwire.ErrInvalidFrame))
 		}
 		frame, err := terminalwire.DecodeClient(encoded)
 		if err != nil {
-			return err
+			return terminalRequestError(err)
 		}
 		if err := s.applyClientFrame(ctx, frame); err != nil {
 			return err
@@ -333,14 +297,14 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 	case terminalwire.ClientOpAck:
 		bytes, err := terminalwire.AckBytes(frame)
 		if err != nil {
-			return err
+			return terminalRequestError(err)
 		}
 		s.subscription.Ack(int(bytes))
 		return nil
 	case terminalwire.ClientOpResize:
 		var payload struct{ Cols, Rows uint16 }
 		if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-			return fmt.Errorf("terminal: decode resize: %w", err)
+			return terminalRequestError(fmt.Errorf("terminal: decode resize: %w", err))
 		}
 		return s.subscription.Resize(payload.Cols, payload.Rows)
 	case terminalwire.ClientOpSignal:
@@ -351,7 +315,7 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 			Signal terminalpkg.Signal `json:"signal"`
 		}
 		if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-			return fmt.Errorf("terminal: decode signal: %w", err)
+			return terminalRequestError(fmt.Errorf("terminal: decode signal: %w", err))
 		}
 		return s.handle.Signal(ctx, s.actor, payload.Signal)
 	case terminalwire.ClientOpTakeover:
@@ -359,7 +323,7 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 			Force bool `json:"force"`
 		}
 		if err := json.Unmarshal(frame.Payload, &payload); err != nil {
-			return fmt.Errorf("terminal: decode takeover: %w", err)
+			return terminalRequestError(fmt.Errorf("terminal: decode takeover: %w", err))
 		}
 		return s.handle.Takeover(ctx, s.actor, payload.Force)
 	case terminalwire.ClientOpDetach:
@@ -367,12 +331,12 @@ func (s *terminalSocket) applyClientFrame(ctx context.Context, frame terminalwir
 	case terminalwire.ClientOpRelease:
 		return s.handle.Yield(ctx, s.actor)
 	default:
-		return terminalwire.ErrUnknownOpcode
+		return terminalRequestError(terminalwire.ErrUnknownOpcode)
 	}
 }
 
 func terminalReadOnlyOperationError(operation string) error {
-	return fmt.Errorf("%w: %s requires a write attachment", errTerminalReadOnly, operation)
+	return fmt.Errorf("%s requires a write attachment: %w", operation, terminalpkg.ErrWriteAttachmentRequired)
 }
 
 func (s *terminalSocket) writeFrame(frame terminalwire.Frame) error {
@@ -390,8 +354,8 @@ func (s *terminalSocket) writeFrame(frame terminalwire.Frame) error {
 }
 
 func (s *terminalSocket) writeProtocolError(streamErr error) error {
-	status, code := terminalErrorStatusCode(streamErr)
-	payload, err := json.Marshal(terminalErrorResponse(status, code, streamErr, false))
+	_, code, _ := terminalErrorStatusCode(streamErr)
+	payload, err := json.Marshal(terminalErrorResponse(code, streamErr))
 	if err != nil {
 		return err
 	}

@@ -1,5 +1,5 @@
 CREATE TABLE terminal_recordings (
-	id TEXT PRIMARY KEY,
+	id TEXT NOT NULL PRIMARY KEY,
 	terminal_id TEXT NOT NULL,
 	profile_id TEXT NOT NULL,
 	digest TEXT NOT NULL,
@@ -27,7 +27,7 @@ WHEN NEW.profile_id <> OLD.profile_id
 BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
 
 CREATE TABLE terminal_commands (
-	id TEXT PRIMARY KEY,
+	id TEXT NOT NULL PRIMARY KEY,
 	terminal_id TEXT,
 	profile_id TEXT NOT NULL,
 	actor_kind TEXT NOT NULL,
@@ -65,7 +65,7 @@ WHEN NEW.profile_id <> OLD.profile_id
 BEGIN SELECT RAISE(ABORT, 'profile_owner_immutable'); END;
 
 CREATE TABLE terminal_artifacts (
-	id TEXT PRIMARY KEY,
+	id TEXT NOT NULL PRIMARY KEY,
 	terminal_id TEXT,
 	command_id TEXT NOT NULL,
 	profile_id TEXT NOT NULL,

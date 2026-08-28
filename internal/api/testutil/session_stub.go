@@ -25,6 +25,7 @@ type StubSessionManager struct {
 	) (map[string]session.AgentSessionMetrics, error)
 	ListSessionsFn          func(context.Context, store.SessionListQuery) ([]store.SessionInfo, error)
 	StatusFn                func(context.Context, string) (*session.Info, error)
+	ActivePromptRunFn       func(context.Context, string) (session.PromptRunIdentity, error)
 	EventsFn                func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	LatestEventFn           func(context.Context, string, string) (*store.SessionEvent, error)
 	HistoryFn               func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
@@ -226,6 +227,16 @@ func (s StubSessionManager) Status(ctx context.Context, id string) (*session.Inf
 		return s.StatusFn(ctx, id)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s StubSessionManager) ActivePromptRun(
+	ctx context.Context,
+	id string,
+) (session.PromptRunIdentity, error) {
+	if s.ActivePromptRunFn != nil {
+		return s.ActivePromptRunFn(ctx, id)
+	}
+	return session.PromptRunIdentity{}, session.ErrPromptNotActive
 }
 
 func (s StubSessionManager) Events(

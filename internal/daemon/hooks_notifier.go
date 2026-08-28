@@ -39,7 +39,7 @@ type hooksNotifier struct {
 }
 
 type terminalRuntimeRecovery interface {
-	RuntimeRecovered(context.Context, terminalpkg.Actor, terminalpkg.Actor) int
+	RuntimeRecovered(context.Context, string, terminalpkg.Actor, terminalpkg.Actor) int
 }
 
 type subprocessHealthRuntimeNotifier interface {

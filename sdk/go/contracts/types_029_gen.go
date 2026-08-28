@@ -7,6 +7,23 @@ import (
 	"time"
 )
 
+type TerminalLeaseChangedPayload struct {
+	Event       HookEvent `json:"event"`
+	Timestamp   time.Time `json:"timestamp"`
+	WorkspaceID string    `json:"workspace_id"`
+	ProfileID   string    `json:"profile_id"`
+	TerminalID  string    `json:"terminal_id,omitempty"`
+	ActorKind   string    `json:"actor_kind"`
+	ActorID     string    `json:"actor_id"`
+	SessionID   string    `json:"session_id,omitempty"`
+	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
+	At          time.Time `json:"at"`
+	From        string    `json:"from"`
+	To          string    `json:"to"`
+	Reason      string    `json:"reason"`
+}
+
 type TerminalLimitRejectedPayload struct {
 	Event       HookEvent `json:"event"`
 	Timestamp   time.Time `json:"timestamp"`
@@ -17,6 +34,7 @@ type TerminalLimitRejectedPayload struct {
 	ActorID     string    `json:"actor_id"`
 	SessionID   string    `json:"session_id,omitempty"`
 	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
 	At          time.Time `json:"at"`
 	Limit       string    `json:"limit"`
 	Current     int       `json:"current"`
@@ -35,6 +53,7 @@ type TerminalOpenedPayload struct {
 	ActorID     string    `json:"actor_id"`
 	SessionID   string    `json:"session_id,omitempty"`
 	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
 	At          time.Time `json:"at"`
 	Mode        string    `json:"mode"`
 	Cwd         string    `json:"cwd"`
@@ -51,6 +70,7 @@ type TerminalRecordingStartedPayload struct {
 	ActorID     string    `json:"actor_id"`
 	SessionID   string    `json:"session_id,omitempty"`
 	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
 	At          time.Time `json:"at"`
 	RecordingID string    `json:"recording_id"`
 }
@@ -65,6 +85,7 @@ type TerminalRecordingStoppedPayload struct {
 	ActorID     string    `json:"actor_id"`
 	SessionID   string    `json:"session_id,omitempty"`
 	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
 	At          time.Time `json:"at"`
 	RecordingID string    `json:"recording_id"`
 	Digest      string    `json:"digest"`
@@ -83,6 +104,7 @@ type TerminalSubscriberEvictedPayload struct {
 	ActorID     string    `json:"actor_id"`
 	SessionID   string    `json:"session_id,omitempty"`
 	RunID       string    `json:"run_id,omitempty"`
+	Generation  int64     `json:"generation,omitempty"`
 	At          time.Time `json:"at"`
 	Flow        string    `json:"flow"`
 	Reason      string    `json:"reason"`
@@ -256,6 +278,7 @@ type ToolResult struct {
 	Truncated  bool                       `json:"truncated"`
 	Bytes      int64                      `json:"bytes"`
 	DurationMS int64                      `json:"duration_ms"`
+	Trust      ResultTrust                `json:"trust,omitempty"`
 }
 
 type ToolResultPatch struct {
@@ -294,9 +317,4 @@ type Trigger struct {
 	Ingress              *GatewayIngressPayload `json:"ingress,omitempty"`
 	CreatedAt            time.Time              `json:"created_at"`
 	UpdatedAt            time.Time              `json:"updated_at"`
-}
-
-type TriggerResult struct {
-	Matched int   `json:"matched"`
-	Runs    []Run `json:"runs,omitempty"`
 }

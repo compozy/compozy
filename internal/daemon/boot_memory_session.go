@@ -45,6 +45,9 @@ func (d *Daemon) bootMemorySessionRuntime(
 		return d.shutdownSessionManager(cleanupCtx, sessions)
 	})
 	state.sessions = sessions
+	if err := registerTerminalPromptRunEnd(sessions, state.terminals); err != nil {
+		return err
+	}
 	if state.notifier != nil {
 		state.notifier.setSessionProfileResolver(
 			daemonSessionProfileResolver(sessions, "daemon: hook session profile is unavailable"),
@@ -67,7 +70,7 @@ func (d *Daemon) bootMemorySessionRuntime(
 	if err := d.bootClarifyBridge(state, cleanup); err != nil {
 		return err
 	}
-	if err := installWorkspaceRemovalPreparer(state, sessions); err != nil {
+	if err := configureWorkspaceDeletionLifecycle(ctx, state, sessions, cleanup); err != nil {
 		return err
 	}
 	memoryExtractor, err := newDaemonMemoryExtractor(ctx, state, sessions, d.now)

@@ -91,48 +91,7 @@ func (g *WorkspaceRepo) DeleteWorkspace(ctx context.Context, id string) error {
 	}
 
 	return store.ExecuteWrite(ctx, g.db, func(ctx context.Context, tx *store.WriteTx) error {
-		queries := sqlcgen.New(tx)
-		if err := ensureWorkspaceDeletionAllowed(ctx, queries, trimmedID); err != nil {
-			return err
-		}
-
-		if err := deleteWorkspaceMCPState(ctx, queries, trimmedID); err != nil {
-			return err
-		}
-
-		if err := deleteWorkspaceExtensionEnv(ctx, queries, trimmedID); err != nil {
-			return err
-		}
-
-		if err := queries.DeleteSessionsByWorkspace(ctx, trimmedID); err != nil {
-			return fmt.Errorf("store: delete stopped sessions for workspace %q: %w", trimmedID, err)
-		}
-		if _, err := queries.DeleteGatewayIngressBindingsByWorkspace(ctx, store.SQLNullString(trimmedID)); err != nil {
-			return fmt.Errorf(
-				"store: delete gateway ingress bindings for workspace %q: %w",
-				trimmedID,
-				err,
-			)
-		}
-
-		affected, err := queries.DeleteWorkspace(ctx, trimmedID)
-		if err != nil {
-			return fmt.Errorf(
-				"store: delete workspace %q: %w",
-				trimmedID,
-				mapWorkspaceDeleteConstraintError(err),
-			)
-		}
-
-		if affected == 0 {
-			return fmt.Errorf(
-				"store: workspace %q: %w",
-				trimmedID,
-				compozyworkspace.ErrWorkspaceNotFound,
-			)
-		}
-
-		return nil
+		return deleteWorkspaceTx(ctx, sqlcgen.New(tx), trimmedID)
 	})
 }
 
@@ -432,6 +391,9 @@ func mapWorkspaceWriteConstraintError(
 ) error {
 	if err == nil {
 		return nil
+	}
+	if strings.Contains(strings.ToLower(err.Error()), "workspace deletion pending") {
+		return compozyworkspace.ErrWorkspaceDeletionPending
 	}
 	if !isSQLiteUniqueConstraint(err) {
 		return err

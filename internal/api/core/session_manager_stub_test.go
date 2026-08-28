@@ -15,6 +15,7 @@ type sessionManagerStub struct {
 	listAll             func(context.Context) ([]*session.Info, error)
 	listPage            func(context.Context, session.ListQuery) (session.ListPage, error)
 	status              func(context.Context, string) (*session.Info, error)
+	activePromptRun     func(context.Context, string) (session.PromptRunIdentity, error)
 	events              func(context.Context, string, store.EventQuery) ([]store.SessionEvent, error)
 	latestEvent         func(context.Context, string, string) (*store.SessionEvent, error)
 	history             func(context.Context, string, store.EventQuery) ([]store.TurnHistory, error)
@@ -79,6 +80,16 @@ func (s sessionManagerStub) Status(ctx context.Context, id string) (*session.Inf
 		return s.status(ctx, id)
 	}
 	return nil, session.ErrSessionNotFound
+}
+
+func (s sessionManagerStub) ActivePromptRun(
+	ctx context.Context,
+	id string,
+) (session.PromptRunIdentity, error) {
+	if s.activePromptRun != nil {
+		return s.activePromptRun(ctx, id)
+	}
+	return session.PromptRunIdentity{}, session.ErrPromptNotActive
 }
 
 func (s sessionManagerStub) Events(

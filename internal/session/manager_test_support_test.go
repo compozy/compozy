@@ -1164,6 +1164,10 @@ func (l *recordingHostedMCPLauncher) ArmLaunch(_ context.Context, sessionID stri
 	return nil
 }
 
+func (*recordingHostedMCPLauncher) BindRun(context.Context, string, string, int64) error { return nil }
+
+func (*recordingHostedMCPLauncher) ReleaseRun(string, string, int64) {}
+
 var _ HostedMCPLauncher = (*recordingHostedMCPLauncher)(nil)
 
 func (l *recordingHostedMCPLauncher) Launch(

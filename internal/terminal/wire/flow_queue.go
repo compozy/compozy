@@ -17,10 +17,11 @@ type QueueOptions struct {
 }
 
 type queuedFrame struct {
-	frame Frame
-	end   uint64
-	size  int
-	ack   int
+	frame     Frame
+	end       uint64
+	size      int
+	credit    int
+	sequenced bool
 }
 
 type Queue struct {
@@ -39,6 +40,7 @@ type Queue struct {
 	deliveredAck int
 	high         bool
 	closed       bool
+	closeReason  string
 	closing      bool
 	fullSince    time.Time
 	ackSlowTimer *time.Timer
@@ -71,6 +73,12 @@ func NewQueue(options QueueOptions) *Queue {
 
 func (q *Queue) Frames() <-chan Frame { return q.out }
 
+func (q *Queue) CloseReason() string {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	return q.closeReason
+}
+
 func (q *Queue) Flow() Flow {
 	q.mu.Lock()
 	defer q.mu.Unlock()
@@ -91,11 +99,13 @@ func (q *Queue) Enqueue(frame Frame, end uint64) {
 		return
 	}
 	size := frameBytes(frame)
-	ack := outputBytes(frame)
-	q.items = append(q.items, queuedFrame{frame: cloneFrame(frame), end: end, size: size, ack: ack})
+	credit := outputBytes(frame)
+	q.items = append(q.items, queuedFrame{
+		frame: cloneFrame(frame), end: end, size: size, credit: credit, sequenced: end > frame.Seq,
+	})
 	q.queuedBytes += size
 	if q.flow == FlowAck {
-		q.pendingAck += ack
+		q.pendingAck += credit
 		if !q.high && q.pendingAck >= AckHighWatermark {
 			q.high = true
 			q.startAckSlowTimerLocked()
@@ -191,7 +201,7 @@ func (q *Queue) deliver() {
 			q.mu.Lock()
 			q.inflight = nil
 			if q.flow == FlowAck {
-				q.deliveredAck += item.ack
+				q.deliveredAck += item.credit
 			}
 			if q.queuedBytes < DropQueueLimit {
 				q.fullSince = time.Time{}
@@ -212,20 +222,21 @@ func (q *Queue) demoteLocked() bool {
 	q.pendingAck = 0
 	q.deliveredAck = 0
 	var from, to, dropped uint64
+	sequenced := false
 	for _, item := range q.items {
-		if item.ack == 0 {
-			continue
-		}
-		if dropped == 0 {
+		if item.sequenced && !sequenced {
 			from = item.frame.Seq
+			sequenced = true
 		}
-		to = item.end
-		// #nosec G115 -- ack is the nonnegative encoded payload length.
-		dropped += uint64(item.ack)
+		if item.sequenced {
+			to = item.end
+		}
+		// #nosec G115 -- credit is the nonnegative encoded output length.
+		dropped += uint64(item.credit)
 	}
 	q.items = nil
 	q.queuedBytes = 0
-	if dropped > 0 {
+	if sequenced {
 		q.appendGapLocked(from, to, dropped)
 	}
 	return true
@@ -241,25 +252,27 @@ func (q *Queue) trimDropQueueLocked() {
 	}
 	var from, to uint64
 	var dropped uint64
+	sequenced := false
 	for q.queuedBytes > DropQueueLimit && len(q.items) > 0 {
 		item := q.items[0]
 		q.items = q.items[1:]
 		q.queuedBytes -= item.size
-		if item.ack == 0 {
-			continue
-		}
-		if dropped == 0 {
+		if item.sequenced && !sequenced {
 			from = item.frame.Seq
+			sequenced = true
 		}
-		to = item.end
-		// #nosec G115 -- ack is the nonnegative encoded payload length.
-		dropped += uint64(item.ack)
+		if item.sequenced {
+			to = item.end
+		}
+		// #nosec G115 -- credit is the nonnegative encoded output length.
+		dropped += uint64(item.credit)
 	}
-	if dropped > 0 {
+	if sequenced {
 		q.appendGapLocked(from, to, dropped)
 	}
 	if now.Sub(q.fullSince) >= q.slowAfter {
 		q.closed = true
+		q.closeReason = "slow_consumer"
 		if q.onEvicted != nil {
 			go q.onEvicted("slow_consumer")
 		}
@@ -300,7 +313,7 @@ func (q *Queue) notifyDemoted() {
 
 func (q *Queue) appendGapLocked(from, to, dropped uint64) {
 	payload := []byte(fmt.Sprintf(
-		`{"dropped_bytes":%d,"from_seq":%d,"to_seq":%d}`,
+		`{"dropped_bytes":%d,"from_seq":"%d","to_seq":"%d"}`,
 		dropped, from, to,
 	))
 	frame := Frame{Op: ServerOpGap, Payload: payload}

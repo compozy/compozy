@@ -85,7 +85,12 @@ func (m *Manager) attemptPromptRecovery(
 			return false, nil
 		}
 
-		source, replayBlock, err := m.startRecoveredPrompt(recovery.executionCtx, session, recovery.request)
+		source, replayBlock, err := m.startRecoveredPrompt(
+			recovery.executionCtx,
+			session,
+			turnState,
+			recovery.request,
+		)
 		if err != nil {
 			if persistErr := m.persistPromptRecoveryFailure(ctx, session, err); persistErr != nil {
 				return false, persistErr
@@ -131,15 +136,19 @@ func (m *Manager) persistPromptRecoveryFailure(ctx context.Context, session *Ses
 func (m *Manager) startRecoveredPrompt(
 	ctx context.Context,
 	session *Session,
+	state *promptTurnDispatchState,
 	request acp.PromptRequest,
 ) (<-chan acp.AgentEvent, string, error) {
-	_, replayBlock, err := m.recoverPromptRuntime(ctx, session)
+	m.releaseHostedPromptRun(session, state)
+	m.clearActivePromptRunForState(session, state)
+	process, replayBlock, err := m.recoverPromptRuntime(ctx, session)
 	if err != nil {
 		return nil, "", err
 	}
 	replayRequest := clonePromptRecoveryRequest(request)
+	replayRequest.Generation = session.Info().RuntimeGeneration
 	replayRequest.Message = promptWithResumeReplay(replayBlock, replayRequest.Message)
-	source, err := m.driver.Prompt(ctx, session.processHandle(), replayRequest)
+	source, err := m.startHostedPromptRun(ctx, session, process, state, replayRequest)
 	if err != nil {
 		return nil, "", err
 	}
@@ -200,6 +209,7 @@ func (m *Manager) recordPromptRecoveryEvent(
 		ctx,
 		session,
 		turnState.turnID,
+		turnState.runID,
 		recoveryHookEvent(eventType),
 		attempt,
 		maxAttempts,

@@ -103,7 +103,7 @@ func (m *Manager) submitPromptRequest(ctx context.Context, req promptRequest) (<
 	if err != nil {
 		return nil, err
 	}
-	turnState := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
+	turnState := newPromptRequestDispatchState(session, req, message)
 	if err := m.dispatchTurnStart(promptExecutionCtx, turnState); err != nil {
 		return nil, err
 	}
@@ -199,17 +199,15 @@ func (m *Manager) submitPromptInReservedSlot(
 	activity.start()
 	recoveryRequest := acp.PromptRequest{
 		TurnID:                    req.turnID,
+		RunID:                     req.runID,
+		Generation:                session.Info().RuntimeGeneration,
 		Message:                   dispatchMessage,
 		Attachments:               attachments,
 		Meta:                      req.meta,
 		ActivityReporter:          activity.report,
 		ActivityHeartbeatInterval: supervision.ActivityHeartbeatInterval,
 	}
-	turnState.recovery = &promptRecoveryState{
-		executionCtx: ctx,
-		request:      clonePromptRecoveryRequest(recoveryRequest),
-	}
-	source, err := m.driver.Prompt(ctx, proc, recoveryRequest)
+	source, err := m.startHostedPromptRun(ctx, session, proc, turnState, recoveryRequest)
 	if err != nil {
 		delivery.cancel()
 		cancelPromptExecution()
@@ -219,12 +217,14 @@ func (m *Manager) submitPromptInReservedSlot(
 	}
 	if turnState.managed != nil {
 		if err := m.recordManagedDriverAttached(ctx, turnState.managed, req.turnID); err != nil {
+			m.releaseHostedPromptRun(session, turnState)
 			delivery.cancel()
 			m.abortPromptBeforePump(cancelPromptExecution, activity, source)
 			return nil, err
 		}
 	}
 	if err := m.preparePromptDelivery(ctx, session, req, cancelPromptExecution, activity, source); err != nil {
+		m.releaseHostedPromptRun(session, turnState)
 		delivery.cancel()
 		return nil, err
 	}

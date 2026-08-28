@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/compozy/compozy/internal/clientstate"
 	"github.com/compozy/compozy/internal/cmdpalette"
@@ -146,23 +147,41 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 			if sessionPreparation == nil {
 				return nil, errors.New("daemon: session workspace removal preparation is required")
 			}
+			if state.terminals == nil {
+				rollbackErr := sessionPreparation.Rollback(context.WithoutCancel(ctx))
+				return nil, errors.Join(
+					errors.New("daemon: terminal workspace removal preparation is required"),
+					rollbackErr,
+				)
+			}
+			terminalPreparation, err := state.terminals.PrepareWorkspaceDeletion(ctx, workspace)
+			if err != nil {
+				rollbackErr := sessionPreparation.Rollback(context.WithoutCancel(ctx))
+				return nil, errors.Join(err, rollbackErr)
+			}
+			if terminalPreparation == nil {
+				rollbackErr := sessionPreparation.Rollback(context.WithoutCancel(ctx))
+				return nil, errors.Join(
+					errors.New("daemon: terminal workspace removal preparation is required"),
+					rollbackErr,
+				)
+			}
 			windowPreparation, err := state.windowManagerStoreResolver.prepareRemoval(
 				workspace,
 				state.windowManagerStore,
 				state.windowManagers,
 			)
 			if err != nil {
-				rollbackErr := sessionPreparation.Rollback(context.WithoutCancel(ctx))
+				rollbackErr := errors.Join(
+					terminalPreparation.Rollback(context.WithoutCancel(ctx)),
+					sessionPreparation.Rollback(context.WithoutCancel(ctx)),
+				)
 				return nil, errors.Join(err, rollbackErr)
 			}
-			var terminals terminalWorkspaceArchiver
-			if state.terminals != nil {
-				terminals = state.terminals
-			}
-			return workspaceRemovalPreparation{
+			return &workspaceRemovalPreparation{
 				windowManager: windowPreparation,
 				session:       sessionPreparation,
-				terminal:      terminals,
+				terminal:      terminalPreparation,
 				deadEntities:  state.deadEntities,
 				mcpTools:      state.mcpToolProvider,
 				workspaceID:   workspace.ID,
@@ -175,36 +194,58 @@ func installWorkspaceRemovalPreparer(state *bootState, sessions SessionManager) 
 type workspaceRemovalPreparation struct {
 	windowManager workspacepkg.UnregisterPreparation
 	session       workspacepkg.UnregisterPreparation
-	terminal      terminalWorkspaceArchiver
+	terminal      workspacepkg.UnregisterPreparation
 	deadEntities  *deadentity.Service
 	mcpTools      workspaceMCPStateRetirer
 	workspaceID   string
+
+	mu                     sync.Mutex
+	windowManagerCommitted bool
+	sessionCommitted       bool
+	terminalCommitted      bool
+	retired                bool
 }
 
 type workspaceMCPStateRetirer interface {
 	ForgetWorkspace(workspaceID string)
 }
 
-type terminalWorkspaceArchiver interface {
-	ArchiveWorkspace(ctx context.Context, workspaceID string) error
-}
-
-func (p workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
+func (p *workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if err := p.windowManager.BeforeDelete(ctx); err != nil {
 		return err
 	}
 	if err := p.session.BeforeDelete(ctx); err != nil {
 		return err
 	}
+	if err := p.terminal.BeforeDelete(ctx); err != nil {
+		return err
+	}
 	return nil
 }
 
-func (p workspaceRemovalPreparation) Commit(ctx context.Context) error {
-	windowManagerErr := p.windowManager.Commit(ctx)
-	sessionErr := p.session.Commit(ctx)
-	var terminalErr error
-	if p.terminal != nil {
-		terminalErr = p.terminal.ArchiveWorkspace(ctx, p.workspaceID)
+func (p *workspaceRemovalPreparation) Commit(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.retired {
+		return nil
+	}
+	var terminalErr, windowManagerErr, sessionErr error
+	if !p.terminalCommitted {
+		terminalErr = p.terminal.Commit(ctx)
+		p.terminalCommitted = terminalErr == nil
+	}
+	if !p.windowManagerCommitted {
+		windowManagerErr = p.windowManager.Commit(ctx)
+		p.windowManagerCommitted = windowManagerErr == nil
+	}
+	if !p.sessionCommitted {
+		sessionErr = p.session.Commit(ctx)
+		p.sessionCommitted = sessionErr == nil
+	}
+	if err := errors.Join(terminalErr, windowManagerErr, sessionErr); err != nil {
+		return err
 	}
 	if p.deadEntities != nil {
 		p.deadEntities.ForgetWorkspace(p.workspaceID)
@@ -212,11 +253,15 @@ func (p workspaceRemovalPreparation) Commit(ctx context.Context) error {
 	if p.mcpTools != nil {
 		p.mcpTools.ForgetWorkspace(p.workspaceID)
 	}
-	return errors.Join(windowManagerErr, sessionErr, terminalErr)
+	p.retired = true
+	return nil
 }
 
-func (p workspaceRemovalPreparation) Rollback(ctx context.Context) error {
+func (p *workspaceRemovalPreparation) Rollback(ctx context.Context) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	return errors.Join(
+		p.terminal.Rollback(ctx),
 		p.session.Rollback(ctx),
 		p.windowManager.Rollback(ctx),
 	)

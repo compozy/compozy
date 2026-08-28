@@ -40,7 +40,7 @@ type AgentProcess struct {
 	permissions     permissionPolicy
 	terminals       *terminalManager
 	terminalCore    TerminalHost
-	terminalScope   terminalScope
+	terminalScope   LocalTerminalScope
 	processRegistry *toolruntime.Registry
 	processRecord   *toolruntime.Handle
 

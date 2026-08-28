@@ -159,6 +159,7 @@ export const PASSWORD_REQUEST: TerminalInputRequest = {
   prompt_excerpt: "Password for user atlas:",
   redacted: true,
   requested_at: "2026-08-25T12:44:00Z",
+  requester: { kind: "agent", id: "claude-code" },
 };
 
 export const CONFIRMATION_REQUEST: TerminalInputRequest = {
@@ -170,6 +171,7 @@ export const CONFIRMATION_REQUEST: TerminalInputRequest = {
   prompt_excerpt: "Overwrite migration 00078_terminal_journal.sql? [y/N]",
   redacted: false,
   requested_at: "2026-08-25T12:47:00Z",
+  requester: { kind: "agent", id: "claude-code" },
 };
 
 function journalEntry(overrides: Partial<TerminalJournalEntry>): TerminalJournalEntry {

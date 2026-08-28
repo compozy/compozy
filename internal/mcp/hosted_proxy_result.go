@@ -67,6 +67,12 @@ func finishHostedToolResult(
 		return nil, errors.New("mcp: hosted tool result is required")
 	}
 	converted.IsError = isError
+	if result.Trust != "" {
+		if converted.Meta == nil {
+			converted.Meta = sdkmcp.Meta{}
+		}
+		converted.Meta["compozy/resultTrust"] = result.Trust
+	}
 	if len(result.Artifacts) == 0 {
 		return converted, nil
 	}
@@ -82,10 +88,11 @@ func finishHostedToolResult(
 		return nil, fmt.Errorf("mcp: encode hosted tool artifact references: %w", err)
 	}
 	converted.Content = append(converted.Content, &sdkmcp.TextContent{Text: string(encoded)})
-	converted.Meta = sdkmcp.Meta{
-		"compozy/artifacts": payload.Artifacts,
-		"compozy/readTool":  payload.ReadTool,
+	if converted.Meta == nil {
+		converted.Meta = sdkmcp.Meta{}
 	}
+	converted.Meta["compozy/artifacts"] = payload.Artifacts
+	converted.Meta["compozy/readTool"] = payload.ReadTool
 	return converted, nil
 }
 

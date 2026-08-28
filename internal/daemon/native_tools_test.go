@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -70,7 +71,7 @@ const (
 func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
 	t.Run("Should call terminal tools through the daemon dependency builder", func(t *testing.T) {
 		t.Parallel()
-		manager, err := terminalpkg.NewManager()
+		manager, err := terminalpkg.NewManager(terminalpkg.WithJournal(nativeTerminalJournalStub{}))
 		if err != nil {
 			t.Fatalf("terminal.NewManager() error = %v", err)
 		}
@@ -86,11 +87,20 @@ func TestNativeTerminalProviderShouldUseBootStateDependency(t *testing.T) {
 		})
 
 		daemon := &Daemon{}
-		state := &bootState{logger: discardLogger(), terminals: manager}
+		state := &bootState{
+			logger:    discardLogger(),
+			terminals: manager,
+			sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{
+					ID: id, ProfileID: "profile-a", AgentName: "agent-a", RuntimeGeneration: 1,
+				}, nil
+			}},
+		}
 		deps := daemon.nativeToolsDeps(state, func() toolspkg.Registry { return nil })
 		registry := newDaemonNativeRegistry(t, &deps, nativeApproveAllPolicyInputs())
 		result, err := registry.Call(t.Context(), toolspkg.Scope{
-			WorkspaceID: "workspace-a", ProfileID: "profile-a", AgentName: "agent-a",
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a",
+			RunID: "run-a", Generation: 1, AgentName: "agent-a",
 		}, toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)})
 		if err != nil {
 			t.Fatalf("terminal list through daemon provider error = %v", err)
@@ -136,12 +146,106 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: id}, nil
 		}},
-		Sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 4}, nil
-		}},
+		Sessions: apitest.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 4}, nil
+			},
+			ActivePromptRunFn: func(_ context.Context, id string) (session.PromptRunIdentity, error) {
+				return session.PromptRunIdentity{
+					WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: id,
+					RunID: "run-a", Generation: 4,
+				}, nil
+			},
+		},
 	}}
 	scope := toolspkg.Scope{
 		WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: "session-a", AgentName: "agent-a",
+		RunID: "run-a", Generation: 4,
+	}
+	t.Run("Should keep non-domain native identity failures generic", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name       string
+			prepare    func(*daemonNativeToolsDeps, *toolspkg.Scope)
+			wantCode   toolspkg.ErrorCode
+			wantReason toolspkg.ReasonCode
+		}{
+			{
+				name: "Should reject a missing profile as invalid scope",
+				prepare: func(_ *daemonNativeToolsDeps, candidate *toolspkg.Scope) {
+					candidate.ProfileID = ""
+				},
+				wantCode: toolspkg.ErrorCodeInvalidInput, wantReason: toolspkg.ReasonSchemaInvalid,
+			},
+			{
+				name: "Should report an absent session service as unavailable",
+				prepare: func(deps *daemonNativeToolsDeps, _ *toolspkg.Scope) {
+					deps.Sessions = nil
+				},
+				wantCode: toolspkg.ErrorCodeUnavailable, wantReason: toolspkg.ReasonBackendUnhealthy,
+			},
+			{
+				name: "Should deny an unknown session identity",
+				prepare: func(deps *daemonNativeToolsDeps, _ *toolspkg.Scope) {
+					deps.Sessions = apitest.StubSessionManager{StatusFn: func(
+						context.Context,
+						string,
+					) (*session.Info, error) {
+						return nil, nil
+					}}
+				},
+				wantCode: toolspkg.ErrorCodeDenied, wantReason: toolspkg.ReasonSessionDenied,
+			},
+		}
+		for _, testCase := range testCases {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				candidateScope := scope
+				deps := daemonNativeToolsDeps{
+					Terminals: func() terminalpkg.Manager { return manager },
+					Sessions: apitest.StubSessionManager{
+						StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+							return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 4}, nil
+						},
+						ActivePromptRunFn: func(_ context.Context, id string) (session.PromptRunIdentity, error) {
+							return session.PromptRunIdentity{
+								WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: id,
+								RunID: "run-a", Generation: 4,
+							}, nil
+						},
+					},
+				}
+				testCase.prepare(&deps, &candidateScope)
+				request := toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalRead, SessionID: candidateScope.SessionID,
+					RunID: candidateScope.RunID, Generation: candidateScope.Generation,
+					AgentName: candidateScope.AgentName,
+				}
+				_, _, _, contextErr := (&daemonNativeTools{deps: &deps}).nativeTerminalContext(
+					t.Context(), candidateScope, request,
+				)
+				mapped := terminalToolError(request.ToolID, contextErr)
+				toolErr, ok := errors.AsType[*toolspkg.ToolError](mapped)
+				var domainErr *terminalpkg.Error
+				if !ok || toolErr.Code != testCase.wantCode ||
+					!slices.Contains(toolErr.ReasonCodes, testCase.wantReason) || errors.As(mapped, &domainErr) {
+					t.Fatalf(
+						"native identity error = %#v, want %s/%s without terminal code",
+						mapped,
+						testCase.wantCode,
+						testCase.wantReason,
+					)
+				}
+			})
+		}
+	})
+	normalizedRequest := func(req toolspkg.CallRequest) toolspkg.CallRequest {
+		req.SessionID = scope.SessionID
+		req.RunID = scope.RunID
+		req.AgentName = scope.AgentName
+		req.Generation = scope.Generation
+		return req
 	}
 	registry := newDaemonNativeRegistry(t, adapter.deps, nativeApproveAllPolicyInputs())
 	_, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
@@ -157,110 +261,147 @@ func TestNativeTerminalBodiesShouldEnforceScopeAndUntrustedResults(
 		)
 	}
 
-	read, err := adapter.terminalRead(context.Background(), scope, toolspkg.CallRequest{
+	_, err = adapter.terminalRead(t.Context(), scope, toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalRead, TurnID: "run-a",
+		Input: json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
+	})
+	requireToolReason(
+		t,
+		err,
+		terminalpkg.ErrRunIdentityIncomplete,
+		toolspkg.ReasonSessionDenied,
+	)
+	unknownCodeErr := terminalToolError(toolspkg.ToolIDTerminalRead, &terminalpkg.Error{
+		Code: "terminal_future_error", Message: "future refusal", Err: errors.New("future terminal failure"),
+	})
+	unknownToolErr, ok := errors.AsType[*toolspkg.ToolError](unknownCodeErr)
+	if !ok || unknownToolErr.Code != toolspkg.ErrorCodeBackendFailed ||
+		slices.Contains(unknownToolErr.ReasonCodes, "terminal_future_error") {
+		t.Fatalf("unknown terminal code mapping = %#v, want generic backend failure", unknownToolErr)
+	}
+	pendingErr := terminalToolError(
+		toolspkg.ToolIDTerminalWrite,
+		fmt.Errorf("agent mutation blocked: %w", terminalpkg.ErrInputPending),
+	)
+	pendingToolErr, ok := errors.AsType[*toolspkg.ToolError](pendingErr)
+	if !ok || pendingToolErr.Code != toolspkg.ErrorCodeConflict {
+		t.Fatalf("pending input mapping = %#v, want generic tool conflict", pendingToolErr)
+	}
+	shutdownErr := terminalToolError(
+		toolspkg.ToolIDTerminalWrite,
+		fmt.Errorf("terminal manager stopping: %w", terminalpkg.ErrShuttingDown),
+	)
+	shutdownToolErr, ok := errors.AsType[*toolspkg.ToolError](shutdownErr)
+	if !ok || shutdownToolErr.Code != toolspkg.ErrorCodeUnavailable {
+		t.Fatalf("terminal shutdown mapping = %#v, want generic tool unavailable", shutdownToolErr)
+	}
+	resolvedErr := terminalToolError(
+		toolspkg.ToolIDTerminalWrite,
+		fmt.Errorf("terminal input already rejected: %w", terminalpkg.ErrInputResolved),
+	)
+	resolvedToolErr, ok := errors.AsType[*toolspkg.ToolError](resolvedErr)
+	if !ok || resolvedToolErr.Code != toolspkg.ErrorCodeConflict {
+		t.Fatalf("resolved input mapping = %#v, want generic tool conflict", resolvedToolErr)
+	}
+
+	read, err := adapter.terminalRead(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalRead,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("terminalRead() error = %v", err)
 	}
 	if !strings.Contains(string(read.Structured), `"untrusted":true`) {
 		t.Fatalf("terminalRead() structured = %s", read.Structured)
 	}
+	if read.Trust != toolspkg.ResultTrustUntrustedModel {
+		t.Fatalf("terminalRead() trust = %q, want untrusted model data", read.Trust)
+	}
 
 	foreign := scope
 	foreign.ProfileID = "profile-b"
-	_, err = adapter.terminalRead(context.Background(), foreign, toolspkg.CallRequest{
+	_, err = adapter.terminalRead(t.Context(), foreign, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalRead,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
-	})
-	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
-		t.Fatalf("terminalRead(cross-profile) error = %v", err)
-	}
-	toolErr, ok := errors.AsType[*toolspkg.ToolError](err)
-	reason, hasReason := toolspkg.ReasonOf(err)
-	if !ok || toolErr.Code != "terminal_not_found" || !hasReason || reason != "terminal_not_found" {
-		t.Fatalf("terminalRead(cross-profile) contract = %#v/%q/%v", toolErr, reason, hasReason)
-	}
-	_, err = adapter.terminalWrite(context.Background(), foreign, toolspkg.CallRequest{
+	}))
+	requireToolReason(t, err, terminalpkg.ErrRunIdentityIncomplete, toolspkg.ReasonSessionDenied)
+	requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+	_, err = adapter.terminalWrite(t.Context(), foreign, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalWrite,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","data":"hidden"}`),
-	})
-	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
-		t.Fatalf("terminalWrite(cross-profile) error = %v", err)
-	}
-	_, err = adapter.terminalClose(context.Background(), foreign, toolspkg.CallRequest{
+	}))
+	requireToolReason(t, err, terminalpkg.ErrRunIdentityIncomplete, toolspkg.ReasonSessionDenied)
+	requireToolCode(t, err, toolspkg.ErrorCodeDenied)
+	_, err = adapter.terminalClose(t.Context(), foreign, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalClose,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
-	})
-	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
-		t.Fatalf("terminalClose(cross-profile) error = %v", err)
-	}
+	}))
+	requireToolReason(t, err, terminalpkg.ErrRunIdentityIncomplete, toolspkg.ReasonSessionDenied)
+	requireToolCode(t, err, toolspkg.ErrorCodeDenied)
 	crossWorkspace := scope
 	crossWorkspace.WorkspaceID = "workspace-b"
-	_, err = adapter.terminalRead(context.Background(), crossWorkspace, toolspkg.CallRequest{
+	_, err = adapter.terminalRead(t.Context(), crossWorkspace, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalRead,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
-	})
-	if err == nil || !strings.Contains(err.Error(), "terminal_not_found") {
-		t.Fatalf("terminalRead(cross-workspace) error = %v", err)
-	}
+	}))
+	requireToolReason(t, err, terminalpkg.ErrRunIdentityIncomplete, toolspkg.ReasonSessionDenied)
+	requireToolCode(t, err, toolspkg.ErrorCodeDenied)
 
 	withoutWorkspace := scope
 	withoutWorkspace.WorkspaceID = ""
-	_, err = adapter.terminalRead(context.Background(), withoutWorkspace, toolspkg.CallRequest{
+	_, err = adapter.terminalRead(t.Context(), withoutWorkspace, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalRead,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","view":"tail"}`),
-	})
+	}))
 	if err == nil || !strings.Contains(err.Error(), "terminal_requires_workspace") {
 		t.Fatalf("terminalRead(global session) error = %v", err)
 	}
 
-	_, err = adapter.terminalClose(context.Background(), scope, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDTerminalClose, TurnID: "run-close",
+	_, err = adapter.terminalClose(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalClose, TurnID: "turn-close",
 		Input: json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("terminalClose() error = %v", err)
 	}
 	if manager.closeActor.Generation != 4 || manager.closeActor.SessionID != "session-a" ||
-		manager.closeActor.RunID != "run-close" {
+		manager.closeActor.RunID != "run-a" {
 		t.Fatalf("terminalClose() actor = %#v", manager.closeActor)
 	}
 
-	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec,
 		Input:  json.RawMessage(`{"command":"rm","args":["-rf","/"]}`),
-	})
+	}))
 	rejected, rejectedOK := errors.AsType[*toolspkg.ToolError](err)
-	if !rejectedOK || rejected.Code != toolspkg.ErrorCode("approval_rejected") ||
-		!slices.Equal(rejected.ReasonCodes, []toolspkg.ReasonCode{"approval_rejected"}) || manager.execCalls != 0 {
+	if !rejectedOK || rejected.Code != toolspkg.ErrorCodeDenied ||
+		!slices.Equal(rejected.ReasonCodes, []toolspkg.ReasonCode{toolspkg.ReasonPolicyDenied}) ||
+		!errors.Is(err, terminalpkg.ErrPolicyDenied) || manager.execCalls != 0 {
 		t.Fatalf("terminalExec(irreversible) error/calls = %v/%d", err, manager.execCalls)
 	}
-	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec,
 		Input:  json.RawMessage(`{"command":"bun","args":["test"]}`),
-	})
+	}))
 	required, requiredOK := errors.AsType[*toolspkg.ToolError](err)
 	if !requiredOK || required.Code != toolspkg.ErrorCodeApprovalRequired ||
 		!slices.Equal(required.ReasonCodes, []toolspkg.ReasonCode{"approval_required"}) || manager.execCalls != 0 {
 		t.Fatalf("terminalExec(unapproved) error/calls = %v/%d", err, manager.execCalls)
 	}
-	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "run-exec", ApprovalToken: "approval-token",
+	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "turn-exec", ApprovalToken: "approval-token",
 		Input: json.RawMessage(`{"command":"bun","args":["test"]}`),
-	})
+	}))
 	if err != nil || manager.execCalls != 1 || manager.execRequest.Approval != "approved_once" ||
-		manager.execRequest.Actor.RunID != "run-exec" || manager.execRequest.Actor.Generation != 4 ||
-		!manager.execRequest.Capabilities.Interactive {
+		manager.execRequest.Actor.RunID != "run-a" || manager.execRequest.Actor.Generation != 4 {
 		t.Fatalf("terminalExec(approved) error/calls/request = %v/%d/%#v", err, manager.execCalls, manager.execRequest)
 	}
 	approver := &terminalExecApproverStub{label: "approved_always"}
 	adapter.deps.TerminalExecApprover = approver
-	_, err = adapter.terminalExec(context.Background(), scope, toolspkg.CallRequest{
+	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalExec,
 		Input:  json.RawMessage(`{"command":"bun","args":["test"]}`),
-	})
+	}))
 	if err != nil || manager.execCalls != 2 || manager.execRequest.Approval != "approved_always" ||
 		approver.calls != 1 {
 		t.Fatalf(
@@ -292,15 +433,32 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		) (workspacepkg.Workspace, error) {
 			return workspacepkg.Workspace{ID: id}, nil
 		}},
-		Sessions: apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
-			return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 7}, nil
-		}},
+		Sessions: apitest.StubSessionManager{
+			StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+				return &session.Info{ID: id, AgentName: "agent-a", RuntimeGeneration: 7}, nil
+			},
+			ActivePromptRunFn: func(_ context.Context, id string) (session.PromptRunIdentity, error) {
+				return session.PromptRunIdentity{
+					WorkspaceID: "workspace-a", ProfileID: "profile-a", SessionID: id,
+					RunID: "run-a", Generation: 7,
+				}, nil
+			},
+		},
 	}}
 	scope := toolspkg.Scope{
 		WorkspaceID: "workspace-a",
 		ProfileID:   "profile-a",
 		SessionID:   "session-a",
+		RunID:       "run-a",
+		Generation:  7,
 		AgentName:   "agent-a",
+	}
+	normalizedRequest := func(req toolspkg.CallRequest) toolspkg.CallRequest {
+		req.SessionID = scope.SessionID
+		req.RunID = scope.RunID
+		req.Generation = scope.Generation
+		req.AgentName = scope.AgentName
+		return req
 	}
 	testCases := []struct {
 		name  string
@@ -309,10 +467,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 	}{
 		{
 			name: "open", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalOpen(t.Context(), scope, toolspkg.CallRequest{
-					ToolID: toolspkg.ToolIDTerminalOpen, TurnID: "run-open",
+				return adapter.terminalOpen(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
+					ToolID: toolspkg.ToolIDTerminalOpen, TurnID: "turn-open",
 					Input: json.RawMessage(`{}`),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"terminal_id":"term-aaaaaaaaaaaa"`))
@@ -320,10 +478,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		},
 		{
 			name: "write", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalWrite(t.Context(), scope, toolspkg.CallRequest{
+				return adapter.terminalWrite(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalWrite,
 					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","data":"go\n"}`),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"accepted":true`))
@@ -331,10 +489,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		},
 		{
 			name: "wait", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalWait(t.Context(), scope, toolspkg.CallRequest{
+				return adapter.terminalWait(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalWait,
 					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","until":"match","pattern":"ok"}`),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"untrusted":true`))
@@ -342,10 +500,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		},
 		{
 			name: "signal", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalSignal(t.Context(), scope, toolspkg.CallRequest{
+				return adapter.terminalSignal(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalSignal,
 					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","signal":"TERM"}`),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"delivered":true`))
@@ -356,7 +514,9 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 				return adapter.terminalList(
 					t.Context(),
 					scope,
-					toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)},
+					normalizedRequest(
+						toolspkg.CallRequest{ToolID: toolspkg.ToolIDTerminalList, Input: json.RawMessage(`{}`)},
+					),
 				)
 			},
 			check: func(result toolspkg.ToolResult) {
@@ -365,12 +525,12 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		},
 		{
 			name: "request input", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalRequestInput(t.Context(), scope, toolspkg.CallRequest{
+				return adapter.terminalRequestInput(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalRequestInput,
 					Input: json.RawMessage(
 						`{"terminal_id":"term-aaaaaaaaaaaa","reason":"password","prompt_excerpt":"Password:","redact":true}`,
 					),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"outcome":"answered"`))
@@ -378,10 +538,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		},
 		{
 			name: "yield", call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalYield(t.Context(), scope, toolspkg.CallRequest{
+				return adapter.terminalYield(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalYield,
 					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","reason":"operator"}`),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) {
 				requireNativeStructuredContains(t, result, []byte(`"lease_state":"agent_owned"`))
@@ -390,10 +550,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		{
 			name: "claim",
 			call: func() (toolspkg.ToolResult, error) {
-				return adapter.terminalClaim(t.Context(), scope, toolspkg.CallRequest{
+				return adapter.terminalClaim(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 					ToolID: toolspkg.ToolIDTerminalClaim,
 					Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa"}`),
-				})
+				}))
 			},
 			check: func(result toolspkg.ToolResult) { requireNativeStructuredContains(t, result, []byte(`"granted":true`)) },
 		},
@@ -408,10 +568,10 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 		})
 	}
 	handle.wait = &terminalpkg.WaitResult{Reason: "timeout", Screen: "still running", Untrusted: true}
-	timedOut, err := adapter.terminalWait(t.Context(), scope, toolspkg.CallRequest{
+	timedOut, err := adapter.terminalWait(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
 		ToolID: toolspkg.ToolIDTerminalWait,
 		Input:  json.RawMessage(`{"terminal_id":"term-aaaaaaaaaaaa","until":"exit","timeout_ms":1}`),
-	})
+	}))
 	if err != nil || timedOut.Preview != "terminal wait timed out" {
 		t.Fatalf("terminalWait(timeout) = %#v, %v", timedOut, err)
 	}
@@ -421,25 +581,145 @@ func TestNativeTerminalBodiesShouldCoverEveryUnregisteredOperation(t *testing.T)
 	) (workspacepkg.Workspace, error) {
 		return workspacepkg.Workspace{ID: id, SandboxRef: "sandbox-a"}, nil
 	}}
-	_, err = adapter.terminalExec(t.Context(), scope, toolspkg.CallRequest{
-		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "run-sandbox", ApprovalToken: "approval-token",
+	_, err = adapter.terminalExec(t.Context(), scope, normalizedRequest(toolspkg.CallRequest{
+		ToolID: toolspkg.ToolIDTerminalExec, TurnID: "turn-sandbox", ApprovalToken: "approval-token",
 		Input: json.RawMessage(`{"command":"pwd"}`),
-	})
+	}))
 	if err != nil {
 		t.Fatalf("native sandbox terminalExec() error = %v", err)
 	}
-	if manager.execRequest.Capabilities.Interactive || manager.execRequest.Actor.RunID != "run-sandbox" {
+	if manager.execRequest.Actor.RunID != "run-a" {
 		t.Fatalf("native sandbox exec request = %#v", manager.execRequest)
 	}
 	if string(handle.writeInput) != "go\n" || handle.writeActor.Generation != 7 ||
 		handle.signal != terminalpkg.SignalTERM ||
 		!handle.yielded ||
 		manager.claimActor.Generation != 7 ||
-		manager.openRequest.Actor.Generation != 7 || manager.openRequest.Actor.RunID != "run-open" ||
-		!manager.openRequest.Capabilities.Interactive {
+		manager.openRequest.Actor.Generation != 7 || manager.openRequest.Actor.RunID != "run-a" {
 		t.Fatalf("native calls lost actor/input state: handle=%#v manager=%#v", handle, manager)
 	}
 }
+
+type nativeTerminalJournalStub struct{}
+
+func (nativeTerminalJournalStub) Record(context.Context, string, terminalpkg.CommandRow) error {
+	return nil
+}
+
+func (j nativeTerminalJournalStub) RecordQueued(
+	ctx context.Context,
+	info terminalpkg.Info,
+	row terminalpkg.CommandRow,
+) error {
+	return j.Record(ctx, info.WS, row)
+}
+
+func (nativeTerminalJournalStub) Query(
+	context.Context,
+	string,
+	store.ReadScope,
+	terminalpkg.Query,
+) (*terminalpkg.Page, error) {
+	return &terminalpkg.Page{}, nil
+}
+
+func (nativeTerminalJournalStub) LinkRecording(
+	context.Context,
+	string,
+	terminalpkg.ID,
+	terminalpkg.RecordingRef,
+) error {
+	return nil
+}
+
+func (nativeTerminalJournalStub) Recording(
+	context.Context,
+	string,
+	store.ReadScope,
+	string,
+) (*terminalpkg.RecordingRef, io.ReadCloser, error) {
+	return nil, nil, errors.New("recording not found")
+}
+
+func (nativeTerminalJournalStub) Artifact(
+	context.Context,
+	string,
+	store.ReadScope,
+	string,
+) (io.ReadCloser, error) {
+	return nil, errors.New("artifact not found")
+}
+
+func (nativeTerminalJournalStub) RemoveWorkspace(context.Context, string) error { return nil }
+
+func (nativeTerminalJournalStub) PrepareWorkspaceRemoval(
+	context.Context,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return nativeWorkspaceRemovalPreparation{}, nil
+}
+
+func (nativeTerminalJournalStub) PrepareWorkspaceRemovalAt(
+	context.Context,
+	string,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return nativeWorkspaceRemovalPreparation{}, nil
+}
+
+func (nativeTerminalJournalStub) ConsumeMarkerFacts(
+	context.Context,
+	terminalpkg.Info,
+	[]terminalpkg.MarkerFacts,
+) error {
+	return nil
+}
+
+func (nativeTerminalJournalStub) RegisterTerminal(
+	terminalpkg.Info,
+	func(bool),
+	func(terminalpkg.Event),
+) {
+}
+
+func (nativeTerminalJournalStub) CloseTerminal(context.Context, terminalpkg.Info) error { return nil }
+
+func (nativeTerminalJournalStub) ReserveInput(
+	terminalpkg.Info,
+	terminalpkg.JournalInput,
+) (terminalpkg.JournalInputReservation, bool) {
+	return nativeTerminalJournalReservation{}, true
+}
+
+func (nativeTerminalJournalStub) ObserveOutput(terminalpkg.Info, []byte) {}
+func (nativeTerminalJournalStub) Shutdown(context.Context) error         { return nil }
+
+func (nativeTerminalJournalStub) PersistRecording(
+	context.Context,
+	string,
+	terminalpkg.ID,
+	terminalpkg.RecordingRef,
+	[]byte,
+) (terminalpkg.RecordingRef, error) {
+	return terminalpkg.RecordingRef{}, nil
+}
+
+func (nativeTerminalJournalStub) WriteArtifact(
+	context.Context,
+	string,
+	string,
+	string,
+	*terminalpkg.ID,
+	[]byte,
+	time.Time,
+) (terminalpkg.SpillRef, error) {
+	return terminalpkg.SpillRef{}, nil
+}
+
+type nativeTerminalJournalReservation struct{}
+
+func (nativeTerminalJournalReservation) Commit(terminalpkg.Actor, terminalpkg.JournalInput) {}
+func (nativeTerminalJournalReservation) Release()                                           {}
 
 type terminalExecApproverStub struct {
 	label string
@@ -544,6 +824,26 @@ func (m *terminalNativeManagerStub) List(context.Context, string, store.ReadScop
 	}
 	return []terminalpkg.Info{m.handle.Info()}, nil
 }
+func (*terminalNativeManagerStub) Capabilities(context.Context, string) (terminalpkg.Capabilities, error) {
+	return terminalpkg.Capabilities{Interactive: true}, nil
+}
+func (*terminalNativeManagerStub) MintAttachTicket(
+	context.Context,
+	terminalpkg.AttachTicketBinding,
+	terminalpkg.Actor,
+) (terminalpkg.AttachTicket, error) {
+	return terminalpkg.AttachTicket{}, terminalpkg.ErrUnsupported
+}
+func (*terminalNativeManagerStub) AttachWithTicket(
+	context.Context,
+	string,
+	string,
+	terminalpkg.ID,
+	string,
+	terminalpkg.AttachOptions,
+) (terminalpkg.Handle, terminalpkg.Subscription, terminalpkg.AttachTicket, error) {
+	return nil, nil, terminalpkg.AttachTicket{}, terminalpkg.ErrUnsupported
+}
 func (m *terminalNativeManagerStub) Close(
 	_ context.Context,
 	workspaceID string,
@@ -565,6 +865,57 @@ func (*terminalNativeManagerStub) Journal() terminalpkg.Journal                 
 func (*terminalNativeManagerStub) Shutdown(context.Context) error                   { return nil }
 func (*terminalNativeManagerStub) Observe(func(context.Context, terminalpkg.Event)) {}
 func (*terminalNativeManagerStub) ArchiveProfile(context.Context, string) error     { return nil }
+func (*terminalNativeManagerStub) ArchiveWorkspace(context.Context, string) error   { return nil }
+func (*terminalNativeManagerStub) PrepareWorkspaceRemoval(
+	context.Context,
+	string,
+) (workspacepkg.UnregisterPreparation, error) {
+	return nativeWorkspaceRemovalPreparation{}, nil
+}
+
+type nativeWorkspaceRemovalPreparation struct{}
+
+func (nativeWorkspaceRemovalPreparation) BeforeDelete(context.Context) error { return nil }
+func (nativeWorkspaceRemovalPreparation) Commit(context.Context) error       { return nil }
+func (nativeWorkspaceRemovalPreparation) Rollback(context.Context) error     { return nil }
+func (*terminalNativeManagerStub) RunEnded(context.Context, string, terminalpkg.Actor) int {
+	return 0
+}
+func (*terminalNativeManagerStub) SessionRunEnded(
+	context.Context,
+	string,
+	string,
+	string,
+	string,
+	int64,
+) int {
+	return 0
+}
+func (*terminalNativeManagerStub) RuntimeRecovered(
+	context.Context,
+	string,
+	terminalpkg.Actor,
+	terminalpkg.Actor,
+) int {
+	return 0
+}
+func (*terminalNativeManagerStub) InputRequests(
+	context.Context,
+	string,
+	store.ReadScope,
+	terminalpkg.ID,
+) ([]terminalpkg.PendingInputRequest, error) {
+	return nil, nil
+}
+
+func (*terminalNativeManagerStub) ResolvedInputRequests(
+	context.Context,
+	string,
+	store.ReadScope,
+	terminalpkg.ID,
+) ([]terminalpkg.ResolvedInputRequest, error) {
+	return nil, nil
+}
 
 func (m *terminalNativeManagerStub) Claim(
 	_ context.Context,
@@ -639,6 +990,11 @@ func (*terminalNativeHandleStub) RejectInput(
 	string,
 ) error {
 	return nil
+}
+func (*terminalNativeHandleStub) PendingInput(
+	terminalpkg.InputRequestID,
+) (*terminalpkg.PendingInputRequest, error) {
+	return nil, terminalpkg.ErrInputNotFound
 }
 func (h *terminalNativeHandleStub) Signal(_ context.Context, _ terminalpkg.Actor, signal terminalpkg.Signal) error {
 	h.signal = signal

@@ -313,7 +313,7 @@ export const SkippedContent: Story = {
         <span className="block">
           <span className="text-terminal-ansi-8">12:44:01</span> GET /api/journal 200 4.1ms
         </span>
-        <TerminalGapSeam gap={{ droppedBytes: 49_152, fromSeq: 100, toSeq: 49_252 }} />
+        <TerminalGapSeam gap={{ droppedBytes: 49_152, fromSeq: 100n, toSeq: 49_252n }} />
         <span className="block">
           <span className="text-terminal-ansi-8">12:44:09</span> GET /api/terminals 200 1.9ms
         </span>

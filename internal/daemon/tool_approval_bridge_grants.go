@@ -47,7 +47,7 @@ func (b *toolApprovalBridge) consumeDurableToolApproval(
 	case toolspkg.ApprovalGrantAllow:
 		return true, nil
 	case toolspkg.ApprovalGrantReject:
-		return true, toolApprovalError(toolID, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
+		return true, toolApprovalRejectedError(toolID)
 	default:
 		b.logger.Warn(
 			"daemon: ignore invalid durable tool approval decision",
@@ -76,7 +76,7 @@ func (b *toolApprovalBridge) applyToolApprovalOutcome(
 	case toolApprovalAllowOnceID:
 		return nil
 	case toolApprovalRejectOnceID:
-		return toolApprovalError(toolID, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
+		return toolApprovalRejectedError(toolID)
 	case toolApprovalAllowAlwaysID:
 		if !remember {
 			return toolApprovalError(
@@ -103,7 +103,7 @@ func (b *toolApprovalBridge) applyToolApprovalOutcome(
 		); err != nil {
 			return err
 		}
-		return toolApprovalError(toolID, "tool approval was rejected", toolspkg.ReasonApprovalRequired)
+		return toolApprovalRejectedError(toolID)
 	default:
 		return toolApprovalError(toolID, "tool approval selected an unknown option", toolspkg.ReasonApprovalUnreachable)
 	}

@@ -52,6 +52,8 @@ const (
 type ProcessOwner struct {
 	SessionID     string
 	TurnID        string
+	RunID         string
+	Generation    int64
 	ToolCallID    string
 	TerminalID    string
 	ExtensionName string
@@ -110,6 +112,8 @@ type InterruptScope struct {
 	ProcessID     string
 	SessionID     string
 	TurnID        string
+	RunID         string
+	Generation    int64
 	ToolCallID    string
 	TerminalID    string
 	ExtensionName string
@@ -124,6 +128,8 @@ func (s InterruptScope) IsZero() bool {
 	return normalized.ProcessID == "" &&
 		normalized.SessionID == "" &&
 		normalized.TurnID == "" &&
+		normalized.RunID == "" &&
+		normalized.Generation == 0 &&
 		normalized.ToolCallID == "" &&
 		normalized.TerminalID == "" &&
 		normalized.ExtensionName == "" &&
@@ -137,6 +143,8 @@ func (s InterruptScope) Normalize() InterruptScope {
 		ProcessID:     strings.TrimSpace(s.ProcessID),
 		SessionID:     strings.TrimSpace(s.SessionID),
 		TurnID:        strings.TrimSpace(s.TurnID),
+		RunID:         strings.TrimSpace(s.RunID),
+		Generation:    s.Generation,
 		ToolCallID:    strings.TrimSpace(s.ToolCallID),
 		TerminalID:    strings.TrimSpace(s.TerminalID),
 		ExtensionName: strings.TrimSpace(s.ExtensionName),
@@ -199,6 +207,8 @@ func normalizeOwner(owner ProcessOwner) ProcessOwner {
 	return ProcessOwner{
 		SessionID:     strings.TrimSpace(owner.SessionID),
 		TurnID:        strings.TrimSpace(owner.TurnID),
+		RunID:         strings.TrimSpace(owner.RunID),
+		Generation:    owner.Generation,
 		ToolCallID:    strings.TrimSpace(owner.ToolCallID),
 		TerminalID:    strings.TrimSpace(owner.TerminalID),
 		ExtensionName: strings.TrimSpace(owner.ExtensionName),

@@ -22,6 +22,14 @@ type profileReadSelection struct {
 type profileReadSelectionContextKey struct{}
 
 func configureProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
+	configureProfileReadCommandMode(cmd, deps, false)
+}
+
+func configureHistoricalProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
+	configureProfileReadCommandMode(cmd, deps, true)
+}
+
+func configureProfileReadCommandMode(cmd *cobra.Command, deps commandDeps, allowArchived bool) {
 	if cmd == nil || cmd.RunE == nil {
 		return
 	}
@@ -39,7 +47,9 @@ func configureProfileReadCommand(cmd *cobra.Command, deps commandDeps) {
 			return err
 		}
 		profiles := optionalProfileResolutionClient(client)
-		if err := prepareProfileReadSelection(cmd, deps, profiles, client, allProfiles); err != nil {
+		if err := prepareProfileReadSelectionMode(
+			cmd, deps, profiles, client, allProfiles, allowArchived,
+		); err != nil {
 			return err
 		}
 		return original(cmd, args)
@@ -118,6 +128,17 @@ func prepareProfileReadSelection(
 	workspaces workspaceLookupClient,
 	allProfiles bool,
 ) error {
+	return prepareProfileReadSelectionMode(cmd, deps, profiles, workspaces, allProfiles, false)
+}
+
+func prepareProfileReadSelectionMode(
+	cmd *cobra.Command,
+	deps commandDeps,
+	profiles profileResolutionClient,
+	workspaces workspaceLookupClient,
+	allProfiles bool,
+	allowArchived bool,
+) error {
 	if allProfiles {
 		if cmd.Flags().Changed(profileFlagName) {
 			return newProfileSelectionError(
@@ -153,7 +174,11 @@ func prepareProfileReadSelection(
 		recordProfileReadSelection(cmd, profileReadSelection{Profile: configDefaultKey})
 		return nil
 	}
-	resolution, err := resolveCommandProfile(cmd.Context(), cmd, deps, profiles, workspaces)
+	resolve := resolveCommandProfile
+	if allowArchived {
+		resolve = resolveHistoricalCommandProfile
+	}
+	resolution, err := resolve(cmd.Context(), cmd, deps, profiles, workspaces)
 	if err != nil {
 		return fmt.Errorf("cli: resolve profile read scope: %w", err)
 	}

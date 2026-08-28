@@ -13,6 +13,9 @@ import (
 
 func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 	t.Parallel()
+	if Subprotocol != "compozy.terminal.v2" {
+		t.Fatalf("Subprotocol = %q, want hard-cut v2", Subprotocol)
+	}
 
 	t.Run("Should round trip every server opcode", func(t *testing.T) {
 		t.Parallel()
@@ -23,6 +26,7 @@ func TestCodecShouldRoundTripFrozenOpcodes(t *testing.T) {
 			{ServerOpOutput, 0x01}, {ServerOpAttached, 0x02}, {ServerOpExit, 0x03},
 			{ServerOpError, 0x04}, {ServerOpTitle, 0x05}, {ServerOpResized, 0x06},
 			{ServerOpGap, 0x07}, {ServerOpOwner, 0x08}, {ServerOpPresence, 0x09},
+			{ServerOpRedactedInput, 0x0A},
 		} {
 			opcode := fixture.opcode
 			if opcode != fixture.value {

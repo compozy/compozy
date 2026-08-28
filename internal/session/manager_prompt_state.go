@@ -11,6 +11,8 @@ import (
 type promptTurnDispatchState struct {
 	session     *Session
 	turnID      string
+	runID       string
+	generation  int64
 	turnSource  TurnSource
 	inputClass  string
 	userMessage string

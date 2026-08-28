@@ -40,7 +40,12 @@ func newWindowsJob() (*windowsJob, error) {
 }
 
 func (j *windowsJob) assign(process windows.Handle) error {
-	if j == nil || j.handle == 0 {
+	if j == nil {
+		return errors.New("terminal pty: process job is closed")
+	}
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	if j.handle == 0 {
 		return errors.New("terminal pty: process job is closed")
 	}
 	if err := windows.AssignProcessToJobObject(j.handle, process); err != nil {

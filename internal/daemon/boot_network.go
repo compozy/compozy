@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/compozy/compozy/internal/network"
+	"github.com/compozy/compozy/internal/session"
 )
 
 func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *bootCleanup) error {
@@ -52,7 +53,9 @@ func (d *Daemon) bootNetwork(ctx context.Context, state *bootState, cleanup *boo
 	}
 
 	bindable.SetNetworkPeerLifecycle(manager)
-	bindable.SetTurnEndNotifier(manager.OnTurnEnd)
+	bindable.SetTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
+		manager.OnTurnEnd(identity.SessionID)
+	})
 	cleanup.add(func(ctx context.Context) error {
 		return manager.Shutdown(ctx)
 	})

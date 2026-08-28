@@ -9,6 +9,30 @@ import {
   type TerminalControlOpcode,
 } from "../terminal-wire";
 
+type TerminalJSONControlPayload = Record<string, unknown> & {
+  seq?: string;
+  from_seq?: string;
+  to_seq?: string;
+};
+
+export interface TerminalScreenFixture {
+  content: string;
+  seq: string;
+  truncated: boolean;
+  busy: boolean;
+  untrusted: boolean;
+  spill?: Record<string, unknown>;
+}
+
+interface AttachedFrameFixture extends TerminalJSONControlPayload {
+  seq: string;
+  truncated: boolean;
+  cols: number;
+  rows: number;
+  lease: string;
+  mode: string;
+}
+
 /**
  * A scripted terminal socket and emulator sink.
  *
@@ -116,17 +140,25 @@ export function createFakeSink(options: { autoParse?: boolean } = {}): FakeSink 
   return sink;
 }
 
-export function serverControlFrame(op: number, payload: unknown): Uint8Array {
+export function serverControlFrame(
+  op: TerminalControlOpcode,
+  payload: TerminalJSONControlPayload
+): Uint8Array {
+  return encodeTerminalServerControlFrame(op, payload);
+}
+
+/** Encodes intentionally malformed JSON for parser rejection tests. */
+export function rawServerControlFrame(op: number, payload: unknown): Uint8Array {
   return encodeTerminalServerControlFrame(op as TerminalControlOpcode, payload);
 }
 
-export function serverOutputFrame(seq: number, text: string): Uint8Array {
-  return encodeTerminalServerOutputFrame(seq, text);
+export function serverOutputFrame(seq: string, text: string): Uint8Array {
+  return encodeTerminalServerOutputFrame(BigInt(seq), text);
 }
 
-export function attachedFrame(overrides: Partial<Record<string, unknown>> = {}): Uint8Array {
+export function attachedFrame(overrides: Partial<AttachedFrameFixture> = {}): Uint8Array {
   return serverControlFrame(TERMINAL_SERVER_OP.attached, {
-    seq: 0,
+    seq: "0",
     truncated: false,
     cols: 96,
     rows: 28,
@@ -139,7 +171,9 @@ export function attachedFrame(overrides: Partial<Record<string, unknown>> = {}):
 export interface TerminalFetchStub {
   calls: string[];
   /** Releases a screen read that was held open, with the given body. */
-  resolveScreen(body: { content: string; seq: number }): void;
+  resolveScreen(
+    body: Pick<TerminalScreenFixture, "content" | "seq"> & Partial<TerminalScreenFixture>
+  ): void;
   /** How many screen reads are waiting to be released. */
   pendingScreenReads(): number;
   restore(): void;
@@ -154,7 +188,7 @@ export interface TerminalFetchStub {
  */
 export function stubTerminalFetch(handlers: {
   ticket?: () => unknown;
-  screen?: () => unknown;
+  screen?: () => TerminalScreenFixture;
   deferScreen?: boolean;
 }): TerminalFetchStub {
   const calls: string[] = [];
@@ -162,7 +196,7 @@ export function stubTerminalFetch(handlers: {
   const original = globalThis.fetch;
   const defaultScreen = {
     content: "current screen",
-    seq: 4096,
+    seq: "4096",
     truncated: false,
     busy: false,
     untrusted: true,

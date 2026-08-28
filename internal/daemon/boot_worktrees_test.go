@@ -214,7 +214,7 @@ func TestWorktreeTurnRefreshNotifier(t *testing.T) {
 		refresher,
 		nil,
 	)
-	notify("sess-bound")
+	notify(t.Context(), session.PromptRunIdentity{SessionID: "sess-bound"})
 	if refresher.workspaceID != "ws-bound" || refresher.worktreeID != "wt-bound" || !refresher.refresh {
 		t.Fatalf(
 			"Status() = workspace %q worktree %q refresh %v, want exact bound worktree refresh",

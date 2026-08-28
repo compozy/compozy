@@ -2,6 +2,7 @@ package journal
 
 import (
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -19,54 +20,75 @@ type idleCandidate struct {
 	startedAt time.Time
 }
 
+type inputReservation struct {
+	lane  *terminalLane
+	count int
+	once  sync.Once
+}
+
+func (r *inputReservation) Commit(actor terminalpkg.Actor, input terminalpkg.JournalInput) {
+	if r == nil {
+		return
+	}
+	r.once.Do(func() {
+		candidates := 0
+		if input.Redacted {
+			candidates = r.lane.observeRedactedInput(input.Characters, actor)
+		} else {
+			candidates = r.lane.observeInput(input.Content, actor)
+		}
+		if candidates < r.count {
+			r.lane.release(r.count - candidates)
+		}
+		r.lane.finishInputReservation()
+	})
+}
+
+func (r *inputReservation) Release() {
+	if r == nil {
+		return
+	}
+	r.once.Do(func() {
+		r.lane.release(r.count)
+		r.lane.finishInputReservation()
+	})
+}
+
 // ObserveInput records accepted human input as an approximate fallback candidate.
 func (s *Service) ObserveInput(info terminalpkg.Info, actor terminalpkg.Actor, input []byte) {
-	reservation, admitted := s.ReserveInput(info, input)
+	journalInput := terminalpkg.JournalInput{Content: input}
+	reservation, admitted := s.ReserveInput(info, journalInput)
 	if !admitted {
 		return
 	}
-	s.CommitInput(info, actor, input, reservation)
+	reservation.Commit(actor, journalInput)
 }
 
 // ReserveInput reserves bounded journal capacity before input reaches the PTY.
-func (s *Service) ReserveInput(info terminalpkg.Info, input []byte) (int, bool) {
-	lane := s.lane(info)
-	if lane == nil || len(input) == 0 {
-		return 0, true
-	}
-	count := inputSubmissionCount(input)
-	return count, lane.reserve(count)
-}
-
-// CommitInput turns an accepted reservation into idle-fallback candidates.
-func (s *Service) CommitInput(
+func (s *Service) ReserveInput(
 	info terminalpkg.Info,
-	actor terminalpkg.Actor,
-	input []byte,
-	reservation int,
-) {
+	input terminalpkg.JournalInput,
+) (terminalpkg.JournalInputReservation, bool) {
 	lane := s.lane(info)
 	if lane == nil {
-		return
+		return nil, false
 	}
-	candidates := lane.observeInput(input, actor)
-	if candidates < reservation {
-		lane.release(reservation - candidates)
+	count := inputSubmissionCount(input.Content)
+	if input.Redacted {
+		count = max(count, 1)
 	}
-}
-
-// ReleaseInput returns capacity when PTY delivery fails after reservation.
-func (s *Service) ReleaseInput(info terminalpkg.Info, reservation int) {
-	if lane := s.lane(info); lane != nil {
-		lane.release(reservation)
+	reservation, admitted := lane.reserveInput(count)
+	if !admitted {
+		return nil, false
 	}
+	return reservation, true
 }
 
 // ObserveOutput postpones approximate completion while the terminal is still producing bytes.
-func (s *Service) ObserveOutput(info terminalpkg.Info) {
+func (s *Service) ObserveOutput(info terminalpkg.Info, output []byte) {
 	lane := s.lane(info)
 	if lane != nil {
-		lane.observeOutput()
+		lane.observeOutput(output)
 	}
 }
 
@@ -112,6 +134,9 @@ func (l *terminalLane) scheduleIdleCandidateLocked(actor terminalpkg.Actor) bool
 	if command == "" {
 		return false
 	}
+	if len(l.idle) == 0 && l.assembly == nil {
+		l.outputTail = nil
+	}
 	l.idle = append(l.idle, idleCandidate{
 		command: scrubCommand(command), actor: actor, startedAt: l.service.now(),
 	})
@@ -128,13 +153,39 @@ func (l *terminalLane) resetIdleTimerLocked() {
 	l.idleTimer = time.AfterFunc(idleCommandDelay, func() { l.finishIdleCandidates(generation) })
 }
 
-func (l *terminalLane) observeOutput() {
+func (l *terminalLane) observeOutput(output []byte) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	if l.closed || len(l.idle) == 0 {
+	if l.closed {
+		return
+	}
+	if l.assembly != nil || len(l.idle) > 0 {
+		l.appendOutputTailLocked(output)
+	}
+	if len(l.idle) == 0 {
 		return
 	}
 	l.resetIdleTimerLocked()
+}
+
+func (l *terminalLane) observeRedactedInput(characters int, actor terminalpkg.Actor) int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.closed {
+		return 0
+	}
+	marker := terminalpkg.RedactedInputMarker(characters)
+	if l.assembly == nil && len(l.idle) == 0 {
+		l.outputTail = nil
+		l.idle = append(l.idle, idleCandidate{
+			command: terminalpkg.RenderOutputSegment(marker), actor: actor, startedAt: l.service.now(),
+		})
+		l.resetIdleTimerLocked()
+		l.appendOutputSegmentLocked(marker)
+		return 1
+	}
+	l.appendOutputSegmentLocked(marker)
+	return 0
 }
 
 func (l *terminalLane) cancelIdleCandidate() {
@@ -177,6 +228,7 @@ func (l *terminalLane) finishIdleCandidate(candidate idleCandidate) {
 		Actor: candidate.actor, Command: candidate.command, Cwd: l.info.Cwd,
 		StartedAt: candidate.startedAt, DurationMs: &duration, ExitCause: "unknown",
 		DetectedBy: "idle", Approval: approvalForActor(candidate.actor),
+		OutputTail: l.takeOutputTail(),
 	}
 	l.emitEvent(terminalpkg.Event{
 		Kind: terminalpkg.EventKindCommandStarted, WorkspaceID: l.info.WS, ProfileID: l.info.ProfileID,

@@ -3,7 +3,6 @@ package terminal
 import (
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -16,10 +15,6 @@ const (
 	recorderBufferLimit         = 1 << 20
 	recordingPersistenceTimeout = 5 * time.Second
 )
-
-type recordingStore interface {
-	PersistRecording(context.Context, string, ID, RecordingRef, []byte) (RecordingRef, error)
-}
 
 type activeRecording struct {
 	id        string
@@ -58,6 +53,23 @@ func (r *activeRecording) appendOutput(at time.Time, output []byte) bool {
 	return false
 }
 
+func (r *activeRecording) appendMarker(at time.Time, marker OutputSegment) bool {
+	if r == nil || r.truncated {
+		return r != nil && r.truncated
+	}
+	entry, err := json.Marshal([]any{
+		at.Sub(r.startedAt).Seconds(), "m",
+		map[string]any{"kind": marker.Kind, "characters": marker.Characters},
+	})
+	if err != nil || r.buffer.Len()+len(entry)+1 > recorderBufferLimit {
+		r.truncated = true
+		return true
+	}
+	r.buffer.Write(entry)
+	r.buffer.WriteByte('\n')
+	return false
+}
+
 func (r *activeRecording) contents() []byte {
 	if r == nil {
 		return nil
@@ -76,21 +88,18 @@ func (s *session) startRecording(ctx context.Context, actor Actor) (RecordingRef
 
 func (s *session) beginRecording() (RecordingRef, error) {
 	if !RecordingAvailable(s.Info().Capabilities) {
+		info := s.Info()
 		return RecordingRef{}, &Error{
-			Code:    errorCodeRecordingUnavailable,
+			Code:    ErrorCodeRecordingUnavailable,
 			Message: "recording is unavailable for this terminal",
-			Err:     ErrRecording,
-		}
-	}
-	if _, ok := s.manager.journal.(recordingStore); !ok {
-		return RecordingRef{}, &Error{
-			Code: "recording_unavailable", Message: "recording storage is unavailable", Err: ErrRecording,
+			Mode:    info.Mode,
+			Err:     ErrUnsupported,
 		}
 	}
 	if err := s.runningGate(); err != nil {
 		return RecordingRef{}, err
 	}
-	id, err := newRecordingID()
+	id, err := newRecordingID(s.manager.entropy)
 	if err != nil {
 		return RecordingRef{}, err
 	}
@@ -104,10 +113,14 @@ func (s *session) beginRecording() (RecordingRef, error) {
 		return RecordingRef{}, err
 	}
 	s.recordingMu.Lock()
+	if s.recordingSealed {
+		s.recordingMu.Unlock()
+		return RecordingRef{}, &Error{Code: ErrorCodeExited, Message: errorMessageExited, Err: ErrExited}
+	}
 	if s.recording != nil || s.failedRecording != nil {
 		s.recordingMu.Unlock()
 		return RecordingRef{}, &Error{
-			Code: "recording_already_started", Message: "terminal recording is already active", Err: ErrRecording,
+			Code: ErrorCodeRecordingAlreadyStarted, Message: "terminal recording is already active", Err: ErrRecording,
 		}
 	}
 	s.recording = recording
@@ -117,7 +130,47 @@ func (s *session) beginRecording() (RecordingRef, error) {
 }
 
 func (s *session) stopRecording(ctx context.Context, actor Actor, reason string) (RecordingRef, error) {
+	recording, err := s.beginRecordingPersistence()
+	if err != nil {
+		return RecordingRef{}, err
+	}
+	defer s.recordingWG.Done()
+	return s.persistStoppedRecording(ctx, actor, recording, reason)
+}
+
+func (s *session) beginRecordingPersistence() (*activeRecording, error) {
 	s.recordingMu.Lock()
+	defer s.recordingMu.Unlock()
+	if s.recordingSealed {
+		return nil, &Error{Code: ErrorCodeExited, Message: errorMessageExited, Err: ErrExited}
+	}
+	recording := s.takeRecordingLocked()
+	if recording == nil {
+		return nil, &Error{
+			Code: ErrorCodeRecordingNotActive, Message: "terminal recording is not active", Err: ErrRecording,
+		}
+	}
+	s.recordingWG.Add(1)
+	return recording, nil
+}
+
+func (s *session) stopRecordingForFinalization(
+	ctx context.Context,
+	actor Actor,
+	reason string,
+) (RecordingRef, error) {
+	s.recordingMu.Lock()
+	recording := s.takeRecordingLocked()
+	s.recordingMu.Unlock()
+	if recording == nil {
+		return RecordingRef{}, &Error{
+			Code: ErrorCodeRecordingNotActive, Message: "terminal recording is not active", Err: ErrRecording,
+		}
+	}
+	return s.persistStoppedRecording(ctx, actor, recording, reason)
+}
+
+func (s *session) takeRecordingLocked() *activeRecording {
 	recording := s.recording
 	if recording == nil {
 		recording = s.failedRecording
@@ -125,12 +178,15 @@ func (s *session) stopRecording(ctx context.Context, actor Actor, reason string)
 	} else {
 		s.recording = nil
 	}
-	s.recordingMu.Unlock()
-	if recording == nil {
-		return RecordingRef{}, &Error{
-			Code: "recording_not_active", Message: "terminal recording is not active", Err: ErrRecording,
-		}
-	}
+	return recording
+}
+
+func (s *session) persistStoppedRecording(
+	ctx context.Context,
+	actor Actor,
+	recording *activeRecording,
+	reason string,
+) (RecordingRef, error) {
 	persisted, err := s.persistRecording(ctx, actor, recording, reason, true)
 	if err != nil {
 		s.retainFailedRecording(recording)
@@ -140,12 +196,17 @@ func (s *session) stopRecording(ctx context.Context, actor Actor, reason string)
 
 func (s *session) appendRecording(output []byte) {
 	s.recordingMu.Lock()
+	if s.recordingSealed {
+		s.recordingMu.Unlock()
+		return
+	}
 	recording := s.recording
 	if recording == nil || !recording.appendOutput(s.manager.now(), output) {
 		s.recordingMu.Unlock()
 		return
 	}
 	s.recording = nil
+	s.recordingWG.Add(1)
 	s.recordingMu.Unlock()
 	info := s.Info()
 	stoppedAt := s.manager.now()
@@ -155,7 +216,8 @@ func (s *session) appendRecording(output []byte) {
 		ID: recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
 		StartedAt: recording.startedAt, StoppedAt: &stoppedAt,
 	}, "storage_stall", true)
-	s.recordingWG.Go(func() {
+	go func() {
+		defer s.recordingWG.Done()
 		actor := Actor{Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID}
 		persistCtx, cancel := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
 		defer cancel()
@@ -163,7 +225,45 @@ func (s *session) appendRecording(output []byte) {
 			s.retainFailedRecording(recording)
 			s.manager.logger.Warn("terminal: persist truncated recording", "terminal_id", s.Info().ID, "error", err)
 		}
-	})
+	}()
+}
+
+func (s *session) appendRecordingMarker(marker OutputSegment) {
+	s.recordingMu.Lock()
+	if s.recordingSealed {
+		s.recordingMu.Unlock()
+		return
+	}
+	recording := s.recording
+	if recording == nil || !recording.appendMarker(s.manager.now(), marker) {
+		s.recordingMu.Unlock()
+		return
+	}
+	s.recording = nil
+	s.recordingWG.Add(1)
+	s.recordingMu.Unlock()
+	s.persistTruncatedRecording(recording)
+}
+
+func (s *session) persistTruncatedRecording(recording *activeRecording) {
+	info := s.Info()
+	stoppedAt := s.manager.now()
+	s.emitRecordingEvent(s.ctx, EventKindRecordingStopped, Actor{
+		Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID,
+	}, RecordingRef{
+		ID: recording.id, TerminalID: info.ID, ProfileID: info.ProfileID,
+		StartedAt: recording.startedAt, StoppedAt: &stoppedAt,
+	}, "storage_stall", true)
+	go func() {
+		defer s.recordingWG.Done()
+		actor := Actor{Kind: ActorKindSystem, ID: "terminal-recorder", ProfileID: info.ProfileID}
+		persistCtx, cancel := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
+		defer cancel()
+		if _, err := s.persistRecording(persistCtx, actor, recording, "storage_stall", false); err != nil {
+			s.retainFailedRecording(recording)
+			s.manager.logger.Warn("terminal: persist truncated recording", "terminal_id", s.Info().ID, "error", err)
+		}
+	}()
 }
 
 func (s *session) retainFailedRecording(recording *activeRecording) {
@@ -184,14 +284,6 @@ func (s *session) persistRecording(
 	reason string,
 	emit bool,
 ) (RecordingRef, error) {
-	store, ok := s.manager.journal.(recordingStore)
-	if !ok {
-		return RecordingRef{}, &Error{
-			Code:    "recording_unavailable",
-			Message: "recording storage is unavailable",
-			Err:     ErrRecording,
-		}
-	}
 	if ctx == nil {
 		return RecordingRef{}, errors.New("terminal: recording persistence context is required")
 	}
@@ -203,24 +295,8 @@ func (s *session) persistRecording(
 		StartedAt: recording.startedAt, StoppedAt: &stoppedAt,
 		ExpiresAt: stoppedAt.AddDate(0, 0, settings.RecordingRetentionDays),
 	}
-	type persistResult struct {
-		ref RecordingRef
-		err error
-	}
-	result := make(chan persistResult, 1)
 	contents := recording.contents()
-	go func() {
-		persisted, persistErr := store.PersistRecording(ctx, info.WS, info.ID, ref, contents)
-		result <- persistResult{ref: persisted, err: persistErr}
-	}()
-	var persisted RecordingRef
-	var err error
-	select {
-	case <-ctx.Done():
-		err = context.Cause(ctx)
-	case outcome := <-result:
-		persisted, err = outcome.ref, outcome.err
-	}
+	persisted, err := s.manager.journal.PersistRecording(ctx, info.WS, info.ID, ref, contents)
 	if err != nil {
 		if emit {
 			s.emitRecordingEvent(ctx, EventKindRecordingStopped, actor, ref, "storage_error", recording.truncated)
@@ -249,9 +325,9 @@ func (s *session) emitRecordingEvent(
 	})
 }
 
-func newRecordingID() (string, error) {
+func newRecordingID(entropy io.Reader) (string, error) {
 	raw := make([]byte, 8)
-	if _, err := io.ReadFull(rand.Reader, raw); err != nil {
+	if _, err := io.ReadFull(entropy, raw); err != nil {
 		return "", fmt.Errorf("terminal: generate recording id: %w", err)
 	}
 	return "rec-" + hex.EncodeToString(raw), nil

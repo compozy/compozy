@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/compozy/compozy/internal/store"
 )
@@ -24,7 +25,7 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 	}
 	if s.Info().Mode != ModePTY {
 		return nil, &Error{
-			Code:    errorCodeNotInteractive,
+			Code:    ErrorCodeNotInteractive,
 			Message: errorMessageNotInteractive,
 			Err:     ErrNotInteractive,
 		}
@@ -48,7 +49,7 @@ func (s *session) RequestInput(ctx context.Context, request InputRequest) (*Inpu
 	err = s.lease.withAgentController(func(controller Actor) error {
 		requester = controller
 		var createErr error
-		pending, createErr = s.manager.inputs.create(s, request, redacted, func() (InputRequestID, error) {
+		pending, createErr = s.manager.inputs.create(s, request, redacted, controller, func() (InputRequestID, error) {
 			return newInputRequestID(s.manager.entropy)
 		})
 		return createErr
@@ -83,33 +84,64 @@ func (s *session) AnswerInput(
 	}
 	if actor.Kind != ActorKindHuman {
 		return nil, &Error{
-			Code:    errorCodeInputAnswerRequiresWrite,
+			Code:    ErrorCodeInputAnswerRequiresWrite,
 			Message: "only a human write participant can answer an input request",
 			Err:     ErrInputRequiresWrite,
 		}
-	}
-	if err := s.lease.authorize(actor); err != nil {
-		return nil, err
 	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
 		return nil, err
 	}
-	filtered := s.filter.FilterInput(answer.Input)
-	delivery := slices.Clone(answer.Input)
-	if len(delivery) == 0 || (delivery[len(delivery)-1] != '\n' && delivery[len(delivery)-1] != '\r') {
-		delivery = append(delivery, '\n')
-	}
-	if err := s.deliverInputMode(ctx, actor, delivery, pending.projection.Redacted); err != nil {
+	handoff, err := s.beginInputAnswerHandoff(actor)
+	if err != nil {
 		s.manager.inputs.release(pending)
 		return nil, err
 	}
-	outcome := InputOutcome{Outcome: "answered", Redacted: pending.projection.Redacted, Length: len(filtered)}
-	if !s.manager.inputs.complete(pending, outcome) {
-		return nil, inputRequestAlreadyResolvedError()
+	filtered := s.filter.FilterInput(answer.Input)
+	delivery := slices.Clone(filtered)
+	if len(delivery) == 0 || (delivery[len(delivery)-1] != '\n' && delivery[len(delivery)-1] != '\r') {
+		delivery = append(delivery, '\n')
 	}
-	s.emitInputProvided(ctx, pending, actor, "answered", len(filtered), "")
-	return &outcome, nil
+	characters := utf8.RuneCount(filtered)
+	deliveryState, deliveryErr := s.deliverInputMode(
+		ctx, actor, delivery, pending.projection.Redacted, &characters,
+	)
+	returnErr := s.finishInputAnswerHandoff(actor, handoff)
+	if deliveryErr != nil {
+		if deliveryState.BytesDelivered == 0 {
+			s.manager.inputs.release(pending)
+			return nil, errors.Join(deliveryErr, returnErr)
+		}
+		outcome := inputAnswerOutcome(pending, filtered, deliveryState)
+		if !s.manager.inputs.complete(pending, outcome, actor, "") {
+			return nil, inputRequestResolutionLostError()
+		}
+		s.emitInputProvided(ctx, pending, actor, "answered", outcome.Length, "")
+		return &outcome, errors.Join(deliveryErr, returnErr)
+	}
+	outcome := inputAnswerOutcome(pending, filtered, deliveryState)
+	if !s.manager.inputs.complete(pending, outcome, actor, "") {
+		return nil, inputRequestResolutionLostError()
+	}
+	s.emitInputProvided(ctx, pending, actor, "answered", outcome.Length, "")
+	return &outcome, returnErr
+}
+
+func inputAnswerOutcome(
+	pending *pendingInput,
+	filtered []byte,
+	delivery inputDeliveryState,
+) InputOutcome {
+	bytesDelivered := min(delivery.BytesDelivered, len(filtered))
+	characters := utf8.RuneCount(filtered[:bytesDelivered])
+	if pending.projection.Redacted {
+		characters = delivery.CharactersDelivered
+	}
+	return InputOutcome{
+		Outcome: InputResolutionOutcomeAnswered, Redacted: pending.projection.Redacted,
+		Length: characters, DeliveredBytes: bytesDelivered,
+	}
 }
 
 func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestID, reason string) error {
@@ -121,34 +153,35 @@ func (s *session) RejectInput(ctx context.Context, actor Actor, id InputRequestI
 	}
 	if actor.Kind != ActorKindHuman {
 		return &Error{
-			Code:    "input_answer_requires_write",
+			Code:    ErrorCodeInputAnswerRequiresWrite,
 			Message: "only a human write participant can reject an input request",
 			Err:     ErrInputRequiresWrite,
 		}
-	}
-	if err := s.lease.authorize(actor); err != nil {
-		return err
 	}
 	pending, err := s.manager.inputs.claim(s, id)
 	if err != nil {
 		return err
 	}
+	handoff, err := s.beginInputAnswerHandoff(actor)
+	if err != nil {
+		s.manager.inputs.release(pending)
+		return err
+	}
+	trimmedReason := strings.TrimSpace(reason)
 	if !s.manager.inputs.complete(
 		pending,
-		InputOutcome{Outcome: "rejected", Redacted: pending.projection.Redacted},
+		InputOutcome{Outcome: InputResolutionOutcomeRejected, Redacted: pending.projection.Redacted},
+		actor,
+		trimmedReason,
 	) {
-		return inputRequestAlreadyResolvedError()
+		return inputRequestResolutionLostError()
 	}
-	s.emitInputProvided(ctx, pending, actor, "rejected", 0, strings.TrimSpace(reason))
-	return nil
+	s.emitInputProvided(ctx, pending, actor, "rejected", 0, trimmedReason)
+	return s.finishInputAnswerHandoff(actor, handoff)
 }
 
-func inputRequestAlreadyResolvedError() error {
-	return &Error{
-		Code:    errorCodeInputAlreadyAnswered,
-		Message: errorMessageInputAlreadyResolved,
-		Err:     ErrInputAnswered,
-	}
+func inputRequestResolutionLostError() error {
+	return fmt.Errorf("terminal input request resolution lost: %w", ErrInputResolved)
 }
 
 // PendingInput returns the server-owned redaction facts used by the answer transport.
@@ -165,7 +198,7 @@ func (s *session) emitInputProvided(
 	ctx context.Context,
 	pending *pendingInput,
 	actor Actor,
-	outcome string,
+	outcome InputResolutionOutcome,
 	length int,
 	reason string,
 ) {
@@ -181,7 +214,7 @@ func (s *session) emitInputProvided(
 			RequestID: pending.projection.ID,
 			Redacted:  pending.projection.Redacted,
 			Length:    length,
-			Outcome:   outcome,
+			Outcome:   string(outcome),
 		},
 		At: s.manager.now(),
 	})
@@ -202,6 +235,21 @@ func (m *Service) InputRequests(
 	return m.inputs.list(workspaceID, scope, terminalID), nil
 }
 
+func (m *Service) ResolvedInputRequests(
+	ctx context.Context,
+	workspaceID string,
+	scope store.ReadScope,
+	terminalID ID,
+) ([]ResolvedInputRequest, error) {
+	if err := requestContextError(ctx, "list resolved input requests"); err != nil {
+		return nil, err
+	}
+	if err := scope.Validate(); err != nil {
+		return nil, fmt.Errorf("terminal: validate resolved input request scope: %w", err)
+	}
+	return m.inputs.listResolved(workspaceID, scope, terminalID), nil
+}
+
 func (m *Service) resolveInputRequestsOnClose(_ context.Context, event Event) {
 	if event.Kind != EventKindClosed {
 		return
@@ -213,9 +261,9 @@ func (m *Service) resolveInputRequestsOnClose(_ context.Context, event Event) {
 	if session == nil {
 		return
 	}
-	outcome := "superseded"
+	outcome := InputResolutionOutcomeSuperseded
 	if event.Reason == "profile_archived" {
-		outcome = "rejected"
+		outcome = InputResolutionOutcomeRejected
 	}
 	m.inputs.resolveTerminal(session, inputTerminalResolution{
 		outcome: outcome, actor: event.Actor, reason: event.Reason,
@@ -223,5 +271,7 @@ func (m *Service) resolveInputRequestsOnClose(_ context.Context, event Event) {
 }
 
 func (s *session) supersedeInputRequests(_ context.Context, actor Actor) {
-	s.manager.inputs.resolveTerminal(s, inputTerminalResolution{outcome: "superseded", actor: actor})
+	s.manager.inputs.resolveTerminal(s, inputTerminalResolution{
+		outcome: InputResolutionOutcomeSuperseded, actor: actor,
+	})
 }

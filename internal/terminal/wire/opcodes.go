@@ -2,45 +2,12 @@ package wire
 
 import "errors"
 
-// Subprotocol is the permanent WebSocket protocol identifier for terminal frames.
-const Subprotocol = "compozy.terminal.v1"
-
 // Direction selects the opcode namespace used to validate a frame.
 type Direction uint8
 
 const (
 	ServerToClient Direction = iota + 1
 	ClientToServer
-)
-
-const (
-	ServerOpOutput   byte = 0x01
-	ServerOpAttached byte = 0x02
-	ServerOpExit     byte = 0x03
-	ServerOpError    byte = 0x04
-	ServerOpTitle    byte = 0x05
-	ServerOpResized  byte = 0x06
-	ServerOpGap      byte = 0x07
-	ServerOpOwner    byte = 0x08
-	ServerOpPresence byte = 0x09
-)
-
-const (
-	ClientOpInput    byte = 0x01
-	ClientOpAck      byte = 0x02
-	ClientOpResize   byte = 0x03
-	ClientOpSignal   byte = 0x04
-	ClientOpTakeover byte = 0x05
-	ClientOpDetach   byte = 0x06
-	ClientOpRelease  byte = 0x07
-)
-
-const (
-	MaxInputBytes = 64 << 10
-	MinCols       = 20
-	MaxCols       = 2000
-	MinRows       = 5
-	MaxRows       = 1000
 )
 
 var (
@@ -59,7 +26,7 @@ type Frame struct {
 func ValidOpcode(direction Direction, opcode byte) bool {
 	switch direction {
 	case ServerToClient:
-		return opcode >= ServerOpOutput && opcode <= ServerOpPresence
+		return opcode >= ServerOpOutput && opcode <= ServerOpRedactedInput
 	case ClientToServer:
 		return opcode >= ClientOpInput && opcode <= ClientOpRelease
 	default:

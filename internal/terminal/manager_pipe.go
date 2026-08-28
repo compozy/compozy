@@ -31,13 +31,19 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		return nil, errors.New("terminal: pipe command is required")
 	}
 	request.Title = SanitizeTitle(request.Title)
-	if err := m.admit(ctx, request.WS, request.Actor); err != nil {
-		return nil, err
-	}
 	cwd, workspaceID, err := m.resolveOpenWorkspace(
 		ctx, request.WS, request.Cwd, request.Actor.ProfileID, request.AllowedRoots...,
 	)
 	if err != nil {
+		return nil, err
+	}
+	request.WS, request.Cwd = workspaceID, cwd
+	releaseProducer, err := m.beginWorkspaceProducer(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseProducer()
+	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
 		return nil, err
 	}
 	settings, err := m.settings(ctx, workspaceID, request.Actor.ProfileID)
@@ -103,7 +109,7 @@ func (m *Service) Release(ctx context.Context, workspaceID, profileID string, id
 		return err
 	}
 	if actor.ProfileID != profileID {
-		return &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
+		return &Error{Code: ErrorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 	}
 	key := terminalKey{workspaceID: workspaceID, profileID: profileID, id: id}
 	item, err := m.lookup(key)

@@ -45,6 +45,12 @@ type Exit struct {
 	Signal *string
 }
 
+// RedactedWriteResult separates delivered secret bytes from echo restoration state.
+type RedactedWriteResult struct {
+	BytesDelivered int
+	RestoreError   error
+}
+
 type PTY interface {
 	Start(ctx context.Context, spec ProcSpec) (Proc, error)
 }

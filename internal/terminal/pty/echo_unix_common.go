@@ -3,13 +3,18 @@
 package pty
 
 import (
-	"errors"
 	"fmt"
 
 	"golang.org/x/sys/unix"
 )
 
 func (p *unixProc) InputVisible() (bool, error) {
+	if err := p.io.begin(); err != nil {
+		return false, err
+	}
+	defer p.io.end()
+	p.inputMu.Lock()
+	defer p.inputMu.Unlock()
 	state, err := p.readTermios()
 	if err != nil {
 		return false, err
@@ -27,13 +32,22 @@ func (p *unixProc) InputVisible() (bool, error) {
 	return foregroundGroup == p.ProcessGroupID(), nil
 }
 
-func (p *unixProc) WriteRedacted(input []byte) (int, error) {
+func (p *unixProc) WriteRedacted(input []byte) (RedactedWriteResult, error) {
+	if err := p.io.begin(); err != nil {
+		return RedactedWriteResult{}, err
+	}
+	defer p.io.end()
+	p.inputMu.Lock()
+	defer p.inputMu.Unlock()
 	state, err := p.setEcho(false)
 	if err != nil {
-		return 0, err
+		return RedactedWriteResult{}, err
 	}
-	written, writeErr := p.Write(input)
-	return written, errors.Join(writeErr, p.restoreTermios(state))
+	written, writeErr := writeAllRedactedBytes(input, p.write)
+	return RedactedWriteResult{
+		BytesDelivered: written,
+		RestoreError:   p.restoreTermios(state),
+	}, writeErr
 }
 
 func (p *unixProc) readTermios() (*unix.Termios, error) {

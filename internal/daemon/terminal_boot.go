@@ -24,7 +24,7 @@ func (d *Daemon) bootTerminal(ctx context.Context, state *bootState, cleanup *bo
 		return err
 	}
 	cleanup.add(databasePool.Close)
-	journal, err := terminaljournal.New(terminaljournal.Options{
+	journal, err := terminaljournal.New(ctx, terminaljournal.Options{
 		Databases: databasePool, HomeDir: d.homePaths.HomeDir, Logger: state.logger, Now: d.now,
 	})
 	if err != nil {
@@ -85,7 +85,6 @@ func terminalManagerOptions(
 		terminalpkg.WithLogger(state.logger),
 		terminalpkg.WithClock(d.now),
 		terminalpkg.WithJournal(journal),
-		terminalpkg.WithMarkerConsumer(journal),
 	}
 	if state.terminalPermissions == nil {
 		state.terminalPermissions = newTerminalPermissionBridge()

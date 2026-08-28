@@ -24,6 +24,89 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 
 	view := toolApprovalTestView()
 
+	t.Run("Should preserve run identity across terminal approval calls", func(t *testing.T) {
+		t.Parallel()
+
+		capture := &terminalApprovalCapture{}
+		bridge := newTerminalPermissionBridge()
+		bridge.bind(capture)
+		actor := terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindAgent, ID: "codex", ProfileID: "profile-a",
+			SessionID: "sess-a", RunID: "run-a", Generation: 7,
+		}
+		if _, err := bridge.AuthorizeTerminalExec(t.Context(), terminalpkg.ExecRequest{
+			WS: "workspace-a", Command: "printf", Actor: actor,
+		}, terminalpkg.CommandClassification{}); err != nil {
+			t.Fatalf("AuthorizeTerminalExec() error = %v", err)
+		}
+		if err := bridge.AuthorizeTerminalInput(t.Context(), actor, terminalpkg.Info{
+			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
+		}); err != nil {
+			t.Fatalf("AuthorizeTerminalInput() error = %v", err)
+		}
+		if len(capture.calls) != 2 {
+			t.Fatalf("approval calls = %#v, want exec and input", capture.calls)
+		}
+		for _, call := range capture.calls {
+			if call.scope.RunID != "run-a" || call.scope.Generation != 7 ||
+				call.request.RunID != "run-a" || call.request.Generation != 7 {
+				t.Fatalf("approval identity = %#v, want run-a generation 7", call)
+			}
+		}
+	})
+
+	t.Run("Should type only explicit terminal approval rejections", func(t *testing.T) {
+		t.Parallel()
+
+		requester := selectedPermissionRequester(toolApprovalRejectOnceID)
+		approval := newToolApprovalBridge(
+			func() sessionPermissionRequester { return requester },
+			time.Second,
+			nil,
+			nil,
+			nil,
+		)
+		terminalApproval := newTerminalPermissionBridge()
+		terminalApproval.bind(approval)
+		actor := terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindAgent, ID: "codex", ProfileID: "profile-a",
+			SessionID: "sess-a", RunID: "run-a", Generation: 7,
+		}
+		_, err := terminalApproval.AuthorizeTerminalExec(t.Context(), terminalpkg.ExecRequest{
+			WS: "workspace-a", Command: "printf", Actor: actor,
+		}, terminalpkg.CommandClassification{})
+		execErr, execTyped := errors.AsType[*terminalpkg.Error](err)
+		if !execTyped || execErr.Code != terminalpkg.ErrorCodeApprovalRejected ||
+			!errors.Is(err, terminalpkg.ErrApprovalRejected) {
+			t.Fatalf("AuthorizeTerminalExec(rejected) error = %v, want approval_rejected", err)
+		}
+		err = terminalApproval.AuthorizeTerminalInput(t.Context(), actor, terminalpkg.Info{
+			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
+		})
+		inputErr, inputTyped := errors.AsType[*terminalpkg.Error](err)
+		if !inputTyped || inputErr.Code != terminalpkg.ErrorCodeTypingGrantRejected ||
+			!errors.Is(err, terminalpkg.ErrTypingGrant) {
+			t.Fatalf("AuthorizeTerminalInput(rejected) error = %v, want typing_grant_rejected", err)
+		}
+
+		generic := toolspkg.NewToolError(
+			toolspkg.ErrorCodeUnavailable,
+			toolspkg.ToolIDTerminalWrite,
+			"approval channel unavailable",
+			toolspkg.ErrToolUnavailable,
+			toolspkg.ReasonApprovalUnreachable,
+		)
+		capture := &terminalApprovalCapture{err: generic}
+		terminalApproval.bind(capture)
+		err = terminalApproval.AuthorizeTerminalInput(t.Context(), actor, terminalpkg.Info{
+			ID: "term-aaaaaaaaaaaa", WS: "workspace-a", ProfileID: "profile-a", TypingGeneration: 3,
+		})
+		var terminalErr *terminalpkg.Error
+		if !errors.Is(err, toolspkg.ErrToolUnavailable) || errors.As(err, &terminalErr) {
+			t.Fatalf("AuthorizeTerminalInput(unavailable) error = %v, want generic tool unavailable", err)
+		}
+	})
+
 	t.Run("Should scope a typing grant to one terminal generation", func(t *testing.T) {
 		t.Parallel()
 
@@ -256,6 +339,27 @@ func TestToolApprovalBridgeDeterministicErrors(t *testing.T) {
 		)
 		requireToolApprovalReason(t, err, toolspkg.ReasonApprovalCanceled)
 	})
+}
+
+type terminalApprovalCaptureCall struct {
+	scope   toolspkg.Scope
+	request toolspkg.CallRequest
+}
+
+type terminalApprovalCapture struct {
+	calls []terminalApprovalCaptureCall
+	err   error
+}
+
+func (c *terminalApprovalCapture) RequestToolApproval(
+	_ context.Context,
+	scope toolspkg.Scope,
+	request *toolspkg.CallRequest,
+	_ *toolspkg.ToolView,
+) error {
+	request.ApprovalLabel = toolApprovalApprovedOnceLabel
+	c.calls = append(c.calls, terminalApprovalCaptureCall{scope: scope, request: *request})
+	return c.err
 }
 
 func TestWorkspaceAccessPromptBridgeSessionConsent(t *testing.T) {

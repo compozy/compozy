@@ -72,6 +72,7 @@ func (s *Service) Query(
 		if scanErr != nil {
 			return nil, scanErr
 		}
+		row.OutputTail = s.liveOutputTail(workspaceID, row.ID)
 		entries = append(entries, row)
 	}
 	if err := rows.Err(); err != nil {

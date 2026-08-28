@@ -33,7 +33,7 @@ func (e *terminalAPIError) cliExitCode() int {
 	return apiStatusExitCode(e.statusCode)
 }
 
-func (e *terminalAPIError) terminalErrorPayload() contract.TerminalErrorResponse {
+func (e *terminalAPIError) TerminalErrorEnvelope() contract.TerminalErrorResponse {
 	if e == nil {
 		return contract.TerminalErrorResponse{}
 	}
@@ -48,9 +48,6 @@ func parseTerminalAPIError(statusCode int, status string, body []byte) (bool, er
 		strings.TrimSpace(string(payload.Error.Code)) == "" ||
 		strings.TrimSpace(payload.Error.Message) == "" {
 		return false, nil
-	}
-	if !contract.IsTerminalErrorCode(payload.Error.Code) {
-		return true, errInvalidTerminalErrorEnvelope
 	}
 	payload.Error.Message = redactToolDiagnostic(payload.Error.Message)
 	return true, &terminalAPIError{statusCode: statusCode, status: status, payload: payload}

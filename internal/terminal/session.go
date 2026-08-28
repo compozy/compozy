@@ -9,7 +9,6 @@ import (
 	"slices"
 	"sync"
 	"time"
-	"unicode/utf8"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
 	terminalvt "github.com/compozy/compozy/internal/terminal/vt"
@@ -37,35 +36,40 @@ type session struct {
 	profileName string
 	titlePinned bool
 
-	mu               sync.RWMutex
-	info             Info
-	lastActivity     time.Time
-	revision         uint64
-	revisionReady    chan struct{}
-	readerEnded      bool
-	reaping          bool
-	exit             *Exit
-	closeReason      string
-	closeActor       Actor
-	closedEmitted    bool
-	vtCarry          []byte
-	subscribers      map[uint64]*subscription
-	nextSubID        uint64
-	cols             uint16
-	rows             uint16
-	processRecord    processCheckpoint
-	policy           Settings
-	recordingMu      sync.Mutex
-	recordingWG      sync.WaitGroup
-	recording        *activeRecording
-	failedRecording  *activeRecording
-	captureMu        sync.Mutex
-	capture          []byte
-	captureBytes     int64
-	captureTruncated bool
-	captureOutput    bool
-	done             chan struct{}
-	closeOnce        sync.Once
+	mu                  sync.RWMutex
+	info                Info
+	lastActivity        time.Time
+	revision            uint64
+	revisionReady       chan struct{}
+	readerEnded         bool
+	reaping             bool
+	exit                *Exit
+	closeReason         string
+	closeActor          Actor
+	closedEmitted       bool
+	vtCarry             []byte
+	subscribers         map[uint64]*subscription
+	nextSubID           uint64
+	cols                uint16
+	rows                uint16
+	processRecord       processCheckpoint
+	policy              Settings
+	recordingMu         sync.Mutex
+	recordingWG         sync.WaitGroup
+	recordingSealed     bool
+	recording           *activeRecording
+	failedRecording     *activeRecording
+	authorityMu         sync.Mutex
+	finalizationMu      sync.Mutex
+	journalClosePending bool
+	streamMu            sync.Mutex
+	captureMu           sync.Mutex
+	capture             []byte
+	captureBytes        int64
+	captureTruncated    bool
+	captureOutput       bool
+	done                chan struct{}
+	closeOnce           sync.Once
 }
 
 func newSession(
@@ -158,7 +162,7 @@ func (s *session) readOutput() {
 		case read := <-reads:
 			filtered := s.filter.Filter(read.data)
 			if len(filtered.MarkerFacts) > 0 {
-				if err := s.manager.markers.ConsumeMarkerFacts(
+				if err := s.manager.journal.ConsumeMarkerFacts(
 					s.ctx, s.Info(), filtered.MarkerFacts,
 				); err != nil {
 					s.audit.SetBlocked(true)
@@ -215,13 +219,15 @@ func (s *session) acceptOutput(input []byte) {
 	if len(input) == 0 {
 		return
 	}
+	s.streamMu.Lock()
+	defer s.streamMu.Unlock()
 	if s.captureOutput {
 		s.captureMu.Lock()
 		s.appendCaptureLocked(input)
 		s.captureMu.Unlock()
 	}
 	s.appendRecording(input)
-	s.manager.observeJournalOutput(s.Info())
+	s.manager.observeJournalOutput(s.Info(), input)
 	s.mu.Lock()
 	s.ring.SetModePreamble(input)
 	start, end := s.ring.Append(input)
@@ -245,8 +251,37 @@ func (s *session) acceptOutput(input []byte) {
 	}
 }
 
+func (s *session) acceptRedactedInput(characters int) {
+	marker := RedactedInputMarker(characters)
+	rendered := []byte(RenderOutputSegment(marker))
+	s.appendRecordingMarker(marker)
+	s.mu.Lock()
+	start, end := s.ring.AppendRedactedInput(marker.Characters)
+	s.lastActivity = s.manager.now()
+	s.bumpRevisionLocked()
+	subscribers := make([]*subscription, 0, len(s.subscribers))
+	for _, subscriber := range s.subscribers {
+		subscribers = append(subscribers, subscriber)
+	}
+	s.mu.Unlock()
+	if _, err := s.vt.WriteAt(rendered, end); err != nil && !errors.Is(err, terminalvt.ErrClosed) {
+		s.manager.logger.Warn("terminal: feed redacted marker to emulator", "terminal_id", s.info.ID, "error", err)
+	}
+	payload, err := json.Marshal(redactedInputFramePayload{
+		Seq: terminalSequenceString(start), Characters: marker.Characters,
+	})
+	if err != nil {
+		s.manager.logger.Error("terminal: encode redacted input frame", "terminal_id", s.info.ID, "error", err)
+		return
+	}
+	frame := Frame{Op: terminalwire.ServerOpRedactedInput, Seq: start, Payload: payload}
+	for _, subscriber := range subscribers {
+		subscriber.deliver(frame, end)
+	}
+}
+
 func (s *session) acceptFilteredOutput() {
-	s.manager.observeJournalOutput(s.Info())
+	s.manager.observeJournalOutput(s.Info(), nil)
 	s.mu.Lock()
 	s.lastActivity = s.manager.now()
 	s.bumpRevisionLocked()
@@ -333,9 +368,12 @@ func (s *session) finalize(exit Exit) {
 		s.closedEmitted = true
 		info := s.infoSnapshotLocked()
 		s.mu.Unlock()
+		s.recordingMu.Lock()
+		s.recordingSealed = true
+		s.recordingMu.Unlock()
 		s.recordingWG.Wait()
 		recordingCtx, cancelRecording := boundedCleanupContext(s.ctx, recordingPersistenceTimeout)
-		_, recordingErr := s.stopRecording(recordingCtx, actor, "terminal_closed")
+		_, recordingErr := s.stopRecordingForFinalization(recordingCtx, actor, "terminal_closed")
 		cancelRecording()
 		if recordingErr != nil &&
 			!isRecordingNotActive(recordingErr) {
@@ -343,6 +381,9 @@ func (s *session) finalize(exit Exit) {
 		}
 		journalCtx, cancelJournal := boundedCleanupContext(s.ctx, defaultJournalShutdownTimeout)
 		if err := s.manager.closeJournalTerminal(journalCtx, s); err != nil {
+			s.finalizationMu.Lock()
+			s.journalClosePending = true
+			s.finalizationMu.Unlock()
 			s.audit.SetBlocked(true)
 			s.manager.logger.Error("terminal: close journal lane", "terminal_id", info.ID, "error", err)
 		}
@@ -389,7 +430,10 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 	if s.exit != nil {
 		exit := cloneExit(s.exit)
 		s.mu.Unlock()
-		return exit, &Error{Code: errorCodeExited, Message: errorMessageExited, Err: ErrExited}
+		if err := s.awaitRemoval(ctx); err != nil {
+			return exit, err
+		}
+		return exit, &Error{Code: ErrorCodeExited, Message: errorMessageExited, Err: ErrExited}
 	}
 	if s.closeReason == "" {
 		s.closeReason = reason
@@ -413,6 +457,9 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 	case <-ctx.Done():
 		return nil, context.Cause(ctx)
 	case <-s.done:
+		if err := s.awaitRemoval(ctx); err != nil {
+			return nil, err
+		}
 		s.mu.RLock()
 		defer s.mu.RUnlock()
 		return cloneExit(s.exit), nil
@@ -420,41 +467,6 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 }
 
 func terminalSignal(signal Signal) terminalpty.Signal { return terminalpty.Signal(signal) }
-
-func (s *session) markReaderEnded() {
-	if len(s.vtCarry) > 0 {
-		_, end := s.ring.Snapshot()
-		if _, err := s.vt.WriteAt(s.vtCarry, end); err != nil && !errors.Is(err, terminalvt.ErrClosed) {
-			s.manager.logger.Debug("terminal: flush emulator carry", "terminal_id", s.info.ID, "error", err)
-		}
-		s.vtCarry = nil
-	}
-	s.mu.Lock()
-	s.readerEnded = true
-	s.bumpRevisionLocked()
-	s.mu.Unlock()
-}
-
-func splitCompleteUTF8(input []byte) ([]byte, []byte) {
-	for index := 0; index < len(input); {
-		if input[index] < utf8.RuneSelf {
-			index++
-			continue
-		}
-		_, size := utf8.DecodeRune(input[index:])
-		if size == 1 && !utf8.FullRune(input[index:]) {
-			return input[:index], input[index:]
-		}
-		index += size
-	}
-	return input, nil
-}
-
-func (s *session) bumpRevisionLocked() {
-	s.revision++
-	close(s.revisionReady)
-	s.revisionReady = make(chan struct{})
-}
 
 func cloneExit(exit *Exit) *Exit {
 	if exit == nil {

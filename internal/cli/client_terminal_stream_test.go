@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -15,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/gorilla/websocket"
 	"golang.org/x/term"
@@ -108,6 +111,7 @@ func TestTerminalClientStreamTargetShouldUseTicketAsProfileAuthority(t *testing.
 		t.Fatalf("NewClient() error = %v", err)
 	}
 	target, _, err := client.(*daemonClient).terminalStreamTarget(
+		t.Context(),
 		"workspace /a",
 		"term /a",
 		"ticket-a",
@@ -127,6 +131,7 @@ func TestTerminalClientStreamTargetShouldUseTicketAsProfileAuthority(t *testing.
 		t.Fatalf("terminal stream ticket = %q, want ticket-a", got)
 	}
 	if _, _, err := client.(*daemonClient).terminalStreamTarget(
+		t.Context(),
 		"workspace-a",
 		"term-a",
 		"",
@@ -139,13 +144,16 @@ func TestTerminalClientStreamTargetShouldUseTicketAsProfileAuthority(t *testing.
 func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOutput(t *testing.T) {
 	t.Parallel()
 	body := []byte(
-		`{"error":{"code":"input_answer_requires_write","message":"INPUT requires a write attachment","details":{"current":"8","max":"8"}}}`,
+		`{"error":{"code":"input_answer_requires_write","message":"INPUT requires a write attachment","details":{"current":8,"max":8,"controller":{"kind":"human","id":"client:web"},"path":"/workspace","mode":"pty","platform":"windows"}}}`,
 	)
 	assertDetails := func(t *testing.T, terminalErr *terminalAPIError) {
 		t.Helper()
 		details := terminalErr.payload.Error.Details
-		if len(details) != 2 || details["current"] != "8" || details["max"] != "8" {
-			t.Fatalf("terminal error details = %#v, want current=8 and max=8", details)
+		if details == nil || details.Current == nil || details.Max == nil || *details.Current != 8 ||
+			*details.Max != 8 || details.Controller == nil || details.Controller.Kind != "human" ||
+			details.Controller.ID != "client:web" || details.Path != "/workspace" || details.Mode != "pty" ||
+			details.Platform != "windows" {
+			t.Fatalf("terminal error details = %#v, want typed limits, controller, path, mode, and platform", details)
 		}
 	}
 
@@ -157,6 +165,11 @@ func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOut
 			t.Fatalf("readAPIErrorBody() = %#v, want input_answer_requires_write", err)
 		}
 		assertDetails(t, terminalErr)
+		if got := terminalErr.TerminalErrorEnvelope(); got.Error.Code != "input_answer_requires_write" ||
+			got.Error.Details == nil || got.Error.Details.Controller == nil ||
+			got.Error.Details.Controller.ID != "client:web" {
+			t.Fatalf("TerminalErrorEnvelope() = %#v, want the parsed code and structured details", got)
+		}
 	})
 
 	t.Run("Should parse the WebSocket ERROR frame", func(t *testing.T) {
@@ -184,13 +197,13 @@ func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOut
 		parse func() error
 	}{
 		{
-			name: "Should reject an unknown HTTP terminal code as an invalid envelope",
+			name: "Should preserve an unknown HTTP transport code",
 			parse: func() error {
 				return readAPIErrorBody(http.StatusConflict, "409 Conflict", unknownBody)
 			},
 		},
 		{
-			name: "Should reject an unknown WebSocket terminal code as an invalid envelope",
+			name: "Should preserve an unknown WebSocket transport code",
 			parse: func() error {
 				return terminalStreamFrameError(unknownBody, "stream")
 			},
@@ -199,11 +212,52 @@ func TestTerminalErrorEnvelopeShouldPreserveCodeAcrossHTTPStreamAndStructuredOut
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 			err := testCase.parse()
-			if _, ok := errors.AsType[*terminalAPIError](err); ok {
-				t.Fatalf("terminal error = %#v, want invalid protocol envelope", err)
+			terminalErr, ok := errors.AsType[*terminalAPIError](err)
+			if !ok || terminalErr.payload.Error.Code != "terminal_future_error" {
+				t.Fatalf("terminal error = %#v, want preserved terminal_future_error transport code", err)
 			}
-			if !strings.Contains(err.Error(), "terminal error envelope is invalid") {
-				t.Fatalf("terminal error = %v, want invalid protocol envelope", err)
+		})
+	}
+
+	for _, testCase := range []struct {
+		name     string
+		err      error
+		wantCode string
+	}{
+		{
+			name: "Should classify local validation as invalid request",
+			err:  terminalInvalidRequest("--lines must use A-B", nil), wantCode: terminalTransportCodeInvalidRequest,
+		},
+		{
+			name:     "Should preserve the domain timeout code for yield",
+			err:      terminalYieldRangeError("--yield must be between 250ms and 30s", nil),
+			wantCode: string(terminalpkg.ErrorCodeTimeoutOutOfRange),
+		},
+		{
+			name: "Should classify malformed yield syntax as invalid request",
+			err: func() error {
+				_, parseErr := terminalYieldMilliseconds("soon")
+				return parseErr
+			}(),
+			wantCode: terminalTransportCodeInvalidRequest,
+		},
+		{
+			name: "Should classify an unrecognized local failure as internal",
+			err:  errors.New("unexpected local terminal failure"), wantCode: terminalTransportCodeInternal,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			encoded, ok := marshalStructuredExecutionError([]string{"terminal", "-o", "json"}, testCase.err)
+			if !ok {
+				t.Fatal("marshalStructuredExecutionError() did not handle terminal error")
+			}
+			var payload contract.TerminalErrorResponse
+			if err := json.Unmarshal(encoded, &payload); err != nil {
+				t.Fatalf("decode structured terminal error: %v", err)
+			}
+			if payload.Error.Code != testCase.wantCode {
+				t.Fatalf("structured terminal code = %q, want %q", payload.Error.Code, testCase.wantCode)
 			}
 		})
 	}

@@ -242,13 +242,8 @@ func renderHumanExecutionError(err error) (string, bool) {
 	if rendered, ok := renderProfileExecutionError(err); ok {
 		return rendered, true
 	}
-	var terminalErr *terminalpkg.Error
-	if errors.As(err, &terminalErr) && strings.TrimSpace(terminalErr.Code) != "" {
-		message := strings.TrimSpace(terminalErr.Error())
-		if message == "" || message == terminalErr.Code {
-			return "error: " + terminalErr.Code, true
-		}
-		return "error: " + terminalErr.Code + " — " + message, true
+	if rendered, ok := renderTerminalExecutionError(err); ok {
+		return rendered, true
 	}
 	item, ok := diagnosticspkg.ItemFromError(err)
 	if !ok {
@@ -314,9 +309,9 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	}
 	if terminalErr, ok := errors.AsType[interface {
 		error
-		terminalErrorPayload() contract.TerminalErrorResponse
+		TerminalErrorEnvelope() contract.TerminalErrorResponse
 	}](err); ok {
-		return marshalTerminalExecutionError(args, terminalErr.terminalErrorPayload())
+		return marshalTerminalExecutionError(args, terminalErr.TerminalErrorEnvelope())
 	}
 	if apiErr, ok := errors.AsType[interface {
 		error
@@ -324,7 +319,8 @@ func marshalStructuredExecutionError(args []string, err error) ([]byte, bool) {
 	}](err); ok {
 		return marshalDaemonAPIExecutionError(args, apiErr.errorPayload())
 	}
-	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok {
+	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok &&
+		contract.IsTerminalErrorCode(contract.TerminalErrorCode(terminalErr.Code)) {
 		return marshalTerminalExecutionError(args, terminalExecutionErrorPayload(terminalErr))
 	}
 	if !isStructuredAgentCommandError(err) {
@@ -463,31 +459,6 @@ func marshalDaemonAPIExecutionError(args []string, payload contract.ErrorPayload
 	}
 }
 
-func terminalExecutionErrorPayload(err *terminalpkg.Error) contract.TerminalErrorResponse {
-	return contract.TerminalErrorResponse{Error: contract.TerminalErrorDetail{
-		Code: contract.TerminalErrorCode(err.Code), Message: err.Error(),
-	}}
-}
-
-func marshalTerminalExecutionError(args []string, payload contract.TerminalErrorResponse) ([]byte, bool) {
-	switch requestedOutputFormat(args) {
-	case OutputJSON:
-		encoded, err := json.Marshal(payload)
-		return encoded, err == nil
-	case OutputJSONL:
-		encoded, err := json.Marshal(payload)
-		return append(encoded, '\n'), err == nil
-	case OutputToon:
-		return []byte(renderToonObject(
-			"error",
-			[]string{cliCodeKey, clientMessageKey},
-			[]string{string(payload.Error.Code), payload.Error.Message},
-		)), true
-	default:
-		return nil, false
-	}
-}
-
 func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 	item, ok := diagnosticspkg.ItemFromError(err)
 	// Terminal's public contract requires JSON even for Cobra validation errors,
@@ -496,17 +467,8 @@ func marshalDiagnosticExecutionError(args []string, err error) ([]byte, bool) {
 	if !ok && (requestedOutputFormat(args) != OutputJSON || len(args) == 0 || args[0] != terminalCommandKey) {
 		return nil, false
 	}
-	if len(args) > 0 && args[0] == terminalCommandKey {
-		code := "terminal_cli_failed"
-		if terminalErr, matched := errors.AsType[*terminalpkg.Error](err); matched {
-			code = terminalErr.Code
-		}
-		return marshalTerminalExecutionError(args, contract.TerminalErrorResponse{
-			Error: contract.TerminalErrorDetail{
-				Code:    contract.TerminalErrorCode(code),
-				Message: diagnosticspkg.Redact(err.Error()),
-			},
-		})
+	if encoded, terminalError := marshalTerminalDiagnosticExecutionError(args, err); terminalError {
+		return encoded, true
 	}
 	payload := contract.ErrorPayload{Error: diagnosticspkg.Redact(err.Error())}
 	if ok {

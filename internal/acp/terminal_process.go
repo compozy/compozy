@@ -107,13 +107,6 @@ func (m *terminalManager) closeAll() {
 		}
 		cancelCleanup()
 	}
-	if m.ownedCore != nil {
-		shutdownCtx, cancelShutdown := m.cleanupContext()
-		if err := m.ownedCore.Shutdown(shutdownCtx); err != nil && m.logger != nil {
-			m.logger.Warn("acp: shutdown local terminal core", "error", err)
-		}
-		cancelShutdown()
-	}
 }
 
 func (m *terminalManager) cleanupContext() (context.Context, context.CancelFunc) {

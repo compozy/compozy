@@ -75,7 +75,7 @@ describe("parseAsciicast", () => {
     expect(() => parseAsciicast("")).toThrow(/empty/);
   });
 
-  it("Should drop anything that is not output rather than paint it as screen", () => {
+  it("Should drop raw input rather than paint it as screen", () => {
     const withInput = [
       JSON.stringify({ version: 2, width: 96, height: 28 }),
       JSON.stringify([0.1, "i", "secret keystroke"]),
@@ -84,7 +84,37 @@ describe("parseAsciicast", () => {
 
     const cast = parseAsciicast(withInput);
 
-    expect(cast.frames).toEqual([{ atMs: 200, data: "visible output" }]);
+    expect(cast.frames).toEqual([{ atMs: 200, kind: "output", data: "visible output" }]);
+  });
+
+  it("Should keep trusted redacted markers distinct from shell output", () => {
+    const markerText = "hidden input · 6 characters";
+    const cast = parseAsciicast(
+      [
+        JSON.stringify({ version: 2, width: 96, height: 28 }),
+        JSON.stringify([0.1, "o", markerText]),
+        JSON.stringify([0.2, "m", { kind: "redacted_input", characters: 6 }]),
+      ].join("\n")
+    );
+
+    expect(cast.frames).toEqual([
+      { atMs: 100, kind: "output", data: markerText },
+      { atMs: 200, kind: "redacted_input", characters: 6 },
+    ]);
+
+    const written: string[] = [];
+    const playback = new AsciicastPlayback({
+      cast,
+      sink: { write: data => written.push(data), reset: () => undefined },
+      onProgress: () => undefined,
+      schedule: run => {
+        run();
+        return () => undefined;
+      },
+    });
+    playback.play();
+
+    expect(written).toEqual([markerText, markerText]);
   });
 });
 

@@ -858,6 +858,11 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	t.Parallel()
 
 	proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
+	active, err := proc.beginPromptForRun("turn-terminal-lifecycle", "run-terminal-lifecycle", 17, 8)
+	if err != nil {
+		t.Fatalf("beginPromptForRun() error = %v", err)
+	}
+	t.Cleanup(func() { proc.endPrompt(active) })
 
 	createResult, reqErr := proc.handleInbound(
 		context.Background(),
@@ -875,6 +880,14 @@ func assertTerminalLifecycleHandlers(t *testing.T) {
 	createResponse, ok := createResult.(acpsdk.CreateTerminalResponse)
 	if !ok {
 		t.Fatalf("handleInbound(create terminal) type = %T, want CreateTerminalResponse", createResult)
+	}
+	managed, err := proc.terminals.lookup(string(createResponse.TerminalId))
+	if err != nil {
+		t.Fatalf("terminal lookup error = %v", err)
+	}
+	if managed.actor.RunID != "run-terminal-lifecycle" || managed.actor.Generation != 17 ||
+		managed.actor.RunID == "turn-terminal-lifecycle" {
+		t.Fatalf("terminal actor identity = %#v, want distinct run id and generation 17", managed.actor)
 	}
 
 	waitResult, reqErr := proc.handleInbound(
@@ -958,7 +971,7 @@ printf network-ok`)
 	t.Setenv("OPENAI_API_KEY", "sk-network-secret")
 
 	turnSource = "network"
-	firstTurn, err := proc.beginPrompt("turn-network-1", 4)
+	firstTurn, err := proc.beginPromptForRun("turn-network-1", "run-network-1", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt(first network) error = %v", err)
 	}
@@ -1009,7 +1022,7 @@ printf network-ok`)
 	proc.endPrompt(firstTurn)
 
 	turnSource = "user"
-	userTurn, err := proc.beginPrompt("turn-user-1", 4)
+	userTurn, err := proc.beginPromptForRun("turn-user-1", "run-user-1", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt(user) error = %v", err)
 	}
@@ -1027,7 +1040,7 @@ printf network-ok`)
 	proc.endPrompt(userTurn)
 
 	turnSource = "network"
-	secondTurn, err := proc.beginPrompt("turn-network-2", 4)
+	secondTurn, err := proc.beginPromptForRun("turn-network-2", "run-network-2", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt(second network) error = %v", err)
 	}
@@ -1255,7 +1268,7 @@ func TestHandleCreateTerminalRemovesOwnershipOnRegistrationFailure(t *testing.T)
 		},
 	}
 
-	active, err := proc.beginPrompt("turn-network-create-failure", 4)
+	active, err := proc.beginPromptForRun("turn-network-create-failure", "run-network-create-failure", 1, 4)
 	if err != nil {
 		t.Fatalf("beginPrompt() error = %v", err)
 	}
@@ -1967,7 +1980,7 @@ func TestHandleInboundCreateTerminalUsesRequestContext(t *testing.T) {
 	}
 }
 
-func TestToolHostOrDefaultCreatesProcessOwnedTerminalHost(t *testing.T) {
+func TestToolHostOrDefaultUsesInjectedTerminalHost(t *testing.T) {
 	t.Parallel()
 
 	if _, err := (&AgentProcess{}).toolHostOrDefault(); !errors.Is(err, errProcessLifecycleUninitialized) {
@@ -1983,6 +1996,7 @@ func TestToolHostOrDefaultCreatesProcessOwnedTerminalHost(t *testing.T) {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}
 
+	terminalCore := newACPTestTerminalCore(t, nil)
 	proc := &AgentProcess{
 		Cwd:           root,
 		processCtx:    ctx,
@@ -1993,6 +2007,11 @@ func TestToolHostOrDefaultCreatesProcessOwnedTerminalHost(t *testing.T) {
 		StartedAt:     timeNowUTC(),
 		SessionID:     "sess-direct",
 		AgentName:     "direct",
+		terminalCore:  terminalCore,
+		terminalScope: LocalTerminalScope{
+			WorkspaceID: "acp-test", ProfileID: "acp-test", SessionID: "sess-direct", ActorID: "direct",
+			Generation: 1,
+		},
 	}
 
 	toolHost, err := proc.toolHostOrDefault()
@@ -2003,8 +2022,8 @@ func TestToolHostOrDefaultCreatesProcessOwnedTerminalHost(t *testing.T) {
 	if !ok {
 		t.Fatalf("toolHostOrDefault() type = %T, want *localToolHost", toolHost)
 	}
-	if host.terminals == nil || host.terminals.ownedCore == nil {
-		t.Fatal("toolHostOrDefault() did not create a process-owned terminal core")
+	if host.terminals == nil || host.terminals.core != terminalCore {
+		t.Fatal("toolHostOrDefault() did not use the injected terminal core")
 	}
 }
 
@@ -2028,8 +2047,11 @@ func newDirectProcess(t *testing.T, mode compozyconfig.PermissionMode) *AgentPro
 		processCtx:  ctx,
 		permissions: policy,
 		terminals: newTerminalManager(
-			ctx, slog.Default(), root, nil,
-			terminalScope{workspaceID: "acp-test", profileID: "acp-test", sessionID: "sess-direct", actorID: "direct"},
+			ctx, slog.Default(), newACPTestTerminalCore(t, nil),
+			LocalTerminalScope{
+				WorkspaceID: "acp-test", ProfileID: "acp-test", SessionID: "sess-direct", ActorID: "direct",
+				Generation: 1,
+			},
 		),
 		done:              make(chan struct{}),
 		cancelProcess:     cancel,

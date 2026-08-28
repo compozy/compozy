@@ -26,7 +26,7 @@ func (n *daemonNativeTools) terminalClose(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{"exit": exit}, "terminal closed")
+	return untrustedTerminalResult(map[string]any{"exit": exit}, "terminal closed")
 }
 
 func (n *daemonNativeTools) terminalList(
@@ -46,7 +46,7 @@ func (n *daemonNativeTools) terminalList(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	return structuredResult(map[string]any{"terminals": projected}, fmt.Sprintf("%d terminals", len(projected)))
+	return untrustedTerminalResult(map[string]any{"terminals": projected}, fmt.Sprintf("%d terminals", len(projected)))
 }
 
 func (n *daemonNativeTools) terminalRequestInput(
@@ -72,7 +72,7 @@ func (n *daemonNativeTools) terminalRequestInput(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(outcome, "terminal input request resolved")
+	return untrustedTerminalResult(outcome, "terminal input request resolved")
 }
 
 func (n *daemonNativeTools) terminalYield(
@@ -95,7 +95,10 @@ func (n *daemonNativeTools) terminalYield(
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(map[string]any{nativeToolsLeaseStateKey: handle.Info().Lease}, "terminal control yielded")
+	return untrustedTerminalResult(
+		map[string]any{nativeToolsLeaseStateKey: handle.Info().Lease},
+		"terminal control yielded",
+	)
 }
 
 func (n *daemonNativeTools) terminalClaim(
@@ -111,20 +114,14 @@ func (n *daemonNativeTools) terminalClaim(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	claimer, ok := manager.(interface {
-		Claim(context.Context, string, terminalpkg.ID, terminalpkg.Actor) error
-	})
-	if !ok {
-		return toolspkg.ToolResult{}, nativeCommandDependencyError(req.ToolID, "terminal claim is unavailable")
-	}
-	if err := claimer.Claim(ctx, workspaceID, terminalpkg.ID(input.TerminalID), actor); err != nil {
+	if err := manager.Claim(ctx, workspaceID, terminalpkg.ID(input.TerminalID), actor); err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
 	info, err := manager.Get(ctx, workspaceID, actor.ProfileID, terminalpkg.ID(input.TerminalID))
 	if err != nil {
 		return toolspkg.ToolResult{}, terminalToolError(req.ToolID, err)
 	}
-	return structuredResult(
+	return untrustedTerminalResult(
 		map[string]any{"granted": true, nativeToolsLeaseStateKey: info.Lease},
 		"terminal control claimed",
 	)

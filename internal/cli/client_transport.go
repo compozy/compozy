@@ -52,7 +52,7 @@ func (c *daemonClient) doJSONWithClient(
 		query,
 		requestBody,
 		"",
-		agentidentity.Credentials{},
+		clientAgentCredentials(ctx),
 		client,
 	)
 	if err != nil {
@@ -118,7 +118,7 @@ func (c *daemonClient) doSSE(
 		query,
 		nil,
 		lastEventID,
-		agentidentity.Credentials{},
+		clientAgentCredentials(ctx),
 		c.streamHTTPClient(),
 	)
 	if err != nil {
@@ -172,8 +172,22 @@ func (c *daemonClient) doRequest(
 		nil,
 		requestBody,
 		"",
-		agentidentity.Credentials{},
+		clientAgentCredentials(ctx),
 	)
+}
+
+type clientAgentCredentialsContextKey struct{}
+
+func withClientAgentCredentials(ctx context.Context, credentials agentidentity.Credentials) context.Context {
+	return context.WithValue(ctx, clientAgentCredentialsContextKey{}, credentials)
+}
+
+func clientAgentCredentials(ctx context.Context) agentidentity.Credentials {
+	if ctx == nil {
+		return agentidentity.Credentials{}
+	}
+	credentials, _ := ctx.Value(clientAgentCredentialsContextKey{}).(agentidentity.Credentials)
+	return credentials
 }
 
 func (c *daemonClient) doRequestWithCredentials(

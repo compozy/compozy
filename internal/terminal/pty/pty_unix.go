@@ -22,10 +22,14 @@ import (
 type unixProc struct {
 	device      *xpty.UnixPty
 	reader      *unixPTYReader
+	writer      *os.File
 	command     *exec.Cmd
 	waiter      processWaiter
 	startedAt   time.Time
 	mu          sync.RWMutex
+	inputMu     sync.Mutex
+	signalMu    sync.Mutex
+	io          ioLifecycle
 	killSignal  Signal
 	closeOnce   sync.Once
 	closeErr    error
@@ -41,14 +45,26 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if err != nil {
 		return nil, fmt.Errorf("terminal pty: open: %w", err)
 	}
-	reader, err := duplicateNonblocking(device)
+	if err := makeUnixMasterNonblocking(device); err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: make master pollable: %w", err), closeUnixDevice(device),
+		)
+	}
+	readerFile, err := duplicateMaster(device, "reader")
 	if err != nil {
-		closeErr := closeUnixDevice(device)
-		return nil, errors.Join(fmt.Errorf("terminal pty: duplicate master: %w", err), closeErr)
+		return nil, errors.Join(fmt.Errorf("terminal pty: duplicate reader: %w", err), closeUnixDevice(device))
+	}
+	reader := &unixPTYReader{File: readerFile}
+	writer, err := duplicateMaster(device, "writer")
+	if err != nil {
+		return nil, errors.Join(
+			fmt.Errorf("terminal pty: duplicate writer: %w", err),
+			closeIgnoringClosed(reader.File), closeUnixDevice(device),
+		)
 	}
 	setup, err := prepareShellIntegration(spec)
 	if err != nil {
-		return nil, errors.Join(err, reader.Close(), closeUnixDevice(device))
+		return nil, errors.Join(err, closeUnixFiles(writer, reader.File, device))
 	}
 	// The context bounds startup only. The returned Proc owns the interactive
 	// process lifetime after an HTTP create request has completed.
@@ -60,13 +76,13 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start context: %w", err),
-			setup.cleanup(), reader.Close(), closeUnixDevice(device),
+			setup.cleanup(), closeUnixFiles(writer, reader.File, device),
 		)
 	}
 	if err := device.Start(command); err != nil {
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start %q: %w", spec.Argv[0], err),
-			setup.cleanup(), reader.Close(), closeUnixDevice(device),
+			setup.cleanup(), closeUnixFiles(writer, reader.File, device),
 		)
 	}
 	if runtime.GOOS == "linux" {
@@ -74,7 +90,7 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 			cleanupErr := terminateStartedCommand(command)
 			return nil, errors.Join(
 				fmt.Errorf("terminal pty: close parent slave: %w", err), cleanupErr,
-				reader.Close(), device.Master().Close(), setup.cleanup(),
+				setup.cleanup(), closeUnixFiles(writer, reader.File, device),
 			)
 		}
 	}
@@ -82,11 +98,11 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 		cleanupErr := terminateStartedCommand(command)
 		return nil, errors.Join(
 			fmt.Errorf("terminal pty: start context: %w", err),
-			cleanupErr, reader.Close(), closeUnixDevice(device), setup.cleanup(),
+			cleanupErr, setup.cleanup(), closeUnixFiles(writer, reader.File, device),
 		)
 	}
 	proc := &unixProc{
-		device: device, reader: reader, command: command, waiter: newProcessWaiter(),
+		device: device, reader: reader, writer: writer, command: command, waiter: newProcessWaiter(),
 		startedAt: time.Now().UTC(), shimCleanup: setup.cleanup,
 	}
 	proc.waiter.start(func() waitResult {
@@ -96,14 +112,21 @@ func startInteractive(ctx context.Context, spec ProcSpec) (Proc, error) {
 	return proc, nil
 }
 
-func duplicateNonblocking(device *xpty.UnixPty) (*unixPTYReader, error) {
+func makeUnixMasterNonblocking(device *xpty.UnixPty) error {
+	var nonblockingErr error
+	if err := device.Control(func(fd uintptr) {
+		nonblockingErr = unix.SetNonblock(int(fd), true)
+	}); err != nil {
+		return err
+	}
+	return nonblockingErr
+}
+
+func duplicateMaster(device *xpty.UnixPty, role string) (*os.File, error) {
 	duplicate := -1
 	var duplicateErr error
 	if err := device.Control(func(fd uintptr) {
 		duplicate, duplicateErr = unix.FcntlInt(fd, unix.F_DUPFD_CLOEXEC, 0)
-		if duplicateErr == nil {
-			duplicateErr = unix.SetNonblock(duplicate, true)
-		}
 	}); err != nil {
 		return nil, err
 	}
@@ -115,7 +138,12 @@ func duplicateNonblocking(device *xpty.UnixPty) (*unixPTYReader, error) {
 		}
 		return nil, duplicateErr
 	}
-	return &unixPTYReader{File: os.NewFile(uintptr(duplicate), device.Name()+"-reader")}, nil
+	file := os.NewFile(uintptr(duplicate), device.Name()+"-"+role)
+	if file == nil {
+		closeErr := unix.Close(duplicate)
+		return nil, errors.Join(errors.New("terminal pty: create duplicate file"), closeErr)
+	}
+	return file, nil
 }
 
 func (p *unixProc) PID() int {
@@ -132,7 +160,17 @@ func (p *unixProc) StartedAt() time.Time { return p.startedAt }
 func (p *unixProc) Reader() io.Reader { return p.reader }
 
 func (p *unixProc) Write(input []byte) (int, error) {
-	written, err := p.device.Write(input)
+	if err := p.io.begin(); err != nil {
+		return 0, err
+	}
+	defer p.io.end()
+	p.inputMu.Lock()
+	defer p.inputMu.Unlock()
+	return p.write(input)
+}
+
+func (p *unixProc) write(input []byte) (int, error) {
+	written, err := p.writer.Write(input)
 	if err != nil {
 		return written, fmt.Errorf("terminal pty: write: %w", err)
 	}
@@ -140,6 +178,10 @@ func (p *unixProc) Write(input []byte) (int, error) {
 }
 
 func (p *unixProc) Resize(cols, rows uint16) error {
+	if err := p.io.begin(); err != nil {
+		return err
+	}
+	defer p.io.end()
 	cols, rows = normalizedSize(cols, rows)
 	if err := p.device.Resize(int(cols), int(rows)); err != nil {
 		return fmt.Errorf("terminal pty: resize: %w", err)
@@ -159,6 +201,12 @@ func (p *unixProc) Wait(ctx context.Context) (Exit, error) {
 }
 
 func (p *unixProc) Kill(signal Signal) error {
+	p.signalMu.Lock()
+	defer p.signalMu.Unlock()
+	return p.kill(signal)
+}
+
+func (p *unixProc) kill(signal Signal) error {
 	syscallSignal, err := unixSignal(signal)
 	if err != nil {
 		return err
@@ -190,13 +238,22 @@ func (p *unixProc) Kill(signal Signal) error {
 
 func (p *unixProc) Close() error {
 	p.closeOnce.Do(func() {
+		p.io.seal()
+		writerErr := closeIgnoringClosed(p.writer)
+		readerErr := closeIgnoringClosed(p.reader.File)
+		p.io.wait()
+		deviceErr := closeUnixDevice(p.device)
 		var shimErr error
 		if p.shimCleanup != nil {
 			shimErr = p.shimCleanup()
 		}
-		p.closeErr = errors.Join(closeIgnoringClosed(p.reader.File), closeUnixDevice(p.device), shimErr)
+		p.closeErr = errors.Join(writerErr, readerErr, deviceErr, shimErr)
 	})
 	return p.closeErr
+}
+
+func closeUnixFiles(writer, reader *os.File, device *xpty.UnixPty) error {
+	return errors.Join(closeIgnoringClosed(writer), closeIgnoringClosed(reader), closeUnixDevice(device))
 }
 
 func closeUnixDevice(device *xpty.UnixPty) error {

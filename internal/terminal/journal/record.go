@@ -16,6 +16,10 @@ func (s *Service) Record(ctx context.Context, workspaceID string, row terminalpk
 	if err := validateCommandRow(workspaceID, row); err != nil {
 		return err
 	}
+	outputTail, err := prepareLiveOutputTail(row.OutputTail)
+	if err != nil {
+		return fmt.Errorf("terminal journal: prepare live output tail: %w", err)
+	}
 	db, err := s.databases.Open(ctx, workspaceID)
 	if err != nil {
 		return fmt.Errorf("terminal journal: open workspace store: %w", err)
@@ -28,10 +32,34 @@ func (s *Service) Record(ctx context.Context, workspaceID string, row terminalpk
 		StartedAt: row.StartedAt.UnixMilli(), DurationMs: row.DurationMs,
 		ExitCode: row.ExitCode, ExitSignal: row.ExitSignal,
 		ExitCause: row.ExitCause, DetectedBy: row.DetectedBy, Approval: row.Approval,
-		OutputBytes: row.OutputBytes, Truncated: row.Truncated, RecordingID: row.RecordingID,
+		OutputBytes: row.OutputBytes, Truncated: row.Truncated,
+		RecordingID: row.RecordingID,
 	})
 	if err != nil {
 		return fmt.Errorf("terminal journal: append command %q: %w", row.ID, err)
+	}
+	terminalID := ""
+	if row.TerminalID != nil {
+		terminalID = string(*row.TerminalID)
+	}
+	s.retainLiveOutputTail(workspaceID, terminalID, row.ID, outputTail)
+	return nil
+}
+
+func validateOutputTail(segments []terminalpkg.OutputSegment) error {
+	for index, segment := range segments {
+		switch segment.Kind {
+		case terminalpkg.OutputSegmentBytes:
+			if segment.Characters != 0 {
+				return fmt.Errorf("segment %d output cannot carry character metadata", index)
+			}
+		case terminalpkg.OutputSegmentRedactedInput:
+			if segment.Text != "" || segment.Characters < 0 {
+				return fmt.Errorf("segment %d redacted input metadata is invalid", index)
+			}
+		default:
+			return fmt.Errorf("segment %d has unknown kind %q", index, segment.Kind)
+		}
 	}
 	return nil
 }
@@ -45,7 +73,7 @@ func (s *Service) RecordQueued(
 	if err := validateCommandRow(info.WS, row); err != nil {
 		return err
 	}
-	lane, owned := s.ensureLane(ctx, info, nil, nil)
+	lane, owned := s.ensureLane(info, nil, nil)
 	result := lane.enqueue(row)
 	select {
 	case err := <-result:
@@ -63,12 +91,9 @@ func (s *Service) RecordQueued(
 
 func (s *Service) closeOwnedLane(ctx context.Context, info terminalpkg.Info, lane *terminalLane) error {
 	key := terminalLaneKey(info)
-	s.mu.Lock()
-	if s.lanes[key] == lane {
-		delete(s.lanes, key)
-	}
-	s.mu.Unlock()
-	return lane.close(ctx)
+	err := lane.close(ctx)
+	s.removeStoppedLane(key, lane)
+	return err
 }
 
 // LinkRecording persists a recording and links commands captured in its window.

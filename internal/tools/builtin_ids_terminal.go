@@ -14,3 +14,15 @@ const (
 	ToolIDTerminalYield        ToolID = "compozy__terminal_yield"
 	ToolIDTerminalClaim        ToolID = "compozy__terminal_claim"
 )
+
+// IsTerminalTool reports whether the tool requires an active session run identity.
+func IsTerminalTool(id ToolID) bool {
+	switch id {
+	case ToolIDTerminalExec, ToolIDTerminalOpen, ToolIDTerminalWrite, ToolIDTerminalRead,
+		ToolIDTerminalWait, ToolIDTerminalSignal, ToolIDTerminalClose, ToolIDTerminalList,
+		ToolIDTerminalRequestInput, ToolIDTerminalYield, ToolIDTerminalClaim:
+		return true
+	default:
+		return false
+	}
+}

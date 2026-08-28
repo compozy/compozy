@@ -69,6 +69,16 @@ func (m *Service) reap(ctx context.Context) {
 				continue
 			}
 		}
+		if err := target.item.awaitRemoval(ctx); err != nil {
+			m.logger.Warn(
+				"terminal: await terminal finalization before reap",
+				"terminal_id",
+				target.key.id,
+				"error",
+				err,
+			)
+			continue
+		}
 		m.removeWithTombstone(target.key, target.item, m.tombstoneExpiry(target.item))
 	}
 	m.sweepTombstones(now)

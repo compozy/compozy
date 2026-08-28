@@ -29,20 +29,26 @@ func terminalSignalBundle(id, signal string) outputBundle {
 	}
 }
 
-func terminalInputRequestsBundle(requests []terminalpkg.PendingInputRequest) outputBundle {
-	value := map[string]any{"requests": requests}
+func terminalInputRequestsBundle(requests TerminalInputRequests) outputBundle {
+	value := map[string]any{"pending": requests.Pending, "resolved": requests.Resolved}
 	return outputBundle{
 		jsonValue: value,
 		json:      terminalHTTPJSON(value),
 		human: func() (string, error) {
-			if len(requests) == 0 {
+			if len(requests.Pending) == 0 && len(requests.Resolved) == 0 {
 				return "No pending input requests.", nil
 			}
-			lines := []string{"REQUEST\tTERMINAL\tPROFILE\tREASON\tREDACTED"}
-			for _, request := range requests {
+			lines := []string{"REQUEST\tTERMINAL\tPROFILE\tSTATE\tREDACTED"}
+			for _, request := range requests.Pending {
 				lines = append(lines, fmt.Sprintf(
 					"%s\t%s\t%s\t%s\t%t",
-					request.ID, request.TerminalID, request.ProfileName, request.Reason, request.Redacted,
+					request.ID, request.TerminalID, request.ProfileName, "pending", request.Redacted,
+				))
+			}
+			for _, request := range requests.Resolved {
+				lines = append(lines, fmt.Sprintf(
+					"%s\t%s\t%s\t%s\t%t",
+					request.ID, request.TerminalID, request.ProfileName, request.Outcome, request.Redacted,
 				))
 			}
 			return strings.Join(lines, "\n"), nil

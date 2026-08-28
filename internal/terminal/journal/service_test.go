@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -55,6 +56,10 @@ func TestService(t *testing.T) {
 			Command: "mysql -pHUNTER2 --api-key=secret-value", Cwd: "/workspace",
 			StartedAt: time.UnixMilli(1000), DurationMs: &duration, ExitCode: &exitCode,
 			ExitCause: "exited", DetectedBy: "exact", Approval: "approved_once",
+			OutputTail: []terminalpkg.OutputSegment{
+				{Kind: terminalpkg.OutputSegmentBytes, Text: "failed: "},
+				terminalpkg.RedactedInputMarker(6),
+			},
 		}
 		if err := service.Record(ctx, workspaceID, row); err != nil {
 			t.Fatalf("Record() error = %v", err)
@@ -89,6 +94,12 @@ func TestService(t *testing.T) {
 		}
 		if strings.Contains(got.Command, "HUNTER2") || strings.Contains(got.Command, "secret-value") {
 			t.Fatalf("Query() command leaked secret: %q", got.Command)
+		}
+		if len(got.OutputTail) != 2 || got.OutputTail[0].Kind != terminalpkg.OutputSegmentBytes ||
+			got.OutputTail[0].Text != "failed: " ||
+			got.OutputTail[1].Kind != terminalpkg.OutputSegmentRedactedInput ||
+			got.OutputTail[1].Characters != 6 || got.OutputTail[1].Text != "" {
+			t.Fatalf("Query() output tail = %#v, want typed output and redacted marker", got.OutputTail)
 		}
 
 		recordingData := []byte("{\"version\":2,\"width\":80,\"height\":24}\n")
@@ -414,9 +425,9 @@ func TestService(t *testing.T) {
 				ID: "term-idle", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
 			}
 			events := make(chan terminalpkg.Event, 6)
-			service.RegisterTerminal(ctx, info, func(bool) {}, func(event terminalpkg.Event) { events <- event })
+			service.RegisterTerminal(info, func(bool) {}, func(event terminalpkg.Event) { events <- event })
 			service.ObserveInput(info, actor, []byte("echo approximate\n"))
-			service.ObserveOutput(info)
+			service.ObserveOutput(info, []byte("working"))
 			idleRow := waitForJournalRows(ctx, t, service, workspaceID, 1).Entries[0]
 			if idleRow.Command != "echo approximate" || idleRow.DetectedBy != "idle" ||
 				idleRow.Actor.Kind != terminalpkg.ActorKindHuman || idleRow.ExitCause != "unknown" {
@@ -483,11 +494,23 @@ func TestService(t *testing.T) {
 		info := terminalpkg.Info{
 			ID: "term-close", WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
 		}
-		service.RegisterTerminal(ctx, info, func(bool) {}, func(terminalpkg.Event) {})
+		service.RegisterTerminal(info, func(bool) {}, func(terminalpkg.Event) {})
 		if err := service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
-			{Kind: "S", Command: "pwd", Cwd: "/workspace"}, {Kind: "F", Exit: new(0)},
+			{Kind: "S", Command: "pwd", Cwd: "/workspace"},
 		}); err != nil {
 			t.Fatalf("ConsumeMarkerFacts() error = %v", err)
+		}
+		lane := service.lane(info)
+		if lane == nil {
+			t.Fatal("registered lane = nil")
+		}
+		lane.appendOutputTailLocked([]byte("live tail"))
+		if err := service.ConsumeMarkerFacts(
+			ctx,
+			info,
+			[]terminalpkg.MarkerFacts{{Kind: "F", Exit: new(0)}},
+		); err != nil {
+			t.Fatalf("ConsumeMarkerFacts(finish) error = %v", err)
 		}
 		if err := service.CloseTerminal(ctx, info); err != nil {
 			t.Fatalf("CloseTerminal() error = %v", err)
@@ -496,34 +519,69 @@ func TestService(t *testing.T) {
 			t.Fatal("CloseTerminal() retained the terminal lane")
 		}
 		page, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: "profile-a"}, terminalpkg.Query{})
-		if err != nil || len(page.Entries) != 1 || page.Entries[0].Command != "pwd" {
+		if err != nil || len(page.Entries) != 1 || page.Entries[0].Command != "pwd" ||
+			len(page.Entries[0].OutputTail) != 0 {
 			t.Fatalf("Query(after CloseTerminal) = %#v, error=%v", page, err)
 		}
 	})
 
-	t.Run("Should fail every queued waiter when bounded lane close cancels an in-flight record", func(t *testing.T) {
+	t.Run("Should clear every live output tail on shutdown", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(ctx, t)
+		terminalID := terminalpkg.ID("term-shutdown-tail")
+		row := terminalpkg.CommandRow{
+			ID: "cmd-shutdown-tail", TerminalID: &terminalID, ProfileID: "profile-a",
+			Actor:   terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			Command: "pwd", Cwd: "/workspace", StartedAt: time.UnixMilli(1),
+			ExitCause: "exited", DetectedBy: "exact", Approval: "human",
+			OutputTail: []terminalpkg.OutputSegment{{Kind: terminalpkg.OutputSegmentBytes, Text: "live tail"}},
+		}
+		if err := service.Record(ctx, workspaceID, row); err != nil {
+			t.Fatalf("Record() error = %v", err)
+		}
+		if got := service.liveOutputTail(workspaceID, row.ID); len(got) != 1 {
+			t.Fatalf("liveOutputTail(before shutdown) = %#v, want one segment", got)
+		}
+		if err := service.Shutdown(ctx); err != nil {
+			t.Fatalf("Shutdown() error = %v", err)
+		}
+		if got := service.liveOutputTail(workspaceID, row.ID); len(got) != 0 {
+			t.Fatalf("liveOutputTail(after shutdown) = %#v, want empty", got)
+		}
+	})
+
+	t.Run("Should retain every waiter and lane owner when bounded close expires", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			ctx := t.Context()
+			runCtx, cancelRun := context.WithCancelCause(ctx)
 			workspaceRoot := t.TempDir()
 			identity, err := workspacepkg.EnsureIdentity(ctx, workspaceRoot)
 			if err != nil {
 				t.Fatalf("EnsureIdentity() error = %v", err)
 			}
 			recordStarted := make(chan struct{})
-			storeErr := errors.New("store write aborted")
+			releaseStore := make(chan struct{})
 			var recordStartedOnce sync.Once
 			pool, err := workspacedb.NewPool(func(
 				ctx context.Context,
 				_ string,
 			) (workspacedb.ResolvedRoot, error) {
 				recordStartedOnce.Do(func() { close(recordStarted) })
-				<-ctx.Done()
-				return workspacedb.ResolvedRoot{}, errors.Join(storeErr, context.Cause(ctx))
+				select {
+				case <-releaseStore:
+					return workspacedb.ResolvedRoot{
+						RootDir: workspaceRoot, WorkspaceID: identity.WorkspaceID,
+					}, nil
+				case <-ctx.Done():
+					return workspacedb.ResolvedRoot{}, context.Cause(ctx)
+				}
 			})
 			if err != nil {
 				t.Fatalf("NewPool() error = %v", err)
 			}
-			service, err := New(Options{Databases: pool, HomeDir: t.TempDir()})
+			service, err := New(runCtx, Options{Databases: pool, HomeDir: t.TempDir()})
 			if err != nil {
 				t.Fatalf("New() error = %v", err)
 			}
@@ -534,7 +592,7 @@ func TestService(t *testing.T) {
 				ID: "term-cancel-flush", WS: identity.WorkspaceID, ProfileID: "profile-a", Controller: &actor,
 			}
 			audit := make(chan bool, 2)
-			service.RegisterTerminal(ctx, info, func(blocked bool) { audit <- blocked }, nil)
+			service.RegisterTerminal(info, func(blocked bool) { audit <- blocked }, nil)
 			lane := service.lane(info)
 			if lane == nil {
 				t.Fatal("registered lane = nil")
@@ -562,45 +620,60 @@ func TestService(t *testing.T) {
 			if !errors.Is(closeErr, context.DeadlineExceeded) {
 				t.Fatalf("lane.close() error = %v, want deadline exceeded", closeErr)
 			}
-			firstErr := receiveReadyJournalResult(t, "in-flight", firstResult)
-			if !errors.Is(firstErr, context.DeadlineExceeded) || !errors.Is(firstErr, storeErr) ||
-				!strings.Contains(firstErr.Error(), "cmd-first") || strings.Contains(firstErr.Error(), "cmd-second") {
-				t.Fatalf("in-flight result error = %v, want cmd-first plus store and close failures only", firstErr)
-			}
-			secondErr := receiveReadyJournalResult(t, "queued", secondResult)
-			if !errors.Is(secondErr, context.DeadlineExceeded) || errors.Is(secondErr, storeErr) ||
-				!strings.Contains(secondErr.Error(), "cmd-second") || strings.Contains(secondErr.Error(), "cmd-first") {
-				t.Fatalf("queued result error = %v, want cmd-second close failure only", secondErr)
-			}
+			assertJournalResultPending(t, "in-flight", firstResult)
+			assertJournalResultPending(t, "queued", secondResult)
 			select {
 			case <-lane.done:
+				t.Fatal("lane stopped after bounded close expired")
 			default:
-				t.Fatal("lane goroutine remained live after canceled close")
 			}
 			lane.mu.Lock()
 			pending := lane.pending.Load()
 			reservations := lane.reservations
 			queued := len(lane.rows)
-			blocked := lane.blocked
+			sealed := lane.sealed
 			lane.mu.Unlock()
-			if pending != 0 || reservations != 0 || queued != 0 || !blocked {
+			if pending != 2 || reservations != 1 || queued != 1 || !sealed {
 				t.Fatalf(
-					"lane teardown state = pending %d reservations %d queued %d blocked %t",
-					pending, reservations, queued, blocked,
+					"retained lane state = pending %d reservations %d queued %d sealed %t",
+					pending, reservations, queued, sealed,
 				)
 			}
-			select {
-			case blockedState := <-audit:
-				if !blockedState {
-					t.Fatal("audit state = unblocked, want fail-closed")
-				}
-			default:
-				t.Fatal("missing fail-closed audit transition")
+			if retained := service.lane(info); retained != lane {
+				t.Fatalf("lane ownership after timeout = %#v, want original lane", retained)
 			}
-			shutdownCtx, cancelShutdown := context.WithTimeout(ctx, time.Second)
-			defer cancelShutdown()
-			if err := service.Shutdown(shutdownCtx); err != nil && !errors.Is(err, context.DeadlineExceeded) {
-				t.Fatalf("Shutdown() error = %v", err)
+			select {
+			case <-audit:
+				t.Fatal("bounded close timeout must not fabricate an audit state transition")
+			default:
+			}
+
+			lane.release(1)
+			close(releaseStore)
+			synctest.Wait()
+			if firstErr := receiveReadyJournalResult(
+				t,
+				"in-flight retry",
+				firstResult,
+			); firstErr != nil {
+				t.Fatalf("in-flight retry error = %v", firstErr)
+			}
+			if secondErr := receiveReadyJournalResult(
+				t,
+				"queued retry",
+				secondResult,
+			); secondErr != nil {
+				t.Fatalf("queued retry error = %v", secondErr)
+			}
+			if err := service.CloseTerminal(ctx, info); err != nil {
+				t.Fatalf("CloseTerminal(retry) error = %v", err)
+			}
+			if retained := service.lane(info); retained != nil {
+				t.Fatalf("CloseTerminal(retry) retained lane %#v", retained)
+			}
+			cancelRun(errors.New("test complete"))
+			if err := pool.Close(ctx); err != nil {
+				t.Fatalf("Pool.Close() error = %v", err)
 			}
 		})
 	})
@@ -608,6 +681,7 @@ func TestService(t *testing.T) {
 	t.Run("Should give each sequential lane close an independent bounded drain", func(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			ctx := t.Context()
+			runCtx, cancelRun := context.WithCancelCause(ctx)
 			firstIdentity, err := workspacepkg.EnsureIdentity(ctx, t.TempDir())
 			if err != nil {
 				t.Fatalf("EnsureIdentity(first) error = %v", err)
@@ -636,7 +710,7 @@ func TestService(t *testing.T) {
 			if err != nil {
 				t.Fatalf("NewPool() error = %v", err)
 			}
-			service, err := New(Options{Databases: pool, HomeDir: t.TempDir()})
+			service, err := New(runCtx, Options{Databases: pool, HomeDir: t.TempDir()})
 			if err != nil {
 				t.Fatalf("New() error = %v", err)
 			}
@@ -656,7 +730,7 @@ func TestService(t *testing.T) {
 			results := make(map[terminalpkg.ID]<-chan error, len(infos))
 			lanes := make(map[terminalpkg.ID]*terminalLane, len(infos))
 			for _, info := range infos {
-				service.RegisterTerminal(ctx, info, nil, nil)
+				service.RegisterTerminal(info, nil, nil)
 				lane := service.lane(info)
 				if lane == nil {
 					t.Fatalf("registered lane %q = nil", info.ID)
@@ -684,29 +758,29 @@ func TestService(t *testing.T) {
 				t.Fatalf("closeLanes() error = %v, want deadline exceeded", closeErr)
 			}
 			for _, info := range infos {
-				rowID := "cmd-" + string(info.ID)
-				resultErr := receiveReadyJournalResult(t, string(info.ID), results[info.ID])
-				if !errors.Is(resultErr, context.DeadlineExceeded) ||
-					!errors.Is(resultErr, storeErrors[info.WS]) || !strings.Contains(resultErr.Error(), rowID) {
-					t.Fatalf("result for %q = %v, want its row, store, and deadline errors", info.ID, resultErr)
-				}
-				for _, other := range infos {
-					otherRowID := "cmd-" + string(other.ID)
-					if other.ID != info.ID && strings.Contains(resultErr.Error(), otherRowID) {
-						t.Fatalf("result for %q contains unrelated row %q: %v", info.ID, otherRowID, resultErr)
-					}
-				}
+				assertJournalResultPending(t, string(info.ID), results[info.ID])
 				select {
 				case <-lanes[info.ID].done:
+					t.Fatalf("lane %q stopped after its bounded close expired", info.ID)
 				default:
-					t.Fatalf("lane %q remained live after closeLanes returned", info.ID)
 				}
-				if pending := lanes[info.ID].pending.Load(); pending != 0 {
-					t.Fatalf("lane %q pending = %d, want 0", info.ID, pending)
+				if pending := lanes[info.ID].pending.Load(); pending != 1 {
+					t.Fatalf("lane %q pending = %d, want retained row", info.ID, pending)
 				}
-				if retained := service.lane(info); retained != nil {
-					t.Fatalf("service retained closed lane %q", info.ID)
+				if retained := service.lane(info); retained != lanes[info.ID] {
+					t.Fatalf("service lane %q = %#v, want original owner", info.ID, retained)
 				}
+			}
+			cleanupCause := errors.New("test producer cleanup")
+			cancelRun(cleanupCause)
+			synctest.Wait()
+			for _, info := range infos {
+				resultErr := receiveReadyJournalResult(t, string(info.ID)+" cleanup", results[info.ID])
+				if !errors.Is(resultErr, cleanupCause) || !errors.Is(resultErr, storeErrors[info.WS]) {
+					t.Fatalf("result for %q = %v, want producer and store failures", info.ID, resultErr)
+				}
+				<-lanes[info.ID].done
+				service.removeStoppedLane(terminalLaneKey(info), lanes[info.ID])
 			}
 			if err := pool.Close(ctx); err != nil {
 				t.Fatalf("Pool.Close() error = %v", err)
@@ -724,7 +798,7 @@ func TestService(t *testing.T) {
 		var lane *terminalLane
 		reentered := make(chan bool, 1)
 		transitions := make([]bool, 0, 2)
-		service.RegisterTerminal(ctx, info, nil, func(event terminalpkg.Event) {
+		service.RegisterTerminal(info, nil, func(event terminalpkg.Event) {
 			if event.Kind != terminalpkg.EventKindAuditChanged {
 				return
 			}
@@ -767,19 +841,24 @@ func TestService(t *testing.T) {
 			ID: "term-capacity", WS: workspaceID, ProfileID: "profile-a", Controller: &actor,
 		}
 		blocked := make(chan bool, 2)
-		service.RegisterTerminal(ctx, info, func(value bool) { blocked <- value }, func(terminalpkg.Event) {})
+		service.RegisterTerminal(info, func(value bool) { blocked <- value }, func(terminalpkg.Event) {})
+		reservations := make([]terminalpkg.JournalInputReservation, 0, pendingLaneCapacity)
 		for index := range pendingLaneCapacity {
-			reservation, admitted := service.ReserveInput(info, []byte("echo reserved\n"))
-			if !admitted || reservation != 1 {
-				t.Fatalf("ReserveInput(%d) = %d/%t, want 1/true", index, reservation, admitted)
+			reservation, admitted := service.ReserveInput(
+				info,
+				terminalpkg.JournalInput{Content: []byte("echo reserved\n")},
+			)
+			if !admitted || reservation == nil {
+				t.Fatalf("ReserveInput(%d) = %#v/%t, want reservation/true", index, reservation, admitted)
 			}
+			reservations = append(reservations, reservation)
 		}
 		if reservation, admitted := service.ReserveInput(
 			info,
-			[]byte("echo rejected\n"),
+			terminalpkg.JournalInput{Content: []byte("echo rejected\n")},
 		); admitted ||
-			reservation != 1 {
-			t.Fatalf("ReserveInput(over capacity) = %d/%t, want 1/false", reservation, admitted)
+			reservation != nil {
+			t.Fatalf("ReserveInput(over capacity) = %#v/%t, want nil/false", reservation, admitted)
 		}
 		select {
 		case value := <-blocked:
@@ -789,7 +868,7 @@ func TestService(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for audit-blocked transition")
 		}
-		service.ReleaseInput(info, 1)
+		reservations[0].Release()
 		select {
 		case value := <-blocked:
 			if value {
@@ -798,7 +877,75 @@ func TestService(t *testing.T) {
 		case <-time.After(time.Second):
 			t.Fatal("timed out waiting for audit recovery")
 		}
-		service.ReleaseInput(info, pendingLaneCapacity-1)
+		for _, reservation := range reservations[1:] {
+			reservation.Release()
+		}
+	})
+
+	t.Run("Should keep a lane alive until reserved PTY delivery is journaled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(ctx, t)
+		actor := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		info := terminalpkg.Info{
+			ID: "term-delivery", WS: workspaceID, ProfileID: actor.ProfileID,
+			Cwd: "/workspace", Controller: &actor,
+		}
+		service.RegisterTerminal(info, func(bool) {}, func(terminalpkg.Event) {})
+		input := terminalpkg.JournalInput{Content: []byte("echo delivered\n")}
+		reservation, admitted := service.ReserveInput(info, input)
+		if !admitted || reservation == nil {
+			t.Fatalf("ReserveInput() = %#v/%t, want reservation/true", reservation, admitted)
+		}
+		lane := service.lane(info)
+		if lane == nil {
+			t.Fatal("registered lane = nil")
+		}
+
+		closed := make(chan error, 1)
+		go func() { closed <- service.CloseTerminal(ctx, info) }()
+		deadline := time.Now().Add(time.Second)
+		sealed := false
+		for !sealed && time.Now().Before(deadline) {
+			lane.mu.Lock()
+			sealed = lane.sealed
+			lane.mu.Unlock()
+			runtime.Gosched()
+		}
+		if !sealed {
+			t.Fatal("CloseTerminal() did not seal its lane")
+		}
+		if retained := service.lane(info); retained != lane {
+			t.Fatalf("CloseTerminal() lane ownership = %#v, want sealed lane retained until quiescence", retained)
+		}
+		if extra, accepted := service.ReserveInput(info, input); accepted || extra != nil {
+			t.Fatalf("ReserveInput() after seal = %#v/%t, want nil/false", extra, accepted)
+		}
+		select {
+		case err := <-closed:
+			t.Fatalf("CloseTerminal() returned before delivery commit: %v", err)
+		default:
+		}
+		reservation.Commit(actor, input)
+		select {
+		case err := <-closed:
+			if err != nil {
+				t.Fatalf("CloseTerminal() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("CloseTerminal() did not finish after delivery commit")
+		}
+		if retained := service.lane(info); retained != nil {
+			t.Fatalf("CloseTerminal() retained quiescent lane %#v", retained)
+		}
+		page, err := service.Query(ctx, workspaceID, store.ReadScope{ProfileID: actor.ProfileID}, terminalpkg.Query{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if len(page.Entries) != 1 || page.Entries[0].Command != "echo delivered" {
+			t.Fatalf("Query() entries = %#v, want one delivered command", page.Entries)
+		}
 	})
 
 	t.Run("Should block on durable failure and recover one row exactly once", func(t *testing.T) {
@@ -823,7 +970,8 @@ func TestService(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewPool() error = %v", err)
 		}
-		service, err := New(Options{Databases: pool, HomeDir: t.TempDir()})
+		ownerCtx, cancelOwner := context.WithCancelCause(context.WithoutCancel(t.Context()))
+		service, err := New(ownerCtx, Options{Databases: pool, HomeDir: t.TempDir()})
 		if err != nil {
 			t.Fatalf("New() error = %v", err)
 		}
@@ -833,13 +981,14 @@ func TestService(t *testing.T) {
 			if err := service.Shutdown(shutdownCtx); err != nil {
 				t.Errorf("Shutdown() error = %v", err)
 			}
+			cancelOwner(errors.New("journal retry test cleanup complete"))
 		})
 		info := terminalpkg.Info{
 			ID: "term-retry", WS: identity.WorkspaceID, ProfileID: "profile-a",
 			Controller: &terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
 		}
 		blocked := make(chan bool, 4)
-		service.RegisterTerminal(ctx, info, func(value bool) { blocked <- value }, nil)
+		service.RegisterTerminal(info, func(value bool) { blocked <- value }, nil)
 		if err := service.ConsumeMarkerFacts(ctx, info, []terminalpkg.MarkerFacts{
 			{Kind: "S", Command: "pwd", Cwd: "/workspace"}, {Kind: "F", Exit: new(0)},
 		}); err != nil {
@@ -861,6 +1010,15 @@ func TestService(t *testing.T) {
 			t.Fatalf("recovered entries = %#v, want one marker row", page.Entries)
 		}
 	})
+}
+
+func assertJournalResultPending(t *testing.T, label string, result <-chan error) {
+	t.Helper()
+	select {
+	case err := <-result:
+		t.Fatalf("%s result completed while lane ownership was retained: %v", label, err)
+	default:
+	}
 }
 
 func newJournalTestService(ctx context.Context, t *testing.T) (*Service, string) {
@@ -885,7 +1043,8 @@ func newJournalTestService(ctx context.Context, t *testing.T) (*Service, string)
 	if err != nil {
 		t.Fatalf("NewPool() error = %v", err)
 	}
-	service, err := New(Options{Databases: pool, HomeDir: t.TempDir()})
+	ownerCtx, cancelOwner := context.WithCancelCause(context.WithoutCancel(t.Context()))
+	service, err := New(ownerCtx, Options{Databases: pool, HomeDir: t.TempDir()})
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
@@ -895,6 +1054,7 @@ func newJournalTestService(ctx context.Context, t *testing.T) (*Service, string)
 		if err := service.Shutdown(shutdownCtx); err != nil {
 			t.Errorf("Shutdown() error = %v", err)
 		}
+		cancelOwner(errors.New("journal test cleanup complete"))
 	})
 	return service, identity.WorkspaceID
 }

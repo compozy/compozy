@@ -15,6 +15,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/api/testutil"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/gin-gonic/gin"
@@ -295,6 +296,35 @@ func TestToolArtifactHandlersPreserveWorkspaceScopeAndExactPages(t *testing.T) {
 
 func TestToolErrorResponses(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve typed terminal details without parsing the message", func(t *testing.T) {
+		t.Parallel()
+
+		controller := terminalpkg.Actor{Kind: terminalpkg.ActorKindHuman, ID: "client:web"}
+		domainErr := &terminalpkg.Error{
+			Code: terminalpkg.ErrorCodeLimitReached, Message: "opaque terminal refusal",
+			Current: 8, Max: 10, Controller: &controller, Path: "/workspace",
+			Mode: terminalpkg.ModePTY, Platform: "windows", Err: terminalpkg.ErrLimitReached,
+		}
+		err := toolspkg.NewToolError(
+			toolspkg.ErrorCode(terminalpkg.ErrorCodeLimitReached),
+			toolspkg.ToolIDTerminalOpen,
+			domainErr.Error(),
+			domainErr,
+			toolspkg.ReasonCode(terminalpkg.ErrorCodeLimitReached),
+		)
+		payload := core.ToolErrorResponseForError(err, http.StatusConflict, true)
+		want := map[string]string{
+			"current": "8", "max": "10",
+			"controller": `{"kind":"human","id":"client:web"}`,
+			"path":       `"/workspace"`, "mode": `"pty"`, "platform": `"windows"`,
+		}
+		for key, value := range want {
+			if got := string(payload.Error.Details[key]); got != value {
+				t.Fatalf("terminal tool detail %q = %q, want %q", key, got, value)
+			}
+		}
+	})
 
 	t.Run("Should describe a missing config path without reporting the tool missing", func(t *testing.T) {
 		t.Parallel()

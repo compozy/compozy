@@ -5,13 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
-
-	compozyconfig "github.com/compozy/compozy/internal/config"
-	"github.com/compozy/compozy/internal/store"
 )
 
 // ResolvedRoot binds a public workspace registration to its durable on-disk identity.
@@ -27,10 +23,11 @@ type RootResolver func(ctx context.Context, workspaceID string) (ResolvedRoot, e
 type Pool struct {
 	resolveRoot RootResolver
 
-	mu      sync.Mutex
-	entries map[string]*DB
-	opening map[string]*workspaceOpening
-	closed  bool
+	mu       sync.Mutex
+	entries  map[string]*DB
+	opening  map[string]*workspaceOpening
+	removing map[string]*WorkspaceRemovalPreparation
+	closed   bool
 }
 
 type workspaceOpening struct {
@@ -56,6 +53,7 @@ func NewPool(resolveRoot RootResolver) (*Pool, error) {
 		resolveRoot: resolveRoot,
 		entries:     make(map[string]*DB),
 		opening:     make(map[string]*workspaceOpening),
+		removing:    make(map[string]*WorkspaceRemovalPreparation),
 	}, nil
 }
 
@@ -72,6 +70,10 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 	if p.closed {
 		p.mu.Unlock()
 		return nil, errWorkspacePoolClosed
+	}
+	if _, removing := p.removing[workspaceID]; removing {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
 	}
 	if existing := p.entries[workspaceID]; existing != nil {
 		p.mu.Unlock()
@@ -163,6 +165,10 @@ func (p *Pool) CloseWorkspace(ctx context.Context, workspaceID string) error {
 		return err
 	}
 	p.mu.Lock()
+	if _, removing := p.removing[workspaceID]; removing {
+		p.mu.Unlock()
+		return fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
+	}
 	db := p.entries[workspaceID]
 	delete(p.entries, workspaceID)
 	p.mu.Unlock()
@@ -170,40 +176,6 @@ func (p *Pool) CloseWorkspace(ctx context.Context, workspaceID string) error {
 		return nil
 	}
 	return db.Close(ctx)
-}
-
-// RemoveWorkspace closes one workspace database and removes its SQLite files.
-func (p *Pool) RemoveWorkspace(ctx context.Context, workspaceID string) error {
-	if p == nil {
-		return nil
-	}
-	workspaceID, err := normalizeWorkspaceID(workspaceID)
-	if err != nil {
-		return err
-	}
-	if err := p.waitForWorkspaceOpening(ctx, workspaceID); err != nil {
-		return err
-	}
-	p.mu.Lock()
-	db := p.entries[workspaceID]
-	delete(p.entries, workspaceID)
-	p.mu.Unlock()
-	if db != nil {
-		path := db.Path()
-		closeErr := db.Close(ctx)
-		removeErr := removeSQLiteFiles(path)
-		return errors.Join(closeErr, removeErr)
-	}
-	resolved, err := p.resolveRoot(ctx, workspaceID)
-	if err != nil {
-		return fmt.Errorf("store: resolve workspace database root %q for removal: %w", workspaceID, err)
-	}
-	rootDir := strings.TrimSpace(resolved.RootDir)
-	if rootDir == "" {
-		return fmt.Errorf("store: resolved workspace database root %q is incomplete", workspaceID)
-	}
-	path := filepath.Join(rootDir, compozyconfig.DirName, store.GlobalDatabaseName)
-	return removeSQLiteFiles(path)
 }
 
 // Close closes every open workspace database exactly once.
@@ -218,6 +190,10 @@ func (p *Pool) Close(ctx context.Context) error {
 	}
 	p.closed = true
 	entries := p.entries
+	removals := make([]*WorkspaceRemovalPreparation, 0, len(p.removing))
+	for _, preparation := range p.removing {
+		removals = append(removals, preparation)
+	}
 	openings := make([]namedWorkspaceOpening, 0, len(p.opening))
 	for workspaceID, opening := range p.opening {
 		openings = append(openings, namedWorkspaceOpening{workspaceID: workspaceID, opening: opening})
@@ -254,6 +230,15 @@ func (p *Pool) Close(ctx context.Context) error {
 					named.opening.cleanupErr,
 				))
 			}
+		}
+	}
+	for _, preparation := range removals {
+		if err := preparation.closeDetached(ctx); err != nil {
+			errs = append(errs, fmt.Errorf(
+				"store: close removing workspace database %q: %w",
+				preparation.workspaceID,
+				err,
+			))
 		}
 	}
 	return errors.Join(errs...)

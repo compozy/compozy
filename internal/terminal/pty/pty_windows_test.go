@@ -4,18 +4,22 @@ package pty
 
 // Suite: Windows terminal substrate.
 // Invariant: ConPTY reads close promptly, resizing is live-safe, process handles report honest exits,
-// and a child cannot run before its Job Object owns every descendant.
+// a child cannot run before its Job Object owns every descendant, and redacted writes disable echo
+// before delivery, restore the prior mode, and never terminate the shell when their helper fails.
 // Boundary IN: process specs and terminal control. Boundary OUT: ConPTY, process handles, and Job Objects.
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -38,6 +42,72 @@ func TestWindowsPTYSleepHelper(t *testing.T) {
 }
 
 func TestWindowsPTYHardening(t *testing.T) { // IT-038
+	t.Run("Should isolate a mode-helper failure from the terminal job", func(t *testing.T) {
+		proc := startWindowsSleepTestProc(t, ModePTY)
+		windowsTerminal, ok := proc.(*windowsProc)
+		if !ok {
+			t.Fatal("Windows PTY process has an unexpected concrete type")
+		}
+		if _, err := windowsTerminal.runConsoleModeHelper("invalid"); err == nil {
+			t.Fatal("invalid ConPTY mode helper operation succeeded")
+		}
+		waitCtx, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+		defer cancel()
+		if _, err := proc.Wait(waitCtx); !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("terminal exited after helper failure: %v", err)
+		}
+	})
+
+	t.Run("Should suppress a real ConPTY echo and restore its input mode [UT-092]", func(t *testing.T) {
+		proc := startWindowsTestProc(t, ModePTY, []string{
+			"powershell.exe",
+			"-NoLogo",
+			"-NoProfile",
+			"-NonInteractive",
+			"-Command",
+			`[Console]::Out.Write('Password:'); [Console]::Out.Flush(); $secret = [Console]::ReadLine(); [Console]::Out.WriteLine('accepted'); [Console]::Out.Flush(); Start-Sleep -Seconds 2`,
+		})
+		visibilityProc, ok := proc.(interface {
+			InputVisible() (bool, error)
+			WriteRedacted([]byte) (RedactedWriteResult, error)
+		})
+		if !ok {
+			t.Fatal("Windows PTY does not expose the echo-aware input contract")
+		}
+		reader := bufio.NewReader(proc.Reader())
+		output := readWindowsUntil(t, proc, reader, "Password:")
+		visible, err := visibilityProc.InputVisible()
+		if err != nil || !visible {
+			t.Fatalf("InputVisible(before) = %t error=%v, want visible", visible, err)
+		}
+		secret := []byte("conpty-secret\r")
+		result, err := visibilityProc.WriteRedacted(secret)
+		if err != nil || result.RestoreError != nil || result.BytesDelivered != len(secret) {
+			t.Fatalf(
+				"WriteRedacted() = %#v error=%v, want %d delivered bytes and restored echo",
+				result,
+				err,
+				len(secret),
+			)
+		}
+		visible, err = visibilityProc.InputVisible()
+		if err != nil || !visible {
+			t.Fatalf("InputVisible(after) = %t error=%v, want restored visible mode", visible, err)
+		}
+		rest, err := io.ReadAll(reader)
+		if err != nil {
+			t.Fatalf("ReadAll(ConPTY) error = %v", err)
+		}
+		output = append(output, rest...)
+		if !bytes.Contains(output, []byte("accepted")) || bytes.Contains(output, []byte("conpty-secret")) {
+			t.Fatalf("ConPTY redacted output = %q", output)
+		}
+		exit, err := proc.Wait(t.Context())
+		if err != nil || exit.Code == nil || *exit.Code != 0 {
+			t.Fatalf("Wait() = %#v error=%v", exit, err)
+		}
+	})
+
 	t.Run("Should unblock a parked read within 200ms while the child is alive", func(t *testing.T) {
 		proc := startWindowsSleepTestProc(t, ModePTY)
 		readDone := startWindowsReadAfterStartup(t, proc)
@@ -57,6 +127,62 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 			}
 		case <-time.After(200 * time.Millisecond):
 			t.Fatal("Close() did not unblock live-child read")
+		}
+		assertWindowsSignaledExit(t, proc, SignalHUP)
+	})
+
+	t.Run("Should interrupt a blocked write before closing ConPTY ownership", func(t *testing.T) {
+		proc := startWindowsSleepTestProc(t, ModePTY)
+		var attempted atomic.Int64
+		var completed atomic.Int64
+		writeDone := make(chan error, 1)
+		go func() {
+			payload := bytes.Repeat([]byte("x"), 64<<10)
+			for {
+				attempted.Add(1)
+				if _, err := proc.Write(payload); err != nil {
+					writeDone <- err
+					return
+				}
+				completed.Add(1)
+			}
+		}()
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		for completed.Load() == 0 {
+			select {
+			case err := <-writeDone:
+				t.Fatalf("ConPTY writer stopped before reaching backpressure: %v", err)
+			case <-deadline.C:
+				t.Fatal("ConPTY writer made no initial progress")
+			default:
+				runtime.Gosched()
+			}
+		}
+		for attempted.Load() == completed.Load() {
+			select {
+			case err := <-writeDone:
+				t.Fatalf("ConPTY writer stopped before an active write was observed: %v", err)
+			case <-deadline.C:
+				t.Fatal("ConPTY writer never exposed an active write")
+			default:
+				runtime.Gosched()
+			}
+		}
+		closeDone := make(chan error, 1)
+		go func() { closeDone <- proc.Close() }()
+		select {
+		case err := <-closeDone:
+			if err != nil {
+				t.Fatalf("Close() error = %v", err)
+			}
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("Close() did not interrupt the blocked ConPTY write")
+		}
+		select {
+		case <-writeDone:
+		case <-time.After(200 * time.Millisecond):
+			t.Fatal("blocked ConPTY writer retained device ownership after Close()")
 		}
 		assertWindowsSignaledExit(t, proc, SignalHUP)
 	})
@@ -115,6 +241,40 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 			t.Fatalf("Close() error = %v", err)
 		}
 	})
+}
+
+func readWindowsUntil(t *testing.T, proc Proc, reader *bufio.Reader, needle string) []byte {
+	t.Helper()
+	type result struct {
+		output []byte
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		var output []byte
+		for !bytes.Contains(output, []byte(needle)) {
+			value, err := reader.ReadByte()
+			if err != nil {
+				done <- result{output: output, err: err}
+				return
+			}
+			output = append(output, value)
+		}
+		done <- result{output: output}
+	}()
+	select {
+	case read := <-done:
+		if read.err != nil {
+			t.Fatalf("read ConPTY until %q: output=%q error=%v", needle, read.output, read.err)
+		}
+		return read.output
+	case <-time.After(5 * time.Second):
+		if err := proc.Kill(SignalKILL); err != nil {
+			t.Errorf("Kill(KILL) after ConPTY prompt timeout error = %v", err)
+		}
+		t.Fatalf("timed out waiting for ConPTY output %q", needle)
+		return nil
+	}
 }
 
 func TestWindowsPipeRuntime(t *testing.T) { // IT-038
@@ -208,14 +368,15 @@ func startWindowsReadAfterStartup(t *testing.T, proc Proc) <-chan error {
 
 func stopWindowsTestProc(t *testing.T, proc Proc) {
 	t.Helper()
-	waitCtx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	cleanupBase := context.WithoutCancel(t.Context())
+	waitCtx, cancel := context.WithTimeout(cleanupBase, 50*time.Millisecond)
 	defer cancel()
 	_, err := proc.Wait(waitCtx)
 	if errors.Is(err, context.DeadlineExceeded) {
 		if killErr := proc.Kill(SignalKILL); killErr != nil {
 			t.Errorf("Kill(KILL) cleanup error = %v", killErr)
 		}
-		postKillCtx, postKillCancel := context.WithTimeout(context.Background(), time.Second)
+		postKillCtx, postKillCancel := context.WithTimeout(cleanupBase, time.Second)
 		defer postKillCancel()
 		if _, waitErr := proc.Wait(postKillCtx); waitErr != nil {
 			t.Errorf("Wait() cleanup error = %v", waitErr)
@@ -230,7 +391,7 @@ func stopWindowsTestProc(t *testing.T, proc Proc) {
 
 func assertWindowsSignaledExit(t *testing.T, proc Proc, want Signal) {
 	t.Helper()
-	exit, err := proc.Wait(context.Background())
+	exit, err := proc.Wait(t.Context())
 	if err != nil || exit.Cause != "signaled" || exit.Signal == nil || *exit.Signal != string(want) ||
 		exit.Code != nil {
 		t.Fatalf("Wait() = %#v error=%v, want signal %s", exit, err, want)

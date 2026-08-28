@@ -3293,8 +3293,8 @@
     "read_only": true,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "d5e2e9125fdb62971b9136707a1af34f3bf9eb31d47b42ab975bd15ffae1b0f7",
-    "output_schema_digest": "61284de5520c15f52448e3ab651e48c101c4b767a63ca29feb9ef177d2a68206",
+    "input_schema_digest": "0f82991e995929a32627dd641851dba5cdf01a921e564b2e9ec933cfbdb84db8",
+    "output_schema_digest": "9536d993ac271b8de22557fd0cf75b0b76768fb73bb40d756ad61cd0497cf088",
     "required_capabilities": [
       "terminal.observe"
     ]

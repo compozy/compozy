@@ -13,6 +13,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -134,6 +135,24 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 				required,
 				writeSchema.Properties["data"].MinLength,
 			)
+		}
+	})
+
+	t.Run("Should constrain terminal read cursors to exact decimal uint64", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := descriptorMap(NativeDescriptors())[toolspkg.ToolIDTerminalRead]
+		var input nativeObjectSchema
+		if err := json.Unmarshal(descriptor.InputSchema, &input); err != nil {
+			t.Fatalf("terminal_read input schema unmarshal error = %v", err)
+		}
+		var since nativeObjectSchema
+		if err := json.Unmarshal(input.Properties["since_seq"], &since); err != nil {
+			t.Fatalf("terminal_read since_seq schema unmarshal error = %v", err)
+		}
+		if since.Pattern != terminalpkg.DecimalUint64Pattern ||
+			since.MaxLength != int(terminalpkg.DecimalUint64MaxLength) {
+			t.Fatalf("terminal_read since_seq schema = pattern %q maxLength %d", since.Pattern, since.MaxLength)
 		}
 	})
 

@@ -41191,6 +41191,8 @@ export interface operations {
               component?: string;
               content?: unknown;
               coordinator_session_id?: string;
+              /** Format: int64 */
+              generation?: number;
               hook_event?: string;
               hook_name?: string;
               id: string;
@@ -41343,6 +41345,8 @@ export interface operations {
             component?: string;
             content?: unknown;
             coordinator_session_id?: string;
+            /** Format: int64 */
+            generation?: number;
             hook_event?: string;
             hook_name?: string;
             id: string;
@@ -93566,6 +93570,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -94271,6 +94276,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -94535,6 +94541,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -95096,6 +95103,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -95360,6 +95368,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -95624,6 +95633,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -95959,6 +95969,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -96223,6 +96234,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -96487,6 +96499,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -96751,6 +96764,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -97186,6 +97200,7 @@ export interface operations {
               }[];
               structured?: unknown;
               truncated: boolean;
+              trust?: string;
             };
             status: string;
             tool_id: string;
@@ -97368,6 +97383,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -97632,6 +97648,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -97896,6 +97913,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -98160,6 +98178,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -98424,6 +98443,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -98688,6 +98708,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -98952,6 +98973,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -99216,6 +99238,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -99509,6 +99532,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -99893,6 +99917,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -100309,6 +100334,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -100573,6 +100599,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -100837,6 +100864,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -130431,6 +130459,8 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              /** Format: int64 */
+              generation?: number;
               goal?: {
                 /** Format: int64 */
                 generation: number;
@@ -132045,6 +132075,8 @@ export interface operations {
                   reason_code?: string;
                   summary?: string;
                 } | null;
+                /** Format: int64 */
+                generation?: number;
                 goal?: {
                   /** Format: int64 */
                   generation: number;
@@ -138021,6 +138053,8 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              /** Format: int64 */
+              generation?: number;
               goal?: {
                 /** Format: int64 */
                 generation: number;
@@ -138087,6 +138121,8 @@ export interface operations {
                 reason_code?: string;
                 summary?: string;
               } | null;
+              /** Format: int64 */
+              generation?: number;
               goal?: {
                 /** Format: int64 */
                 generation: number;
@@ -138782,6 +138818,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -139347,6 +139384,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -139611,6 +139649,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -141245,6 +141284,118 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Invalid profile selection */
       422: {
         headers: {
@@ -141253,42 +141404,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141302,42 +141460,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141426,6 +141563,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal limit reached */
       409: {
         headers: {
@@ -141434,42 +141655,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141483,42 +141683,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141532,42 +141739,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141601,6 +141787,90 @@ export interface operations {
           "*/*": string;
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal artifact not found */
       404: {
         headers: {
@@ -141609,42 +141879,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141658,42 +141963,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141747,7 +142031,8 @@ export interface operations {
             duration_ms: number;
             exit_code: number | null;
             output: string;
-            signal: string | null;
+            /** @enum {string|null} */
+            signal: "INT" | "TERM" | "KILL" | "HUP" | null;
             spill?: {
               artifact_id: string;
               /** Format: int64 */
@@ -141772,7 +142057,8 @@ export interface operations {
             duration_ms: number;
             exit_code: number | null;
             output: string;
-            signal: string | null;
+            /** @enum {string|null} */
+            signal: "INT" | "TERM" | "KILL" | "HUP" | null;
             spill?: {
               artifact_id: string;
               /** Format: int64 */
@@ -141785,6 +142071,62 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Approval required or rejected */
       403: {
         headers: {
@@ -141793,42 +142135,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141842,42 +142191,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141911,7 +142295,7 @@ export interface operations {
         };
         content: {
           "application/json": {
-            requests: {
+            pending: {
               id: string;
               profile_id: string;
               profile_name: string;
@@ -141920,9 +142304,152 @@ export interface operations {
               redacted: boolean;
               /** Format: date-time */
               requested_at: string;
+              requester: {
+                id: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
+              };
               terminal_id: string;
               workspace_id?: string;
             }[];
+            resolved: {
+              id: string;
+              length: number;
+              /** @enum {string} */
+              outcome: "answered" | "rejected" | "superseded" | "expired";
+              profile_id: string;
+              profile_name: string;
+              reason?: string;
+              redacted: boolean;
+              /** Format: date-time */
+              requested_at: string;
+              requester: {
+                id: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
+              };
+              /** Format: date-time */
+              resolved_at: string;
+              resolved_by: {
+                id: string;
+                /** @enum {string} */
+                kind: "human" | "agent" | "system";
+              };
+              terminal_id: string;
+              workspace_id?: string;
+            }[];
+          };
+        };
+      };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
           };
         };
       };
@@ -141934,42 +142461,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -141983,42 +142517,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142097,6 +142610,118 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Invalid journal query */
       422: {
         headers: {
@@ -142105,42 +142730,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142154,42 +142786,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142223,6 +142834,90 @@ export interface operations {
           "application/x-asciicast": string;
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal artifact not found */
       404: {
         headers: {
@@ -142231,42 +142926,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142280,42 +143010,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142392,6 +143101,118 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Invalid terminal catalog cursor */
       422: {
         headers: {
@@ -142400,42 +143221,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142449,42 +143277,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142560,6 +143367,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal not found */
       404: {
         headers: {
@@ -142568,42 +143459,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142617,42 +143515,49 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142666,42 +143571,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142753,6 +143637,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal not found */
       404: {
         headers: {
@@ -142761,42 +143729,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142810,42 +143757,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142859,42 +143785,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -142944,6 +143905,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal not found */
       404: {
         headers: {
@@ -142952,42 +143997,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143001,42 +144025,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143050,42 +144053,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143131,6 +144169,62 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal write lease required */
       403: {
         headers: {
@@ -143139,42 +144233,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143188,42 +144261,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143237,42 +144289,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143318,6 +144405,62 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal write lease required */
       403: {
         headers: {
@@ -143326,42 +144469,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143375,42 +144497,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143424,42 +144525,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143476,8 +144612,8 @@ export interface operations {
         max_bytes?: number;
         /** @description Optional regular expression */
         grep?: string;
-        /** @description Read bytes after this sequence */
-        since_seq?: number;
+        /** @description Decimal uint64 after the last consumed sequence */
+        since_seq?: string;
         /** @description First scrollback line */
         from?: number;
         /** @description Last scrollback line */
@@ -143505,7 +144641,7 @@ export interface operations {
           "application/json": {
             busy: boolean;
             content: string;
-            seq: number;
+            seq: string;
             spill?: {
               artifact_id: string;
               /** Format: int64 */
@@ -143513,6 +144649,90 @@ export interface operations {
             } | null;
             truncated: boolean;
             untrusted: boolean;
+          };
+        };
+      };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
           };
         };
       };
@@ -143524,42 +144744,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143573,42 +144828,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143667,6 +144957,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal not found */
       404: {
         headers: {
@@ -143675,42 +145049,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143724,42 +145077,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143773,42 +145105,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143852,6 +145219,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal not found */
       404: {
         headers: {
@@ -143860,42 +145311,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143909,42 +145339,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -143958,42 +145367,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -144012,8 +145456,8 @@ export interface operations {
         cols?: number;
         /** @description Proposed terminal rows */
         rows?: number;
-        /** @description Resume after the last parsed terminal byte sequence */
-        after_seq?: number;
+        /** @description Decimal uint64 after the last parsed terminal sequence */
+        after_seq?: string;
         /** @description Flow-control mode */
         flow?: "ack" | "drop";
       };
@@ -144028,12 +145472,68 @@ export interface operations {
     };
     requestBody?: never;
     responses: {
-      /** @description WebSocket upgrade using the binary compozy.terminal.v1 subprotocol. Server frames: OUTPUT=0x01 (u64 big-endian sequence followed by raw bytes), ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, OWNER=0x08, PRESENCE=0x09. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, SIGNAL=0x04, TAKEOVER=0x05, DETACH=0x06, RELEASE=0x07. Every non-OUTPUT frame is one opcode byte followed by a JSON payload. */
+      /** @description WebSocket upgrade using the binary compozy.terminal.v2 subprotocol. Server frames: OUTPUT=0x01, ATTACHED=0x02, EXIT=0x03, ERROR=0x04, TITLE=0x05, RESIZED=0x06, GAP=0x07, OWNER=0x08, PRESENCE=0x09, REDACTED_INPUT=0x0A. Client frames: INPUT=0x01, ACK=0x02, RESIZE=0x03, SIGNAL=0x04, TAKEOVER=0x05, DETACH=0x06, RELEASE=0x07. OUTPUT is one opcode byte, one u64 big-endian sequence, then raw bytes; every control frame is one opcode byte followed by JSON. */
       101: {
         headers: {
           [name: string]: unknown;
         };
         content?: never;
+      };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
       };
       /** @description Terminal ticket invalid or expired */
       403: {
@@ -144043,42 +145543,21 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -144092,42 +145571,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -144175,6 +145689,90 @@ export interface operations {
           };
         };
       };
+      /** @description Malformed terminal request */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal authentication required */
+      401: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal operation forbidden */
+      403: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
       /** @description Terminal not found */
       404: {
         headers: {
@@ -144183,42 +145781,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal state or profile conflict */
+      409: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal expired */
+      410: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -144232,42 +145865,77 @@ export interface operations {
         content: {
           "application/json": {
             error: {
-              /** @enum {string} */
-              code:
-                | "terminal_not_found"
-                | "profile_selection_conflict"
-                | "profile_session_conflict"
-                | "terminal_requires_workspace"
-                | "profile_archived"
-                | "profile_unavailable"
-                | "terminal_limit_reached"
-                | "subscriber_limit_reached"
-                | "terminal_exited"
-                | "terminal_expired"
-                | "terminal_interactive_unavailable"
-                | "terminal_not_interactive"
-                | "invalid_cwd"
-                | "timeout_out_of_range"
-                | "write_owner_held"
-                | "lease_revoked"
-                | "generation_fenced"
-                | "typing_grant_rejected"
-                | "approval_rejected"
-                | "ticket_invalid"
-                | "ticket_expired"
-                | "input_request_not_found"
-                | "input_request_already_answered"
-                | "input_request_superseded"
-                | "input_request_limit_reached"
-                | "input_answer_requires_write"
-                | "recording_already_started"
-                | "recording_not_active"
-                | "recording_unavailable"
-                | "slow_consumer"
-                | "journal_unavailable";
+              code: string;
               details?: {
-                [key: string]: string;
-              };
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal transport failed */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
+              message: string;
+            };
+          };
+        };
+      };
+      /** @description Terminal service unavailable */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            error: {
+              code: string;
+              details?: {
+                action?: string;
+                controller?: {
+                  id: string;
+                  /** @enum {string} */
+                  kind: "human" | "agent" | "system";
+                } | null;
+                current?: number | null;
+                max?: number | null;
+                /** @enum {string} */
+                mode?: "pty" | "pipe";
+                path?: string;
+                platform?: string;
+              } | null;
               message: string;
             };
           };
@@ -144497,6 +146165,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -144761,6 +146430,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"
@@ -145025,6 +146695,7 @@ export interface operations {
                 }[];
                 structured?: unknown;
                 truncated: boolean;
+                trust?: string;
               } | null;
               reason_codes?: (
                 | "approval_canceled"

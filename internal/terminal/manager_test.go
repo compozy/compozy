@@ -10,8 +10,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,6 +32,248 @@ import (
 
 func TestManagerAdmissionAndScope(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should admit an exec producer only under its resolved workspace", func(t *testing.T) {
+		t.Parallel()
+
+		const canonicalWorkspaceID = "workspace-canonical"
+		settingsEntered := make(chan struct{})
+		releaseSettings := make(chan struct{})
+		var settingsOnce sync.Once
+		resolver := &fixedWorkspaceResolver{workspace: workspacepkg.ResolvedWorkspace{
+			Workspace:   workspacepkg.Workspace{ID: canonicalWorkspaceID, RootDir: t.TempDir()},
+			WorkspaceID: canonicalWorkspaceID,
+		}}
+		manager, err := NewManager(
+			WithPTY(&fakePTY{}),
+			WithJournal(journalContractOnly{journal: &fakeRecordingJournal{}}),
+			WithWorkspaceResolver(resolver),
+			WithSettingsProvider(func(context.Context, string, string) (Settings, error) {
+				settingsOnce.Do(func() { close(settingsEntered) })
+				<-releaseSettings
+				return DefaultSettings(), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewManager() error = %v", err)
+		}
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releaseSettings) }) }
+		t.Cleanup(func() {
+			release()
+			shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), 2*time.Second)
+			defer cancel()
+			if shutdownErr := manager.Shutdown(shutdownCtx); shutdownErr != nil {
+				t.Errorf("Shutdown() error = %v", shutdownErr)
+			}
+		})
+
+		execDone := make(chan error, 1)
+		go func() {
+			_, execErr := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-alias", Command: "printf", Args: []string{"ok"}, Visible: true,
+				Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+			})
+			execDone <- execErr
+		}()
+		select {
+		case <-settingsEntered:
+		case <-time.After(time.Second):
+			t.Fatal("Exec() did not reach settings after workspace resolution")
+		}
+		manager.mu.RLock()
+		canonicalProducers := manager.workspaceProducers[canonicalWorkspaceID]
+		aliasProducers := manager.workspaceProducers["workspace-alias"]
+		manager.mu.RUnlock()
+		if canonicalProducers != 1 || aliasProducers != 0 {
+			t.Fatalf("workspace producers = canonical %d alias %d, want 1/0", canonicalProducers, aliasProducers)
+		}
+
+		archiveDone := make(chan error, 1)
+		go func() { archiveDone <- manager.ArchiveWorkspace(t.Context(), canonicalWorkspaceID) }()
+		deadline := time.NewTimer(time.Second)
+		defer deadline.Stop()
+		for {
+			manager.mu.RLock()
+			_, sealed := manager.sealedWorkspaces[canonicalWorkspaceID]
+			manager.mu.RUnlock()
+			if sealed {
+				break
+			}
+			select {
+			case err := <-archiveDone:
+				t.Fatalf("ArchiveWorkspace() returned before producer quiescence: %v", err)
+			case <-deadline.C:
+				t.Fatal("ArchiveWorkspace() did not seal the canonical workspace")
+			default:
+				runtime.Gosched()
+			}
+		}
+		select {
+		case err := <-archiveDone:
+			t.Fatalf("ArchiveWorkspace() returned with an admitted producer: %v", err)
+		default:
+		}
+
+		release()
+		if execErr := <-execDone; !errors.Is(execErr, ErrServiceUnavailable) {
+			t.Fatalf("Exec() error = %v, want sealed workspace refusal", execErr)
+		}
+		if archiveErr := <-archiveDone; archiveErr != nil {
+			t.Fatalf("ArchiveWorkspace() error = %v", archiveErr)
+		}
+	})
+
+	t.Run("Should restore terminal admission after workspace removal rollback", func(t *testing.T) {
+		t.Parallel()
+		manager, _, _ := newTestManager(t, DefaultSettings())
+		preparation, err := manager.PrepareWorkspaceRemoval(t.Context(), "workspace-a")
+		if err != nil {
+			t.Fatalf("PrepareWorkspaceRemoval() error = %v", err)
+		}
+		if err := preparation.BeforeDelete(t.Context()); err != nil {
+			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		if release, err := manager.beginWorkspaceProducer("workspace-a"); err == nil {
+			release()
+			t.Fatal("beginWorkspaceProducer() succeeded while workspace removal was staged")
+		} else if !errors.Is(err, ErrServiceUnavailable) {
+			t.Fatalf("beginWorkspaceProducer(staged) error = %v, want ErrServiceUnavailable", err)
+		}
+		if err := preparation.Rollback(t.Context()); err != nil {
+			t.Fatalf("Rollback() error = %v", err)
+		}
+		release, err := manager.beginWorkspaceProducer("workspace-a")
+		if err != nil {
+			t.Fatalf("beginWorkspaceProducer(after rollback) error = %v", err)
+		}
+		release()
+	})
+
+	t.Run("Should reject an incomplete actor without inventing a terminal-not-found outcome", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		_, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: Actor{Kind: ActorKindHuman, ID: "operator"},
+		})
+		var terminalErr *Error
+		if err == nil || errors.As(err, &terminalErr) {
+			t.Fatalf("Open(without profile) error = %v, want untyped actor invariant failure", err)
+		}
+		if proc := starter.latest(); proc != nil {
+			t.Fatalf("Open(without profile) started process %#v", proc)
+		}
+		_, err = manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh",
+			Actor: Actor{Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a"},
+		})
+		if err == nil || !errors.Is(err, ErrRunIdentityIncomplete) || errors.As(err, &terminalErr) {
+			t.Fatalf("Open(agent without run identity) error = %v, want untyped identity failure", err)
+		}
+		if proc := starter.latest(); proc != nil {
+			t.Fatalf("Open(agent without run identity) started process %#v", proc)
+		}
+	})
+
+	t.Run("Should own attach tickets without burning them on scope mismatch", func(t *testing.T) {
+		t.Parallel()
+		manager, _, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: OperatorActorID, ProfileID: "profile-a"}
+		binding := AttachTicketBinding{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: handle.Info().ID, Mode: "read",
+		}
+		ticket, err := manager.MintAttachTicket(t.Context(), binding, actor)
+		if err != nil {
+			t.Fatalf("MintAttachTicket() error = %v", err)
+		}
+		if ticket.Token == "" || ticket.Binding != binding || ticket.Actor != actor {
+			t.Fatalf("MintAttachTicket() = %#v", ticket)
+		}
+		if _, _, _, err := manager.AttachWithTicket(
+			t.Context(), ticket.Token, "workspace-b", binding.TerminalID, binding.Mode, AttachOptions{},
+		); !errors.Is(err, ErrTicketInvalid) {
+			t.Fatalf("AttachWithTicket(scope mismatch) error = %v, want ErrTicketInvalid", err)
+		}
+		_, subscription, consumed, err := manager.AttachWithTicket(
+			t.Context(), ticket.Token, binding.WorkspaceID, binding.TerminalID, binding.Mode, AttachOptions{},
+		)
+		if err != nil {
+			t.Fatalf("AttachWithTicket() error = %v", err)
+		}
+		if consumed.Token != ticket.Token || subscription == nil {
+			t.Fatalf("AttachWithTicket() ticket/subscription = %#v/%#v", consumed, subscription)
+		}
+		if err := subscription.Close(); err != nil {
+			t.Fatalf("subscription.Close() error = %v", err)
+		}
+		if _, _, _, err := manager.AttachWithTicket(
+			t.Context(), ticket.Token, binding.WorkspaceID, binding.TerminalID, binding.Mode, AttachOptions{},
+		); !errors.Is(err, ErrTicketInvalid) {
+			t.Fatalf("AttachWithTicket(reuse) error = %v, want ErrTicketInvalid", err)
+		}
+
+		closingTicket, err := manager.MintAttachTicket(t.Context(), binding, actor)
+		if err != nil {
+			t.Fatalf("MintAttachTicket(before close) error = %v", err)
+		}
+		if _, err := manager.Close(t.Context(), binding.WorkspaceID, binding.TerminalID, actor, SignalHUP); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		if _, _, _, err := manager.AttachWithTicket(
+			t.Context(), closingTicket.Token, binding.WorkspaceID, binding.TerminalID, binding.Mode, AttachOptions{},
+		); !errors.Is(err, ErrTicketInvalid) {
+			t.Fatalf("AttachWithTicket(after close) error = %v, want ErrTicketInvalid", err)
+		}
+
+		agent := Actor{
+			Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+			SessionID: "session-a", RunID: "run-a", Generation: 3,
+		}
+		agentHandle, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent terminal) error = %v", err)
+		}
+		agentBinding := AttachTicketBinding{
+			WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: agentHandle.Info().ID, Mode: "read",
+		}
+		for name, testCase := range map[string]struct {
+			mutate func(*Actor)
+			want   error
+		}{
+			"session": {mutate: func(candidate *Actor) { candidate.SessionID = "session-b" }, want: ErrLeaseRevoked},
+			"run":     {mutate: func(candidate *Actor) { candidate.RunID = "run-b" }, want: ErrLeaseRevoked},
+			"generation": {
+				mutate: func(candidate *Actor) { candidate.Generation++ }, want: ErrGenerationFenced,
+			},
+		} {
+			name, testCase := name, testCase
+			t.Run("Should reject agent ticket "+name+" mismatch", func(t *testing.T) {
+				t.Parallel()
+				candidate := agent
+				testCase.mutate(&candidate)
+				if _, mintErr := manager.MintAttachTicket(
+					t.Context(),
+					agentBinding,
+					candidate,
+				); !errors.Is(
+					mintErr,
+					testCase.want,
+				) {
+					t.Fatalf("MintAttachTicket(%s mismatch) error = %v, want %v", name, mintErr, testCase.want)
+				}
+				if viewers := agentHandle.Info().Viewers; viewers != 0 {
+					t.Fatalf("agent terminal viewers after %s mismatch = %d, want 0", name, viewers)
+				}
+			})
+		}
+		matchingTicket, err := manager.MintAttachTicket(t.Context(), agentBinding, agent)
+		if err != nil || matchingTicket.Token == "" {
+			t.Fatalf("MintAttachTicket(matching agent) = %#v error=%v", matchingTicket, err)
+		}
+	})
 
 	t.Run("Should reject canceled request-bound operations before mutation", func(t *testing.T) {
 		t.Parallel()
@@ -266,6 +512,7 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		}}
 		manager, err := NewManager(
 			WithPTY(&fakePTY{}),
+			WithJournal(journalContractOnly{journal: &fakeRecordingJournal{}}),
 			WithWorkspaceResolver(resolver),
 			WithSettingsProvider(func(context.Context, string, string) (Settings, error) {
 				return DefaultSettings(), nil
@@ -328,7 +575,13 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 
 	t.Run("Should fence stale agent attachments and signals without side effects [UT-109]", func(t *testing.T) {
 		t.Parallel()
-		manager, starter, _ := newTestManager(t, DefaultSettings())
+		var registeredOwner toolruntime.ProcessOwner
+		manager, starter, _ := newTestManager(t, DefaultSettings(), withProcessRegister(
+			func(_ context.Context, config toolruntime.RegisterConfig) (processCheckpoint, error) {
+				registeredOwner = config.Owner
+				return &fakeCheckpoint{}, nil
+			},
+		))
 		owner := Actor{
 			Kind:       ActorKindAgent,
 			ID:         "agent",
@@ -342,6 +595,10 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		})
 		if err != nil {
 			t.Fatalf("Open() error = %v", err)
+		}
+		if registeredOwner.SessionID != owner.SessionID || registeredOwner.RunID != owner.RunID ||
+			registeredOwner.Generation != owner.Generation || registeredOwner.TurnID != "" {
+			t.Fatalf("registered process owner = %#v, want distinct run identity without a turn alias", registeredOwner)
 		}
 		stale := owner
 		stale.Generation = 2
@@ -366,6 +623,19 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		"Should deny signal and close outside the active controller while humans remain unrestricted [IT-028][IT-034]",
 		func(t *testing.T) {
 			t.Parallel()
+			unowned := &session{
+				info:  Info{ProfileID: "profile-a"},
+				lease: newLeaseMachine(Actor{}, io.Discard, time.Second, nil),
+			}
+			unownedErr := unowned.authorizeClose(Actor{
+				Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
+				SessionID: "session", RunID: "run", Generation: 3,
+			})
+			var unownedTerminalErr *Error
+			if !errors.Is(unownedErr, ErrWriteLeaseRequired) || errors.As(unownedErr, &unownedTerminalErr) {
+				t.Fatalf("authorizeClose(without controller) error = %v, want untyped lease requirement", unownedErr)
+			}
+
 			manager, starter, _ := newTestManager(t, DefaultSettings())
 			agent := Actor{
 				Kind: ActorKindAgent, ID: "agent", ProfileID: "profile-a",
@@ -391,7 +661,8 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 			} {
 				actionErr := action()
 				var terminalErr *Error
-				if !errors.As(actionErr, &terminalErr) || !errors.Is(actionErr, ErrWriteOwnerHeld) ||
+				if !errors.As(actionErr, &terminalErr) || !errors.Is(actionErr, ErrLeaseRevoked) ||
+					terminalErr.Code != ErrorCodeLeaseRevoked ||
 					terminalErr.Controller == nil || !sameActor(*terminalErr.Controller, human) {
 					t.Fatalf("%s(non-controller) error = %#v", name, actionErr)
 				}
@@ -456,6 +727,7 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		starter := &fakePTY{}
 		manager, err := NewManager(
 			WithPTY(starter),
+			WithJournal(journalContractOnly{journal: &fakeRecordingJournal{}}),
 			WithWorkspaceResolver(resolver),
 			WithProfileNameResolver(profileNameMap{"profile-a": "marketing"}),
 			WithSettingsProvider(
@@ -691,9 +963,9 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		})
 		assertAttachedFrame(t, receiveSubscriptionFrame(t, resynced), 10, true)
 		output = receiveSubscriptionFrame(t, resynced)
-		wantResync := append([]byte(resetSequence), []byte("cdefghij")...)
-		if output.Op != terminalwire.ServerOpOutput || output.Seq != 0 || !bytes.Equal(output.Payload, wantResync) {
-			t.Fatalf("resync OUTPUT = %#v, want seq=0 payload=%q", output, wantResync)
+		wantResync := []byte("cdefghij")
+		if output.Op != terminalwire.ServerOpOutput || output.Seq != 2 || !bytes.Equal(output.Payload, wantResync) {
+			t.Fatalf("resync OUTPUT = %#v, want seq=2 payload=%q", output, wantResync)
 		}
 	})
 
@@ -727,8 +999,9 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Attach(watcher) error = %v", err)
 		}
-		if err := watcher.Resize(20, 5); !errors.Is(err, ErrWriteOwnerHeld) {
-			t.Fatalf("watcher Resize() error = %v, want ErrWriteOwnerHeld", err)
+		if err := watcher.Resize(20, 5); !errors.Is(err, ErrWriteAttachmentRequired) ||
+			terminalErrorCode(err) != "" {
+			t.Fatalf("watcher Resize() error = %v, want untyped write-attachment requirement", err)
 		}
 		if got, ok := starter.latest().latestResize(); !ok || got != (fakeResize{cols: 100, rows: 30}) {
 			t.Fatalf("authoritative resize = %#v/%v, want 100x30", got, ok)
@@ -823,14 +1096,22 @@ func assertAttachedFrame(t *testing.T, frame Frame, sequence uint64, truncated b
 		t.Fatalf("initial opcode = 0x%02x, want ATTACHED", frame.Op)
 	}
 	var payload struct {
-		Seq       uint64 `json:"seq"`
+		Seq       string `json:"seq"`
 		Truncated bool   `json:"truncated"`
+		Preamble  string `json:"preamble"`
 	}
 	if err := json.Unmarshal(frame.Payload, &payload); err != nil {
 		t.Fatalf("decode ATTACHED: %v", err)
 	}
-	if payload.Seq != sequence || payload.Truncated != truncated {
+	if payload.Seq != strconv.FormatUint(sequence, 10) || payload.Truncated != truncated {
 		t.Fatalf("ATTACHED = %#v, want seq=%d truncated=%v", payload, sequence, truncated)
+	}
+	wantPreamble := ""
+	if truncated {
+		wantPreamble = resetSequence
+	}
+	if payload.Preamble != wantPreamble {
+		t.Fatalf("ATTACHED preamble = %q, want %q", payload.Preamble, wantPreamble)
 	}
 }
 
@@ -1237,6 +1518,10 @@ func TestManagerProfileAndShutdownLifecycle(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("shutdown did not reach the blocking observer")
 			}
+			startErr := manager.Start(t.Context())
+			if !errors.Is(startErr, ErrShuttingDown) || terminalErrorCode(startErr) != "" {
+				t.Fatalf("Start(during shutdown) error = %v, want untyped ErrShuttingDown", startErr)
+			}
 			shortCtx, cancel := context.WithTimeout(context.Background(), 5*time.Millisecond)
 			defer cancel()
 			if err := manager.Shutdown(shortCtx); !errors.Is(err, context.DeadlineExceeded) {
@@ -1284,6 +1569,50 @@ func TestManagerHotSettings(t *testing.T) {
 
 func TestManagerRecordingLifecycle(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should wait for every accepted stop persistence before finalization", func(t *testing.T) {
+		t.Parallel()
+
+		called := make(chan struct{})
+		releasePersistence := make(chan struct{})
+		var releaseOnce sync.Once
+		release := func() { releaseOnce.Do(func() { close(releasePersistence) }) }
+		t.Cleanup(release)
+		journal := &fakeRecordingJournal{called: called, release: releasePersistence}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		if _, err := handle.StartRecording(t.Context(), actor); err != nil {
+			t.Fatalf("StartRecording() error = %v", err)
+		}
+		stopDone := make(chan error, 1)
+		go func() {
+			_, err := handle.StopRecording(t.Context(), actor)
+			stopDone <- err
+		}()
+		select {
+		case <-called:
+		case <-time.After(time.Second):
+			t.Fatal("StopRecording() did not enter persistence")
+		}
+		code := 0
+		starter.latest().complete(terminalExit("exited", &code, nil))
+		item := handle.(*session)
+		select {
+		case <-item.done:
+			t.Fatal("terminal finalized before accepted recording persistence completed")
+		default:
+		}
+		release()
+		if err := <-stopDone; err != nil {
+			t.Fatalf("StopRecording() error = %v", err)
+		}
+		select {
+		case <-item.done:
+		case <-time.After(time.Second):
+			t.Fatal("terminal did not finalize after recording persistence completed")
+		}
+	})
 
 	t.Run("Should persist asciicast output and enforce start-stop state [IT-014][IT-031]", func(t *testing.T) {
 		t.Parallel()
@@ -1433,19 +1762,22 @@ func TestManagerRecordingLifecycle(t *testing.T) {
 		}
 	})
 
-	t.Run("Should roll back open when automatic recording cannot start [IT-031]", func(t *testing.T) {
+	t.Run("Should roll back open when automatic recording identifier creation fails [IT-031]", func(t *testing.T) {
 		t.Parallel()
 		settings := DefaultSettings()
 		settings.Recording = true
-		manager, starter, _ := newTestManager(t, settings)
+		manager, starter, _ := newTestManager(t, settings, WithEntropy(bytes.NewReader(make([]byte, 22))))
 
 		_, err := manager.Open(t.Context(), OpenRequest{
 			WS: "workspace-a", Shell: "sh",
 			Actor:        Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
 			Capabilities: Capabilities{Interactive: true},
 		})
-		if !errors.Is(err, ErrRecording) {
-			t.Fatalf("Open(auto-record without storage) error = %v, want ErrRecording", err)
+		if !errors.Is(err, io.EOF) {
+			t.Fatalf("Open(auto-record with exhausted entropy) error = %v, want io.EOF", err)
+		}
+		if code := terminalErrorCode(err); code != "" {
+			t.Fatalf("Open(auto-record with exhausted entropy) terminal code = %q, want none", code)
 		}
 		items, listErr := manager.List(t.Context(), "workspace-a", store.ReadScope{ProfileID: "profile-a"})
 		if listErr != nil || len(items) != 0 {
@@ -1499,7 +1831,7 @@ func waitForTerminalTail(t *testing.T, handle Handle, failure string, ready func
 
 func terminalErrorCode(err error) string {
 	if terminalErr, ok := errors.AsType[*Error](err); ok {
-		return terminalErr.Code
+		return string(terminalErr.Code)
 	}
 	return ""
 }
@@ -1562,8 +1894,10 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 				SessionID: "session-a", RunID: "run-a", Generation: 1,
 			},
 		})
-		if !errors.Is(err, ErrApprovalRejected) || errors.Is(err, ErrApprovalRequired) {
-			t.Fatalf("Exec(blocked irreversible) error = %v, want only ErrApprovalRejected", err)
+		var terminalErr *Error
+		if !errors.Is(err, ErrPolicyDenied) || errors.Is(err, ErrApprovalRequired) ||
+			errors.As(err, &terminalErr) {
+			t.Fatalf("Exec(blocked irreversible) error = %v, want untyped policy denial", err)
 		}
 		if starter.starts.Load() != 0 {
 			t.Fatalf("process starts = %d, want 0", starter.starts.Load())
@@ -2182,11 +2516,8 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		if _, err := handle.RequestInput(
 			context.Background(),
 			InputRequest{Reason: "password", Redact: true},
-		); !errors.Is(
-			err,
-			ErrNotInteractive,
-		) {
-			t.Fatalf("RequestInput(without echo guard) error = %v", err)
+		); !errors.Is(err, ErrInteractive) || terminalErrorCode(err) != "" {
+			t.Fatalf("RequestInput(without echo guard) error = %v, want untyped PTY capability failure", err)
 		}
 		pending, err := manager.InputRequests(
 			context.Background(),
@@ -2199,6 +2530,139 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 		if len(pending) != 0 {
 			t.Fatalf("pending input requests = %#v, want none", pending)
+		}
+	})
+
+	t.Run("Should resolve delivered redacted input once when echo restoration fails", func(t *testing.T) {
+		t.Parallel()
+		journal := &fakeRecordingJournal{}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		handle, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		restoreFailure := errors.New("restore console echo")
+		proc.failEchoRestore(restoreFailure)
+		type requestResult struct {
+			outcome *InputOutcome
+			err     error
+		}
+		requestDone := make(chan requestResult, 1)
+		go func() {
+			outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "password", Redact: true})
+			requestDone <- requestResult{outcome: outcome, err: requestErr}
+		}()
+		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		answer, answerErr := handle.AnswerInput(
+			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+		)
+		if answer == nil || answer.Outcome != "answered" || answer.Length != len("secret") ||
+			!errors.Is(answerErr, restoreFailure) || !errors.Is(answerErr, errRedactedInputRestore) ||
+			errors.Is(answerErr, ErrInteractive) || terminalErrorCode(answerErr) != "" {
+			t.Fatalf(
+				"AnswerInput(restore failure) = %#v error=%v, want answered with untyped restore failure",
+				answer,
+				answerErr,
+			)
+		}
+		request := <-requestDone
+		if request.err != nil || request.outcome == nil || request.outcome.Outcome != "answered" {
+			t.Fatalf("RequestInput() = %#v error=%v, want answered", request.outcome, request.err)
+		}
+		if got := proc.inputString(); got != "secret\n" {
+			t.Fatalf("delivered input = %q, want one secret delivery", got)
+		}
+		read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen() error = %v", err)
+		}
+		if len(read.Segments) != 1 || read.Segments[0].Kind != OutputSegmentRedactedInput ||
+			read.Segments[0].Characters != len("secret") {
+			t.Fatalf("redacted segments = %#v, want one trusted length-only marker", read.Segments)
+		}
+		journal.mu.Lock()
+		journalInputs := slices.Clone(journal.inputs)
+		journal.mu.Unlock()
+		if len(journalInputs) != 1 || !journalInputs[0].Redacted ||
+			journalInputs[0].Characters != len("secret") || len(journalInputs[0].Content) != 0 {
+			t.Fatalf("journal inputs = %#v, want one length-only redacted input", journalInputs)
+		}
+		if _, retryErr := handle.AnswerInput(
+			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+		); !errors.Is(retryErr, ErrInputAnswered) ||
+			terminalErrorCode(retryErr) != string(ErrorCodeInputRequestAnswered) {
+			t.Fatalf("AnswerInput(retry) error = %v, want already answered", retryErr)
+		}
+		if got := proc.inputString(); got != "secret\n" {
+			t.Fatalf("delivered input after retry = %q, want no duplicate", got)
+		}
+	})
+
+	t.Run("Should resolve partially delivered redacted input without retrying secret bytes", func(t *testing.T) {
+		t.Parallel()
+		journal := &fakeRecordingJournal{}
+		manager, starter, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		handle, err := manager.Open(t.Context(), OpenRequest{
+			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
+		})
+		if err != nil {
+			t.Fatalf("Open(agent) error = %v", err)
+		}
+		proc := receiveStartedProc(t, starter)
+		writeFailure := errors.New("redacted write interrupted")
+		proc.failNextWriteAfter(3, writeFailure)
+		type requestResult struct {
+			outcome *InputOutcome
+			err     error
+		}
+		requestDone := make(chan requestResult, 1)
+		go func() {
+			outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "password", Redact: true})
+			requestDone <- requestResult{outcome: outcome, err: requestErr}
+		}()
+		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		answer, answerErr := handle.AnswerInput(
+			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+		)
+		if answer == nil || answer.Outcome != "answered" || answer.Length != 3 || answer.DeliveredBytes != 3 ||
+			!errors.Is(answerErr, writeFailure) {
+			t.Fatalf("AnswerInput(partial) = %#v error=%v, want three delivered characters", answer, answerErr)
+		}
+		request := <-requestDone
+		if request.err != nil || request.outcome == nil || request.outcome.Outcome != "answered" ||
+			request.outcome.Length != 3 {
+			t.Fatalf("RequestInput() = %#v error=%v, want one partial answered outcome", request.outcome, request.err)
+		}
+		if got := proc.inputString(); got != "sec" {
+			t.Fatalf("partially delivered input = %q, want %q", got, "sec")
+		}
+		read, err := handle.Screen(t.Context(), ReadOptions{View: "tail"})
+		if err != nil {
+			t.Fatalf("Screen() error = %v", err)
+		}
+		if len(read.Segments) != 1 || read.Segments[0].Kind != OutputSegmentRedactedInput ||
+			read.Segments[0].Characters != 3 || read.Segments[0].Text != "" {
+			t.Fatalf("redacted segments = %#v, want trusted three-character marker", read.Segments)
+		}
+		journal.mu.Lock()
+		journalInputs := slices.Clone(journal.inputs)
+		journal.mu.Unlock()
+		if len(journalInputs) != 1 || !journalInputs[0].Redacted || journalInputs[0].Characters != 3 ||
+			len(journalInputs[0].Content) != 0 {
+			t.Fatalf("journal inputs = %#v, want one length-only partial marker", journalInputs)
+		}
+		if _, retryErr := handle.AnswerInput(
+			t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
+		); !errors.Is(retryErr, ErrInputAnswered) {
+			t.Fatalf("AnswerInput(retry) error = %v, want already answered", retryErr)
+		}
+		if got := proc.inputString(); got != "sec" {
+			t.Fatalf("partially delivered input after retry = %q, want no duplicate", got)
 		}
 	})
 
@@ -2325,9 +2789,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			}()
 			requestID := (<-requested).DetailValue().RequestID
 			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-			if err := handle.Takeover(t.Context(), human, true); err != nil {
-				t.Fatalf("Takeover() error = %v", err)
-			}
 			writeStarted := make(chan struct{})
 			writeRelease := make(chan struct{})
 			var releaseWriteOnce sync.Once
@@ -2403,9 +2864,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}()
 		requestID := (<-requested).DetailValue().RequestID
 		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-		if err := handle.Takeover(t.Context(), human, true); err != nil {
-			t.Fatalf("Takeover() error = %v", err)
-		}
 		visibilityStarted := make(chan struct{})
 		visibilityRelease := make(chan struct{})
 		releaseVisibility := sync.OnceFunc(func() { close(visibilityRelease) })
@@ -2419,7 +2877,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			answerDone <- requestResult{outcome: outcome, err: answerErr}
 		}()
 		<-visibilityStarted
-		if changed := manager.RunEnded(t.Context(), agent); changed != 1 {
+		if changed := manager.RunEnded(t.Context(), "workspace-a", agent); changed != 1 {
 			t.Fatalf("RunEnded() = %d, want 1", changed)
 		}
 		select {
@@ -2486,9 +2944,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}()
 		requestID := (<-requested).DetailValue().RequestID
 		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-		if err := handle.Takeover(t.Context(), human, true); err != nil {
-			t.Fatalf("Takeover() error = %v", err)
-		}
 		deliveryErr := errors.New("PTY rejected input")
 		visibilityStarted := make(chan struct{})
 		visibilityRelease := make(chan struct{})
@@ -2504,7 +2959,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			answerDone <- answerErr
 		}()
 		<-visibilityStarted
-		if changed := manager.RunEnded(t.Context(), agent); changed != 1 {
+		if changed := manager.RunEnded(t.Context(), "workspace-a", agent); changed != 1 {
 			t.Fatalf("RunEnded() = %d, want 1", changed)
 		}
 		releaseVisibility()
@@ -2520,6 +2975,10 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}
 		if event := <-provided; event.DetailValue().Outcome != "superseded" {
 			t.Fatalf("input event = %#v, want superseded", event)
+		}
+		if _, pendingErr := handle.PendingInput(requestID); !errors.Is(pendingErr, ErrInputSuperseded) ||
+			terminalErrorCode(pendingErr) != string(ErrorCodeInputRequestSuperseded) {
+			t.Fatalf("PendingInput(after supersession) error = %v, want typed superseded", pendingErr)
 		}
 	})
 
@@ -2558,9 +3017,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			}()
 			requestID := (<-requested).DetailValue().RequestID
 			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-			if err := handle.Takeover(t.Context(), human, true); err != nil {
-				t.Fatalf("Takeover() error = %v", err)
-			}
 			deliveryErr := errors.New("input delivery failed")
 			writeStarted := make(chan struct{})
 			writeRelease := make(chan struct{})
@@ -2600,18 +3056,12 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 				t.Fatalf("RequestInput() = %#v error=%v", request.outcome, request.err)
 			}
 
-			if err := handle.Yield(t.Context(), human); err != nil {
-				t.Fatalf("Yield() error = %v", err)
-			}
 			requestDone = make(chan requestResult, 1)
 			go func() {
 				outcome, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm again"})
 				requestDone <- requestResult{outcome: outcome, err: requestErr}
 			}()
 			requestID = (<-requested).DetailValue().RequestID
-			if err := handle.Takeover(t.Context(), human, true); err != nil {
-				t.Fatalf("Takeover(second) error = %v", err)
-			}
 			writeStarted = make(chan struct{})
 			writeRelease = make(chan struct{})
 			var secondReleaseWriteOnce sync.Once
@@ -2664,8 +3114,13 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 				t.Fatalf("Open(agent) error = %v", err)
 			}
 			proc := receiveStartedProc(t, starter)
-			if err := handle.Write(context.Background(), agent, []byte("denied")); !errors.Is(err, ErrTypingGrant) {
-				t.Fatalf("Write(without grant) error = %v", err)
+			if err := handle.Write(
+				t.Context(),
+				agent,
+				[]byte("denied"),
+			); !errors.Is(err, ErrServiceUnavailable) ||
+				terminalErrorCode(err) != "" {
+				t.Fatalf("Write(without grant service) error = %v, want generic unavailable", err)
 			}
 			if proc.inputString() != "" {
 				t.Fatalf("input after rejected grant = %q", proc.inputString())
@@ -2688,7 +3143,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			}
 			recovered := agent
 			recovered.Generation = 2
-			if changed := allowedManager.RuntimeRecovered(context.Background(), agent, recovered); changed != 1 {
+			if changed := allowedManager.RuntimeRecovered(t.Context(), "workspace-a", agent, recovered); changed != 1 {
 				t.Fatalf("RuntimeRecovered() = %d, want 1", changed)
 			}
 			if err := allowedManager.Claim(
@@ -2767,9 +3222,9 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			signalErr := handle.Signal(t.Context(), agent, SignalTERM)
 			for operation, operationErr := range map[string]error{"write": writeErr, "signal": signalErr} {
 				if !errors.Is(operationErr, ErrInputPending) ||
-					terminalErrorCode(operationErr) != errorCodeInputPending {
+					terminalErrorCode(operationErr) != "" {
 					t.Fatalf(
-						"%s(agent while input pending) error = %v, want canonical ErrInputPending",
+						"%s(agent while input pending) error = %v, want untyped ErrInputPending",
 						operation,
 						operationErr,
 					)
@@ -2779,17 +3234,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			case <-proc.done:
 				t.Fatal("agent signal terminated the process while input was pending")
 			default:
-			}
-			if _, err := handle.AnswerInput(
-				t.Context(),
-				human,
-				pending[0].ID,
-				InputAnswer{Input: []byte("secret")},
-			); !errors.Is(err, ErrWriteOwnerHeld) {
-				t.Fatalf("AnswerInput(watcher) error = %v, want ErrWriteOwnerHeld", err)
-			}
-			if err := handle.Takeover(t.Context(), human, true); err != nil {
-				t.Fatalf("Takeover() error = %v", err)
 			}
 			if _, err := handle.AnswerInput(
 				t.Context(), human, pending[0].ID, InputAnswer{Input: []byte("secret")},
@@ -2803,11 +3247,15 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			if outcome.Outcome != "answered" || !outcome.Redacted || outcome.Length != len("secret") {
 				t.Fatalf("input outcome = %#v", outcome)
 			}
+			if _, pendingErr := handle.PendingInput(pending[0].ID); !errors.Is(pendingErr, ErrInputAnswered) ||
+				terminalErrorCode(pendingErr) != string(ErrorCodeInputRequestAnswered) {
+				t.Fatalf("PendingInput(after answer) error = %v, want typed already answered", pendingErr)
+			}
 			if proc.inputString() != "ordinary-visiblesecret\n" || proc.redactedWrites.Load() != 1 {
 				t.Fatalf("delivered input/redacted writes = %q/%d", proc.inputString(), proc.redactedWrites.Load())
 			}
 			info := handle.Info()
-			if info.Controller == nil || !sameActor(*info.Controller, human) || info.Lease != LeaseHumanOwned {
+			if info.Controller == nil || !sameActor(*info.Controller, agent) || info.Lease != LeaseAgentOwned {
 				t.Fatalf("controller after answer = %#v lease=%s", info.Controller, info.Lease)
 			}
 			provided := receiveTerminalEvent(t, inputEvents)
@@ -2823,15 +3271,30 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 				t.Fatalf("Screen() error = %v", err)
 			}
 			if !strings.Contains(read.Content, "ordinary-visible") ||
+				!strings.Contains(read.Content, "hidden input · 6 characters") ||
 				strings.Contains(read.Content, "secret") || strings.Contains(read.Content, "must-not-write") {
 				t.Fatalf("terminal ring redaction result = %q", read.Content)
 			}
+			if len(read.Segments) != 2 || read.Segments[0].Kind != OutputSegmentBytes ||
+				read.Segments[1].Kind != OutputSegmentRedactedInput || read.Segments[1].Characters != 6 {
+				t.Fatalf("terminal ring segments = %#v, want output + trusted redacted marker", read.Segments)
+			}
+			journal.mu.Lock()
+			if len(journal.inputs) != 2 || !journal.inputs[1].Redacted || journal.inputs[1].Characters != 6 ||
+				len(journal.inputs[1].Content) != 0 {
+				journal.mu.Unlock()
+				t.Fatalf("journal input metadata = %#v", journal.inputs)
+			}
+			journal.mu.Unlock()
 			if _, err := handle.StopRecording(t.Context(), human); err != nil {
 				t.Fatalf("StopRecording() error = %v", err)
 			}
 			_, recording := journal.snapshot()
 			if strings.Contains(string(recording), "secret") {
 				t.Fatalf("recording leaked redacted bytes: %q", recording)
+			}
+			if !bytes.Contains(recording, []byte(`"m",{"characters":6,"kind":"redacted_input"}`)) {
+				t.Fatalf("recording lacks trusted redacted marker: %q", recording)
 			}
 			if got, err := manager.InputRequests(
 				context.Background(),
@@ -2845,10 +3308,10 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		},
 	)
 
-	t.Run("Should retain a pending request for the durable controller to reject [IT-013][IT-029]", func(t *testing.T) {
+	t.Run("Should reject through the atomic answer handoff [IT-013][IT-029]", func(t *testing.T) {
 		t.Parallel()
 		manager, starter, _ := newTestManager(t, DefaultSettings())
-		handle, err := manager.Open(context.Background(), OpenRequest{
+		handle, err := manager.Open(t.Context(), OpenRequest{
 			WS: "workspace-a", Shell: "sh", Actor: agent, Capabilities: Capabilities{Interactive: true},
 		})
 		if err != nil {
@@ -2866,15 +3329,12 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		}()
 		pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
 		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-		if err := handle.Takeover(context.Background(), human, true); err != nil {
-			t.Fatalf("Takeover() error = %v", err)
-		}
 		if err := handle.RejectInput(t.Context(), human, pending[0].ID, "not now"); err != nil {
-			t.Fatalf("RejectInput(after takeover) error = %v", err)
+			t.Fatalf("RejectInput() error = %v", err)
 		}
 		outcome := <-outcomeCh
 		if outcome == nil || outcome.Outcome != "rejected" {
-			t.Fatalf("takeover rejection outcome = %#v", outcome)
+			t.Fatalf("handoff rejection outcome = %#v", outcome)
 		}
 	})
 
@@ -2892,7 +3352,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			manager, starter, _ := newTestManager(
 				t,
 				DefaultSettings(),
-				withInputRequestTTL(10*time.Millisecond),
+				withInputRequestTTL(100*time.Millisecond),
 				WithNotifier(bus),
 			)
 			handle, err := manager.Open(context.Background(), OpenRequest{
@@ -2917,9 +3377,6 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			rejectedResult := request("reject")
 			pending := waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
 			human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
-			if err := handle.Takeover(t.Context(), human, true); err != nil {
-				t.Fatalf("Takeover() error = %v", err)
-			}
 			if err := handle.RejectInput(context.Background(), human, pending[0].ID, "not now"); err != nil {
 				t.Fatalf("RejectInput() error = %v", err)
 			}
@@ -2931,12 +3388,21 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 				event.DetailValue().Outcome != "rejected" {
 				t.Fatalf("rejected event = %#v", event)
 			}
-			if err := handle.Yield(t.Context(), human); err != nil {
-				t.Fatalf("Yield() error = %v", err)
+			if _, pendingErr := handle.PendingInput(pending[0].ID); !errors.Is(pendingErr, ErrInputResolved) ||
+				terminalErrorCode(pendingErr) != "" {
+				t.Fatalf("PendingInput(after rejection) error = %v, want untyped resolved conflict", pendingErr)
 			}
-			expired := <-request("expire")
+			expiredResult := request("expire")
+			expiredPending := waitForInputRequests(
+				t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1,
+			)
+			expired := <-expiredResult
 			if expired.err != nil || expired.outcome == nil || expired.outcome.Outcome != "expired" {
 				t.Fatalf("expired request = %#v", expired)
+			}
+			if _, pendingErr := handle.PendingInput(expiredPending[0].ID); !errors.Is(pendingErr, ErrInputNotFound) ||
+				terminalErrorCode(pendingErr) != string(ErrorCodeInputRequestNotFound) {
+				t.Fatalf("PendingInput(after expiry) error = %v, want typed not found", pendingErr)
 			}
 		},
 	)
@@ -3060,7 +3526,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		proc := receiveStartedProc(t, starter)
 		current := previous
 		current.Generation = 2
-		if got := manager.RuntimeRecovered(context.Background(), previous, current); got != 1 {
+		if got := manager.RuntimeRecovered(t.Context(), "workspace-a", previous, current); got != 1 {
 			t.Fatalf("RuntimeRecovered() = %d, want 1", got)
 		}
 		select {
@@ -3072,13 +3538,13 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		if info.Lease != LeaseHumanOwned || info.Controller == nil || info.Controller.Kind != ActorKindHuman {
 			t.Fatalf("recovery lease/controller = %s/%#v", info.Lease, info.Controller)
 		}
-		if err := handle.Write(context.Background(), previous, []byte("stale")); !errors.Is(err, ErrGenerationFenced) {
+		if err := handle.Write(t.Context(), previous, []byte("stale")); !errors.Is(err, ErrGenerationFenced) {
 			t.Fatalf("Write(stale generation) error = %v", err)
 		}
-		if err := manager.Claim(context.Background(), "workspace-a", handle.Info().ID, current); err != nil {
+		if err := manager.Claim(t.Context(), "workspace-a", handle.Info().ID, current); err != nil {
 			t.Fatalf("Claim(replacement generation) error = %v", err)
 		}
-		if err := handle.Write(context.Background(), current, []byte("current")); err != nil {
+		if err := handle.Write(t.Context(), current, []byte("current")); err != nil {
 			t.Fatalf("Write(replacement generation) error = %v", err)
 		}
 		if got := proc.inputString(); got != "current" {
@@ -3093,7 +3559,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			Kind: ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
 			SessionID: "session-a", RunID: "run-a", Generation: 3,
 		}
-		handle, err := manager.Open(context.Background(), OpenRequest{
+		handle, err := manager.Open(t.Context(), OpenRequest{
 			WS: "workspace-a", Shell: "sh", Actor: running, Capabilities: Capabilities{Interactive: true},
 		})
 		if err != nil {
@@ -3102,7 +3568,7 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		receiveStartedProc(t, starter)
 		outcome := make(chan *InputOutcome, 1)
 		go func() {
-			resolved, requestErr := handle.RequestInput(context.Background(), InputRequest{Reason: "confirm"})
+			resolved, requestErr := handle.RequestInput(t.Context(), InputRequest{Reason: "confirm"})
 			if requestErr != nil {
 				outcome <- nil
 				return
@@ -3110,7 +3576,9 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 			outcome <- resolved
 		}()
 		waitForInputRequests(t, manager, "workspace-a", store.ReadScope{ProfileID: "profile-a"}, 1)
-		if got := manager.SessionRunEnded(context.Background(), "profile-a", "session-a", 3); got != 1 {
+		if got := manager.SessionRunEnded(
+			t.Context(), "workspace-a", "profile-a", "session-a", "run-a", 3,
+		); got != 1 {
 			t.Fatalf("SessionRunEnded() = %d, want 1", got)
 		}
 		resolved := <-outcome
@@ -3121,7 +3589,9 @@ func TestSessionTypingGrantAndInputRequestLifecycle(t *testing.T) {
 		if info.Lease != LeaseHumanOwned || info.Controller == nil || info.Controller.Kind != ActorKindHuman {
 			t.Fatalf("run-ended lease/controller = %s/%#v", info.Lease, info.Controller)
 		}
-		if got := manager.SessionRunEnded(context.Background(), "profile-a", "session-a", 3); got != 0 {
+		if got := manager.SessionRunEnded(
+			t.Context(), "workspace-a", "profile-a", "session-a", "run-a", 3,
+		); got != 0 {
 			t.Fatalf("SessionRunEnded(second) = %d, want 0", got)
 		}
 	})

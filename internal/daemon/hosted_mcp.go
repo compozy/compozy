@@ -90,6 +90,23 @@ func (l hostedMCPLauncherAdapter) ArmLaunch(ctx context.Context, sessionID strin
 	return l.service.ArmLaunch(ctx, sessionID)
 }
 
+func (l hostedMCPLauncherAdapter) BindRun(
+	ctx context.Context,
+	sessionID, runID string,
+	generation int64,
+) error {
+	if l.service == nil {
+		return mcppkg.ErrHostedDisabled
+	}
+	return l.service.BindRun(ctx, sessionID, runID, generation)
+}
+
+func (l hostedMCPLauncherAdapter) ReleaseRun(sessionID, runID string, generation int64) {
+	if l.service != nil {
+		l.service.ReleaseRun(sessionID, runID, generation)
+	}
+}
+
 func (l hostedMCPLauncherAdapter) CancelLaunch(sessionID string) {
 	if l.service != nil {
 		l.service.CancelLaunch(sessionID)

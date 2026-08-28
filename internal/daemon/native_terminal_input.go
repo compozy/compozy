@@ -36,7 +36,7 @@ type terminalReadInput struct {
 	TerminalID string `json:"terminal_id"`
 	View       string `json:"view"`
 	MaxBytes   int    `json:"max_bytes,omitempty"`
-	SinceSeq   uint64 `json:"since_seq,omitempty"`
+	SinceSeq   string `json:"since_seq,omitempty"`
 	From       int    `json:"from,omitempty"`
 	To         int    `json:"to,omitempty"`
 	Grep       string `json:"grep,omitempty"`

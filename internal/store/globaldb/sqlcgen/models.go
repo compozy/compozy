@@ -2335,6 +2335,18 @@ type Workspace struct {
 	UpdatedAt    string         `json:"updated_at"`
 }
 
+type WorkspaceDeletionIntent struct {
+	WorkspaceID  string         `json:"workspace_id"`
+	RootDir      string         `json:"root_dir"`
+	AddDirs      string         `json:"add_dirs"`
+	Name         string         `json:"name"`
+	DefaultAgent sql.NullString `json:"default_agent"`
+	SandboxRef   string         `json:"sandbox_ref"`
+	CreatedAt    string         `json:"created_at"`
+	UpdatedAt    string         `json:"updated_at"`
+	RequestedAt  string         `json:"requested_at"`
+}
+
 type WorkspaceNetworkCoordination struct {
 	WorkspaceID string `json:"workspace_id"`
 	Enabled     int64  `json:"enabled"`

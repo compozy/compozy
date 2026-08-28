@@ -134,7 +134,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		host := newContractLocalToolHost(t, root, additional)
 		ctx := testutil.Context(t)
 
-		response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		response, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-additional-terminal",
 			Command:   "sh",
 			Args:      []string{"-c", "printf %s \"$PWD\""},
@@ -166,7 +166,7 @@ func TestACPBehaviorContracts(t *testing.T) {
 		host := newContractLocalToolHost(t, root)
 		ctx := testutil.Context(t)
 
-		response, err := host.CreateTerminal(ctx, acpsdk.CreateTerminalRequest{
+		response, err := createACPTestTerminal(host, ctx, acpsdk.CreateTerminalRequest{
 			SessionId: "sess-path",
 			Command:   "compozy-path-tool",
 			Cwd:       new(root),
@@ -199,7 +199,7 @@ func newContractLocalToolHost(t *testing.T, root string, additionalRoots ...stri
 	if err != nil {
 		t.Fatalf("newPermissionPolicy() error = %v", err)
 	}
-	return newLocalToolHostFromPolicy(ctx, root, policy, nil)
+	return newLocalToolHostFromPolicy(ctx, root, policy, nil, withACPTestTerminalCore(t, nil))
 }
 
 func writeExecutableScript(t *testing.T, dir string, name string, script string) string {

@@ -8,6 +8,7 @@ import (
 
 	core "github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -203,6 +204,11 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 }
 
 func respondHostedMCPError(c *gin.Context, err error) {
+	if _, ok := errors.AsType[*terminalpkg.Error](err); ok {
+		status, _, _ := core.TerminalErrorStatus(err)
+		c.JSON(status, core.TerminalErrorResponseForError(err, status, false))
+		return
+	}
 	if isHostedMCPToolError(err) {
 		status := hostedMCPStatus(err)
 		c.JSON(status, core.ToolErrorResponseForError(err, status, false))
@@ -248,6 +254,9 @@ func hostedMCPStatus(err error) int {
 	switch {
 	case err == nil:
 		return http.StatusOK
+	case isHostedMCPTerminalError(err):
+		status, _, _ := core.TerminalErrorStatus(err)
+		return status
 	case isHostedMCPToolError(err):
 		status := core.StatusForToolError(err)
 		if status == http.StatusAccepted {
@@ -269,6 +278,11 @@ func hostedMCPStatus(err error) int {
 	default:
 		return http.StatusInternalServerError
 	}
+}
+
+func isHostedMCPTerminalError(err error) bool {
+	_, ok := errors.AsType[*terminalpkg.Error](err)
+	return ok
 }
 
 func isHostedMCPToolError(err error) bool {

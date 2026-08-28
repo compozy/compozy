@@ -51,36 +51,43 @@ type Service struct {
 	registerProcess processRegister
 	events          *Notifier
 	journal         Journal
-	markers         MarkerConsumer
 	logger          *slog.Logger
 	now             func() time.Time
 	entropy         io.Reader
 	inputRequestTTL time.Duration
 
-	mu             sync.RWMutex
-	terminals      map[terminalKey]*session
-	tombstones     map[terminalKey]tombstone
-	tombstoneOrder []terminalKey
-	pendingByScope map[terminalScope]int
-	pendingDaemon  int
-	closing        bool
-	reaperStop     chan struct{}
-	reaperDone     chan struct{}
-	shutdownDone   chan struct{}
-	shutdownErr    error
-	inputs         *inputRegistry
+	mu                 sync.RWMutex
+	terminals          map[terminalKey]*session
+	tombstones         map[terminalKey]tombstone
+	tombstoneOrder     []terminalKey
+	pendingByScope     map[terminalScope]int
+	pendingDaemon      int
+	workspaceProducers map[string]int
+	producerChanged    chan struct{}
+	sealedWorkspaces   map[string]struct{}
+	closing            bool
+	reaperStop         chan struct{}
+	reaperDone         chan struct{}
+	shutdownDone       chan struct{}
+	shutdownErr        error
+	inputs             *inputRegistry
+	tickets            *attachTicketRegistry
 }
 
 var _ Manager = (*Service)(nil)
 
 func NewManager(options ...Option) (*Service, error) {
 	service := &Service{
-		terminals:      make(map[terminalKey]*session),
-		tombstones:     make(map[terminalKey]tombstone),
-		pendingByScope: make(map[terminalScope]int),
-		reaperDone:     make(chan struct{}),
-		shutdownDone:   make(chan struct{}),
-		inputs:         newInputRegistry(),
+		terminals:          make(map[terminalKey]*session),
+		tombstones:         make(map[terminalKey]tombstone),
+		pendingByScope:     make(map[terminalScope]int),
+		workspaceProducers: make(map[string]int),
+		producerChanged:    make(chan struct{}),
+		sealedWorkspaces:   make(map[string]struct{}),
+		reaperDone:         make(chan struct{}),
+		shutdownDone:       make(chan struct{}),
+		inputs:             newInputRegistry(),
+		tickets:            newAttachTicketRegistry(),
 	}
 	defaultServiceOptions(service)
 	for _, option := range options {
@@ -90,7 +97,11 @@ func NewManager(options ...Option) (*Service, error) {
 			}
 		}
 	}
+	if service.journal == nil {
+		return nil, errors.New("terminal: journal is required")
+	}
 	service.events.Observe(service.resolveInputRequestsOnClose)
+	service.events.Observe(service.invalidateAttachTicketsOnClose)
 	return service, nil
 }
 
@@ -101,11 +112,7 @@ func (m *Service) Start(ctx context.Context) error {
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
-		return &Error{
-			Code:    errorCodeShuttingDown,
-			Message: errorMessageShuttingDown,
-			Err:     ErrShuttingDown,
-		}
+		return fmt.Errorf("%s: %w", errorMessageShuttingDown, ErrShuttingDown)
 	}
 	if m.reaperStop != nil {
 		m.mu.Unlock()
@@ -186,8 +193,6 @@ func (m *Service) Close(
 
 func (m *Service) Journal() Journal { return m.journal }
 
-func (m *Service) TerminalFor(string) (Manager, error) { return m, nil }
-
 func (m *Service) Observe(fn func(context.Context, Event)) { m.events.Observe(fn) }
 
 func (m *Service) ArchiveProfile(ctx context.Context, profileID string) error {
@@ -200,22 +205,14 @@ func (m *Service) ArchiveProfile(ctx context.Context, profileID string) error {
 }
 
 func (m *Service) ArchiveWorkspace(ctx context.Context, workspaceID string) error {
-	if strings.TrimSpace(workspaceID) == "" {
-		return errors.New("terminal: workspace id is required")
+	preparation, err := m.PrepareWorkspaceRemoval(ctx, workspaceID)
+	if err != nil {
+		return err
 	}
-	archiveErr := m.archiveTerminals(ctx, "workspace_deleted", "workspace-lifecycle", func(key terminalKey) bool {
-		return key.workspaceID == workspaceID
-	})
-	if archiveErr != nil {
-		return archiveErr
+	if err := preparation.BeforeDelete(ctx); err != nil {
+		return errors.Join(err, preparation.Rollback(context.WithoutCancel(ctx)))
 	}
-	var removeErr error
-	if lifecycle, ok := m.journal.(interface {
-		RemoveWorkspace(context.Context, string) error
-	}); ok {
-		removeErr = lifecycle.RemoveWorkspace(ctx, workspaceID)
-	}
-	return removeErr
+	return preparation.Commit(ctx)
 }
 
 func (m *Service) archiveTerminals(
@@ -278,16 +275,12 @@ func (m *Service) Shutdown(ctx context.Context) error {
 	}
 	m.closing = true
 	reaperStop := m.reaperStop
-	targets := make([]terminalLifecycleTarget, 0, len(m.terminals))
-	for key, item := range m.terminals {
-		targets = append(targets, terminalLifecycleTarget{key: key, item: item})
-	}
 	done := m.shutdownDone
 	m.mu.Unlock()
 	drainCtx, cancelDrain := boundedCleanupContext(ctx, defaultTerminalShutdownTimeout)
 	go func() {
 		defer cancelDrain()
-		m.drain(drainCtx, reaperStop, targets)
+		m.drain(drainCtx, reaperStop)
 	}()
 	return m.waitForShutdown(ctx, done)
 }
@@ -303,18 +296,25 @@ func (m *Service) waitForShutdown(ctx context.Context, done <-chan struct{}) err
 	}
 }
 
-func (m *Service) drain(ctx context.Context, reaperStop chan struct{}, targets []terminalLifecycleTarget) {
+func (m *Service) drain(ctx context.Context, reaperStop chan struct{}) {
 	if reaperStop != nil {
 		close(reaperStop)
 		<-m.reaperDone
 	}
+	m.mu.RLock()
+	targets := make([]terminalLifecycleTarget, 0, len(m.terminals))
+	for key, item := range m.terminals {
+		targets = append(targets, terminalLifecycleTarget{key: key, item: item})
+	}
+	m.mu.RUnlock()
 	closeErr := m.closeAndArchiveTerminals(ctx, targets, "shutdown", "daemon-shutdown")
 	closeErrors := []error{closeErr}
-	if lifecycle, ok := m.journal.(interface {
-		Shutdown(context.Context) error
-	}); ok {
+	if closeErr == nil {
+		closeErrors = append(closeErrors, m.waitAllProducers(ctx))
+	}
+	if errors.Join(closeErrors...) == nil {
 		journalCtx, cancelJournal := context.WithTimeout(ctx, defaultJournalShutdownTimeout)
-		if err := lifecycle.Shutdown(journalCtx); err != nil {
+		if err := m.journal.Shutdown(journalCtx); err != nil {
 			closeErrors = append(closeErrors, err)
 		}
 		cancelJournal()
@@ -342,21 +342,24 @@ func (m *Service) lookup(key terminalKey) (*session, error) {
 		return item, nil
 	}
 	if tombstoned && now.Before(stone.expiresAt) {
-		return nil, &Error{Code: errorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
+		return nil, &Error{Code: ErrorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
 	}
-	return nil, &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
+	return nil, &Error{Code: ErrorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 }
 
 func (m *Service) admit(ctx context.Context, workspaceID string, actor Actor) error {
 	if strings.TrimSpace(workspaceID) == "" {
 		return &Error{
-			Code:    "terminal_requires_workspace",
+			Code:    ErrorCodeRequiresWorkspace,
 			Message: "terminal operations require a workspace",
 			Err:     ErrRequiresWorkspace,
 		}
 	}
 	if strings.TrimSpace(actor.ProfileID) == "" {
-		return &Error{Code: errorCodeNotFound, Message: "terminal profile is required", Err: ErrNotFound}
+		return errors.New("terminal: actor profile is required")
+	}
+	if actor.Kind == ActorKindAgent && !validRunActor(actor) {
+		return fmt.Errorf("terminal agent run identity is incomplete: %w", ErrRunIdentityIncomplete)
 	}
 	if m.profiles != nil {
 		return m.profiles.EnsureAvailableID(ctx, actor.ProfileID)
@@ -377,7 +380,8 @@ func (m *Service) processRegistration(
 		Source: toolruntime.ProcessSourceTerminal,
 		Owner: toolruntime.ProcessOwner{
 			SessionID:  info.ControllerSessionID(),
-			TurnID:     info.ControllerRunID(),
+			RunID:      info.ControllerRunID(),
+			Generation: info.ControllerGeneration(),
 			TerminalID: string(info.ID),
 		},
 		PID:            item.proc.PID(),
@@ -411,6 +415,13 @@ func (i Info) ControllerRunID() string {
 		return ""
 	}
 	return i.Controller.RunID
+}
+
+func (i Info) ControllerGeneration() int64 {
+	if i.Controller == nil {
+		return 0
+	}
+	return i.Controller.Generation
 }
 
 var _ Manager = (*Service)(nil)

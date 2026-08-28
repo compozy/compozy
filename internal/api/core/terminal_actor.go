@@ -1,10 +1,12 @@
 package core
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/agentidentity"
+	"github.com/compozy/compozy/internal/session"
 	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/windowmanager"
 	"github.com/gin-gonic/gin"
@@ -26,26 +28,42 @@ func (h *BaseHandlers) terminalActor(
 	}
 	caller, err := h.resolveAgentCallerForWorkspace(c.Request.Context(), credentials, action, workspaceID)
 	if err != nil {
-		h.respondTerminalMappedError(c, StatusForAgentIdentityError(err), "terminal_identity_invalid", err)
+		h.respondTerminalMappedError(c, StatusForAgentIdentityError(err), err)
 		return terminalpkg.Actor{}, false
 	}
-	info, err := h.Sessions.Status(c.Request.Context(), caller.Session.ID)
+	if h.Sessions == nil {
+		h.respondTerminalMappedError(
+			c,
+			StatusForAgentIdentityError(agentidentity.ErrIdentityLookupUnavailable),
+			agentidentity.ErrIdentityLookupUnavailable,
+		)
+		return terminalpkg.Actor{}, false
+	}
+	run, err := h.Sessions.ActivePromptRun(c.Request.Context(), caller.Session.ID)
 	if err != nil {
-		h.respondTerminalMappedError(c, StatusForSessionError(err), "terminal_session_unavailable", err)
-		return terminalpkg.Actor{}, false
-	}
-	if info == nil {
+		if !errors.Is(err, session.ErrPromptNotActive) {
+			h.respondTerminalMappedError(c, 500, err)
+			return terminalpkg.Actor{}, false
+		}
 		h.respondTerminalMappedError(
 			c,
 			StatusForAgentIdentityError(agentidentity.ErrIdentityStale),
-			"terminal_identity_stale",
+			errors.Join(agentidentity.ErrIdentityStale, err),
+		)
+		return terminalpkg.Actor{}, false
+	}
+	if run.SessionID != caller.Session.ID || run.WorkspaceID != workspaceID ||
+		run.ProfileID != profileID || strings.TrimSpace(run.RunID) == "" || run.Generation <= 0 {
+		h.respondTerminalMappedError(
+			c,
+			StatusForAgentIdentityError(agentidentity.ErrIdentityStale),
 			agentidentity.ErrIdentityStale,
 		)
 		return terminalpkg.Actor{}, false
 	}
 	return terminalpkg.Actor{
 		Kind: terminalpkg.ActorKindAgent, ID: caller.Session.AgentName, ProfileID: profileID,
-		SessionID: caller.Session.ID, Generation: info.RuntimeGeneration,
+		SessionID: caller.Session.ID, RunID: run.RunID, Generation: run.Generation,
 	}, true
 }
 

@@ -7,12 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	terminalpty "github.com/compozy/compozy/internal/terminal/pty"
+	terminalwire "github.com/compozy/compozy/internal/terminal/wire"
 	"github.com/compozy/compozy/internal/toolruntime"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -23,20 +25,34 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 	if ctx == nil {
 		return nil, errors.New("terminal: open context is required")
 	}
-	if err := m.admit(ctx, request.WS, request.Actor); err != nil {
+	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
+	if err != nil {
+		return nil, err
+	}
+	request.WS, request.Cwd = workspaceID, cwd
+	releaseProducer, err := m.beginWorkspaceProducer(workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer releaseProducer()
+	return m.open(ctx, request, cwd, workspaceID)
+}
+
+func (m *Service) open(ctx context.Context, request OpenRequest, cwd, workspaceID string) (Handle, error) {
+	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
+		return nil, err
+	}
+	request.Title = SanitizeTitle(request.Title)
+	var err error
+	request.Capabilities, err = m.Capabilities(ctx, workspaceID)
+	if err != nil {
 		return nil, err
 	}
 	if !request.Capabilities.Interactive {
 		return nil, &Error{
-			Code:    "terminal_interactive_unavailable",
-			Message: "Interactive terminals are not available on this platform yet — command execution is.",
-			Err:     ErrInteractive,
+			Code: ErrorCodeInteractiveUnavailable, Message: "interactive terminals are unavailable in this workspace",
+			Platform: runtime.GOOS, Err: ErrInteractive,
 		}
-	}
-	request.Title = SanitizeTitle(request.Title)
-	cwd, workspaceID, err := m.resolveOpenWorkspace(ctx, request.WS, request.Cwd, request.Actor.ProfileID)
-	if err != nil {
-		return nil, err
 	}
 	settings, err := m.settings(ctx, workspaceID, request.Actor.ProfileID)
 	if err != nil {
@@ -154,11 +170,11 @@ func (m *Service) reserveAdmission(ctx context.Context, request OpenRequest, set
 	m.mu.Lock()
 	if m.closing {
 		m.mu.Unlock()
-		return nil, &Error{
-			Code:    errorCodeShuttingDown,
-			Message: errorMessageShuttingDown,
-			Err:     ErrShuttingDown,
-		}
+		return nil, fmt.Errorf("%s: %w", errorMessageShuttingDown, ErrShuttingDown)
+	}
+	if _, sealed := m.sealedWorkspaces[request.WS]; sealed {
+		m.mu.Unlock()
+		return nil, fmt.Errorf("terminal workspace is sealed: %w", ErrServiceUnavailable)
 	}
 	workspaceCount := 0
 	daemonCount := 0
@@ -211,11 +227,10 @@ func (m *Service) insert(key terminalKey, item *session) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.closing {
-		return &Error{
-			Code:    "terminal_shutting_down",
-			Message: "terminal manager is shutting down",
-			Err:     ErrShuttingDown,
-		}
+		return fmt.Errorf("%s: %w", errorMessageShuttingDown, ErrShuttingDown)
+	}
+	if _, sealed := m.sealedWorkspaces[key.workspaceID]; sealed {
+		return fmt.Errorf("terminal workspace is sealed: %w", ErrServiceUnavailable)
 	}
 	if _, exists := m.terminals[key]; exists {
 		return errors.New("terminal: generated duplicate id")
@@ -246,7 +261,7 @@ func (m *Service) emitLimitRejected(
 
 func limitError(current, maximum int, ids []string) error {
 	return &Error{
-		Code: "terminal_limit_reached",
+		Code: ErrorCodeLimitReached,
 		Message: fmt.Sprintf(
 			"terminal limit reached (%d/%d); existing terminals: %s",
 			current,
@@ -266,6 +281,12 @@ func (m *Service) resolveOpenWorkspace(
 	profileID string,
 	additionalRoots ...string,
 ) (string, string, error) {
+	if strings.TrimSpace(workspaceID) == "" {
+		return "", "", &Error{
+			Code: ErrorCodeRequiresWorkspace, Message: "terminal operations require a workspace",
+			Err: ErrRequiresWorkspace,
+		}
+	}
 	if m.workspaces == nil {
 		if strings.TrimSpace(cwd) == "" {
 			cwd = "."
@@ -316,7 +337,7 @@ func (m *Service) resolveWorkspace(
 
 func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested string) (string, error) {
 	if workspace == nil {
-		return "", &Error{Code: errorCodeInvalidCwd, Message: "workspace is unavailable", Err: ErrInvalidCwd}
+		return "", errors.New("terminal: resolved workspace is unavailable")
 	}
 	root := filepath.Clean(workspace.RootDir)
 	displayPath := requested
@@ -329,8 +350,9 @@ func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested st
 	resolved, err := filepath.EvalSymlinks(filepath.Clean(requested))
 	if err != nil {
 		return "", &Error{
-			Code:    errorCodeInvalidCwd,
+			Code:    ErrorCodeInvalidCwd,
 			Message: fmt.Sprintf("invalid terminal cwd %q: %v", displayPath, err),
+			Path:    displayPath,
 			Err:     ErrInvalidCwd,
 		}
 	}
@@ -348,8 +370,9 @@ func resolveWorkspaceCwd(workspace *workspacepkg.ResolvedWorkspace, requested st
 		}
 	}
 	return "", &Error{
-		Code:    errorCodeInvalidCwd,
+		Code:    ErrorCodeInvalidCwd,
 		Message: fmt.Sprintf("invalid terminal cwd %q: outside workspace", displayPath),
+		Path:    displayPath,
 		Err:     ErrInvalidCwd,
 	}
 }
@@ -377,20 +400,22 @@ func resolveShell(requested, configured string) (string, error) {
 		}
 	}
 	return "", &Error{
-		Code:    "terminal_shell_unavailable",
-		Message: "no terminal shell is available",
-		Err:     exec.ErrNotFound,
+		Code:     ErrorCodeInteractiveUnavailable,
+		Message:  "no terminal shell is available",
+		Platform: runtime.GOOS,
+		Err:      errors.Join(ErrInteractive, exec.ErrNotFound),
 	}
 }
 
 func normalizedDimensions(cols, rows uint16) (uint16, uint16) {
-	if cols < 20 {
+	if cols == 0 {
 		cols = 80
 	}
-	if rows < 5 {
+	if rows == 0 {
 		rows = 24
 	}
-	return min(cols, 2000), min(rows, 1000)
+	cols, rows, _ = terminalwire.ClampDimensions(cols, rows)
+	return cols, rows
 }
 
 func cleanupUnregisteredProcess(ctx context.Context, proc Proc) error {

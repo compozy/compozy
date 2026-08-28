@@ -100,6 +100,7 @@ func NewManager(opts ...Option) (*Manager, error) {
 		newSessionID:                newIDGenerator("sess"),
 		newSandboxID:                newIDGenerator("env"),
 		newTurnID:                   newIDGenerator("turn"),
+		newRunID:                    newIDGenerator("run"),
 		newRepairEventID:            newIDGenerator("ev"),
 		newInteractionID:            newULIDGenerator("int"),
 		newPresenceLeaseID:          newULIDGenerator("prl"),
@@ -258,9 +259,9 @@ func (m *Manager) AddTurnEndNotifier(fn TurnEndNotifier) {
 		m.turnEndNotifier = fn
 		return
 	}
-	m.turnEndNotifier = func(sessionID string) {
-		previous(sessionID)
-		fn(sessionID)
+	m.turnEndNotifier = func(ctx context.Context, identity PromptRunIdentity) {
+		previous(ctx, identity)
+		fn(ctx, identity)
 	}
 }
 

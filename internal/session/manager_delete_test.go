@@ -208,7 +208,7 @@ func TestManagerDelete(t *testing.T) {
 				default:
 				}
 
-				if err := commitStagedAttachmentDelete(staged); err != nil {
+				if err := manager.commitStagedAttachmentDelete(ctx, staged); err != nil {
 					t.Fatalf("commitStagedAttachmentDelete() error = %v", err)
 				}
 				select {
@@ -1125,6 +1125,115 @@ func TestManagerDelete(t *testing.T) {
 					if count != 0 {
 						t.Fatalf("%s rows after workspace prune = %d, want 0", table, count)
 					}
+				}
+			},
+		},
+		{
+			name: "Should finish a partially committed workspace deletion on an in-process retry",
+			run: func(t *testing.T) {
+				ctx := testutil.Context(t)
+				db, err := openSessionTestGlobalDB(ctx, filepath.Join(t.TempDir(), "global.db"))
+				if err != nil {
+					t.Fatalf("OpenGlobalDB() error = %v", err)
+				}
+				t.Cleanup(func() {
+					if err := db.Close(testutil.Context(t)); err != nil {
+						t.Errorf("Close() error = %v", err)
+					}
+				})
+				h := newHarness(t, WithSessionCatalog(db), withDefaultQueryStoreRuntime())
+				cleanupTestManager(t, h.manager)
+				now := time.Date(2026, 8, 28, 9, 0, 0, 0, time.UTC)
+				if err := db.InsertWorkspace(ctx, workspacepkg.Workspace{
+					ID: h.workspaceID, RootDir: h.workspace, Name: h.workspaceName,
+					CreatedAt: now, UpdatedAt: now,
+				}); err != nil {
+					t.Fatalf("InsertWorkspace() error = %v", err)
+				}
+				sessions := []*Session{createSession(t, h), createSession(t, h)}
+				for _, session := range sessions {
+					if err := h.manager.Stop(ctx, session.ID); err != nil {
+						t.Fatalf("Stop(%q) error = %v", session.ID, err)
+					}
+				}
+
+				resolver, err := workspacepkg.NewResolver(
+					db,
+					workspacepkg.WithHomePaths(h.homePaths),
+					workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return h.cfg, nil }),
+				)
+				if err != nil {
+					t.Fatalf("NewResolver() error = %v", err)
+				}
+				resolver.SetUnregisterPreparer(
+					func(ctx context.Context, workspace workspacepkg.Workspace) (workspacepkg.UnregisterPreparation, error) {
+						return h.manager.PrepareWorkspaceRemoval(ctx, workspace.ID)
+					},
+				)
+
+				cleanupErr := errors.New("session tombstone cleanup interrupted")
+				cleanupCalls := make(map[string]int)
+				failedPath := ""
+				h.manager.removeAllPath = func(path string) error {
+					cleanupCalls[path]++
+					if failedPath == "" {
+						failedPath = path
+						return cleanupErr
+					}
+					return os.RemoveAll(path)
+				}
+
+				if err := resolver.Unregister(ctx, h.workspaceID); !errors.Is(err, cleanupErr) {
+					t.Fatalf("Unregister(first attempt) error = %v, want %v", err, cleanupErr)
+				}
+				if len(cleanupCalls) != len(sessions) {
+					t.Fatalf(
+						"session cleanup paths after first attempt = %d, want %d",
+						len(cleanupCalls),
+						len(sessions),
+					)
+				}
+				for path, calls := range cleanupCalls {
+					if calls != 1 {
+						t.Fatalf("cleanup calls for %q after first attempt = %d, want 1", path, calls)
+					}
+				}
+				if _, err := os.Stat(failedPath); err != nil {
+					t.Fatalf("Stat(retained committed tombstone) error = %v", err)
+				}
+				if _, err := db.GetWorkspace(ctx, h.workspaceID); !errors.Is(err, workspacepkg.ErrWorkspaceNotFound) {
+					t.Fatalf(
+						"GetWorkspace(after logical delete) error = %v, want %v",
+						err,
+						workspacepkg.ErrWorkspaceNotFound,
+					)
+				}
+				if _, err := db.GetWorkspaceDeletionIntent(ctx, h.workspaceID); err != nil {
+					t.Fatalf("GetWorkspaceDeletionIntent(after partial commit) error = %v", err)
+				}
+
+				if err := resolver.Unregister(ctx, h.workspaceID); err != nil {
+					t.Fatalf("Unregister(retry) error = %v", err)
+				}
+				for path, calls := range cleanupCalls {
+					want := 1
+					if path == failedPath {
+						want = 2
+					}
+					if calls != want {
+						t.Fatalf("cleanup calls for %q after retry = %d, want %d", path, calls, want)
+					}
+				}
+				assertNoSessionDeleteTombstones(t, h.homePaths.SessionsDir)
+				if _, err := db.GetWorkspaceDeletionIntent(
+					ctx,
+					h.workspaceID,
+				); !errors.Is(err, workspacepkg.ErrWorkspaceDeletionIntentNotFound) {
+					t.Fatalf(
+						"GetWorkspaceDeletionIntent(after retry) error = %v, want %v",
+						err,
+						workspacepkg.ErrWorkspaceDeletionIntentNotFound,
+					)
 				}
 			},
 		},

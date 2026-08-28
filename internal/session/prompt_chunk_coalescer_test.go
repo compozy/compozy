@@ -228,7 +228,7 @@ func TestPromptChunkCoalescing(t *testing.T) {
 			return recorder, nil
 		}))
 		turnEnds := 0
-		h.manager.SetTurnEndNotifier(func(string) { turnEnds++ })
+		h.manager.SetTurnEndNotifier(func(context.Context, PromptRunIdentity) { turnEnds++ })
 		h.driver.promptHook = func(proc *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
 			events := make(chan acp.AgentEvent, 2)
 			go func() {
@@ -272,8 +272,8 @@ func TestPromptChunkCoalescing(t *testing.T) {
 		if got := countAgentEvents(notified, acp.EventTypeAgentMessage); got != 0 {
 			t.Fatalf("agent_message notifier events = %d, want zero after batch persistence failure", got)
 		}
-		if turnEnds != 0 {
-			t.Fatalf("turn end notifications = %d, want zero after persistence failure", turnEnds)
+		if turnEnds != 1 {
+			t.Fatalf("turn end notifications = %d, want exactly one after fatal persistence failure", turnEnds)
 		}
 		h.notifier.waitForStopped(t, session.ID)
 		if _, active := h.manager.Get(session.ID); active {

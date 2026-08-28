@@ -45,6 +45,16 @@ func newPromptTurnDispatchState(
 	}
 }
 
+func newPromptRequestDispatchState(
+	session *Session,
+	req promptRequest,
+	message string,
+) *promptTurnDispatchState {
+	state := newPromptTurnDispatchState(session, req.turnID, req.turnSource, message)
+	state.runID = strings.TrimSpace(req.runID)
+	return state
+}
+
 func inputClassForTurnSource(source TurnSource) string {
 	switch normalizeTurnSource(source) {
 	case TurnSourceNetwork:

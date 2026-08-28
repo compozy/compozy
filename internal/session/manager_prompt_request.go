@@ -45,8 +45,13 @@ func (m *Manager) parsePromptRequestWithMessagePolicy(
 	if err != nil {
 		return promptRequest{}, err
 	}
+	runID, err := m.newPromptRunID()
+	if err != nil {
+		return promptRequest{}, err
+	}
 	return promptRequest{
 		turnID:          turnID,
+		runID:           runID,
 		target:          target,
 		message:         message,
 		authoredMessage: message,
@@ -167,6 +172,21 @@ func (m *Manager) newPromptTurnID() (string, error) {
 		return "", errors.New("session: turn id generator returned empty id")
 	}
 	return turnID, nil
+}
+
+func (m *Manager) newPromptRunID() (string, error) {
+	if m == nil || m.newRunID == nil {
+		return "", errors.New("session: run id generator is required")
+	}
+	runID, err := m.newRunID()
+	if err != nil {
+		return "", fmt.Errorf("session: generate prompt run id: %w", err)
+	}
+	runID = strings.TrimSpace(runID)
+	if runID == "" {
+		return "", errors.New("session: run id generator returned empty id")
+	}
+	return runID, nil
 }
 
 func (m *Manager) lookupPromptSession(ctx context.Context, target string) (*Session, error) {

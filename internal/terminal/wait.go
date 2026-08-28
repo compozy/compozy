@@ -30,7 +30,7 @@ func (s *session) Wait(ctx context.Context, condition WaitCondition) (*WaitResul
 		waitCtx, cancel = context.WithTimeoutCause(
 			ctx,
 			time.Duration(condition.TimeoutMs)*time.Millisecond,
-			&Error{Code: "terminal_wait_timeout", Message: "terminal wait timed out", Err: ErrWaitTimeout},
+			ErrWaitTimeout,
 		)
 		defer cancel()
 	}
@@ -87,27 +87,17 @@ func prepareWaitCondition(condition WaitCondition) (string, *regexp.Regexp, erro
 		until = terminalWaitExit
 	}
 	if until != terminalWaitExit && until != terminalWaitMatch && until != terminalWaitIdle {
-		return "", nil, &Error{
-			Code: "terminal_wait_condition_invalid", Message: "terminal wait condition must be exit, match, or idle",
-			Err: ErrUnsupported,
-		}
+		return "", nil, fmt.Errorf("terminal wait condition must be exit, match, or idle: %w", ErrUnsupported)
 	}
 	if until != terminalWaitMatch {
 		return until, nil, nil
 	}
 	if strings.TrimSpace(condition.Pattern) == "" {
-		return "", nil, &Error{
-			Code:    "terminal_wait_pattern_required",
-			Message: "terminal wait match requires a pattern",
-			Err:     ErrUnsupported,
-		}
+		return "", nil, fmt.Errorf("terminal wait match requires a pattern: %w", ErrUnsupported)
 	}
 	matcher, err := regexp.Compile(condition.Pattern)
 	if err != nil {
-		return "", nil, &Error{
-			Code: "terminal_wait_pattern_invalid", Message: "terminal wait pattern is invalid",
-			Err: errors.Join(ErrUnsupported, err),
-		}
+		return "", nil, fmt.Errorf("terminal wait pattern is invalid: %w", errors.Join(ErrUnsupported, err))
 	}
 	return until, matcher, nil
 }
@@ -160,7 +150,10 @@ func (s *session) waitTimeoutResult(ctx context.Context, cause error) (*WaitResu
 	snapshotCtx, cancel := boundedCleanupContext(ctx, waitSnapshotTimeout)
 	defer cancel()
 	result, snapshotErr := s.waitStateResult(snapshotCtx, "timeout")
-	return result, errors.Join(cause, snapshotErr)
+	if snapshotErr != nil {
+		return result, errors.Join(cause, snapshotErr)
+	}
+	return result, nil
 }
 
 func (s *session) currentScreen(ctx context.Context) (string, error) {

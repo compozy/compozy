@@ -12,7 +12,6 @@ import (
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/sandbox"
-	"github.com/compozy/compozy/internal/toolruntime"
 )
 
 // ToolHost abstracts ACP file, permission, and terminal operations for a runtime.
@@ -47,32 +46,24 @@ type localToolHost struct {
 }
 
 type localRuntimeConfig struct {
-	processRegistry *toolruntime.Registry
 	terminalManager TerminalHost
-	terminalScope   terminalScope
+	terminalScope   LocalTerminalScope
 	additionalRoots []string
 }
 
-type terminalScope struct {
-	workspaceID  string
-	profileID    string
-	sessionID    string
-	generation   int64
-	actorID      string
-	allowedRoots []string
+type LocalTerminalScope struct {
+	WorkspaceID  string
+	ProfileID    string
+	SessionID    string
+	Generation   int64
+	ActorID      string
+	AllowedRoots []string
 }
 
 // LocalRuntimeOption customizes local ACP runtime helpers.
 type LocalRuntimeOption func(*localRuntimeConfig)
 
-// WithLocalProcessRegistry injects the shared tool process registry.
-func WithLocalProcessRegistry(registry *toolruntime.Registry) LocalRuntimeOption {
-	return func(cfg *localRuntimeConfig) {
-		cfg.processRegistry = registry
-	}
-}
-
-func withLocalTerminalManager(manager TerminalHost, scope terminalScope) LocalRuntimeOption {
+func WithLocalTerminalManager(manager TerminalHost, scope LocalTerminalScope) LocalRuntimeOption {
 	return func(cfg *localRuntimeConfig) {
 		cfg.terminalManager = manager
 		cfg.terminalScope = scope
@@ -140,7 +131,7 @@ func newLocalToolHostFromPolicy(
 	return &localToolHost{
 		cwd:         root,
 		permissions: policy,
-		terminals:   newTerminalManager(ctx, logger, root, cfg.terminalManager, cfg.terminalScope, cfg.processRegistry),
+		terminals:   newTerminalManager(ctx, logger, cfg.terminalManager, cfg.terminalScope),
 	}
 }
 

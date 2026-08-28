@@ -29,15 +29,21 @@ type Options struct {
 
 // Service implements the terminal journal over per-workspace SQLite stores.
 type Service struct {
-	databases *workspacedb.Pool
-	homeDir   string
-	logger    *slog.Logger
-	now       func() time.Time
+	databases   *workspacedb.Pool
+	homeDir     string
+	logger      *slog.Logger
+	now         func() time.Time
+	laneCtx     context.Context
+	cancelLanes context.CancelCauseFunc
 
-	mu            sync.Mutex
-	lanes         map[string]*terminalLane
-	writeFailures atomic.Uint64
-	artifactMu    sync.Mutex
+	mu                sync.Mutex
+	lanes             map[string]*terminalLane
+	writeFailures     atomic.Uint64
+	artifactMu        sync.Mutex
+	liveTailMu        sync.Mutex
+	liveTails         map[string][]terminal.OutputSegment
+	liveTailTerminals map[string]string
+	liveTailOrder     []string
 }
 
 var (
@@ -46,7 +52,10 @@ var (
 )
 
 // New constructs a durable journal.
-func New(options Options) (*Service, error) {
+func New(ctx context.Context, options Options) (*Service, error) {
+	if ctx == nil {
+		return nil, errors.New("terminal journal: owner context is required")
+	}
 	if options.Databases == nil {
 		return nil, errors.New("terminal journal: workspace databases are required")
 	}
@@ -59,12 +68,17 @@ func New(options Options) (*Service, error) {
 	if options.Now == nil {
 		options.Now = func() time.Time { return time.Now().UTC() }
 	}
+	laneCtx, cancelLanes := context.WithCancelCause(ctx)
 	return &Service{
-		databases: options.Databases,
-		homeDir:   options.HomeDir,
-		logger:    options.Logger,
-		now:       options.Now,
-		lanes:     make(map[string]*terminalLane),
+		databases:         options.Databases,
+		homeDir:           options.HomeDir,
+		logger:            options.Logger,
+		now:               options.Now,
+		laneCtx:           laneCtx,
+		cancelLanes:       cancelLanes,
+		lanes:             make(map[string]*terminalLane),
+		liveTails:         make(map[string][]terminal.OutputSegment),
+		liveTailTerminals: make(map[string]string),
 	}, nil
 }
 
@@ -73,13 +87,14 @@ func (s *Service) RemoveWorkspace(ctx context.Context, workspaceID string) error
 	if s == nil {
 		return nil
 	}
-	laneErr := s.closeLanes(ctx, func(lane *terminalLane) bool {
-		return lane.info.WS == workspaceID
-	})
-	s.artifactMu.Lock()
-	artifactErr := s.removeWorkspaceFiles(workspaceID)
-	s.artifactMu.Unlock()
-	return errors.Join(laneErr, s.databases.RemoveWorkspace(ctx, workspaceID), artifactErr)
+	preparation, err := s.PrepareWorkspaceRemoval(ctx, workspaceID)
+	if err != nil {
+		return err
+	}
+	if err := preparation.BeforeDelete(ctx); err != nil {
+		return errors.Join(err, preparation.Rollback(context.WithoutCancel(ctx)))
+	}
+	return preparation.Commit(ctx)
 }
 
 // Shutdown closes every open workspace database.
@@ -88,7 +103,13 @@ func (s *Service) Shutdown(ctx context.Context) error {
 		return nil
 	}
 	laneErr := s.closeLanes(ctx, func(*terminalLane) bool { return true })
-	return errors.Join(laneErr, s.databases.Close(ctx))
+	if laneErr != nil {
+		return laneErr
+	}
+	s.cancelLanes(nil)
+	closeErr := s.databases.Close(ctx)
+	s.clearLiveTails()
+	return closeErr
 }
 
 // WriteFailureCount reports durable append failures observed by retry workers.

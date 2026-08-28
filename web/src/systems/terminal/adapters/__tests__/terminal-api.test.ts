@@ -13,7 +13,7 @@ import {
   controlTerminalRecording,
   createTerminal,
   fetchTerminal,
-  fetchTerminalInputRequests,
+  fetchTerminalInputRequestProjection,
   fetchTerminalJournal,
   fetchTerminalRecording,
   fetchTerminals,
@@ -120,21 +120,23 @@ describe("terminal REST requests", () => {
       }),
     });
 
-    respond({ content: "ok", seq: 12, truncated: false, busy: false, untrusted: true });
-    await readTerminal(
-      WORKSPACE_ID,
-      TERMINAL_ID,
-      { view: "lines", maxBytes: 512, sinceSeq: 7, from: 2, to: 4, grep: "ok" },
-      PROFILE
-    );
+    respond({ content: "ok", seq: "12", truncated: false, busy: false, untrusted: true });
+    await expect(
+      readTerminal(
+        WORKSPACE_ID,
+        TERMINAL_ID,
+        { view: "lines", maxBytes: 512, sinceSeq: 7n, from: 2, to: 4, grep: "ok" },
+        PROFILE
+      )
+    ).resolves.toMatchObject({ seq: 12n });
     expect(lastRequest().url).toContain(
       "/read?profile=work+profile&view=lines&max_bytes=512&since_seq=7&from=2&to=4&grep=ok"
     );
   });
 
   it("Should keep input-request identity and action bodies in the path", async () => {
-    respond({ requests: [] });
-    await fetchTerminalInputRequests(WORKSPACE_ID, { all_profiles: true }, TERMINAL_ID);
+    respond({ pending: [], resolved: [] });
+    await fetchTerminalInputRequestProjection(WORKSPACE_ID, { all_profiles: true }, TERMINAL_ID);
     expect(lastRequest().url).toContain("/input-requests?all_profiles=true&terminal_id=term%2Fone");
 
     respond({ delivered_bytes: 4, redacted: false });
@@ -203,7 +205,7 @@ describe("terminal REST failures", () => {
         error: {
           code: "terminal_limit_reached",
           message: "Project terminal limit reached",
-          details: { current: "8", max: "8" },
+          details: { current: 8, max: 8 },
         },
       },
       409
@@ -216,8 +218,9 @@ describe("terminal REST failures", () => {
     expect(error).toMatchObject({
       status: 409,
       code: "terminal_limit_reached",
+      domainCode: "terminal_limit_reached",
       message: "Project terminal limit reached",
-      details: { current: "8", max: "8" },
+      details: { current: 8, max: 8 },
     });
     expect(Object.isFrozen(error.details)).toBe(true);
   });
@@ -232,12 +235,18 @@ describe("terminal REST failures", () => {
     });
   });
 
-  it("Should reject an unknown terminal error code as a protocol error", async () => {
-    respond({ error: { code: "terminal_future_error", message: "new refusal" } }, 409);
-
-    await expect(fetchTerminals(WORKSPACE_ID, PROFILE)).rejects.toBeInstanceOf(
-      TerminalProtocolError
+  it("Should preserve a truthful non-domain transport code", async () => {
+    respond(
+      { error: { code: "service_unavailable", message: "terminal service unavailable" } },
+      503
     );
+
+    await expect(fetchTerminals(WORKSPACE_ID, PROFILE)).rejects.toMatchObject({
+      status: 503,
+      code: "service_unavailable",
+      domainCode: undefined,
+      message: "terminal service unavailable",
+    });
   });
 
   it("Should reject malformed terminal error details without exposing them", async () => {
@@ -289,8 +298,8 @@ describe("terminal REST failures", () => {
       mintTerminalAttachTicket(WORKSPACE_ID, TERMINAL_ID, "read", PROFILE)
     ).rejects.toBeInstanceOf(TerminalProtocolError);
 
-    respond({ requests: [{ id: "request-without-contract-fields" }] });
-    await expect(fetchTerminalInputRequests(WORKSPACE_ID, PROFILE)).rejects.toBeInstanceOf(
+    respond({ pending: [{ id: "request-without-contract-fields" }], resolved: [] });
+    await expect(fetchTerminalInputRequestProjection(WORKSPACE_ID, PROFILE)).rejects.toBeInstanceOf(
       TerminalProtocolError
     );
 
@@ -330,7 +339,7 @@ describe("terminal REST failures", () => {
   it("Should reject fractional and negative terminal counters", async () => {
     const validRead = {
       content: "ok",
-      seq: 12,
+      seq: "12",
       truncated: false,
       busy: false,
       untrusted: true,
@@ -457,7 +466,7 @@ describe("terminalStreamPath", () => {
         flow: "ack",
         cols: 120,
         rows: 40,
-        afterSeq: 512,
+        afterSeq: 512n,
       })
     ).toBe(
       "/api/workspaces/ws%2Fatlas/terminals/term%2Fone/stream?ticket=ticket%2Fone&mode=write&flow=ack&cols=120&rows=40&after_seq=512"

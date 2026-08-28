@@ -24,7 +24,9 @@ func terminalAgentClientAndWorkspace(
 	}
 	client, ok := base.(TerminalAgentClient)
 	if !ok {
-		return nil, "", errors.New("cli: terminal agent client is unavailable")
+		return nil, "", newTerminalTransportError(
+			terminalTransportCodeUnavailable, "terminal agent client is unavailable", nil,
+		)
 	}
 	return client, workspaceID, nil
 }
@@ -35,10 +37,11 @@ func newTerminalExecCommand(deps commandDeps) *cobra.Command {
 	var visible bool
 	var tail int
 	command := &cobra.Command{
-		Use: "exec -- <command> [args...]", Short: "Run a command in the workspace", Args: cobra.MinimumNArgs(1),
+		Use: "exec -- <command> [args...]", Short: "Run a command in the workspace",
+		Args: terminalArgs(cobra.MinimumNArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if tail < 0 {
-				return errors.New("cli: --tail must be greater than or equal to zero")
+				return terminalInvalidRequest("--tail must be greater than or equal to zero", nil)
 			}
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -81,7 +84,7 @@ func newTerminalExecCommand(deps commandDeps) *cobra.Command {
 func newTerminalSignalCommand(deps commandDeps) *cobra.Command {
 	var workspace, signal string
 	command := &cobra.Command{
-		Use: "signal <id>", Short: "Send a signal without closing the terminal", Args: cobra.ExactArgs(1),
+		Use: "signal <id>", Short: "Send a signal without closing the terminal", Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -102,7 +105,7 @@ func newTerminalSignalCommand(deps commandDeps) *cobra.Command {
 func newTerminalInputRequestsCommand(deps commandDeps) *cobra.Command {
 	var workspace, terminalID string
 	command := &cobra.Command{
-		Use: "input-requests", Short: "List pending terminal input requests", Args: cobra.NoArgs,
+		Use: "input-requests", Short: "List pending terminal input requests", Args: terminalArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -127,7 +130,7 @@ func newTerminalRespondCommand(deps commandDeps) *cobra.Command {
 	var workspace, requestID, reason string
 	var reject bool
 	command := &cobra.Command{
-		Use: "respond <id>", Short: "Answer or reject a pending input request", Args: cobra.ExactArgs(1),
+		Use: "respond <id>", Short: "Answer or reject a pending input request", Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -171,7 +174,7 @@ func newTerminalJournalCommand(deps commandDeps) *cobra.Command {
 	var failed bool
 	var limit int
 	command := &cobra.Command{
-		Use: "journal", Short: "Query the terminal command journal", Args: cobra.NoArgs,
+		Use: "journal", Short: "Query the terminal command journal", Args: terminalArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -193,12 +196,14 @@ func newTerminalJournalCommand(deps commandDeps) *cobra.Command {
 	command.Flags().StringVar(&cursor, "cursor", "", "Continue from the previous page")
 	command.Flags().BoolVar(&failed, "failed", false, "Show only failed commands")
 	command.Flags().IntVar(&limit, "limit", 50, "Maximum journal rows")
-	configureProfileReadCommand(command, deps)
+	configureHistoricalProfileReadCommand(command, deps)
 	return command
 }
 
 func newTerminalRecordCommand(deps commandDeps) *cobra.Command {
-	command := &cobra.Command{Use: "record", Short: "Start or stop terminal recording", Args: cobra.NoArgs}
+	command := &cobra.Command{
+		Use: "record", Short: "Start or stop terminal recording", Args: terminalArgs(cobra.NoArgs),
+	}
 	command.AddCommand(newTerminalRecordingActionCommand(deps, terminalRecordingStartAction))
 	command.AddCommand(newTerminalRecordingActionCommand(deps, "stop"))
 	return command
@@ -209,7 +214,7 @@ func newTerminalRecordingActionCommand(deps commandDeps, action string) *cobra.C
 	command := &cobra.Command{
 		Use:   action + " <id>",
 		Short: strings.ToUpper(action[:1]) + action[1:] + " terminal recording",
-		Args:  cobra.ExactArgs(1),
+		Args:  terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := terminalAgentClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -230,7 +235,8 @@ func newTerminalRecordingActionCommand(deps commandDeps, action string) *cobra.C
 func newTerminalQuoteCommand(deps commandDeps) *cobra.Command {
 	var workspace, lines string
 	command := &cobra.Command{
-		Use: "quote <id>", Short: "Print a terminal excerpt for a conversation", Args: cobra.ExactArgs(1),
+		Use: "quote <id>", Short: "Print a terminal excerpt for a conversation",
+		Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			from, to, err := terminalLineRange(lines)
 			if err != nil {
@@ -258,7 +264,7 @@ func newTerminalQuoteCommand(deps commandDeps) *cobra.Command {
 func terminalYieldMilliseconds(value string) (int, error) {
 	duration, err := time.ParseDuration(value)
 	if err != nil {
-		return 0, errors.New("timeout_out_of_range — --yield must be between 250ms and 30s")
+		return 0, terminalInvalidRequest("--yield must be a duration between 250ms and 30s", err)
 	}
 	if err := terminalpkg.ValidateExecYieldDuration(duration); err != nil {
 		return 0, err
@@ -274,7 +280,9 @@ func terminalEnvironment(values []string) (map[string]string, error) {
 	for _, value := range values {
 		name, content, ok := strings.Cut(value, "=")
 		if !ok || strings.TrimSpace(name) == "" {
-			return nil, fmt.Errorf("cli: invalid --env %q; expected K=V", value)
+			return nil, newTerminalTransportError(
+				terminalTransportCodeInvalidRequest, fmt.Sprintf("invalid --env %q; expected K=V", value), nil,
+			)
 		}
 		environment[name] = content
 	}
@@ -284,12 +292,14 @@ func terminalEnvironment(values []string) (map[string]string, error) {
 func terminalLineRange(value string) (int, int, error) {
 	fromText, toText, ok := strings.Cut(value, "-")
 	if !ok {
-		return 0, 0, errors.New("cli: --lines must use A-B")
+		return 0, 0, terminalInvalidRequest("--lines must use A-B", nil)
 	}
 	from, fromErr := strconv.Atoi(fromText)
 	to, toErr := strconv.Atoi(toText)
 	if fromErr != nil || toErr != nil || from < 1 || to < from {
-		return 0, 0, errors.New("cli: --lines must be a positive ordered range")
+		return 0, 0, terminalInvalidRequest(
+			"--lines must be a positive ordered range", errors.Join(fromErr, toErr),
+		)
 	}
 	return from, to, nil
 }
@@ -308,18 +318,24 @@ func resolveTerminalRequestID(
 	if err != nil {
 		return "", err
 	}
-	if len(requests) != 1 {
+	if len(requests.Pending) != 1 {
+		if len(requests.Pending) > 1 {
+			return "", terminalInvalidRequest(
+				fmt.Sprintf("terminal %s has multiple pending input requests; select one with --request", terminalID),
+				nil,
+			)
+		}
 		return "", &terminalpkg.Error{
-			Code: "input_request_not_found",
+			Code: terminalpkg.ErrorCodeInputRequestNotFound,
 			Message: fmt.Sprintf(
 				"expected one pending request on %s, found %d",
 				terminalID,
-				len(requests),
+				len(requests.Pending),
 			),
 			Err: terminalpkg.ErrInputNotFound,
 		}
 	}
-	return string(requests[0].ID), nil
+	return string(requests.Pending[0].ID), nil
 }
 
 func readTerminalResponse(input io.Reader) ([]byte, error) {
@@ -328,9 +344,18 @@ func readTerminalResponse(input io.Reader) ([]byte, error) {
 		return nil, fmt.Errorf("cli: read terminal response: %w", err)
 	}
 	if len(line) > 64*1024 {
-		return nil, errors.New("cli: terminal response exceeds 64 KiB")
+		return nil, newTerminalTransportError(
+			terminalTransportCodeInvalidRequest, "terminal response exceeds 64 KiB", nil,
+		)
 	}
 	return []byte(strings.TrimSuffix(strings.TrimSuffix(string(line), "\n"), "\r")), nil
+}
+
+func terminalYieldRangeError(message string, cause error) error {
+	return &terminalpkg.Error{
+		Code: terminalpkg.ErrorCodeTimeoutOutOfRange, Message: message,
+		Action: "fix_command", Err: errors.Join(terminalpkg.ErrUnsupported, cause),
+	}
 }
 
 func terminalTailLines(content string, count int) (string, bool) {

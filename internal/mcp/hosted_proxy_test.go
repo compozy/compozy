@@ -530,6 +530,14 @@ func TestHostedProxyHelpers(t *testing.T) {
 		if got := hostedToolErrorMessage(transportErr); got != want {
 			t.Fatalf("hostedToolErrorMessage(transport) = %q, want reason and public message", got)
 		}
+		terminalEnvelope := contract.TerminalErrorResponse{Error: contract.TerminalErrorDetail{
+			Code: "service_unavailable", Message: "terminal service unavailable",
+			Details: &contract.TerminalErrorDetails{Path: "/workspace", Platform: "windows"},
+		}}
+		gotStructured := hostedToolErrorStructuredContent(hostedTerminalEnvelopeError{response: terminalEnvelope})
+		if !reflect.DeepEqual(gotStructured, terminalEnvelope) {
+			t.Fatalf("hostedToolErrorStructuredContent(terminal) = %#v, want %#v", gotStructured, terminalEnvelope)
+		}
 
 		missingPathResponse := contract.ToolErrorResponse{Error: contract.ToolErrorPayload{
 			Code:        tools.ErrorCodeNotFound,
@@ -546,6 +554,10 @@ func TestHostedProxyHelpers(t *testing.T) {
 
 type hostedToolResponseError struct {
 	response contract.ToolErrorResponse
+}
+
+type hostedTerminalEnvelopeError struct {
+	response contract.TerminalErrorResponse
 }
 
 type countingHostedToolRegistry struct {
@@ -566,6 +578,14 @@ func (e hostedToolResponseError) Error() string {
 }
 
 func (e hostedToolResponseError) Response() contract.ToolErrorResponse {
+	return e.response
+}
+
+func (e hostedTerminalEnvelopeError) Error() string {
+	return "terminal transport error"
+}
+
+func (e hostedTerminalEnvelopeError) TerminalErrorEnvelope() contract.TerminalErrorResponse {
 	return e.response
 }
 

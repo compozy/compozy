@@ -85,7 +85,9 @@ func registerTaskClaimHandoffTurnEnd(
 	if !ok || runtime == nil {
 		return
 	}
-	registrar.AddTurnEndNotifier(runtime.onTurnEnd)
+	registrar.AddTurnEndNotifier(func(ctx context.Context, identity session.PromptRunIdentity) {
+		runtime.onTurnEnd(ctx, identity.SessionID)
+	})
 }
 
 func (r *taskClaimHandoffRuntime) HasPending(sessionID string) bool {
@@ -217,7 +219,7 @@ func (r *taskClaimHandoffRuntime) drainEvents(
 	}()
 }
 
-func (r *taskClaimHandoffRuntime) onTurnEnd(sessionID string) {
+func (r *taskClaimHandoffRuntime) onTurnEnd(ctx context.Context, sessionID string) {
 	if r == nil {
 		return
 	}
@@ -240,7 +242,7 @@ func (r *taskClaimHandoffRuntime) onTurnEnd(sessionID string) {
 			pending.targetSessionID,
 		)
 	}
-	stopCtx, cancel := context.WithTimeout(context.Background(), defaultShutdownTimeout)
+	stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), defaultShutdownTimeout)
 	err := r.sessions.StopWithCause(
 		stopCtx,
 		bootstrapID,

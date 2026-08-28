@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,7 +14,7 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 	var cols, rows uint16
 	var detach bool
 	command := &cobra.Command{
-		Use: terminalOpenCommandKey, Short: "Open an interactive terminal", Args: cobra.NoArgs,
+		Use: terminalOpenCommandKey, Short: "Open an interactive terminal", Args: terminalArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if !detach {
 				if err := requireTerminalInteractiveOutput(cmd); err != nil {
@@ -64,7 +63,7 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 func newTerminalListCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 	command := &cobra.Command{
-		Use: terminalListCommandKey, Short: "List workspace terminals", Args: cobra.NoArgs,
+		Use: terminalListCommandKey, Short: "List workspace terminals", Args: terminalArgs(cobra.NoArgs),
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			client, workspaceID, err := terminalClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -85,7 +84,7 @@ func newTerminalListCommand(deps commandDeps) *cobra.Command {
 func newTerminalGetCommand(deps commandDeps) *cobra.Command {
 	var workspace string
 	command := &cobra.Command{
-		Use: "get <id>", Short: "Show one terminal", Args: cobra.ExactArgs(1),
+		Use: "get <id>", Short: "Show one terminal", Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := terminalClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -109,10 +108,10 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 	var afterSeq uint64
 	var cols, rows uint16
 	command := &cobra.Command{
-		Use: "attach <id>", Short: "Attach to a running terminal", Args: cobra.ExactArgs(1),
+		Use: "attach <id>", Short: "Attach to a running terminal", Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if force && !control {
-				return errors.New("cli: --force requires --control")
+				return terminalInvalidRequest("--force requires --control", nil)
 			}
 			if err := requireTerminalInteractiveOutput(cmd); err != nil {
 				return err
@@ -179,7 +178,7 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 func newTerminalKillCommand(deps commandDeps) *cobra.Command {
 	var workspace, signal string
 	command := &cobra.Command{
-		Use: "kill <id>", Short: "Terminate a terminal", Args: cobra.ExactArgs(1),
+		Use: "kill <id>", Short: "Terminate a terminal", Args: terminalArgs(cobra.ExactArgs(1)),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			client, workspaceID, err := terminalClientAndWorkspace(cmd, deps, workspace)
 			if err != nil {
@@ -314,10 +313,10 @@ func terminalExitBundle(id string, exit TerminalExitRecord) outputBundle {
 func requireTerminalInteractiveOutput(cmd *cobra.Command) error {
 	mode, err := resolveOutputFormat(cmd)
 	if err != nil {
-		return err
+		return terminalInvalidRequest(err.Error(), err)
 	}
 	if mode != OutputHuman {
-		return errors.New("cli: interactive terminal streams require human output")
+		return terminalInvalidRequest("interactive terminal streams require human output", nil)
 	}
 	return nil
 }

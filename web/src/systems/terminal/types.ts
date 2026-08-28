@@ -46,8 +46,46 @@ export type TerminalFlowMode = NonNullable<
 
 export type CreateTerminalInput = Omit<TerminalCreateRequest, "client_id">;
 
-export type TerminalInputRequest =
-  operations["listTerminalInputRequests"]["responses"][200]["content"]["application/json"]["requests"][number];
+export interface TerminalInputActorProjection {
+  kind: TerminalActorKind;
+  id: string;
+}
+
+export interface TerminalInputRequest {
+  id: string;
+  terminal_id: string;
+  workspace_id?: string;
+  profile_id: string;
+  profile_name: string;
+  prompt_excerpt: string;
+  reason: string;
+  redacted: boolean;
+  requested_at: string;
+  requester: TerminalInputActorProjection;
+}
+
+export type TerminalPendingInputRequest = TerminalInputRequest;
+
+export interface TerminalResolvedInputRequest {
+  id: string;
+  terminal_id: string;
+  workspace_id?: string;
+  profile_id: string;
+  profile_name: string;
+  requester: TerminalInputActorProjection;
+  outcome: TerminalInputOutcome;
+  resolved_by: TerminalInputActorProjection;
+  reason?: string;
+  redacted: boolean;
+  length: number;
+  requested_at: string;
+  resolved_at: string;
+}
+
+export interface TerminalInputRequestProjection {
+  pending: TerminalPendingInputRequest[];
+  resolved: TerminalResolvedInputRequest[];
+}
 
 export type TerminalInputOutcome = "answered" | "rejected" | "superseded" | "expired";
 
@@ -73,8 +111,9 @@ export type TerminalRecording =
   operations["controlTerminalRecording"]["responses"][200]["content"]["application/json"]["recording"];
 
 export type TerminalReadView = NonNullable<TerminalReadQuery["view"]>;
-export type TerminalReadResult =
+type GeneratedTerminalReadResult =
   operations["readTerminal"]["responses"][200]["content"]["application/json"];
+export type TerminalReadResult = Omit<GeneratedTerminalReadResult, "seq"> & { seq: bigint };
 
 export type TerminalScopeParams =
   | { profile: string; all_profiles?: never }

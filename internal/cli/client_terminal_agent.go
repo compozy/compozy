@@ -2,8 +2,10 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -34,6 +36,11 @@ type TerminalInputRequestQuery struct {
 	TerminalID string
 }
 
+type TerminalInputRequests struct {
+	Pending  []terminalpkg.PendingInputRequest  `json:"pending"`
+	Resolved []terminalpkg.ResolvedInputRequest `json:"resolved"`
+}
+
 type TerminalJournalQuery struct {
 	Actor      string
 	Since      string
@@ -52,7 +59,7 @@ type TerminalAgentClient interface {
 		context.Context,
 		string,
 		TerminalInputRequestQuery,
-	) ([]terminalpkg.PendingInputRequest, error)
+	) (TerminalInputRequests, error)
 	AnswerTerminalInputRequest(context.Context, string, string, string, []byte) (int, bool, error)
 	RejectTerminalInputRequest(context.Context, string, string, string, string) error
 	QueryTerminalJournal(context.Context, string, TerminalJournalQuery) (terminalpkg.Page, error)
@@ -66,9 +73,16 @@ func (c *daemonClient) ExecTerminal(
 	workspace string,
 	request TerminalExecRequest,
 ) (terminalpkg.ExecResult, error) {
-	var result terminalpkg.ExecResult
-	if err := c.doJSON(ctx, http.MethodPost, terminalClientPath(workspace)+"/exec", nil, request, &result); err != nil {
+	var response contract.TerminalExecResponse
+	if err := c.doJSON(
+		ctx, http.MethodPost, terminalClientPath(workspace)+"/exec", nil,
+		terminalExecRequestContract(request), &response,
+	); err != nil {
 		return terminalpkg.ExecResult{}, err
+	}
+	result, err := terminalExecResultFromContract(response)
+	if err != nil {
+		return terminalpkg.ExecResult{}, fmt.Errorf("cli: decode terminal exec response: %w", err)
 	}
 	return result, nil
 }
@@ -88,31 +102,45 @@ func (c *daemonClient) ReadTerminal(
 	if options.Grep != "" {
 		query.Set("grep", options.Grep)
 	}
-	var result terminalpkg.ReadResult
+	var response contract.TerminalReadResponse
 	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(id)) + "/read"
-	if err := c.doJSON(ctx, http.MethodGet, path, query, nil, &result); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, path, query, nil, &response); err != nil {
 		return terminalpkg.ReadResult{}, err
 	}
-	return result, nil
+	sequence, err := response.Seq.Uint64()
+	if err != nil {
+		return terminalpkg.ReadResult{}, fmt.Errorf("cli: decode terminal read sequence: %w", err)
+	}
+	spill, err := terminalSpillFromContractStrict(response.Spill)
+	if err != nil {
+		return terminalpkg.ReadResult{}, fmt.Errorf("cli: decode terminal read spill: %w", err)
+	}
+	return terminalpkg.ReadResult{
+		Content: response.Content, Seq: sequence, Truncated: response.Truncated,
+		Busy: response.Busy, Untrusted: response.Untrusted, Spill: spill,
+	}, nil
 }
 
 func (c *daemonClient) SignalTerminal(ctx context.Context, workspace, id, signal string) error {
 	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(id)) + "/signal"
-	return c.doJSON(ctx, http.MethodPost, path, nil, map[string]string{"signal": signal}, nil)
+	if !slices.Contains(contract.TerminalSignalValues(), signal) {
+		return fmt.Errorf("unsupported terminal signal %q", signal)
+	}
+	return c.doJSON(ctx, http.MethodPost, path, nil, contract.TerminalSignalRequest{
+		Signal: contract.TerminalSignal(signal),
+	}, nil)
 }
 
 func (c *daemonClient) ListTerminalInputRequests(
 	ctx context.Context,
 	workspace string,
 	queryInput TerminalInputRequestQuery,
-) ([]terminalpkg.PendingInputRequest, error) {
+) (TerminalInputRequests, error) {
 	query := make(url.Values)
 	if queryInput.TerminalID != "" {
 		query.Set("terminal_id", queryInput.TerminalID)
 	}
-	var response struct {
-		Requests []terminalpkg.PendingInputRequest `json:"requests"`
-	}
+	var response contract.TerminalInputRequestsResponse
 	if err := c.doJSON(
 		ctx,
 		http.MethodGet,
@@ -121,9 +149,13 @@ func (c *daemonClient) ListTerminalInputRequests(
 		nil,
 		&response,
 	); err != nil {
-		return nil, err
+		return TerminalInputRequests{}, err
 	}
-	return response.Requests, nil
+	requests, err := terminalInputRequestsFromContract(response)
+	if err != nil {
+		return TerminalInputRequests{}, fmt.Errorf("cli: decode terminal input response: %w", err)
+	}
+	return requests, nil
 }
 
 func (c *daemonClient) AnswerTerminalInputRequest(
@@ -131,17 +163,14 @@ func (c *daemonClient) AnswerTerminalInputRequest(
 	workspace, terminalID, requestID string,
 	input []byte,
 ) (int, bool, error) {
-	var response struct {
-		DeliveredBytes int  `json:"delivered_bytes"`
-		Redacted       bool `json:"redacted"`
-	}
+	var response contract.TerminalInputAnswerResponse
 	path := terminalInputRequestPath(workspace, terminalID, requestID) + "/answer"
 	if err := c.doJSON(
 		ctx,
 		http.MethodPost,
 		path,
 		nil,
-		map[string]string{"input": string(input)},
+		contract.TerminalAnswerInputRequest{Input: string(input)},
 		&response,
 	); err != nil {
 		return 0, false, err
@@ -154,7 +183,7 @@ func (c *daemonClient) RejectTerminalInputRequest(
 	workspace, terminalID, requestID, reason string,
 ) error {
 	path := terminalInputRequestPath(workspace, terminalID, requestID) + "/reject"
-	return c.doJSON(ctx, http.MethodPost, path, nil, map[string]string{"reason": reason}, nil)
+	return c.doJSON(ctx, http.MethodPost, path, nil, contract.TerminalRejectInputRequest{Reason: reason}, nil)
 }
 
 func (c *daemonClient) QueryTerminalJournal(
@@ -197,14 +226,20 @@ func (c *daemonClient) ControlTerminalRecording(
 	ctx context.Context,
 	workspace, terminalID, action string,
 ) (terminalpkg.RecordingRef, error) {
-	var response struct {
-		Recording terminalpkg.RecordingRef `json:"recording"`
-	}
-	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(terminalID)) + "/recording"
-	if err := c.doJSON(ctx, http.MethodPost, path, nil, map[string]string{"action": action}, &response); err != nil {
+	request, err := terminalRecordingRequest(action)
+	if err != nil {
 		return terminalpkg.RecordingRef{}, err
 	}
-	return response.Recording, nil
+	var response contract.TerminalRecordingResponse
+	path := terminalClientPath(workspace) + "/" + url.PathEscape(strings.TrimSpace(terminalID)) + "/recording"
+	if err := c.doJSON(ctx, http.MethodPost, path, nil, request, &response); err != nil {
+		return terminalpkg.RecordingRef{}, err
+	}
+	recording, err := terminalRecordingFromContract(response.Recording)
+	if err != nil {
+		return terminalpkg.RecordingRef{}, fmt.Errorf("cli: decode terminal recording response: %w", err)
+	}
+	return recording, nil
 }
 
 func terminalInputRequestPath(workspace, terminalID, requestID string) string {

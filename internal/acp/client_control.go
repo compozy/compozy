@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"strings"
 	"time"
 
@@ -33,7 +32,19 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	}
 
 	promptCtx, cancelPrompt := context.WithCancel(ctx)
-	active, err := proc.beginPrompt(req.TurnID, d.promptBufferCap, cancelPrompt)
+	var active *activePromptState
+	var err error
+	if strings.TrimSpace(req.RunID) == "" {
+		active, err = proc.beginPrompt(req.TurnID, d.promptBufferCap, cancelPrompt)
+	} else {
+		active, err = proc.beginPromptForRun(
+			req.TurnID,
+			req.RunID,
+			req.Generation,
+			d.promptBufferCap,
+			cancelPrompt,
+		)
+	}
 	if err != nil {
 		cancelPrompt()
 		proc.finishChildTask(run)

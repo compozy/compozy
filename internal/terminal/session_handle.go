@@ -34,9 +34,11 @@ func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult,
 		view = terminalViewScreen
 	}
 	if s.Info().Mode == ModePipe && view == terminalViewScreen {
+		mode := s.Info().Mode
 		return nil, &Error{
-			Code:    errorCodeNotInteractive,
+			Code:    ErrorCodeNotInteractive,
 			Message: "pipe terminals do not have a screen",
+			Mode:    mode,
 			Err:     ErrNotInteractive,
 		}
 	}
@@ -56,25 +58,27 @@ func (s *session) Screen(ctx context.Context, options ReadOptions) (*ReadResult,
 	case "lines":
 		return s.readLines(options)
 	default:
-		return nil, &Error{
-			Code:    "terminal_read_view_invalid",
-			Message: "terminal read view must be screen, tail, or lines",
-			Err:     ErrUnsupported,
-		}
+		return nil, fmt.Errorf("terminal read view must be screen, tail, or lines: %w", ErrUnsupported)
 	}
 }
 
 func (s *session) readTail(options ReadOptions) (*ReadResult, error) {
 	var content []byte
+	var segments []OutputSegment
 	var seq uint64
 	truncated := false
 	if options.SinceSeq == 0 {
-		content, seq = s.ring.Snapshot()
+		segments, seq = s.ring.SnapshotSegments()
+		content = []byte(RenderOutputSegments(segments))
 		oldest, _ := s.ring.Bounds()
 		truncated = oldest > 0
 	} else {
 		replay := s.ring.ReplayFrom(options.SinceSeq)
-		content, seq, truncated = replay.Payload, replay.Seq, replay.Truncated
+		content, seq, truncated = replay.Bytes(), replay.Seq, replay.Truncated
+		segments = make([]OutputSegment, 0, len(replay.Segments))
+		for _, segment := range replay.Segments {
+			segments = append(segments, segment.Segment)
+		}
 	}
 	content = modelFacingOutput(content)
 	if options.Grep != "" {
@@ -88,7 +92,9 @@ func (s *session) readTail(options ReadOptions) (*ReadResult, error) {
 		content = boundedTail(content, options.MaxBytes)
 		truncated = true
 	}
-	return &ReadResult{Content: string(content), Seq: seq, Truncated: truncated, Untrusted: true}, nil
+	return &ReadResult{
+		Content: string(content), Segments: segments, Seq: seq, Truncated: truncated, Untrusted: true,
+	}, nil
 }
 
 func trimPartialLeadingRune(content []byte) []byte {
@@ -150,6 +156,9 @@ func (s *session) Takeover(ctx context.Context, actor Actor, force bool) error {
 	if err := s.lease.takeover(actor, force); err != nil {
 		return err
 	}
+	if actor.Kind == ActorKindHuman {
+		s.supersedeInputRequests(ctx, actor)
+	}
 	return nil
 }
 
@@ -167,16 +176,36 @@ func (s *session) Yield(ctx context.Context, actor Actor) error {
 }
 
 func (s *session) claim(actor Actor) error {
+	s.authorityMu.Lock()
+	defer s.authorityMu.Unlock()
 	if err := s.authorizeProfile(actor); err != nil {
 		return err
 	}
 	if err := s.runningGate(); err != nil {
 		return err
 	}
+	info := s.Info()
+	if info.BoundRun != nil {
+		bound := info.BoundRun
+		if actor.Kind != ActorKindAgent || actor.SessionID != bound.SessionID || actor.RunID != bound.RunID {
+			return &Error{
+				Code: ErrorCodeLeaseRevoked, Message: "terminal is bound to a different agent run",
+				Controller: info.Controller, Err: ErrLeaseRevoked,
+			}
+		}
+		if actor.Generation != bound.Generation {
+			return &Error{
+				Code: ErrorCodeGenerationFenced, Message: errorMessageGenerationFenced,
+				Controller: info.Controller, Err: ErrGenerationFenced,
+			}
+		}
+	}
 	return s.lease.claim(actor)
 }
 
 func (s *session) runtimeRecovered(previous, current Actor) bool {
+	s.authorityMu.Lock()
+	defer s.authorityMu.Unlock()
 	s.mu.Lock()
 	bound := s.info.BoundRun
 	if bound == nil || bound.SessionID != previous.SessionID || bound.RunID != previous.RunID ||
@@ -193,6 +222,8 @@ func (s *session) runtimeRecovered(previous, current Actor) bool {
 }
 
 func (s *session) runEnded(actor Actor) bool {
+	s.authorityMu.Lock()
+	defer s.authorityMu.Unlock()
 	info := s.Info()
 	if info.BoundRun == nil || info.BoundRun.SessionID != actor.SessionID ||
 		info.BoundRun.RunID != actor.RunID || info.BoundRun.Generation != actor.Generation {
@@ -233,10 +264,13 @@ func (s *session) authorizeClose(actor Actor) error {
 		return nil
 	}
 	state, controller := s.lease.snapshot()
+	if controller == nil {
+		return fmt.Errorf("agent terminal authority requires an active controller: %w", ErrWriteLeaseRequired)
+	}
 	if actor.Kind == ActorKindAgent && controller != nil && sameRun(actor, *controller) &&
 		actor.Generation != controller.Generation {
 		return &Error{
-			Code:    errorCodeGenerationFenced,
+			Code:    ErrorCodeGenerationFenced,
 			Message: errorMessageGenerationFenced,
 			Err:     ErrGenerationFenced,
 		}
@@ -245,22 +279,22 @@ func (s *session) authorizeClose(actor Actor) error {
 		return nil
 	}
 	return &Error{
-		Code:       errorCodeWriteOwnerHeld,
-		Message:    "terminal is controlled by another actor",
+		Code:       ErrorCodeLeaseRevoked,
+		Message:    "agent terminal authority is no longer active",
 		Controller: controller,
-		Err:        ErrWriteOwnerHeld,
+		Err:        ErrLeaseRevoked,
 	}
 }
 
 func (s *session) authorizeProfile(actor Actor) error {
 	info := s.Info()
 	if actor.ProfileID != info.ProfileID {
-		return &Error{Code: errorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
+		return &Error{Code: ErrorCodeNotFound, Message: errorMessageNotFound, Err: ErrNotFound}
 	}
 	if actor.Kind == ActorKindAgent && info.BoundRun != nil && actor.SessionID == info.BoundRun.SessionID &&
 		actor.RunID == info.BoundRun.RunID && actor.Generation != info.BoundRun.Generation {
 		return &Error{
-			Code:    errorCodeGenerationFenced,
+			Code:    ErrorCodeGenerationFenced,
 			Message: errorMessageGenerationFenced,
 			Err:     ErrGenerationFenced,
 		}
@@ -279,6 +313,9 @@ func (s *session) StartRecording(ctx context.Context, actor Actor) (RecordingRef
 }
 
 func (s *session) StopRecording(ctx context.Context, actor Actor) (RecordingRef, error) {
+	if err := requestContextError(ctx, "stop recording"); err != nil {
+		return RecordingRef{}, err
+	}
 	if err := s.authorizeProfile(actor); err != nil {
 		return RecordingRef{}, err
 	}
@@ -297,9 +334,9 @@ func (s *session) runningGate() error {
 		return nil
 	}
 	if s.reaping {
-		return &Error{Code: errorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
+		return &Error{Code: ErrorCodeExpired, Message: errorMessageExpired, Err: ErrExpired}
 	}
-	return &Error{Code: errorCodeExited, Message: errorMessageExited, Err: ErrExited}
+	return &Error{Code: ErrorCodeExited, Message: errorMessageExited, Err: ErrExited}
 }
 
 func (s *session) touch() {

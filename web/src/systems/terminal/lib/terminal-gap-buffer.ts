@@ -16,8 +16,11 @@
 
 /** One frame held back while the screen is being rebuilt. */
 interface HeldFrame {
-  seq: number;
+  seq: bigint;
+  end: bigint;
   bytes: Uint8Array;
+  credit: number;
+  splittable: boolean;
 }
 
 export interface TerminalGapBufferOptions {
@@ -32,7 +35,7 @@ export interface TerminalGapBufferOptions {
    * already covered by the snapshot — so a reconnect never resumes past bytes
    * nobody drew.
    */
-  commit: (seqEnd: number) => void;
+  commit: (seqEnd: bigint) => void;
   /** True once the connection is gone: stop writing, keep the books straight. */
   isCancelled: () => boolean;
 }
@@ -46,8 +49,18 @@ export class TerminalGapBuffer {
     return this.frames.length;
   }
 
-  hold(seq: number, bytes: Uint8Array): void {
-    this.frames.push({ seq, bytes });
+  hold(seq: bigint, bytes: Uint8Array): void {
+    this.frames.push({
+      seq,
+      end: seq + BigInt(bytes.byteLength),
+      bytes,
+      credit: bytes.byteLength,
+      splittable: true,
+    });
+  }
+
+  holdMarker(seq: bigint, bytes: Uint8Array): void {
+    this.frames.push({ seq, end: seq + 1n, bytes, credit: 0, splittable: false });
   }
 
   /**
@@ -63,25 +76,27 @@ export class TerminalGapBuffer {
    * Reconciliation stops there and reports it, leaving the rest held for the
    * fresh snapshot that has to come first.
    */
-  async reconcile(snapshotSeq: number): Promise<boolean> {
+  async reconcile(snapshotSeq: bigint): Promise<boolean> {
     let covered = snapshotSeq;
     while (this.frames.length > 0) {
       const held = this.frames[0];
       if (held.seq > covered) return false;
       this.frames.shift();
-      const size = held.bytes.byteLength;
-      const end = held.seq + size;
+      const end = held.end;
       if (end > covered) {
         // Checked before the write starts, never after it resolves. Bytes that
         // reached the screen are committed whatever became of the connection —
         // asking for them again would draw them twice.
         if (this.options.isCancelled()) return false;
-        await this.options.write(held.bytes.subarray(covered - held.seq));
+        const bytes = held.splittable
+          ? held.bytes.subarray(Number(covered - held.seq))
+          : held.bytes;
+        await this.options.write(bytes);
       }
-      covered = Math.max(covered, end);
+      covered = end > covered ? end : covered;
       this.options.commit(end);
       // Credit is a courtesy to a socket that may already be gone; it no-ops.
-      this.options.returnCredit(size);
+      this.options.returnCredit(held.credit);
     }
     return true;
   }
@@ -90,7 +105,7 @@ export class TerminalGapBuffer {
   discard(): void {
     let bytes = 0;
     while (this.frames.length > 0) {
-      bytes += this.frames.shift()?.bytes.byteLength ?? 0;
+      bytes += this.frames.shift()?.credit ?? 0;
     }
     if (bytes > 0) this.options.returnCredit(bytes);
   }

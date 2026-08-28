@@ -60,6 +60,95 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should publish the exhaustive status matrix for every terminal operation", func(t *testing.T) {
+		t.Parallel()
+
+		common := []int{400, 401, 403, 409, 500, 503}
+		expected := map[string][]int{
+			"streamTerminalCatalog":      append([]int{200, 422}, common...),
+			"listTerminals":              append([]int{200, 422}, common...),
+			"createTerminal":             append([]int{201, 422}, common...),
+			"getTerminal":                append([]int{200, 404, 410}, common...),
+			"deleteTerminal":             append([]int{200, 404, 410}, common...),
+			"mintTerminalAttachTicket":   append([]int{201, 404, 422}, common...),
+			"streamTerminal":             append([]int{101}, common...),
+			"execTerminal":               append([]int{200, 202, 422}, common...),
+			"readTerminal":               append([]int{200, 404, 410, 422}, common...),
+			"signalTerminal":             append([]int{200, 404, 422}, common...),
+			"waitTerminal":               append([]int{200, 404, 410, 422}, common...),
+			"listTerminalInputRequests":  append([]int{200, 422}, common...),
+			"answerTerminalInputRequest": append([]int{200, 404}, common...),
+			"rejectTerminalInputRequest": append([]int{200, 404}, common...),
+			"controlTerminalRecording":   append([]int{200, 404, 422}, common...),
+			"queryTerminalJournal":       append([]int{200, 422}, common...),
+			"downloadTerminalRecording":  append([]int{200, 404}, common...),
+			"downloadTerminalArtifact":   append([]int{200, 404}, common...),
+		}
+		for _, operation := range Operations() {
+			want, ok := expected[operation.OperationID]
+			if !ok {
+				continue
+			}
+			got := make([]int, 0, len(operation.Responses))
+			for _, response := range operation.Responses {
+				got = append(got, response.Status)
+			}
+			slices.Sort(got)
+			slices.Sort(want)
+			if !slices.Equal(got, want) {
+				t.Fatalf("%s response statuses = %v, want %v", operation.OperationID, got, want)
+			}
+			delete(expected, operation.OperationID)
+		}
+		if len(expected) != 0 {
+			t.Fatalf("terminal status matrix operations not found = %v", expected)
+		}
+	})
+
+	t.Run("Should constrain every public terminal sequence cursor to decimal uint64", func(t *testing.T) {
+		t.Parallel()
+
+		expected := map[string]string{
+			"streamTerminal": "after_seq",
+			"readTerminal":   "since_seq",
+		}
+		for _, operation := range Operations() {
+			parameterName, ok := expected[operation.OperationID]
+			if !ok {
+				continue
+			}
+			for _, parameter := range operation.Parameters {
+				if parameter.Name != parameterName {
+					continue
+				}
+				if parameter.Pattern != terminalpkg.DecimalUint64Pattern || parameter.MaxLength == nil ||
+					*parameter.MaxLength != terminalpkg.DecimalUint64MaxLength {
+					t.Fatalf("%s %s schema = pattern %q maxLength %v", operation.OperationID, parameterName,
+						parameter.Pattern, parameter.MaxLength)
+				}
+				delete(expected, operation.OperationID)
+				break
+			}
+		}
+		if len(expected) != 0 {
+			t.Fatalf("terminal cursor parameters not found = %v", expected)
+		}
+
+		doc, err := Document()
+		if err != nil {
+			t.Fatalf("Document() error = %v", err)
+		}
+		read := doc.Paths.Value(terminalPath + "/{id}/read")
+		if read == nil || read.Get == nil {
+			t.Fatal("GET terminal read operation is missing")
+		}
+		seq := propertySchema(t, jsonResponseSchema(t, read.Get, http.StatusOK), "seq")
+		if seq.Pattern != terminalpkg.DecimalUint64Pattern || seq.MaxLength == nil ||
+			*seq.MaxLength != terminalpkg.DecimalUint64MaxLength {
+			t.Fatalf("terminal read seq schema = pattern %q maxLength %v", seq.Pattern, seq.MaxLength)
+		}
+	})
+
 	t.Run("Should keep aggregate selectors and the ticket-bound stream distinct", func(t *testing.T) {
 		t.Parallel()
 
@@ -85,7 +174,9 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 				for _, response := range operation.Responses {
 					if response.Status == http.StatusSwitchingProtocols {
 						if response.Body != nil || !strings.Contains(response.Description, "binary") ||
+							!strings.Contains(response.Description, "compozy.terminal.v2") ||
 							!strings.Contains(response.Description, "PRESENCE=0x09") ||
+							!strings.Contains(response.Description, "REDACTED_INPUT=0x0A") ||
 							!strings.Contains(response.Description, "RELEASE=0x07") {
 							t.Fatalf("%s 101 response = %#v, want bodyless binary opcode contract", key, response)
 						}
@@ -174,7 +265,7 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should publish the exact frozen terminal error code enum", func(t *testing.T) {
+	t.Run("Should publish exact frozen domain codes beside a tolerant transport envelope", func(t *testing.T) {
 		t.Parallel()
 
 		want := frozenTerminalErrorCodes()
@@ -199,9 +290,9 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 		}
 		detail := propertySchema(t, jsonResponseSchema(t, exec.Post, http.StatusUnprocessableEntity), "error")
 		code := propertySchema(t, detail, "code")
-		assertEnumValues(t, code, want...)
-		if len(code.Enum) != 31 {
-			t.Fatalf("TerminalErrorDetail.code enum count = %d, want 31", len(code.Enum))
+		assertSchemaIncludesType(t, code, "string")
+		if len(code.Enum) != 0 {
+			t.Fatalf("TerminalErrorDetail.code enum = %v, want tolerant string", code.Enum)
 		}
 
 		for _, values := range [][]string{toolErrorCodeValues(), toolReasonCodeValues()} {
@@ -229,21 +320,24 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 			typeOf reflect.Type
 			want   []string
 		}{
-			{name: "mode", typeOf: reflect.TypeFor[terminalpkg.Mode](), want: []string{"pty", "pipe"}},
+			{
+				name: "mode", typeOf: reflect.TypeFor[contract.TerminalMode](),
+				want: contract.TerminalModeValues(),
+			},
 			{
 				name:   "lease state",
-				typeOf: reflect.TypeFor[terminalpkg.LeaseState](),
-				want:   []string{"human_owned", "agent_owned", "available"},
+				typeOf: reflect.TypeFor[contract.TerminalLeaseState](),
+				want:   contract.TerminalLeaseStateValues(),
 			},
 			{
 				name:   "actor kind",
-				typeOf: reflect.TypeFor[terminalpkg.ActorKind](),
-				want:   []string{"human", "agent", "system"},
+				typeOf: reflect.TypeFor[contract.TerminalActorKind](),
+				want:   contract.TerminalActorKindValues(),
 			},
 			{
 				name:   "signal",
-				typeOf: reflect.TypeFor[terminalpkg.Signal](),
-				want:   []string{"INT", "TERM", "KILL", "HUP"},
+				typeOf: reflect.TypeFor[contract.TerminalSignal](),
+				want:   contract.TerminalSignalValues(),
 			},
 			{
 				name:   "run state",
@@ -284,6 +378,11 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 				name:   "input reject outcome",
 				typeOf: reflect.TypeFor[contract.TerminalInputRejectOutcome](),
 				want:   contract.TerminalInputRejectOutcomeValues(),
+			},
+			{
+				name:   "input resolution outcome",
+				typeOf: reflect.TypeFor[contract.TerminalInputResolutionOutcome](),
+				want:   contract.TerminalInputResolutionOutcomeValues(),
 			},
 		}
 		for _, enum := range registeredEnums {
@@ -397,6 +496,28 @@ func TestTerminalOpenAPIContract(t *testing.T) {
 			propertySchema(t, jsonResponseSchema(t, reject.Post, http.StatusOK), "outcome"),
 			"rejected",
 		)
+
+		requests := doc.Paths.Value(terminalPath + "/input-requests")
+		if requests == nil || requests.Get == nil {
+			t.Fatal("GET terminal input requests operation is missing")
+		}
+		resolved := propertySchema(
+			t,
+			jsonResponseSchema(t, requests.Get, http.StatusOK),
+			"resolved",
+		).Items.Value
+		assertEnumValues(t, propertySchema(t, resolved, "outcome"), "answered", "rejected", "superseded", "expired")
+	})
+
+	t.Run("Should reject an unknown resolved input outcome at the public DTO boundary", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := contract.TerminalInputRequestsResponseFromDomain(nil, []terminalpkg.ResolvedInputRequest{{
+			Outcome: terminalpkg.InputResolutionOutcome("future"),
+		}})
+		if err == nil {
+			t.Fatal("TerminalInputRequestsResponseFromDomain() error = nil, want unknown outcome rejection")
+		}
 	})
 }
 

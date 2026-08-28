@@ -147,6 +147,9 @@ type SessionState struct {
 type PrepareRequest struct {
 	SessionID           string
 	WorkspaceID         string
+	ProfileID           string
+	AgentName           string
+	RuntimeGeneration   int64
 	SandboxID           string
 	InstanceID          string
 	LocalRootDir        string

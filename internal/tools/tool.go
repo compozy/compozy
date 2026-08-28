@@ -289,6 +289,8 @@ type Scope struct {
 	ProfileID   string `json:"profile_id,omitempty"`
 	WorkspaceID string `json:"workspace_id,omitempty"`
 	SessionID   string `json:"session_id,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
+	Generation  int64  `json:"generation,omitempty"`
 	AgentName   string `json:"agent_name,omitempty"`
 	ActorKind   string `json:"actor_kind,omitempty"`
 	Operator    bool   `json:"operator,omitempty"`
@@ -312,6 +314,8 @@ type CallRequest struct {
 	ToolID               ToolID          `json:"tool_id"`
 	ToolCallID           string          `json:"tool_call_id,omitempty"`
 	TurnID               string          `json:"turn_id,omitempty"`
+	RunID                string          `json:"run_id,omitempty"`
+	Generation           int64           `json:"generation,omitempty"`
 	ProfileID            string          `json:"profile_id,omitempty"`
 	SessionID            string          `json:"session_id,omitempty"`
 	WorkspaceID          string          `json:"workspace_id,omitempty"`
@@ -368,7 +372,11 @@ type ToolCallEvent struct {
 	ProfileID            string            `json:"profile_id,omitempty"`
 	WorkspaceID          string            `json:"workspace_id,omitempty"`
 	SessionID            string            `json:"session_id,omitempty"`
+	TurnID               string            `json:"turn_id,omitempty"`
+	RunID                string            `json:"run_id,omitempty"`
+	Generation           int64             `json:"generation,omitempty"`
 	AgentName            string            `json:"agent_name,omitempty"`
+	ActorKind            string            `json:"actor_kind,omitempty"`
 	Risk                 RiskClass         `json:"risk,omitempty"`
 	ReadOnly             bool              `json:"read_only"`
 	Destructive          bool              `json:"destructive"`

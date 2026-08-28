@@ -15,7 +15,7 @@
   integrated-terminal-states · S1 — empty, error, limit, platform and
   degradation states of the Terminal OS app.
   Spec: .compozy/tasks/integrated-terminal/_uiux.md S1 states list ·
-  US-001, 003, 006, 027..029 · _dx.md error table (26 codes).
+  US-001, 003, 006, 027..029 · _dx.md error table (31 domain codes).
   Contract: DESIGN-NOTES.md.
   Provenance:
     production — .empty / .notice / .pill anatomy from ds-core; error copy
@@ -374,17 +374,17 @@
       </div>
     </section>
 
-    <!-- ===== 08 · EXECUTE-ONLY PLATFORM ===== -->
+    <!-- ===== 08 · EXECUTE-ONLY REMOTE ENVIRONMENT ===== -->
     <section class="lab-sec" data-od-id="tst-platform">
       <div class="lab-sec__head">
         <span class="lab-sec__num">08</span>
-        <h2 class="lab-sec__t">Execute-only platform</h2>
-        <span class="lab-sec__gist">US-027 · US-028 · absent, not disabled</span>
+        <h2 class="lab-sec__t">Execute-only remote environment</h2>
+        <span class="lab-sec__gist">US-028 · absent, not disabled</span>
       </div>
       <div class="spec">
         <div class="spec__note">
-          <b>Said before anything can hang.</b> On Windows and remote
-          sandboxes there are no live terminals to type into at launch —
+          <b>Said before anything can hang.</b> In remote sandboxes without
+          interactive PTY support there are no live terminals to type into —
           the surface says so up front, and agents can still run commands.
           No grayed-out open button exists: the option is absent.
           <span class="mono">terminal_interactive_unavailable · 422</span>
@@ -408,7 +408,7 @@
                     <button class="btn btn--sm" type="button">View journal</button>
                   </div>
                   <details class="empty__cause"><summary><svg data-lucide="chevron-right" class="disclosure-icon"></svg>Details</summary>
-                    <pre>terminal_interactive_unavailable · platform windows · exec available</pre>
+                    <pre>terminal_interactive_unavailable · mode remote_sandbox · exec available</pre>
                   </details>
                 </div>
               </div>

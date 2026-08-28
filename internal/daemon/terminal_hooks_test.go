@@ -79,7 +79,7 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 			Kind: testCase.kind, WorkspaceID: "workspace-a", ProfileID: "profile-a", TerminalID: "term-a",
 			Actor: terminalpkg.Actor{
 				Kind: terminalpkg.ActorKindAgent, ID: "agent-a", ProfileID: "profile-a",
-				SessionID: "session-a", RunID: "run-a",
+				SessionID: "session-a", RunID: "run-a", Generation: 17,
 			},
 			At: at, Reason: "operator_close",
 			Exit: &terminalpkg.Exit{Cause: "exited", Code: new(0)},
@@ -103,7 +103,8 @@ func TestTerminalHookBridgeCoverage(t *testing.T) {
 			if got.event != testCase.hook || got.payload["event"] != testCase.hook.String() ||
 				got.payload["workspace_id"] != "workspace-a" || got.payload["profile_id"] != "profile-a" ||
 				got.payload["terminal_id"] != "term-a" || got.payload["actor_id"] != "agent-a" ||
-				got.payload["session_id"] != "session-a" || got.payload["run_id"] != "run-a" {
+				got.payload["session_id"] != "session-a" || got.payload["run_id"] != "run-a" ||
+				got.payload["generation"] != float64(17) {
 				t.Fatalf("bridge payload for %s = %#v (%s)", testCase.hook, got.payload, got.event)
 			}
 			for key, want := range terminalHookExpectedPayload(testCase.hook) {

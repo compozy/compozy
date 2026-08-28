@@ -254,6 +254,14 @@ func (m *Manager) enrichRecordedAgentEvent(session *Session, event acp.AgentEven
 		enriched.Goal = acp.CloneGoalPromptMeta(enriched.Goal)
 	}
 	correlation := enriched.Normalize()
+	if identity, ok := m.activePromptRunSnapshot(session.ID); ok {
+		if correlation.RunID == "" {
+			correlation.RunID = identity.RunID
+		}
+		if correlation.Generation == 0 {
+			correlation.Generation = identity.Generation
+		}
+	}
 	meta := session.CurrentPromptMeta().Normalize()
 	if meta.Synthetic != nil {
 		synthetic := meta.Synthetic.Normalize()

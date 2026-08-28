@@ -21,7 +21,9 @@ import {
   terminalRecordingResponseSchema,
   terminalResponseSchema,
   terminalSignalResponseSchema,
+  terminalErrorCodeSchema,
   type TerminalErrorCode,
+  type TerminalErrorDetails,
 } from "../lib/terminal-contract-schema";
 
 import type {
@@ -32,7 +34,7 @@ import type {
   TerminalInfo,
   TerminalInputAnswerResult,
   TerminalInputRejectResult,
-  TerminalInputRequest,
+  TerminalInputRequestProjection,
   TerminalJournalFilters,
   TerminalJournalPage,
   TerminalReadResult,
@@ -47,22 +49,25 @@ import type {
 /**
  * Carries the daemon's machine code beside the message.
  *
- * Every terminal refusal is typed (`terminal_limit_reached`, `ticket_expired`,
- * `journal_unavailable`, …) and the surfaces branch on the code, so the prose
- * stays free to change without breaking behaviour.
+ * Terminal domain refusals use the frozen code set. Transport failures keep
+ * the same envelope with truthful generic codes such as `invalid_request` or
+ * `service_unavailable`, so callers may branch only when `domainCode` exists.
  */
 export class TerminalApiError extends Error {
-  public readonly details: Readonly<Record<string, string>> | undefined;
+  public readonly details: Readonly<TerminalErrorDetails> | undefined;
+  public readonly domainCode: TerminalErrorCode | undefined;
 
   constructor(
     message: string,
     public readonly status: number,
-    public readonly code: TerminalErrorCode,
-    details?: Readonly<Record<string, string>>
+    public readonly code: string,
+    details?: Readonly<TerminalErrorDetails>
   ) {
     super(message);
     this.name = "TerminalApiError";
     this.details = details ? Object.freeze({ ...details }) : undefined;
+    const parsedDomainCode = terminalErrorCodeSchema.safeParse(code);
+    this.domainCode = parsedDomainCode.success ? parsedDomainCode.data : undefined;
   }
 }
 
@@ -239,7 +244,7 @@ export async function mintTerminalAttachTicket(
 export interface TerminalReadParams {
   view: TerminalReadView;
   maxBytes?: number;
-  sinceSeq?: number;
+  sinceSeq?: bigint;
   from?: number;
   to?: number;
   grep?: string;
@@ -281,12 +286,12 @@ export async function signalTerminal(
   );
 }
 
-export async function fetchTerminalInputRequests(
+export async function fetchTerminalInputRequestProjection(
   workspaceId: string,
   scope: TerminalScopeParams,
   terminalId?: string,
   signal?: AbortSignal
-): Promise<TerminalInputRequest[]> {
+): Promise<TerminalInputRequestProjection> {
   const query = terminalScopeQuery(scope);
   if (terminalId) query.set("terminal_id", terminalId);
   const payload = await parseTerminalResponse(
@@ -294,7 +299,7 @@ export async function fetchTerminalInputRequests(
     terminalInputRequestsResponseSchema,
     { method: "GET", signal }
   );
-  return payload.requests;
+  return payload;
 }
 
 function inputRequestRoot(workspaceId: string, terminalId: string, requestId: string): string {
@@ -406,7 +411,7 @@ export function terminalStreamPath(
     mode: TerminalAttachMode;
     cols?: number;
     rows?: number;
-    afterSeq?: number;
+    afterSeq?: bigint;
     flow: "drop" | "ack";
   }
 ): string {

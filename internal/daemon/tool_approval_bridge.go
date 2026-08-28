@@ -28,6 +28,8 @@ const (
 	terminalToolApprovalMinimumTimeout                           = 15 * time.Minute
 )
 
+var errToolApprovalRejected = errors.New("daemon: tool approval rejected")
+
 type sessionPermissionRequester interface {
 	RequestPermission(
 		ctx context.Context,
@@ -163,7 +165,7 @@ func terminalApprovalPromptPolicy(
 		return toolApprovalPromptPolicy{}, nativeCommandToolError(
 			toolspkg.ErrorCodeDenied,
 			toolID,
-			"approval_rejected — terminal command is blocked by the irreversible-operation policy",
+			"terminal command is blocked by the irreversible-operation policy",
 			toolspkg.ErrToolDenied,
 			toolspkg.ReasonPolicyDenied,
 		)
@@ -371,5 +373,15 @@ func toolApprovalError(id toolspkg.ToolID, message string, reason toolspkg.Reaso
 		toolspkg.ErrToolApprovalRequired,
 		toolspkg.ReasonApprovalRequired,
 		reason,
+	)
+}
+
+func toolApprovalRejectedError(id toolspkg.ToolID) error {
+	return toolspkg.NewToolError(
+		toolspkg.ErrorCodeApprovalRequired,
+		id,
+		"tool approval was rejected",
+		errors.Join(toolspkg.ErrToolApprovalRequired, errToolApprovalRejected),
+		toolspkg.ReasonApprovalRequired,
 	)
 }

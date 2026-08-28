@@ -12,10 +12,11 @@ import (
 type CommandVerdict string
 
 const (
-	CommandVerdictPrompt      CommandVerdict = "prompt"
-	CommandVerdictAllowlisted CommandVerdict = "allowlisted"
-	CommandVerdictDenied      CommandVerdict = "denied"
-	commandReasonIrreversible                = "irreversible"
+	CommandVerdictPrompt          CommandVerdict = "prompt"
+	CommandVerdictAllowlisted     CommandVerdict = "allowlisted"
+	CommandVerdictDenied          CommandVerdict = "denied"
+	commandReasonApprovalRequired                = "approval_required"
+	commandReasonIrreversible                    = "irreversible"
 )
 
 // ArgvPattern is one administrator-approved command shape. A "*" argument
@@ -63,7 +64,9 @@ func ClassifyArgv(argv []string, allowlist []ArgvPattern, denyLists ...[]ArgvPat
 			return CommandClassification{Verdict: CommandVerdictAllowlisted, Reason: "allowlist", Digest: digest}
 		}
 	}
-	return CommandClassification{Verdict: CommandVerdictPrompt, Reason: errorCodeApprovalRequired, Digest: digest}
+	return CommandClassification{
+		Verdict: CommandVerdictPrompt, Reason: commandReasonApprovalRequired, Digest: digest,
+	}
 }
 
 func argvDigest(argv []string) string {

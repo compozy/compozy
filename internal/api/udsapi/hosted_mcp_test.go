@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	mcppkg "github.com/compozy/compozy/internal/mcp"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	"github.com/gin-gonic/gin"
 )
@@ -191,6 +192,28 @@ func TestHostedMCPJSONToolErrors(t *testing.T) {
 		}
 		if !slices.Contains(payload.Error.ReasonCodes, toolspkg.ReasonApprovalUnreachable) {
 			t.Fatalf("reason_codes = %#v, want %q", payload.Error.ReasonCodes, toolspkg.ReasonApprovalUnreachable)
+		}
+	})
+
+	t.Run("Should preserve terminal domain envelopes through hosted MCP calls", func(t *testing.T) {
+		t.Parallel()
+
+		registry := newTerminalFailureHostedMCPToolRegistry(t)
+		router, service, peer := newHostedMCPRouteTestHarnessWithRegistry(t, registry)
+		bind := launchAndBindHostedMCP(t, service, peer, "sess-terminal-failure")
+
+		recorder := postHostedMCPToolCall(t, router, peer, bind.BindID, "compozy__hosted_terminal_failure")
+		if recorder.Code != http.StatusConflict {
+			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusConflict, recorder.Body.String())
+		}
+		var payload contract.TerminalErrorResponse
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatalf("Unmarshal(terminal error response) error = %v; body=%s", err, recorder.Body.String())
+		}
+		if payload.Error.Code != string(terminalpkg.ErrorCodeLimitReached) || payload.Error.Details == nil ||
+			payload.Error.Details.Current == nil || *payload.Error.Details.Current != 3 ||
+			payload.Error.Details.Max == nil || *payload.Error.Details.Max != 3 {
+			t.Fatalf("terminal error payload = %#v, want limit_reached with current/max 3", payload)
 		}
 	})
 }
@@ -381,6 +404,9 @@ func launchAndBindHostedMCP(
 	if err != nil {
 		t.Fatalf("HostedService.Bind() error = %v", err)
 	}
+	if err := service.BindRun(t.Context(), sessionID, "run-"+sessionID, 1); err != nil {
+		t.Fatalf("HostedService.BindRun() error = %v", err)
+	}
 	return bind
 }
 
@@ -477,6 +503,43 @@ func newDeniedHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
 			DenyTools:            []toolspkg.ToolPattern{denyPattern},
 		}, toolspkg.ToolsetCatalog{}),
 	)
+	if err != nil {
+		t.Fatalf("NewRegistry() error = %v", err)
+	}
+	return registry
+}
+
+func newTerminalFailureHostedMCPToolRegistry(t *testing.T) toolspkg.Registry {
+	t.Helper()
+
+	source := toolspkg.SourceRef{Kind: toolspkg.SourceBuiltin, Owner: toolspkg.BuiltinSourceOwner}
+	descriptor := toolspkg.Descriptor{
+		ID:               "compozy__hosted_terminal_failure",
+		ToolPresentation: toolspkg.NewToolPresentation("Hosted Terminal Failure", "", ""),
+		Description:      "Terminal failure test tool.",
+		InputSchema:      json.RawMessage(`{"type":"object","additionalProperties":false}`),
+		OutputSchema:     json.RawMessage(`{"type":"object"}`),
+		Backend:          toolspkg.BackendRef{Kind: toolspkg.BackendNativeGo, NativeName: "hosted_terminal_failure"},
+		Source:           source,
+		Visibility:       toolspkg.VisibilityModel,
+		Risk:             toolspkg.RiskRead,
+		ReadOnly:         true,
+		ConcurrencySafe:  true,
+		Toolsets:         []toolspkg.ToolsetID{toolspkg.ToolsetIDCoordination},
+	}
+	provider, err := toolspkg.NewNativeProvider(source, toolspkg.NativeTool{
+		Descriptor: descriptor,
+		Call: func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+			return toolspkg.ToolResult{}, &terminalpkg.Error{
+				Code: terminalpkg.ErrorCodeLimitReached, Message: "terminal limit reached",
+				Current: 3, Max: 3, Err: terminalpkg.ErrLimitReached,
+			}
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewNativeProvider() error = %v", err)
+	}
+	registry, err := toolspkg.NewRegistry(toolspkg.WithProviders(provider))
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
 	}

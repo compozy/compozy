@@ -354,6 +354,51 @@ func TestRegistryReconcileBootRetiresPersistedPriorDaemonProcesses(t *testing.T)
 func TestRegistryScopedInterruptSignalsOnlyMatchingLiveRecord(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should keep run generation distinct from turn identity", func(t *testing.T) {
+		t.Parallel()
+
+		store := NewMemoryStore()
+		registry := NewRegistry(store)
+		signaled := make(map[string]int)
+		for _, candidate := range []struct {
+			id         string
+			generation int64
+		}{
+			{id: "proc-generation-1", generation: 1},
+			{id: "proc-generation-2", generation: 2},
+		} {
+			handle, err := registry.Register(t.Context(), RegisterConfig{
+				ID: candidate.id, Source: ProcessSourceTerminal,
+				Owner: ProcessOwner{
+					SessionID: "sess-1", TurnID: "turn-1", RunID: "run-1", Generation: candidate.generation,
+				},
+				Interrupt: func(_ context.Context, record ProcessRecord) error {
+					signaled[record.ID]++
+					return nil
+				},
+			})
+			if err != nil {
+				t.Fatalf("Register(%s) error = %v", candidate.id, err)
+			}
+			t.Cleanup(func() {
+				if err := handle.Complete(t.Context(), ProcessCompletion{}); err != nil {
+					t.Errorf("Complete(%s cleanup) error = %v", candidate.id, err)
+				}
+			})
+		}
+
+		report, err := registry.Interrupt(t.Context(), InterruptScope{
+			SessionID: "sess-1", TurnID: "turn-1", RunID: "run-1", Generation: 2,
+		})
+		if err != nil {
+			t.Fatalf("Interrupt(run generation 2) error = %v", err)
+		}
+		if report.Matched != 1 || report.Signaled != 1 ||
+			signaled["proc-generation-1"] != 0 || signaled["proc-generation-2"] != 1 {
+			t.Fatalf("Interrupt(run generation 2) = %#v signaled=%#v", report, signaled)
+		}
+	})
+
 	t.Run("Should signal only matching live process records", func(t *testing.T) {
 		t.Parallel()
 
