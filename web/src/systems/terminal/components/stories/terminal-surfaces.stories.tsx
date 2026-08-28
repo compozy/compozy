@@ -211,7 +211,7 @@ export const TypingGrant: Story = {
     <TerminalVisualStage>
       <div className="px-3.5 py-3">
         <TerminalApprovalDetail
-          detail={{ kind: "typing", terminalId: PSQL_TERMINAL.id }}
+          detail={{ kind: "typing", terminalId: PSQL_TERMINAL.id, activity: null }}
           terminalTitle={PSQL_TERMINAL.title}
         />
       </div>
@@ -223,11 +223,9 @@ export const TypingGrant: Story = {
  * VC-12b — what those permissions look like once remembered.
  *
  * The board labels these rows "Can type in psql" and "Always allowed: bun add
- * …". The daemon cannot support either: a remembered decision stores a **digest**
- * of the exact tool input, never the input, the terminal id or the command. So
- * the rows say what the decision covers and show the digest as the only thing
- * that tells two of them apart. Authorized runtime-truth delta; a readable name
- * would need the daemon to publish one (handed off to the activation tranche).
+ * …". The daemon stores a digest of the exact tool input, never the input, the
+ * terminal id, or the command. Rows say what the decision covers and show the
+ * digest. Authorized runtime-truth delta.
  */
 export const GrantRows: Story = {
   name: "VC-12b · Remembered permissions",

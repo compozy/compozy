@@ -27,7 +27,8 @@ export interface TerminalExecPermission {
   kind: "exec";
   /** The exact command, unmodified. */
   command: string;
-  cwd: string;
+  /** Working directory when the daemon sent one. Never invented. */
+  cwd: string | null;
   terminalId: string | null;
   risk: TerminalPermissionRisk;
 }
@@ -35,12 +36,21 @@ export interface TerminalExecPermission {
 export interface TerminalTypingPermission {
   kind: "typing";
   terminalId: string | null;
+  /**
+   * Optional one-clause activity on the typing tool input.
+   *
+   * The live authorize-input payload is `terminal_id` + `grant_generation`.
+   * This field is shown only when the tool input actually carries `activity`.
+   * Keystrokes (`data`) and request_input `reason` are never read as activity.
+   */
+  activity: string | null;
 }
 
 export interface TerminalOpenPermission {
   kind: "open";
-  title: string;
-  cwd: string;
+  /** Catalog title when the daemon sent one. Never a stand-in name. */
+  title: string | null;
+  cwd: string | null;
   shell: string | null;
 }
 
@@ -65,13 +75,18 @@ export function terminalPermissionDetail(
   toolInput: Record<string, unknown>
 ): TerminalPermissionDetail | null {
   if (toolName === WRITE_TOOL) {
-    return { kind: "typing", terminalId: readString(toolInput.terminal_id) };
+    return {
+      kind: "typing",
+      terminalId: readString(toolInput.terminal_id),
+      // Only `activity` is a typing-ask field. `reason` belongs to request_input.
+      activity: readString(toolInput.activity),
+    };
   }
   if (toolName === OPEN_TOOL) {
     return {
       kind: "open",
-      title: readString(toolInput.title) ?? "Terminal",
-      cwd: readString(toolInput.cwd) ?? ".",
+      title: readString(toolInput.title),
+      cwd: readString(toolInput.cwd),
       shell: readString(toolInput.shell),
     };
   }
@@ -81,10 +96,24 @@ export function terminalPermissionDetail(
   return {
     kind: "exec",
     command,
-    cwd: readString(toolInput.cwd) ?? ".",
+    cwd: readString(toolInput.cwd),
     terminalId: readString(toolInput.terminal_id),
     risk: readRisk(toolInput),
   };
+}
+
+/**
+ * Remembered decisions are a pattern to keep. Irreversible and unclassifiable
+ * always ask, so neither polarity — allow-always nor reject-always — can be
+ * stored. Ordinary exec keeps both; typing and open are not this rule.
+ */
+export function terminalBlockedRememberedDecisions(
+  detail: TerminalPermissionDetail | null
+): readonly ("allow-always" | "reject-always")[] {
+  if (detail?.kind === "exec" && detail.risk !== "ordinary") {
+    return ["allow-always", "reject-always"];
+  }
+  return [];
 }
 
 /**

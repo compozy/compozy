@@ -65,15 +65,19 @@ describe("ToolApprovalGrantsSection", () => {
     const shape = terminalToolApprovalGrantFixtures[1]!;
     // Reads as a permission, and says only what the daemon actually recorded:
     // a digest of one exact input, never a terminal name decoded from a hash.
+    expect(screen.getByTestId(`${TEST_ID}-terminal-group`)).toHaveTextContent("Terminal");
     expect(screen.getByTestId(`terminal-grant-row-${typing.id}`)).toHaveTextContent(
-      "Can type into one exact terminal"
+      "Can type in one terminal"
     );
     expect(screen.getByTestId(`terminal-grant-row-${typing.id}`)).toHaveTextContent(
       typing.input_digest as string
     );
     expect(screen.getByTestId(`terminal-grant-row-${shape.id}`)).toHaveTextContent(
-      "Always allowed: one exact command"
+      "Always allowed: this exact command"
     );
+    expect(
+      screen.getByRole("button", { name: `Revoke Can type in one terminal` })
+    ).toHaveTextContent("Revoke");
     // One policy surface: terminal permissions live here, not in a second list.
     expect(screen.queryByTestId("tool-approval-grant-row")).not.toBeInTheDocument();
   });

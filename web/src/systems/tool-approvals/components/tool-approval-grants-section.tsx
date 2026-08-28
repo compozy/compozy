@@ -1,11 +1,12 @@
 import { Plus, Shield, Trash2 } from "lucide-react";
 
-import { Button, ConfirmDialog, DataSurface, Section } from "@compozy/ui";
+import { Button, ConfirmDialog, DataSurface, ListGroup, Section } from "@compozy/ui";
 
 // Narrow entry: this section must not pull the emulator into settings.
 import { TerminalGrantRow, terminalGrantFromToolGrant } from "@/systems/terminal/parts";
 
 import { useToolApprovalGrantsPanel } from "../hooks/use-tool-approval-grants-panel";
+import type { ToolApprovalGrant } from "../types";
 import { ToolApprovalGrantSetDialog } from "./tool-approval-grant-set-dialog";
 import { ToolApprovalGrantRow } from "./tool-approval-grant-row";
 
@@ -67,25 +68,7 @@ export function ToolApprovalGrantsSection() {
           className="overflow-hidden rounded-lg border border-line bg-canvas-soft"
           data-testid={`${TEST_ID}-list`}
         >
-          {grants.map(grant => {
-            if (grant.tool_id === "compozy__terminal_open") {
-              return <ToolApprovalGrantRow grant={grant} key={grant.id} onRevoke={revoke.open} />;
-            }
-            // Terminal permissions are remembered decisions like any other, so
-            // they list and revoke here rather than in a second policy surface.
-            // They only read differently: "can type in one exact terminal" is not a tool id.
-            const terminalGrant = terminalGrantFromToolGrant(grant);
-            if (terminalGrant) {
-              return (
-                <TerminalGrantRow
-                  grant={terminalGrant}
-                  key={grant.id}
-                  onRevoke={() => revoke.open(grant)}
-                />
-              );
-            }
-            return <ToolApprovalGrantRow grant={grant} key={grant.id} onRevoke={revoke.open} />;
-          })}
+          {renderGrantRows(grants, revoke.open)}
         </DataSurface.Content>
       </DataSurface>
       <ToolApprovalGrantSetDialog
@@ -110,11 +93,7 @@ export function ToolApprovalGrantsSection() {
         confirmIcon={Trash2}
         confirmLabel="Revoke decision"
         contentProps={{ "data-testid": `${TEST_ID}-revoke` }}
-        description={
-          target
-            ? `CompozyOS will forget this remembered approval for "${target.tool_id}" in this workspace. The next matching tool call will prompt for approval again.`
-            : null
-        }
+        description={revokeDescription(target)}
         error={revoke.error}
         errorProps={{ "data-testid": `${TEST_ID}-revoke-error` }}
         isPending={revoke.isPending}
@@ -135,4 +114,52 @@ export function ToolApprovalGrantsSection() {
       />
     </Section>
   );
+}
+
+function renderGrantRows(
+  grants: ToolApprovalGrant[],
+  onRevoke: (grant: ToolApprovalGrant) => void
+) {
+  const terminal: {
+    source: ToolApprovalGrant;
+    grant: NonNullable<ReturnType<typeof terminalGrantFromToolGrant>>;
+  }[] = [];
+  const other: ToolApprovalGrant[] = [];
+  for (const grant of grants) {
+    const terminalGrant = terminalGrantFromToolGrant(grant);
+    if (terminalGrant) {
+      terminal.push({ source: grant, grant: terminalGrant });
+    } else {
+      other.push(grant);
+    }
+  }
+  return (
+    <>
+      {terminal.length > 0 ? (
+        <ListGroup
+          className={other.length > 0 ? "border-b border-line" : undefined}
+          data-testid={`${TEST_ID}-terminal-group`}
+          label="Terminal"
+        >
+          {terminal.map(({ source, grant }) => (
+            <TerminalGrantRow grant={grant} key={source.id} onRevoke={() => onRevoke(source)} />
+          ))}
+        </ListGroup>
+      ) : null}
+      {other.map(grant => (
+        <ToolApprovalGrantRow grant={grant} key={grant.id} onRevoke={onRevoke} />
+      ))}
+    </>
+  );
+}
+
+function revokeDescription(target: ToolApprovalGrant | null): string | null {
+  if (!target) return null;
+  const terminal = terminalGrantFromToolGrant(target);
+  if (terminal) {
+    return terminal.kind === "typing"
+      ? "CompozyOS will forget this typing permission in this project. The next keystroke in that terminal will ask again."
+      : "CompozyOS will forget this exact command in this project. The next matching run will ask again.";
+  }
+  return `CompozyOS will forget this remembered approval for "${target.tool_id}" in this workspace. The next matching tool call will prompt for approval again.`;
 }

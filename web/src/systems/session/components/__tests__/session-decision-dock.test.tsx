@@ -24,6 +24,7 @@ import {
   answerSessionClarification,
   fetchSessionClarifications,
 } from "../../adapters/session-clarification-api";
+import { derivePendingPermissions } from "../../lib/pending-permissions";
 import { SessionTranscriptThreadProvider } from "../../lib/session-transcript-thread-context";
 import type { ClarificationPending } from "../../types";
 import { SessionDecisionDock } from "../session-decision-dock";
@@ -128,23 +129,24 @@ describe("SessionDecisionDock", () => {
   });
 
   it("Should dock a terminal ask with the exact command and where it would run", () => {
+    const message = permissionMessage("req-terminal", {
+      title: "compozy__terminal_exec",
+      action: "execute",
+      resource: "bun add @xterm/xterm",
+      raw: {
+        tool_id: "compozy__terminal_exec",
+        tool_input: {
+          command: "bun",
+          args: ["add", "@xterm/xterm"],
+          cwd: "~/dev/atlas-api",
+          risk: "ordinary",
+        },
+      },
+    });
+    expect(derivePendingPermissions([message])[0]?.toolInput.risk).toBe("ordinary");
+
     renderDock({
-      messages: [
-        permissionMessage("req-terminal", {
-          title: "Terminal Exec",
-          action: "execute",
-          resource: "bun add @xterm/xterm",
-          raw: {
-            tool_id: "compozy__terminal_exec",
-            tool_input: {
-              command: "bun",
-              args: ["add", "@xterm/xterm"],
-              cwd: "~/dev/atlas-api",
-              terminal_id: "term-4f21c9a03b7e",
-            },
-          },
-        }),
-      ],
+      messages: [message],
     });
 
     expect(screen.getByTestId("terminal-approval-command")).toHaveTextContent(
@@ -157,6 +159,12 @@ describe("SessionDecisionDock", () => {
     // beside it — one statement of what would run, not two.
     expect(screen.queryByTestId("permission-dock-subject")).not.toBeInTheDocument();
     expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-always")).toHaveTextContent(
+      "Always allow this exact command"
+    );
+    expect(screen.getByTestId("permission-reject-once")).toHaveTextContent("Don't allow");
+    // The exact command replaces the ACP action/resource paraphrase.
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
   });
 
   it("Should offer no remembered decision for the fixed irreversible set", () => {
@@ -178,11 +186,18 @@ describe("SessionDecisionDock", () => {
     expect(screen.getByTestId("terminal-approval-irreversible")).toHaveTextContent(
       "This can't be undone"
     );
-    // Absent by design (US-022): no autonomy level and no remembered shape
-    // covers this, so the option is not offered and then refused.
+    // Absent by design (US-022): two one-shot choices only. No remembered
+    // allow or reject — buttons, split, or key 4.
     expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-menu-trigger")).not.toBeInTheDocument();
     expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
     expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "2" });
+    fireEvent.keyDown(document.body, { key: "4" });
+    expect(approveSession).not.toHaveBeenCalled();
   });
 
   it("Should say why an unreadable command always asks", () => {
@@ -203,7 +218,16 @@ describe("SessionDecisionDock", () => {
 
     expect(screen.getByTestId("terminal-approval-unclassifiable")).toBeInTheDocument();
     expect(screen.queryByTestId("permission-allow-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-always")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-reject-menu-trigger")).not.toBeInTheDocument();
+    expect(screen.getByTestId("permission-allow-once")).toBeInTheDocument();
+    expect(screen.getByTestId("permission-reject-once")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-approval-irreversible")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "2" });
+    fireEvent.keyDown(document.body, { key: "4" });
+    expect(approveSession).not.toHaveBeenCalled();
   });
 
   it("Should name the terminal a typing permission would cover", () => {
@@ -223,6 +247,14 @@ describe("SessionDecisionDock", () => {
     ).toBeInTheDocument();
     // The keystrokes themselves are never the subject of the ask.
     expect(detail).not.toHaveTextContent("y\r");
+    expect(screen.getByTestId("permission-dock-title")).toHaveTextContent(
+      "The agent wants to type"
+    );
+    expect(screen.getByTestId("permission-allow-always")).toHaveTextContent(
+      "Allow for this terminal"
+    );
+    expect(screen.queryByTestId("terminal-typing-activity")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("permission-dock-meta")).not.toBeInTheDocument();
   });
 
   it("Should dock a pending permission with its subject on the code wash", () => {

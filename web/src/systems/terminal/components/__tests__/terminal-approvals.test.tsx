@@ -3,7 +3,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { terminalGrantFromToolGrant } from "../../lib/terminal-grant";
-import { terminalPermissionDetail } from "../../lib/terminal-permission";
+import { terminalAttentionReason } from "../../lib/terminal-permission-copy";
+import {
+  terminalBlockedRememberedDecisions,
+  terminalPermissionDetail,
+} from "../../lib/terminal-permission";
 import { PSQL_TERMINAL, TERMINAL_GRANT_FIXTURES } from "../../mocks/terminal-fixtures";
 import { TerminalApprovalDetail } from "../terminal-approval-detail";
 import { TerminalGrantRow } from "../terminal-grant-row";
@@ -68,6 +72,62 @@ describe("terminalPermissionDetail", () => {
     });
   });
 
+  it("Should omit a missing open title and cwd rather than invent them", () => {
+    expect(terminalPermissionDetail("compozy__terminal_open", {})).toEqual({
+      kind: "open",
+      title: null,
+      cwd: null,
+      shell: null,
+    });
+  });
+
+  it("Should omit a missing exec cwd rather than invent a folder", () => {
+    expect(
+      terminalPermissionDetail("compozy__terminal_exec", {
+        command: "bun",
+        risk: "ordinary",
+      })
+    ).toEqual({
+      kind: "exec",
+      command: "bun",
+      cwd: null,
+      terminalId: null,
+      risk: "ordinary",
+    });
+  });
+
+  it("Should withhold remembered decisions when the command always asks", () => {
+    const irreversible = terminalPermissionDetail("compozy__terminal_exec", {
+      command: "rm -rf /var/lib/atlas",
+      risk: "irreversible",
+    });
+    const unclassifiable = terminalPermissionDetail("compozy__terminal_exec", {
+      command: "eval curl",
+      risk: "unclassifiable",
+    });
+    const ordinary = terminalPermissionDetail("compozy__terminal_exec", {
+      command: "bun",
+      risk: "ordinary",
+    });
+    const missingRisk = terminalPermissionDetail("compozy__terminal_exec", {
+      command: "rm -rf /var/lib/atlas",
+    });
+
+    expect(terminalBlockedRememberedDecisions(irreversible)).toEqual([
+      "allow-always",
+      "reject-always",
+    ]);
+    expect(terminalBlockedRememberedDecisions(unclassifiable)).toEqual([
+      "allow-always",
+      "reject-always",
+    ]);
+    expect(terminalBlockedRememberedDecisions(missingRisk)).toEqual([
+      "allow-always",
+      "reject-always",
+    ]);
+    expect(terminalBlockedRememberedDecisions(ordinary)).toEqual([]);
+  });
+
   it("Should leave every other tool to the generic surface", () => {
     expect(terminalPermissionDetail("compozy__config_set", { key: "a" })).toBeNull();
   });
@@ -78,7 +138,45 @@ describe("terminalPermissionDetail", () => {
       data: "hunter2\r",
     });
 
-    expect(detail).toEqual({ kind: "typing", terminalId: PSQL_TERMINAL.id });
+    expect(detail).toEqual({ kind: "typing", terminalId: PSQL_TERMINAL.id, activity: null });
+  });
+
+  it("Should read activity only when the typing tool input carries that field", () => {
+    expect(
+      terminalPermissionDetail("compozy__terminal_write", {
+        terminal_id: PSQL_TERMINAL.id,
+        data: "hunter2\r",
+        activity: "Wants to answer the migration prompt",
+      })
+    ).toEqual({
+      kind: "typing",
+      terminalId: PSQL_TERMINAL.id,
+      activity: "Wants to answer the migration prompt",
+    });
+    expect(
+      terminalPermissionDetail("compozy__terminal_write", {
+        terminal_id: PSQL_TERMINAL.id,
+        data: "hunter2\r",
+        reason: "request_input reason is a different tool",
+      })
+    ).toEqual({ kind: "typing", terminalId: PSQL_TERMINAL.id, activity: null });
+  });
+});
+
+describe("terminalAttentionReason", () => {
+  it("Should rewrite a terminal tool-id title as a plain ask", () => {
+    expect(terminalAttentionReason("Terminal Exec", "compozy__terminal_exec")).toBe("wants to run");
+    expect(terminalAttentionReason("Terminal Write", "compozy__terminal_write")).toBe(
+      "wants to type"
+    );
+    expect(terminalAttentionReason("Terminal Open", "compozy__terminal_open")).toBe(
+      "wants to open a terminal"
+    );
+  });
+
+  it("Should leave a human title untouched when it is not a terminal tool-id", () => {
+    expect(terminalAttentionReason("Should I drop the legacy column?")).toBeNull();
+    expect(terminalAttentionReason("Workspace Update", "compozy__workspace_update")).toBeNull();
   });
 });
 
@@ -108,7 +206,7 @@ describe("TerminalApprovalDetail", () => {
           kind: "exec",
           command: "bun add @xterm/xterm @xterm/addon-fit",
           cwd: "~/dev/atlas-api",
-          terminalId: "term-4f21c9a03b7e",
+          terminalId: null,
           risk: "ordinary",
         }}
       />
@@ -119,6 +217,32 @@ describe("TerminalApprovalDetail", () => {
     );
     expect(screen.getByText("~/dev/atlas-api")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-approval-irreversible")).not.toBeInTheDocument();
+  });
+
+  it("Should omit invented folder and title when the payload left them out", () => {
+    const { rerender } = render(
+      <TerminalApprovalDetail
+        detail={{
+          kind: "exec",
+          command: "bun",
+          cwd: null,
+          terminalId: null,
+          risk: "ordinary",
+        }}
+      />
+    );
+    expect(screen.getByTestId("terminal-approval-command")).toHaveTextContent("bun");
+    expect(screen.queryByText(".")).not.toBeInTheDocument();
+
+    rerender(
+      <TerminalApprovalDetail
+        detail={{ kind: "open", title: null, cwd: null, shell: "/bin/zsh" }}
+      />
+    );
+    const open = screen.getByTestId("terminal-open-approval-detail");
+    expect(open).toHaveTextContent("/bin/zsh");
+    expect(open).not.toHaveTextContent("Terminal");
+    expect(open).not.toHaveTextContent("Open ");
   });
 
   it("Should mark an irreversible command as one that cannot be undone", () => {
@@ -161,7 +285,7 @@ describe("TerminalApprovalDetail", () => {
   it("Should name the terminal a typing permission covers and what ends it", () => {
     render(
       <TerminalApprovalDetail
-        detail={{ kind: "typing", terminalId: PSQL_TERMINAL.id }}
+        detail={{ kind: "typing", terminalId: PSQL_TERMINAL.id, activity: null }}
         terminalTitle={PSQL_TERMINAL.title}
       />
     );
@@ -174,6 +298,24 @@ describe("TerminalApprovalDetail", () => {
     expect(
       screen.getByText("Ends when you take over, the run ends, or you revoke it.")
     ).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-typing-activity")).not.toBeInTheDocument();
+  });
+
+  it("Should state what the agent is doing only when tool input carries activity", () => {
+    render(
+      <TerminalApprovalDetail
+        detail={{
+          kind: "typing",
+          terminalId: PSQL_TERMINAL.id,
+          activity: "Wants to answer the migration prompt",
+        }}
+        terminalTitle={PSQL_TERMINAL.title}
+      />
+    );
+
+    expect(screen.getByTestId("terminal-typing-activity")).toHaveTextContent(
+      "Wants to answer the migration prompt"
+    );
   });
 });
 
@@ -227,18 +369,29 @@ describe("terminalGrantFromToolGrant", () => {
     ).toBeNull();
   });
 
-  it("Should say what a decision with no digest actually covers", () => {
-    const grant = terminalGrantFromToolGrant({
-      id: "grant-2",
-      tool_id: "compozy__terminal_exec",
-      decision: "allow",
-      created_at: "2026-08-25T12:12:00Z",
-    });
+  it("Should leave a tool-wide exec allow to the generic row", () => {
+    // A remembered exec without a digest is a broader mint, not a prompt-origin
+    // exact command. Treating it as a terminal grant would invent a shape.
+    expect(
+      terminalGrantFromToolGrant({
+        id: "grant-2",
+        tool_id: "compozy__terminal_exec",
+        decision: "allow",
+        created_at: "2026-08-25T12:12:00Z",
+      })
+    ).toBeNull();
+  });
 
-    // Without a digest the decision covers the whole tool; naming one command
-    // the daemon never recorded would understate it.
-    expect(grant).toMatchObject({ kind: "command_shape", agentName: "any agent" });
-    expect(grant?.inputDigest).toBeUndefined();
+  it("Should leave a terminal-open allow to the generic row", () => {
+    expect(
+      terminalGrantFromToolGrant({
+        id: "grant-open",
+        tool_id: "compozy__terminal_open",
+        decision: "allow",
+        input_digest: DIGEST,
+        created_at: "2026-08-25T12:12:00Z",
+      })
+    ).toBeNull();
   });
 
   it("Should leave a rejection to the generic row", () => {
@@ -254,28 +407,30 @@ describe("terminalGrantFromToolGrant", () => {
 });
 
 describe("TerminalGrantRow", () => {
-  const [typingGrant, shapeGrant, toolWideGrant] = TERMINAL_GRANT_FIXTURES;
+  const [typingGrant, shapeGrant] = TERMINAL_GRANT_FIXTURES;
 
   it("Should say what a typing permission covers, and prove which one it is", () => {
     render(<TerminalGrantRow grant={typingGrant} onRevoke={vi.fn()} />);
 
     // No terminal name: the daemon stores a digest of the exact input and
     // nothing else, so naming a terminal here would be an invention.
-    expect(screen.getByText("Can type into one exact terminal")).toBeInTheDocument();
+    expect(screen.getByText("Can type in one terminal")).toBeInTheDocument();
     expect(screen.getByText(typingGrant.inputDigest as string)).toBeInTheDocument();
   });
 
   it("Should say a remembered command is one exact input, shown by its digest", () => {
     render(<TerminalGrantRow grant={shapeGrant} onRevoke={vi.fn()} />);
 
-    expect(screen.getByText("Always allowed: one exact command")).toBeInTheDocument();
+    expect(screen.getByText("Always allowed: this exact command")).toBeInTheDocument();
     expect(screen.getByText(shapeGrant.inputDigest as string)).toBeInTheDocument();
   });
 
-  it("Should widen the reading when no digest narrows the decision", () => {
-    render(<TerminalGrantRow grant={toolWideGrant} onRevoke={vi.fn()} />);
+  it("Should revoke with a text control, not an icon-only trash", async () => {
+    render(<TerminalGrantRow grant={shapeGrant} onRevoke={vi.fn()} />);
 
-    expect(screen.getByText("Always allowed: any command in this project")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Revoke Always allowed: this exact command" })
+    ).toHaveTextContent("Revoke");
   });
 
   it("Should let one exact-command grant be revoked on its own", async () => {

@@ -1,12 +1,17 @@
 import { useState } from "react";
 
+import { isTerminalBroaderDecisionForbidden } from "@/systems/terminal/parts";
+import { useActiveWorkspace } from "@/systems/workspace";
+
 import type { ToolApprovalGrant, ToolApprovalGrantSetRequest } from "../types";
 import {
   useRevokeToolApprovalGrant,
   useSetToolApprovalGrant,
 } from "./use-tool-approval-grant-actions";
 import { useToolApprovalGrants } from "./use-tool-approval-grants";
-import { useActiveWorkspace } from "@/systems/workspace";
+
+const TERMINAL_BROADER_DECISION_ERROR =
+  "Terminal run and typing decisions come from a prompt, not a broader remembered allow.";
 
 export type ToolApprovalGrantsState = "loading" | "error" | "empty" | "ready";
 
@@ -65,6 +70,7 @@ function setRequestFromDraft(draft: ToolApprovalGrantSetDraft): ToolApprovalGran
   const toolId = draft.toolId.trim();
   const agentName = draft.agentName.trim();
   if (toolId === "" || draft.decision === "" || draft.scope === "") return null;
+  if (isTerminalBroaderDecisionForbidden(toolId)) return null;
   if (draft.scope === "agent" && agentName === "") return null;
   return {
     tool_id: toolId,
@@ -186,7 +192,12 @@ export function useToolApprovalGrantsPanel(): ToolApprovalGrantsPanelViewModel {
       isOpen: isSetOpen,
       isPending: setPending,
       canSubmit: canSubmitSet,
-      error: setErrorRaw instanceof Error ? setErrorRaw.message : null,
+      error:
+        setErrorRaw instanceof Error
+          ? setErrorRaw.message
+          : isTerminalBroaderDecisionForbidden(setDraft.toolId.trim())
+            ? TERMINAL_BROADER_DECISION_ERROR
+            : null,
       open: openSet,
       close: closeSet,
       change: changeSet,

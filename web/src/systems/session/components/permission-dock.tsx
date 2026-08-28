@@ -2,7 +2,6 @@ import { ChevronUp } from "lucide-react";
 
 import {
   Button,
-  cn,
   Dock,
   DropdownMenu,
   DropdownMenuContent,
@@ -11,28 +10,20 @@ import {
   DropdownMenuTrigger,
 } from "@compozy/ui";
 
-// Narrow entry: the dock must not pull the emulator into every session bundle.
-import { TerminalApprovalDetail, terminalPermissionDetail } from "@/systems/terminal/parts";
-import type { TerminalPermissionDetail } from "@/systems/terminal/parts";
+import {
+  TerminalApprovalDetail,
+  terminalAlwaysAllowLabel,
+  terminalAskTitle,
+  terminalBlockedRememberedDecisions,
+  terminalIdFromDetail,
+  terminalPermissionDetail,
+  terminalRejectOnceLabel,
+  useKnownTerminalTitle,
+} from "@/systems/terminal/parts";
 
 import { usePermissionDock } from "../hooks/use-permission-dock";
 import { useSession } from "../hooks/use-sessions";
 import type { PermissionRequest } from "../types";
-
-const DANGER_GHOST_CLASS = "text-muted hover:bg-danger-tint hover:text-danger";
-
-/**
- * The plain-language ask, per the locked terminal copy contract.
- *
- * The board title is "«Agent» wants to run · dev server"; the runtime does not
- * carry the terminal's display title here, so the sentence stops at the verb
- * and the detail block beneath states the command, folder, and terminal id.
- */
-function terminalAskTitle(detail: TerminalPermissionDetail, agentName: string): string {
-  if (detail.kind === "typing") return `${agentName} wants to type`;
-  if (detail.kind === "open") return `${agentName} wants to open a terminal`;
-  return `${agentName} wants to run`;
-}
 
 export interface PermissionDockProps {
   enabled?: boolean;
@@ -47,7 +38,11 @@ export interface PermissionDockProps {
 /**
  * The pending permission as a composer-docked decision panel. Buttons render
  * only for the decisions the runtime offers; reject-always lives behind the
- * reject split menu; digit keys 1–4 decide directly (ignoring focused inputs).
+ * reject split menu on ordinary asks; digit keys 1–4 decide directly (ignoring
+ * focused inputs). Exec that always asks withholds both remembered polarities.
+ *
+ * Host chrome stays Dock — the live decision surface. Terminal facts flavor
+ * the body as an attention-row read inside that host.
  */
 export function PermissionDock({
   enabled = true,
@@ -63,10 +58,7 @@ export function PermissionDock({
     permission.toolId ?? permission.toolName,
     permission.toolInput
   );
-  const blockedDecisions =
-    terminalDetail?.kind === "exec" && terminalDetail.risk !== "ordinary"
-      ? (["allow-always"] as const)
-      : [];
+  const blockedDecisions = terminalBlockedRememberedDecisions(terminalDetail);
   const { decide, decisionOptions, isResolved, isSubmitting, subject } = usePermissionDock({
     enabled,
     permission,
@@ -75,21 +67,21 @@ export function PermissionDock({
     onResolved,
     blockedDecisions,
   });
-  // The session names the asking agent; the plain-language title needs it. The
-  // detail is already in the query cache for any open session surface.
   const session = useSession(terminalDetail ? sessionId : "");
   const agentName = session.data?.agent_name?.trim() || "The agent";
+  const catalogTitle = useKnownTerminalTitle(
+    workspaceId,
+    session.data?.profile_name,
+    terminalDetail ? terminalIdFromDetail(terminalDetail) : null
+  );
 
   if (isResolved) {
     return null;
   }
 
   const offersRejectOnce = decisionOptions.includes("reject-once");
-  // A terminal ask carries facts the generic subject line cannot show: the exact
-  // command, where it would run, and why the runtime is asking.
   const offersRejectAlways =
     decisionOptions.includes("reject-always") && terminalDetail?.kind !== "typing";
-  // Terminal asks read in the plain register — the raw tool id never leads.
   const irreversible = terminalDetail?.kind === "exec" && terminalDetail.risk === "irreversible";
 
   return (
@@ -97,7 +89,9 @@ export function PermissionDock({
       <Dock.Head>
         <Dock.Eyebrow data-testid="permission-dock-eyebrow">Permission</Dock.Eyebrow>
         <Dock.Title data-testid="permission-dock-title">
-          {terminalDetail ? terminalAskTitle(terminalDetail, agentName) : permission.toolName}
+          {terminalDetail
+            ? terminalAskTitle(terminalDetail, agentName, catalogTitle)
+            : permission.toolName}
         </Dock.Title>
         {countLabel ? (
           <Dock.Count data-testid="permission-dock-count">{countLabel}</Dock.Count>
@@ -105,11 +99,11 @@ export function PermissionDock({
       </Dock.Head>
       <Dock.Body>
         {terminalDetail ? (
-          <TerminalApprovalDetail detail={terminalDetail} />
+          <TerminalApprovalDetail detail={terminalDetail} terminalTitle={catalogTitle} />
         ) : subject ? (
           <Dock.Pre data-testid="permission-dock-subject">{subject}</Dock.Pre>
         ) : null}
-        {permission.action || permission.resource ? (
+        {!terminalDetail && (permission.action || permission.resource) ? (
           <Dock.Meta data-testid="permission-dock-meta">
             {permission.action}
             {permission.action && permission.resource ? " · " : ""}
@@ -130,8 +124,6 @@ export function PermissionDock({
             <Dock.Key>1</Dock.Key>
           </Button>
         ) : null}
-        {/* No remembered decision covers the fixed irreversible set (US-022),
-            so the option is absent here rather than offered and refused. */}
         {decisionOptions.includes("allow-always") ? (
           <Button
             size="sm"
@@ -140,11 +132,7 @@ export function PermissionDock({
             onClick={() => decide("allow-always")}
             data-testid="permission-allow-always"
           >
-            {terminalDetail?.kind === "typing"
-              ? "Allow for this terminal"
-              : terminalDetail?.kind === "exec"
-                ? "Always allow commands like this"
-                : "Always allow"}
+            {terminalDetail ? terminalAlwaysAllowLabel(terminalDetail) : "Always allow"}
             <Dock.Key>2</Dock.Key>
           </Button>
         ) : null}
@@ -154,12 +142,11 @@ export function PermissionDock({
             <Button
               size="sm"
               variant="ghost"
-              className={DANGER_GHOST_CLASS}
               disabled={isSubmitting}
               onClick={() => decide("reject-once")}
               data-testid="permission-reject-once"
             >
-              {terminalDetail ? "Don't allow" : "Reject"}
+              {terminalDetail ? terminalRejectOnceLabel() : "Reject"}
               <Dock.Key>3</Dock.Key>
             </Button>
             {offersRejectAlways ? (
@@ -169,7 +156,7 @@ export function PermissionDock({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className={cn(DANGER_GHOST_CLASS, "group/reject-menu px-1")}
+                      className="group/reject-menu px-1"
                       disabled={isSubmitting}
                       aria-label="More decline options"
                       data-testid="permission-reject-menu-trigger"
@@ -199,7 +186,6 @@ export function PermissionDock({
           <Button
             size="sm"
             variant="ghost"
-            className={DANGER_GHOST_CLASS}
             disabled={isSubmitting}
             onClick={() => decide("reject-always")}
             data-testid="permission-reject-always"

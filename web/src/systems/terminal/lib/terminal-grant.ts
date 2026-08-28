@@ -18,12 +18,8 @@ export type TerminalGrantKind = "typing" | "command_shape";
 export interface TerminalGrant {
   id: string;
   kind: TerminalGrantKind;
-  /**
-   * The digest of the exact tool input this decision covers, `sha256:…`.
-   *
-   * Absent when the decision covers the whole tool rather than one input.
-   */
-  inputDigest?: string;
+  /** Digest of the exact tool input this decision covers, `sha256:…`. */
+  inputDigest: string;
   agentName: string;
   grantedAt: string;
 }
@@ -52,26 +48,29 @@ export function terminalGrantFromToolGrant(grant: ToolApprovalGrantLike): Termin
   const kind = terminalGrantKind(grant.tool_id);
   if (!kind) return null;
   const digest = grant.input_digest && DIGEST.test(grant.input_digest) ? grant.input_digest : null;
-  // Typing is always scoped to one exact terminal generation — no autonomy
-  // level and no admin path widens it. A stored typing decision without a
-  // digest is therefore a decision the runtime should never have produced, and
-  // this refuses to give it a friendly terminal-shaped reading: it falls back
-  // to the generic remembered-decision row, where its tool id and its revoke
-  // button are shown for exactly what they are.
-  if (kind === "typing" && !digest) return null;
+  // Typing and exec remembers are exact-input grants. A stored allow without a
+  // digest is either a tool-wide mint (a second policy editor) or a decision
+  // the runtime should never have produced — both stay on the generic row.
+  if (!digest) return null;
   return {
     id: grant.id,
     kind,
     agentName: grant.agent_name ?? "any agent",
     grantedAt: grant.created_at,
-    ...(digest ? { inputDigest: digest } : {}),
+    inputDigest: digest,
   };
+}
+
+/**
+ * Broader-decision mint must not become a second terminal policy editor.
+ * Exec and typing allows are prompt-origin exact inputs only.
+ */
+export function isTerminalBroaderDecisionForbidden(toolId: string): boolean {
+  return toolId === "compozy__terminal_exec" || toolId === "compozy__terminal_write";
 }
 
 function terminalGrantKind(toolId: string): TerminalGrantKind | null {
   if (toolId === "compozy__terminal_write") return "typing";
-  if (toolId === "compozy__terminal_exec" || toolId === "compozy__terminal_open") {
-    return "command_shape";
-  }
+  if (toolId === "compozy__terminal_exec") return "command_shape";
   return null;
 }

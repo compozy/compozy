@@ -137,6 +137,33 @@ describe("useToolApprovalGrantsPanel revoke workspace binding", () => {
     expect(result.current.set.canSubmit).toBe(true);
   });
 
+  it("Should refuse a broader remembered allow for terminal run and typing", () => {
+    const { wrapper } = setup();
+    const { result } = renderHook(() => useToolApprovalGrantsPanel(), { wrapper });
+
+    act(() => {
+      result.current.set.open();
+      result.current.set.change({
+        toolId: "compozy__terminal_exec",
+        decision: "allow",
+        scope: "tool",
+        agentName: "",
+      });
+    });
+    expect(result.current.set.canSubmit).toBe(false);
+    expect(result.current.set.error).toMatch(/from a prompt/i);
+
+    act(() => {
+      result.current.set.change({
+        toolId: "compozy__terminal_write",
+        decision: "allow",
+        scope: "agent",
+        agentName: "claude-code",
+      });
+    });
+    expect(result.current.set.canSubmit).toBe(false);
+  });
+
   it("Should set against the workspace captured when the dialog opened", async () => {
     const { invalidate, wrapper } = setup();
     const { result, rerender } = renderHook(() => useToolApprovalGrantsPanel(), { wrapper });

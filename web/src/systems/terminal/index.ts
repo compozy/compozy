@@ -116,12 +116,23 @@ export {
 } from "./components/terminal-empty-states";
 export { TerminalGrantRow } from "./components/terminal-grant-row";
 export {
+  isTerminalBroaderDecisionForbidden,
   terminalGrantFromToolGrant,
   type TerminalGrant,
   type TerminalGrantKind,
 } from "./lib/terminal-grant";
 export {
+  terminalAlwaysAllowLabel,
+  terminalAskTitle,
+  terminalAttentionReason,
+  terminalGrantLabel,
+  terminalIdFromDetail,
+  terminalRejectOnceLabel,
+} from "./lib/terminal-permission-copy";
+export { useKnownTerminalTitle } from "./hooks/use-known-terminal-title";
+export {
   isTerminalPermission,
+  terminalBlockedRememberedDecisions,
   terminalPermissionDetail,
   type TerminalPermissionDetail,
   type TerminalPermissionRisk,

@@ -74,29 +74,29 @@ export const GatedDecisions: Story = {
  * VC-10 — a terminal ask, decided on the session's one decision surface.
  *
  * The generic subject line cannot show what matters here, so the terminal
- * detail replaces it: the exact command as the agent wrote it, the folder it
- * would run in, and the terminal it is bound to.
+ * detail replaces it: the exact command as the agent wrote it and the folder
+ * it would run in. Exec approval does not carry a terminal id.
  *
  * The board titles this row "Claude Code wants to run · dev server". The title
- * takes the agent's name from the session when the cache has it — here it does
- * not, so the sentence falls back to "The agent" — and the request carries only
- * a `terminal_id`, so the terminal's display name stays out of the title.
- * Authorized runtime-truth delta.
+ * takes the agent's name from the session when the cache has it. Host chrome
+ * stays Dock. Authorized host-chrome delta.
  */
 export const TerminalExec: Story = {
   args: {
     permission: {
-      ...permission,
+      requestId: permission.requestId,
       toolName: "compozy__terminal_exec",
       toolInput: {
         command: "bun",
         args: ["add", "@xterm/xterm", "@xterm/addon-fit"],
         cwd: "~/dev/atlas-api",
-        terminal_id: "term-4f21c9a03b7e",
         // The runtime's own classification; without it the client fails closed
         // to `unclassifiable` and withholds the remembered decision.
         risk: "ordinary",
       },
+      action: "",
+      resource: "",
+      turnId: permission.turnId,
     },
   },
 };
@@ -106,21 +106,23 @@ export const TerminalExec: Story = {
  *
  * Danger is stated in words before the command is even read, and no remembered
  * decision is offered: the fixed irreversible set always asks, at every autonomy
- * level, so an "Always allow" here would be a promise the runtime would refuse
- * to keep.
+ * level, so Allow always or Never allow would be a promise the runtime would
+ * refuse to keep. Two one-shot choices only.
  */
 export const TerminalIrreversible: Story = {
   args: {
     permission: {
-      ...permission,
+      requestId: permission.requestId,
       toolName: "compozy__terminal_exec",
       toolInput: {
         command: "rm",
         args: ["-rf", "/var/lib/atlas/journal-backups"],
         cwd: "~/dev/atlas-api",
-        terminal_id: "term-4f21c9a03b7e",
         risk: "irreversible",
       },
+      action: "",
+      resource: "",
+      turnId: permission.turnId,
     },
   },
 };
@@ -128,15 +130,18 @@ export const TerminalIrreversible: Story = {
 /**
  * VC-12a — permission to type into a terminal someone else is watching.
  *
- * Typing is scoped to one terminal, named by id, and reads as a permission
- * rather than as a tool call.
+ * Typing is scoped to one terminal. Activity and the catalog title appear only
+ * when the daemon or catalog published them — never invented.
  */
 export const TerminalTypingGrant: Story = {
   args: {
     permission: {
-      ...permission,
+      requestId: permission.requestId,
       toolName: "compozy__terminal_write",
       toolInput: { terminal_id: "term-9cd7e14b2a66" },
+      action: "",
+      resource: "",
+      turnId: permission.turnId,
     },
   },
 };

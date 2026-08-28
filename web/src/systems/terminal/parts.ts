@@ -11,15 +11,26 @@ export {
   type TerminalApprovalDetailProps,
 } from "./components/terminal-approval-detail";
 export { TerminalGrantRow } from "./components/terminal-grant-row";
+export { useKnownTerminalTitle } from "./hooks/use-known-terminal-title";
 export {
+  isTerminalBroaderDecisionForbidden,
   terminalGrantFromToolGrant,
   type TerminalGrant,
   type TerminalGrantKind,
   type ToolApprovalGrantLike,
 } from "./lib/terminal-grant";
+export {
+  terminalAlwaysAllowLabel,
+  terminalAskTitle,
+  terminalAttentionReason,
+  terminalGrantLabel,
+  terminalIdFromDetail,
+  terminalRejectOnceLabel,
+} from "./lib/terminal-permission-copy";
 export { TerminalQuoteBlock, TerminalSelectionActions } from "./components/terminal-quote-block";
 export {
   isTerminalPermission,
+  terminalBlockedRememberedDecisions,
   terminalPermissionDetail,
   type TerminalPermissionDetail,
   type TerminalPermissionRisk,

@@ -143,12 +143,6 @@ export const TERMINAL_GRANT_FIXTURES: readonly TerminalGrant[] = [
     agentName: "Claude Code",
     grantedAt: "2026-08-25T12:12:00Z",
   },
-  {
-    id: "grant-shape-2",
-    kind: "command_shape",
-    agentName: "Claude Code",
-    grantedAt: "2026-08-25T11:58:00Z",
-  },
 ];
 
 export const PASSWORD_REQUEST: TerminalInputRequest = {
