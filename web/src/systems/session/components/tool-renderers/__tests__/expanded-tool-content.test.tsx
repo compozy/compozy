@@ -3,6 +3,13 @@ import { render as renderBare, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { terminalCatalogQuery, terminalScope } from "@/systems/terminal/parts";
+import {
+  DEV_SERVER_TERMINAL,
+  SSH_STAGING_TERMINAL,
+} from "@/systems/terminal/mocks/terminal-fixtures";
+import type { SessionTerminalBlockProps } from "@/systems/terminal";
+
 import { SessionRuntimeRenderProvider } from "../../../lib/session-runtime-render-context";
 import { sessionDetailOptions } from "../../../lib/query-options";
 import type { SessionPayload, UIMessage } from "../../../types";
@@ -11,10 +18,22 @@ vi.mock("@/lib/utils", () => ({
   cn: (...args: unknown[]) => args.filter(Boolean).join(" "),
 }));
 
+/** Isolate the catalog stream's network boundary so a seeded cache stays put. */
+vi.mock("@/lib/ticketed-event-source", () => ({
+  createStreamEventSource: () => ({
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    close: () => undefined,
+    onmessage: null,
+    onerror: null,
+    onopen: null,
+  }),
+}));
+
 /** Captures what the transcript hands the terminal block, without an emulator. */
 const blockProps = vi.fn();
 vi.mock("@/systems/terminal", () => ({
-  SessionTerminalBlock: (props: Record<string, unknown>) => {
+  SessionTerminalBlock: (props: SessionTerminalBlockProps) => {
     blockProps(props);
     return <div data-testid="session-terminal-block-stub" />;
   },
@@ -32,7 +51,10 @@ const SESSION_ID = "sess-77ab";
  * — the workspace from the render context, the profile from the session itself
  * — so every renderer here is rendered the way the transcript renders it.
  */
-function render(ui: ReactElement, options: { profileName?: string } = {}) {
+function render(
+  ui: ReactElement,
+  options: { profileName?: string; catalog?: (typeof DEV_SERVER_TERMINAL)[] } = {}
+) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   if (options.profileName) {
     // Only the two fields this renderer reads; the rest of the session payload
@@ -41,6 +63,10 @@ function render(ui: ReactElement, options: { profileName?: string } = {}) {
       id: SESSION_ID,
       profile_name: options.profileName,
     } as unknown as SessionPayload);
+    client.setQueryData(
+      terminalCatalogQuery(terminalScope(WORKSPACE_ID, options.profileName)).queryKey,
+      options.catalog ?? []
+    );
   }
   return renderBare(
     <QueryClientProvider client={client}>
@@ -92,12 +118,9 @@ describe("ExpandedToolContent", () => {
       />
     );
 
-    // The emulator arrives behind a lazy boundary, so the output stands in
-    // until it lands — the transcript is never blank.
+    // The conversation object is the terminal block, not a generic tool row.
     expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-content-fallback")).toHaveTextContent(
-      "VITE ready in 412 ms"
-    );
+    expect(await screen.findByTestId("session-terminal-block-stub")).toBeInTheDocument();
   });
 
   it("routes terminal open as a live terminal even without an explicit running flag", async () => {
@@ -121,7 +144,35 @@ describe("ExpandedToolContent", () => {
     expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
       stillRunning: true,
       terminalId: "term-open",
+      title: "Build logs",
     });
+  });
+
+  it("Should title a deliberate terminal from the catalog or a human name, never the argv", async () => {
+    blockProps.mockClear();
+    render(
+      <ExpandedToolContent
+        message={makeMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "bun run dev" },
+          toolResult: {
+            rawOutput: {
+              terminal_id: "term-4f21c9a03b7e",
+              output: "VITE ready in 412 ms",
+              duration_ms: 161_000,
+              exit_code: 0,
+            },
+          },
+        })}
+      />
+    );
+
+    await waitFor(() => expect(blockProps).toHaveBeenCalled());
+    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
+      title: "Terminal",
+      durationLabel: "2m 41s",
+    });
+    expect(blockProps.mock.calls.at(-1)?.[0].title).not.toBe("bun run dev");
   });
 
   it("scopes a still-running terminal to the session's own profile", async () => {
@@ -175,7 +226,62 @@ describe("ExpandedToolContent", () => {
     expect(blockProps.mock.calls.at(-1)?.[0].scope).toBeUndefined();
   });
 
-  it("keeps a pipe exec with no terminal as plain output", () => {
+  it("Should show the catalog title and controller when that row already exists", async () => {
+    blockProps.mockClear();
+    render(
+      <ExpandedToolContent
+        message={makeMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "bun run dev" },
+          toolResult: {
+            rawOutput: {
+              terminal_id: DEV_SERVER_TERMINAL.id,
+              output: "VITE ready in 412 ms",
+              still_running: true,
+            },
+          },
+        })}
+      />,
+      { profileName: "work", catalog: [DEV_SERVER_TERMINAL] }
+    );
+
+    await waitFor(() => expect(blockProps).toHaveBeenCalled());
+    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
+      title: "dev server",
+      startedLabel: expect.any(String),
+    });
+    expect(blockProps.mock.calls.at(-1)?.[0].lease).toBeDefined();
+    expect(blockProps.mock.calls.at(-1)?.[0].title).not.toBe("bun run dev");
+  });
+
+  it("Should finish a still-running envelope when the catalog already exited", async () => {
+    blockProps.mockClear();
+    render(
+      <ExpandedToolContent
+        message={makeMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "ssh staging" },
+          toolResult: {
+            rawOutput: {
+              terminal_id: SSH_STAGING_TERMINAL.id,
+              output: "Connection to staging closed.",
+              still_running: true,
+            },
+          },
+        })}
+      />,
+      { profileName: "work", catalog: [SSH_STAGING_TERMINAL] }
+    );
+
+    await waitFor(() => expect(blockProps).toHaveBeenCalled());
+    expect(blockProps.mock.calls.at(-1)?.[0]).toMatchObject({
+      stillRunning: false,
+      title: "ssh staging",
+      exit: SSH_STAGING_TERMINAL.exit,
+    });
+  });
+
+  it("keeps a pipe exec with no terminal as plain output", async () => {
     render(
       <ExpandedToolContent
         message={makeMessage({
@@ -188,7 +294,7 @@ describe("ExpandedToolContent", () => {
 
     // A command that finished without a terminal object never had a window;
     // dressing it as one would claim a surface that does not exist.
-    expect(screen.getByTestId("terminal-content-plain")).toHaveTextContent("41 passed");
+    expect(await screen.findByTestId("terminal-content-plain")).toHaveTextContent("41 passed");
     expect(screen.queryByTestId("terminal-content")).not.toBeInTheDocument();
   });
 

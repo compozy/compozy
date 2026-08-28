@@ -1,6 +1,8 @@
 import { CopyIconButton, ToolCallRow, type ToolCallStatus } from "@compozy/ui";
+import { Suspense, lazy } from "react";
 
 import { deriveToolRowStatus, hasToolInput, toolResultIsEmpty } from "../lib/message-parts";
+import { isDeliberateTerminalTool, readSupervisedTerminalId } from "../lib/session-terminal-tools";
 import { fileDiffStatForTool } from "../lib/tool-diff-stat";
 import {
   getToolCompactSummary,
@@ -11,6 +13,11 @@ import {
 import type { UIMessage } from "../types";
 import { ExpandedToolContent } from "./tool-renderers/expanded-tool-content";
 import { ToolResultArtifact } from "./tool-result-artifact";
+
+const TerminalContent = lazy(async () => {
+  const { TerminalContent: Content } = await import("./tool-renderers/terminal-content");
+  return { default: Content };
+});
 
 export interface SessionToolCallRowProps {
   message: UIMessage;
@@ -116,6 +123,16 @@ export function SessionToolCallRow({
   defaultExpanded = false,
   turnSettled = false,
 }: SessionToolCallRowProps) {
+  if (
+    isDeliberateTerminalTool(message.toolName) &&
+    readSupervisedTerminalId(message.toolResult?.rawOutput)
+  ) {
+    return (
+      <Suspense fallback={null}>
+        <TerminalContent message={message} />
+      </Suspense>
+    );
+  }
   const { status } = deriveToolRowStatus({
     toolError: message.toolError,
     toolResult: message.toolResult,

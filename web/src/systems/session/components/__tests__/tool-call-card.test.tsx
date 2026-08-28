@@ -327,6 +327,30 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(queryBody()).not.toBeNull();
   });
 
+  it("Should render a supervised terminal as its own block, not a generic tool row", async () => {
+    render(
+      artifactRow(
+        "ws-terminal",
+        makeToolMessage({
+          toolName: "compozy__terminal_exec",
+          toolInput: { command: "bun run dev" },
+          toolResult: {
+            rawOutput: {
+              terminal_id: "term-4f21c9a03b7e",
+              output: "VITE ready in 412 ms",
+              still_running: true,
+            },
+          },
+        })
+      )
+    );
+
+    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
+    expect(queryRoot()).toBeNull();
+    expect(screen.queryByRole("button", { name: "Copy tool payload" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Output")).not.toBeInTheDocument();
+  });
+
   it("Should render the existing Output dispatcher inside the inline body", () => {
     render(
       <SessionToolCallRow

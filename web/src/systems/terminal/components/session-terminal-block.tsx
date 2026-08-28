@@ -46,6 +46,8 @@ export interface SessionTerminalBlockProps {
   /** True past the agent's wait budget: the command runs on without it. */
   stillRunning?: boolean;
   durationLabel?: string;
+  /** Clock from the catalog's `created_at` when that timestamp exists. */
+  startedLabel?: string;
   /** Absent until the Terminal app is reachable; then it focuses the window. */
   onOpenTerminal?: () => void;
   /** Test seam; the browser socket is the default. */
@@ -83,6 +85,7 @@ function SessionTerminalBlockBody({
   exit,
   stillRunning = false,
   durationLabel,
+  startedLabel,
   socketFactory,
   engineLoader,
   onOpenTerminal,
@@ -119,7 +122,7 @@ function SessionTerminalBlockBody({
     >
       <div className="flex min-h-8 min-w-0 items-center gap-2 border-line border-b bg-canvas-soft px-2.5">
         <TerminalSquare aria-hidden="true" className="size-deck-glyph flex-none text-subtle" />
-        <span className="truncate font-semibold text-eyebrow text-fg">{title}</span>
+        <span className="truncate font-semibold text-fg text-transcript-body">{title}</span>
         <MonoId size="sm" value={terminalId} />
         <div className="ml-auto flex flex-none items-center gap-1.5">
           {lease ? <TerminalLeaseBadge view={lease} /> : null}
@@ -161,9 +164,13 @@ function SessionTerminalBlockBody({
           </>
         ) : (
           <>
-            <Pill.Dot aria-hidden="true" pulse size="sm" tone="success" />
+            <Pill.Dot aria-hidden="true" pulse size="sm" tone="accent" />
             <span>
-              {stillRunning ? "still running — the agent continued without waiting" : "running"}
+              {stillRunning
+                ? "still running — the agent continued without waiting"
+                : startedLabel
+                  ? `running · started ${startedLabel}`
+                  : "running"}
             </span>
           </>
         )}

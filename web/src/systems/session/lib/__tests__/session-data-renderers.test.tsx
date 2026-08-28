@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { type ComponentProps } from "react";
 import { describe, expect, it } from "vitest";
 
@@ -101,9 +102,12 @@ describe("CompozyEventDataRenderer", () => {
     );
 
     expect(screen.getByText("reported by agent")).toBeInTheDocument();
-    expect(
-      screen.getByRole("log", { name: "Command output reported by the agent" })
-    ).toHaveAttribute("data-readonly", "true");
+    expect(screen.getByText("bun test")).toBeInTheDocument();
+    expect(screen.queryByText("Command output")).not.toBeInTheDocument();
+    expect(screen.getByRole("log", { name: "bun test — reported by the agent" })).toHaveAttribute(
+      "data-readonly",
+      "true"
+    );
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     for (const control of ["Take control", "Open terminal", "Record", "Kill"]) {
@@ -117,6 +121,105 @@ describe("CompozyEventDataRenderer", () => {
     expect(
       screen.getByTestId("session-agent-reported-block-reported-terminal-1")
     ).toBeInTheDocument();
+  });
+
+  it("Should collapse long agent-reported output behind a line count control", async () => {
+    const user = userEvent.setup();
+    const lines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);
+    render(
+      <SessionAgentReportedBlock
+        data={{
+          ...reportedTerminalEvent,
+          text: `${lines.join("\n")}\n`,
+        }}
+        engineLoader={() => new Promise(() => undefined)}
+      />
+    );
+
+    const more = screen.getByRole("button", { name: /show \d+ more lines/ });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByRole("log", { name: "bun test — reported by the agent — collapsed" })
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Open terminal" })).not.toBeInTheDocument();
+
+    await user.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(more).toHaveTextContent("show fewer lines");
+    expect(
+      screen.getByRole("log", { name: "bun test — reported by the agent" })
+    ).toBeInTheDocument();
+  });
+
+  it("Should keep an untitled report as the provenance mark only", () => {
+    render(
+      <SessionAgentReportedBlock
+        data={{ ...reportedTerminalEvent, title: "" }}
+        engineLoader={() => new Promise(() => undefined)}
+      />
+    );
+
+    expect(screen.getByText("reported by agent")).toBeInTheDocument();
+    expect(screen.queryByText("Command output")).not.toBeInTheDocument();
+    expect(screen.getByRole("log", { name: "Reported by the agent" })).toBeInTheDocument();
+  });
+
+  it("Should state the reported total when the specimen is truncated", () => {
+    render(
+      <SessionAgentReportedBlock
+        data={{
+          ...reportedTerminalEvent,
+          text: "Last output lines remain visible.\n",
+          reported_terminal: {
+            id: "reported-terminal-1",
+            cwd: "/workspace",
+            total_bytes: 163_750,
+            truncated: true,
+            exit_code: 0,
+          },
+        }}
+        engineLoader={() => new Promise(() => undefined)}
+      />
+    );
+
+    const note = screen.getByTestId("session-agent-reported-truncated");
+    expect(note.tagName).toBe("DIV");
+    expect(note).toHaveTextContent("truncated");
+    expect(note).toHaveTextContent(`${new Intl.NumberFormat().format(163_750)} bytes`);
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.queryByText(/omitted/)).not.toBeInTheDocument();
+  });
+
+  it("Should keep the line clamp independent of a truncated byte bound", async () => {
+    const user = userEvent.setup();
+    const lines = Array.from({ length: 20 }, (_, index) => `line ${index + 1}`);
+    render(
+      <SessionAgentReportedBlock
+        data={{
+          ...reportedTerminalEvent,
+          text: `${lines.join("\n")}\n`,
+          reported_terminal: {
+            id: "reported-terminal-1",
+            cwd: "/workspace",
+            total_bytes: 163_750,
+            truncated: true,
+            exit_code: 0,
+          },
+        }}
+        engineLoader={() => new Promise(() => undefined)}
+      />
+    );
+
+    const more = screen.getByRole("button", { name: /show \d+ more lines/ });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("session-agent-reported-truncated")).toHaveTextContent(
+      `${new Intl.NumberFormat().format(163_750)} bytes`
+    );
+    expect(screen.queryByRole("button", { name: /bytes/ })).not.toBeInTheDocument();
+
+    await user.click(more);
+    expect(more).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByTestId("session-agent-reported-truncated")).toBeInTheDocument();
   });
 
   it("Should render no terminal chrome for an empty report", () => {

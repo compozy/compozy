@@ -5,73 +5,25 @@ import {
   fetchTerminalInputRequestProjection,
   fetchTerminalJournal,
   fetchTerminalRecording,
-  fetchTerminals,
   readTerminal,
 } from "../adapters/terminal-api";
-import type {
-  TerminalJournalFilters,
-  TerminalProfileScopeParams,
-  TerminalScopeKey,
-  TerminalScopeParams,
-} from "../types";
-import {
-  TERMINAL_ALL_PROFILES_KEY,
-  terminalJournalFiltersWithDefaults,
-  terminalKeys,
-} from "./query-keys";
+import type { TerminalJournalFilters } from "../types";
+import type { TerminalProfileQueryScope, TerminalQueryScope } from "./catalog-query";
+import { terminalJournalFiltersWithDefaults, terminalKeys } from "./query-keys";
+
+export {
+  terminalCatalogQuery,
+  terminalScope,
+  type TerminalProfileQueryScope,
+  type TerminalQueryScope,
+} from "./catalog-query";
 
 /**
- * Query definitions for every terminal read.
+ * Query definitions for every terminal read beyond the catalog list.
  *
- * Loaders, hooks, mutations and the live stream all reuse these factories, so
+ * Loaders, hooks, mutations and the live stream reuse these factories, so
  * scope lives in exactly one place and no surface can quietly read unscoped.
  */
-
-/** Turns a read scope into both halves the cache and the query need. */
-export function terminalScope(
-  workspaceId: string,
-  profile: string,
-  aggregate?: false
-): TerminalProfileQueryScope;
-export function terminalScope(
-  workspaceId: string,
-  profile: string,
-  aggregate: true
-): TerminalQueryScope;
-export function terminalScope(
-  workspaceId: string,
-  profile: string,
-  aggregate: boolean
-): TerminalQueryScope;
-export function terminalScope(
-  workspaceId: string,
-  profile: string,
-  aggregate = false
-): TerminalQueryScope {
-  return aggregate
-    ? {
-        key: { workspaceId, profileKey: TERMINAL_ALL_PROFILES_KEY },
-        params: { all_profiles: true },
-      }
-    : { key: { workspaceId, profileKey: profile }, params: { profile } };
-}
-
-export interface TerminalQueryScope {
-  key: TerminalScopeKey;
-  params: TerminalScopeParams;
-}
-
-export interface TerminalProfileQueryScope extends TerminalQueryScope {
-  params: TerminalProfileScopeParams;
-}
-
-export function terminalCatalogQuery(scope: TerminalQueryScope) {
-  return queryOptions({
-    queryKey: terminalKeys.catalog(scope.key),
-    queryFn: ({ signal }) => fetchTerminals(scope.key.workspaceId, scope.params, signal),
-  });
-}
-
 export function terminalDetailQuery(scope: TerminalProfileQueryScope, terminalId: string) {
   return queryOptions({
     queryKey: terminalKeys.detail(scope.key, terminalId),

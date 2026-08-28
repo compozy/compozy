@@ -44,11 +44,31 @@ export const Complete: Story = {
   },
 };
 
+export const LongOutput: Story = {
+  args: {
+    data: {
+      ...completeReport,
+      title: "bun install",
+      text: [
+        "bun install v1.2.4",
+        " + @xterm/xterm@6.0.1",
+        ...Array.from({ length: 20 }, (_, index) => `saved ${index + 1} packages`),
+      ].join("\n"),
+      reported_terminal: {
+        id: "reported-terminal-long",
+        total_bytes: 840,
+        exit_code: 0,
+      },
+    },
+  },
+};
+
+/** Specimen the agent clipped — last lines only; the note states the real size. */
 export const Bounded: Story = {
   args: {
     data: {
       ...completeReport,
-      text: "⟨98214 bytes omitted⟩\nLast output lines remain visible.\n",
+      text: "Last output lines remain visible.\n",
       reported_terminal: {
         id: "reported-terminal-large",
         total_bytes: 163_750,

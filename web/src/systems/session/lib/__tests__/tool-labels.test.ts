@@ -41,6 +41,8 @@ describe("getToolIcon", () => {
     expect(getToolIcon("compozy__memory_search")).toBe(Brain);
     // Unmapped native family falls through to the generic tool glyph.
     expect(getToolIcon("compozy__deny_native")).toBe(Wrench);
+    expect(getToolIcon("compozy__terminal_exec")).toBe(Terminal);
+    expect(getToolIcon("compozy__terminal_open")).toBe(Terminal);
   });
 
   it("Should map MCP bridge tools to the connector glyph", () => {
@@ -76,6 +78,8 @@ describe("getToolLabel", () => {
     expect(getToolLabel("Read", "past")).toBe("Read file");
     expect(getToolLabel("Bash", "past")).toBe("Ran command");
     expect(getToolLabel("Grep", "past")).toBe("Searched content");
+    expect(getToolLabel("compozy__terminal_exec", "past")).toBe("Used terminal");
+    expect(getToolLabel("compozy__terminal_open", "past")).toBe("Opened terminal");
   });
 
   it("returns failure label for known tools", () => {
@@ -140,6 +144,15 @@ describe("getToolCompactSummary", () => {
     const result = getToolCompactSummary("Bash", { command: longCommand });
     expect(result!.length).toBeLessThanOrEqual(80);
     expect(result!.endsWith("\u2026")).toBe(true);
+  });
+
+  it("Should summarize a terminal open by its title and never by an id or argv", () => {
+    expect(getToolCompactSummary("compozy__terminal_open", { title: "dev server" })).toBe(
+      "dev server"
+    );
+    expect(
+      getToolCompactSummary("compozy__terminal_exec", { command: "bun run dev" })
+    ).toBeUndefined();
   });
 
   it("returns undefined for unknown tools", () => {

@@ -32,6 +32,8 @@ import type { LucideIcon } from "lucide-react";
 
 const TOOL_ICONS: Record<string, LucideIcon> = {
   Bash: Terminal,
+  compozy__terminal_exec: Terminal,
+  compozy__terminal_open: Terminal,
   Read: FileText,
   Write: FileEdit,
   Edit: FileEdit,
@@ -57,6 +59,7 @@ const TOOL_ICONS: Record<string, LucideIcon> = {
  * generic tool fallback.
  */
 const COMPOZY_NATIVE_FAMILY_ICONS: Record<string, LucideIcon> = {
+  terminal: Terminal,
   edit: FileEdit,
   memory: Brain,
   network: Radio,
@@ -152,6 +155,16 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
   AskUserQuestion: { active: "Asking...", past: "Asked question", failure: "ask question" },
   ToolSearch: { active: "Loading tools...", past: "Loaded tools", failure: "load tools" },
   Skill: { active: "Loading skill...", past: "Loaded skill", failure: "load skill" },
+  compozy__terminal_exec: {
+    active: "Running in terminal...",
+    past: "Used terminal",
+    failure: "use terminal",
+  },
+  compozy__terminal_open: {
+    active: "Opening terminal...",
+    past: "Opened terminal",
+    failure: "open terminal",
+  },
 };
 
 const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
@@ -233,6 +246,11 @@ function getToolFullSummary(
       return String(toolInput.query ?? "");
     case "WebFetch":
       return String(toolInput.url ?? "");
+    case "compozy__terminal_open":
+    case "compozy__terminal_exec": {
+      const title = toolInput.title;
+      return typeof title === "string" && title.trim() !== "" ? title.trim() : undefined;
+    }
     default:
       return undefined;
   }

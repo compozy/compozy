@@ -13,8 +13,9 @@ import { useTerminalCatalogStream } from "../use-terminal-catalog-stream";
 /**
  * Canonical suite for the live terminal catalog (part of UT-113).
  *
- * Invariant: exactly one catalog subscription exists per `(workspace, profile)`;
- * switching either closes the previous source before opening the next, and a
+ * Invariant: exactly one catalog subscription exists per
+ * `(queryClient, workspace, profile)`; extra subscribers share that source,
+ * switching scope closes the previous source before opening the next, and a
  * frame that arrives from a closed source never reaches the cache that replaced
  * it. The store's own rebinding reducer is covered where the store lives —
  * this file owns the subscription's lifetime.
@@ -301,6 +302,44 @@ describe("useTerminalCatalogStream", () => {
 
     unmount();
 
+    expect(opened[0].fake.closed).toBe(true);
+    expect(opened[0].fake.listenerCount()).toBe(0);
+  });
+
+  it("Should share one source when two subscribers use the same query client and scope", () => {
+    const opened: { url: string; fake: ReturnType<typeof createFakeSource> }[] = [];
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const factory = (url: string) => {
+      const fake = createFakeSource();
+      opened.push({ url, fake });
+      return fake.source as unknown as StreamEventSource;
+    };
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const first = renderHook(
+      () =>
+        useTerminalCatalogStream({
+          workspaceId: WORKSPACE,
+          profileKey: "work",
+          eventSourceFactory: factory,
+        }),
+      { wrapper }
+    );
+    const second = renderHook(
+      () =>
+        useTerminalCatalogStream({
+          workspaceId: WORKSPACE,
+          profileKey: "work",
+          eventSourceFactory: factory,
+        }),
+      { wrapper }
+    );
+
+    expect(opened).toHaveLength(1);
+    first.unmount();
+    expect(opened[0].fake.closed).toBe(false);
+    second.unmount();
     expect(opened[0].fake.closed).toBe(true);
     expect(opened[0].fake.listenerCount()).toBe(0);
   });

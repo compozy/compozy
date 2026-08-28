@@ -7,6 +7,7 @@
 import { formatDuration } from "@compozy/ui";
 
 import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
+import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import {
   type DeriveSessionRowsOptions,
@@ -134,17 +135,24 @@ function foldTurnGroup(
   return visibleRows;
 }
 
-// Text, permission, and agent-reported terminal rows remain operator-visible
-// after a turn settles; they are transcript content and audit surfaces, not
-// transient reasoning or tool work.
+// Text, permission, and terminal evidence remain operator-visible after a turn
+// settles. Deliberate terminal tool rows are their own surface, not transient
+// work; agent-reported terminals stay on the data-event path.
 function isPersistentTurnRow(row: SessionRow): boolean {
+  if (row.kind === "text") return true;
+  if (row.kind === "work") {
+    return (
+      row.summary === null &&
+      row.entries.length > 0 &&
+      row.entries.every(entry => isDeliberateTerminalTool(entry.toolName))
+    );
+  }
   return (
-    row.kind === "text" ||
-    (row.kind === "data" &&
-      (row.part.name === "data-compozy-permission" ||
-        (row.part.name === "data-compozy-event" &&
-          isAgentEventPayload(row.part.data) &&
-          row.part.data.origin === "agent_reported")))
+    row.kind === "data" &&
+    (row.part.name === "data-compozy-permission" ||
+      (row.part.name === "data-compozy-event" &&
+        isAgentEventPayload(row.part.data) &&
+        row.part.data.origin === "agent_reported"))
   );
 }
 

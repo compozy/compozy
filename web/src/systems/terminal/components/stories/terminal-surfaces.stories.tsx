@@ -1,7 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 
-import { terminalLeaseView } from "../../lib/terminal-lease";
 import { buildTerminalQuote } from "../../lib/terminal-quote";
 import {
   ANSWERED_PASSWORD_REQUEST,
@@ -14,10 +13,8 @@ import {
   RECORDING_FIXTURE,
   REJECTED_PASSWORD_REQUEST,
   SUPERSEDED_PASSWORD_REQUEST,
-  TERMINAL_FIXTURE_VIEWER,
   TERMINAL_GRANT_FIXTURES,
 } from "../../mocks/terminal-fixtures";
-import { SessionTerminalBlock } from "../session-terminal-block";
 import { TerminalApprovalDetail } from "../terminal-approval-detail";
 import { TerminalGrantRow } from "../terminal-grant-row";
 import { TerminalInputRequestCard, TerminalInputResolvedRow } from "../terminal-input-request";
@@ -29,8 +26,7 @@ import { TerminalRecordingPlayer } from "../terminal-recording-player";
 import { TerminalVisualStage } from "./terminal-visual-stage";
 
 /**
- * The surfaces around the grid: questions, approvals, the journal, replay, and
- * the session-side block.
+ * The surfaces around the grid: questions, approvals, the journal, and replay.
  */
 const meta: Meta = {
   title: "systems/terminal/components/TerminalSurfaces",
@@ -41,22 +37,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const NOOP = fn();
-
-/**
- * ANSI, built at runtime.
- *
- * Control bytes never live in source: a raw ESC or CR is invisible in review,
- * survives copy-paste as a corrupt byte, and defeats every text tool that reads
- * the file. They are spelled by code point here and assembled when the story
- * renders.
- */
-const ESC = String.fromCharCode(27);
-const CRLF = String.fromCharCode(13, 10);
-
-/** Select Graphic Rendition — `sgr("1;32")` is bold green, `sgr("0")` resets. */
-function sgr(parameters: string): string {
-  return `${ESC}[${parameters}m`;
-}
 
 /**
  * One minute into the request's frozen fifteen-minute lifetime, so the capture
@@ -438,49 +418,6 @@ export const RecordingReplay: Story = {
     scrubber.dispatchEvent(new Event("change", { bubbles: true }));
   },
   tags: ["play-fn"],
-};
-
-/** The screen the board paints in its session block, in real ANSI. */
-const SESSION_BLOCK_PREVIEW = [
-  "$ bun run dev",
-  `  ${sgr("1;32")}VITE v6.0.3${sgr("0")}  ready in 412 ms`,
-  "",
-  `  ${sgr("32")}➜${sgr("0")}  Local:   ${sgr("36")}http://localhost:5173/${sgr("0")}`,
-  `${sgr("2")}12:41:03${sgr("0")} [${sgr("36")}vite${sgr("0")}] hmr update ${sgr("34")}/src/systems/terminal/terminal-pane.tsx${sgr("0")}`,
-  "",
-].join(CRLF);
-
-/**
- * VC-15 — deliberate terminal use, inside the conversation.
- *
- * The lease chip and the jump action are shown here because the board shows
- * them, and the block renders both when its caller knows them. The session's
- * tool renderer does not yet: the tool envelope carries no lease and no start
- * time, and the Terminal app is registered by the activation tranche, so
- * production omits them rather than guessing. Authorized runtime-truth delta.
- */
-export const SessionBlock: Story = {
-  name: "VC-15 · Session terminal block",
-  render: () => (
-    <TerminalVisualStage width="block">
-      <div className="p-4">
-        <SessionTerminalBlock
-          blockId="tool-call-7f21"
-          lease={terminalLeaseView({
-            lease: PSQL_TERMINAL.lease,
-            controller: PSQL_TERMINAL.controller,
-            viewerId: TERMINAL_FIXTURE_VIEWER,
-            mode: PSQL_TERMINAL.mode,
-            capabilities: PSQL_TERMINAL.capabilities,
-          })}
-          onOpenTerminal={NOOP}
-          preview={SESSION_BLOCK_PREVIEW}
-          terminalId={DEV_SERVER_TERMINAL.id}
-          title="dev server"
-        />
-      </div>
-    </TerminalVisualStage>
-  ),
 };
 
 /** The quote a selection becomes, waiting in the composer. */

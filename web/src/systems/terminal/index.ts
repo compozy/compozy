@@ -103,7 +103,10 @@ export {
 } from "./lib/terminal-protocol-client";
 export { terminalStoreLogic, type TerminalPaneState } from "./stores/terminal-store";
 
-export { SessionTerminalBlock } from "./components/session-terminal-block";
+export {
+  SessionTerminalBlock,
+  type SessionTerminalBlockProps,
+} from "./components/session-terminal-block";
 export {
   TerminalApprovalDetail,
   type TerminalApprovalDetailProps,

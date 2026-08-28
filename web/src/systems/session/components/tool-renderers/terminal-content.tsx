@@ -1,8 +1,21 @@
+import { formatDuration } from "@compozy/ui";
 import { Suspense, lazy, use } from "react";
 
-import { OsShellContext } from "@/systems/os";
-import type { TerminalSignal } from "@/systems/terminal";
+import { OsShellContext, type OsShellHandle } from "@/systems/os";
+import {
+  terminalLeaseView,
+  type TerminalInfo,
+  type TerminalSignal,
+} from "@/systems/terminal/parts";
+import { useSessionTerminalCatalogEntry } from "../../hooks/use-session-terminal-catalog";
 import { useSessionTerminalScope } from "../../hooks/use-session-terminal-scope";
+import {
+  asRecord,
+  readNonEmptyString,
+  readSupervisedTerminalId,
+  readTerminalEnvelope,
+  resolveSessionTerminalRun,
+} from "../../lib/session-terminal-tools";
 import type { UIMessage } from "../../types";
 import { DetailPre } from "./detail-pre";
 
@@ -25,6 +38,7 @@ interface TerminalToolFacts {
   exitCode: number | null;
   signal: TerminalSignal | null;
   stillRunning: boolean;
+  durationMs: number | null;
 }
 
 /**
@@ -36,33 +50,26 @@ interface TerminalToolFacts {
  */
 function readTerminalFacts(message: UIMessage): TerminalToolFacts | null {
   const result = message.toolResult;
-  const envelope = asRecord(result?.rawOutput);
-  const raw = asRecord(
-    envelope.structured ?? envelope.raw_output ?? envelope.rawOutput ?? result?.rawOutput
-  );
-  const terminalId = readString(raw.terminal_id);
+  const raw = readTerminalEnvelope(result?.rawOutput);
+  const terminalId = readSupervisedTerminalId(result?.rawOutput);
   if (!terminalId) return null;
-  const command = readString(asRecord(message.toolInput).command) ?? message.toolName ?? "terminal";
   const exitCode = typeof raw.exit_code === "number" ? raw.exit_code : null;
   const signal = readTerminalSignal(raw.signal);
+  const durationMs =
+    typeof raw.duration_ms === "number" && Number.isFinite(raw.duration_ms)
+      ? raw.duration_ms
+      : null;
   return {
     terminalId,
-    title: command,
-    preview: readString(raw.output) ?? result?.stdout ?? result?.content ?? "",
+    title: readNonEmptyString(asRecord(message.toolInput).title) ?? "Terminal",
+    preview: readNonEmptyString(raw.output) ?? result?.stdout ?? result?.content ?? "",
     exitCode,
     signal,
+    durationMs,
     stillRunning:
       raw.still_running === true ||
       (message.toolName === "compozy__terminal_open" && exitCode === null && signal === null),
   };
-}
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-}
-
-function readString(value: unknown): string | null {
-  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
 function readTerminalSignal(value: unknown): TerminalSignal | null {
@@ -77,6 +84,29 @@ function readTerminalSignal(value: unknown): TerminalSignal | null {
   }
 }
 
+const CLOCK_FORMAT = new Intl.DateTimeFormat(undefined, {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function formatClock(iso: string): string | null {
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return null;
+  return CLOCK_FORMAT.format(new Date(parsed));
+}
+
+function durationLabelFor(
+  durationMs: number | null,
+  finishedAt: string | null
+): string | undefined {
+  const parts: string[] = [];
+  if (durationMs !== null && durationMs > 0) parts.push(formatDuration(durationMs));
+  const finished = finishedAt ? formatClock(finishedAt) : null;
+  if (finished) parts.push(`finished ${finished}`);
+  return parts.length > 0 ? parts.join(" · ") : undefined;
+}
+
 /**
  * A terminal tool call, rendered as the terminal it ran in.
  *
@@ -85,8 +115,34 @@ function readTerminalSignal(value: unknown): TerminalSignal | null {
  * outcome is stated exactly as the runtime reported it.
  */
 export function TerminalContent({ message }: { message: UIMessage }) {
-  const shell = use(OsShellContext);
   const facts = readTerminalFacts(message);
+  if (!facts) {
+    // A pipe exec finishes without a terminal object at all; that is a plain
+    // command result and the generic pre keeps it readable rather than dressing
+    // it as a window that never existed. Catalog hooks stay off this path.
+    return <PipeTerminalOutput message={message} />;
+  }
+  return <SupervisedTerminalContent facts={facts} message={message} />;
+}
+
+function PipeTerminalOutput({ message }: { message: UIMessage }) {
+  const raw = readTerminalEnvelope(message.toolResult?.rawOutput);
+  const output =
+    readNonEmptyString(raw.output) ??
+    message.toolResult?.stdout ??
+    message.toolResult?.content ??
+    "";
+  return output ? <DetailPre data-testid="terminal-content-plain">{output}</DetailPre> : null;
+}
+
+function SupervisedTerminalContent({
+  facts,
+  message,
+}: {
+  facts: TerminalToolFacts;
+  message: UIMessage;
+}) {
+  const shell = use(OsShellContext);
   // The terminal's scope is not in the tool result — exec and open return a
   // `terminal_id` and nothing about where it lives. It comes from the session
   // this block is inside: its workspace, and *its* profile, read from the
@@ -95,22 +151,66 @@ export function TerminalContent({ message }: { message: UIMessage }) {
   // view, still belongs to the profile that started it, and a same-named
   // terminal in another profile is a different terminal.
   const scope = useSessionTerminalScope();
-  if (!facts) {
-    // A pipe exec finishes without a terminal object at all; that is a plain
-    // command result and the generic pre keeps it readable rather than dressing
-    // it as a window that never existed.
-    const envelope = asRecord(message.toolResult?.rawOutput);
-    const raw = asRecord(
-      envelope.structured ??
-        envelope.raw_output ??
-        envelope.rawOutput ??
-        message.toolResult?.rawOutput
-    );
-    const output =
-      readString(raw.output) ?? message.toolResult?.stdout ?? message.toolResult?.content ?? "";
-    return output ? <DetailPre data-testid="terminal-content-plain">{output}</DetailPre> : null;
+  if (!scope) {
+    return <SessionTerminalPreview facts={facts} message={message} shell={shell} />;
   }
-  const exit = terminalExitFor(facts);
+  return (
+    <CatalogBackedTerminalPreview facts={facts} message={message} scope={scope} shell={shell} />
+  );
+}
+
+function CatalogBackedTerminalPreview({
+  facts,
+  message,
+  scope,
+  shell,
+}: {
+  facts: TerminalToolFacts;
+  message: UIMessage;
+  scope: { workspaceId: string; profile: string };
+  shell: OsShellHandle | null;
+}) {
+  const catalog = useSessionTerminalCatalogEntry(facts.terminalId, scope);
+  return (
+    <SessionTerminalPreview
+      catalog={catalog}
+      facts={facts}
+      message={message}
+      scope={scope}
+      shell={shell}
+    />
+  );
+}
+
+function SessionTerminalPreview({
+  catalog,
+  facts,
+  message,
+  scope,
+  shell,
+}: {
+  catalog?: TerminalInfo;
+  facts: TerminalToolFacts;
+  message: UIMessage;
+  scope?: { workspaceId: string; profile: string };
+  shell: OsShellHandle | null;
+}) {
+  const title = readNonEmptyString(catalog?.title) ?? facts.title;
+  const run = resolveSessionTerminalRun(facts, catalog);
+  const durationLabel = durationLabelFor(facts.durationMs, run.exit?.at ?? null);
+  const startedLabel = catalog?.created_at ? formatClock(catalog.created_at) : undefined;
+  const lease = catalog
+    ? terminalLeaseView({
+        lease: catalog.lease,
+        controller: catalog.controller,
+        // A transcript block only watches. It must not claim "You're in control"
+        // because keystrokes never reach the program from here. The chip names
+        // the controller the catalog sent.
+        viewerId: null,
+        mode: catalog.mode,
+        capabilities: catalog.capabilities,
+      })
+    : undefined;
   return (
     <div className="flex min-w-0 flex-col gap-1" data-testid="terminal-content">
       <Suspense
@@ -118,11 +218,14 @@ export function TerminalContent({ message }: { message: UIMessage }) {
       >
         <SessionTerminalBlock
           blockId={message.id}
-          exit={exit}
+          exit={run.exit}
           preview={facts.preview}
-          stillRunning={facts.stillRunning}
+          stillRunning={run.stillRunning}
           terminalId={facts.terminalId}
-          title={facts.title}
+          title={title}
+          {...(lease ? { lease } : {})}
+          {...(durationLabel ? { durationLabel } : {})}
+          {...(startedLabel ? { startedLabel } : {})}
           {...(shell
             ? {
                 onOpenTerminal: () => {
@@ -142,16 +245,4 @@ export function TerminalContent({ message }: { message: UIMessage }) {
       </Suspense>
     </div>
   );
-}
-
-/** The runtime's own outcome. A cause it could not verify stays unknown. */
-function terminalExitFor(facts: TerminalToolFacts) {
-  if (facts.stillRunning) return null;
-  if (facts.signal) {
-    return { cause: "signaled" as const, signal: facts.signal, at: "" };
-  }
-  if (facts.exitCode === null) {
-    return { cause: "unknown" as const, at: "" };
-  }
-  return { cause: "exited" as const, code: facts.exitCode, at: "" };
 }

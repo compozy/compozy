@@ -55,4 +55,10 @@ export {
   type TerminalBadgeProjection,
   type TerminalPendingApproval,
 } from "./lib/terminal-badge";
-export type { TerminalRunState } from "./types";
+// Session transcript blocks need replay, lease projection, and catalog types
+// without opening the Terminal app.
+export { useTerminalReplay } from "./hooks/use-terminal-replay";
+export { useTerminalCatalogStream } from "./hooks/use-terminal-catalog-stream";
+export { terminalLeaseView, type TerminalLeaseView } from "./lib/terminal-lease";
+export { terminalCatalogQuery, terminalScope } from "./lib/catalog-query";
+export type { TerminalExit, TerminalInfo, TerminalRunState, TerminalSignal } from "./types";

@@ -35,6 +35,58 @@ function defaultEventSourceFactory(url: string): StreamEventSource {
   return createStreamEventSource(url);
 }
 
+const factoryIds = new WeakMap<TerminalCatalogEventSourceFactory, number>();
+let nextFactoryId = 1;
+
+function factoryIdentity(factory: TerminalCatalogEventSourceFactory): string {
+  if (factory === defaultEventSourceFactory) return "default";
+  const existing = factoryIds.get(factory);
+  if (existing !== undefined) return String(existing);
+  const id = nextFactoryId;
+  nextFactoryId += 1;
+  factoryIds.set(factory, id);
+  return String(id);
+}
+
+interface CatalogStreamLease {
+  refs: number;
+  cleanup: () => void;
+}
+
+const leasesByClient = new WeakMap<QueryClient, Map<string, CatalogStreamLease>>();
+
+/**
+ * One EventSource per query client and scope, shared across subscribers.
+ *
+ * Session blocks and the Terminal app read the same cache. Opening a socket
+ * per hook instance would fan the same frames out N times and drop the last
+ * subscriber's cache on the first unmount.
+ */
+function acquireCatalogStreamLease(
+  queryClient: QueryClient,
+  key: string,
+  open: () => () => void
+): () => void {
+  let byScope = leasesByClient.get(queryClient);
+  if (!byScope) {
+    byScope = new Map();
+    leasesByClient.set(queryClient, byScope);
+  }
+  let lease = byScope.get(key);
+  if (!lease) {
+    lease = { refs: 0, cleanup: open() };
+    byScope.set(key, lease);
+  }
+  lease.refs += 1;
+  return () => {
+    lease.refs -= 1;
+    if (lease.refs === 0) {
+      lease.cleanup();
+      byScope.delete(key);
+    }
+  };
+}
+
 function normalizeTerminalProfiles(profiles: readonly string[]): string[] {
   const normalized = new Set<string>();
   for (const profile of profiles) {
@@ -139,9 +191,10 @@ function openTerminalCatalogStream(
  *
  * Only an open pane holds a WebSocket, so the tab strip, the dock badge and the
  * list would otherwise be as old as the last read. Exactly one subscription
- * exists per `(workspace, profile)`: switching either closes the previous
- * source before opening the next, and the closed source's frames are ignored,
- * so a late event can never write into the scope that replaced it.
+ * exists per `(queryClient, workspace, profile, factory)`: extra hook
+ * instances share that source, switching scope closes it only after the last
+ * subscriber leaves, and a closed source's frames are ignored so a late event
+ * can never write into the scope that replaced it.
  */
 export function useTerminalCatalogStream({
   workspaceId,
@@ -163,20 +216,30 @@ export function useTerminalCatalogStream({
 
   useEffect(() => {
     if (!canConnect) return undefined;
-    const concreteProfiles = JSON.parse(streamProfileSignature) as string[];
-    const cleanups = concreteProfiles.map(streamProfile =>
-      openTerminalCatalogStream(
-        queryClient,
-        workspaceId,
-        profileKey,
-        streamProfile,
-        allProfiles,
-        eventSourceFactory ?? defaultEventSourceFactory
-      )
-    );
-    return () => {
-      for (const cleanup of cleanups) cleanup();
-    };
+    const factory = eventSourceFactory ?? defaultEventSourceFactory;
+    const leaseKey = JSON.stringify({
+      workspaceId,
+      profileKey,
+      allProfiles,
+      streamProfileSignature,
+      factoryId: factoryIdentity(factory),
+    });
+    return acquireCatalogStreamLease(queryClient, leaseKey, () => {
+      const concreteProfiles = JSON.parse(streamProfileSignature) as string[];
+      const cleanups = concreteProfiles.map(streamProfile =>
+        openTerminalCatalogStream(
+          queryClient,
+          workspaceId,
+          profileKey,
+          streamProfile,
+          allProfiles,
+          factory
+        )
+      );
+      return () => {
+        for (const cleanup of cleanups) cleanup();
+      };
+    });
   }, [
     allProfiles,
     canConnect,

@@ -108,6 +108,26 @@ describe("SessionTerminalBlock", () => {
     expect(grids[0].firstElementChild).not.toBe(grids[1].firstElementChild);
   });
 
+  it("Should paint a running session block as live, not succeeded", async () => {
+    render(
+      <SessionTerminalBlock
+        blockId="tool-call-running"
+        engineLoader={stubEngineLoader}
+        preview="ready"
+        stillRunning
+        terminalId={DEV_SERVER_TERMINAL.id}
+        title="dev server"
+      />
+    );
+
+    const block = screen.getByTestId(`session-terminal-block-${DEV_SERVER_TERMINAL.id}`);
+    await waitFor(() => {
+      expect(block.querySelector("[data-tone='accent']")).not.toBeNull();
+    });
+    expect(block.querySelector("[data-tone='success']")).toBeNull();
+    expect(block).toHaveTextContent("still running — the agent continued without waiting");
+  });
+
   it("Should say a terminal was cleaned up without inventing how long it waited", () => {
     const { rerender } = render(<TerminalExpiredState />);
 

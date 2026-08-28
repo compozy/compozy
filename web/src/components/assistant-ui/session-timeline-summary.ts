@@ -5,6 +5,7 @@
 // layer stays authoritative — categories derive from the registered tool name,
 // file identity from the tool args the renderers already read.
 
+import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { resolveRegisteredToolName } from "@/systems/session/lib/tool-labels";
 
 import type { SessionTimelineToolPart } from "./session-timeline.logic";
@@ -49,7 +50,9 @@ const CATEGORY_ORDER: readonly SessionToolSummaryCategory[] = [
  * calls belong to the live tail — a summary must never hide either.
  */
 export function isSummarizableToolPart(part: SessionTimelineToolPart): boolean {
-  return part.status === "settled" && part.isError !== true;
+  return (
+    part.status === "settled" && part.isError !== true && !isDeliberateTerminalTool(part.toolName)
+  );
 }
 
 export function classifyToolSummaryCategory(
