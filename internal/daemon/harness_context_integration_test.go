@@ -749,6 +749,19 @@ func (r *harnessIntegrationWorkspaceResolver) Resolve(
 	}
 }
 
+func (r *harnessIntegrationWorkspaceResolver) ResolveForProfile(
+	ctx context.Context,
+	idOrPath string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := r.Resolve(ctx, idOrPath)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, err
+	}
+	resolved.ProfileName = strings.TrimSpace(profileName)
+	return resolved, nil
+}
+
 func (r *harnessIntegrationWorkspaceResolver) ResolveOrRegister(
 	_ context.Context,
 	path string,

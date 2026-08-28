@@ -283,9 +283,9 @@ func TestCallsHandlers(t *testing.T) {
 			wantStatus int
 		}{
 			{
-				name:       "Should report missing participation as a conflict",
+				name:       "Should report missing participation as invalid call state",
 				code:       callspkg.CodePublishNoParticipation,
-				wantStatus: http.StatusConflict,
+				wantStatus: http.StatusUnprocessableEntity,
 			},
 			{
 				name:       "Should report a Network failure as a bad gateway",

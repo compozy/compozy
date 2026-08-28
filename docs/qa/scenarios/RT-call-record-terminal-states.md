@@ -6,7 +6,7 @@ persona: Ada
 journey: J-supervise-delegation-trees
 expected: /agents/calls/{id} renders the ask, contract digest, state timeline, typed result and cost for every one of the nine states; extracted renders as extracted; invalid-result keeps both tries verbatim; completed-without-result says so; a canceled call shows superseded evidence without reopening; a deadline appears only when one was set.
 entry_points: web /agents/calls/call_01JBD8G2K7Q9; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id}; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id}/result; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id}/superseded
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

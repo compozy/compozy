@@ -1851,12 +1851,28 @@ func requireHostedMCPStdioServer(
 	selection hostedMCPServerSelection,
 ) acpsdk.McpServerStdio {
 	t.Helper()
+	if selection != hostedMCPServerEarliest && selection != hostedMCPServerLatest {
+		t.Fatalf("hosted MCP server selection = %q, want earliest or latest", selection)
+	}
+	if server, ok := findHostedMCPStdioServer(records, selection); ok {
+		return server
+	}
+	t.Fatalf(
+		"diagnostics = %#v, want %s session_new %s stdio MCP server",
+		records,
+		selection,
+		mcppkg.HostedServerName,
+	)
+	return acpsdk.McpServerStdio{}
+}
 
+func findHostedMCPStdioServer(
+	records []acpmock.DiagnosticsRecord,
+	selection hostedMCPServerSelection,
+) (acpsdk.McpServerStdio, bool) {
 	start, end, step := 0, len(records), 1
 	if selection == hostedMCPServerLatest {
 		start, end, step = len(records)-1, -1, -1
-	} else if selection != hostedMCPServerEarliest {
-		t.Fatalf("hosted MCP server selection = %q, want earliest or latest", selection)
 	}
 	for index := start; index != end; index += step {
 		record := records[index]
@@ -1867,16 +1883,10 @@ func requireHostedMCPStdioServer(
 			if server.Stdio == nil || server.Stdio.Name != mcppkg.HostedServerName {
 				continue
 			}
-			return *server.Stdio
+			return *server.Stdio, true
 		}
 	}
-	t.Fatalf(
-		"diagnostics = %#v, want %s session_new %s stdio MCP server",
-		records,
-		selection,
-		mcppkg.HostedServerName,
-	)
-	return acpsdk.McpServerStdio{}
+	return acpsdk.McpServerStdio{}, false
 }
 
 func startHostedMCPClient(

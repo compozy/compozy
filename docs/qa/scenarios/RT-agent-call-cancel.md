@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-delegate-work-to-an-agent
 expected: Cancel fences activation, stops the managed child, settles canceled once, and a repeated cancel returns the same terminal state.
 entry_points: compozy call cancel call_01JBD8H9PW2M --reason "superseded by rev-02"; HTTP and UDS POST /api/workspaces/{workspace_id}/calls/{call_id}/cancel with {"reason":"superseded by rev-02"}; compozy__call_cancel with {"call_id":"call_01JBD8H9PW2M","reason":"superseded by rev-02"}; compozy call show call_01JBD8H9PW2M; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id}/superseded
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

@@ -3,6 +3,7 @@ package daemon
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -49,7 +50,7 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 		return "", fmt.Errorf("daemon: encode call publication: %w", err)
 	}
 	messageID := strings.TrimSpace(evidence.MessageID)
-	return b.network().Send(ctx, network.SendRequest{
+	networkMessageID, err := b.network().Send(ctx, network.SendRequest{
 		SessionID:   strings.TrimSpace(evidence.SourceSessionID),
 		WorkspaceID: strings.TrimSpace(evidence.WorkspaceID),
 		Channel:     strings.TrimSpace(evidence.Channel),
@@ -59,6 +60,13 @@ func (b *daemonCallPublishBridge) PublishResultEvidence(
 		Body:        body,
 		ID:          &messageID,
 	})
+	if errors.Is(err, network.ErrLocalPeerNotFound) {
+		return "", fmt.Errorf(
+			"daemon: call publisher is not participating: %w",
+			errors.Join(participation.ErrNotParticipating, err),
+		)
+	}
+	return networkMessageID, err
 }
 
 func callResultFetchPath(workspaceID, callID string) string {

@@ -61,7 +61,7 @@ func statusForCallsError(err error) int {
 	case callspkg.CodeTargetExpired:
 		return http.StatusGone
 	case callspkg.CodeIdempotencyConflict, callspkg.CodeAlreadySettled, callspkg.CodeNotSettled,
-		callspkg.CodePublishNoParticipation, callspkg.CodePublishNotSettled,
+		callspkg.CodePublishNotSettled,
 		callspkg.CodeMessageTargetBlocked, callspkg.CodeMessageDuplicate:
 		return http.StatusConflict
 	case callspkg.CodePublishFailed:

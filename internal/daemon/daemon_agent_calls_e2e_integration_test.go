@@ -396,11 +396,11 @@ func TestDaemonE2EAgentCallsRuntimeAndPublicSurfaces(t *testing.T) {
 			}
 
 			root := createAgentCallCLI(t, ctx, harness, "blocker", "keep working")
-			rootCall := waitForAgentCallState(t, ctx, harness, root.CallID, callspkg.StateRunning)
+			rootCall := waitForAgentCallRunningChild(t, ctx, harness, root.CallID)
 			depthTwo := createNestedAgentCall(t, ctx, harness, rootCall.ChildSessionID)
-			depthTwoCall := waitForAgentCallState(t, ctx, harness, depthTwo.CallID, callspkg.StateRunning)
+			depthTwoCall := waitForAgentCallRunningChild(t, ctx, harness, depthTwo.CallID)
 			depthThree := createNestedAgentCall(t, ctx, harness, depthTwoCall.ChildSessionID)
-			depthThreeCall := waitForAgentCallState(t, ctx, harness, depthThree.CallID, callspkg.StateRunning)
+			depthThreeCall := waitForAgentCallRunningChild(t, ctx, harness, depthThree.CallID)
 			depthThreeClient := hostedMCPClientForSession(t, ctx, harness, "blocker", depthThreeCall.ChildSessionID)
 			defer closeHostedMCPClient(t, depthThreeClient)
 			listed, err := depthThreeClient.ListTools(ctx, nil)
@@ -527,6 +527,7 @@ func TestDaemonE2EAgentCallPublishBridge(t *testing.T) {
 		toolspkg.ToolIDCallCancel.String(),
 		toolspkg.ToolIDCallResult.String(),
 		toolspkg.ToolIDCallReturn.String(),
+		toolspkg.ToolIDAgentMessage.String(),
 	}
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		EnableNetwork: true,
@@ -746,6 +747,46 @@ func isAgentCallTerminal(state string) bool {
 	return callspkg.State(state).Terminal()
 }
 
+func waitForAgentCallRunningChild(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	callID string,
+) compozycontract.CallPayload {
+	t.Helper()
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
+	var last compozycontract.CallPayload
+	var lastErr error
+	for {
+		lastErr = harness.CLI.RunJSONInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			&last,
+			"call", "show", callID,
+			"--workspace", harness.WorkspaceRoot,
+			"-o", "json",
+		)
+		if lastErr == nil && last.State == string(callspkg.StateRunning) && last.ChildSessionID != "" {
+			return last
+		}
+		if lastErr == nil && isAgentCallTerminal(last.State) {
+			t.Fatalf("call %s settled before child binding: %#v", callID, last)
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"wait for call %s running child: %v; last=%#v; last read error=%v",
+				callID,
+				ctx.Err(),
+				last,
+				lastErr,
+			)
+		case <-ticker.C:
+		}
+	}
+}
+
 func waitForAgentCallTranscriptText(
 	t testing.TB,
 	ctx context.Context,
@@ -815,8 +856,8 @@ func createAgentCallFromSession(
 		map[string]any{"agent": targetAgent, "prompt": prompt},
 		&created,
 	)
-	if created.CallID == "" || created.ChildSessionID == "" {
-		t.Fatalf("session agent call = %#v, want call and child IDs", created)
+	if created.CallID == "" {
+		t.Fatalf("session agent call = %#v, want durable call ID", created)
 	}
 	return created
 }
@@ -900,7 +941,8 @@ func waitForAgentCallExpiredIdleClock(
 			"-o", "json",
 		)
 		if lastErr == nil && last.State == string(callspkg.StateCompleted) &&
-			last.IdleExpiresAt != nil && !last.IdleExpiresAt.After(time.Now()) {
+			last.SettledAt != nil && last.IdleTTLSeconds > 0 &&
+			!last.SettledAt.Add(time.Duration(last.IdleTTLSeconds)*time.Second).After(time.Now()) {
 			return last
 		}
 		select {

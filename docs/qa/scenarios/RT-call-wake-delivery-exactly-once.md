@@ -6,7 +6,7 @@ persona: Ada
 journey: J-delegate-work-to-an-agent
 expected: Every terminal state produces exactly one result-carrying wake with the applicable payload, a committed call is never admission-denied on the way to delivery, and a crash between commit and notify redelivers the same wake identity instead of a second one.
 entry_points: compozy call await call_01JBD8G2K7Q9 --timeout 120s; caller session ses_01JBD7ZZAAAA transcript wake row; HTTP and UDS GET /api/workspaces/{workspace_id}/calls/{call_id}; compozy task next --wait --lease-seconds 300; daemon restart; compozy logs --type call.settled
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status:

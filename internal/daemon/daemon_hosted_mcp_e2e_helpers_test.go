@@ -5,6 +5,7 @@ package daemon
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
@@ -23,19 +24,32 @@ func hostedMCPClientForSession(
 	if !ok {
 		t.Fatalf("MockAgentRegistration(%s) = missing", agentName)
 	}
-	records, err := acpmock.ReadDiagnostics(registration.DiagnosticsPath)
-	if err != nil {
-		t.Fatalf("ReadDiagnostics(%s) error = %v", agentName, err)
+	var lastRecords []acpmock.DiagnosticsRecord
+	var lastSessionRecords []acpmock.DiagnosticsRecord
+	var lastErr error
+	ticker := time.NewTicker(20 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		lastRecords, lastErr = acpmock.ReadDiagnostics(registration.DiagnosticsPath)
+		if lastErr == nil {
+			lastSessionRecords = acpmock.DiagnosticsForCompozySession(lastRecords, sessionID)
+			if server, found := findHostedMCPStdioServer(lastSessionRecords, hostedMCPServerEarliest); found {
+				return startHostedMCPClient(t, ctx, server)
+			}
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatalf(
+				"wait for %s session %s hosted MCP diagnostics: %v; last error=%v; records=%#v",
+				agentName,
+				sessionID,
+				ctx.Err(),
+				lastErr,
+				lastSessionRecords,
+			)
+		case <-ticker.C:
+		}
 	}
-	return startHostedMCPClient(
-		t,
-		ctx,
-		requireHostedMCPStdioServer(
-			t,
-			acpmock.DiagnosticsForCompozySession(records, sessionID),
-			hostedMCPServerEarliest,
-		),
-	)
 }
 
 func closeHostedMCPClient(t testing.TB, client *sdkmcp.ClientSession) {
