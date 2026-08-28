@@ -11021,6 +11021,77 @@ func TestDaemonNativeRuntimePolicyResolver(t *testing.T) {
 		requireToolReason(t, err, toolspkg.ErrToolDenied, toolspkg.ReasonSessionDenied)
 	})
 
+	t.Run("Should resolve workspace agent policy through the session profile", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := testConfig(t, testHomePaths(t))
+		const (
+			workspaceID = "ws-project-profile"
+			agentName   = "product-manager-agent"
+		)
+		sessions := &nativeToolPolicySessionStub{info: &session.Info{
+			ID:          "sess-project-profile",
+			ProfileID:   store.DefaultProfileID,
+			WorkspaceID: workspaceID,
+			AgentName:   agentName,
+			Type:        session.SessionTypeUser,
+			State:       session.StateActive,
+		}}
+		workspaces := apitest.StubWorkspaceService{
+			ResolveFn: func(context.Context, string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: workspaceID},
+					Config:    cfg,
+				}, nil
+			},
+			ResolveForProfileFn: func(
+				ctx context.Context,
+				ref string,
+				profileName string,
+			) (workspacepkg.ResolvedWorkspace, error) {
+				if err := ctx.Err(); err != nil {
+					return workspacepkg.ResolvedWorkspace{}, err
+				}
+				if ref != workspaceID || profileName != daemonDefaultProfileName {
+					t.Fatalf(
+						"ResolveForProfile() = (%q, %q), want (%q, %q)",
+						ref,
+						profileName,
+						workspaceID,
+						daemonDefaultProfileName,
+					)
+				}
+				return workspacepkg.ResolvedWorkspace{
+					Workspace: workspacepkg.Workspace{ID: workspaceID},
+					Config:    cfg,
+					Agents: []compozyconfig.AgentDef{{
+						Name:     agentName,
+						Provider: "opencode",
+						Prompt:   "Coordinate the launch.",
+						Toolsets: []string{toolspkg.ToolsetIDTasks.String()},
+					}},
+				}, nil
+			},
+		}
+		resolver, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			Sessions:          sessions,
+			WorkspaceResolver: workspaces,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+
+		inputs, err := resolver.Resolve(t.Context(), toolspkg.Scope{SessionID: sessions.info.ID})
+		if err != nil {
+			t.Fatalf("Resolve(project-profile workspace agent) error = %v", err)
+		}
+		if !slices.Equal(inputs.Agent.Toolsets, []toolspkg.ToolsetID{toolspkg.ToolsetIDTasks}) {
+			t.Fatalf("Resolve(project-profile workspace agent).Agent.Toolsets = %#v, want tasks", inputs.Agent.Toolsets)
+		}
+	})
+
 	t.Run("Should resolve daemon policy without treating its audit label as an authored agent", func(t *testing.T) {
 		t.Parallel()
 
