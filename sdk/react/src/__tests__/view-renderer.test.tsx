@@ -251,17 +251,17 @@ describe("ViewRenderer", () => {
   });
 
   it("appends the next page from useCachedPromise loadMore", async () => {
-    const renderer = createRenderer();
-    const first = renderer.open(<PagedNotesView />);
-    await renderer.event(handlerForAction(first, "Probe"), [], 1, 1, new AbortController().signal);
-    await yieldEventLoop();
-    const settled = await renderer.event(
-      handlerForAction(first, "Probe"),
-      [],
-      2,
-      2,
-      new AbortController().signal
-    );
+    const firstPagePublished = defer();
+    let settled: Awaited<ReturnType<ViewRenderer["event"]>> = undefined;
+    const renderer = createRenderer({
+      publish: frame => {
+        settled = frame;
+        firstPagePublished.resolve();
+      },
+    });
+    renderer.open(<PagedNotesView />);
+    await firstPagePublished.promise;
+    expect.assert(settled);
     expect(rowTitles(settled)).toEqual(["one"]);
 
     const reply = await renderer.event(
