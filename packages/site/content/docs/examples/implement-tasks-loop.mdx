@@ -267,10 +267,13 @@ graph:
           Activate the `cy-orchestrate-tasks` skill and follow it strictly for the spec
           `.compozy/tasks/{{ .inputs.slug }}`.
 
-          Conduct only. Read the task graph and spawn one bounded `code_implementer` worker session
-          per task, in dependency order. For each task: dispatch the briefing, wait for the turn to
-          end, re-read the task frontmatter as proof, and stop the worker before advancing.
-          Implementation belongs to the workers — leave every code edit to them.
+          Selected implementer Agent: `{{ .inputs.implementer }}`.
+          Conduct only. Read the task graph and spawn one bounded worker session using the selected
+          implementer Agent per task, in dependency order. `code_implementer` is only the input
+          default; never substitute it for a different selected Agent. For each task: dispatch the
+          briefing, wait for the turn to end, re-read the task frontmatter as proof, and stop the
+          worker before advancing. Implementation belongs to the workers — leave every code edit
+          to them.
 
           Pass these category runtime inputs to each spawned worker. Use the backend runtime only
           for exact task type `backend`, the frontend runtime only for exact task type `frontend`,
@@ -360,9 +363,10 @@ start:
 ## Run it
 
 `slug` is the one required input. `mode` defaults to `per-task`; choose `orchestrated` when you want
-the bundled `orchestrator` agent to conduct dedicated workers. The four optional runtime inputs
-select the conductor, backend workers, frontend workers, and every other worker. Empty runtime
-inputs fall through to agent and config defaults, while a task file's own `runtime` fields win.
+the bundled `orchestrator` Agent to conduct dedicated workers. `implementer` selects the worker
+Agent in both modes and defaults to `code_implementer`. The four optional runtime inputs select the
+conductor, backend workers, frontend workers, and every other worker. Empty runtime inputs fall
+through to Agent and config defaults, while a task file's own `runtime` fields win.
 
 ```bash
 # check the definition against compozy.loop/v1
@@ -379,6 +383,7 @@ compozy loop run --name implement-tasks --input slug=<slug>
 compozy loop run --name implement-tasks \
   --input slug=<slug> \
   --input mode=orchestrated \
+  --input implementer=<agent> \
   --input 'orchestrator_runtime={"provider":"codex","model":"gpt-5.6-sol","reasoning":"high"}' \
   --input 'backend_runtime={"provider":"codex","model":"gpt-5.6-sol"}' \
   --input 'frontend_runtime={"provider":"claude","model":"sonnet"}'
@@ -408,9 +413,10 @@ review Loop it declares no webhook start, so a signed HTTP delivery cannot begin
   </WorkflowStep>
   <WorkflowStep title="Conduct bounded workers — `orchestrate`">
     In orchestrated mode, one continuous Goal session follows `cy-orchestrate-tasks`. It starts a
-    `code_implementer` worker per task with the category runtime, waits for proof on disk, and stops
-    the worker on every path. Its command judge accepts only completed task frontmatter and zero
-    surviving conductor workers.
+    worker with the selected `implementer` Agent per task, applies the category runtime, waits for
+    proof on disk, and stops the worker on every path. Omitting `implementer` selects
+    `code_implementer`. The command judge accepts only completed task frontmatter and zero surviving
+    conductor workers.
   </WorkflowStep>
   <WorkflowStep title="Collect the results — `collect`">
     The terminal collect node joins the sequential task results. When every task action succeeds,

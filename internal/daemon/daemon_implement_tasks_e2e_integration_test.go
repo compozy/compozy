@@ -24,6 +24,8 @@ import (
 const (
 	implementTasksE2ESlug      = "implement-tasks"
 	implementTasksImplementer  = "code_implementer"
+	implementTasksCustomAgent  = "custom_implementer"
+	implementTasksSentinel     = "CUSTOM_IMPLEMENTER_SENTINEL_V1"
 	implementTasksFixtureAgent = "implement_tasks_implementer"
 	implementTasksOrchestrator = "orchestrator"
 	implementTasksConductor    = "implement_tasks_orchestrator"
@@ -33,28 +35,45 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
-		harness, ctx := startImplementTasksE2EHarness(t)
+		harness, ctx := startImplementTasksE2EHarness(t, implementTasksImplementer)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{
-			"--input", `orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
-			"--input", `backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
-			"--input", `frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
-			"--input", `default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
+			"--input",
+			`orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
+			"--input",
+			`backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
+			"--input",
+			`frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
+			"--input",
+			`default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
 		})
 		assertImplementTasksPerTaskRuntimes(t, detail)
 		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
 	})
 
 	t.Run("Should complete orchestrated mode and stop every category worker", func(t *testing.T) {
-		harness, ctx := startImplementTasksE2EHarness(t)
+		harness, ctx := startImplementTasksE2EHarness(t, implementTasksImplementer)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{"--input", "mode=orchestrated"})
 		assertImplementTasksOrchestratorRuntimeFallback(t, detail)
 		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
-		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness)
+		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksImplementer)
+	})
+
+	t.Run("Should use the selected Agent and its local skill in orchestrated mode", func(t *testing.T) {
+		harness, ctx := startImplementTasksE2EHarness(t, implementTasksCustomAgent)
+		detail := runImplementTasksE2E(t, ctx, harness, []string{
+			"--input", "mode=orchestrated",
+			"--input", "implementer=" + implementTasksCustomAgent,
+		})
+		assertImplementTasksOrchestratorRuntimeFallback(t, detail)
+		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
+		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksCustomAgent)
+		assertImplementTasksWorkerPromptContains(t, harness, implementTasksSentinel)
 	})
 }
 
 func startImplementTasksE2EHarness(
 	t testing.TB,
+	orchestratedImplementer string,
 ) (*e2etest.RuntimeHarness, context.Context) {
 	t.Helper()
 
@@ -66,8 +85,10 @@ func startImplementTasksE2EHarness(
 		t,
 		mockFixturePath(t, "implement_tasks_fixture.json"),
 		binaryPath,
+		orchestratedImplementer,
 	)
-	seedImplementTasksTree(t, workspaceRoot)
+	workerDiagnosticsPath := filepath.Join(homePaths.LogsDir, "implement-tasks-worker.jsonl")
+	seedImplementTasksTree(t, workspaceRoot, driverPath, fixturePath, workerDiagnosticsPath)
 	harness := e2etest.StartRuntimeHarness(t, &e2etest.RuntimeHarnessOptions{
 		BinaryPath: binaryPath,
 		HomePaths:  homePaths,
@@ -92,11 +113,11 @@ func startImplementTasksE2EHarness(
 		},
 		StartTimeout: 30 * time.Second,
 	})
-	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	ctx, cancel := context.WithTimeout(t.Context(), 90*time.Second)
 	t.Cleanup(cancel)
 	requireSpecCycleExtensionEnabled(t, ctx, harness)
 	diagnostics := map[string]string{
-		implementTasksFixtureAgent: filepath.Join(homePaths.LogsDir, "implement-tasks-worker.jsonl"),
+		implementTasksFixtureAgent: workerDiagnosticsPath,
 		implementTasksConductor:    filepath.Join(homePaths.LogsDir, "implement-tasks-conductor.jsonl"),
 		"implement_tasks_claude":   filepath.Join(homePaths.LogsDir, "implement-tasks-claude.jsonl"),
 	}
@@ -185,16 +206,19 @@ func materializeImplementTasksFixture(
 	t testing.TB,
 	sourcePath string,
 	binaryPath string,
+	implementer string,
 ) string {
 	t.Helper()
 	data, err := os.ReadFile(sourcePath)
 	if err != nil {
 		t.Fatalf("ReadFile(%q) error = %v", sourcePath, err)
 	}
-	rendered := strings.ReplaceAll(string(data), `"__COMPOZY_BINARY__"`, strconv.Quote(binaryPath))
-	if rendered == string(data) {
-		t.Fatalf("implement-tasks fixture %q is missing binary placeholder", sourcePath)
+	source := string(data)
+	if !strings.Contains(source, `"__COMPOZY_BINARY__"`) || !strings.Contains(source, "__IMPLEMENTER__") {
+		t.Fatalf("implement-tasks fixture %q is missing a required placeholder", sourcePath)
 	}
+	rendered := strings.ReplaceAll(source, `"__COMPOZY_BINARY__"`, strconv.Quote(binaryPath))
+	rendered = strings.ReplaceAll(rendered, "__IMPLEMENTER__", implementer)
 	destination := filepath.Join(t.TempDir(), "implement_tasks_fixture.json")
 	if err := os.WriteFile(destination, []byte(rendered), 0o600); err != nil {
 		t.Fatalf("WriteFile(%q) error = %v", destination, err)
@@ -268,7 +292,13 @@ func waitForImplementTasksRunDone(
 	}
 }
 
-func seedImplementTasksTree(t testing.TB, workspaceRoot string) {
+func seedImplementTasksTree(
+	t testing.TB,
+	workspaceRoot string,
+	driverPath string,
+	fixturePath string,
+	diagnosticsPath string,
+) {
 	t.Helper()
 	tasksDir := filepath.Join(workspaceRoot, ".compozy", "tasks", implementTasksE2ESlug)
 	files := map[string]string{
@@ -319,12 +349,42 @@ complexity: low
 
 # Backend implementation
 `,
+		".compozy/agents/" + implementTasksCustomAgent + "/AGENT.md": fmt.Sprintf(`---
+name: %s
+provider: %s
+command: %s
+model: base-model
+reasoning_effort: low
+permissions: approve-all
+---
+
+Implement the assigned task.
+`, implementTasksCustomAgent, acpmock.ProviderName, quotedYAMLString(acpmock.BuildCommand(
+			driverPath,
+			fixturePath,
+			implementTasksFixtureAgent,
+			diagnosticsPath,
+		))),
+		".compozy/agents/" + implementTasksCustomAgent +
+			"/skills/implementer-sentinel/SKILL.md": `---
+name: implementer-sentinel
+description: CUSTOM_IMPLEMENTER_SENTINEL_V1
+---
+
+# Implementer sentinel
+`,
 	}
 	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
 		t.Fatalf("MkdirAll(%s) error = %v", tasksDir, err)
 	}
 	for name, content := range files {
 		path := filepath.Join(tasksDir, name)
+		if strings.HasPrefix(name, ".compozy/") {
+			path = filepath.Join(workspaceRoot, filepath.FromSlash(name))
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v", filepath.Dir(path), err)
+		}
 		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 			t.Fatalf("WriteFile(%s) error = %v", path, err)
 		}
@@ -458,6 +518,7 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 	t testing.TB,
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
+	wantAgent string,
 ) {
 	t.Helper()
 	var page contract.SessionCatalogResponse
@@ -490,12 +551,48 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 		if worker.State != "stopped" || worker.Runtime.Effective == nil {
 			t.Fatalf("spawned worker %q state/runtime = %q/%#v", worker.Name, worker.State, worker.Runtime)
 		}
+		if worker.AgentName != wantAgent {
+			t.Fatalf("spawned worker %q agent = %q, want %q", worker.Name, worker.AgentName, wantAgent)
+		}
 		got := *worker.Runtime.Effective
 		got.SpeedResolution = nil
 		if got != expected {
 			t.Fatalf("spawned worker %q runtime = %#v, want %#v", worker.Name, got, expected)
 		}
 	}
+	for _, state := range []string{"starting", "active", "stopping"} {
+		var live contract.SessionCatalogResponse
+		if err := harness.CLI.RunJSONInDir(
+			ctx, harness.WorkspaceRoot, &live,
+			"session", "list", "--type", "spawned", "--state", state,
+			"--query", "orchestrate-implement-tasks-", "--limit", "10", "-o", "json",
+		); err != nil {
+			t.Fatalf("CLI %s worker list error = %v", state, err)
+		}
+		if len(live.Sessions) != 0 {
+			t.Fatalf("spawned implement-tasks workers remain %s: %#v", state, live.Sessions)
+		}
+	}
+}
+
+func assertImplementTasksWorkerPromptContains(
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	want string,
+) {
+	t.Helper()
+	records, err := acpmock.ReadDiagnostics(
+		filepath.Join(harness.HomePaths.LogsDir, "implement-tasks-worker.jsonl"),
+	)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(implement-tasks worker) error = %v", err)
+	}
+	for _, record := range acpmock.PromptDiagnostics(records) {
+		if strings.Contains(record.Prompt, want) {
+			return
+		}
+	}
+	t.Fatalf("implement-tasks worker prompts missing Agent-local skill sentinel %q", want)
 }
 
 func unsupportedNormalSpeedResolution() *contract.SpeedResolution {

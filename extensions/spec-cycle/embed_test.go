@@ -767,6 +767,12 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if !slices.Equal(def.Inputs["mode"].Enum, []string{"per-task", "orchestrated"}) {
 			t.Fatalf("implement-tasks mode enum = %#v", def.Inputs["mode"].Enum)
 		}
+		if got, want := def.Inputs["implementer"].Type, dsl.InputTypeAgent; got != want {
+			t.Fatalf("implement-tasks implementer type = %q, want %q", got, want)
+		}
+		if got, want := def.Inputs["implementer"].Default, "code_implementer"; got != want {
+			t.Fatalf("implement-tasks implementer default = %#v, want %q", got, want)
+		}
 		for _, input := range []string{
 			"orchestrator_runtime", "backend_runtime", "frontend_runtime", "default_runtime",
 		} {
@@ -928,7 +934,7 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		for _, required := range []string{
 			"cy-orchestrate-tasks",
 			".compozy/tasks/{{ .inputs.slug }}",
-			"one bounded `code_implementer` worker session",
+			"Selected implementer Agent: `{{ .inputs.implementer }}`.",
 			"backend: {{ json .inputs.backend_runtime }}",
 			"frontend: {{ json .inputs.frontend_runtime }}",
 			"default: {{ json .inputs.default_runtime }}",
@@ -949,10 +955,33 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		if err != nil {
 			t.Fatalf("RenderTemplateString(orchestrate objective) error = %v", err)
 		}
+		if !strings.Contains(renderedObjective, "Selected implementer Agent: `code_implementer`.") {
+			t.Fatalf("rendered orchestrate objective missing default implementer: %q", renderedObjective)
+		}
 		for _, runtime := range []string{"backend", "frontend", "default"} {
 			if !strings.Contains(renderedObjective, "- "+runtime+": {}") {
 				t.Fatalf("rendered orchestrate objective missing empty %s runtime: %q", runtime, renderedObjective)
 			}
+		}
+		customInputs, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
+			"slug": "ship-loops", "implementer": "custom_implementer",
+		}})
+		if err != nil {
+			t.Fatalf("ResolveInputs(implement-tasks custom implementer) error = %v", err)
+		}
+		customObjective, err := refs.RenderTemplateString(
+			"implement-tasks.orchestrate.objective",
+			objective,
+			map[string]any{"inputs": customInputs},
+		)
+		if err != nil {
+			t.Fatalf("RenderTemplateString(orchestrate custom objective) error = %v", err)
+		}
+		if !strings.Contains(customObjective, "Selected implementer Agent: `custom_implementer`.") {
+			t.Fatalf("rendered orchestrate objective missing custom implementer: %q", customObjective)
+		}
+		if strings.Contains(customObjective, "spawn one bounded `code_implementer`") {
+			t.Fatalf("rendered custom objective prescribes default worker Agent: %q", customObjective)
 		}
 		judge := requireOrchestrateJudgeForTest(t, orchestrate)
 		if got, want := judge["type"], string(dsl.CriterionCommand); got != want {
@@ -1223,7 +1252,8 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			"cy-orchestrate-tasks",
 			"Conduct only",
 			"Never edit production code",
-			"code_implementer",
+			"exact implementer Agent named in the Goal objective",
+			"`code_implementer` is the Loop input default",
 			"provider, model, reasoning effort, and speed",
 			"status: completed",
 			"Stop every worker on every terminal path",
@@ -1231,6 +1261,29 @@ func TestEmbeddedAgentsShouldKeepPromptContracts(t *testing.T) {
 			if !strings.Contains(prompt, required) {
 				t.Fatalf("orchestrator prompt missing %q", required)
 			}
+		}
+		if strings.Contains(prompt, "Spawn exactly one `code_implementer` worker per task") {
+			t.Fatalf("orchestrator prompt statically prescribes the default implementer")
+		}
+
+		skillData, err := fs.ReadFile(FS(), "skills/cy-orchestrate-tasks/SKILL.md")
+		if err != nil {
+			t.Fatalf("ReadFile(cy-orchestrate-tasks) error = %v", err)
+		}
+		skillPrompt := string(skillData)
+		for _, required := range []string{
+			"`implementer`",
+			`--agent "$IMPLEMENTER"`,
+			"`name` equal to",
+			"`agent_name` equal to `$IMPLEMENTER`",
+			"omitted speed inherits the parent session",
+		} {
+			if !strings.Contains(skillPrompt, required) {
+				t.Fatalf("cy-orchestrate-tasks prompt missing %q", required)
+			}
+		}
+		if strings.Contains(skillPrompt, "--agent code_implementer") {
+			t.Fatalf("cy-orchestrate-tasks statically prescribes the default implementer")
 		}
 	})
 

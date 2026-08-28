@@ -615,10 +615,11 @@ window `stalled` (reason `watch_source_silence`). Watch sources are extension-de
 ## Bundled Task Delivery Modes
 
 The bundled `implement-tasks` Loop accepts `mode=per-task|orchestrated`; `per-task` is the default.
-The default path imports the task graph and runs one isolated `code_implementer` action per task.
-The orchestrated path runs the bundled `orchestrator` agent continuously and instructs it to follow
-`cy-orchestrate-tasks`: start one bounded `code_implementer` worker per task, dispatch a blocking
-prompt, accept only `status: completed` on disk, and stop the worker on every path.
+The `implementer` input selects the worker Agent for both paths and defaults to `code_implementer`.
+The default path imports the task graph and runs one isolated action with that Agent per task. The
+orchestrated path runs the bundled `orchestrator` Agent continuously and instructs it to follow
+`cy-orchestrate-tasks`: start one bounded worker with the selected Agent per task, dispatch a
+blocking prompt, accept only `status: completed` on disk, and stop the worker on every path.
 
 Four optional runtime inputs select `orchestrator_runtime`, `backend_runtime`, `frontend_runtime`,
 and `default_runtime`. The category match uses exact task frontmatter type; all other types use the
