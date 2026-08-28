@@ -1,5 +1,6 @@
 {
     "$schema": "https://openapi.vercel.sh/vercel.json",
+    "installCommand": "bunx bun@1.4.0 install",
     "headers": [
         {
             "source": "/llms.txt",
