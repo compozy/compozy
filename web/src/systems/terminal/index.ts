@@ -50,6 +50,16 @@ export {
   terminalGapCopy,
   terminalInputOutcomeCopy,
 } from "./lib/terminal-copy";
+export { terminalJournalActorLabel } from "./lib/terminal-journal-actor";
+export {
+  copyTerminalJournalCommand,
+  terminalJournalOutputSummary,
+} from "./lib/terminal-journal-copy";
+export { formatTerminalJournalClock } from "./lib/terminal-journal-clock";
+export {
+  shouldKeepTerminalJournalHost,
+  type TerminalJournalHostRetention,
+} from "./lib/terminal-journal-host";
 export {
   shouldKeepTerminalJournalHost,
   type TerminalJournalHostRetention,

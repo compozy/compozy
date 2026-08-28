@@ -255,6 +255,8 @@ export const JOURNAL_FIXTURES: readonly TerminalJournalEntry[] = [
     duration_ms: 3100,
     detected_by: "exact",
     approval: "human",
+    output_bytes: 4_096,
+    truncated: false,
     recording: null,
   }),
   journalEntry({

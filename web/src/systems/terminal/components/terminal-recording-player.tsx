@@ -136,6 +136,7 @@ export function TerminalRecordingPlayer({
           min={0}
           onValueChange={value => playback.seek(Array.isArray(value) ? (value[0] ?? 0) : value)}
           step={100}
+          tone="neutral"
           value={Math.min(playback.positionMs, playback.durationMs)}
         />
         <span

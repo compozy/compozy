@@ -17,7 +17,7 @@ export type { CardProps, CardSize } from "./components/card";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 export { Separator, type SeparatorProps } from "./components/separator";
-export { Slider } from "./components/slider";
+export { Slider, type SliderTone } from "./components/slider";
 export { Skeleton, SkeletonRows, type SkeletonRowsProps } from "./components/skeleton";
 export { Spinner } from "./components/spinner";
 export {
@@ -46,6 +46,8 @@ export {
   TableRow,
   TableCell,
   TableCaption,
+  type TableProps,
+  type TableOverflowX,
 } from "./components/table";
 export { Kbd, KbdGroup } from "./components/kbd";
 export { UIProvider, type UIProviderProps } from "./components/custom/ui-provider";
@@ -232,6 +234,7 @@ export {
   type PillLinkProps,
   type PillTone,
   type PillSize,
+  type PillForm,
 } from "./components/custom/pill";
 export { pillVariants } from "./components/custom/pill-variants";
 export {

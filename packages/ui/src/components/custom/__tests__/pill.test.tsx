@@ -41,6 +41,17 @@ describe("Pill", () => {
     }
   );
 
+  it("Should expose data-form=hollow when the plate is an outline", () => {
+    render(
+      <Pill form="hollow" tone="neutral">
+        Stopped
+      </Pill>
+    );
+    const pill = screen.getByText("Stopped");
+    expect(pill).toHaveAttribute("data-form", "hollow");
+    expect(pill).toHaveAttribute("data-tone", "neutral");
+  });
+
   it("Should expose data-solid when solid is true", () => {
     render(
       <Pill tone="accent" solid>

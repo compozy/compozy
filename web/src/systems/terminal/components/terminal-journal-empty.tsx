@@ -4,19 +4,19 @@ import { Button, Empty } from "@compozy/ui";
 
 export function TerminalJournalEmpty({
   filtered,
+  examinedCount,
   hasMore,
   onLoadMore,
   onClearFilters,
   onOpenTerminal,
-  examinedCount,
 }: {
   filtered: boolean;
+  /** Rows this query examined. Omit until the host has counted them. */
+  examinedCount?: number;
   hasMore: boolean;
   onLoadMore: () => void;
   onClearFilters: () => void;
   onOpenTerminal?: () => void;
-  /** Rows this query examined. Omit until the host has counted them. */
-  examinedCount?: number;
 }) {
   if (!filtered) {
     return (
@@ -41,6 +41,10 @@ export function TerminalJournalEmpty({
       />
     );
   }
+  const title =
+    examinedCount === undefined
+      ? "No matches in the rows loaded"
+      : `No matches in the ${examinedCount} ${examinedCount === 1 ? "row" : "rows"} loaded`;
   return (
     <Empty
       action={
@@ -59,11 +63,7 @@ export function TerminalJournalEmpty({
       data-testid="terminal-journal-filtered-empty"
       description="Older rows load on demand, so a match may still be further back."
       icon={SearchX}
-      title={
-        examinedCount === undefined
-          ? "No matches in the rows loaded"
-          : `No matches in the ${examinedCount} ${examinedCount === 1 ? "row" : "rows"} loaded`
-      }
+      title={title}
     />
   );
 }

@@ -39,6 +39,8 @@ export interface DetailInspectorProps {
   className?: string;
   /** Optional className forwarded to the Sheet content shell in drawer mode. */
   drawerClassName?: string;
+  /** Names the inline aside when `title` is not a string. */
+  "aria-label"?: string;
 }
 
 function DetailInspectorBody({
@@ -84,15 +86,17 @@ function DetailInspector({
   onOpenChange,
   className,
   drawerClassName,
+  "aria-label": ariaLabel,
 }: DetailInspectorProps) {
   const inline = useInlineLayout(inlineBreakpoint);
+  const labelledBy = ariaLabel ?? (typeof title === "string" ? title : undefined);
 
   if (inline) {
     return (
       <aside
         data-slot="detail-inspector"
         data-mode="inline"
-        aria-label={typeof title === "string" ? title : undefined}
+        aria-label={labelledBy}
         className={cn(
           "flex h-full min-h-0 shrink-0 flex-col border-l border-line bg-canvas-soft",
           className
@@ -117,10 +121,11 @@ function DetailInspector({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        side="right"
-        data-slot="detail-inspector"
-        data-mode="drawer"
+        aria-label={labelledBy}
         className={cn("w-(--detail-inspector-width) sm:max-w-none", drawerClassName)}
+        data-mode="drawer"
+        data-slot="detail-inspector"
+        side="right"
         style={
           {
             "--detail-inspector-width": `${DETAIL_INSPECTOR_INLINE_WIDTH}px`,

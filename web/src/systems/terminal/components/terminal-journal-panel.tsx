@@ -4,12 +4,13 @@ import { ScrollText } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import {
-  Button,
+  DETAIL_INSPECTOR_INLINE_BREAKPOINT,
   Table,
   TableBody,
   TableHead,
   TableHeader,
   TableRow,
+  useInlineLayout,
   type Filter,
 } from "@compozy/ui";
 
@@ -17,6 +18,7 @@ import type { TerminalJournalEntry } from "../types";
 import { TerminalIdentityGlyph } from "./terminal-header";
 import { TerminalJournalDetail } from "./terminal-journal-detail";
 import { TerminalJournalEmpty } from "./terminal-journal-empty";
+import { TerminalJournalFooter } from "./terminal-journal-footer";
 import { TerminalJournalRow } from "./terminal-journal-row";
 import { TerminalJournalToolbar } from "./terminal-journal-toolbar";
 
@@ -52,21 +54,21 @@ export interface TerminalJournalPanelProps {
   isLoadingMore?: boolean;
   /** Set only in the read-only all-profiles view. */
   showOwner?: boolean;
-  onLoadMore: () => void;
-  onFiltersChange: (chips: Filter<string>[]) => void;
-  onOpenTerminal?: (terminalId: string) => void;
-  /** Offered from the empty journal, where there is no terminal to open yet. */
-  onOpenNewTerminal?: () => void;
-  onReplay?: (recordingId: string, entry: TerminalJournalEntry) => void;
   /** Rows this query examined. Omit until the host has counted them. */
   examinedCount?: number;
-  /** Rows currently in the table. Defaults to `entries.length`. */
+  /** Rows currently in the table. Defaults to `entries.length`, or examined on a miss. */
   loadedCount?: number;
   /** In-table replay. The host keeps this panel mounted; the table stays visible. */
   replay?: ReactNode;
   /** Controlled selection so "Open in journal" can restore the row. */
   selectedCommandId?: string | null;
   onSelectedCommandIdChange?: (id: string | null) => void;
+  onLoadMore: () => void;
+  onFiltersChange: (chips: Filter<string>[]) => void;
+  onOpenTerminal?: (terminalId: string) => void;
+  /** Offered from the empty journal, where there is no terminal to open yet. */
+  onOpenNewTerminal?: () => void;
+  onReplay?: (recordingId: string, entry: TerminalJournalEntry) => void;
   onCopyCommand?: (command: string) => void | Promise<void>;
 }
 
@@ -83,129 +85,127 @@ export function TerminalJournalPanel({
   hasMore,
   isLoadingMore = false,
   showOwner = false,
-  onLoadMore,
-  onFiltersChange,
-  onOpenTerminal,
-  onOpenNewTerminal,
-  onReplay,
   examinedCount,
   loadedCount,
   replay,
   selectedCommandId,
   onSelectedCommandIdChange,
+  onLoadMore,
+  onFiltersChange,
+  onOpenTerminal,
+  onOpenNewTerminal,
+  onReplay,
   onCopyCommand,
 }: TerminalJournalPanelProps) {
   const [internalId, setInternalId] = useState<string | null>(null);
   const selectedId = selectedCommandId !== undefined ? selectedCommandId : internalId;
   const selected = entries.find(entry => entry.command_id === selectedId) ?? null;
-  const loaded = loadedCount ?? entries.length;
+  const filtered = chips.length > 0;
+  const emptyMatch = filtered && entries.length === 0;
+  const loaded = emptyMatch ? (loadedCount ?? examinedCount) : (loadedCount ?? entries.length);
+  const inline = useInlineLayout(DETAIL_INSPECTOR_INLINE_BREAKPOINT);
+  const compact = inline && Boolean(selected);
 
   function select(id: string | null): void {
     if (selectedCommandId === undefined) setInternalId(id);
     onSelectedCommandIdChange?.(id);
   }
 
+  const selectedTerminalId = selected?.terminal_id;
+  const openSelectedTerminal =
+    selectedTerminalId && onOpenTerminal ? () => onOpenTerminal(selectedTerminalId) : undefined;
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="terminal-journal">
       <TerminalJournalToolbar chips={chips} onChange={onFiltersChange} />
 
-      {replay ? (
-        <div
-          className="flex min-h-48 min-w-0 flex-1 flex-col border-line border-b"
-          data-testid="terminal-journal-replay"
-        >
-          {replay}
-        </div>
-      ) : null}
-
-      {entries.length === 0 ? (
-        <TerminalJournalEmpty
-          examinedCount={examinedCount}
-          filtered={chips.length > 0}
-          hasMore={hasMore}
-          onClearFilters={() => onFiltersChange([])}
-          onLoadMore={onLoadMore}
-          // The all-profiles view is a read of every profile's history and
-          // offers no mutation, by construction rather than by convention: a
-          // terminal opened from here would silently belong to whichever
-          // profile happened to be current.
-          onOpenTerminal={showOwner ? undefined : onOpenNewTerminal}
-        />
-      ) : (
-        <div
-          className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)] data-[detail]:grid-cols-[minmax(0,1fr)_21.25rem]"
-          data-detail={selected ? "" : undefined}
-        >
-          <div className="min-h-0 overflow-y-auto">
-            <Table aria-label="Command journal" className="table-fixed">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-18">When</TableHead>
-                  <TableHead className="w-35">Who</TableHead>
-                  <TableHead>Command</TableHead>
-                  <TableHead className="w-43">Result</TableHead>
-                  {selected ? null : (
-                    <>
-                      <TableHead className="w-30">Permission</TableHead>
-                      <TableHead className="w-29">Confidence</TableHead>
-                      <TableHead aria-label="Recording" className="w-13" />
-                    </>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {entries.map((entry, index) => (
-                  <TerminalJournalRow
-                    compact={Boolean(selected)}
-                    entry={entry}
-                    focusStop={selected ? entry.command_id === selected.command_id : index === 0}
-                    key={entry.command_id}
-                    onReplay={
-                      entry.recording && onReplay
-                        ? () => onReplay(entry.recording as string, entry)
-                        : undefined
-                    }
-                    onSelect={() => select(entry.command_id)}
-                    selected={entry.command_id === selectedId}
-                    showOwner={showOwner}
-                  />
-                ))}
-              </TableBody>
-            </Table>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {replay ? (
+          <div
+            className="flex min-h-48 min-w-0 flex-1 flex-col border-line border-b"
+            data-testid="terminal-journal-replay"
+          >
+            {replay}
           </div>
-          {selected ? (
-            <TerminalJournalDetail
-              entry={selected}
-              onClose={() => select(null)}
-              onCopyCommand={onCopyCommand}
-              onOpenTerminal={
-                selected.terminal_id && onOpenTerminal
-                  ? () => onOpenTerminal(selected.terminal_id as string)
-                  : undefined
-              }
-            />
-          ) : null}
-        </div>
-      )}
+        ) : null}
 
-      {entries.length > 0 ? (
-        <div className="flex min-h-11.5 flex-none items-center gap-3 border-line border-t px-3.5 py-2.25">
-          <span className="mr-auto text-badge text-subtle" data-testid="terminal-journal-loaded">
-            {loaded} {loaded === 1 ? "row" : "rows"} loaded · newest first
-          </span>
-          {hasMore ? (
-            <Button
-              data-testid="terminal-journal-load-more"
-              disabled={isLoadingMore}
-              onClick={onLoadMore}
-              size="sm"
-              type="button"
-              variant="ghost"
-            >
-              Load older rows
-            </Button>
-          ) : null}
-        </div>
+        {entries.length === 0 ? (
+          <TerminalJournalEmpty
+            examinedCount={examinedCount}
+            filtered={filtered}
+            hasMore={hasMore}
+            onClearFilters={() => onFiltersChange([])}
+            onLoadMore={onLoadMore}
+            // The all-profiles view is a read of every profile's history and
+            // offers no mutation, by construction rather than by convention: a
+            // terminal opened from here would silently belong to whichever
+            // profile happened to be current.
+            onOpenTerminal={showOwner ? undefined : onOpenNewTerminal}
+          />
+        ) : (
+          <div className="flex min-h-0 min-w-0 flex-1">
+            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto">
+              <Table aria-label="Command journal" className="table-fixed" overflowX="hidden">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-18">When</TableHead>
+                    <TableHead className="w-35">Who</TableHead>
+                    <TableHead>Command</TableHead>
+                    <TableHead className="w-43">Result</TableHead>
+                    {compact ? null : (
+                      <>
+                        <TableHead className="w-30">Permission</TableHead>
+                        <TableHead className="w-29">Confidence</TableHead>
+                        <TableHead aria-label="Recording" className="w-13" />
+                      </>
+                    )}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {entries.map((entry, index) => {
+                    const recordingId = entry.recording;
+                    return (
+                      <TerminalJournalRow
+                        compact={compact}
+                        entry={entry}
+                        focusStop={
+                          selected ? entry.command_id === selected.command_id : index === 0
+                        }
+                        key={entry.command_id}
+                        onReplay={
+                          recordingId && onReplay ? () => onReplay(recordingId, entry) : undefined
+                        }
+                        onSelect={() => select(entry.command_id)}
+                        selected={entry.command_id === selectedId}
+                        showOwner={showOwner}
+                      />
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            {selected ? (
+              <TerminalJournalDetail
+                entry={selected}
+                inline={inline}
+                onClose={() => select(null)}
+                onCopyCommand={onCopyCommand}
+                onOpenTerminal={openSelectedTerminal}
+              />
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {entries.length > 0 || filtered ? (
+        <TerminalJournalFooter
+          emptyMatch={emptyMatch}
+          filterCount={chips.length}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          loadedCount={loaded}
+          onLoadMore={onLoadMore}
+        />
       ) : null}
     </div>
   );

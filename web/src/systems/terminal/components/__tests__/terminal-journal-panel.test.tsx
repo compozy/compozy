@@ -1,21 +1,42 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { JOURNAL_FIXTURES } from "../../mocks/terminal-fixtures";
 import {
   terminalJournalChipsFromFilters,
   terminalJournalFiltersFromChips,
 } from "../../lib/terminal-journal-filter-fields";
+import { shouldKeepTerminalJournalHost } from "../../lib/terminal-journal-host";
+import { JOURNAL_FIXTURES } from "../../mocks/terminal-fixtures";
 import type { TerminalJournalEntry } from "../../types";
 import { TerminalJournalPanel } from "../terminal-journal-panel";
+
+const ORIGINAL_MATCH_MEDIA = window.matchMedia;
+
+function installLayout(inline: boolean): void {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    configurable: true,
+    value: (query: string) => ({
+      matches: inline && query.includes("min-width"),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+  });
+}
 
 /**
  * Canonical suite for the journal panel (UT-116).
  *
  * Invariant: filters compose into the query identity, an approximate row is
- * marked approximate, cursor paging appends without duplicating rows, and the
- * two empty states say different things because they are different facts.
+ * marked estimated, cursor paging appends without duplicating rows, the two
+ * empty states say different things, a filtered miss names N only when the
+ * host counted, Stopped/Ended stay hollow, and selection is an elevated plate.
  */
 
 function renderPanel(overrides: Partial<Parameters<typeof TerminalJournalPanel>[0]> = {}) {
@@ -31,6 +52,18 @@ function renderPanel(overrides: Partial<Parameters<typeof TerminalJournalPanel>[
 }
 
 describe("TerminalJournalPanel", () => {
+  beforeEach(() => {
+    installLayout(true);
+  });
+
+  afterEach(() => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      configurable: true,
+      value: ORIGINAL_MATCH_MEDIA,
+    });
+  });
+
   it("Should read each command as the row, with where it ran demoted beneath", () => {
     renderPanel();
 
@@ -117,7 +150,7 @@ describe("TerminalJournalPanel", () => {
     expect(onOpenNewTerminal).toHaveBeenCalledOnce();
   });
 
-  it("Should scope a filtered miss to the rows actually loaded", async () => {
+  it("Should omit N on a filtered miss until the host counts the examined rows", async () => {
     const { props } = renderPanel({
       entries: [],
       chips: [
@@ -128,10 +161,30 @@ describe("TerminalJournalPanel", () => {
 
     const empty = screen.getByTestId("terminal-journal-filtered-empty");
     expect(empty).toHaveTextContent("No matches in the rows loaded");
+    expect(empty).not.toHaveTextContent("50");
     expect(empty).toHaveTextContent("a match may still be further back");
+    expect(within(empty).getByRole("button", { name: "Load older rows" })).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-loaded")).toHaveTextContent("2 filters");
+    expect(screen.getByTestId("terminal-journal-loaded")).not.toHaveTextContent("rows loaded");
+    expect(screen.queryByTestId("terminal-journal-load-more")).not.toBeInTheDocument();
 
     await userEvent.click(within(empty).getByText("Clear filters"));
     expect(props.onFiltersChange).toHaveBeenCalledWith([]);
+  });
+
+  it("Should name the examined count only when the host supplies it", () => {
+    renderPanel({
+      chips: [{ id: "result", field: "result", operator: "is", values: ["failed"] }],
+      entries: [],
+      examinedCount: 50,
+    });
+
+    expect(screen.getByTestId("terminal-journal-filtered-empty")).toHaveTextContent(
+      "No matches in the 50 rows loaded"
+    );
+    expect(screen.getByTestId("terminal-journal-loaded")).toHaveTextContent(
+      "50 rows loaded · 1 filter"
+    );
   });
 
   it("Should render active chips and route their edits through one change handler", () => {
@@ -180,12 +233,98 @@ describe("TerminalJournalPanel", () => {
 
     await userEvent.click(screen.getByTestId("terminal-journal-row-cmd-77c1d0"));
 
+    const row = screen.getByTestId("terminal-journal-row-cmd-77c1d0");
+    expect(row).toHaveAttribute("data-state", "selected");
+
     const detail = screen.getByTestId("terminal-journal-detail");
     expect(
       within(detail).getByText("psql -h staging.internal -U atlas atlas_api")
     ).toBeInTheDocument();
     expect(within(detail).getByText("approved by you")).toBeInTheDocument();
+    expect(within(detail).getByTestId("terminal-journal-output")).toHaveTextContent("4,096 bytes");
+    expect(within(detail).queryByText(/hidden input/i)).not.toBeInTheDocument();
+    expect(within(detail).queryByText(/characters/i)).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-journal-confidence-cmd-77c1d0")).not.toBeInTheDocument();
+  });
+
+  it("Should plate stopped and ended as hollow, and leave a failed exit filled", () => {
+    renderPanel();
+
+    const stopped = within(screen.getByTestId("terminal-journal-row-cmd-2c8de1")).getByText(
+      "Stopped"
+    );
+    expect(stopped).toHaveAttribute("data-form", "hollow");
+
+    const ended = within(screen.getByTestId("terminal-journal-row-cmd-8be44d")).getByText("Ended");
+    expect(ended).toHaveAttribute("data-form", "hollow");
+
+    const failed = within(screen.getByTestId("terminal-journal-row-cmd-4aa01f")).getByText(
+      "Finished with errors"
+    );
+    expect(failed).toHaveAttribute("data-form", "tint");
+  });
+
+  it("Should copy the recorded command from the rail", async () => {
+    const onCopyCommand = vi.fn();
+    renderPanel({ onCopyCommand });
+
+    await userEvent.click(screen.getByTestId("terminal-journal-row-cmd-77c1d0"));
+    await userEvent.click(screen.getByTestId("terminal-journal-copy-command"));
+
+    expect(onCopyCommand).toHaveBeenCalledExactlyOnceWith(
+      "psql -h staging.internal -U atlas atlas_api"
+    );
+  });
+
+  it("Should show a kind label when the actor id is only a machine identifier", () => {
+    const uuidEntry: TerminalJournalEntry = {
+      ...JOURNAL_FIXTURES[0],
+      command_id: "cmd-actor-uuid",
+      actor: { kind: "agent", id: "3d2c1b0a-9f8e-4d7c-a6b5-4e3d2c1b0a9f" },
+    };
+    renderPanel({ entries: [uuidEntry] });
+
+    expect(
+      within(screen.getByTestId("terminal-journal-row-cmd-actor-uuid")).getByText("An agent")
+    ).toBeInTheDocument();
+  });
+
+  it("Should keep the table and footer visible when replay is shown inside the journal", () => {
+    renderPanel({
+      replay: <div data-testid="terminal-journal-replay-slot">replay</div>,
+    });
+
+    expect(screen.getByTestId("terminal-journal-filters-add")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-replay-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-row-cmd-5f0a1e")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-loaded")).toBeInTheDocument();
+  });
+
+  it("Should keep attribute columns and one named drawer close below 1440", async () => {
+    installLayout(false);
+    renderPanel();
+
+    await userEvent.click(screen.getByTestId("terminal-journal-row-cmd-77c1d0"));
+
+    const table = screen.getByRole("table", { hidden: true, name: "Command journal" });
+    expect(within(table).getByText("Permission")).toBeInTheDocument();
+    expect(within(table).getByTestId("terminal-journal-confidence-cmd-5f0a1e")).toBeInTheDocument();
+
+    const drawer = await screen.findByRole("dialog", { name: "Command record" });
+    expect(within(drawer).getAllByRole("button", { name: /close/i })).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Close record" })).not.toBeInTheDocument();
+  });
+
+  it("Should tell the host to keep the journal when the last terminal closes", () => {
+    expect(shouldKeepTerminalJournalHost({ remainingTerminalCount: 0, journalVisible: true })).toBe(
+      true
+    );
+    expect(
+      shouldKeepTerminalJournalHost({ remainingTerminalCount: 0, journalVisible: false })
+    ).toBe(false);
+    expect(
+      shouldKeepTerminalJournalHost({ remainingTerminalCount: 1, journalVisible: false })
+    ).toBe(true);
   });
 
   it("Should label each row's owning profile only in the all-profiles view", () => {

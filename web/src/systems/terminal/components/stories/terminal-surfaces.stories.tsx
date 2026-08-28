@@ -228,6 +228,13 @@ const ALL_PROFILE_JOURNAL_FIXTURES = JOURNAL_FIXTURES.map((entry, index) => ({
 /** VC-13 — the populated journal, with mixed detection confidence. */
 export const Journal: Story = {
   name: "VC-13 · Journal",
+  parameters: {
+    docs: {
+      description: {
+        story: "Stopped and Ended use the hollow outline plate. A failed exit stays a filled tint.",
+      },
+    },
+  },
   render: () => (
     <TerminalVisualStage width="wide">
       <TerminalJournalHead projectLabel="atlas-api" />
@@ -255,6 +262,7 @@ export const JournalEmpty: Story = {
 /** VC-14b — nothing matched, which is a different fact and a different offer. */
 export const JournalFilteredEmpty: Story = {
   name: "VC-14b · Filtered to nothing",
+  args: {},
   render: () => (
     <TerminalVisualStage width="wide">
       <TerminalJournalHead projectLabel="atlas-api" />
@@ -265,7 +273,57 @@ export const JournalFilteredEmpty: Story = {
           { id: "actor", field: "actor", operator: "is", values: ["human"] },
         ]}
         entries={[]}
+        examinedCount={50}
         hasMore
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+const FROZEN_CLOCK = () => () => undefined;
+
+/** Selected row as an elevated plate, with the record rail open. */
+export const JournalSelectedRecord: Story = {
+  name: "VC-13b · Selected record",
+  args: {},
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[]}
+        entries={JOURNAL_FIXTURES}
+        hasMore
+        selectedCommandId="cmd-77c1d0"
+      />
+    </TerminalVisualStage>
+  ),
+};
+
+/** Replay stays inside the journal — the table chrome is not replaced. */
+export const JournalReplayInTable: Story = {
+  name: "VC-22b · Replay in journal",
+  args: {},
+  render: () => (
+    <TerminalVisualStage width="wide">
+      <TerminalJournalHead projectLabel="atlas-api" />
+      <TerminalJournalPanel
+        {...JOURNAL_ACTIONS}
+        chips={[]}
+        entries={JOURNAL_FIXTURES}
+        hasMore
+        replay={
+          <TerminalRecordingPlayer
+            autoPlay
+            onOpenJournal={NOOP}
+            recordedAtLabel="12:47"
+            recordingId="rec-9f21ac"
+            retentionNote="kept for 30 days"
+            schedule={FROZEN_CLOCK}
+            source={RECORDING_FIXTURE}
+            title="make gate"
+          />
+        }
       />
     </TerminalVisualStage>
   ),
@@ -325,8 +383,6 @@ export const SkippedContent: Story = {
  * seeking: the replay is genuinely playing and genuinely at 0:51, so the
  * capture reads the same on every run instead of racing the wall clock.
  */
-const FROZEN_CLOCK = () => () => undefined;
-
 export const RecordingReplay: Story = {
   name: "VC-22 · Replay",
   render: () => (

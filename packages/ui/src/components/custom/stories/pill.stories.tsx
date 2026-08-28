@@ -83,6 +83,29 @@ export const TonesSans: Story = {
   ),
 };
 
+/** Outline plate — a transparent rim, not a filled tint. */
+export const HollowForm: Story = {
+  args: {},
+  render: () => (
+    <div className="flex flex-wrap items-center gap-2">
+      <Pill form="hollow" tone="neutral">
+        Hollow
+      </Pill>
+      <Pill form="hollow" tone="neutral">
+        Outline
+      </Pill>
+      <Pill tone="neutral">Tint</Pill>
+    </div>
+  ),
+  parameters: {
+    docs: {
+      description: {
+        story: "`form=hollow` is a transparent outline plate with an inset rim.",
+      },
+    },
+  },
+};
+
 export const SolidEmphasis: Story = {
   args: {},
   render: () => (
