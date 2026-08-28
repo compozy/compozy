@@ -227,6 +227,9 @@ func startRemoteGatewayE2EPrivateServer(
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) {
 			return harness.runner.cfg, nil
 		}),
+		workspacepkg.WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) {
+			return harness.runner.cfg, nil
+		}),
 	)
 	if err != nil {
 		if closeErr := workspaceStore.Close(t.Context()); closeErr != nil {

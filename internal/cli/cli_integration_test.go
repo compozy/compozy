@@ -4720,6 +4720,9 @@ func (d *integrationDaemon) Run(ctx context.Context) (runErr error) {
 		workspacepkg.WithHomePaths(d.homePaths),
 		workspacepkg.WithLogger(discardLogger()),
 		workspacepkg.WithConfigLoader(func(string) (compozyconfig.Config, error) { return d.cfg, nil }),
+		workspacepkg.WithProfileConfigLoader(func(string, string) (compozyconfig.Config, error) {
+			return d.cfg, nil
+		}),
 	)
 	if err != nil {
 		return fmt.Errorf("new workspace resolver: %w", err)
