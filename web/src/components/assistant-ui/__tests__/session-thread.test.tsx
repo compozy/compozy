@@ -23,9 +23,31 @@ import { sessionKeys } from "@/systems/session/lib/query-keys";
 import type { SessionTranscriptData } from "@/systems/session/lib/session-transcript-query";
 
 import { SessionThread } from "../session-thread";
+import { SessionCallInvocation } from "../session-call-invocation";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { WorkingIndicator } from "../session-working-row";
 import { sessionStore } from "@/systems/session";
+import { LIVE_CALL_POLL_INTERVAL } from "@/systems/agent-comms";
+import { buildCallFixture } from "@/systems/agent-comms/mocks";
+import { WindowLiveDataContext } from "@/systems/os/contexts/window-live-data-context";
+import type { SessionTimelineToolPart } from "../session-timeline.logic";
+
+const agentCommsScopeOverride = vi.hoisted(() => ({
+  current: null as null | {
+    workspaceId: string;
+    profileKey: string;
+    params: { profile: string };
+    actingProfile: string;
+  },
+}));
+
+vi.mock("@/systems/agent-comms/hooks/use-agent-comms-scope", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/agent-comms/hooks/use-agent-comms-scope")>();
+  return {
+    useAgentCommsScope: () => agentCommsScopeOverride.current ?? actual.useAgentCommsScope(),
+  };
+});
 
 vi.mock("sonner", () => ({
   toast: {
@@ -166,6 +188,33 @@ function fixtureWorkspaceId(): string {
     throw new Error("primary session fixture must include workspace_id");
   }
   return workspaceId;
+}
+
+function settledDelegationTool(callId: string): SessionTimelineToolPart {
+  return {
+    id: `tool-${callId}`,
+    kind: "tool",
+    toolCallId: `tc-${callId}`,
+    toolName: "compozy__agent_call",
+    args: { agent: "reviewer", prompt: "Review the retry path" },
+    result: { call_id: callId },
+    status: "settled",
+  };
+}
+
+function liveCallRefetchInterval(
+  queryClient: QueryClient,
+  state: "running" | "completed"
+): number | false {
+  const query = queryClient.getQueryCache().getAll()[0];
+  if (!query) {
+    throw new Error("expected a call-detail query");
+  }
+  const refetchInterval = query.options.refetchInterval;
+  if (typeof refetchInterval !== "function") {
+    throw new Error("expected call-detail refetchInterval to be a function");
+  }
+  return refetchInterval({ state: { data: { state }, error: null } } as never);
 }
 
 const TOOL_ARTIFACT_URI = `compozy://tool-artifacts/art_${"c".repeat(64)}`;
@@ -803,6 +852,114 @@ describe("SessionThread transcript states", () => {
     expect(invocation).toHaveTextContent("reviewer");
     expect(screen.queryByText(/Asking a helper/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("tool-call-row")).not.toBeInTheDocument();
+  });
+
+  it("Should keep a settled delegation's call live while the window is visible", async () => {
+    agentCommsScopeOverride.current = {
+      workspaceId: fixtureWorkspaceId(),
+      profileKey: "default",
+      params: { profile: "default" },
+      actingProfile: "default",
+    };
+    let hits = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const pathname = getPathname(input);
+        if (pathname === `/api/workspaces/${fixtureWorkspaceId()}/calls/call_live_1`) {
+          hits += 1;
+          return jsonResponse(
+            buildCallFixture({
+              call_id: "call_live_1",
+              agent: "reviewer",
+              state: hits === 1 ? "running" : "completed",
+            })
+          );
+        }
+        throw new Error(`Unhandled fetch in thread test: ${pathname}`);
+      })
+    );
+
+    const queryClient = createQueryClient();
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WindowLiveDataContext value={true}>
+            <SessionCallInvocation tool={settledDelegationTool("call_live_1")} />
+          </WindowLiveDataContext>
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-call-invocation")).toHaveAttribute(
+          "data-status",
+          "running"
+        );
+      });
+      expect(hits).toBe(1);
+      expect(liveCallRefetchInterval(queryClient, "running")).toBe(LIVE_CALL_POLL_INTERVAL);
+      expect(liveCallRefetchInterval(queryClient, "completed")).toBe(false);
+
+      await act(async () => {
+        await queryClient.refetchQueries();
+      });
+      expect(screen.getByTestId("session-call-invocation")).toHaveAttribute(
+        "data-status",
+        "success"
+      );
+      expect(hits).toBe(2);
+    } finally {
+      agentCommsScopeOverride.current = null;
+    }
+  });
+
+  it("Should not poll a transcript call when the window is not live", async () => {
+    agentCommsScopeOverride.current = {
+      workspaceId: fixtureWorkspaceId(),
+      profileKey: "default",
+      params: { profile: "default" },
+      actingProfile: "default",
+    };
+    let hits = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const pathname = getPathname(input);
+        if (pathname === `/api/workspaces/${fixtureWorkspaceId()}/calls/call_hidden_1`) {
+          hits += 1;
+          return jsonResponse(
+            buildCallFixture({
+              call_id: "call_hidden_1",
+              agent: "reviewer",
+              state: "running",
+            })
+          );
+        }
+        throw new Error(`Unhandled fetch in thread test: ${pathname}`);
+      })
+    );
+
+    const queryClient = createQueryClient();
+    try {
+      render(
+        <QueryClientProvider client={queryClient}>
+          <WindowLiveDataContext value={false}>
+            <SessionCallInvocation tool={settledDelegationTool("call_hidden_1")} />
+          </WindowLiveDataContext>
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId("session-call-invocation")).toHaveAttribute(
+          "data-status",
+          "running"
+        );
+      });
+      expect(hits).toBe(1);
+      expect(liveCallRefetchInterval(queryClient, "running")).toBe(false);
+    } finally {
+      agentCommsScopeOverride.current = null;
+    }
   });
 
   it("Should render only the server-admitted skill occurrence", async () => {

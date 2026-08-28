@@ -121,7 +121,7 @@ function SessionWorkToolRow({
     if (turnSettled && tool.isError === true && callIdsFromToolResult(tool.result).length === 0) {
       return <SessionToolCallRow message={toolMessageFromPart(tool)} turnSettled={turnSettled} />;
     }
-    return <SessionCallInvocation tool={tool} turnSettled={turnSettled} />;
+    return <SessionCallInvocation tool={tool} />;
   }
   return <SessionToolCallRow message={toolMessageFromPart(tool)} turnSettled={turnSettled} />;
 }

@@ -73,7 +73,6 @@ export function AgentCallTurnCard({
   const verdict = toCallVerdict(call.verdict);
   const agentName = call.agent ?? call.call_id;
   const ask = prompt ?? call.prompt_preview ?? null;
-  const resolvedState = state ?? "running";
   const terminal = state !== null && isTerminalCallState(state);
   const gist = terminal ? resultGist(call) : null;
   const age = call.started_at ?? call.updated_at;
@@ -89,7 +88,7 @@ export function AgentCallTurnCard({
       defaultExpanded={defaultOpen}
       icon={<OwnerAvatar ownerId={agentName} ownerKind="agent" size="sm" />}
       stat={age ? <Time iso={age} mode="compact" /> : undefined}
-      status={toolCallStatus(resolvedState)}
+      status={state === null ? "empty" : toolCallStatus(state)}
       statusSlot={
         <span className="flex items-center gap-1">
           <AgentCallStatePill fallbackLabel={call.state} state={state} />

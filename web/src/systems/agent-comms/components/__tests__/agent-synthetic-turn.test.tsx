@@ -5,7 +5,8 @@ import { AgentCallInvocationCard } from "../agent-call-invocation-card";
 import { AgentCallTurnCard } from "../agent-call-turn-card";
 import { AgentSyntheticTurn } from "../agent-synthetic-turn";
 import type { SyntheticTurn } from "../../lib/synthetic-turn";
-import { completedCallFixture, invalidResultCallFixture } from "../../mocks";
+import { buildCallFixture, completedCallFixture, invalidResultCallFixture } from "../../mocks";
+import type { CallPayload } from "../../types";
 
 function turn(overrides: Partial<SyntheticTurn> & Pick<SyntheticTurn, "kind">): SyntheticTurn {
   return {
@@ -244,6 +245,25 @@ describe("AgentCallTurnCard — asked row in the conversation that made it", () 
     expect(screen.getByText(completedCallFixture.prompt_preview ?? "")).toBeInTheDocument();
     expect(screen.queryByText("No answer was recorded.")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Open call" })).toBeInTheDocument();
+  });
+
+  it("Should not present an unknown call state as running", () => {
+    render(
+      <AgentCallTurnCard
+        call={
+          {
+            ...buildCallFixture({ call_id: "call_unknown_state" }),
+            state: "phase-shift",
+          } as unknown as CallPayload
+        }
+        data-testid="card"
+        onOpenCall={vi.fn()}
+      />
+    );
+    expect(screen.getByTestId("card")).toHaveAttribute("data-status", "empty");
+    expect(screen.getByRole("button", { name: /Toggle tool call \(empty\)/ })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Working")).not.toBeInTheDocument();
+    expect(screen.getByText("phase-shift")).toBeInTheDocument();
   });
 
   it("Should flag an invalid result without inventing Ask again", () => {

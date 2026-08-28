@@ -219,18 +219,32 @@ export type {
   QueuedPromptAttachmentPreview,
   QueuedPromptAttachmentSummary,
 } from "./lib/queued-prompt";
-export { sessionKeys } from "./lib/query-keys";
 export {
   cachedForeignSessionOwner,
   resolveForeignSessionOwner,
   resolveSessionOwner,
+  sessionAcrossProfilesOptions,
+  sessionAttentionSummaryOptions,
+  sessionClarificationsOptions,
+  sessionCommandsOptions,
+  sessionDetailOptions,
+  sessionEventsOptions,
+  sessionGoalOptions,
+  sessionHistoryOptions,
+  sessionInputsOptions,
+  sessionKeys,
+  sessionLedgerOptions,
   sessionOwnerDialogState,
-} from "./lib/session-owner-resolution";
-export {
   sessionOwnerKeys,
   sessionOwnerOptions,
+  sessionRecapOptions,
+  sessionScopedDetailOptions,
+  sessionTranscriptOptions,
+  sessionUsageOptions,
+  sessionsCompleteListOptions,
+  sessionsListOptions,
   type SessionOwnerDialogState,
-} from "./lib/query-options";
+} from "./query";
 export { fetchSessionOwner } from "./adapters/session-owner-api";
 export {
   SESSION_WORKSPACE_SWITCH_STATES,
@@ -238,24 +252,6 @@ export {
   type SessionDeepLinkSearch,
   type SessionWorkspaceSwitchState,
 } from "./lib/session-deeplink-search";
-export {
-  sessionClarificationsOptions,
-  sessionCommandsOptions,
-  sessionInputsOptions,
-  sessionAttentionSummaryOptions,
-  sessionDetailOptions,
-  sessionEventsOptions,
-  sessionHistoryOptions,
-  sessionGoalOptions,
-  sessionLedgerOptions,
-  sessionRecapOptions,
-  sessionUsageOptions,
-  sessionTranscriptOptions,
-  sessionAcrossProfilesOptions,
-  sessionScopedDetailOptions,
-  sessionsListOptions,
-  sessionsCompleteListOptions,
-} from "./lib/query-options";
 export {
   sessionCommandMenuCatalog,
   useSessionCommands,
@@ -329,13 +325,17 @@ export {
 } from "./hooks/use-session-transcript-thread-messages";
 export { useSessionTopbarSlot } from "./hooks/use-session-topbar-slot";
 export {
-  useSessionInspectorState,
-  type UseSessionInspectorStateResult,
-} from "./hooks/use-session-inspector-state";
-export {
+  deriveFileReads,
   requestSessionInspectorTab,
-  subscribeSessionInspectorTab,
-} from "./lib/session-inspector-tabs";
+  SessionInspector,
+  useSessionInspectorState,
+  type InspectorFileEntry,
+  type InspectorMemoryState,
+  type InspectorSessionLedger,
+  type InspectorUsage,
+  type SessionInspectorProps,
+  type UseSessionInspectorStateResult,
+} from "./inspector";
 export {
   toggleSessionSidebar,
   useSessionSidebarState,
@@ -462,15 +462,6 @@ export {
   type ClarificationDataPartProps,
 } from "./components/clarification-data-part";
 export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
-export {
-  SessionInspector,
-  type InspectorMemoryState,
-  type InspectorSessionLedger,
-  type InspectorUsage,
-  type SessionInspectorProps,
-} from "./components/session-inspector";
-export { deriveFileReads, type InspectorFileEntry } from "./components/session-inspector.logic";
-
 export {
   environmentTargetLabel,
   forkSessionToWorktree,

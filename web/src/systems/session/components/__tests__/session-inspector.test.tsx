@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DETAIL_INSPECTOR_INLINE_BREAKPOINT } from "@compozy/ui";
@@ -8,10 +8,16 @@ import type { SessionLedgerResponse } from "../../types";
 import { SessionInspector, type InspectorUsage } from "../session-inspector";
 import {
   requestSessionInspectorTab,
+  sessionInspectorStore,
+} from "../../hooks/use-session-inspector-state";
+import {
   SESSION_INSPECTOR_TAB_IDS,
   SESSION_INSPECTOR_TAB_TESTIDS,
-  subscribeSessionInspectorTab,
 } from "../../lib/session-inspector-tabs";
+
+vi.mock("../session-calls-section", () => ({
+  SessionCallsSection: () => <div data-testid="session-inspector-calls" />,
+}));
 
 const ORIGINAL_MATCH_MEDIA = window.matchMedia;
 
@@ -33,6 +39,8 @@ function installMatchMedia(matches: boolean): void {
 }
 
 beforeEach(() => {
+  window.localStorage.clear();
+  sessionInspectorStore.trigger.reset();
   installMatchMedia(true);
 });
 
@@ -114,14 +122,31 @@ describe("SessionInspector — DetailInspector chrome (/ §3)", () => {
     expect(screen.getByTestId("session-inspector-usage")).toBeInTheDocument();
   });
 
-  it("Should notify subscribers when a transcript row requests a tab", () => {
-    const seen: string[] = [];
-    const stop = subscribeSessionInspectorTab(tab => {
-      seen.push(tab);
+  it("Should open Calls when the request lands before the inspector mounts", () => {
+    requestSessionInspectorTab("sess_123", "calls");
+    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />);
+
+    expect(screen.getByTestId("session-inspector-panel")).toHaveAttribute(
+      "data-active-tab",
+      "calls"
+    );
+  });
+
+  it("Should switch to Calls when the request lands on an already open inspector", () => {
+    render(<SessionInspector messages={[]} sessionId="sess_123" memory={{ ledger: null }} />);
+    expect(screen.getByTestId("session-inspector-panel")).toHaveAttribute(
+      "data-active-tab",
+      "usage"
+    );
+
+    act(() => {
+      requestSessionInspectorTab("sess_123", "calls");
     });
-    requestSessionInspectorTab("calls");
-    stop();
-    expect(seen).toEqual(["calls"]);
+
+    expect(screen.getByTestId("session-inspector-panel")).toHaveAttribute(
+      "data-active-tab",
+      "calls"
+    );
   });
 
   it("Should render inline at >= 1440 px viewport (data-mode=inline) at 320 px width", () => {

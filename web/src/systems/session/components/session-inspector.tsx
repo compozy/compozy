@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { DetailInspector, cn } from "@compozy/ui";
 
@@ -19,9 +19,9 @@ import {
   SESSION_INSPECTOR_TAB_TESTIDS,
   SESSION_INSPECTOR_TABS,
   isInspectorTabId,
-  subscribeSessionInspectorTab,
   type InspectorTabId,
 } from "../lib/session-inspector-tabs";
+import { useSessionInspectorState } from "../hooks/use-session-inspector-state";
 
 import { SessionCallsSection } from "./session-calls-section";
 
@@ -33,6 +33,7 @@ export type {
 
 const EMPTY_VAULT_SECRETS: readonly VaultSecret[] = [];
 const EMPTY_MEMORY_STATE: InspectorMemoryState = Object.freeze({});
+const DEFAULT_INSPECTOR_TAB: InspectorTabId = "usage";
 
 export interface SessionInspectorProps {
   messages: readonly ThreadMessageState[];
@@ -99,16 +100,17 @@ export function SessionInspector({
   onDrawerOpenChange,
   className,
 }: SessionInspectorProps) {
-  const [activeTab, setActiveTab] = useState<InspectorTabId>("usage");
+  const inspector = useSessionInspectorState(sessionId);
+  const [localTab, setLocalTab] = useState<InspectorTabId>(DEFAULT_INSPECTOR_TAB);
+  const activeTab = sessionId ? inspector.tab : localTab;
   const handleTabChange = (id: string) => {
-    if (isInspectorTabId(id)) setActiveTab(id);
+    if (!isInspectorTabId(id)) return;
+    if (sessionId) {
+      inspector.selectTab(id);
+      return;
+    }
+    setLocalTab(id);
   };
-  useEffect(() => {
-    return subscribeSessionInspectorTab(tab => {
-      setActiveTab(tab);
-      onDrawerOpenChange?.(true);
-    });
-  }, [onDrawerOpenChange]);
   const tabs = SESSION_INSPECTOR_TABS.map(tab => ({
     id: tab.id,
     label: <span data-testid={SESSION_INSPECTOR_TAB_TESTIDS[tab.id]}>{tab.label}</span>,

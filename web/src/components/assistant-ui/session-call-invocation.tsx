@@ -14,20 +14,16 @@ import {
   useCallsById,
   verdictFromReturnResult,
 } from "@/systems/agent-comms";
+import { useCurrentWindowLiveDataEnabled } from "@/systems/os/hooks/use-window-live-data-enabled";
 import { useOpenSessionCallsPanel } from "./hooks/use-open-session-calls-panel";
 import type { SessionTimelineToolPart } from "./session-timeline.logic";
 
-export function SessionCallInvocation({
-  tool,
-  turnSettled,
-}: {
-  tool: SessionTimelineToolPart;
-  turnSettled: boolean;
-}) {
+export function SessionCallInvocation({ tool }: { tool: SessionTimelineToolPart }) {
   const navigate = useNavigate();
   const onOpenCallsPanel = useOpenSessionCallsPanel();
+  const live = useCurrentWindowLiveDataEnabled();
   const callIds = callIdsFromToolResult(tool.result);
-  const { calls, loading } = useCallsById(callIds, !turnSettled);
+  const { calls, loading } = useCallsById(callIds, live);
   return (
     <AgentCallInvocationCard
       args={tool.args}
@@ -50,13 +46,14 @@ export function SessionCallInvocation({
 export function SessionSettledCallStack({ tools }: { tools: readonly SessionTimelineToolPart[] }) {
   const navigate = useNavigate();
   const onOpenCallsPanel = useOpenSessionCallsPanel();
+  const live = useCurrentWindowLiveDataEnabled();
   const callIds = tools.flatMap(tool => callIdsFromToolResult(tool.result));
-  const { calls, loading } = useCallsById(callIds, false);
+  const { calls, loading } = useCallsById(callIds, live);
   if (loading && calls.length === 0) {
     return (
       <div className="flex min-w-0 flex-col gap-0.5" data-testid="session-call-stack">
         {tools.map(tool => (
-          <SessionCallInvocation key={tool.id} tool={tool} turnSettled />
+          <SessionCallInvocation key={tool.id} tool={tool} />
         ))}
       </div>
     );

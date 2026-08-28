@@ -7,17 +7,25 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
+  requestSessionInspectorTab,
   SESSION_INSPECTOR_STORAGE_KEY,
   sessionInspectorLogic,
+  sessionInspectorStore,
   useSessionInspectorState,
 } from "../use-session-inspector-state";
 
 beforeEach(() => {
   window.localStorage.clear();
+  act(() => {
+    sessionInspectorStore.trigger.reset();
+  });
 });
 
 afterEach(() => {
   window.localStorage.clear();
+  act(() => {
+    sessionInspectorStore.trigger.reset();
+  });
 });
 
 describe("useSessionInspectorState", () => {
@@ -109,5 +117,58 @@ describe("useSessionInspectorState", () => {
       sess_transition_a: true,
       sess_transition_b: false,
     });
+    expect(closed.context.tabBySession).toEqual({});
+  });
+
+  it("Should open a requested tab atomically and isolate it by session", () => {
+    const { result: a } = renderHook(() => useSessionInspectorState("sess_tab_a"));
+    const { result: b } = renderHook(() => useSessionInspectorState("sess_tab_b"));
+
+    act(() => {
+      a.current.openTab("calls");
+    });
+    expect(a.current.open).toBe(true);
+    expect(a.current.tab).toBe("calls");
+    expect(b.current.open).toBe(false);
+    expect(b.current.tab).toBe("usage");
+
+    act(() => {
+      requestSessionInspectorTab("sess_tab_b", "memory");
+    });
+    expect(b.current.open).toBe(true);
+    expect(b.current.tab).toBe("memory");
+    expect(a.current.tab).toBe("calls");
+  });
+
+  it("Should forget the requested tab when the inspector closes", () => {
+    const { result } = renderHook(() => useSessionInspectorState("sess_tab_close"));
+
+    act(() => {
+      result.current.openTab("calls");
+    });
+    expect(result.current.tab).toBe("calls");
+
+    act(() => {
+      result.current.close();
+    });
+    expect(result.current.open).toBe(false);
+    expect(result.current.tab).toBe("usage");
+  });
+
+  it("Should keep a requested tab out of persisted preferences", () => {
+    const { result } = renderHook(() => useSessionInspectorState("sess_tab_persist"));
+
+    act(() => {
+      result.current.openTab("calls");
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem(SESSION_INSPECTOR_STORAGE_KEY) ?? "{}")
+    ).toMatchObject({
+      context: { bySession: { sess_tab_persist: true } },
+    });
+    expect(
+      JSON.parse(window.localStorage.getItem(SESSION_INSPECTOR_STORAGE_KEY) ?? "{}").context
+        .tabBySession
+    ).toBeUndefined();
   });
 });
