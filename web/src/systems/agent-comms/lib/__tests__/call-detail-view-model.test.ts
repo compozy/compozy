@@ -13,7 +13,6 @@ function call(overrides: Partial<CallPayload> = {}): CallPayload {
     child_session_id: "ses_01JBD8G2MZTX",
     created_at: "2026-08-20T18:12:04Z",
     depth: 1,
-    idle_expires_at: null,
     idle_ttl_seconds: 3600,
     parent_session_id: "ses_01JBD7ZZAAAA",
     profile_id: "pro_default",
@@ -153,16 +152,9 @@ describe("buildCallDetailView — provenance and outcome", () => {
 describe("buildCallDetailView — clocks", () => {
   it("Should say the idle clock is suspended while the call is in flight", () => {
     const view = buildCallDetailView({
-      call: call({ state: "running", verdict: undefined, idle_expires_at: null }),
+      call: call({ state: "running", verdict: undefined }),
     });
     expect(view.idleTtl).toEqual({ kind: "suspended" });
-  });
-
-  it("Should count down only once the child is parked", () => {
-    const view = buildCallDetailView({
-      call: call({ idle_expires_at: "2026-08-20T19:00:00Z" }),
-    });
-    expect(view.idleTtl).toEqual({ kind: "counting", expiresAt: "2026-08-20T19:00:00Z" });
   });
 
   it("Should show no deadline chrome when nobody set one", () => {

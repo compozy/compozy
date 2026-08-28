@@ -306,21 +306,24 @@ func TestCallHookTransitions(t *testing.T) {
 				}
 			}
 		}
-		var sawStateTransition, sawRejectionReason, sawReapReason bool
+		var sawStateTransition, sawRejectionReason, sawReapReason, sawPublicDelivery bool
 		for index, event := range events {
 			switch event {
 			case HookCallStateChanged:
 				sawStateTransition = payloads[index].PreviousState != "" && payloads[index].State != ""
+			case HookCallMessageDelivered:
+				sawPublicDelivery = payloads[index].Delivery == string(MessageDeliveryDeliveredIntoTurn)
 			case HookCallMessageRejected:
 				sawRejectionReason = payloads[index].Reason == string(CodeMessageRateLimited)
 			case HookCallReaped:
 				sawReapReason = payloads[index].Reason == "ttl_expired"
 			}
 		}
-		if !sawStateTransition || !sawRejectionReason || !sawReapReason {
+		if !sawStateTransition || !sawPublicDelivery || !sawRejectionReason || !sawReapReason {
 			t.Fatalf(
-				"hook payload facts = state:%t rejection:%t reap:%t, want all true",
+				"hook payload facts = state:%t delivery:%t rejection:%t reap:%t, want all true",
 				sawStateTransition,
+				sawPublicDelivery,
 				sawRejectionReason,
 				sawReapReason,
 			)

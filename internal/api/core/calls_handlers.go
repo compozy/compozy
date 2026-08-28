@@ -95,7 +95,6 @@ func (h *BaseHandlers) createCallBatch(
 			item.ChildSessionID = payload.ChildSessionID
 			item.State = payload.State
 			item.Replayed = payload.Replayed
-			item.IdleExpiresAt = payload.IdleExpiresAt
 		} else if outcome.Error != nil {
 			payload := callErrorResponse(outcome.Error)
 			item.Error = &payload

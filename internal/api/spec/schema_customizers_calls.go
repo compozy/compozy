@@ -182,6 +182,7 @@ func callResultOverflowValues() []string {
 func callMessageDeliveryValues() []string {
 	return []string{
 		string(callspkg.MessageDeliveryQueued),
+		string(callspkg.MessageDeliveryAttention),
 		string(callspkg.MessageDeliveryDeliveredIntoTurn),
 		string(callspkg.MessageDeliveryWoke),
 		string(callspkg.MessageDeliveryFailed),

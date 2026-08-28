@@ -322,6 +322,7 @@ type MessageDelivery string
 // Public mailbox delivery receipts.
 const (
 	MessageDeliveryQueued            MessageDelivery = "queued"
+	MessageDeliveryAttention         MessageDelivery = "attention"
 	MessageDeliveryDeliveredIntoTurn MessageDelivery = "delivered-into-turn"
 	MessageDeliveryWoke              MessageDelivery = "woke"
 	MessageDeliveryFailed            MessageDelivery = "failed"
@@ -407,8 +408,8 @@ type TargetContext struct {
 
 // AgentRosterEntry is one agent name and its author-provided description.
 type AgentRosterEntry struct {
-	Name        string
-	Description string
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
 }
 
 // SweepReport records calls terminalized by a deadline sweep.

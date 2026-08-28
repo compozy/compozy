@@ -69,7 +69,7 @@ export const Verdicts: Story = {
   ),
 };
 
-/** The four public receipts. No read or seen state exists to render. */
+/** Every public delivery receipt. No read or seen state exists to render. */
 export const DeliveryReceipts: Story = {
   render: () => (
     <CenteredSurface>

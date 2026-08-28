@@ -226,7 +226,6 @@ export function buildAgentCommsHandlers(store: AgentCommsMockStore): HttpHandler
         return response(201).json({
           call_id: callId,
           state: "queued",
-          idle_expires_at: call.idle_expires_at,
           replayed: false,
           ...(call.child_session_id ? { child_session_id: call.child_session_id } : {}),
         });

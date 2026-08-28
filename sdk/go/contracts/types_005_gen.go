@@ -140,7 +140,6 @@ type Call struct {
 	ResultOverflow    string                 `json:"result_overflow"`
 	Strict            bool                   `json:"strict"`
 	IdleTTLSeconds    int64                  `json:"idle_ttl_seconds"`
-	IdleExpiresAt     *time.Time             `json:"idle_expires_at"`
 	FailureCode       string                 `json:"failure_code,omitempty"`
 	FailureDetail     string                 `json:"failure_detail,omitempty"`
 	FirstIssueText    string                 `json:"first_issue_text,omitempty"`

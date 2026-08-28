@@ -59,14 +59,13 @@ This page walks the whole path once, then documents each piece.
       "call_id": "call_01JBD8G2K7Q9",
       "child_session_id": "ses_01JBD8G2MZTX",
       "state": "queued",
-      "replayed": false,
-      "idle_expires_at": null
+      "replayed": false
     }
     ```
 
     Admission always records `queued`; activation moves the call to `running` when its child starts.
-    The command returns before that activation wait. `idle_expires_at` stays `null` while the call is
-    in flight and becomes a timestamp once the child parks.
+    The command returns before that activation wait. The configured idle TTL is snapshotted on the
+    call, but its live expiry belongs to the child session rather than the call record.
 
   </WorkflowStep>
 
@@ -256,7 +255,6 @@ returns the full record:
   "result_overflow": "store",
   "strict": false,
   "idle_ttl_seconds": 3600,
-  "idle_expires_at": "2026-08-20T19:14:11Z",
   "superseded_bytes": 0,
   "repair_attempts": 0,
   "provenance": {

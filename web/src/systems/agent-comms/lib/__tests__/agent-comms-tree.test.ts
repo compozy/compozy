@@ -14,7 +14,6 @@ function call(overrides: Partial<CallPayload> & Pick<CallPayload, "call_id">): C
     caller: { id: "ses_root", kind: "session" },
     created_at: "2026-08-20T18:12:04Z",
     depth: 1,
-    idle_expires_at: null,
     idle_ttl_seconds: 3600,
     profile_id: "pro_default",
     profile_name: "default",

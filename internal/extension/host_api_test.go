@@ -416,6 +416,25 @@ func TestHostAPIHandlerSessionsListReturnsCapabilityDeniedWithoutSessionRead(t *
 func TestHostAPIHandlerCallsReadConsent(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should project result provenance only after a verdict", func(t *testing.T) {
+		t.Parallel()
+
+		bound := callspkg.CallRecord{
+			AgentName: "reviewer", ChildSessionID: "sess-child", State: callspkg.StateRunning,
+		}
+		if payload := hostAPICallPayload(&bound, "default", callspkg.ProjectionContent{}); payload.Provenance != nil {
+			t.Fatalf("bound-running provenance = %#v, want omitted", payload.Provenance)
+		}
+		settled := bound
+		settled.State = callspkg.StateCompleted
+		settled.Verdict = callspkg.VerdictReturned
+		payload := hostAPICallPayload(&settled, "default", callspkg.ProjectionContent{})
+		if payload.Provenance == nil || payload.Provenance.ProducedBy != "reviewer" ||
+			payload.Provenance.SessionID != "sess-child" || payload.Provenance.Admitted != "returned" {
+			t.Fatalf("settled provenance = %#v, want result producer and verdict", payload.Provenance)
+		}
+	})
+
 	t.Run("Should deny every calls read method before reaching the store", func(t *testing.T) {
 		t.Parallel()
 

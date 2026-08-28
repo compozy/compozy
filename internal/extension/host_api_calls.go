@@ -217,11 +217,11 @@ func hostAPICallPayload(
 		payload.SupersededPreview = hostAPIBoundedJSONPreview(projected.Superseded, record.ResultBudget.MaxBytes)
 		payload.SupersededBytes = len(projected.Superseded)
 	}
-	if record.Verdict != "" || record.ChildSessionID != "" {
-		payload.Provenance = &apicontract.CallProvenancePayload{
-			ProducedBy: record.AgentName, SessionID: record.ChildSessionID, Admitted: string(record.Verdict),
-		}
-	}
+	payload.Provenance = apicontract.NewCallProvenancePayload(
+		record.AgentName,
+		record.ChildSessionID,
+		string(record.Verdict),
+	)
 	return payload
 }
 
@@ -248,22 +248,10 @@ func hostAPICallMessagePayload(record callspkg.MessageRecord, profileName string
 		Scope: string(record.Scope), WorkspaceID: record.WorkspaceID,
 		From:          apicontract.CallOwnerPayload{Kind: record.From.Kind, ID: record.From.ID},
 		FromAgentName: record.FromAgentName, ToSessionID: record.ToSessionID,
-		CallID: record.CallID, Text: record.Body, Delivery: hostAPICallDelivery(string(record.Delivery)),
-		Reason: record.DeliveryReason, Attempts: record.DeliveryAttempts,
+		CallID: record.CallID, Text: record.Body,
+		Delivery: string(callspkg.PublicMessageDelivery(string(record.Delivery))),
+		Reason:   record.DeliveryReason, Attempts: record.DeliveryAttempts,
 		CreatedAt: record.CreatedAt, DeliveredAt: hostAPITimePointer(record.DeliveredAt),
-	}
-}
-
-func hostAPICallDelivery(value string) string {
-	switch strings.TrimSpace(value) {
-	case "pending":
-		return "queued"
-	case "injected":
-		return "delivered-into-turn"
-	case "woken":
-		return "woke"
-	default:
-		return strings.TrimSpace(value)
 	}
 }
 

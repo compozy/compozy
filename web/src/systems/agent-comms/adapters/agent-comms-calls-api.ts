@@ -231,7 +231,6 @@ export async function createCall(
 const callAcceptanceSchema = z.looseObject({
   call_id: z.string(),
   child_session_id: z.string().optional(),
-  idle_expires_at: z.string().nullable(),
   replayed: z.boolean(),
   state: z.enum([
     "queued",

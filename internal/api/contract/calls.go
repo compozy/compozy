@@ -107,7 +107,6 @@ type CallPayload struct {
 	ResultOverflow    string                 `json:"result_overflow"`
 	Strict            bool                   `json:"strict"`
 	IdleTTLSeconds    int64                  `json:"idle_ttl_seconds"`
-	IdleExpiresAt     *time.Time             `json:"idle_expires_at"`
 	FailureCode       string                 `json:"failure_code,omitempty"`
 	FailureDetail     string                 `json:"failure_detail,omitempty"`
 	FirstIssueText    string                 `json:"first_issue_text,omitempty"`
@@ -127,11 +126,10 @@ type CallPayload struct {
 
 // CallCreatePayload is the stable asynchronous acceptance shape.
 type CallCreatePayload struct {
-	CallID         string     `json:"call_id"`
-	ChildSessionID string     `json:"child_session_id,omitempty"`
-	State          string     `json:"state"`
-	Replayed       bool       `json:"replayed"`
-	IdleExpiresAt  *time.Time `json:"idle_expires_at"`
+	CallID         string `json:"call_id"`
+	ChildSessionID string `json:"child_session_id,omitempty"`
+	State          string `json:"state"`
+	Replayed       bool   `json:"replayed"`
 }
 
 // CallBatchItemPayload carries one independently accepted or rejected item.
@@ -140,7 +138,6 @@ type CallBatchItemPayload struct {
 	ChildSessionID string             `json:"child_session_id,omitempty"`
 	State          string             `json:"state,omitempty"`
 	Replayed       bool               `json:"replayed,omitempty"`
-	IdleExpiresAt  *time.Time         `json:"idle_expires_at,omitempty"`
 	Error          *CallErrorResponse `json:"error,omitempty"`
 }
 

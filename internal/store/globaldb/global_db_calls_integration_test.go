@@ -2006,6 +2006,40 @@ func TestGlobalDBCallMailboxCommitsBeforeDeliveryAndEnforcesLoopBreakers(t *test
 		}
 	})
 
+	t.Run("Should preserve operator attention through the durable message projection", func(t *testing.T) {
+		fixture := newGlobalDBCallMailboxFixture(t)
+		input := fixture.input
+		input.Body = "operator attention probe"
+		record, err := fixture.service.SendMessage(fixture.ctx, input)
+		if err != nil {
+			t.Fatalf("SendMessage(operator attention) error = %v", err)
+		}
+		pending, err := fixture.database.ListPendingDeliveries(fixture.ctx, fixture.parentID, 10)
+		if err != nil || len(pending) != 1 || pending[0].SubjectID != record.MessageID {
+			t.Fatalf("ListPendingDeliveries(operator attention) = %#v, %v, want one", pending, err)
+		}
+		updated, err := fixture.database.RecordDelivery(fixture.ctx, callspkg.DeliveryUpdate{
+			DeliveryID: pending[0].DeliveryID, State: callspkg.DeliveryStateAttention,
+			Reason: "operator_attention", At: fixture.now.Add(time.Second), MaxAttempts: 3,
+		})
+		if err != nil || updated.State != callspkg.DeliveryStateAttention {
+			t.Fatalf("RecordDelivery(operator attention) = %#v, %v", updated, err)
+		}
+		var durableState string
+		if err := fixture.database.db.QueryRowContext(fixture.ctx, `SELECT state FROM call_deliveries
+			WHERE delivery_id = ?`, pending[0].DeliveryID).Scan(&durableState); err != nil {
+			t.Fatalf("read operator attention delivery error = %v", err)
+		}
+		receipt, err := fixture.service.Message(fixture.ctx, callspkg.CallScope{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace,
+			WorkspaceID: fixture.workspaceID,
+		}, record.MessageID)
+		if err != nil || durableState != string(callspkg.DeliveryStateAttention) ||
+			receipt.Delivery != callspkg.MessageDeliveryAttention {
+			t.Fatalf("operator attention state/receipt = %q/%#v, %v", durableState, receipt, err)
+		}
+	})
+
 	t.Run("Should reject an oversized message before admission", func(t *testing.T) {
 		fixture := newGlobalDBCallMailboxFixture(t)
 		configWithTinyBody := config.DefaultCallsConfig()

@@ -105,8 +105,9 @@ type nativeProfileReaderStub struct {
 }
 
 type nativeCallsServiceStub struct {
-	create func(context.Context, callspkg.CreateInput) (callspkg.CallRecord, error)
-	ret    func(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
+	create      func(context.Context, callspkg.CreateInput) (callspkg.CallRecord, error)
+	createBatch func(context.Context, []callspkg.CreateInput) ([]callspkg.BatchOutcome, error)
+	ret         func(context.Context, callspkg.ReturnInput) (callspkg.Settlement, error)
 }
 
 func TestNativeCallErrorAdapter(t *testing.T) {
@@ -164,10 +165,13 @@ func (s nativeCallsServiceStub) Create(
 	return callspkg.CallRecord{}, errors.New("unexpected Create call")
 }
 
-func (nativeCallsServiceStub) CreateBatch(
-	context.Context,
-	[]callspkg.CreateInput,
+func (s nativeCallsServiceStub) CreateBatch(
+	ctx context.Context,
+	inputs []callspkg.CreateInput,
 ) ([]callspkg.BatchOutcome, error) {
+	if s.createBatch != nil {
+		return s.createBatch(ctx, inputs)
+	}
 	return nil, errors.New("unexpected CreateBatch call")
 }
 
@@ -12012,6 +12016,36 @@ func TestNativeAgentCallContractErrors(t *testing.T) {
 			len(callErr.Available) != 1 || callErr.Available[0].Name != "reviewer" ||
 			callErr.Available[0].Description != "Reviews code" {
 			t.Fatalf("agentCall() error = %#v", err)
+		}
+	})
+
+	t.Run("Should encode a batch error roster with canonical lower-case keys", func(t *testing.T) {
+		t.Parallel()
+
+		service := nativeCallsServiceStub{createBatch: func(
+			context.Context,
+			[]callspkg.CreateInput,
+		) ([]callspkg.BatchOutcome, error) {
+			return []callspkg.BatchOutcome{{Error: &callspkg.Error{
+				Code: callspkg.CodeAgentUnknown, Message: "agent is unavailable",
+				Available: []callspkg.AgentRosterEntry{{Name: "reviewer", Description: "Reviews code"}},
+			}}}, nil
+		}}
+		native := &daemonNativeTools{deps: &daemonNativeToolsDeps{
+			Config: compozyconfig.Config{Calls: compozyconfig.DefaultCallsConfig()},
+			Calls:  func() core.CallsService { return service },
+		}}
+		result, err := native.agentCall(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDAgentCall,
+			Input:  json.RawMessage(`{"tasks":[{"agent":"missing","prompt":"Review"}]}`),
+		})
+		if err != nil {
+			t.Fatalf("agentCall(batch) error = %v", err)
+		}
+		encoded := string(result.Structured)
+		if !strings.Contains(encoded, `"available":[{"name":"reviewer","description":"Reviews code"}]`) ||
+			strings.Contains(encoded, `"Name"`) || strings.Contains(encoded, `"Description"`) {
+			t.Fatalf("agentCall(batch) structured result = %s, want lower-case roster keys", encoded)
 		}
 	})
 

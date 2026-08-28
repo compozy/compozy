@@ -379,7 +379,8 @@ func TestCallsHandlers(t *testing.T) {
 			CallID: "call-1", ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeGlobal,
 			Caller: participation.OwnerRef{Kind: participation.OwnerKindSession, ID: "parent"},
 			Actor:  callspkg.Actor{Kind: "human", ID: "operator"}, GovernedRootID: "parent",
-			State: callspkg.StateCompleted, PromptRef: "payload-prompt", ResultRef: "payload-result",
+			State: callspkg.StateCompleted, Verdict: callspkg.VerdictReturned,
+			PromptRef: "payload-prompt", ResultRef: "payload-result",
 			ResultBudget:   contracts.ByteBudget{MaxBytes: 4096},
 			FirstIssueText: "first issue", SecondIssueText: "second issue", SupersededRef: "payload-superseded",
 			CreatedAt: now, UpdatedAt: now,
@@ -466,7 +467,8 @@ func TestCallsHandlers(t *testing.T) {
 				t.Fatalf("decode list response: %v", err)
 			}
 			if page.NextCursor != "after-1" || page.Total != 247 || len(page.Items) != 1 ||
-				page.Items[0].PromptPreview != "Review carefully" || string(page.Items[0].ResultPreview) != `{"score":9}` {
+				page.Items[0].PromptPreview != "Review carefully" || string(page.Items[0].ResultPreview) != `{"score":9}` ||
+				page.Items[0].Provenance == nil || page.Items[0].Provenance.Admitted != "returned" {
 				t.Fatalf("list response = %#v", page)
 			}
 		})

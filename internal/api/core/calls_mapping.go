@@ -3,7 +3,6 @@ package core
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -41,7 +40,6 @@ type callPayloadContent struct {
 	ResultPreview     json.RawMessage
 	SupersededPreview json.RawMessage
 	SupersededBytes   int
-	IdleExpiresAt     *time.Time
 }
 
 func (h *BaseHandlers) callPayloadContent(
@@ -81,9 +79,9 @@ func callPayload(
 		ResultPreview: cloneCallJSON(content.ResultPreview),
 		ResultBytes:   record.ResultBytes, ResultBudget: record.ResultBudget.MaxBytes,
 		ResultOverflow: string(record.ResultBudget.Overflow), Strict: record.Strict,
-		IdleTTLSeconds: durationSeconds(record.IdleTTL), IdleExpiresAt: content.IdleExpiresAt,
-		FailureCode:   record.FailureCode,
-		FailureDetail: record.FailureDetail, FirstIssueText: record.FirstIssueText,
+		IdleTTLSeconds: durationSeconds(record.IdleTTL),
+		FailureCode:    record.FailureCode,
+		FailureDetail:  record.FailureDetail, FirstIssueText: record.FirstIssueText,
 		SecondIssueText: record.SecondIssueText, FinalProsePreview: record.FinalProsePreview,
 		SupersededPreview: cloneCallJSON(content.SupersededPreview), SupersededBytes: content.SupersededBytes,
 		RepairAttempts: record.RepairAttempts,
@@ -91,12 +89,11 @@ func callPayload(
 		StartedAt: timePointer(record.StartedAt), SettledAt: timePointer(record.SettledAt),
 		DeadlineAt: timePointer(record.DeadlineAt),
 	}
-	if record.Verdict != "" {
-		payload.Provenance = &contract.CallProvenancePayload{
-			ProducedBy: record.AgentName, SessionID: record.ChildSessionID,
-			Admitted: string(record.Verdict),
-		}
-	}
+	payload.Provenance = contract.NewCallProvenancePayload(
+		record.AgentName,
+		record.ChildSessionID,
+		string(record.Verdict),
+	)
 	return payload
 }
 
@@ -143,24 +140,10 @@ func callMessagePayload(record callspkg.MessageRecord, profile profileOwnerIdent
 		Scope: string(record.Scope), WorkspaceID: record.WorkspaceID,
 		From:          contract.CallOwnerPayload{Kind: record.From.Kind, ID: record.From.ID},
 		FromAgentName: record.FromAgentName, ToSessionID: record.ToSessionID,
-		CallID: record.CallID, Text: record.Body, Delivery: publicCallDelivery(string(record.Delivery)),
-		Reason: record.DeliveryReason, Attempts: record.DeliveryAttempts,
+		CallID: record.CallID, Text: record.Body,
+		Delivery: string(callspkg.PublicMessageDelivery(string(record.Delivery))),
+		Reason:   record.DeliveryReason, Attempts: record.DeliveryAttempts,
 		CreatedAt: record.CreatedAt, DeliveredAt: timePointer(record.DeliveredAt),
-	}
-}
-
-func publicCallDelivery(value string) string {
-	switch strings.TrimSpace(value) {
-	case "pending", queryFilterQueuedValue:
-		return queryFilterQueuedValue
-	case "injected", "delivered-into-turn":
-		return "delivered-into-turn"
-	case "woken", "woke":
-		return "woke"
-	case queryFilterFailedValue:
-		return queryFilterFailedValue
-	default:
-		return queryFilterFailedValue
 	}
 }
 

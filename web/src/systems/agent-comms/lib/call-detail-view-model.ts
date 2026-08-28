@@ -33,10 +33,7 @@ import type { CallPayload } from "../types";
  * never reaped by the clock. Saying "suspended" is therefore a fact about the
  * runtime, not a UI nicety.
  */
-export type CallIdleTtl =
-  | { kind: "suspended" }
-  | { kind: "counting"; expiresAt: string }
-  | { kind: "none" };
+export type CallIdleTtl = { kind: "suspended" } | { kind: "none" };
 
 export interface CallDetailControls {
   /** In flight only. */
@@ -229,11 +226,10 @@ function buildControls(
   };
 }
 
-function buildIdleTtl(call: CallPayload, state: CallState | null): CallIdleTtl {
+function buildIdleTtl(state: CallState | null): CallIdleTtl {
   // A call in flight suspends the clock outright, so there is nothing to count.
   if (state !== null && !isTerminalCallState(state)) return { kind: "suspended" };
-  if (call.idle_expires_at === null) return { kind: "none" };
-  return { kind: "counting", expiresAt: call.idle_expires_at };
+  return { kind: "none" };
 }
 
 /**
@@ -277,7 +273,7 @@ export function buildCallDetailView(input: CallDetailInput): CallDetailView {
     expectDigest: call.expect_digest ?? null,
     resultBudgetBytes: call.result_budget_bytes,
     resultOverflow: call.result_overflow,
-    idleTtl: buildIdleTtl(call, state),
+    idleTtl: buildIdleTtl(state),
     deadlineAt: call.deadline_at ?? null,
     settledAt: call.settled_at ?? null,
     createdAt: call.created_at,

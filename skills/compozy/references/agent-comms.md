@@ -87,7 +87,7 @@ checkpoint that returns a `resume` token, not a failure.
 ## Mailbox
 
 `compozy__agent_message` sends inert text to `parent` or a session id inside your lineage
-or grant. Delivery projects as `delivered-into-turn`, `woke`, `queued`, or `failed`.
+or grant. Delivery projects as `attention`, `delivered-into-turn`, `woke`, `queued`, or `failed`.
 Delivery happens at turn boundaries, never mid-tool. There is no read or seen state; treat
 `queued` as committed, not ignored.
 

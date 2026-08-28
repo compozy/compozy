@@ -10,6 +10,7 @@ import {
   Hourglass,
   Moon,
   TimerOff,
+  TriangleAlert,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -29,6 +30,7 @@ export const CALL_STATE_GLYPH = {
 } as const satisfies Record<CallState, LucideIcon>;
 
 export const CALL_DELIVERY_GLYPH = {
+  attention: TriangleAlert,
   "delivered-into-turn": Check,
   woke: Bell,
   queued: Clock,

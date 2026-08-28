@@ -69578,11 +69578,6 @@
                           "first_issue_text": {
                             "type": "string"
                           },
-                          "idle_expires_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
                           "idle_ttl_seconds": {
                             "format": "int64",
                             "type": "integer"
@@ -69711,7 +69706,6 @@
                           "caller",
                           "created_at",
                           "depth",
-                          "idle_expires_at",
                           "idle_ttl_seconds",
                           "profile_id",
                           "profile_name",
@@ -70662,11 +70656,6 @@
                         ],
                         "type": "object"
                       },
-                      "idle_expires_at": {
-                        "format": "date-time",
-                        "nullable": true,
-                        "type": "string"
-                      },
                       "replayed": {
                         "type": "boolean"
                       },
@@ -70705,11 +70694,6 @@
                     "child_session_id": {
                       "type": "string"
                     },
-                    "idle_expires_at": {
-                      "format": "date-time",
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "replayed": {
                       "type": "boolean"
                     },
@@ -70730,7 +70714,6 @@
                   },
                   "required": [
                     "call_id",
-                    "idle_expires_at",
                     "replayed",
                     "state"
                   ],
@@ -71202,11 +71185,6 @@
                     "first_issue_text": {
                       "type": "string"
                     },
-                    "idle_expires_at": {
-                      "format": "date-time",
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "idle_ttl_seconds": {
                       "format": "int64",
                       "type": "integer"
@@ -71335,7 +71313,6 @@
                     "caller",
                     "created_at",
                     "depth",
-                    "idle_expires_at",
                     "idle_ttl_seconds",
                     "profile_id",
                     "profile_name",
@@ -71750,11 +71727,6 @@
                           "first_issue_text": {
                             "type": "string"
                           },
-                          "idle_expires_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
                           "idle_ttl_seconds": {
                             "format": "int64",
                             "type": "integer"
@@ -71883,7 +71855,6 @@
                           "caller",
                           "created_at",
                           "depth",
-                          "idle_expires_at",
                           "idle_ttl_seconds",
                           "profile_id",
                           "profile_name",
@@ -110837,6 +110808,7 @@
                           "delivery": {
                             "enum": [
                               "queued",
+                              "attention",
                               "delivered-into-turn",
                               "woke",
                               "failed"
@@ -111256,6 +111228,7 @@
                     "delivery": {
                       "enum": [
                         "queued",
+                        "attention",
                         "delivered-into-turn",
                         "woke",
                         "failed"
@@ -111745,6 +111718,7 @@
                     "delivery": {
                       "enum": [
                         "queued",
+                        "attention",
                         "delivered-into-turn",
                         "woke",
                         "failed"
@@ -256611,11 +256585,6 @@
                           "first_issue_text": {
                             "type": "string"
                           },
-                          "idle_expires_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
                           "idle_ttl_seconds": {
                             "format": "int64",
                             "type": "integer"
@@ -256744,7 +256713,6 @@
                           "caller",
                           "created_at",
                           "depth",
-                          "idle_expires_at",
                           "idle_ttl_seconds",
                           "profile_id",
                           "profile_name",
@@ -257704,11 +257672,6 @@
                         ],
                         "type": "object"
                       },
-                      "idle_expires_at": {
-                        "format": "date-time",
-                        "nullable": true,
-                        "type": "string"
-                      },
                       "replayed": {
                         "type": "boolean"
                       },
@@ -257747,11 +257710,6 @@
                     "child_session_id": {
                       "type": "string"
                     },
-                    "idle_expires_at": {
-                      "format": "date-time",
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "replayed": {
                       "type": "boolean"
                     },
@@ -257772,7 +257730,6 @@
                   },
                   "required": [
                     "call_id",
-                    "idle_expires_at",
                     "replayed",
                     "state"
                   ],
@@ -258253,11 +258210,6 @@
                     "first_issue_text": {
                       "type": "string"
                     },
-                    "idle_expires_at": {
-                      "format": "date-time",
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "idle_ttl_seconds": {
                       "format": "int64",
                       "type": "integer"
@@ -258386,7 +258338,6 @@
                     "caller",
                     "created_at",
                     "depth",
-                    "idle_expires_at",
                     "idle_ttl_seconds",
                     "profile_id",
                     "profile_name",
@@ -258810,11 +258761,6 @@
                           "first_issue_text": {
                             "type": "string"
                           },
-                          "idle_expires_at": {
-                            "format": "date-time",
-                            "nullable": true,
-                            "type": "string"
-                          },
                           "idle_ttl_seconds": {
                             "format": "int64",
                             "type": "integer"
@@ -258943,7 +258889,6 @@
                           "caller",
                           "created_at",
                           "depth",
-                          "idle_expires_at",
                           "idle_ttl_seconds",
                           "profile_id",
                           "profile_name",
@@ -309819,6 +309764,7 @@
                           "delivery": {
                             "enum": [
                               "queued",
+                              "attention",
                               "delivered-into-turn",
                               "woke",
                               "failed"
@@ -310247,6 +310193,7 @@
                     "delivery": {
                       "enum": [
                         "queued",
+                        "attention",
                         "delivered-into-turn",
                         "woke",
                         "failed"
@@ -310745,6 +310692,7 @@
                     "delivery": {
                       "enum": [
                         "queued",
+                        "attention",
                         "delivered-into-turn",
                         "woke",
                         "failed"

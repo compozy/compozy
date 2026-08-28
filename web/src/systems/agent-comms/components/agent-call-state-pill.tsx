@@ -98,7 +98,7 @@ export function AgentCallVerdictChip({
  * A delivery receipt on a message row.
  *
  * There is no read or seen state anywhere in this grammar because the runtime
- * models none — the four receipts describe transport, not attention.
+ * models none. Attention means delivery paused for operator action.
  */
 export function AgentMessageDeliveryPill({
   delivery,

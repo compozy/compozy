@@ -31,7 +31,6 @@ export function buildCallFixture(seed: CallSeed): CallPayload {
     caller: { id: callFixtureRootSessionId, kind: "session" },
     created_at: "2026-08-20T18:12:04Z",
     depth: 1,
-    idle_expires_at: null,
     idle_ttl_seconds: 3600,
     parent_session_id: callFixtureRootSessionId,
     prompt_bytes: 44,
@@ -74,7 +73,6 @@ export const completedCallFixture = buildCallFixture({
   result_bytes: 312,
   started_at: "2026-08-20T18:12:05Z",
   settled_at: "2026-08-20T18:14:11Z",
-  idle_expires_at: "2026-08-20T19:00:00Z",
   provenance: {
     admitted: "returned",
     produced_by: storyAgentNames.compliance,
@@ -156,7 +154,6 @@ export const timeoutCallFixture = buildCallFixture({
   deadline_at: "2026-08-20T19:00:00Z",
   started_at: "2026-08-20T18:55:00Z",
   settled_at: "2026-08-20T19:00:00Z",
-  idle_expires_at: "2026-08-20T20:00:00Z",
 });
 
 export const runningCallFixture = buildCallFixture({

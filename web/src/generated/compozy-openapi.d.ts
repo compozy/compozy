@@ -31764,8 +31764,6 @@ export interface operations {
               failure_detail?: string;
               final_prose_preview?: string;
               first_issue_text?: string;
-              /** Format: date-time */
-              idle_expires_at: string | null;
               /** Format: int64 */
               idle_ttl_seconds: number;
               parent_session_id?: string;
@@ -32102,8 +32100,6 @@ export interface operations {
               original_id?: string;
               widening?: string[];
             } | null;
-            /** Format: date-time */
-            idle_expires_at?: string | null;
             replayed?: boolean;
             /** @enum {string} */
             state?:
@@ -32128,8 +32124,6 @@ export interface operations {
           "application/json": {
             call_id: string;
             child_session_id?: string;
-            /** Format: date-time */
-            idle_expires_at: string | null;
             replayed: boolean;
             /** @enum {string} */
             state:
@@ -32326,8 +32320,6 @@ export interface operations {
             failure_detail?: string;
             final_prose_preview?: string;
             first_issue_text?: string;
-            /** Format: date-time */
-            idle_expires_at: string | null;
             /** Format: int64 */
             idle_ttl_seconds: number;
             parent_session_id?: string;
@@ -32537,8 +32529,6 @@ export interface operations {
               failure_detail?: string;
               final_prose_preview?: string;
               first_issue_text?: string;
-              /** Format: date-time */
-              idle_expires_at: string | null;
               /** Format: int64 */
               idle_ttl_seconds: number;
               parent_session_id?: string;
@@ -47271,7 +47261,7 @@ export interface operations {
               /** Format: date-time */
               delivered_at?: string | null;
               /** @enum {string} */
-              delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
+              delivery: "queued" | "attention" | "delivered-into-turn" | "woke" | "failed";
               from: {
                 id: string;
                 kind: string;
@@ -47426,7 +47416,7 @@ export interface operations {
         content: {
           "application/json": {
             /** @enum {string} */
-            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
+            delivery: "queued" | "attention" | "delivered-into-turn" | "woke" | "failed";
             message_id: string;
           };
         };
@@ -47619,7 +47609,7 @@ export interface operations {
             /** Format: date-time */
             delivered_at?: string | null;
             /** @enum {string} */
-            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
+            delivery: "queued" | "attention" | "delivered-into-turn" | "woke" | "failed";
             from: {
               id: string;
               kind: string;
@@ -104183,8 +104173,6 @@ export interface operations {
               failure_detail?: string;
               final_prose_preview?: string;
               first_issue_text?: string;
-              /** Format: date-time */
-              idle_expires_at: string | null;
               /** Format: int64 */
               idle_ttl_seconds: number;
               parent_session_id?: string;
@@ -104524,8 +104512,6 @@ export interface operations {
               original_id?: string;
               widening?: string[];
             } | null;
-            /** Format: date-time */
-            idle_expires_at?: string | null;
             replayed?: boolean;
             /** @enum {string} */
             state?:
@@ -104550,8 +104536,6 @@ export interface operations {
           "application/json": {
             call_id: string;
             child_session_id?: string;
-            /** Format: date-time */
-            idle_expires_at: string | null;
             replayed: boolean;
             /** @enum {string} */
             state:
@@ -104750,8 +104734,6 @@ export interface operations {
             failure_detail?: string;
             final_prose_preview?: string;
             first_issue_text?: string;
-            /** Format: date-time */
-            idle_expires_at: string | null;
             /** Format: int64 */
             idle_ttl_seconds: number;
             parent_session_id?: string;
@@ -104963,8 +104945,6 @@ export interface operations {
               failure_detail?: string;
               final_prose_preview?: string;
               first_issue_text?: string;
-              /** Format: date-time */
-              idle_expires_at: string | null;
               /** Format: int64 */
               idle_ttl_seconds: number;
               parent_session_id?: string;
@@ -123223,7 +123203,7 @@ export interface operations {
               /** Format: date-time */
               delivered_at?: string | null;
               /** @enum {string} */
-              delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
+              delivery: "queued" | "attention" | "delivered-into-turn" | "woke" | "failed";
               from: {
                 id: string;
                 kind: string;
@@ -123381,7 +123361,7 @@ export interface operations {
         content: {
           "application/json": {
             /** @enum {string} */
-            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
+            delivery: "queued" | "attention" | "delivered-into-turn" | "woke" | "failed";
             message_id: string;
           };
         };
@@ -123576,7 +123556,7 @@ export interface operations {
             /** Format: date-time */
             delivered_at?: string | null;
             /** @enum {string} */
-            delivery: "queued" | "delivered-into-turn" | "woke" | "failed";
+            delivery: "queued" | "attention" | "delivered-into-turn" | "woke" | "failed";
             from: {
               id: string;
               kind: string;

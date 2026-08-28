@@ -10,7 +10,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "a7aaec8aa16c1bdf3d18d59822f3482f2cb83c568bce33130b101a751a3f8b8b",
-    "output_schema_digest": "b993eab33247b985d448c5b1b45864043e42935461ed2675c6bd5e4262a39275"
+    "output_schema_digest": "eea9a564e2ed6240fdd0f5ea69bd2d5af1fedc95c74e482ab49ea7a3aff6e49e"
   },
   {
     "tool_id": "compozy__agent_create",
@@ -76,7 +76,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "5bfd05640c4b428877b9b4313835b7745d2a763231d1eea6510229935acf8e5c",
-    "output_schema_digest": "59ed0d1222d801f4a3b9779e2e44bc242636fc312f919691ba9b7c65a581ef7f"
+    "output_schema_digest": "01b6a8957736d5bc03baf433ab0ca86645f631318666547f9eaeab2652100b82"
   },
   {
     "tool_id": "compozy__automation_jobs_create",
@@ -440,7 +440,7 @@
     "destructive": false,
     "open_world": false,
     "input_schema_digest": "d9ceea16ba202557b043fb93c8b6610b8f45cdf0d9aa01354733f41d802ac80d",
-    "output_schema_digest": "1d125333120386a27009803ca8c02ced35202217d730eb02d079efcda9e89800"
+    "output_schema_digest": "7d4dec0d054c490efd979ab8ae670c3aa5480ab79aa8c2eeabca723721073526"
   },
   {
     "tool_id": "compozy__call_return",

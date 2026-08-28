@@ -1291,7 +1291,6 @@ export interface Call {
   result_overflow: string;
   strict: boolean;
   idle_ttl_seconds: number;
-  idle_expires_at?: ISODateTime;
   failure_code?: string;
   failure_detail?: string;
   first_issue_text?: string;

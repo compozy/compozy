@@ -164,6 +164,7 @@ export interface CallDeliverySignal {
 }
 
 export const CALL_DELIVERY_SIGNAL = {
+  attention: { tone: "warning", label: "attention" },
   "delivered-into-turn": { tone: "success", label: "delivered-into-turn" },
   woke: { tone: "success", label: "woke" },
   queued: { tone: "neutral", label: "queued" },

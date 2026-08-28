@@ -2,10 +2,10 @@
  * Clock copy that belongs on the call record, not on `<Time>`'s defaults.
  *
  * Timeline hours are UTC `HH:MM:SS` so the rail matches the daemon's ISO
- * instants. Idle TTL states its physics (`suspended` / `expires in …`) instead
- * of a bare countdown. Settled duration is `settled − created`.
+ * instants. Idle TTL states when the session-owned clock is suspended. Settled
+ * duration is `settled − created`.
  */
-import { formatCompactRelativeTime, formatDuration, formatRelativeTime } from "@compozy/ui";
+import { formatDuration } from "@compozy/ui";
 
 import type { CallIdleTtl } from "./call-detail-view-model";
 
@@ -15,15 +15,8 @@ export function formatUtcClock(iso: string): string {
   return new Date(parsed).toISOString().slice(11, 19);
 }
 
-export function formatIdleTtlCopy(ttl: CallIdleTtl, now: number = Date.now()): string | null {
+export function formatIdleTtlCopy(ttl: CallIdleTtl): string | null {
   if (ttl.kind === "suspended") return "suspended while running";
-  if (ttl.kind === "counting") {
-    const expiresAt = Date.parse(ttl.expiresAt);
-    if (Number.isFinite(expiresAt) && expiresAt > now) {
-      return `expires ${formatCompactRelativeTime(ttl.expiresAt, now)}`;
-    }
-    return formatRelativeTime(ttl.expiresAt, now);
-  }
   return null;
 }
 

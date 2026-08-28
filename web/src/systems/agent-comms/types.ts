@@ -105,6 +105,7 @@ const CALL_VERDICT_BY_VALUE = {
 export const CALL_VERDICTS = Object.values(CALL_VERDICT_BY_VALUE);
 
 const CALL_DELIVERY_BY_VALUE = {
+  attention: "attention",
   "delivered-into-turn": "delivered-into-turn",
   woke: "woke",
   queued: "queued",

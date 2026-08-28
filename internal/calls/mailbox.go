@@ -274,7 +274,7 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 			s.emitHook(ctx, HookCallMessageDelivered, HookPayload{
 				ProfileID: message.ProfileID, Scope: message.Scope, WorkspaceID: message.WorkspaceID,
 				CallID: message.CallID, MessageID: message.MessageID,
-				ChildSessionID: item.RecipientSessionID, Delivery: string(updated.State),
+				ChildSessionID: item.RecipientSessionID, Delivery: string(PublicMessageDelivery(string(updated.State))),
 			})
 		}
 	}

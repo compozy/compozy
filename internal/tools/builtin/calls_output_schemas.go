@@ -39,7 +39,11 @@ const callCreateOutputSchema = `{
 					"call":` + nativeCallRecordOutputSchema + `,
 					"error":{"type":"object","required":["code","message"],"properties":{
 						"code":{"type":"string"},"message":{"type":"string"},
-						"available":{"type":"array","items":{"type":"object"}},
+						"available":{"type":"array","items":{
+							"type":"object","required":["name"],
+							"properties":{"name":{"type":"string"},"description":{"type":"string"}},
+							"additionalProperties":false
+						}},
 						"widening":{"type":"array","items":{"type":"string"}},
 						"original_id":{"type":"string"},"reset_at":{"type":"string"},
 						"expired_at":{"type":"string"},"suggestion":{"type":"string"}
@@ -82,7 +86,7 @@ const callAwaitOutputSchema = `{
 
 const callResultOutputSchema = `{
 	"type":"object","required":["call_id","result"],
-	"properties":{"call_id":{"type":"string"},"result":{"type":"object"}},
+	"properties":{"call_id":{"type":"string"},"result":{}},
 	"additionalProperties":false
 }`
 
@@ -90,7 +94,7 @@ const agentMessageOutputSchema = `{
 	"type":"object","required":["message_id","delivery"],
 	"properties":{
 		"message_id":{"type":"string"},
-		"delivery":{"type":"string","enum":["queued","delivered-into-turn","woke","failed"]}
+		"delivery":{"type":"string","enum":["queued","attention","delivered-into-turn","woke","failed"]}
 	},
 	"additionalProperties":false
 }`

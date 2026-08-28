@@ -82,7 +82,7 @@ func (g *CallRepo) AcceptMessage(
 		record = admission.Record
 		record.ToSessionID = target.id
 		record.FromAgentName = from.agentName
-		record.Delivery = projectDeliveryState(state)
+		record.Delivery = callspkg.PublicMessageDelivery(state)
 		record.DeliveryReason = reason
 		return nil
 	})
@@ -273,7 +273,7 @@ func scanCallMessage(scanner rowScanner) (callspkg.MessageRecord, error) {
 		return callspkg.MessageRecord{}, fmt.Errorf("store: scan call message: %w", err)
 	}
 	record.Scope = callspkg.Scope(scope)
-	record.Delivery = projectDeliveryState(state)
+	record.Delivery = callspkg.PublicMessageDelivery(state)
 	created, err := store.ParseTimestamp(createdAt)
 	if err != nil {
 		return callspkg.MessageRecord{}, fmt.Errorf("store: parse message created_at: %w", err)
@@ -287,19 +287,4 @@ func scanCallMessage(scanner rowScanner) (callspkg.MessageRecord, error) {
 		record.DeliveredAt = delivered
 	}
 	return record, nil
-}
-
-func projectDeliveryState(state string) callspkg.MessageDelivery {
-	switch state {
-	case "pending":
-		return callspkg.MessageDeliveryQueued
-	case "injected":
-		return callspkg.MessageDeliveryDeliveredIntoTurn
-	case "woken":
-		return callspkg.MessageDeliveryWoke
-	case "failed":
-		return callspkg.MessageDeliveryFailed
-	default:
-		return callspkg.MessageDeliveryFailed
-	}
 }

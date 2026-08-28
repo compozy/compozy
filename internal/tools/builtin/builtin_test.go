@@ -264,9 +264,14 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertNativeOutputSchemaAccepts(
 			t,
 			descriptors[toolspkg.ToolIDAgentCall],
-			`{"items":[{"call":`+record+`},{"error":{"code":"call_unknown_target","message":"unknown target"}}]}`,
+			`{"items":[{"call":`+record+`},{"error":{"code":"call_unknown_target","message":"unknown target","available":[{"name":"reviewer","description":"Reviews code"}]}}]}`,
 		)
 		assertNativeOutputSchemaRejects(t, descriptors[toolspkg.ToolIDAgentCall], `{"items":[{}]}`)
+		assertNativeOutputSchemaRejects(
+			t,
+			descriptors[toolspkg.ToolIDAgentCall],
+			`{"items":[{"error":{"code":"call_unknown_target","message":"unknown target","available":[{"Name":"reviewer","Description":"Reviews code"}]}}]}`,
+		)
 		assertNativeOutputSchemaAccepts(
 			t,
 			descriptors[toolspkg.ToolIDCallReturn],
@@ -281,13 +286,18 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		assertNativeOutputSchemaAccepts(t, descriptors[toolspkg.ToolIDCallResult], `{"call_id":"call-1","result":{}}`)
 		assertNativeOutputSchemaAccepts(
 			t,
+			descriptors[toolspkg.ToolIDCallResult],
+			`{"call_id":"call-1","result":[1,2]}`,
+		)
+		assertNativeOutputSchemaAccepts(
+			t,
 			descriptors[toolspkg.ToolIDCallPublish],
 			`{"network_message_id":"msg-1","published":true}`,
 		)
 		assertNativeOutputSchemaAccepts(
 			t,
 			descriptors[toolspkg.ToolIDAgentMessage],
-			`{"message_id":"msg-1","delivery":"queued"}`,
+			`{"message_id":"msg-1","delivery":"attention"}`,
 		)
 		assertNativeOutputSchemaRejects(t, descriptors[toolspkg.ToolIDCallResult], `{}`)
 	})

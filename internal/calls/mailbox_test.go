@@ -13,6 +13,48 @@ import (
 func TestMailboxContracts(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should project every durable delivery state into the public vocabulary", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name  string
+			state string
+			want  MessageDelivery
+		}{
+			{name: "Should keep pending queued", state: string(DeliveryStatePending), want: MessageDeliveryQueued},
+			{
+				name:  "Should keep operator attention distinct",
+				state: string(DeliveryStateAttention),
+				want:  MessageDeliveryAttention,
+			},
+			{
+				name:  "Should name injected delivery",
+				state: string(DeliveryStateInjected),
+				want:  MessageDeliveryDeliveredIntoTurn,
+			},
+			{
+				name:  "Should keep an already public turn delivery",
+				state: string(MessageDeliveryDeliveredIntoTurn),
+				want:  MessageDeliveryDeliveredIntoTurn,
+			},
+			{name: "Should name a recipient wake", state: string(DeliveryStateWoken), want: MessageDeliveryWoke},
+			{name: "Should keep an already public wake", state: string(MessageDeliveryWoke), want: MessageDeliveryWoke},
+			{
+				name:  "Should keep terminal failure",
+				state: string(DeliveryStateFailed),
+				want:  MessageDeliveryFailed,
+			},
+		}
+		for _, testCase := range tests {
+			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+				if got := PublicMessageDelivery(testCase.state); got != testCase.want {
+					t.Fatalf("PublicMessageDelivery(%q) = %q, want %q", testCase.state, got, testCase.want)
+				}
+			})
+		}
+	})
+
 	t.Run("Should stamp true provenance and keep message commands inert", func(t *testing.T) {
 		t.Parallel()
 		message := MessageRecord{
