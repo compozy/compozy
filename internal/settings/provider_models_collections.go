@@ -37,6 +37,7 @@ func providerModelConfigsFromSettings(
 			SupportsReasoning:        cloneBoolPtr(model.SupportsReasoning),
 			ReasoningEfforts:         cloneStringSlicePreserveNil(model.ReasoningEfforts),
 			DefaultReasoningEffort:   strings.TrimSpace(model.DefaultReasoningEffort),
+			DefaultSpeed:             model.DefaultSpeed,
 			CostInputPerMillion:      cloneFloat64Ptr(model.CostInputPerMillion),
 			CostOutputPerMillion:     cloneFloat64Ptr(model.CostOutputPerMillion),
 			CostCacheReadPerMillion:  cloneFloat64Ptr(model.CostCacheReadPerMillion),
@@ -109,9 +110,7 @@ func providerModelConfigMaps(models []compozyconfig.ProviderModelConfig) []map[s
 		if model.ReasoningEfforts != nil {
 			entry["reasoning_efforts"] = cloneStringSlicePreserveNil(model.ReasoningEfforts)
 		}
-		if strings.TrimSpace(model.DefaultReasoningEffort) != "" {
-			entry["default_reasoning_effort"] = strings.TrimSpace(model.DefaultReasoningEffort)
-		}
+		applyProviderModelRuntimeDefaults(entry, model)
 		if model.CostInputPerMillion != nil {
 			entry["cost_input_per_million"] = *model.CostInputPerMillion
 		}
@@ -142,6 +141,18 @@ func providerModelConfigMaps(models []compozyconfig.ProviderModelConfig) []map[s
 		values = append(values, entry)
 	}
 	return values
+}
+
+func applyProviderModelRuntimeDefaults(
+	entry map[string]any,
+	model compozyconfig.ProviderModelConfig,
+) {
+	if effort := strings.TrimSpace(model.DefaultReasoningEffort); effort != "" {
+		entry["default_reasoning_effort"] = effort
+	}
+	if model.DefaultSpeed != "" {
+		entry["default_speed"] = string(model.DefaultSpeed)
+	}
 }
 
 func providerModelsDiscoveryMap(discovery compozyconfig.ProviderModelsDiscoveryConfig) map[string]any {

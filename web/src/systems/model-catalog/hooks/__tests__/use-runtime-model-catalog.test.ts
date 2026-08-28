@@ -9,7 +9,11 @@ vi.mock("../../adapters/model-catalog-api", async importActual => {
 });
 
 import type { RuntimeCatalogProvider } from "../use-runtime-model-catalog";
-import { listAllModels, ModelCatalogApiError } from "../../adapters/model-catalog-api";
+import {
+  listAllModels,
+  ModelCatalogApiError,
+  refreshAllModels,
+} from "../../adapters/model-catalog-api";
 import type { ProviderModelPayload } from "../../types";
 import { useRuntimeModelCatalog } from "../use-runtime-model-catalog";
 
@@ -65,12 +69,53 @@ describe("useRuntimeModelCatalog", () => {
     await waitFor(() => expect(result.current.models).toHaveLength(2));
     // Exactly one aggregate request (no per-provider fan-out).
     expect(vi.mocked(listAllModels)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(refreshAllModels)).not.toHaveBeenCalled();
     // Allow-list order preserved (codex before claude); the foreign provider is gone.
     expect(result.current.models.map(model => [model.provider, model.id])).toEqual([
       ["codex", "gpt-5.6"],
       ["claude", "opus-4.8"],
     ]);
     expect(result.current.models.some(model => model.provider === "openrouter")).toBe(false);
+  });
+
+  it("Should refresh and reread once when the initial catalog omits an allowed provider", async () => {
+    const codex = payload("codex", "gpt-5.6");
+    const cursor = payload("cursor", "grok-4.5", {
+      configurations: [
+        { reasoning_effort: "low", fast: false },
+        { reasoning_effort: "low", fast: true },
+        { reasoning_effort: "high", fast: false },
+        { reasoning_effort: "high", fast: true },
+      ],
+    });
+    vi.mocked(listAllModels)
+      .mockResolvedValueOnce({ models: [codex] } as Awaited<ReturnType<typeof listAllModels>>)
+      .mockResolvedValueOnce({ models: [codex, cursor] } as Awaited<
+        ReturnType<typeof listAllModels>
+      >);
+    vi.mocked(refreshAllModels).mockResolvedValue({ sources: [] } as Awaited<
+      ReturnType<typeof refreshAllModels>
+    >);
+
+    const { result } = renderHook(
+      () => useRuntimeModelCatalog([{ id: "codex" }, { id: "cursor" }]),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => expect(result.current.models).toHaveLength(2));
+    expect(vi.mocked(refreshAllModels)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(listAllModels)).toHaveBeenCalledTimes(2);
+    expect(result.current.models[1]).toMatchObject({
+      provider: "cursor",
+      id: "grok-4.5",
+      efforts: ["low", "high"],
+      configurations: [
+        { reasoning_effort: "low", fast: false },
+        { reasoning_effort: "low", fast: true },
+        { reasoning_effort: "high", fast: false },
+        { reasoning_effort: "high", fast: true },
+      ],
+    });
   });
 
   it("Should disable every row of a needs-auth provider", async () => {

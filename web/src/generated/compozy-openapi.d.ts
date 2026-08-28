@@ -16433,6 +16433,7 @@ export interface operations {
                   model?: string;
                   provider: string;
                   reasoning_effort?: string;
+                  speed?: string;
                 };
                 /** @enum {string} */
                 speed?: "normal" | "fast";
@@ -16593,6 +16594,7 @@ export interface operations {
                   model?: string;
                   provider: string;
                   reasoning_effort?: string;
+                  speed?: string;
                 };
                 /** @enum {string} */
                 speed?: "normal" | "fast";
@@ -16916,6 +16918,7 @@ export interface operations {
                     model?: string;
                     provider: string;
                     reasoning_effort?: string;
+                    speed?: string;
                   };
                   /** @enum {string} */
                   speed?: "normal" | "fast";
@@ -17187,6 +17190,7 @@ export interface operations {
                   model?: string;
                   provider: string;
                   reasoning_effort?: string;
+                  speed?: string;
                 };
                 /** @enum {string} */
                 speed?: "normal" | "fast";
@@ -17378,6 +17382,7 @@ export interface operations {
                   model?: string;
                   provider: string;
                   reasoning_effort?: string;
+                  speed?: string;
                 };
                 /** @enum {string} */
                 speed?: "normal" | "fast";
@@ -17865,6 +17870,7 @@ export interface operations {
                   model?: string;
                   provider: string;
                   reasoning_effort?: string;
+                  speed?: string;
                 };
                 /** @enum {string} */
                 speed?: "normal" | "fast";
@@ -46327,6 +46333,8 @@ export interface operations {
         "application/json": {
           /** @enum {string|null} */
           default_effort?: "none" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max" | null;
+          /** @enum {string|null} */
+          default_speed?: "normal" | "fast" | null;
           deprecated?: boolean | null;
           featured?: boolean | null;
           hidden?: boolean | null;
@@ -46414,6 +46422,8 @@ export interface operations {
                 | "global-agent-file"
                 | "workspace-agent-file";
             };
+            /** @enum {string} */
+            default_speed?: "normal" | "fast";
             model: {
               availability_state: string;
               available: boolean | null;
@@ -65900,6 +65910,8 @@ export interface operations {
                         | "high"
                         | "xhigh"
                         | "max";
+                      /** @enum {string} */
+                      default_speed?: "normal" | "fast";
                       deprecated?: boolean | null;
                       display_name?: string;
                       featured?: boolean | null;
@@ -65999,6 +66011,8 @@ export interface operations {
                       | "high"
                       | "xhigh"
                       | "max";
+                    /** @enum {string} */
+                    default_speed?: "normal" | "fast";
                     deprecated?: boolean | null;
                     display_name?: string;
                     featured?: boolean | null;
@@ -66220,6 +66234,8 @@ export interface operations {
                         | "high"
                         | "xhigh"
                         | "max";
+                      /** @enum {string} */
+                      default_speed?: "normal" | "fast";
                       deprecated?: boolean | null;
                       display_name?: string;
                       featured?: boolean | null;
@@ -66319,6 +66335,8 @@ export interface operations {
                       | "high"
                       | "xhigh"
                       | "max";
+                    /** @enum {string} */
+                    default_speed?: "normal" | "fast";
                     deprecated?: boolean | null;
                     display_name?: string;
                     featured?: boolean | null;
@@ -66496,6 +66514,8 @@ export interface operations {
               | "xhigh"
               | "max"
               | null;
+            /** @enum {string|null} */
+            default_speed?: "normal" | "fast" | null;
             deprecated?: boolean | null;
             featured?: boolean | null;
             hidden?: boolean | null;
@@ -66547,6 +66567,8 @@ export interface operations {
                   | "high"
                   | "xhigh"
                   | "max";
+                /** @enum {string} */
+                default_speed?: "normal" | "fast";
                 deprecated?: boolean | null;
                 display_name?: string;
                 featured?: boolean | null;
@@ -99708,6 +99730,7 @@ export interface operations {
                   model?: string;
                   provider: string;
                   reasoning_effort?: string;
+                  speed?: string;
                 };
                 /** @enum {string} */
                 speed?: "normal" | "fast";

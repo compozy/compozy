@@ -28,6 +28,7 @@ type SettingsProviderModelPayload struct {
 	SupportsReasoning        *bool             `json:"supports_reasoning,omitempty"`
 	ReasoningEfforts         []ReasoningEffort `json:"reasoning_efforts,omitempty"`
 	DefaultReasoningEffort   ReasoningEffort   `json:"default_reasoning_effort,omitempty"`
+	DefaultSpeed             Speed             `json:"default_speed,omitempty"`
 	CostInputPerMillion      *float64          `json:"cost_input_per_million,omitempty"`
 	CostOutputPerMillion     *float64          `json:"cost_output_per_million,omitempty"`
 	CostCacheReadPerMillion  *float64          `json:"cost_cache_read_per_million,omitempty"`

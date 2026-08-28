@@ -1,4 +1,4 @@
-import type { ReasoningEffort } from "@/lib/api-contract";
+import type { ReasoningEffort, RuntimeSpeed } from "@/lib/api-contract";
 
 import type { OnboardingAuthMode } from "../stores/use-onboarding-draft-store";
 import type { SettingsProviderRequest } from "@/systems/settings";
@@ -6,6 +6,7 @@ import type { SettingsProviderRequest } from "@/systems/settings";
 export interface ProviderRequestInputs {
   model: string;
   reasoning: ReasoningEffort | "";
+  speed: RuntimeSpeed;
   authMode: OnboardingAuthMode;
   envVar: string;
   apiKey: string;
@@ -47,10 +48,11 @@ export function buildOnboardingProviderRequest(
     auth_mode: inputs.authMode,
   };
   const request: SettingsProviderRequest = { settings };
-  if (inputs.model.length > 0 && inputs.reasoning !== "") {
+  if (inputs.model.length > 0) {
     request.model_curation = {
       model_id: inputs.model,
-      default_effort: inputs.reasoning,
+      ...(inputs.reasoning !== "" ? { default_effort: inputs.reasoning } : {}),
+      default_speed: inputs.speed,
     };
   }
 

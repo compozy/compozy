@@ -11,6 +11,12 @@ import (
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
+)
+
+const (
+	providerModelProviderIDKey = "provider_id"
+	providerModelModelIDKey    = "model_id"
 )
 
 // ProviderModelCurationRequest identifies one global provider-model curation mutation.
@@ -21,12 +27,14 @@ type ProviderModelCurationRequest struct {
 	Featured               *bool
 	Deprecated             *bool
 	DefaultReasoningEffort *modelcatalog.ReasoningEffort
+	DefaultSpeed           *speedpkg.Speed
 }
 
 // ProviderModelCurationResult reports the applied config generation and effective model row.
 type ProviderModelCurationResult struct {
-	Model modelcatalog.Model
-	Apply ApplyResult
+	Model        modelcatalog.Model
+	Apply        ApplyResult
+	DefaultSpeed speedpkg.Speed
 }
 
 // ApplyProviderModelCuration serializes one model-only config mutation through the live apply lifecycle.
@@ -109,7 +117,7 @@ func (s *service) ApplyProviderModelCuration(
 	if err != nil {
 		return ProviderModelCurationResult{}, err
 	}
-	return ProviderModelCurationResult{Model: effective, Apply: apply}, nil
+	return ProviderModelCurationResult{Model: effective, Apply: apply, DefaultSpeed: curated.DefaultSpeed}, nil
 }
 
 func (s *service) requireProviderModelCatalog() error {
@@ -158,17 +166,46 @@ func providerModelCurationConfig(
 	if req.Deprecated != nil {
 		curated.Deprecated = cloneBoolPtr(req.Deprecated)
 	}
-	if req.DefaultReasoningEffort == nil {
-		return curated, nil
+	if req.DefaultReasoningEffort != nil {
+		effort := strings.TrimSpace(string(*req.DefaultReasoningEffort))
+		canonical := modelcatalog.ReasoningEffort(effort)
+		if !modelcatalog.IsValidEffort(effort) ||
+			!slices.Contains(providerModelReasoningEfforts(model), canonical) {
+			return compozyconfig.ProviderModelConfig{}, providerModelEffortUnsupportedError(model, effort)
+		}
+		curated.DefaultReasoningEffort = effort
 	}
-	effort := strings.TrimSpace(string(*req.DefaultReasoningEffort))
-	canonical := modelcatalog.ReasoningEffort(effort)
-	if !modelcatalog.IsValidEffort(effort) ||
-		!slices.Contains(providerModelReasoningEfforts(model), canonical) {
-		return compozyconfig.ProviderModelConfig{}, providerModelEffortUnsupportedError(model, effort)
+	if req.DefaultSpeed != nil {
+		parsed, err := speedpkg.Parse(string(*req.DefaultSpeed))
+		if err != nil {
+			return compozyconfig.ProviderModelConfig{}, providerModelSpeedRejectedError(
+				model,
+				*req.DefaultSpeed,
+				err,
+			)
+		}
+		if parsed == speedpkg.SpeedFast && !providerModelSupportsFast(model) {
+			return compozyconfig.ProviderModelConfig{}, providerModelSpeedRejectedError(
+				model,
+				parsed,
+				errors.New("model does not advertise fast"),
+			)
+		}
+		curated.DefaultSpeed = parsed
 	}
-	curated.DefaultReasoningEffort = effort
 	return curated, nil
+}
+
+func providerModelSupportsFast(model modelcatalog.Model) bool {
+	if len(model.TransportBindings) == 0 {
+		return true
+	}
+	for _, binding := range model.TransportBindings {
+		if binding.Fast != nil && *binding.Fast {
+			return true
+		}
+	}
+	return false
 }
 
 func providerModelReasoningEfforts(model modelcatalog.Model) []modelcatalog.ReasoningEffort {
@@ -220,8 +257,8 @@ func providerModelNotFoundError(providerID string, modelID string) error {
 		DataFreshness: diagnosticcontract.FreshnessLive,
 	},
 		diagnostics.WithEvidence(map[string]any{
-			"provider_id": strings.TrimSpace(providerID),
-			"model_id":    strings.TrimSpace(modelID),
+			providerModelProviderIDKey: strings.TrimSpace(providerID),
+			providerModelModelIDKey:    strings.TrimSpace(modelID),
 		}),
 	)
 	return diagnostics.NewStructuredError(item, cause)
@@ -250,11 +287,39 @@ func providerModelEffortUnsupportedError(model modelcatalog.Model, effort string
 		DataFreshness: diagnosticcontract.FreshnessLive,
 	},
 		diagnostics.WithEvidence(map[string]any{
-			"provider_id":   model.ProviderID,
-			"model_id":      model.ModelID,
-			"requested":     strings.TrimSpace(effort),
-			"valid_choices": choices,
+			providerModelProviderIDKey: model.ProviderID,
+			providerModelModelIDKey:    model.ModelID,
+			"requested":                strings.TrimSpace(effort),
+			"valid_choices":            choices,
 		}),
 	)
+	return diagnostics.NewStructuredError(item, cause)
+}
+
+func providerModelSpeedRejectedError(
+	model modelcatalog.Model,
+	requested speedpkg.Speed,
+	reason error,
+) error {
+	cause := fmt.Errorf(
+		"speed %q is unavailable for provider model %q/%q: %w",
+		requested,
+		model.ProviderID,
+		model.ModelID,
+		reason,
+	)
+	item := diagnostics.NewItem(diagnostics.ItemSpec{
+		ID:            "provider.models.speed_unsupported",
+		Code:          diagnosticcontract.CodeSpeedRejected,
+		Category:      diagnosticcontract.CategoryProvider,
+		Title:         "Model speed is unsupported",
+		Message:       cause.Error(),
+		Severity:      diagnosticcontract.SeverityError,
+		DataFreshness: diagnosticcontract.FreshnessLive,
+	}, diagnostics.WithEvidence(map[string]any{
+		providerModelProviderIDKey: model.ProviderID,
+		providerModelModelIDKey:    model.ModelID,
+		"requested":                requested,
+	}))
 	return diagnostics.NewStructuredError(item, cause)
 }

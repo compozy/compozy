@@ -71,6 +71,8 @@ None.
 - Web independent read: `/Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/logs/web-delete-independent.txt`
 - Screenshots: `docs/qa/evidence/2026-08-27-session-empty-dock/`
 - Lab verification report: `/Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/verification-report.md`
+- Local gate log: `/Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/logs/make-verify.log`
+- Teardown: `/Users/pedronauck/dev/qa-labs/compozy-session-empty-dock-20260827-165738-773687-lab/qa-artifacts/qa/teardown.json` (`clean`: true)
 
 ## Compozy Impact Audit
 
@@ -81,4 +83,6 @@ None.
 
 ## Final Status
 
-PASS — three of three matrix rows passed on HTTP, UDS/runtime, and Web. Ready for the local pre-push gate record on this tree.
+PASS — three of three matrix rows passed on HTTP, UDS/runtime, and Web.
+
+Local scoped `make gate` passed (go-lint, go-test, js-desktop, js-web; exit 0). Lab teardown completed with `clean`: true and no survivors. Auditor C14 passed after `qa/logs/make-verify.log`.

@@ -25,12 +25,14 @@ type ProviderModelCurationRequest struct {
 	Featured               *bool            `json:"featured,omitempty"`
 	Deprecated             *bool            `json:"deprecated,omitempty"`
 	DefaultReasoningEffort *ReasoningEffort `json:"default_effort,omitempty"`
+	DefaultSpeed           *Speed           `json:"default_speed,omitempty"`
 }
 
 // ProviderModelCurationResponse reports the effective model and live config-apply result.
 type ProviderModelCurationResponse struct {
-	Model ProviderModelPayload  `json:"model"`
-	Apply SettingsApplyResponse `json:"apply"`
+	Model        ProviderModelPayload  `json:"model"`
+	Apply        SettingsApplyResponse `json:"apply"`
+	DefaultSpeed Speed                 `json:"default_speed,omitempty"`
 }
 
 // ProviderModelStatusResponse reports provider model catalog source status.

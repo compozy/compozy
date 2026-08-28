@@ -27260,6 +27260,9 @@
                                   },
                                   "reasoning_effort": {
                                     "type": "string"
+                                  },
+                                  "speed": {
+                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -27802,6 +27805,9 @@
                                   "type": "string"
                                 },
                                 "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
                                   "type": "string"
                                 }
                               },
@@ -28713,6 +28719,9 @@
                                         "type": "string"
                                       },
                                       "reasoning_effort": {
+                                        "type": "string"
+                                      },
+                                      "speed": {
                                         "type": "string"
                                       }
                                     },
@@ -29880,6 +29889,9 @@
                                 },
                                 "reasoning_effort": {
                                   "type": "string"
+                                },
+                                "speed": {
+                                  "type": "string"
                                 }
                               },
                               "required": [
@@ -30500,6 +30512,9 @@
                                   "type": "string"
                                 },
                                 "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
                                   "type": "string"
                                 }
                               },
@@ -31494,6 +31509,9 @@
                                   "type": "string"
                                 },
                                 "reasoning_effort": {
+                                  "type": "string"
+                                },
+                                "speed": {
                                   "type": "string"
                                 }
                               },
@@ -109403,6 +109421,14 @@
                     "nullable": true,
                     "type": "string"
                   },
+                  "default_speed": {
+                    "enum": [
+                      "normal",
+                      "fast"
+                    ],
+                    "nullable": true,
+                    "type": "string"
+                  },
                   "deprecated": {
                     "nullable": true,
                     "type": "boolean"
@@ -109610,6 +109636,13 @@
                         "next_action"
                       ],
                       "type": "object"
+                    },
+                    "default_speed": {
+                      "enum": [
+                        "normal",
+                        "fast"
+                      ],
+                      "type": "string"
                     },
                     "model": {
                       "properties": {
@@ -159724,6 +159757,13 @@
                                               ],
                                               "type": "string"
                                             },
+                                            "default_speed": {
+                                              "enum": [
+                                                "normal",
+                                                "fast"
+                                              ],
+                                              "type": "string"
+                                            },
                                             "deprecated": {
                                               "nullable": true,
                                               "type": "boolean"
@@ -159993,6 +160033,13 @@
                                             "high",
                                             "xhigh",
                                             "max"
+                                          ],
+                                          "type": "string"
+                                        },
+                                        "default_speed": {
+                                          "enum": [
+                                            "normal",
+                                            "fast"
                                           ],
                                           "type": "string"
                                         },
@@ -161003,6 +161050,13 @@
                                             ],
                                             "type": "string"
                                           },
+                                          "default_speed": {
+                                            "enum": [
+                                              "normal",
+                                              "fast"
+                                            ],
+                                            "type": "string"
+                                          },
                                           "deprecated": {
                                             "nullable": true,
                                             "type": "boolean"
@@ -161272,6 +161326,13 @@
                                           "high",
                                           "xhigh",
                                           "max"
+                                        ],
+                                        "type": "string"
+                                      },
+                                      "default_speed": {
+                                        "enum": [
+                                          "normal",
+                                          "fast"
                                         ],
                                         "type": "string"
                                       },
@@ -161707,6 +161768,14 @@
                         "nullable": true,
                         "type": "string"
                       },
+                      "default_speed": {
+                        "enum": [
+                          "normal",
+                          "fast"
+                        ],
+                        "nullable": true,
+                        "type": "string"
+                      },
                       "deprecated": {
                         "nullable": true,
                         "type": "boolean"
@@ -161856,6 +161925,13 @@
                                     "high",
                                     "xhigh",
                                     "max"
+                                  ],
+                                  "type": "string"
+                                },
+                                "default_speed": {
+                                  "enum": [
+                                    "normal",
+                                    "fast"
                                   ],
                                   "type": "string"
                                 },
@@ -245017,6 +245093,9 @@
                                     "type": "string"
                                   },
                                   "reasoning_effort": {
+                                    "type": "string"
+                                  },
+                                  "speed": {
                                     "type": "string"
                                   }
                                 },

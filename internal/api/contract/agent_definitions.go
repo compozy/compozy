@@ -67,6 +67,7 @@ type AgentEffectiveRuntimeSources struct {
 	Provider        AgentRuntimeValueSource `json:"provider"`
 	Model           AgentRuntimeValueSource `json:"model,omitempty"`
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
+	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
 }
 
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for

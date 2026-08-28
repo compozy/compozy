@@ -377,7 +377,8 @@ TaskExecutionProfile selectors, automation resources, or subsystem policy into `
 
 Provider model metadata is global config. Use Provider Settings HTTP/UDS or `config.toml` for the
 five pricing fields and `models.reasoning.apply`; use atomic model curation for flags and default
-effort. `acp_option` applies an advertised ACP effort, while `none` exposes no selectable strategy.
+effort or speed. A model's `default_speed` applies when the agent omits `speed`; an authored agent
+value wins. `acp_option` applies an advertised ACP effort, while `none` exposes no selectable strategy.
 Inspect the redacted effective state with `compozy config show` after a live apply or restart.
 `compozy__provider_models_status` is read-only. `compozy__provider_models_refresh` accepts optional
 provider/source filters, `force`, and `request_id`; it retains successful sources on partial failure

@@ -146,6 +146,7 @@ func (h *BaseHandlers) curateProviderModel(c *gin.Context, providerParam string)
 			Featured:               request.Featured,
 			Deprecated:             request.Deprecated,
 			DefaultReasoningEffort: request.DefaultReasoningEffort,
+			DefaultSpeed:           request.DefaultSpeed,
 		},
 	)
 	if err != nil {
@@ -153,8 +154,9 @@ func (h *BaseHandlers) curateProviderModel(c *gin.Context, providerParam string)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ProviderModelCurationResponse{
-		Model: ProviderModelPayloadFromModel(result.Model),
-		Apply: SettingsApplyResponseFromResult(result.Apply),
+		Model:        ProviderModelPayloadFromModel(result.Model),
+		Apply:        SettingsApplyResponseFromResult(result.Apply),
+		DefaultSpeed: result.DefaultSpeed,
 	})
 }
 
@@ -162,7 +164,8 @@ func statusForProviderModelCurationError(err error) int {
 	if item, ok := diagnostics.ItemFromError(err); ok {
 		switch item.Code {
 		case diagnosticcontract.CodeModelNotFound,
-			diagnosticcontract.CodeReasoningEffortUnsupported:
+			diagnosticcontract.CodeReasoningEffortUnsupported,
+			diagnosticcontract.CodeSpeedRejected:
 			return http.StatusUnprocessableEntity
 		}
 	}

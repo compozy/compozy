@@ -172,6 +172,7 @@ reasoning controls inside a running session.
 | `models.curated[].supports_reasoning`           | bool    | no                          | Whether the model supports reasoning effort.                                                                                      |
 | `models.curated[].reasoning_efforts`            | array   | no                          | Model-specific subset of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`. Blank entries are rejected.                  |
 | `models.curated[].default_reasoning_effort`     | string  | no                          | Per-model default reasoning level. Must appear in `reasoning_efforts` when both are set.                                          |
+| `models.curated[].default_speed`                | string  | no                          | Per-model default speed: `normal` or `fast`. Fast must be advertised by the live model when speed configurations are explicit.    |
 | `models.curated[].cost_input_per_million`       | number  | no                          | Input rate used for catalog-based usage estimates when the agent reports no actual cost.                                          |
 | `models.curated[].cost_output_per_million`      | number  | no                          | Output rate used for catalog-based usage estimates when the agent reports no actual cost.                                         |
 | `models.curated[].cost_cache_read_per_million`  | number  | no                          | Cache-read rate used only for the cache-read token bucket.                                                                        |
@@ -199,7 +200,7 @@ are temporarily unavailable. A present empty array is an explicit membership cle
 CompozyOS compares every entry with the current effective catalog projection and persists only explicit
 deltas, including the five pricing fields, without copying unchanged catalog enrichment into
 `config.toml`. Use the request-level `model_curation` object or the atomic curation endpoint when the
-change is limited to `hidden`, `featured`, `deprecated`, or a default reasoning effort.
+change is limited to `hidden`, `featured`, `deprecated`, a default reasoning effort, or a default speed.
 
 Discovery uses the resolved provider auth, env, and home policy. Claude, Codex, and Hermes inspect a
 short-lived ACP session. Cursor runs `cursor-agent models`, converts the returned transport aliases into

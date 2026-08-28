@@ -1,7 +1,7 @@
 import { createStore } from "@xstate/store";
 import { persist } from "@xstate/store/persist";
 
-import type { ReasoningEffort } from "@/lib/api-contract";
+import type { ReasoningEffort, RuntimeSpeed } from "@/lib/api-contract";
 
 export type OnboardingAuthMode = "native_cli" | "bound_secret";
 
@@ -17,6 +17,7 @@ export interface OnboardingDraftState {
   provider: string;
   model: string;
   reasoning: ReasoningEffort | "";
+  speed: RuntimeSpeed;
   authMode: OnboardingAuthMode;
   /**
    * False while `authMode` is still the harness-derived default, true once the
@@ -36,6 +37,7 @@ const initialDraft: OnboardingDraftState = {
   provider: "",
   model: "",
   reasoning: "",
+  speed: "normal",
   authMode: "native_cli",
   authModeTouched: false,
   envVar: "",
@@ -43,8 +45,8 @@ const initialDraft: OnboardingDraftState = {
   workspaces: [],
 };
 
-/** Hard cut: v4 drafts are intentionally ignored rather than migrated. */
-export const ONBOARDING_DRAFT_STORAGE_KEY = "compozy:onboarding:draft:v5";
+/** Hard cut: v5 drafts are intentionally ignored rather than migrated. */
+export const ONBOARDING_DRAFT_STORAGE_KEY = "compozy:onboarding:draft:v6";
 
 export const onboardingDraftStore = createStore({
   context: initialDraft,
@@ -56,7 +58,12 @@ export const onboardingDraftStore = createStore({
     }),
     runtimeSelected: (
       context,
-      event: { provider: string; model: string; reasoning: ReasoningEffort | "" }
+      event: {
+        provider: string;
+        model: string;
+        reasoning: ReasoningEffort | "";
+        normalizedSpeed?: RuntimeSpeed;
+      }
     ) => {
       const providerChanged = event.provider !== context.provider;
       return {
@@ -64,9 +71,14 @@ export const onboardingDraftStore = createStore({
         provider: event.provider,
         model: event.model,
         reasoning: event.reasoning,
+        ...(event.normalizedSpeed ? { speed: event.normalizedSpeed } : {}),
         ...(providerChanged ? { envVar: "", apiKey: "", authModeTouched: false } : {}),
       };
     },
+    speedSelected: (context, event: { speed: RuntimeSpeed }) => ({
+      ...context,
+      speed: event.speed,
+    }),
     authModeChosen: (context, event: { authMode: OnboardingAuthMode }) => ({
       ...context,
       authMode: event.authMode,
@@ -98,6 +110,7 @@ export const onboardingDraftStore = createStore({
       provider: context.provider,
       model: context.model,
       reasoning: context.reasoning,
+      speed: context.speed,
       authMode: context.authMode,
       authModeTouched: context.authModeTouched,
       envVar: context.envVar,

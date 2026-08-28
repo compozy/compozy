@@ -504,6 +504,7 @@ Sidecar behavior:
 | Command       | `AGENT.md` `command`, then provider `command`                                | Fails if empty after provider resolution.                                 |
 | Model         | `AGENT.md` `model`, then provider `models.default`                           | Empty is allowed.                                                         |
 | Reasoning     | `AGENT.md` `reasoning_effort`, then curated model `default_reasoning_effort` | Empty keeps the provider/adapter default.                                 |
+| Speed         | `AGENT.md` `speed`, then curated model `default_speed`                       | Empty keeps normal speed.                                                 |
 | Tools         | `AGENT.md` `tools`                                                           | Must be exact canonical ToolIDs or approved namespace-prefix wildcards.   |
 | Toolsets      | `AGENT.md` `toolsets`                                                        | Must be canonical ToolsetIDs.                                             |
 | Deny tools    | `AGENT.md` `deny_tools`                                                      | Same grammar as `tools`; denies narrow later policy evaluation.           |

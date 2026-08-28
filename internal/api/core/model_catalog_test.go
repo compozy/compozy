@@ -20,6 +20,7 @@ import (
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	"github.com/compozy/compozy/internal/workspaceaccess"
@@ -491,6 +492,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 
 		hidden := true
 		defaultEffort := contract.ReasoningEffort("max")
+		defaultSpeed := contract.Speed("fast")
 		settingsService := &modelCatalogSettingsServiceStub{
 			applyCurationFn: func(
 				_ context.Context,
@@ -500,14 +502,16 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 					t.Fatalf("curation request identity = %q/%q", req.ProviderID, req.ModelID)
 				}
 				if req.Hidden == nil || !*req.Hidden || req.DefaultReasoningEffort == nil ||
-					*req.DefaultReasoningEffort != "max" {
-					t.Fatalf("curation request = %#v, want hidden and max", req)
+					*req.DefaultReasoningEffort != "max" || req.DefaultSpeed == nil ||
+					*req.DefaultSpeed != speedpkg.SpeedFast {
+					t.Fatalf("curation request = %#v, want hidden, max, and fast", req)
 				}
 				model := seedModelCatalogModel("codex", "gpt-5.6-sol")
 				model.Hidden = true
 				model.DefaultReasoningEffort = new(modelcatalog.ReasoningEffortMax)
 				return settingspkg.ProviderModelCurationResult{
-					Model: model,
+					Model:        model,
+					DefaultSpeed: speedpkg.SpeedFast,
 					Apply: settingspkg.ApplyResult{
 						Applied: true,
 						Record: settingspkg.ApplyRecord{
@@ -525,6 +529,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 			ModelID:                "gpt-5.6-sol",
 			Hidden:                 &hidden,
 			DefaultReasoningEffort: &defaultEffort,
+			DefaultSpeed:           &defaultSpeed,
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(curation request) error = %v", err)
@@ -542,8 +547,8 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 		var payload contract.ProviderModelCurationResponse
 		decodeModelCatalogResponse(t, recorder, &payload)
 		if !payload.Model.Hidden || payload.Model.DefaultReasoningEffort == nil ||
-			*payload.Model.DefaultReasoningEffort != "max" {
-			t.Fatalf("curated model payload = %#v, want hidden max", payload.Model)
+			*payload.Model.DefaultReasoningEffort != "max" || payload.DefaultSpeed != contract.Speed("fast") {
+			t.Fatalf("curated model payload = %#v, want hidden, max, and fast", payload)
 		}
 		if !payload.Apply.Applied || payload.Apply.Lifecycle != contract.SettingsApplyLifecycle(lifecycle.Live) ||
 			payload.Apply.ActiveGeneration != 4 {

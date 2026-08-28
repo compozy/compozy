@@ -7,6 +7,7 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Domain | Path | Primary entry |
 | --- | --- | --- |
 | Design system | [`design-system/`](design-system/) | [`design-system/index.html`](design-system/index.html) |
+| Landing (compozy.com) | [`landing/`](landing/) | [`landing/landing-page.html`](landing/landing-page.html) · notes [`DESIGN-NOTES.md`](landing/DESIGN-NOTES.md) |
 | Modals | [`modals/`](modals/) | [`modals/index.html`](modals/index.html) · contract [`MODAL-STANDARD.md`](modals/MODAL-STANDARD.md) |
 | OS shell | [`os/`](os/) | [`os/compozy-os-v2.html`](os/compozy-os-v2.html) |
 | Dashboard | [`dashboard/`](dashboard/) | [`dashboard/dashboard.html`](dashboard/dashboard.html) |

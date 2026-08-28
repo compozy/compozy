@@ -42,6 +42,7 @@ type providerModelsCurateInput struct {
 	Featured      *bool                         `json:"featured,omitempty"`
 	Deprecated    *bool                         `json:"deprecated,omitempty"`
 	DefaultEffort *modelcatalog.ReasoningEffort `json:"default_effort,omitempty"`
+	DefaultSpeed  *contract.Speed               `json:"default_speed,omitempty"`
 }
 
 func (n *daemonNativeTools) providerModelToolBindings(
@@ -146,14 +147,16 @@ func (n *daemonNativeTools) providerModelsCurate(
 			Featured:               input.Featured,
 			Deprecated:             input.Deprecated,
 			DefaultReasoningEffort: input.DefaultEffort,
+			DefaultSpeed:           input.DefaultSpeed,
 		},
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeProviderModelToolError(req.ToolID, err)
 	}
 	payload := contract.ProviderModelCurationResponse{
-		Model: core.ProviderModelPayloadFromModel(result.Model),
-		Apply: core.SettingsApplyResponseFromResult(result.Apply),
+		Model:        core.ProviderModelPayloadFromModel(result.Model),
+		Apply:        core.SettingsApplyResponseFromResult(result.Apply),
+		DefaultSpeed: result.DefaultSpeed,
 	}
 	return structuredResult(payload, fmt.Sprintf("curated provider model %s/%s", providerID, result.Model.ModelID))
 }

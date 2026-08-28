@@ -125,16 +125,20 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 			t.Fatalf("%s reasoning = %q, want %q", name, got, want)
 		}
 		if got, want := string(projection.payload.Sources.Provider),
-			string(resolved.RuntimeSources.Provider); got != want {
+			resolved.RuntimeSources.Provider.String(); got != want {
 			t.Fatalf("%s provider source = %q, want %q", name, got, want)
 		}
 		if got, want := string(projection.payload.Sources.Model),
-			string(resolved.RuntimeSources.Model); got != want {
+			resolved.RuntimeSources.Model.String(); got != want {
 			t.Fatalf("%s model source = %q, want %q", name, got, want)
 		}
 		if got, want := string(projection.payload.Sources.ReasoningEffort),
-			string(resolved.RuntimeSources.ReasoningEffort); got != want {
+			resolved.RuntimeSources.ReasoningEffort.String(); got != want {
 			t.Fatalf("%s reasoning source = %q, want %q", name, got, want)
+		}
+		if got, want := string(projection.payload.Sources.Speed),
+			resolved.RuntimeSources.Speed.String(); got != want {
+			t.Fatalf("%s speed source = %q, want %q", name, got, want)
 		}
 	}
 }

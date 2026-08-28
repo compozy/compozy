@@ -1082,6 +1082,9 @@ func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
 		if resolved.SpeedValue() != speedpkg.SpeedFast || len(resolvedOptions) != 2 {
 			t.Fatalf("ResolveAgent() runtime defaults = %#v", resolved)
 		}
+		if got := resolved.RuntimeSources.Speed; got != RuntimeValueSourceAgent {
+			t.Fatalf("ResolveAgent() speed source = %q, want agent", got)
+		}
 		if resolvedOptions[0].BoolValue == nil || !*resolvedOptions[0].BoolValue ||
 			resolvedOptions[1].ValueID != "1m" {
 			t.Fatalf("ResolveAgent() ACPOptions = %#v", resolvedOptions)
@@ -1091,6 +1094,58 @@ func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
 		agentOptions[1].ValueID = "changed"
 		if !*resolvedOptions[0].BoolValue || resolvedOptions[1].ValueID != "1m" {
 			t.Fatalf("ResolveAgent() ACPOptions alias source data: %#v", resolvedOptions)
+		}
+	})
+
+	t.Run("Should inherit the selected model default speed", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["cursor"] = ProviderConfig{Models: ProviderModelsConfig{
+			Default: "grok-4.5",
+			Curated: []ProviderModelConfig{{ID: "grok-4.5", DefaultSpeed: speedpkg.SpeedFast}},
+		}}
+
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Provider: "cursor", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if got := resolved.SpeedValue(); got != speedpkg.SpeedFast {
+			t.Fatalf("ResolveAgent() Speed = %q, want fast", got)
+		}
+		if got := resolved.RuntimeSources.Speed; got != RuntimeValueSourceModelDefault {
+			t.Fatalf("ResolveAgent() speed source = %q, want model_default", got)
+		}
+	})
+
+	t.Run("Should prefer an authored speed over the selected model default", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["cursor"] = ProviderConfig{Models: ProviderModelsConfig{
+			Default: "grok-4.5",
+			Curated: []ProviderModelConfig{{ID: "grok-4.5", DefaultSpeed: speedpkg.SpeedFast}},
+		}}
+		agent := AgentDef{Name: "coder", Provider: "cursor", Prompt: "prompt"}
+		agent.SetSpeed(speedpkg.SpeedNormal)
+
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if got := resolved.SpeedValue(); got != speedpkg.SpeedNormal {
+			t.Fatalf("ResolveAgent() Speed = %q, want normal", got)
+		}
+		if got := resolved.RuntimeSources.Speed; got != RuntimeValueSourceAgent {
+			t.Fatalf("ResolveAgent() speed source = %q, want agent", got)
 		}
 	})
 }
@@ -1259,7 +1314,7 @@ func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
 			if resolved.Model != "" {
 				t.Fatalf("ResolveAgent() Model = %q, want provider-managed empty model", resolved.Model)
 			}
-			if resolved.RuntimeSources.Model != "" {
+			if resolved.RuntimeSources.Model != RuntimeValueSourceUnspecified {
 				t.Fatalf("ResolveAgent() model source = %q, want empty", resolved.RuntimeSources.Model)
 			}
 		})
@@ -1947,6 +2002,15 @@ reasoning_efforts = ["high"]
 default_reasoning_effort = " high "
 `,
 			wantErr: `providers.codex.models.curated[0].default_reasoning_effort`,
+		},
+		{
+			name: "Should reject an invalid default speed",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+default_speed = "turbo"
+`,
+			wantErr: `providers.codex.models.curated[0].default_speed`,
 		},
 		{
 			name: "Should reject a negative cache read rate",

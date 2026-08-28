@@ -1,18 +1,18 @@
 ---
 id: RT-model-catalog-cold-open
 area: RT
-title: Cold model catalog opens without waiting for provider probes
+title: Cold model catalog opens and repairs missing provider rows
 persona: Sol
 journey: J-17
-expected: On the first selector open after daemon start, persisted rows are immediately usable; provider probes refresh in daemon-owned background work after the five-minute TTL and on periodic ticks, newly advertised models appear without a code update, failed refresh keeps rows stale, and shutdown joins or cancels work cleanly.
+expected: On the first selector open after daemon start, persisted rows are immediately usable; if an allowed provider has no rows, Web requests one aggregate refresh and rereads the catalog once, while provider probes remain daemon-owned background work. Newly advertised models appear without a code update, failed refresh keeps rows stale, and shutdown joins or cancels work cleanly.
 entry_points: onboarding default-model selector; agent runtime selector; session composer RuntimeSelector
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status: pass
+retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-runtime-ui-regressions-20260827-155435-128437-lab/qa-artifacts/qa/runtime-ui-proof.md; /Users/pedronauck/dev/qa-labs/compozy-runtime-ui-regressions-20260827-155435-128437-lab/qa-artifacts/qa/font-csp-onboarding.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/live-model-refresh-cold-open.json
-last_report: docs/qa/reports/2026-08-27-acp-runtime-catalog.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-runtime-ui-regressions-20260827-155435-128437-lab/qa-artifacts/qa/runtime-ui-proof.md; /Users/pedronauck/dev/qa-labs/compozy-runtime-ui-regressions-20260827-155435-128437-lab/qa-artifacts/qa/font-csp-onboarding.png;/Users/pedronauck/dev/qa-labs/compozy-acp-runtime-catalog-20260828-004625-083662-lab/qa-artifacts/qa/evidence/live-model-refresh-cold-open.json;/Users/pedronauck/dev/qa-labs/compozy-cursor-onboarding-runtime-defaults-retest-20260828-171621-219738-lab/qa-artifacts/qa/notes/cursor-defaults-retest-evidence.md
+last_report: docs/qa/reports/2026-08-28-cursor-onboarding-runtime-defaults.md
 overlaps: ET-web-runtime-selector-minimal-slider; RT-068; RT-072
 ---
 
@@ -26,3 +26,10 @@ shutdown evidence.
 QA 2026-08-27: after publishing and then failing a same-source synthetic Cursor model feed, a fresh
 daemon process returned the persisted `available_stale` row in 0.02 seconds. The read did not wait for
 the failing provider probe, and a later successful forced refresh replaced the stale generation.
+
+QA impact 2026-08-28: the first Web read now performs one deduplicated aggregate refresh and reread
+when a configured provider such as Cursor has no persisted rows. Reset for a fresh-onboarding walk
+that proves the models appear without pressing Reload.
+
+QA 2026-08-28: pass. A fresh isolated onboarding opened the model picker once and immediately
+showed Cursor Agent, Grok 4.5, Grok 4.6, and GPT-5.6 Terra without pressing catalog refresh.

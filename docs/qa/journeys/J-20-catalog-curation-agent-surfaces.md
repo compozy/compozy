@@ -11,18 +11,20 @@ flowchart TD
     DISCOVER --> LIST[Follow the documented path: compozy provider models list · curated default]
     LIST --> ALL[compozy provider models list --all · superset incl. hidden/deprecated]
     ALL --> COMPARE{CLI == HTTP == UDS == native for same COMPOZY_HOME?}
-    COMPARE -->|yes| SET[compozy provider models set p m --hidden/--featured/--deprecated/--default-effort]
+    COMPARE -->|yes| SET[compozy provider models set p m --flags/--default-effort/--default-speed]
     COMPARE -->|drift| BUG[Cross-surface mismatch = defect]
-    SET --> REFLECT[Curated view reflects the flags; featured promoted, hidden/deprecated excluded]
+    SET --> REFLECT[Readback reflects flags plus model effort/speed defaults]
     REFLECT --> CURATE[native provider_models_curate mutates; provider_models_list view arg reflects it]
     CURATE --> NATIVE[All four native tools exercised — provider_models_list/curate/refresh/status; verify registry id, descriptor/schema digest, capability gate, availability diagnostics]
     NATIVE --> REFRESH[compozy provider models refresh optional-provider + native provider_models_refresh · omission → global refresh]
     REFRESH --> STATUS[compozy provider models status + native provider_models_status · source freshness/stale]
     STATUS --> ERR{Bad target?}
     ERR -->|unknown catalog/curation model| NF[model_not_found]
+    ERR -->|unsupported Fast| SPEED[speed_rejected]
     ERR -->|alias / shorthand| NORES[No alias resolution; canonical IDs only]
     NF --> STABLE[Same stable code across CLI/HTTP/UDS/native — deterministic error terminal]
     NORES --> STABLE
+    SPEED --> STABLE
     STATUS --> TTL[After five minutes or periodic tick → refresh in background while stale rows remain usable]
     TTL --> RESTART[Daemon restart → rehydrate persisted live, builtin, and config sources]
     RESTART --> READBACK[Fresh cross-surface list CLI/HTTP/UDS/native shows persisted curation; compozy status schema_streams reports global+memory Goose heads and digests — true_end_state]
@@ -36,7 +38,7 @@ journey:
   value_statement: "I can list, curate, refresh, and inspect provider models entirely through structured tool output — every surface agrees on the same state, and bad targets fail with the same stable code."
   personas: [Ada]
   entry_points:
-    - cli: "compozy provider models list [--all]; compozy provider models set <provider> <model> [--hidden|--featured|--deprecated|--default-effort]; compozy provider models refresh [provider]; compozy provider models status [provider]"
+    - cli: "compozy provider models list [--all]; compozy provider models set <provider> <model> [--hidden|--featured|--deprecated|--default-effort|--default-speed]; compozy provider models refresh [provider]; compozy provider models status [provider]"
     - http: "GET /api/model-catalog/providers/{id}/models?view=curated|all; POST /api/model-catalog/providers/{provider_id}/models/curate"
     - uds: "same routes over the UDS transport (parity)"
     - native: "all four provider-model tools — provider_models_list (view arg), provider_models_curate, provider_models_refresh, provider_models_status; verify registered tool id, descriptor/schema digest, capability gate, and availability diagnostics"
@@ -53,14 +55,14 @@ journey:
       verb: "Compare the same persisted state across CLI, HTTP, UDS, and native tools (one COMPOZY_HOME)"
       expected_observable: "CLI structured output matches GET .../models for both curated and all views; UDS matches HTTP; the native tool reflects the same rows. Any drift is a defect."
     - step: 4
-      verb: "Curate a model (set hidden/featured/deprecated/default-effort) via CLI and via native provider_models_curate"
-      expected_observable: "The curated view reflects the flags: featured is promoted, hidden/deprecated are excluded; a request-only curation persists no merged enrichment; the change is visible on every surface."
+      verb: "Curate a model (set flags/default-effort/default-speed) via CLI, HTTP/UDS, and native provider_models_curate"
+      expected_observable: "The readback reflects flags and model defaults; Fast is accepted only when the model advertises it; a request-only curation persists no merged enrichment; the change is visible on every surface."
     - step: 5
       verb: "Refresh with and without a provider, then read status"
       expected_observable: "A provider-scoped refresh refreshes that provider; omitting the provider routes to the global refresh/status endpoints; status reports source freshness. TTL and periodic refresh find newly advertised models without a code update, and failure keeps prior rows stale instead of emptying them."
     - step: 6
       verb: "Target an unknown or alias model id"
-      expected_observable: "Catalog curation returns model_not_found; aliases/shorthands do not resolve and unknown ids never fall back to the provider default; the same stable code appears across CLI/HTTP/UDS/native."
+      expected_observable: "Catalog curation returns model_not_found for unknown IDs and speed_rejected for an explicitly unsupported Fast default; aliases/shorthands do not resolve; the same stable code appears across CLI/HTTP/UDS/native."
   goal:
     observable: "The catalog is curatable and inspectable from every agent surface with one truthful projection and shared deterministic error codes."
     side_effects: [config-curation-persisted, catalog-refreshed, source-status-reported]
@@ -83,7 +85,7 @@ design_reference:
     - "Curated view = NOT hidden AND NOT deprecated AND (explicitly_curated OR featured); fallback to all-current-non-hidden-non-deprecated only when no explicit set exists (invariant §7.4)."
     - "One projection: settings and catalog surfaces serve the same merged rows; raw curated config never reaches a client (invariant §7.3)."
     - "Canonical IDs only: no alias resolution, no unknown→default fallback."
-    - "Deterministic errors shared across surfaces: model_not_found (curation), model_unavailable (active session), reasoning_option_missing, reasoning_effort_unsupported."
+    - "Deterministic errors shared across surfaces: model_not_found, speed_rejected, model_unavailable, reasoning_option_missing, reasoning_effort_unsupported."
 
 e2e_backbone:
   runtime:

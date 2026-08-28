@@ -3191,6 +3191,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					Hidden:                 true,
 					DefaultReasoningEffort: new(modelcatalog.ReasoningEffortMax),
 				},
+				DefaultSpeed: speedpkg.SpeedFast,
 				Apply: settingspkg.ApplyResult{
 					Applied: true,
 					Record: settingspkg.ApplyRecord{
@@ -3303,7 +3304,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsCurate,
 				Input: json.RawMessage(
-					`{"provider_id":"codex","model_id":"gpt-5.6-sol","hidden":true,"default_effort":"max"}`,
+					`{"provider_id":"codex","model_id":"gpt-5.6-sol","hidden":true,"default_effort":"max","default_speed":"fast"}`,
 				),
 			},
 		)
@@ -3312,13 +3313,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, curateResult, []byte(`"model_id":"gpt-5.6-sol"`))
 		requireNativeStructuredContains(t, curateResult, []byte(`"hidden":true`))
+		requireNativeStructuredContains(t, curateResult, []byte(`"default_speed":"fast"`))
 		if settingsService.calls != 1 ||
 			settingsService.lastRequest.ProviderID != "codex" ||
 			settingsService.lastRequest.ModelID != "gpt-5.6-sol" ||
 			settingsService.lastRequest.Hidden == nil ||
 			!*settingsService.lastRequest.Hidden ||
 			settingsService.lastRequest.DefaultReasoningEffort == nil ||
-			*settingsService.lastRequest.DefaultReasoningEffort != "max" {
+			*settingsService.lastRequest.DefaultReasoningEffort != "max" ||
+			settingsService.lastRequest.DefaultSpeed == nil ||
+			*settingsService.lastRequest.DefaultSpeed != speedpkg.SpeedFast {
 			t.Fatalf("curation request = %#v after %d calls", settingsService.lastRequest, settingsService.calls)
 		}
 

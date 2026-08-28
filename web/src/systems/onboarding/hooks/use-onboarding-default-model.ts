@@ -1,4 +1,4 @@
-import { isReasoningEffort, type ReasoningEffort } from "@/lib/api-contract";
+import { isReasoningEffort, type ReasoningEffort, type RuntimeSpeed } from "@/lib/api-contract";
 import { useSelector } from "@xstate/store-react";
 
 import { onboardingModelFacts, type OnboardingModelFact } from "../lib/model-facts";
@@ -34,6 +34,7 @@ export interface OnboardingDefaultModelApi {
   runtimeValue: RuntimeSelectorValue;
   runtimeProviders: RuntimeProviderOption[];
   runtimeModels: RuntimeModelOption[];
+  speed: RuntimeSpeed;
   /** Harness the selected provider runs on (`acp`, `pi_acp`, …), null until loaded. */
   harness: string | null;
   /** Display name of the selected provider; empty until one is picked. */
@@ -56,7 +57,8 @@ export interface OnboardingDefaultModelApi {
   configurationError: string | null;
   isValid: boolean;
   isCommitting: boolean;
-  onRuntimeChange: (next: RuntimeSelectorValue) => void;
+  onRuntimeChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => void;
+  onSpeedChange: (speed: RuntimeSpeed) => void;
   onRefreshCatalog: () => void;
   onAuthModeChange: (mode: OnboardingAuthMode) => void;
   onEnvVarChange: (envVar: string) => void;
@@ -84,12 +86,17 @@ export function defaultAuthModeForHarness(harness: string | null): OnboardingAut
   return harness?.trim().toLowerCase() === "pi_acp" ? "bound_secret" : "native_cli";
 }
 
-function updateRuntime(next: RuntimeSelectorValue): void {
+function updateRuntime(next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed): void {
   onboardingDraftStore.trigger.runtimeSelected({
     provider: next.provider,
     model: next.model,
     reasoning: normalizeEffort(next.reasoning_effort),
+    ...(normalizedSpeed ? { normalizedSpeed } : {}),
   });
+}
+
+function updateSpeed(speed: RuntimeSpeed): void {
+  onboardingDraftStore.trigger.speedSelected({ speed });
 }
 
 function updateAuthMode(authMode: OnboardingAuthMode): void {
@@ -189,6 +196,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     const body = buildOnboardingProviderRequest(detail.settings, {
       model: draft.model.trim(),
       reasoning: draft.reasoning,
+      speed: draft.speed,
       authMode,
       envVar: draft.envVar.trim(),
       apiKey: draft.apiKey.trim(),
@@ -234,6 +242,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     runtimeValue,
     runtimeProviders,
     runtimeModels,
+    speed: draft.speed,
     harness,
     providerName,
     modelName,
@@ -250,6 +259,7 @@ export function useOnboardingDefaultModel(): OnboardingDefaultModelApi {
     isValid: canCommit,
     isCommitting: putProvider.isPending || updatePersona.isPending,
     onRuntimeChange: updateRuntime,
+    onSpeedChange: updateSpeed,
     onRefreshCatalog,
     onAuthModeChange: updateAuthMode,
     onEnvVarChange: updateEnvVar,

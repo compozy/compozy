@@ -2380,7 +2380,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "a4691b273ff24b936aad410578168bfa55cfaa879274a125f89513e44511dc32",
+    "input_schema_digest": "b98e81bf1a2f1ed6f1d3124d0f4d26e981e32de53a4a0837cb6725c6f98148b8",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "required_capabilities": [
       "providers.models.write"

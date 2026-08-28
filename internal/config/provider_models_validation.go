@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/reasoning"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // Validate reports whether the provider model block is usable.
@@ -53,6 +54,11 @@ func (m ProviderModelsConfig) Validate(path string) error {
 				if _, ok := efforts[defaultEffort]; !ok {
 					return fmt.Errorf("%s must be listed in reasoning_efforts", defaultPath)
 				}
+			}
+		}
+		if model.DefaultSpeed != "" {
+			if _, err := speedpkg.Parse(string(model.DefaultSpeed)); err != nil {
+				return fmt.Errorf("%s.default_speed: %w", modelPath, err)
 			}
 		}
 		if err := validateProviderModelReleaseDate(modelPath, model.ReleaseDate); err != nil {

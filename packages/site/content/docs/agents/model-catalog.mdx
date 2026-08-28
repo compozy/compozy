@@ -238,19 +238,20 @@ Managed agents can use the `compozy__provider_models` toolset instead of shellin
 native tools share the same daemon service and response payloads as HTTP, UDS, and
 `compozy provider models`.
 
-| Native tool                        | Purpose                                                |
-| ---------------------------------- | ------------------------------------------------------ |
-| `compozy__provider_models_list`    | List `curated` (default) or `all` model projections.   |
-| `compozy__provider_models_curate`  | Persist model flags/default effort through live apply. |
-| `compozy__provider_models_refresh` | Refresh provider model catalog sources.                |
-| `compozy__provider_models_status`  | Inspect source status and stale fallback.              |
+| Native tool                        | Purpose                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------- |
+| `compozy__provider_models_list`    | List `curated` (default) or `all` model projections.                      |
+| `compozy__provider_models_curate`  | Persist model flags, default effort, or default speed through live apply. |
+| `compozy__provider_models_refresh` | Refresh provider model catalog sources.                                   |
+| `compozy__provider_models_status`  | Inspect source status and stale fallback.                                 |
 
 `compozy__provider_models_list` accepts `view=curated|all`; `provider_id` remains optional for read and
 refresh tools. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and
 accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and
-`default_effort`. The effort must be canonical and present in that model's actual subset. Omitted
-flags preserve projected values; a call with no optional flags still materializes an explicit
-curation row. Resolve the live descriptor before calling it.
+`default_effort` or `default_speed`. The effort must be canonical and present in that model's actual
+subset. Speed accepts `normal` or `fast`; Fast is rejected when the model explicitly advertises only
+normal configurations. Omitted fields preserve projected values; a call with no optional fields
+still materializes an explicit curation row. Resolve the live descriptor before calling it.
 
 ## OpenAI-compatible projection
 
@@ -314,6 +315,7 @@ compozy provider models list [provider] --all -o json
 compozy provider models list [provider] --source models_dev --refresh --include-stale
 compozy provider models set codex gpt-5.6-sol --featured=true
 compozy provider models set codex gpt-5.6-luna --hidden=true --default-effort=high
+compozy provider models set cursor grok-4.5 --default-effort=high --default-speed=fast
 compozy provider models refresh [provider] -o json
 compozy provider models refresh [provider] --source provider_live:codex --force --request-id rfsh-abc
 compozy provider models status [provider] -o json
@@ -334,6 +336,7 @@ between `compozy provider models …` and the daemon HTTP response for the same 
 | `model_unavailable`            | The active ACP model option does not advertise the requested model.                 |
 | `reasoning_option_missing`     | An effort was requested, but the adapter advertised no applicable reasoning option. |
 | `reasoning_effort_unsupported` | The reasoning option exists, but does not advertise the requested level.            |
+| `speed_rejected`               | The requested speed is invalid or the model explicitly does not advertise Fast.     |
 
 Session negotiation failures return HTTP/UDS 422 for the prompt that selected the runtime. A failed
 bind, replacement, or rollback does not create a persisted `user_message`; the logical session stays

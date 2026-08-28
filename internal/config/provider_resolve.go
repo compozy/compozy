@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 // ErrRuntimeModelRequired identifies providers that cannot resolve a model.
@@ -87,6 +89,7 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	if err != nil {
 		return ResolvedAgent{}, err
 	}
+	speed, speedSource := resolveAgentSpeedRuntime(provider, model, agent.SpeedValue())
 
 	resolved := resolvedAgentFromProvider(
 		agent,
@@ -96,12 +99,14 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 		command,
 		model,
 		reasoningEffort,
+		speed,
 		mcpServers,
 	)
 	resolved.RuntimeSources = ResolvedRuntimeSources{
 		Provider:        providerSource,
 		Model:           modelSource,
 		ReasoningEffort: reasoningSource,
+		Speed:           speedSource,
 	}
 
 	if err := validateResolvedAgentRuntime(providerName, resolved); err != nil {
@@ -109,6 +114,21 @@ func (c *Config) ResolveAgent(agent AgentDef) (ResolvedAgent, error) {
 	}
 
 	return resolved, nil
+}
+
+func resolveAgentSpeedRuntime(
+	provider ProviderConfig,
+	model string,
+	authored speedpkg.Speed,
+) (speedpkg.Speed, RuntimeValueSource) {
+	if authored != "" {
+		return authored, RuntimeValueSourceAgent
+	}
+	modelDefault := defaultSpeedForModel(provider, model)
+	if modelDefault != "" {
+		return modelDefault, RuntimeValueSourceModelDefault
+	}
+	return "", RuntimeValueSourceUnspecified
 }
 
 func (c *Config) resolveAgentProvider(
@@ -122,14 +142,14 @@ func (c *Config) resolveAgentProvider(
 		providerSource = RuntimeValueSourceProjectDefault
 	}
 	if providerName == "" {
-		return "", ProviderConfig{}, "", errors.New(
+		return "", ProviderConfig{}, RuntimeValueSourceUnspecified, errors.New(
 			"agent provider is required; run `compozy install` or set agent.provider/defaults.provider",
 		)
 	}
 
 	provider, err := c.ResolveProvider(providerName)
 	if err != nil {
-		return "", ProviderConfig{}, "", err
+		return "", ProviderConfig{}, RuntimeValueSourceUnspecified, err
 	}
 	return providerName, provider, providerSource, nil
 }
@@ -146,10 +166,11 @@ func resolveAgentModelRuntime(
 		modelSource = RuntimeValueSourceProviderDefault
 	}
 	if model == "" {
-		modelSource = ""
+		modelSource = RuntimeValueSourceUnspecified
 	}
 	if model == "" && provider.RequiresRuntimeModel() {
-		return "", "", "", "", runtimeModelRequiredError{provider: providerName}
+		return "", "", RuntimeValueSourceUnspecified, RuntimeValueSourceUnspecified,
+			runtimeModelRequiredError{provider: providerName}
 	}
 
 	reasoningEffort := strings.TrimSpace(agent.ReasoningEffort)
@@ -159,7 +180,7 @@ func resolveAgentModelRuntime(
 		reasoningSource = RuntimeValueSourceModelDefault
 	}
 	if reasoningEffort == "" {
-		reasoningSource = ""
+		reasoningSource = RuntimeValueSourceUnspecified
 	}
 	return model, reasoningEffort, modelSource, reasoningSource, nil
 }
@@ -182,6 +203,7 @@ func resolvedAgentFromProvider(
 	command string,
 	model string,
 	reasoningEffort string,
+	speed speedpkg.Speed,
 	mcpServers []MCPServer,
 ) ResolvedAgent {
 	resolved := ResolvedAgent{
@@ -211,7 +233,7 @@ func resolvedAgentFromProvider(
 		Reasoning:       provider.Models.Reasoning,
 		Prompt:          agent.Prompt,
 	}
-	resolved.SetSpeed(agent.SpeedValue())
+	resolved.SetSpeed(speed)
 	resolved.SetACPOptions(agent.ACPOptionsValue())
 	return resolved
 }

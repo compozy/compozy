@@ -1765,6 +1765,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 		featured := false
 		deprecated := false
 		defaultEffort := modelcatalog.ReasoningEffortMax
+		defaultSpeed := speedpkg.SpeedFast
 		result, err := service.ApplyProviderModelCuration(
 			WithMutationSource(context.Background(), "cli"),
 			ProviderModelCurationRequest{
@@ -1774,6 +1775,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 				Featured:               &featured,
 				Deprecated:             &deprecated,
 				DefaultReasoningEffort: &defaultEffort,
+				DefaultSpeed:           &defaultSpeed,
 			},
 		)
 		if err != nil {
@@ -1798,6 +1800,9 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			*result.Model.DefaultReasoningEffort != modelcatalog.ReasoningEffortMax {
 			t.Fatalf("DefaultReasoningEffort = %#v, want max", result.Model.DefaultReasoningEffort)
 		}
+		if got := result.DefaultSpeed; got != speedpkg.SpeedFast {
+			t.Fatalf("DefaultSpeed = %q, want fast", got)
+		}
 
 		configText := readFile(t, homePaths.ConfigFile)
 		for _, want := range []string{
@@ -1805,6 +1810,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			`id = "gpt-5.6-sol"`,
 			`hidden = true`,
 			`default_reasoning_effort = "max"`,
+			`default_speed = "fast"`,
 		} {
 			if !strings.Contains(configText, want) {
 				t.Fatalf("config is missing %q:\n%s", want, configText)
@@ -1830,6 +1836,40 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			if strings.Contains(curatedTable, forbidden) {
 				t.Fatalf("config froze catalog enrichment %q:\n%s", forbidden, configText)
 			}
+		}
+	})
+
+	t.Run("Should reject Fast when the model advertises only normal configurations", func(t *testing.T) {
+		t.Parallel()
+
+		service, homePaths, catalog, applier := providerModelCurationTestService(t)
+		catalog.mu.Lock()
+		model := catalog.models["codex"][0]
+		model.TransportBindings = []modelcatalog.ModelTransportBinding{{
+			TransportModelID: "gpt-5.6-sol",
+		}}
+		catalog.models["codex"] = []modelcatalog.Model{model}
+		catalog.mu.Unlock()
+		before := readFile(t, homePaths.ConfigFile)
+		fast := speedpkg.SpeedFast
+
+		_, err := service.ApplyProviderModelCuration(t.Context(), ProviderModelCurationRequest{
+			ProviderID:   "codex",
+			ModelID:      "gpt-5.6-sol",
+			DefaultSpeed: &fast,
+		})
+		if err == nil {
+			t.Fatal("ApplyProviderModelCuration(fast) error = nil, want speed_rejected")
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagnosticcontract.CodeSpeedRejected {
+			t.Fatalf("diagnostic = %#v, %v; want speed_rejected", item, ok)
+		}
+		if got := readFile(t, homePaths.ConfigFile); got != before {
+			t.Fatalf("unsupported-speed curation changed config:\n%s", got)
+		}
+		if applier.calls != 0 {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", applier.calls)
 		}
 	})
 
@@ -2479,7 +2519,11 @@ func providerModelCurationTestService(
 					modelcatalog.ReasoningEffortXHigh,
 					modelcatalog.ReasoningEffortMax,
 				},
-				DefaultReasoningEffort:   &defaultEffort,
+				DefaultReasoningEffort: &defaultEffort,
+				TransportBindings: []modelcatalog.ModelTransportBinding{
+					{Fast: new(false)},
+					{Fast: new(true)},
+				},
 				ContextWindow:            &contextWindow,
 				MaxOutputTokens:          &maxOutputTokens,
 				SupportsTools:            &supportsTools,

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { allModelsListOptions } from "../lib/query-options";
 import { toRuntimeModelOptions } from "../lib/to-runtime-selector-options";
 import type { ProviderModelPayload } from "../types";
+import { useInitialModelCatalogRefresh } from "./use-initial-model-catalog-refresh";
 import { useRefreshAllModels } from "./use-refresh-all-models";
 import type { RuntimeModelOption } from "@/systems/runtime";
 
@@ -83,6 +84,15 @@ export function useRuntimeModelCatalog(
   }
 
   const stale = Object.values(payloadsByProvider).some(bucket => bucket.some(model => model.stale));
+  const missingAllowedProvider =
+    query.isSuccess &&
+    [...allowed].some(
+      ([providerId, needsAuth]) => !needsAuth && payloadsByProvider[providerId] === undefined
+    );
+  const initialRefresh = useInitialModelCatalogRefresh({
+    enabled,
+    missingAllowedProvider,
+  });
 
   const refresh = () => refreshMutation.mutate();
 
@@ -94,7 +104,11 @@ export function useRuntimeModelCatalog(
     error: query.error ? describeCatalogError(query.error) : null,
     stale,
     refresh,
-    refreshing: refreshMutation.isPending,
-    refreshError: refreshMutation.error ? describeCatalogError(refreshMutation.error) : null,
+    refreshing: refreshMutation.isPending || initialRefresh.isFetching,
+    refreshError: refreshMutation.error
+      ? describeCatalogError(refreshMutation.error)
+      : missingAllowedProvider && initialRefresh.error
+        ? describeCatalogError(initialRefresh.error)
+        : null,
   };
 }

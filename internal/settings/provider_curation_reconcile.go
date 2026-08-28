@@ -228,6 +228,7 @@ func mergeProviderModelConfigDeltas(
 		current.DefaultReasoningEffort,
 		desired.DefaultReasoningEffort,
 	)
+	mergeProviderModelValueDelta(&next.DefaultSpeed, current.DefaultSpeed, desired.DefaultSpeed)
 	mergeProviderModelPointerDelta(
 		&next.CostInputPerMillion,
 		current.CostInputPerMillion,

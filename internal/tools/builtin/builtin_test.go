@@ -580,8 +580,12 @@ func TestBuiltinNativeDescriptors(t *testing.T) {
 		}
 		if !slices.Contains(curateSchema.Required, "provider_id") ||
 			!slices.Contains(curateSchema.Required, "model_id") ||
-			curateSchema.Properties["default_effort"] == nil {
-			t.Fatalf("provider_models_curate schema = %#v, want required identity and default_effort", curateSchema)
+			curateSchema.Properties["default_effort"] == nil ||
+			curateSchema.Properties["default_speed"] == nil {
+			t.Fatalf(
+				"provider_models_curate schema = %#v, want required identity, default_effort, and default_speed",
+				curateSchema,
+			)
 		}
 	})
 

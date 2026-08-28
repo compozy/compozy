@@ -9,6 +9,7 @@ export const onboardingDefaultModelFixture: OnboardingDefaultModelApi = {
   providersLoading: false,
   providersError: null,
   runtimeValue: { provider: "claude", model: "claude-opus-4-8", reasoning_effort: "high" },
+  speed: "normal",
   runtimeProviders: [
     { id: "claude", name: "Claude Code", harness: "acp", runtime_provider: "claude" },
     { id: "codex", name: "Codex", harness: "acp", runtime_provider: "codex" },
@@ -60,6 +61,7 @@ export const onboardingDefaultModelFixture: OnboardingDefaultModelApi = {
   isValid: true,
   isCommitting: false,
   onRuntimeChange: noop,
+  onSpeedChange: noop,
   onRefreshCatalog: noop,
   onAuthModeChange: noop,
   onEnvVarChange: noop,

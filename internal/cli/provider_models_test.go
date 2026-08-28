@@ -129,8 +129,12 @@ func TestProviderModelsCommands(t *testing.T) {
 				}
 				if request.Hidden == nil || *request.Hidden || request.Featured == nil || !*request.Featured ||
 					request.Deprecated == nil || *request.Deprecated || request.DefaultReasoningEffort == nil ||
-					*request.DefaultReasoningEffort != "max" {
-					t.Fatalf("curation request = %#v, want hidden=false featured=true deprecated=false max", request)
+					*request.DefaultReasoningEffort != "max" || request.DefaultSpeed == nil ||
+					*request.DefaultSpeed != contract.Speed("fast") {
+					t.Fatalf(
+						"curation request = %#v, want hidden=false featured=true deprecated=false max fast",
+						request,
+					)
 				}
 				maxEffort := contract.ReasoningEffort("max")
 				return ProviderModelCurationRecord{
@@ -146,6 +150,7 @@ func TestProviderModelsCommands(t *testing.T) {
 						Lifecycle:        contract.SettingsApplyLifecycle("live"),
 						ActiveGeneration: 2,
 					},
+					DefaultSpeed: contract.Speed("fast"),
 				}, nil
 			},
 		}
@@ -162,6 +167,7 @@ func TestProviderModelsCommands(t *testing.T) {
 			"--featured=true",
 			"--deprecated=false",
 			"--default-effort=max",
+			"--default-speed=fast",
 			"-o",
 			"json",
 		)
@@ -172,7 +178,8 @@ func TestProviderModelsCommands(t *testing.T) {
 		if err := json.Unmarshal([]byte(stdout), &record); err != nil {
 			t.Fatalf("json.Unmarshal(curation) error = %v", err)
 		}
-		if !record.Model.Curated || !record.Model.Featured || !record.Apply.Applied {
+		if !record.Model.Curated || !record.Model.Featured || !record.Apply.Applied ||
+			record.DefaultSpeed != contract.Speed("fast") {
 			t.Fatalf("curation record = %#v, want featured curated applied model", record)
 		}
 	})
