@@ -233,10 +233,10 @@ func (m speedConfigMatch) alreadyApplied() bool {
 
 func (m speedConfigMatch) request(
 	sessionID acpsdk.SessionId,
-) (setSessionConfigOptionWireRequest, error) {
+) (acpsdk.SetSessionConfigOptionRequest, error) {
 	request, err := m.selection.request(sessionID)
 	if err != nil {
-		return setSessionConfigOptionWireRequest{}, err
+		return acpsdk.SetSessionConfigOptionRequest{}, err
 	}
 	return request, nil
 }

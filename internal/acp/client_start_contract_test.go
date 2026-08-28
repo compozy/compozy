@@ -552,6 +552,9 @@ func TestStartUsesSetConfigOptionForPreferredModelWhenAvailable(t *testing.T) {
 	if got := request.Value; got != "other-model" {
 		t.Fatalf("set-config value = %q, want other-model", got)
 	}
+	if request.Type != "" {
+		t.Fatalf("set-config type = %q, want omitted for select value", request.Type)
+	}
 	assertConfigOption(t, proc.CapsSnapshot().ConfigOptions, "model", "other-model", "other-model")
 }
 
@@ -942,9 +945,9 @@ func TestConfigureRuntime(t *testing.T) {
 		}
 		requests := captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionSetConfigOption)
 		contextRequest := decodeCapturedSetSessionConfigOptionRequest(t, requests[len(requests)-2])
-		if contextRequest.ConfigID != "context" || contextRequest.Type != "id" ||
+		if contextRequest.ConfigID != "context" || contextRequest.Type != "" ||
 			contextRequest.Value != "large" {
-			t.Fatalf("context request = %#v, want ACP select id large", contextRequest)
+			t.Fatalf("context request = %#v, want ACP select large without type", contextRequest)
 		}
 		thinkingRequest := decodeCapturedSetSessionConfigOptionRequest(t, requests[len(requests)-1])
 		if thinkingRequest.Type != "boolean" || thinkingRequest.BoolValue == nil || !*thinkingRequest.BoolValue {

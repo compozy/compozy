@@ -185,13 +185,13 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("request() error = %v", err)
 		}
-		if request.SessionID != "session-123" ||
-			request.ConfigID != "provider-speed" ||
-			request.Type != "id" ||
-			request.Value != acpsdk.SessionConfigValueId("fast-tier") {
+		if request.ValueId == nil ||
+			request.ValueId.SessionId != "session-123" ||
+			request.ValueId.ConfigId != "provider-speed" ||
+			request.ValueId.Value != acpsdk.SessionConfigValueId("fast-tier") {
 			t.Fatalf("request() = %#v, want select provider-speed=fast-tier", request)
 		}
-		assertConfigOptionRequestJSON(t, request, "id", "fast-tier")
+		assertConfigOptionRequestJSON(t, request, "", "fast-tier")
 
 		confirmed := option
 		confirmed.CurrentValueID = "fast-tier"
@@ -225,10 +225,11 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("request() error = %v", err)
 		}
-		if request.SessionID != "session-123" ||
-			request.ConfigID != "fast" ||
-			request.Type != "boolean" ||
-			request.Value != true {
+		if request.Boolean == nil ||
+			request.Boolean.SessionId != "session-123" ||
+			request.Boolean.ConfigId != "fast" ||
+			request.Boolean.Type != "boolean" ||
+			request.Boolean.Value != true {
 			t.Fatalf("request() = %#v, want boolean fast=true", request)
 		}
 		assertConfigOptionRequestJSON(t, request, "boolean", true)
@@ -243,7 +244,7 @@ func TestSpeedConfigMatchRequestAndConfirmation(t *testing.T) {
 
 func assertConfigOptionRequestJSON(
 	t *testing.T,
-	request setSessionConfigOptionWireRequest,
+	request acpsdk.SetSessionConfigOptionRequest,
 	wantType string,
 	wantValue any,
 ) {
@@ -257,7 +258,7 @@ func assertConfigOptionRequestJSON(
 	if err := json.Unmarshal(data, &payload); err != nil {
 		t.Fatalf("json.Unmarshal(request) error = %v", err)
 	}
-	if payload["type"] != wantType || payload["value"] != wantValue {
+	if gotType, _ := payload["type"].(string); gotType != wantType || payload["value"] != wantValue {
 		t.Fatalf("request JSON = %s, want type=%q value=%#v", data, wantType, wantValue)
 	}
 }

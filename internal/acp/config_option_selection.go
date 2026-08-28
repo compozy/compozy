@@ -17,13 +17,6 @@ type SessionConfigOptionSelection struct {
 	BoolValue *bool
 }
 
-type setSessionConfigOptionWireRequest struct {
-	SessionID acpsdk.SessionId       `json:"sessionId"`
-	ConfigID  acpsdk.SessionConfigId `json:"configId"`
-	Type      string                 `json:"type"`
-	Value     any                    `json:"value"`
-}
-
 func normalizeSessionConfigOptionSelections(
 	selections []SessionConfigOptionSelection,
 ) ([]SessionConfigOptionSelection, error) {
@@ -112,27 +105,30 @@ func (s SessionConfigOptionSelection) normalize() (SessionConfigOptionSelection,
 
 func (s SessionConfigOptionSelection) request(
 	sessionID acpsdk.SessionId,
-) (setSessionConfigOptionWireRequest, error) {
+) (acpsdk.SetSessionConfigOptionRequest, error) {
 	normalized, err := s.normalize()
 	if err != nil {
-		return setSessionConfigOptionWireRequest{}, err
+		return acpsdk.SetSessionConfigOptionRequest{}, err
 	}
 	if strings.TrimSpace(string(sessionID)) == "" {
-		return setSessionConfigOptionWireRequest{}, errors.New("acp: session ID is required")
+		return acpsdk.SetSessionConfigOptionRequest{}, errors.New("acp: session ID is required")
 	}
 	if normalized.BoolValue != nil {
-		return setSessionConfigOptionWireRequest{
-			SessionID: sessionID,
-			ConfigID:  acpsdk.SessionConfigId(normalized.ID),
-			Type:      string(SessionConfigOptionKindBoolean),
-			Value:     *normalized.BoolValue,
+		return acpsdk.SetSessionConfigOptionRequest{
+			Boolean: &acpsdk.SetSessionConfigOptionBoolean{
+				SessionId: sessionID,
+				ConfigId:  acpsdk.SessionConfigId(normalized.ID),
+				Type:      string(SessionConfigOptionKindBoolean),
+				Value:     *normalized.BoolValue,
+			},
 		}, nil
 	}
-	return setSessionConfigOptionWireRequest{
-		SessionID: sessionID,
-		ConfigID:  acpsdk.SessionConfigId(normalized.ID),
-		Type:      "id",
-		Value:     acpsdk.SessionConfigValueId(normalized.ValueID),
+	return acpsdk.SetSessionConfigOptionRequest{
+		ValueId: &acpsdk.SetSessionConfigOptionValueId{
+			SessionId: sessionID,
+			ConfigId:  acpsdk.SessionConfigId(normalized.ID),
+			Value:     acpsdk.SessionConfigValueId(normalized.ValueID),
+		},
 	}, nil
 }
 
