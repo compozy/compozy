@@ -20,6 +20,7 @@ const (
 
 const (
 	actorKindAgentSession        = "agent_session"
+	actorKindDaemon              = "daemon"
 	permissionKindTools          = "tools"
 	permissionKindSkills         = "skills"
 	permissionKindMCPServers     = "mcp_servers"

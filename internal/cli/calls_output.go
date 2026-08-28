@@ -8,9 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const callOutputLabel = "Call"
+
 func callCreateBundle(record contract.CallCreatePayload) outputBundle {
-	return recordBundle(record, "Call", []keyValue{
-		{Label: "Call", Value: stringOrDash(record.CallID)},
+	return recordBundle(record, callOutputLabel, []keyValue{
+		{Label: callOutputLabel, Value: stringOrDash(record.CallID)},
 		{Label: "Child", Value: stringOrDash(record.ChildSessionID)},
 		{Label: authoredContextStateValue, Value: stringOrDash(record.State)},
 		{Label: "Replayed", Value: fmt.Sprintf("%t", record.Replayed)},
@@ -22,7 +24,7 @@ func callBatchBundle(items []contract.CallBatchItemPayload) outputBundle {
 		items,
 		items,
 		"Calls",
-		[]string{"CALL", "CHILD", "STATE", "ERROR"},
+		[]string{"CALL", "CHILD", cliStateHeader, "ERROR"},
 		"calls",
 		[]string{"call_id", "child_session_id", "state", "error"},
 		func(item contract.CallBatchItemPayload) []string {
@@ -43,7 +45,7 @@ func callBatchBundle(items []contract.CallBatchItemPayload) outputBundle {
 }
 
 func callDetailBundle(record *contract.CallPayload) outputBundle {
-	return recordBundle(record, "Call", callDetailRows(record))
+	return recordBundle(record, callOutputLabel, callDetailRows(record))
 }
 
 func callListBundle(response contract.CallsResponse) outputBundle {
@@ -51,7 +53,7 @@ func callListBundle(response contract.CallsResponse) outputBundle {
 		response,
 		response.Items,
 		"Calls",
-		[]string{"CALL", cliAgentHeader, "CHILD", "STATE", "RESULT"},
+		[]string{"CALL", cliAgentHeader, "CHILD", cliStateHeader, "RESULT"},
 		"calls",
 		[]string{"call_id", "agent", "child_session_id", "state", "verdict"},
 		func(item contract.CallPayload) []string {
@@ -83,13 +85,13 @@ func callResultBundle(result contract.CallResultResponse) outputBundle {
 
 func callPromptBundle(prompt contract.CallPromptResponse) outputBundle {
 	return recordBundle(prompt, "Prompt", []keyValue{
-		{Label: "Call", Value: prompt.CallID},
+		{Label: callOutputLabel, Value: prompt.CallID},
 		{Label: "Prompt", Value: prompt.Prompt},
 	})
 }
 
 func callSupersededBundle(result contract.CallSupersededResponse) outputBundle {
-	return callResultBundle(contract.CallResultResponse{CallID: result.CallID, Result: result.Result})
+	return callResultBundle(contract.CallResultResponse(result))
 }
 
 func callAwaitBundle(response contract.AwaitCallsResponse) outputBundle {
@@ -103,7 +105,7 @@ func callAwaitBundle(response contract.AwaitCallsResponse) outputBundle {
 }
 
 func callCancelBundle(response contract.CancelCallResponse) outputBundle {
-	return recordBundle(response, "Call", []keyValue{{Label: "State", Value: stringOrDash(response.State)}})
+	return recordBundle(response, callOutputLabel, []keyValue{{Label: "State", Value: stringOrDash(response.State)}})
 }
 
 func callPublishBundle(response contract.PublishCallResponse) outputBundle {

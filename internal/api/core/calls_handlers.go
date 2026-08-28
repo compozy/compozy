@@ -64,11 +64,7 @@ func (h *BaseHandlers) CallsCreate(c *gin.Context) {
 		h.respondCallsError(c, err)
 		return
 	}
-	payload, err := h.callCreatePayload(operationCtx, &record)
-	if err != nil {
-		h.respondCallsError(c, err)
-		return
-	}
+	payload := callCreatePayload(&record)
 	c.JSON(http.StatusCreated, payload)
 }
 
@@ -86,11 +82,7 @@ func (h *BaseHandlers) createCallBatch(
 	for _, outcome := range outcomes {
 		item := contract.CallBatchItemPayload{}
 		if outcome.Call != nil {
-			payload, mapErr := h.callCreatePayload(operationCtx, outcome.Call)
-			if mapErr != nil {
-				h.respondCallsError(c, mapErr)
-				return
-			}
+			payload := callCreatePayload(outcome.Call)
 			item.CallID = payload.CallID
 			item.ChildSessionID = payload.ChildSessionID
 			item.State = payload.State
@@ -192,11 +184,7 @@ func (h *BaseHandlers) callReadDetail(c *gin.Context, wholeResult bool) {
 		h.respondCallsError(c, err)
 		return
 	}
-	content, err := h.callPayloadContent(c.Request.Context(), &record, projected[0])
-	if err != nil {
-		h.respondCallsError(c, err)
-		return
-	}
+	content := callPayloadContentFor(&record, projected[0])
 	c.JSON(http.StatusOK, callPayload(&record, owners[record.ProfileID], content))
 }
 

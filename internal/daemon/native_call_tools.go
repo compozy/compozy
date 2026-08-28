@@ -15,7 +15,10 @@ import (
 	toolspkg "github.com/compozy/compozy/internal/tools"
 )
 
-const daemonAgentSessionActorKind = "agent_session"
+const (
+	daemonAgentSessionActorKind = "agent_session"
+	nativeCallIDField           = "call_id"
+)
 
 func (n *daemonNativeTools) agentCall(
 	ctx context.Context,
@@ -196,8 +199,8 @@ func (n *daemonNativeTools) callReturn(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := map[string]any{
-		"call_id": settlement.Call.CallID,
-		"state":   settlement.Call.State,
+		nativeCallIDField: settlement.Call.CallID,
+		"state":           settlement.Call.State,
 	}
 	if settlement.RepairPrompt != "" {
 		payload["repair_prompt"] = settlement.RepairPrompt
@@ -313,8 +316,8 @@ func (n *daemonNativeTools) callResult(
 		return toolspkg.ToolResult{}, err
 	}
 	return structuredNetworkResult(map[string]any{
-		"call_id": result.CallID,
-		"result":  json.RawMessage(result.Bytes),
+		nativeCallIDField: result.CallID,
+		"result":          json.RawMessage(result.Bytes),
 	}, result.CallID)
 }
 
@@ -416,7 +419,7 @@ func nativeCallsScope(scope toolspkg.Scope) callspkg.CallScope {
 
 func nativeCallRecord(record *callspkg.CallRecord) map[string]any {
 	payload := map[string]any{
-		"call_id": record.CallID, "profile_id": record.ProfileID, "scope": record.Scope,
+		nativeCallIDField: record.CallID, "profile_id": record.ProfileID, "scope": record.Scope,
 		"workspace_id": record.WorkspaceID, "caller": record.Caller, "actor": record.Actor,
 		"root_session_id": record.GovernedRootID, "depth": record.Depth, "state": record.State,
 		"result_bytes":        record.ResultBytes,

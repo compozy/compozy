@@ -68,13 +68,7 @@ type PermissionPolicy struct {
 
 // Policy converts authored atoms into the canonical normalized policy.
 func (p PermissionAtoms) Policy() PermissionPolicy {
-	return normalizePermissionPolicy(PermissionPolicy{
-		Tools: p.Tools, Skills: p.Skills,
-		MCPServers:      p.MCPServers,
-		WorkspacePaths:  p.WorkspacePaths,
-		NetworkChannels: p.NetworkChannels,
-		SandboxProfiles: p.SandboxProfiles,
-	})
+	return normalizePermissionPolicy(PermissionPolicy(p))
 }
 
 func resolvePermissionNarrowing(

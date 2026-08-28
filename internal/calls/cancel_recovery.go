@@ -59,7 +59,7 @@ func requireCallControlActor(record *CallRecord, actor Actor) error {
 	if kind == "" || id == "" {
 		return newError(CodeSettlementDenied, "cancel actor is required", nil)
 	}
-	isOperator := kind == "human" || kind == "daemon"
+	isOperator := kind == "human" || kind == actorKindDaemon
 	isBoundActor := kind == record.Actor.Kind && id == record.Actor.ID
 	isParentSession := kind == actorKindAgentSession && (id == record.ParentSessionID || id == record.Caller.ID)
 	if isOperator || isBoundActor || isParentSession {

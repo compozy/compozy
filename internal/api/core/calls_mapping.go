@@ -25,10 +25,7 @@ func (h *BaseHandlers) callPayloads(
 	items := make([]contract.CallPayload, 0, len(records))
 	for index := range records {
 		record := &records[index]
-		content, contentErr := h.callPayloadContent(ctx, record, projected[index])
-		if contentErr != nil {
-			return nil, contentErr
-		}
+		content := callPayloadContentFor(record, projected[index])
 		items = append(items, callPayload(record, owners[record.ProfileID], content))
 	}
 	return items, nil
@@ -42,11 +39,10 @@ type callPayloadContent struct {
 	SupersededBytes   int
 }
 
-func (h *BaseHandlers) callPayloadContent(
-	_ context.Context,
+func callPayloadContentFor(
 	record *callspkg.CallRecord,
 	projected callspkg.ProjectionContent,
-) (callPayloadContent, error) {
+) callPayloadContent {
 	content := callPayloadContent{}
 	if len(projected.Prompt) > 0 {
 		content.PromptPreview = boundedCallTextPreview(string(projected.Prompt), callPromptPreviewBytes)
@@ -59,7 +55,7 @@ func (h *BaseHandlers) callPayloadContent(
 		content.SupersededPreview = boundedCallPreview(projected.Superseded, record.ResultBudget.MaxBytes)
 		content.SupersededBytes = len(projected.Superseded)
 	}
-	return content, nil
+	return content
 }
 
 func callPayload(
@@ -108,15 +104,11 @@ func boundedCallTextPreview(value string, maxBytes int) string {
 	return preview
 }
 
-func (h *BaseHandlers) callCreatePayload(
-	_ context.Context,
-	record *callspkg.CallRecord,
-) (contract.CallCreatePayload, error) {
-	payload := contract.CallCreatePayload{
+func callCreatePayload(record *callspkg.CallRecord) contract.CallCreatePayload {
+	return contract.CallCreatePayload{
 		CallID: record.CallID, ChildSessionID: record.ChildSessionID,
 		State: string(record.State), Replayed: record.Replayed,
 	}
-	return payload, nil
 }
 
 func (h *BaseHandlers) callMessagePayloads(

@@ -10,6 +10,8 @@ import (
 const (
 	callExpectSchemaDescription = "JSON Schema or example-shape shorthand for the required structured result."
 	callResultSchemaDescription = "Free-form structured JSON returned under the call's declared result contract."
+	callPromptProperty          = "prompt"
+	callTargetProperty          = "target"
 )
 
 func customizeCallTargetRequestSchema(schema *openapi3.Schema) {
@@ -28,8 +30,8 @@ func customizeCallTargetRequestSchema(schema *openapi3.Schema) {
 
 func customizeCreateCallItemRequestSchema(schema *openapi3.Schema) {
 	customizeClosedObjectSchema(schema)
-	schema.Required = []string{"target", "prompt"}
-	if prompt := schema.Properties["prompt"]; prompt != nil && prompt.Value != nil {
+	schema.Required = []string{callTargetProperty, callPromptProperty}
+	if prompt := schema.Properties[callPromptProperty]; prompt != nil && prompt.Value != nil {
 		prompt.Value.MinLength = 1
 	}
 	if expect := schema.Properties["expect"]; expect != nil {
@@ -41,17 +43,17 @@ func customizeCreateCallItemRequestSchema(schema *openapi3.Schema) {
 func customizeCreateCallRequestSchema(schema *openapi3.Schema) {
 	customizeClosedObjectSchema(schema)
 	schema.Required = nil
-	if prompt := schema.Properties["prompt"]; prompt != nil && prompt.Value != nil {
+	if prompt := schema.Properties[callPromptProperty]; prompt != nil && prompt.Value != nil {
 		prompt.Value.MinLength = 1
 	}
-	single := openapi3.NewObjectSchema().WithRequired([]string{"target", "prompt"})
-	single.Properties["target"] = schema.Properties["target"]
-	single.Properties["prompt"] = schema.Properties["prompt"]
+	single := openapi3.NewObjectSchema().WithRequired([]string{callTargetProperty, callPromptProperty})
+	single.Properties[callTargetProperty] = schema.Properties[callTargetProperty]
+	single.Properties[callPromptProperty] = schema.Properties[callPromptProperty]
 	single.Not = openapi3.NewObjectSchema().WithRequired([]string{"tasks"}).NewRef()
 	batch := openapi3.NewObjectSchema().WithRequired([]string{"tasks"})
 	batch.Properties["tasks"] = schema.Properties["tasks"]
 	inlineFields := []string{
-		"target", "prompt", "expect", "idle_ttl_seconds", "deadline_seconds", "strict",
+		callTargetProperty, callPromptProperty, "expect", "idle_ttl_seconds", "deadline_seconds", "strict",
 		"result_budget", "result_overflow", "idempotency_key", "runtime", "narrow",
 	}
 	inline := openapi3.NewSchema()

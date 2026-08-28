@@ -203,7 +203,7 @@ func authorizeResultReader(record *CallRecord, actor Actor) error {
 	if id == "" {
 		return newError(CodeTargetDenied, "result is available only to the caller, bound child, or operator", nil)
 	}
-	if kind == "human" || kind == "daemon" {
+	if kind == "human" || kind == actorKindDaemon {
 		return nil
 	}
 	if kind == actorKindAgentSession &&

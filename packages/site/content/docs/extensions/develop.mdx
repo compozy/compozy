@@ -428,8 +428,8 @@ metadata.
 | `network/thread/messages` | `NetworkThreadMessagesResponse` with `messages` and `page`      |
 | `network/directs`         | `NetworkDirectRoomsResponse` with `directs` and `page`          |
 | `network/direct/messages` | `NetworkDirectRoomMessagesResponse` with `messages` and `page`  |
-| `calls/list`               | `CallsResponse` with `items` and `page`                          |
-| `messages/list`            | `CallMessagesResponse` with `items` and `page`                   |
+| `calls/list`              | `CallsResponse` with `items` and `page`                         |
+| `messages/list`           | `CallMessagesResponse` with `items` and `page`                  |
 
 The generated SDK contracts bind these result types, so code that expects an array fails at compile
 time instead of silently dropping pagination metadata.

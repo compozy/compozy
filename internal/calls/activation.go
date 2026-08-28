@@ -193,7 +193,7 @@ func (s *Service) RecoverCallRuntime(ctx context.Context) error {
 		if _, err := s.DrainSubtree(
 			ctx,
 			rootID,
-			Actor{Kind: "daemon", ID: "calls.recovery"},
+			Actor{Kind: actorKindDaemon, ID: "calls.recovery"},
 			"resume interrupted drain",
 		); err != nil {
 			return err

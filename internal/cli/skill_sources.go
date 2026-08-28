@@ -102,7 +102,7 @@ func skillSourcesBundle(record skillSourcesRecord) outputBundle {
 		human: func() (string, error) {
 			return renderHumanBlocks(
 				renderHumanTable("", []string{
-					cliSourceHeader, "STATE", "WORKSPACE PATH", "GLOBAL PATH", "SKILLS", "NOTES",
+					cliSourceHeader, cliStateHeader, "WORKSPACE PATH", "GLOBAL PATH", "SKILLS", "NOTES",
 				}, skillSourceRows(record.Sources)),
 				skillSourcesFooter(record),
 			), nil
