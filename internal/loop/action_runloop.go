@@ -124,9 +124,7 @@ func decodeRunLoopConfigOverrides(raw map[string]any) (LoopConfig, error) {
 	return publicConfig.loopConfig(), nil
 }
 
-// runLoopPublicConfigOverrides is the closed per-run authoring surface shared with
-// the public RunLoopRequest. Operator-owned lifecycle and request-expiry policy
-// deliberately remain outside child Loop definitions.
+// runLoopPublicConfigOverrides excludes operator-owned lifecycle and request-expiry policy.
 type runLoopPublicConfigOverrides struct {
 	HumanGateEnabled  *bool                `json:"human_gate_enabled,omitempty"`
 	ReattemptStrategy *ReattemptStrategy   `json:"reattempt_strategy,omitempty"`
