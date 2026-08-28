@@ -5,11 +5,11 @@ description: Query durable command facts, understand ephemeral output, and opt i
 
 CompozyOS separates terminal history into three data classes.
 
-| Data                       | Default                                     | Lifetime                                                    |
-| -------------------------- | ------------------------------------------- | ----------------------------------------------------------- |
-| Command facts              | Always on                                   | Until the workspace is deleted                              |
-| Live output, scrollback, and bounded output tail | Ephemeral and bounded       | Until terminal or daemon runtime ends                       |
-| Full recording             | Off; per terminal or `[terminal].recording` | Until its configured retention expiry or workspace deletion |
+| Data                                             | Default                                     | Lifetime                                                    |
+| ------------------------------------------------ | ------------------------------------------- | ----------------------------------------------------------- |
+| Command facts                                    | Always on                                   | Until the workspace is deleted                              |
+| Live output, scrollback, and bounded output tail | Ephemeral and bounded                       | Until terminal or daemon runtime ends                       |
+| Full recording                                   | Off; per terminal or `[terminal].recording` | Until its configured retention expiry or workspace deletion |
 
 The journal writes one row for each command boundary detected in a CompozyOS terminal. It records the
 actor, command, working directory, timing, exit cause, approval, output size, truncation, and detection
