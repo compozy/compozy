@@ -16,6 +16,7 @@ import type {
   OsLoopNodeAttentionRow,
   OsLoopRequestAttentionRow,
   OsSessionAttentionRow,
+  OsTerminalInputAttentionRow,
 } from "../../lib/attention-model";
 import { AttentionBell } from "../attention-bell";
 
@@ -31,6 +32,20 @@ const ATTENTION: OsLoopNodeAttentionRow = {
   id: "attention",
   title: "Loop nodes needing attention",
   state: "attention",
+};
+
+const TERMINAL_INPUT: OsTerminalInputAttentionRow = {
+  kind: "terminal-input",
+  id: "req-3f8a",
+  title: "Password requested",
+  agentName: "claude-code",
+  terminalId: "term-9cd7e14b2a66",
+  workspaceId: "ws-atlas",
+  workspaceLabel: "atlas",
+  reason: "I need the staging database password",
+  requestedAt: "2026-08-25T12:44:00Z",
+  redacted: true,
+  stale: false,
 };
 
 const LOOP_REQUEST: OsLoopRequestAttentionRow = {
@@ -185,5 +200,20 @@ describe("AttentionBell sections", () => {
 
     await user.click(row);
     expect(onSelect).toHaveBeenCalledWith(LOOP_REQUEST);
+  });
+
+  it("Should render and activate a terminal input row with requester and workspace", async () => {
+    const user = userEvent.setup();
+    const onSelect = renderBell({ needsYou: [TERMINAL_INPUT] });
+
+    const row = screen.getByTestId(`os-attention-terminal-input-${TERMINAL_INPUT.id}`);
+    expect(row).toHaveTextContent("Password requested");
+    expect(row).toHaveTextContent("claude-code — I need the staging database password");
+    expect(row).toHaveTextContent("atlas");
+    expect(within(row).getByRole("time")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /open terminal/i })).not.toBeInTheDocument();
+
+    await user.click(row);
+    expect(onSelect).toHaveBeenCalledWith(TERMINAL_INPUT);
   });
 });

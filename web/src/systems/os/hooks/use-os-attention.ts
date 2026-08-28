@@ -23,6 +23,7 @@ import {
   terminalInputRequestsQuery,
   terminalScope,
   terminalScopeKey,
+  type TerminalInputRequest,
 } from "@/systems/terminal";
 import {
   useActiveWorkspace,
@@ -147,38 +148,15 @@ export function useOsAttention(
     tasksStale: tasksDisconnected,
     loopsPending: loopRequests.pendingCount,
   });
-  const terminalBadge =
-    terminalRequests.isError || terminalRequests.data === undefined || attention.stale
-      ? undefined
-      : (() => {
-          // Profile identity comes from the profile catalog, the authority that
-          // bound this read. An input request is optional and cannot identify a
-          // profile when approvals are the only pending terminal work.
-          const profileId = profile.destinationOwner?.id;
-          if (!profileId) return undefined;
-          const pendingApprovals: Array<{ profileId: string }> = [];
-          for (const session of attention.sessions) {
-            if (session.workspace_id !== workspaceId || session.profile_id !== profileId) continue;
-            for (const interaction of session.pending_interactions) {
-              if (
-                interaction.kind === "permission" &&
-                interaction.status === "pending" &&
-                interaction.tool_id?.startsWith("compozy__terminal_")
-              ) {
-                pendingApprovals.push({ profileId });
-              }
-            }
-          }
-          return projectTerminalBadge({
-            scopeKey: terminalScopeKey(
-              terminalReadScope.key.workspaceId,
-              terminalReadScope.key.profileKey
-            ),
-            profileId,
-            inputRequests: terminalRequests.data.pending,
-            pendingApprovals,
-          }).count;
-        })();
+  const terminalQueryReady = !terminalRequests.isError && terminalRequests.data !== undefined;
+  const terminalBadge = terminalAttentionCount({
+    ready: terminalQueryReady,
+    profileId: profile.destinationOwner?.id,
+    workspaceId,
+    sessions: attention.sessions,
+    scopeKey: terminalScopeKey(terminalReadScope.key.workspaceId, terminalReadScope.key.profileKey),
+    pendingRequests: terminalRequests.data?.pending ?? [],
+  });
   const badges = {
     ...baseBadges,
     ...(terminalBadge === undefined ? {} : { terminal: terminalBadge }),
@@ -193,6 +171,17 @@ export function useOsAttention(
     loopWaitingPresent,
     loopAttentionPresent,
     loopRequests: loopRequests.items,
+    terminalRequests: (terminalRequests.data?.pending ?? []).map(request => ({
+      id: request.id,
+      terminal_id: request.terminal_id,
+      ...(request.workspace_id ? { workspace_id: request.workspace_id } : {}),
+      reason: request.reason,
+      redacted: request.redacted,
+      requested_at: request.requested_at,
+      requester_id: request.requester.id,
+    })),
+    terminalRowsStale: !terminalQueryReady,
+    terminalWorkspaceId: workspaceId ?? undefined,
   });
   return {
     badges,
@@ -213,4 +202,39 @@ export function useOsAttention(
       terminalRequests.isLoading ||
       loopRequests.loading,
   };
+}
+
+function terminalAttentionCount(input: {
+  ready: boolean;
+  profileId: string | undefined;
+  workspaceId: string | null;
+  sessions: readonly SessionPayload[];
+  scopeKey: string;
+  pendingRequests: readonly TerminalInputRequest[];
+}): number | undefined {
+  if (!input.ready) return undefined;
+  // Profile identity comes from the profile catalog, the authority that
+  // bound this read. An input request is optional and cannot identify a
+  // profile when approvals are the only pending terminal work.
+  const profileId = input.profileId;
+  if (!profileId) return undefined;
+  const pendingApprovals: Array<{ profileId: string }> = [];
+  for (const session of input.sessions) {
+    if (session.workspace_id !== input.workspaceId || session.profile_id !== profileId) continue;
+    for (const interaction of session.pending_interactions) {
+      if (
+        interaction.kind === "permission" &&
+        interaction.status === "pending" &&
+        interaction.tool_id?.startsWith("compozy__terminal_")
+      ) {
+        pendingApprovals.push({ profileId });
+      }
+    }
+  }
+  return projectTerminalBadge({
+    scopeKey: input.scopeKey,
+    profileId,
+    inputRequests: input.pendingRequests,
+    pendingApprovals,
+  }).count;
 }

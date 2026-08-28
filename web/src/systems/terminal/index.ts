@@ -61,10 +61,6 @@ export {
   type TerminalJournalHostRetention,
 } from "./lib/terminal-journal-host";
 export {
-  shouldKeepTerminalJournalHost,
-  type TerminalJournalHostRetention,
-} from "./lib/terminal-journal-host";
-export {
   terminalAttachModeFor,
   terminalLeaseView,
   type TerminalControlRead,

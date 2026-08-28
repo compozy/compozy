@@ -62,9 +62,14 @@ function openTerminalCatalogStream(
   eventSourceFactory: TerminalCatalogEventSourceFactory
 ): () => void {
   const queryKey = terminalKeys.catalog({ workspaceId, profileKey });
+  const inputQueryKey = terminalKeys.inputRequests({ workspaceId, profileKey });
   let closed = false;
-  const refreshFromREST = () => {
+  const refreshCatalog = () => {
     void queryClient.invalidateQueries({ queryKey, exact: true });
+  };
+  const refreshFromREST = () => {
+    refreshCatalog();
+    void queryClient.invalidateQueries({ queryKey: inputQueryKey, exact: true });
   };
 
   const handleFrame = (name: string): EventListener => {
@@ -75,7 +80,7 @@ function openTerminalCatalogStream(
       try {
         raw = JSON.parse(event.data);
       } catch {
-        refreshFromREST();
+        refreshCatalog();
         return;
       }
       let parsed: ReturnType<typeof parseTerminalCatalogEvent>;
@@ -83,7 +88,7 @@ function openTerminalCatalogStream(
         parsed = parseTerminalCatalogEvent(name, raw);
       } catch (error) {
         if (!(error instanceof TerminalCatalogProtocolError)) throw error;
-        refreshFromREST();
+        refreshCatalog();
         return;
       }
       if (!parsed) return;

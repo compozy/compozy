@@ -325,4 +325,42 @@ describe("useTerminalCatalogStream", () => {
 
     expect(factory).not.toHaveBeenCalled();
   });
+
+  it("Should reread input requests from GET when the catalog stream opens", () => {
+    const { opened, client } = renderStream("work");
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    opened[0].fake.emit("open", {});
+
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: terminalKeys.catalog({ workspaceId: WORKSPACE, profileKey: "work" }),
+      exact: true,
+    });
+    expect(invalidate).toHaveBeenCalledWith({
+      queryKey: terminalKeys.inputRequests({ workspaceId: WORKSPACE, profileKey: "work" }),
+      exact: true,
+    });
+  });
+
+  it("Should ignore hook event names that are not catalog frames", () => {
+    const { opened, client } = renderStream("work");
+    opened[0].fake.emit("terminal.snapshot", { terminals: [DEV_SERVER_TERMINAL] });
+    const invalidate = vi.spyOn(client, "invalidateQueries");
+
+    opened[0].fake.emit("terminal.input_requested", {
+      terminal_id: DEV_SERVER_TERMINAL.id,
+      request_id: "req-3f8a",
+      redacted: true,
+    });
+    opened[0].fake.emit("terminal.input_provided", {
+      terminal_id: DEV_SERVER_TERMINAL.id,
+      request_id: "req-3f8a",
+      outcome: "answered",
+      redacted: true,
+      length: 10,
+    });
+
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(catalog(client, "work")).toEqual([DEV_SERVER_TERMINAL]);
+  });
 });

@@ -9,6 +9,8 @@ import {
   TERMINAL_SUBPROTOCOL,
 } from "@/generated/terminal-wire";
 
+import { terminalRedactedInputCopy } from "./terminal-redacted-marker";
+
 export {
   TERMINAL_CLIENT_OP,
   TERMINAL_MAX_COLS,
@@ -168,7 +170,7 @@ export function encodeTerminalServerOutputFrame(
 
 /** Renders trusted REDACTED_INPUT metadata. PTY output never calls this boundary. */
 export function renderTerminalRedactedInput(characters: number): string {
-  return `hidden input · ${characters} characters`;
+  return terminalRedactedInputCopy(characters);
 }
 
 function prefix(op: number, payload: Uint8Array): TerminalFrameBytes {

@@ -1,6 +1,7 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@compozy/ui";
 
 import { loopRequestLocation } from "@/systems/loops";
+import { terminalAttentionLocation } from "@/systems/terminal";
 import { usePaletteCommand } from "../hooks/use-palette-registry";
 import type { OsAttentionModel } from "../hooks/use-os-attention";
 import type { DesktopOverlay } from "../hooks/use-desktop-overlays";
@@ -168,6 +169,14 @@ export function DesktopMenubar({
       void coordinator.userOpen({
         app: "loops",
         route: loopRequestLocation(row),
+      });
+      return;
+    }
+    if (row.kind === "terminal-input") {
+      void coordinator.userOpen({
+        app: "terminal",
+        instanceKey: row.terminalId,
+        route: terminalAttentionLocation(row.terminalId),
       });
       return;
     }

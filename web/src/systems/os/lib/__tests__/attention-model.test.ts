@@ -120,6 +120,7 @@ describe("OS attention badges", () => {
     expect(dockBadgeFor(OS_APPS.terminal, { ...badges, terminal: 2 })).toBe(2);
     expect(dockBadgeFor(OS_APPS.dashboard, badges)).toBeUndefined();
     expect(attentionCount(badges)).toBe(148);
+    expect(attentionCount({ ...badges, terminal: 2 })).toBe(150);
   });
 
   it("Should keep finished-unseen work out of the badge (UT-052)", () => {
@@ -328,6 +329,64 @@ describe("OS attention sections", () => {
         nodeId: pendingAskRequest.node_id,
         requestKind: "ask",
         stale: false,
+      }),
+    ]);
+  });
+
+  it("Should project pending terminal input requests into Needs you", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        terminalWorkspaceId: "workspace-1",
+        terminalRequests: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            reason: "I need the staging database password",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester_id: "claude-code",
+          },
+        ],
+      })
+    );
+
+    expect(sections.needsYou).toEqual([
+      expect.objectContaining({
+        kind: "terminal-input",
+        id: "req-3f8a",
+        title: "Password requested",
+        agentName: "claude-code",
+        terminalId: "term-9cd7e14b2a66",
+        workspaceId: "workspace-1",
+        workspaceLabel: "compozy",
+        stale: false,
+      }),
+    ]);
+  });
+
+  it("Should keep a stale terminal input row jumpable without counting it", () => {
+    const sections = deriveAttentionSections(
+      sectionsInput({
+        terminalWorkspaceId: "workspace-1",
+        terminalRowsStale: true,
+        terminalRequests: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            reason: "I need the staging database password",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester_id: "claude-code",
+          },
+        ],
+      })
+    );
+
+    expect(sections.needsYou).toEqual([
+      expect.objectContaining({
+        kind: "terminal-input",
+        id: "req-3f8a",
+        stale: true,
       }),
     ]);
   });

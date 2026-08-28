@@ -21,6 +21,7 @@ import { SessionTerminalBlock } from "../session-terminal-block";
 import { TerminalApprovalDetail } from "../terminal-approval-detail";
 import { TerminalGrantRow } from "../terminal-grant-row";
 import { TerminalInputRequestCard, TerminalInputResolvedRow } from "../terminal-input-request";
+import { TerminalInputRequestStack } from "../terminal-input-request-stack";
 import { TerminalJournalHead, TerminalJournalPanel } from "../terminal-journal-panel";
 import { TerminalGapSeam, TerminalStreamNotice } from "../terminal-notices";
 import { TerminalQuoteBlock, TerminalSelectionActions } from "../terminal-quote-block";
@@ -71,6 +72,7 @@ const ONE_MINUTE_IN = Date.parse(PASSWORD_REQUEST.requested_at) + 60_000;
  */
 export const InputRequestRedacted: Story = {
   name: "VC-08 · Redacted question",
+  args: {},
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
@@ -87,6 +89,7 @@ export const InputRequestRedacted: Story = {
 /** A plain question keeps the same anatomy without the hidden field. */
 export const InputRequestPlain: Story = {
   name: "Plain question",
+  args: {},
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
@@ -103,6 +106,7 @@ export const InputRequestPlain: Story = {
 /** A watcher still sees the question; the write row is absent. */
 export const InputRequestWatcher: Story = {
   name: "Watcher — question only",
+  args: {},
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
@@ -116,9 +120,33 @@ export const InputRequestWatcher: Story = {
   ),
 };
 
+/** Origin is named only when more than one terminal is asking. */
+export const InputRequestStacked: Story = {
+  name: "Stacked cross-terminal origin",
+  args: {},
+  render: () => (
+    <TerminalVisualStage>
+      <TerminalInputRequestStack
+        canAnswerDirectly
+        now={ONE_MINUTE_IN}
+        onAnswer={NOOP}
+        onReject={NOOP}
+        pending={[PASSWORD_REQUEST, CONFIRMATION_REQUEST]}
+        titles={
+          new Map([
+            [PASSWORD_REQUEST.terminal_id, PSQL_TERMINAL.title],
+            [CONFIRMATION_REQUEST.terminal_id, "ssh staging"],
+          ])
+        }
+      />
+    </TerminalVisualStage>
+  ),
+};
+
 /** VC-09 — the four resolved outcomes, each with its own copy. */
 export const InputRequestResolved: Story = {
   name: "VC-09 · Four quiet outcomes",
+  args: {},
   render: () => (
     <TerminalVisualStage>
       <TerminalInputResolvedRow request={ANSWERED_PASSWORD_REQUEST} />

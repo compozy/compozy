@@ -172,6 +172,7 @@ describe("useOsAttention", () => {
       disconnected: false,
       loading: false,
     });
+    vi.mocked(useLoopNodeExists).mockImplementation(() => false);
   });
 
   it("Should read the archive only through the modal catalog leg", () => {
@@ -355,5 +356,81 @@ describe("useOsAttention", () => {
     const { result } = renderHook(() => useOsAttention(workspace, "live", false));
 
     expect(result.current.badges.terminal).toBe(1);
+  });
+
+  it("Should surface pending terminal input in Needs you and the attention count", () => {
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        pending: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            profile_id: "profile-work",
+            profile_name: "work",
+            reason: "I need the staging database password",
+            prompt_excerpt: "Password for user atlas:",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester: { kind: "agent", id: "claude-code" },
+          },
+        ],
+        resolved: [],
+      },
+      isError: false,
+      isLoading: false,
+    } as never);
+
+    const { result } = renderHook(() => useOsAttention(workspace, "live", false));
+
+    expect(result.current.badges.terminal).toBe(1);
+    expect(result.current.notificationCount).toBe(1);
+    expect(result.current.sections.needsYou).toEqual([
+      expect.objectContaining({
+        kind: "terminal-input",
+        id: "req-3f8a",
+        title: "Password requested",
+        agentName: "claude-code",
+        terminalId: "term-9cd7e14b2a66",
+        workspaceId: workspace.id,
+        workspaceLabel: "alpha",
+        stale: false,
+      }),
+    ]);
+  });
+
+  it("Should keep a healthy terminal count when the session stream is stale", () => {
+    vi.mocked(useAttentionSummary).mockReturnValue({
+      summary: { needsYou: 3, finished: 0 },
+      stale: true,
+      loading: false,
+    });
+    vi.mocked(useSessions).mockReturnValue(sessionsQuery({ data: [] }));
+    vi.mocked(useQuery).mockReturnValue({
+      data: {
+        pending: [
+          {
+            id: "req-3f8a",
+            terminal_id: "term-9cd7e14b2a66",
+            profile_id: "profile-work",
+            profile_name: "work",
+            reason: "I need the staging database password",
+            prompt_excerpt: "Password for user atlas:",
+            redacted: true,
+            requested_at: "2026-08-25T12:44:00Z",
+            requester: { kind: "agent", id: "claude-code" },
+          },
+        ],
+        resolved: [],
+      },
+      isError: false,
+      isLoading: false,
+    } as never);
+
+    const { result } = renderHook(() => useOsAttention(workspace, "stale", false));
+
+    expect(result.current.badges.sessions).toBeUndefined();
+    expect(result.current.badges.terminal).toBe(1);
+    expect(result.current.notificationCount).toBe(1);
   });
 });
