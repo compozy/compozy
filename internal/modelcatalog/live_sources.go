@@ -5,20 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"maps"
 	"net/http"
-
 	"os"
 	"os/exec"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -160,18 +157,27 @@ type LiveProviderSourcesConfig struct {
 
 // NewLiveProviderSources creates provider_live sources for known provider adapters.
 func NewLiveProviderSources(cfg *LiveProviderSourcesConfig) ([]Source, error) {
-	providers := compozyconfig.BuiltinProviders()
-	maps.Copy(providers, cfg.Providers)
-	providerIDs := make([]string, 0, len(providers))
-	for providerID := range providers {
+	resolver := &compozyconfig.Config{Providers: cfg.Providers}
+	providerSet := make(map[string]struct{})
+	for providerID := range compozyconfig.BuiltinProviders() {
 		if _, ok := liveProviderAdapters[providerID]; ok {
-			providerIDs = append(providerIDs, providerID)
+			providerSet[providerID] = struct{}{}
 		}
 	}
-	sort.Strings(providerIDs)
+	for providerID := range cfg.Providers {
+		providerID = compozyconfig.CanonicalProviderName(providerID)
+		if _, registered := liveProviderAdapters[providerID]; registered {
+			providerSet[providerID] = struct{}{}
+		}
+	}
+	providerIDs := slices.Sorted(maps.Keys(providerSet))
 	sources := make([]Source, 0, len(providerIDs))
 	for _, providerID := range providerIDs {
-		source, err := NewLiveProviderSource(providerID, providers[providerID], cfg)
+		provider, err := resolver.ResolveProvider(providerID)
+		if err != nil {
+			return nil, fmt.Errorf("model catalog: resolve live provider %q: %w", providerID, err)
+		}
+		source, err := NewLiveProviderSource(providerID, provider, cfg)
 		if err != nil {
 			return nil, err
 		}

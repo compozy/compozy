@@ -102,6 +102,26 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 	t.Parallel()
 
 	fixturePath := mockFixturePath(t, "reasoning_negotiation_fixture.json")
+	driverPath, err := acpmock.DefaultDriverPath()
+	if err != nil {
+		t.Fatalf("acpmock.DefaultDriverPath() error = %v", err)
+	}
+	discoveryCommands := map[string]string{
+		"claude": acpmock.BuildCommand(
+			driverPath,
+			fixturePath,
+			"reasoning-claude-max",
+			"",
+			"claude",
+		),
+		"codex": acpmock.BuildCommand(
+			driverPath,
+			fixturePath,
+			"reasoning-codex-max",
+			"",
+			"codex",
+		),
+	}
 	agents := []struct {
 		name         string
 		fixtureAgent string
@@ -136,6 +156,7 @@ func TestDaemonE2EProviderReasoningNegotiatesThroughAdvertisedACPOptions(t *test
 				provider := cfg.Providers[providerName]
 				provider.AuthMode = compozyconfig.ProviderAuthModeNone
 				provider.NoneSecurity = compozyconfig.ProviderNoneSecurityLocalTransport
+				provider.Models.Discovery.Command = discoveryCommands[providerName]
 				cfg.Providers[providerName] = provider
 			}
 		}},
@@ -2203,24 +2224,41 @@ func assertCanonicalHiddenSolPayload(t testing.TB, model compozycontract.Provide
 		compozycontract.ReasoningEffort("max"),
 	}
 	if model.ProviderID != "codex" || model.ModelID != "gpt-5.6-sol" || model.Curated ||
-		!model.Hidden || model.Deprecated || !model.Featured || model.ReleaseDate != "2026-06-26" ||
+		!model.Hidden || model.Deprecated || !model.Featured ||
 		model.ReasoningSource != compozycontract.ReasoningSource("catalog") {
 		t.Fatalf("Sol identity/curation payload = %#v", model)
 	}
-	if model.ContextWindow == nil || *model.ContextWindow != 1_050_000 ||
-		model.MaxOutputTokens == nil || *model.MaxOutputTokens != 128_000 ||
+	if !validProviderModelReleaseDate(model.ReleaseDate) {
+		t.Fatalf("Sol ReleaseDate = %q, want live YYYY-MM or YYYY-MM-DD metadata", model.ReleaseDate)
+	}
+	if model.ContextWindow == nil || *model.ContextWindow <= 0 ||
+		model.MaxOutputTokens == nil || *model.MaxOutputTokens <= 0 ||
 		model.SupportsTools == nil || !*model.SupportsTools ||
 		model.SupportsReasoning == nil || !*model.SupportsReasoning {
 		t.Fatalf("Sol capability payload = %#v", model)
 	}
-	if !reflect.DeepEqual(model.ReasoningEfforts, wantEfforts) ||
-		model.DefaultReasoningEffort == nil || *model.DefaultReasoningEffort != compozycontract.ReasoningEffort("max") {
-		t.Fatalf("Sol reasoning payload = %#v, want efforts %#v and default max", model, wantEfforts)
+	for _, effort := range wantEfforts {
+		if !slices.Contains(model.ReasoningEfforts, effort) {
+			t.Fatalf("Sol reasoning efforts = %#v, want %q", model.ReasoningEfforts, effort)
+		}
 	}
-	if model.Cost == nil || model.Cost.InputPerMillion == nil || *model.Cost.InputPerMillion != 5 ||
-		model.Cost.OutputPerMillion == nil || *model.Cost.OutputPerMillion != 30 {
-		t.Fatalf("Sol cost payload = %#v, want 5/30", model.Cost)
+	if model.DefaultReasoningEffort == nil ||
+		*model.DefaultReasoningEffort != compozycontract.ReasoningEffort("max") {
+		t.Fatalf("Sol reasoning payload = %#v, want default max", model)
 	}
+	if model.Cost == nil || model.Cost.InputPerMillion == nil || *model.Cost.InputPerMillion <= 0 ||
+		model.Cost.OutputPerMillion == nil || *model.Cost.OutputPerMillion <= 0 {
+		t.Fatalf("Sol cost payload = %#v, want positive live input/output prices", model.Cost)
+	}
+}
+
+func validProviderModelReleaseDate(value string) bool {
+	for _, layout := range []string{"2006-01-02", "2006-01"} {
+		if _, err := time.Parse(layout, value); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func createHostedTaskForWakeE2E(

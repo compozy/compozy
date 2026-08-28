@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"sort"
 	"time"
 
@@ -170,8 +169,19 @@ func reconcileProviderIDs(
 func (r *modelCatalogRuntime) stageLiveProviderConfigs(
 	providers map[string]compozyconfig.ProviderConfig,
 ) (stagedLiveProviderConfigs, error) {
-	effective := compozyconfig.BuiltinProviders()
-	maps.Copy(effective, providers)
+	resolver := &compozyconfig.Config{Providers: providers}
+	effective := make(map[string]compozyconfig.ProviderConfig, len(r.liveSources))
+	for providerID := range r.liveSources {
+		provider, err := resolver.ResolveProvider(providerID)
+		if err != nil {
+			return stagedLiveProviderConfigs{}, fmt.Errorf(
+				"daemon: resolve live model catalog provider %q: %w",
+				providerID,
+				err,
+			)
+		}
+		effective[providerID] = provider
+	}
 	staged := stagedLiveProviderConfigs{
 		effective: effective,
 		sources:   make(map[string]*modelcatalog.LiveProviderSource, len(r.liveSources)),

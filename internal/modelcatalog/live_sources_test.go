@@ -842,6 +842,42 @@ func TestLiveProviderRefreshCoalescing(t *testing.T) {
 func TestLiveProviderSourceRegistration(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve builtin model mappings under a partial provider override", func(t *testing.T) {
+		t.Parallel()
+
+		builtin := compozyconfig.BuiltinProviders()["claude"]
+		sources, err := NewLiveProviderSources(&LiveProviderSourcesConfig{
+			Providers: map[string]compozyconfig.ProviderConfig{
+				"claude": {
+					AuthMode:     compozyconfig.ProviderAuthModeNone,
+					NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("NewLiveProviderSources() error = %v", err)
+		}
+		for _, source := range sources {
+			if source.ID() != SourceKindProviderLiveID("claude") {
+				continue
+			}
+			liveSource, ok := source.(*LiveProviderSource)
+			if !ok {
+				t.Fatalf("Claude source type = %T, want *LiveProviderSource", source)
+			}
+			provider := liveSource.providerSnapshot()
+			if provider.Models.Default != builtin.Models.Default ||
+				len(provider.Models.Curated) != len(builtin.Models.Curated) {
+				t.Fatalf("Claude models = %#v, want preserved builtin mappings", provider.Models)
+			}
+			if provider.Command == "" || provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNone {
+				t.Fatalf("Claude provider = %#v, want builtin command plus auth override", provider)
+			}
+			return
+		}
+		t.Fatal("Claude live source is missing")
+	})
+
 	t.Run("Should register core live provider sources", func(t *testing.T) {
 		t.Parallel()
 

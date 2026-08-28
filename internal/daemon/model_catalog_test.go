@@ -22,6 +22,40 @@ import (
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should preserve builtin model mappings while staging a partial provider override", func(t *testing.T) {
+		t.Parallel()
+
+		builtin := compozyconfig.BuiltinProviders()["claude"]
+		source, err := modelcatalog.NewLiveProviderSource(
+			"claude",
+			builtin,
+			&modelcatalog.LiveProviderSourcesConfig{},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		runtime := &modelCatalogRuntime{
+			liveSources: map[string]*modelcatalog.LiveProviderSource{"claude": source},
+		}
+		staged, err := runtime.stageLiveProviderConfigs(map[string]compozyconfig.ProviderConfig{
+			"claude": {
+				AuthMode:     compozyconfig.ProviderAuthModeNone,
+				NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+			},
+		})
+		if err != nil {
+			t.Fatalf("stageLiveProviderConfigs() error = %v", err)
+		}
+		provider := staged.effective["claude"]
+		if provider.Models.Default != builtin.Models.Default ||
+			len(provider.Models.Curated) != len(builtin.Models.Curated) {
+			t.Fatalf("staged Claude models = %#v, want preserved builtin mappings", provider.Models)
+		}
+		if provider.Command == "" || provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNone {
+			t.Fatalf("staged Claude provider = %#v, want builtin command plus auth override", provider)
+		}
+	})
+
 	t.Run("Should compose catalog service when global DB and config are available", func(t *testing.T) {
 		t.Parallel()
 
