@@ -143,6 +143,52 @@ func TestCreateOpensStoreRegistersSessionAndActivates(t *testing.T) {
 	}
 }
 
+func TestCreateResolvesDefaultProfileWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should start an agent defined only in the default workspace profile", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.resolver.resolveForProfileHook = func(
+			ctx context.Context,
+			workspaceRef string,
+			profileName string,
+		) (workspacepkg.ResolvedWorkspace, error) {
+			if got, want := profileName, sessionDefaultProfileName; got != want {
+				t.Fatalf("ResolveForProfile() profile = %q, want %q", got, want)
+			}
+			resolved, err := h.resolver.Resolve(ctx, workspaceRef)
+			if err != nil {
+				return workspacepkg.ResolvedWorkspace{}, err
+			}
+			resolved.Agents = []compozyconfig.AgentDef{{
+				Name: "profile-agent", Provider: "claude", Prompt: "You own the profile runtime.",
+			}}
+			resolved.ProfileName = profileName
+			return resolved, nil
+		}
+
+		created, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "profile-agent",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, created.ID)
+		})
+
+		if got, want := h.driver.startCalls[0].AgentName, "profile-agent"; got != want {
+			t.Fatalf("start agent = %q, want %q", got, want)
+		}
+		if got, want := h.driver.startCalls[0].SystemPrompt, "You own the profile runtime."; got != want {
+			t.Fatalf("start system prompt = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestSessionWorktreeBinding(t *testing.T) {
 	t.Parallel()
 
@@ -1289,6 +1335,9 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 		}
 		if got := len(h.resolver.resolveOrRegisterCalls); got != 1 {
 			t.Fatalf("resolver ResolveOrRegister() calls = %d, want 1", got)
+		}
+		if got, want := h.resolver.profileRegisterNames, []string{sessionDefaultProfileName}; !slices.Equal(got, want) {
+			t.Fatalf("resolver profile registrations = %#v, want %#v", got, want)
 		}
 		if got, want := h.resolver.resolveOrRegisterCalls[0], normalizeResolverPath(workspacePath); got != want {
 			t.Fatalf("resolver ResolveOrRegister() arg = %q, want %q", got, want)

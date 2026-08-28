@@ -832,6 +832,7 @@ type fakeWorkspaceResolver struct {
 	resolveErr             error
 	resolveOrRegisterErr   error
 	resolveHook            func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
+	resolveForProfileHook  func(context.Context, string, string) (workspacepkg.ResolvedWorkspace, error)
 	resolveOrRegisterHook  func(context.Context, string) (workspacepkg.ResolvedWorkspace, error)
 	autoRegisterConfig     compozyconfig.Config
 	autoRegisterAgents     []compozyconfig.AgentDef
@@ -1050,7 +1051,9 @@ func (r *fakeWorkspaceResolver) ResolveForProfile(
 		return cloneResolvedWorkspaceForTests(&resolved), nil
 	}
 	r.mu.Unlock()
-
+	if r.resolveForProfileHook != nil {
+		return r.resolveForProfileHook(ctx, idOrPath, profileName)
+	}
 	resolved, err := r.Resolve(ctx, idOrPath)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err

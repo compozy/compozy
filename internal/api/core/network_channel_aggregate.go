@@ -17,8 +17,23 @@ import (
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
+func (h *BaseHandlers) resolveNetworkChannelAgentWorkspace(
+	ctx context.Context,
+	workspaceRef string,
+	profileID string,
+	profileName string,
+) (workspacepkg.ResolvedWorkspace, error) {
+	resolved, err := resolveWorkspaceAgentProfile(ctx, h.Workspaces, workspaceRef, profileName)
+	if err != nil {
+		return workspacepkg.ResolvedWorkspace{}, fmt.Errorf("api: resolve network channel agent workspace: %w", err)
+	}
+	resolved.ProfileID = profileID
+	resolved.ProfileName = profileName
+	return resolved, nil
+}
+
 func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
-	_ context.Context,
+	ctx context.Context,
 	req contract.CreateNetworkChannelRequest,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) (string, string, []string, error) {
@@ -47,9 +62,13 @@ func (h *BaseHandlers) resolveCreateNetworkChannelRequest(
 	if err != nil {
 		return "", "", nil, err
 	}
-	available := make(map[string]struct{}, len(resolved.Agents))
-	for _, agent := range resolved.Agents {
-		available[strings.TrimSpace(agent.Name)] = struct{}{}
+	entries, err := h.workspaceDetailAgentEntries(ctx, resolved)
+	if err != nil {
+		return "", "", nil, fmt.Errorf("api: list workspace agents for network channel: %w", err)
+	}
+	available := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		available[strings.TrimSpace(entry.Def.Name)] = struct{}{}
 	}
 	for _, agentName := range agentNames {
 		if _, ok := available[agentName]; ok {

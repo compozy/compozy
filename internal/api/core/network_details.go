@@ -70,6 +70,30 @@ func (h *BaseHandlers) networkStoreRequired() (NetworkStore, error) {
 	return h.NetworkStore, nil
 }
 
+func (h *BaseHandlers) resolveNetworkChannelCreateScopes(
+	c *gin.Context,
+	bodyWorkspaceID string,
+) (workspaceScope, resolvedProfileReadScope, bool) {
+	scope, ok := h.resolveWorkspaceScope(c)
+	if !ok {
+		return workspaceScope{}, resolvedProfileReadScope{}, false
+	}
+	selection, err := h.resolveProfileMutationSelection(c)
+	if err != nil {
+		h.respondProfileReadScopeError(c, err)
+		return workspaceScope{}, resolvedProfileReadScope{}, false
+	}
+	if !scope.BodyWorkspaceIDMatches(bodyWorkspaceID) {
+		h.respondError(
+			c,
+			http.StatusBadRequest,
+			NewNetworkValidationError(errors.New("workspace_id does not match path")),
+		)
+		return workspaceScope{}, resolvedProfileReadScope{}, false
+	}
+	return scope, selection, true
+}
+
 // CreateNetworkChannel validates and creates one new channel by starting a new session per selected agent.
 func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 	service, err := h.networkServiceRequired()
@@ -92,30 +116,28 @@ func (h *BaseHandlers) CreateNetworkChannel(c *gin.Context) {
 		)
 		return
 	}
-	scope, ok := h.resolveWorkspaceScope(c)
+	scope, mutationSelection, ok := h.resolveNetworkChannelCreateScopes(c, req.WorkspaceID)
 	if !ok {
 		return
 	}
-	mutationScope, err := h.resolveProfileMutationScope(c)
-	if err != nil {
-		h.respondProfileReadScopeError(c, err)
-		return
-	}
-	if !scope.BodyWorkspaceIDMatches(req.WorkspaceID) {
-		h.respondError(
-			c,
-			http.StatusBadRequest,
-			NewNetworkValidationError(errors.New("workspace_id does not match path")),
-		)
-		return
-	}
+	mutationScope := mutationSelection.Scope
 	networkWorkspaceID := scope.NetworkWorkspaceID()
 	req.WorkspaceID = networkWorkspaceID
 
+	agentWorkspace, err := h.resolveNetworkChannelAgentWorkspace(
+		c.Request.Context(),
+		scope.RegistryID,
+		mutationScope.ProfileID,
+		mutationSelection.ProfileName,
+	)
+	if err != nil {
+		h.respondError(c, statusForAgentWorkspaceError(err), err)
+		return
+	}
 	channel, purpose, agentNames, err := h.resolveCreateNetworkChannelRequest(
 		c.Request.Context(),
 		req,
-		&scope.Resolved,
+		&agentWorkspace,
 	)
 	if err != nil {
 		h.respondError(c, statusForCreateNetworkChannelError(err), err)

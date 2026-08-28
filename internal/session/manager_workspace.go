@@ -65,19 +65,7 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 			"session: workspace and workspace path are mutually exclusive",
 		)
 	case workspacePath != "":
-		if strings.TrimSpace(opts.ProfileID) == "" || strings.TrimSpace(opts.ProfileID) == store.DefaultProfileID {
-			resolved, err := resolver.ResolveOrRegister(ctx, workspacePath)
-			if err != nil {
-				return workspacepkg.ResolvedWorkspace{}, fmt.Errorf(
-					"session: resolve workspace path %q: %w",
-					workspacePath,
-					err,
-				)
-			}
-			applyDefaultProfileIdentity(&resolved)
-			return resolved, nil
-		}
-		profileName, err := resolveProfileName(ctx, m.profileNames, opts.ProfileID)
+		profileID, profileName, err := resolveWorkspaceProfileIdentity(ctx, m.profileNames, opts.ProfileID)
 		if err != nil {
 			return workspacepkg.ResolvedWorkspace{}, err
 		}
@@ -95,7 +83,8 @@ func (m *Manager) resolveCreateWorkspace(ctx context.Context, opts CreateOpts) (
 				err,
 			)
 		}
-		resolved.ProfileID = strings.TrimSpace(opts.ProfileID)
+		resolved.ProfileID = profileID
+		resolved.ProfileName = profileName
 		return resolved, nil
 	default:
 		resolved, err := resolveWorkspaceForProfile(ctx, resolver, m.profileNames, workspaceRef, opts.ProfileID)
@@ -192,22 +181,7 @@ func resolveWorkspaceForProfile(
 	workspaceRef string,
 	profileID string,
 ) (workspacepkg.ResolvedWorkspace, error) {
-	profileID = strings.TrimSpace(profileID)
-	if profileID == "" || profileID == store.DefaultProfileID {
-		var resolved workspacepkg.ResolvedWorkspace
-		var err error
-		if profileResolver, ok := resolver.(workspacepkg.ProfileRuntimeResolver); ok {
-			resolved, err = profileResolver.ResolveForProfile(ctx, workspaceRef, sessionDefaultProfileName)
-		} else {
-			resolved, err = resolver.Resolve(ctx, workspaceRef)
-		}
-		if err != nil {
-			return workspacepkg.ResolvedWorkspace{}, err
-		}
-		applyDefaultProfileIdentity(&resolved)
-		return resolved, nil
-	}
-	profileName, err := resolveProfileName(ctx, profileNames, profileID)
+	profileID, profileName, err := resolveWorkspaceProfileIdentity(ctx, profileNames, profileID)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
@@ -222,15 +196,24 @@ func resolveWorkspaceForProfile(
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
 	resolved.ProfileID = profileID
+	resolved.ProfileName = profileName
 	return resolved, nil
 }
 
-func applyDefaultProfileIdentity(resolved *workspacepkg.ResolvedWorkspace) {
-	if resolved == nil {
-		return
+func resolveWorkspaceProfileIdentity(
+	ctx context.Context,
+	profileNames ProfileNameResolver,
+	profileID string,
+) (string, string, error) {
+	profileID = normalizeCreateProfileID(profileID)
+	if profileID == store.DefaultProfileID {
+		return profileID, sessionDefaultProfileName, nil
 	}
-	resolved.ProfileID = store.DefaultProfileID
-	resolved.ProfileName = sessionDefaultProfileName
+	profileName, err := resolveProfileName(ctx, profileNames, profileID)
+	if err != nil {
+		return "", "", err
+	}
+	return profileID, profileName, nil
 }
 
 func resolveProfileName(ctx context.Context, profileNames ProfileNameResolver, profileID string) (string, error) {

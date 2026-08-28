@@ -5706,6 +5706,24 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 					return workspacepkg.ResolvedWorkspace{
 						Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
 						WorkspaceID: "ws-stable",
+					}, nil
+				},
+				ResolveForProfileFn: func(
+					_ context.Context,
+					ref string,
+					profileName string,
+				) (workspacepkg.ResolvedWorkspace, error) {
+					if got, want := ref, "ws-workspace"; got != want {
+						t.Fatalf("ResolveForProfile() ref = %q, want %q", got, want)
+					}
+					if got, want := profileName, "default"; got != want {
+						t.Fatalf("ResolveForProfile() profile = %q, want %q", got, want)
+					}
+					return workspacepkg.ResolvedWorkspace{
+						Workspace:   workspacepkg.Workspace{ID: "ws-workspace", Name: "Workspace"},
+						WorkspaceID: "ws-stable",
+						ProfileID:   store.DefaultProfileID,
+						ProfileName: "default",
 						Agents: []compozyconfig.AgentDef{
 							{Name: "coder"},
 							{Name: "reviewer"},
@@ -5842,6 +5860,56 @@ func TestBaseHandlersCreateNetworkChannelCreatesSessionsPerAgent(t *testing.T) {
 			}
 		},
 	)
+
+	t.Run("Should reject an agent absent from both workspace sources", func(t *testing.T) {
+		t.Parallel()
+
+		manager := testutil.StubSessionManager{
+			CreateFn: func(context.Context, session.CreateOpts) (*session.Session, error) {
+				t.Fatal("Create() should not be called for an unavailable agent")
+				return nil, nil
+			},
+		}
+		workspaces := testutil.StubWorkspaceService{
+			ResolveFn: func(_ context.Context, ref string) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{
+					Workspace:   workspacepkg.Workspace{ID: ref, Name: "Workspace"},
+					WorkspaceID: ref,
+				}, nil
+			},
+		}
+		fixture := newHandlerFixture(t, manager, testutil.StubObserver{}, workspaces, nil, nil)
+		fixture.Handlers.AgentCatalog = stubAgentCatalog{}
+		fixture.Handlers.Config.Network.Enabled = true
+		fixture.Handlers.Network = testutil.StubNetworkService{}
+		fixture.Handlers.NetworkStore = testutil.StubNetworkStore{
+			CreateNetworkChannelFn: func(context.Context, store.NetworkChannelEntry) error {
+				t.Fatal("CreateNetworkChannel() should not be called for an unavailable agent")
+				return nil
+			},
+		}
+
+		resp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodPost,
+			"/workspaces/ws-workspace/network/channels",
+			[]byte(
+				`{"channel":"builders","workspace_id":"ws-workspace","purpose":"Cross-agent coordination","agent_names":["missing"]}`,
+			),
+		)
+		if resp.Code != http.StatusBadRequest {
+			t.Fatalf(
+				"create channel code = %d, want %d; body=%s",
+				resp.Code,
+				http.StatusBadRequest,
+				resp.Body.String(),
+			)
+		}
+		if !strings.Contains(resp.Body.String(), "agent not available in workspace: missing") {
+			t.Fatalf("create channel body = %q, want unavailable agent error", resp.Body.String())
+		}
+	})
 }
 
 func TestBaseHandlersNetworkUsesRegistryWorkspaceIdentity(t *testing.T) {
