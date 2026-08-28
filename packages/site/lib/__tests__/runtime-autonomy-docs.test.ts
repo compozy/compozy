@@ -540,7 +540,9 @@ describe("generated autonomy CLI references", () => {
       "--skills",
       "--workspace-paths",
       "--network-channels",
+      "--sandbox-profiles",
     ]);
-    expectExcludesAll(call, ["--ttl-seconds", "--sandbox-profile", "--no-notify-creator"]);
+    expectExcludesAll(call, ["--ttl-seconds", "--no-notify-creator"]);
+    expect(call).not.toMatch(/--sandbox-profile(?:\s|$)/);
   });
 });
