@@ -27,7 +27,7 @@ import { SessionCallInvocation } from "../session-call-invocation";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { WorkingIndicator } from "../session-working-row";
 import { sessionStore } from "@/systems/session";
-import { LIVE_CALL_POLL_INTERVAL } from "@/systems/agent-comms";
+import { callDetailOptions, LIVE_CALL_POLL_INTERVAL } from "@/systems/agent-comms";
 import { buildCallFixture } from "@/systems/agent-comms/mocks";
 import { WindowLiveDataContext } from "@/systems/os/contexts/window-live-data-context";
 import type { SessionTimelineToolPart } from "../session-timeline.logic";
@@ -210,11 +210,15 @@ function liveCallRefetchInterval(
   if (!query) {
     throw new Error("expected a call-detail query");
   }
-  const refetchInterval = query.options.refetchInterval;
+  const { refetchInterval } = query.options as ReturnType<typeof callDetailOptions>;
   if (typeof refetchInterval !== "function") {
     throw new Error("expected call-detail refetchInterval to be a function");
   }
-  return refetchInterval({ state: { data: { state }, error: null } } as never);
+  const interval = refetchInterval({ state: { data: { state }, error: null } } as never);
+  if (interval === undefined) {
+    throw new Error("expected call-detail refetchInterval to return an explicit interval");
+  }
+  return interval;
 }
 
 const TOOL_ARTIFACT_URI = `compozy://tool-artifacts/art_${"c".repeat(64)}`;
