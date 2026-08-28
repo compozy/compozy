@@ -185,16 +185,20 @@ func TestSpawnReaperUsesParkedIdleClockAndCallProtection(t *testing.T) {
 	expired := spawnedReaperInfo("parked-expired", "parent", now.Add(-time.Hour), true)
 	expired.State, expired.ParkedAt, expired.IdleExpiresAt = session.StateStopped, &past, &past
 
-	t.Run("Should reap only an expired parked child after protecting open calls", func(t *testing.T) {
+	t.Run("Should reap an idle-expired open call after preserving other open-call fences", func(t *testing.T) {
 		t.Parallel()
 
 		inWindow := spawnedReaperInfo("parked-in-window", "parent", now.Add(-time.Hour), true)
 		inWindow.State, inWindow.ParkedAt, inWindow.IdleExpiresAt = session.StateStopped, &past, &future
-		openCall := spawnedReaperInfo("open-call", "parent", now.Add(-time.Minute), true)
-		lifecycle := &fakeSpawnReaperCallLifecycle{protected: map[string]bool{"open-call": true}}
+		idleExpiredOpenCall := spawnedReaperInfo("idle-expired-open-call", "parent", now.Add(-time.Minute), true)
+		parentStopped := rootReaperInfo("parent-stopped", session.StateStopped)
+		protectedOpenCall := spawnedReaperInfo("protected-open-call", "parent-stopped", future, true)
+		lifecycle := &fakeSpawnReaperCallLifecycle{protected: map[string]bool{"protected-open-call": true}}
 		reaper, err := newSpawnReaper(
 			context.Background(),
-			&fakeSessionManager{infos: []*session.Info{parent, expired, inWindow, openCall}},
+			&fakeSessionManager{infos: []*session.Info{
+				parent, parentStopped, expired, inWindow, idleExpiredOpenCall, protectedOpenCall,
+			}},
 			&fakeSpawnLeaseReleaser{}, &recordingSpawnHooks{}, discardLogger(),
 			func() time.Time { return now }, time.Hour, lifecycle,
 		)
@@ -205,17 +209,25 @@ func TestSpawnReaperUsesParkedIdleClockAndCallProtection(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Sweep() error = %v", err)
 		}
-		if report.Reaped != 1 || report.TTLExpired != 1 {
-			t.Fatalf("Sweep() report = %#v, want only parked-expired reaped", report)
+		if report.Reaped != 2 || report.TTLExpired != 2 || report.ParentStopped != 0 {
+			t.Fatalf("Sweep() report = %#v, want both idle-expired sessions reaped", report)
 		}
-		if !equalStrings(lifecycle.finalized, []string{"parked-expired:ttl_expired"}) ||
-			!equalStrings(lifecycle.failedDeliveries, []string{"parked-expired:ttl_expired"}) {
+		wantFinalized := []string{"parked-expired:ttl_expired", "idle-expired-open-call:ttl_expired"}
+		if !equalStrings(lifecycle.finalized, wantFinalized) ||
+			!equalStrings(lifecycle.failedDeliveries, wantFinalized) {
 			t.Fatalf("call lifecycle = finalized %#v failed %#v", lifecycle.finalized, lifecycle.failedDeliveries)
 		}
 		if !equalStrings(lifecycle.sequence, []string{
 			"fail-deliveries:parked-expired:ttl_expired", "finalize:parked-expired:ttl_expired",
+			"fail-deliveries:idle-expired-open-call:ttl_expired",
+			"finalize:idle-expired-open-call:ttl_expired",
 		}) {
 			t.Fatalf("call lifecycle sequence = %#v, want deliveries failed before finalization", lifecycle.sequence)
+		}
+		if len(lifecycle.fenced) != 3 || lifecycle.fenced[0].Reason != spawnReapReasonTTLExpired ||
+			lifecycle.fenced[1].Reason != spawnReapReasonTTLExpired ||
+			lifecycle.fenced[2].Reason != spawnReapReasonParentStopped {
+			t.Fatalf("reap fences = %#v, want two TTL backstops and one protected parent stop", lifecycle.fenced)
 		}
 	})
 
@@ -360,14 +372,19 @@ type spawnReaperAtomicSessionManager struct {
 
 type fakeSpawnReaperCallLifecycle struct {
 	protected        map[string]bool
+	fenced           []callspkg.ReapedSession
 	finalized        []string
 	failedDeliveries []string
 	sequence         []string
 	failDeliveryErr  error
 }
 
-func (f *fakeSpawnReaperCallLifecycle) FenceReapSession(_ context.Context, sessionID string) (bool, error) {
-	return !f.protected[sessionID], nil
+func (f *fakeSpawnReaperCallLifecycle) FenceReapSession(
+	_ context.Context,
+	input callspkg.ReapedSession,
+) (bool, error) {
+	f.fenced = append(f.fenced, input)
+	return !f.protected[input.SessionID], nil
 }
 
 func (f *fakeSpawnReaperCallLifecycle) FailRecipientDeliveries(

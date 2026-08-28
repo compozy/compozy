@@ -2164,6 +2164,93 @@ func TestGlobalDBCallReapCleanupMatrix(t *testing.T) {
 	)
 	now := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
 
+	t.Run("Should settle a deadline-less open call when the child idle budget expires", func(t *testing.T) {
+		parentID := "ses_reap_open_call_parent"
+		childID := "ses_reap_open_call_child"
+		registerCallSession(ctx, t, database, store.SessionInfo{
+			ID: parentID, ProfileID: store.DefaultProfileID, AgentName: "coordinator",
+			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				RootSessionID: parentID,
+				SpawnBudget:   store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			},
+			CreatedAt: now, UpdatedAt: now,
+		})
+		registerCallSession(ctx, t, database, store.SessionInfo{
+			ID: childID, ProfileID: store.DefaultProfileID, AgentName: "worker",
+			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
+			Lineage: &store.SessionLineage{
+				ParentSessionID: parentID, RootSessionID: parentID, SpawnDepth: 1,
+				TTLExpiresAt: new(now.Add(-time.Minute)),
+				SpawnBudget:  store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+			},
+			CreatedAt: now.Add(-time.Hour), UpdatedAt: now,
+		})
+		service, err := callspkg.NewService(
+			callspkg.WithStore(database),
+			callspkg.WithDirectory(callIntegrationDirectory{database: database}),
+			callspkg.WithConfig(config.DefaultCallsConfig()),
+			callspkg.WithClock(func() time.Time { return now }),
+			callspkg.WithIDGenerator(store.NewID),
+		)
+		if err != nil {
+			t.Fatalf("calls.NewService() error = %v", err)
+		}
+		record, err := service.Create(ctx, callspkg.CreateInput{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID,
+			},
+			Target: callspkg.Target{SessionID: childID}, Prompt: "review the patch",
+			Actor: callspkg.Actor{Kind: "agent_session", ID: parentID},
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		if !record.DeadlineAt.IsZero() || record.State != callspkg.StateRunning {
+			t.Fatalf("Create() record = %#v, want running without deadline", record)
+		}
+
+		fence, err := database.FenceSessionReap(ctx, callspkg.SessionReapFence{
+			SessionID: childID,
+			Reason:    "ttl_expired",
+			At:        now,
+		})
+		if err != nil {
+			t.Fatalf("FenceSessionReap() error = %v", err)
+		}
+		if !fence.Allowed || len(fence.SettledCalls) != 1 {
+			t.Fatalf("FenceSessionReap() = %#v, want one settled call and an acquired fence", fence)
+		}
+		settled, err := database.GetCall(ctx, record.OwnerScope(), record.CallID)
+		if err != nil {
+			t.Fatalf("GetCall() error = %v", err)
+		}
+		if settled.State != callspkg.StateTimeout || settled.FailureCode != "call_timeout" ||
+			settled.FailureDetail != "child idle budget elapsed" || settled.FinalProsePreview != "" {
+			t.Fatalf("settled call = %#v, want idle timeout without prose result", settled)
+		}
+		var completionDeliveries int
+		if err := database.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM call_deliveries
+			WHERE kind = 'completion' AND subject_id = ?`, record.CallID).Scan(&completionDeliveries); err != nil {
+			t.Fatalf("count completion deliveries error = %v", err)
+		}
+		if completionDeliveries != 1 {
+			t.Fatalf("completion deliveries = %d, want 1", completionDeliveries)
+		}
+		_, err = service.Create(ctx, callspkg.CreateInput{
+			ProfileID: store.DefaultProfileID, Scope: callspkg.ScopeWorkspace, WorkspaceID: workspaceID,
+			Caller: participation.OwnerRef{
+				Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID,
+			},
+			Target: callspkg.Target{SessionID: childID}, Prompt: "race the reap fence",
+			Actor: callspkg.Actor{Kind: "agent_session", ID: parentID},
+		})
+		if !callspkg.IsCode(err, callspkg.CodeTargetExpired) {
+			t.Fatalf("Create(after fence) error = %v, want %s", err, callspkg.CodeTargetExpired)
+		}
+	})
+
 	t.Run("Should fail every pending delivery kind for the reaped recipient", func(t *testing.T) {
 		recipientID := "ses_reap_delivery_recipient"
 		registerCallSession(ctx, t, database, store.SessionInfo{
@@ -2317,11 +2404,15 @@ func TestGlobalDBCallAdmissionRacingReaperHasOneDurableWinner(t *testing.T) {
 		}()
 		go func() {
 			<-start
-			won, fenceErr := database.FenceSessionReap(ctx, childID, now)
+			result, fenceErr := database.FenceSessionReap(ctx, callspkg.SessionReapFence{
+				SessionID: childID,
+				Reason:    "orphaned",
+				At:        now,
+			})
 			fenceResult <- struct {
 				won bool
 				err error
-			}{won: won, err: fenceErr}
+			}{won: result.Allowed, err: fenceErr}
 		}()
 		close(start)
 		createErr := <-createResult

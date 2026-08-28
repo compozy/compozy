@@ -394,12 +394,25 @@ func (s *Service) mailboxStore() (MailboxStore, error) {
 }
 
 // FenceReapSession prevents new work from racing with session reaping.
-func (s *Service) FenceReapSession(ctx context.Context, sessionID string) (bool, error) {
+func (s *Service) FenceReapSession(ctx context.Context, input ReapedSession) (bool, error) {
 	mailbox, err := s.mailboxStore()
 	if err != nil {
 		return false, err
 	}
-	return mailbox.FenceSessionReap(ctx, strings.TrimSpace(sessionID), s.now().UTC())
+	result, err := mailbox.FenceSessionReap(ctx, SessionReapFence{
+		SessionID: strings.TrimSpace(input.SessionID),
+		Reason:    strings.TrimSpace(input.Reason),
+		At:        s.now().UTC(),
+	})
+	if err != nil {
+		return false, err
+	}
+	for index := range result.SettledCalls {
+		record := &result.SettledCalls[index]
+		s.notifyWaiters(record.CallID)
+		s.emitTerminalTransition(ctx, StateRunning, record)
+	}
+	return result.Allowed, nil
 }
 
 // FailRecipientDeliveries terminalizes pending deliveries for a stopped recipient.

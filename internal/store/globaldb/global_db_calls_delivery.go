@@ -230,22 +230,104 @@ func (g *CallRepo) FinalizeReapedSession(
 	return nil
 }
 
-func (g *CallRepo) FenceSessionReap(ctx context.Context, sessionID string, at time.Time) (bool, error) {
+func (g *CallRepo) FenceSessionReap(
+	ctx context.Context,
+	fence callspkg.SessionReapFence,
+) (result callspkg.SessionReapFenceResult, err error) {
 	if err := g.checkReady(ctx, "fence call session reap"); err != nil {
-		return false, err
+		return callspkg.SessionReapFenceResult{}, err
 	}
-	result, err := g.db.ExecContext(ctx, `UPDATE sessions SET draining_at = ?, updated_at = ?
-		WHERE id = ?
-		AND NOT EXISTS (SELECT 1 FROM operator_caller_sessions operator WHERE operator.session_id = sessions.id)
-		AND NOT EXISTS (SELECT 1 FROM calls WHERE (child_session_id = sessions.id OR parent_session_id = sessions.id)
-			AND state IN ('queued', 'running'))`,
-		store.FormatTimestamp(at), store.FormatTimestamp(at), strings.TrimSpace(sessionID))
+	fence.SessionID = strings.TrimSpace(fence.SessionID)
+	fence.Reason = strings.TrimSpace(fence.Reason)
+	err = g.tasks.withTaskImmediateTransaction(ctx, "fence call session reap", func(exec taskSQLExecutor) error {
+		query := `UPDATE sessions SET draining_at = ?, updated_at = ?
+			WHERE id = ?
+			AND NOT EXISTS (
+				SELECT 1 FROM operator_caller_sessions operator WHERE operator.session_id = sessions.id
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM calls WHERE (child_session_id = sessions.id OR parent_session_id = sessions.id)
+				AND state IN ('queued', 'running')
+			)`
+		if fence.Reason == "ttl_expired" {
+			query = `UPDATE sessions SET draining_at = ?, updated_at = ?
+				WHERE id = ?
+				AND NOT EXISTS (
+					SELECT 1 FROM operator_caller_sessions operator WHERE operator.session_id = sessions.id
+				)
+				AND NOT EXISTS (
+					SELECT 1 FROM calls WHERE
+					(parent_session_id = sessions.id AND state IN ('queued', 'running'))
+					OR (child_session_id = sessions.id AND state = 'queued')
+				)`
+		}
+		fenced, execErr := exec.ExecContext(
+			ctx,
+			query,
+			store.FormatTimestamp(fence.At),
+			store.FormatTimestamp(fence.At),
+			fence.SessionID,
+		)
+		if execErr != nil {
+			return fmt.Errorf("store: fence call session reap %q: %w", fence.SessionID, execErr)
+		}
+		affected, rowsErr := fenced.RowsAffected()
+		if rowsErr != nil {
+			return fmt.Errorf("store: inspect call session reap fence %q: %w", fence.SessionID, rowsErr)
+		}
+		result.Allowed = affected == 1
+		if !result.Allowed || fence.Reason != "ttl_expired" {
+			return nil
+		}
+		openCalls, loadErr := listOpenCallsForReapedChild(ctx, exec, fence.SessionID)
+		if loadErr != nil {
+			return loadErr
+		}
+		result.SettledCalls = make([]callspkg.CallRecord, 0, len(openCalls))
+		for index := range openCalls {
+			current := &openCalls[index]
+			settled, settleErr := settleCallWithExecutor(ctx, exec, callspkg.SettlementMutation{
+				CallID: current.CallID, ExpectedState: current.State, State: callspkg.StateTimeout,
+				FailureCode: "call_timeout", FailureDetail: "child idle budget elapsed",
+				SettledAt: fence.At,
+			})
+			if settleErr != nil {
+				return settleErr
+			}
+			result.SettledCalls = append(result.SettledCalls, settled)
+		}
+		return nil
+	})
+	return result, err
+}
+
+func listOpenCallsForReapedChild(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	sessionID string,
+) (records []callspkg.CallRecord, err error) {
+	rows, err := exec.QueryContext(ctx, `SELECT `+callSelectColumnsSQL+` FROM calls
+		WHERE calls.child_session_id = ?
+		AND calls.state = 'running'
+		AND EXISTS (SELECT 1 FROM sessions WHERE sessions.id = ?
+			AND calls.profile_id = sessions.profile_id
+			AND calls.scope = sessions.scope
+			AND calls.workspace_id = sessions.workspace_id)
+		ORDER BY calls.created_at, calls.call_id`, sessionID, sessionID)
 	if err != nil {
-		return false, fmt.Errorf("store: fence call session reap %q: %w", sessionID, err)
+		return nil, fmt.Errorf("store: list open calls for reaped child %q: %w", sessionID, err)
 	}
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("store: inspect call session reap fence %q: %w", sessionID, err)
+	defer func() { err = joinRowsCloseError(rows, err, "open calls for reaped child") }()
+	records = make([]callspkg.CallRecord, 0)
+	for rows.Next() {
+		record, scanErr := scanCallRecord(rows)
+		if scanErr != nil {
+			return nil, scanErr
+		}
+		records = append(records, record)
 	}
-	return affected == 1, nil
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: iterate open calls for reaped child %q: %w", sessionID, err)
+	}
+	return records, nil
 }

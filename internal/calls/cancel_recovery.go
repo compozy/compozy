@@ -120,7 +120,7 @@ func (s *Service) DrainSubtree(
 	rootSessionID string,
 	actor Actor,
 	reason string,
-) (DrainReport, error) {
+) (report DrainReport, err error) {
 	rootID := strings.TrimSpace(rootSessionID)
 	if rootID == "" {
 		return DrainReport{}, newError(CodeValidation, "root_session_id is required", nil)
@@ -132,15 +132,22 @@ func (s *Service) DrainSubtree(
 	if err := s.store.FenceSessionDrain(ctx, rootID, fencedAt); err != nil {
 		return DrainReport{}, err
 	}
+	keepFence := false
+	defer func() {
+		if keepFence {
+			return
+		}
+		err = errors.Join(err, s.unfenceSessionDrain(ctx, rootID, fencedAt))
+	}()
 	openCalls, err := s.store.ListOpenSubtreeCalls(ctx, rootID)
 	if err != nil {
-		return DrainReport{}, errors.Join(err, s.unfenceSessionDrain(ctx, rootID, fencedAt))
+		return DrainReport{}, err
 	}
 	preservedResults, err := s.store.CountPreservedSubtreeResults(ctx, rootID)
 	if err != nil {
-		return DrainReport{}, errors.Join(err, s.unfenceSessionDrain(ctx, rootID, fencedAt))
+		return DrainReport{}, err
 	}
-	report := DrainReport{RootSessionID: rootID, PreservedResults: preservedResults}
+	report = DrainReport{RootSessionID: rootID, PreservedResults: preservedResults}
 	detail := sanitizeDiagnostic(reason, "subtree drained")
 	drainPayload := HookPayload{CallID: rootID, RootSessionID: rootID, Actor: actor}
 	if len(openCalls) > 0 {
@@ -149,10 +156,27 @@ func (s *Service) DrainSubtree(
 		drainPayload.RootSessionID = rootID
 		drainPayload.Actor = actor
 	}
+	if err := s.drainSubtreeCalls(ctx, openCalls, detail, &report); err != nil {
+		return report, err
+	}
+	drainPayload.StoppedChildren = len(report.Stopped)
+	drainPayload.ClosedCalls = len(report.CanceledCalls)
+	drainPayload.PreservedResults = report.PreservedResults
+	s.emitHook(ctx, HookCallSubtreeDrained, drainPayload)
+	keepFence = true
+	return report, nil
+}
+
+func (s *Service) drainSubtreeCalls(
+	ctx context.Context,
+	openCalls []CallRecord,
+	detail string,
+	report *DrainReport,
+) error {
 	stopped := make(map[string]struct{}, len(openCalls))
 	for index := range openCalls {
 		record := &openCalls[index]
-		settled, settledNow, settleErr := s.settleControlledCall(ctx, record, controlledSettlement{
+		settled, settledNow, err := s.settleControlledCall(ctx, record, controlledSettlement{
 			fenceReason: "subtree drain",
 			stop: func(current CallRecord) error {
 				childID := strings.TrimSpace(current.ChildSessionID)
@@ -180,20 +204,16 @@ func (s *Service) DrainSubtree(
 				}
 			},
 		})
-		if !settledNow && settleErr == nil {
-			continue
+		if err != nil {
+			return err
 		}
-		if settleErr != nil {
-			return report, settleErr
+		if !settledNow {
+			continue
 		}
 		report.CanceledCalls = append(report.CanceledCalls, settled.CallID)
 		s.emitHook(ctx, HookCallCanceled, hookPayloadForCall(&settled))
 	}
-	drainPayload.StoppedChildren = len(report.Stopped)
-	drainPayload.ClosedCalls = len(report.CanceledCalls)
-	drainPayload.PreservedResults = report.PreservedResults
-	s.emitHook(ctx, HookCallSubtreeDrained, drainPayload)
-	return report, nil
+	return nil
 }
 
 type controlledSettlement struct {

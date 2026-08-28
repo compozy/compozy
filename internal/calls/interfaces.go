@@ -87,7 +87,7 @@ type MailboxStore interface {
 	RecordDelivery(context.Context, DeliveryUpdate) (DeliveryRecord, error)
 	GetCallPayload(context.Context, string, string) ([]byte, error)
 	FailPendingDeliveriesForRecipient(context.Context, string, string, time.Time) error
-	FenceSessionReap(context.Context, string, time.Time) (bool, error)
+	FenceSessionReap(context.Context, SessionReapFence) (SessionReapFenceResult, error)
 	FinalizeReapedSession(context.Context, string, string, time.Time) error
 }
 
@@ -173,6 +173,19 @@ type ReapedSession struct {
 	RootSessionID   string
 	AgentName       string
 	Reason          string
+}
+
+// SessionReapFence carries the durable inputs for fencing one session reap.
+type SessionReapFence struct {
+	SessionID string
+	Reason    string
+	At        time.Time
+}
+
+// SessionReapFenceResult reports whether the fence won and calls settled with it.
+type SessionReapFenceResult struct {
+	Allowed      bool
+	SettledCalls []CallRecord
 }
 
 // Admission contains the atomic durable state for one accepted call.

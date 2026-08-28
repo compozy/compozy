@@ -211,62 +211,80 @@ func (g *CallRepo) SettleCall(
 		return callspkg.CallRecord{}, err
 	}
 	err = g.tasks.withTaskImmediateTransaction(ctx, "settle call", func(exec taskSQLExecutor) error {
-		current, err := getCallByIDWithExecutor(ctx, exec, mutation.CallID)
-		if err != nil {
-			return err
-		}
-		if len(mutation.Superseded) > 0 {
-			if err := putCallPayload(
-				ctx, exec, current.WorkspaceID, mutation.SupersededRef, mutation.Superseded, mutation.SettledAt,
-			); err != nil {
-				return err
-			}
-			_, err := exec.ExecContext(ctx, `UPDATE calls SET superseded_ref = ?, updated_at = ? WHERE call_id = ?`,
-				mutation.SupersededRef, store.FormatTimestamp(mutation.SettledAt), mutation.CallID)
-			if err != nil {
-				return fmt.Errorf("store: record superseded result for call %q: %w", mutation.CallID, err)
-			}
-			record, err = getCallByIDWithExecutor(ctx, exec, mutation.CallID)
-			return err
-		}
-		if current.State != mutation.ExpectedState {
-			return &callspkg.Error{Code: callspkg.CodeAlreadySettled, Message: fmt.Sprintf("call is %s", current.State)}
-		}
-		if len(mutation.Result) > 0 {
-			if err := putCallPayload(
-				ctx,
-				exec,
-				current.WorkspaceID,
-				mutation.ResultRef,
-				mutation.Result,
-				mutation.SettledAt,
-			); err != nil {
-				return err
-			}
-		}
-		result, err := exec.ExecContext(ctx, `UPDATE calls SET state = ?, verdict = ?, result_ref = ?,
-			result_bytes = ?, failure_code = ?, failure_detail = ?, second_issue_text = ?, final_prose_preview = ?,
-			settled_at = ?, updated_at = ? WHERE call_id = ? AND state = ?`,
-			string(mutation.State), nullableTaskString(string(mutation.Verdict)),
-			nullableTaskString(mutation.ResultRef), callNullableInt(mutation.ResultBytes, len(mutation.Result) > 0),
-			nullableTaskString(mutation.FailureCode), nullableTaskString(boundedCallDetail(mutation.FailureDetail)),
-			boundedIssueText(mutation.SecondIssueText),
-			boundedIssueText(mutation.FinalProsePreview), store.FormatTimestamp(mutation.SettledAt),
-			store.FormatTimestamp(mutation.SettledAt), mutation.CallID, string(mutation.ExpectedState),
-		)
-		if err != nil {
-			return fmt.Errorf("store: settle call %q: %w", mutation.CallID, err)
-		}
-		if err := requireOneCallRow(result, mutation.CallID, "settle"); err != nil {
-			return err
-		}
-		record, err = getCallByIDWithExecutor(ctx, exec, mutation.CallID)
-		if err != nil {
-			return err
-		}
-		return insertCompletionDelivery(ctx, exec, &record, mutation.SettledAt)
+		var settleErr error
+		record, settleErr = settleCallWithExecutor(ctx, exec, mutation)
+		return settleErr
 	})
 	return record, err
+}
+
+func settleCallWithExecutor(
+	ctx context.Context,
+	exec taskSQLExecutor,
+	mutation callspkg.SettlementMutation,
+) (callspkg.CallRecord, error) {
+	current, err := getCallByIDWithExecutor(ctx, exec, mutation.CallID)
+	if err != nil {
+		return callspkg.CallRecord{}, err
+	}
+	if len(mutation.Superseded) > 0 {
+		if err := putCallPayload(
+			ctx, exec, current.WorkspaceID, mutation.SupersededRef, mutation.Superseded, mutation.SettledAt,
+		); err != nil {
+			return callspkg.CallRecord{}, err
+		}
+		_, err := exec.ExecContext(ctx, `UPDATE calls SET superseded_ref = ?, updated_at = ? WHERE call_id = ?`,
+			mutation.SupersededRef, store.FormatTimestamp(mutation.SettledAt), mutation.CallID)
+		if err != nil {
+			return callspkg.CallRecord{}, fmt.Errorf(
+				"store: record superseded result for call %q: %w",
+				mutation.CallID,
+				err,
+			)
+		}
+		return getCallByIDWithExecutor(ctx, exec, mutation.CallID)
+	}
+	if current.State != mutation.ExpectedState {
+		return callspkg.CallRecord{}, &callspkg.Error{
+			Code: callspkg.CodeAlreadySettled, Message: fmt.Sprintf("call is %s", current.State),
+		}
+	}
+	if len(mutation.Result) > 0 {
+		if err := putCallPayload(
+			ctx,
+			exec,
+			current.WorkspaceID,
+			mutation.ResultRef,
+			mutation.Result,
+			mutation.SettledAt,
+		); err != nil {
+			return callspkg.CallRecord{}, err
+		}
+	}
+	result, err := exec.ExecContext(ctx, `UPDATE calls SET state = ?, verdict = ?, result_ref = ?,
+		result_bytes = ?, failure_code = ?, failure_detail = ?, second_issue_text = ?, final_prose_preview = ?,
+		settled_at = ?, updated_at = ? WHERE call_id = ? AND state = ?`,
+		string(mutation.State), nullableTaskString(string(mutation.Verdict)),
+		nullableTaskString(mutation.ResultRef), callNullableInt(mutation.ResultBytes, len(mutation.Result) > 0),
+		nullableTaskString(mutation.FailureCode), nullableTaskString(boundedCallDetail(mutation.FailureDetail)),
+		boundedIssueText(mutation.SecondIssueText),
+		boundedIssueText(mutation.FinalProsePreview), store.FormatTimestamp(mutation.SettledAt),
+		store.FormatTimestamp(mutation.SettledAt), mutation.CallID, string(mutation.ExpectedState),
+	)
+	if err != nil {
+		return callspkg.CallRecord{}, fmt.Errorf("store: settle call %q: %w", mutation.CallID, err)
+	}
+	if err := requireOneCallRow(result, mutation.CallID, "settle"); err != nil {
+		return callspkg.CallRecord{}, err
+	}
+	record, err := getCallByIDWithExecutor(ctx, exec, mutation.CallID)
+	if err != nil {
+		return callspkg.CallRecord{}, err
+	}
+	if err := insertCompletionDelivery(ctx, exec, &record, mutation.SettledAt); err != nil {
+		return callspkg.CallRecord{}, err
+	}
+	return record, nil
 }
 
 func insertCompletionDelivery(

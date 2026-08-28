@@ -975,6 +975,41 @@ func TestServiceCancelAwaitDeadlineAndDrain(t *testing.T) {
 			})
 		}
 	})
+
+	t.Run("Should roll back the subtree fence when settlement fails mid-drain", func(t *testing.T) {
+		t.Parallel()
+		service, database, _, _ := newCallServiceHarness(
+			t,
+			config.DefaultCallsConfig(),
+			validAgentTarget(),
+		)
+		record, err := service.Create(t.Context(), validCreateInput("work", nil, nil))
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		record = activateCreatedCall(t, service, &record)
+		database.subtree = []CallRecord{record}
+		settleErr := errors.New("subtree settlement unavailable")
+		database.settleErrors = []error{settleErr, settleErr}
+
+		_, err = service.DrainSubtree(
+			t.Context(),
+			"root-1",
+			Actor{Kind: "daemon", ID: "recovery"},
+			"parent terminal",
+		)
+
+		if !errors.Is(err, settleErr) {
+			t.Fatalf("DrainSubtree() error = %v, want settlement cause", err)
+		}
+		wantOperations := []string{"fence:root-1", "list:root-1", "count:root-1", "unfence:root-1"}
+		if !reflect.DeepEqual(database.operations, wantOperations) {
+			t.Fatalf("drain operations = %#v, want %#v", database.operations, wantOperations)
+		}
+		if got := database.calls[record.CallID].State; got != StateRunning {
+			t.Fatalf("call state = %q, want running after failed durable settlement", got)
+		}
+	})
 }
 
 func scopedCancelInput(record *CallRecord, reason string) CancelInput {

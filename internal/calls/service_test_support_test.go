@@ -83,8 +83,11 @@ func (*memoryCallStore) FailPendingDeliveriesForRecipient(context.Context, strin
 	return nil
 }
 
-func (*memoryCallStore) FenceSessionReap(context.Context, string, time.Time) (bool, error) {
-	return false, nil
+func (*memoryCallStore) FenceSessionReap(
+	context.Context,
+	SessionReapFence,
+) (SessionReapFenceResult, error) {
+	return SessionReapFenceResult{}, nil
 }
 
 func (*memoryCallStore) FinalizeReapedSession(context.Context, string, string, time.Time) error {

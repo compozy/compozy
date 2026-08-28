@@ -53,7 +53,7 @@ type spawnReaper struct {
 }
 
 type spawnReaperCallLifecycle interface {
-	FenceReapSession(context.Context, string) (bool, error)
+	FenceReapSession(context.Context, callspkg.ReapedSession) (bool, error)
 	FailRecipientDeliveries(context.Context, string, string) error
 	FinalizeReapedSession(context.Context, callspkg.ReapedSession) error
 }
@@ -202,7 +202,7 @@ func (r *spawnReaper) Sweep(ctx context.Context) (spawnReaperReport, error) {
 			continue
 		}
 		if r.callLifecycle != nil {
-			allowed, protectErr := r.callLifecycle.FenceReapSession(ctx, info.ID)
+			allowed, protectErr := r.callLifecycle.FenceReapSession(ctx, reapedSessionFor(candidate))
 			if protectErr != nil {
 				errs = append(
 					errs,
@@ -328,17 +328,7 @@ func (r *spawnReaper) reap(
 	if stopErr == nil && r.callLifecycle != nil {
 		deliveryErr = r.callLifecycle.FailRecipientDeliveries(ctx, child.ID, reason)
 		if deliveryErr == nil {
-			lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
-			finalizeErr = r.callLifecycle.FinalizeReapedSession(ctx, callspkg.ReapedSession{
-				ProfileID:       child.ProfileID,
-				Scope:           callspkg.Scope(child.Scope),
-				WorkspaceID:     child.WorkspaceID,
-				SessionID:       child.ID,
-				ParentSessionID: lineage.ParentSessionID,
-				RootSessionID:   lineage.RootSessionID,
-				AgentName:       child.AgentName,
-				Reason:          reason,
-			})
+			finalizeErr = r.callLifecycle.FinalizeReapedSession(ctx, reapedSessionFor(candidate))
 		}
 	}
 	if stopErr == nil && deliveryErr == nil && finalizeErr == nil && report != nil {
@@ -368,6 +358,24 @@ func (r *spawnReaper) reap(
 		errs = append(errs, fmt.Errorf("daemon: finalize reaped child %q: %w", child.ID, finalizeErr))
 	}
 	return errors.Join(errs...)
+}
+
+func reapedSessionFor(candidate spawnReapCandidate) callspkg.ReapedSession {
+	child := candidate.child
+	if child == nil {
+		return callspkg.ReapedSession{}
+	}
+	lineage := store.NormalizeSessionLineage(child.ID, child.Lineage)
+	return callspkg.ReapedSession{
+		ProfileID:       child.ProfileID,
+		Scope:           callspkg.Scope(child.Scope),
+		WorkspaceID:     child.WorkspaceID,
+		SessionID:       child.ID,
+		ParentSessionID: lineage.ParentSessionID,
+		RootSessionID:   lineage.RootSessionID,
+		AgentName:       child.AgentName,
+		Reason:          strings.TrimSpace(candidate.reason),
+	}
 }
 
 func (r *spawnReaper) releaseChildLeases(ctx context.Context, child *session.Info, reason string) (int, error) {

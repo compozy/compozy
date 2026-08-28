@@ -291,8 +291,11 @@ func (s *publishTestStore) ClearCallChildIdleClock(context.Context, string, time
 func (s *publishTestStore) FailPendingDeliveriesForRecipient(context.Context, string, string, time.Time) error {
 	return errors.New("not configured")
 }
-func (s *publishTestStore) FenceSessionReap(context.Context, string, time.Time) (bool, error) {
-	return false, errors.New("not configured")
+func (s *publishTestStore) FenceSessionReap(
+	context.Context,
+	SessionReapFence,
+) (SessionReapFenceResult, error) {
+	return SessionReapFenceResult{}, errors.New("not configured")
 }
 func (s *publishTestStore) FinalizeReapedSession(context.Context, string, string, time.Time) error {
 	return errors.New("not configured")

@@ -119,8 +119,11 @@ func (*hookLifecycleStore) FailPendingDeliveriesForRecipient(context.Context, st
 	return nil
 }
 
-func (*hookLifecycleStore) FenceSessionReap(context.Context, string, time.Time) (bool, error) {
-	return false, nil
+func (*hookLifecycleStore) FenceSessionReap(
+	context.Context,
+	SessionReapFence,
+) (SessionReapFenceResult, error) {
+	return SessionReapFenceResult{}, nil
 }
 
 func (*hookLifecycleStore) FinalizeReapedSession(context.Context, string, string, time.Time) error {
