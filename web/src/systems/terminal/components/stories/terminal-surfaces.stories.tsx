@@ -4,12 +4,16 @@ import { fn } from "storybook/test";
 import { terminalLeaseView } from "../../lib/terminal-lease";
 import { buildTerminalQuote } from "../../lib/terminal-quote";
 import {
+  ANSWERED_PASSWORD_REQUEST,
   CONFIRMATION_REQUEST,
   DEV_SERVER_TERMINAL,
+  EXPIRED_PASSWORD_REQUEST,
   JOURNAL_FIXTURES,
   PASSWORD_REQUEST,
   PSQL_TERMINAL,
   RECORDING_FIXTURE,
+  REJECTED_PASSWORD_REQUEST,
+  SUPERSEDED_PASSWORD_REQUEST,
   TERMINAL_FIXTURE_VIEWER,
   TERMINAL_GRANT_FIXTURES,
 } from "../../mocks/terminal-fixtures";
@@ -62,17 +66,14 @@ const ONE_MINUTE_IN = Date.parse(PASSWORD_REQUEST.requested_at) + 60_000;
 /**
  * VC-08 — a redacted question, pinned to its terminal.
  *
- * `askedBy` is supplied here because the board names the agent. The runtime does
- * not: `TerminalInputRequest` carries no requester field, so the shipped window
- * omits the name rather than borrowing the current controller's — an authorized
- * runtime-truth delta until the daemon publishes who asked.
+ * The pin names the requester the daemon published. A watcher sees the same
+ * question with no write row — take control lives on the header.
  */
 export const InputRequestRedacted: Story = {
   name: "VC-08 · Redacted question",
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
-        askedBy="Claude Code"
         canAnswerDirectly
         now={ONE_MINUTE_IN}
         onAnswer={NOOP}
@@ -89,7 +90,6 @@ export const InputRequestPlain: Story = {
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
-        askedBy="Claude Code"
         canAnswerDirectly
         now={Date.parse(CONFIRMATION_REQUEST.requested_at) + 60_000}
         onAnswer={NOOP}
@@ -100,13 +100,12 @@ export const InputRequestPlain: Story = {
   ),
 };
 
-/** A watcher is offered one gesture that takes control and sends. */
+/** A watcher still sees the question; the write row is absent. */
 export const InputRequestWatcher: Story = {
-  name: "Watcher — one gesture",
+  name: "Watcher — question only",
   render: () => (
     <TerminalVisualStage>
       <TerminalInputRequestCard
-        askedBy="Claude Code"
         canAnswerDirectly={false}
         now={ONE_MINUTE_IN}
         onAnswer={NOOP}
@@ -122,18 +121,10 @@ export const InputRequestResolved: Story = {
   name: "VC-09 · Four quiet outcomes",
   render: () => (
     <TerminalVisualStage>
-      <TerminalInputResolvedRow
-        outcome="answered"
-        redactedLength={10}
-        resolvedAt="2026-08-25T12:44:00Z"
-      />
-      <TerminalInputResolvedRow outcome="rejected" resolvedAt="2026-08-25T12:41:00Z" />
-      <TerminalInputResolvedRow
-        outcome="superseded"
-        resolvedAt="2026-08-25T12:39:00Z"
-        supersededBy="Marina"
-      />
-      <TerminalInputResolvedRow outcome="expired" resolvedAt="2026-08-25T12:20:00Z" />
+      <TerminalInputResolvedRow request={ANSWERED_PASSWORD_REQUEST} />
+      <TerminalInputResolvedRow request={REJECTED_PASSWORD_REQUEST} />
+      <TerminalInputResolvedRow request={SUPERSEDED_PASSWORD_REQUEST} supersededBy="Marina" />
+      <TerminalInputResolvedRow request={EXPIRED_PASSWORD_REQUEST} />
     </TerminalVisualStage>
   ),
 };

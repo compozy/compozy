@@ -23,6 +23,11 @@ export interface DesktopDockModel {
 
 export interface UseDesktopDockOptions {
   onNewSession: () => void;
+  /**
+   * Catalog truth for the Terminal launcher. When omitted, Terminal follows
+   * the same open-window rule as every other app (isolated dock tests).
+   */
+  terminalLive?: boolean;
 }
 
 /**
@@ -32,7 +37,7 @@ export interface UseDesktopDockOptions {
  */
 export function useDesktopDock(
   badges: OsAttentionBadges,
-  { onNewSession }: UseDesktopDockOptions
+  { onNewSession, terminalLive }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
   const launchCatalog = useSessionLaunchCatalog();
@@ -75,7 +80,10 @@ export function useDesktopDock(
         id: app.id,
         name: app.title,
         icon: dockIconForApp(app),
-        running: state === "open" || state === "focused",
+        running:
+          app.id === "terminal" && terminalLive !== undefined
+            ? terminalLive
+            : state === "open" || state === "focused",
         minimized: state === "minimized",
         badge: dockBadgeFor(app, badges),
       });

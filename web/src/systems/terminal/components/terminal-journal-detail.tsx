@@ -13,6 +13,7 @@ export interface TerminalJournalDetailProps {
   entry: TerminalJournalEntry;
   onClose: () => void;
   onOpenTerminal?: () => void;
+  onCopyCommand?: (command: string) => void | Promise<void>;
 }
 
 function focusOnMount(element: HTMLElement | null): void {
@@ -30,6 +31,7 @@ export function TerminalJournalDetail({
   entry,
   onClose,
   onOpenTerminal,
+  onCopyCommand,
 }: TerminalJournalDetailProps) {
   const outcome = terminalExitCopy({
     cause: entry.exit_cause,
@@ -93,11 +95,23 @@ export function TerminalJournalDetail({
         <PropertyRow label="Ran under">{entry.profile_name}</PropertyRow>
       </div>
 
-      {onOpenTerminal ? (
+      {onOpenTerminal || onCopyCommand ? (
         <div className="flex gap-1.75 px-4.5 pb-4.5">
-          <Button onClick={onOpenTerminal} size="sm" type="button" variant="outline">
-            Open terminal
-          </Button>
+          {onOpenTerminal ? (
+            <Button onClick={onOpenTerminal} size="sm" type="button" variant="outline">
+              Open terminal
+            </Button>
+          ) : null}
+          {onCopyCommand ? (
+            <Button
+              onClick={() => void onCopyCommand(entry.command)}
+              size="sm"
+              type="button"
+              variant="ghost"
+            >
+              Copy command
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </aside>

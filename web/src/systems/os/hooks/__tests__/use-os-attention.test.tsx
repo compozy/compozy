@@ -156,7 +156,11 @@ describe("useOsAttention", () => {
       destination: { profile: "work" },
       destinationOwner: { id: "profile-work" },
     } as never);
-    vi.mocked(useQuery).mockReturnValue({ data: [], isError: false, isLoading: false } as never);
+    vi.mocked(useQuery).mockReturnValue({
+      data: { pending: [], resolved: [] },
+      isError: false,
+      isLoading: false,
+    } as never);
     vi.mocked(useAttentionSummary).mockReturnValue({
       summary: { needsYou: 0, finished: 0 },
       stale: false,

@@ -23,7 +23,7 @@ export function TerminalExitBar({ exit, terminal, retentionNote }: TerminalExitB
   const copy = terminalExitCopy(exit);
   return (
     <div
-      className="flex min-h-8 flex-none items-center gap-2.5 border-line border-t bg-canvas px-3.5 text-eyebrow text-subtle"
+      className="flex min-h-8 flex-none items-center gap-2.5 border-line border-t bg-terminal-bg px-3.5 text-eyebrow text-subtle"
       data-testid="terminal-exit-bar"
       role="status"
     >
@@ -56,7 +56,7 @@ export interface TerminalSizeVoteBarProps {
 export function TerminalSizeVoteBar({ cols, rows }: TerminalSizeVoteBarProps) {
   return (
     <div
-      className="flex min-h-8 flex-none items-center gap-1.25 border-line border-t bg-canvas px-3.5 font-mono text-micro text-faint"
+      className="flex min-h-8 flex-none items-center gap-1.25 border-line border-t bg-terminal-bg px-3.5 font-mono text-micro text-faint"
       data-testid="terminal-size-vote"
     >
       <Scaling aria-hidden="true" className="size-3" />

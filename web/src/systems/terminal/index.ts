@@ -51,6 +51,10 @@ export {
   terminalInputOutcomeCopy,
 } from "./lib/terminal-copy";
 export {
+  shouldKeepTerminalJournalHost,
+  type TerminalJournalHostRetention,
+} from "./lib/terminal-journal-host";
+export {
   terminalAttachModeFor,
   terminalLeaseView,
   type TerminalControlRead,
@@ -76,6 +80,15 @@ export {
   terminalScope,
   type TerminalQueryScope,
 } from "./lib/query-options";
+export { terminalAttentionLocation } from "./lib/terminal-attention-location";
+export {
+  isHumanInputActor,
+  terminalInputAttentionTitle,
+  terminalInputRequestTitle,
+  terminalInputStackNeedsOrigin,
+} from "./lib/terminal-input-identity";
+export { terminalRedactedInputCopy } from "./lib/terminal-redacted-marker";
+export { useTerminalInputAnswer } from "./hooks/use-terminal-input-answer";
 export {
   TerminalProtocolClient,
   type TerminalStreamHandlers,
@@ -117,13 +130,21 @@ export {
   TerminalInputRequestCard,
   TerminalInputResolvedRow,
 } from "./components/terminal-input-request";
+export {
+  TerminalInputRequestStack,
+  type TerminalInputRequestStackProps,
+} from "./components/terminal-input-request-stack";
 export { TerminalJournalDetail } from "./components/terminal-journal-detail";
 export {
   terminalJournalChipsFromFilters,
   terminalJournalFilterFields,
   terminalJournalFiltersFromChips,
 } from "./lib/terminal-journal-filter-fields";
-export { TerminalJournalHead, TerminalJournalPanel } from "./components/terminal-journal-panel";
+export {
+  TerminalJournalHead,
+  TerminalJournalPanel,
+  type TerminalJournalPanelProps,
+} from "./components/terminal-journal-panel";
 export { TerminalLeaseBadge } from "./components/terminal-lease-badge";
 export {
   TerminalAuditBlockedBar,

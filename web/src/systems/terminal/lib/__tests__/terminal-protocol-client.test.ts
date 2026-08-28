@@ -589,6 +589,22 @@ describe("TerminalProtocolClient", () => {
     expect(clientErrors).toEqual([new Error("The terminal stream sent a non-binary frame.")]);
   });
 
+  it("Should accept an ATTACHED sequence encoded as a JSON number", async () => {
+    const { client, sockets, statuses } = buildClient();
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+
+    const socket = sockets.last();
+    socket.open();
+    socket.deliver(
+      rawServerControlFrame(TERMINAL_SERVER_OP.attached, rawAttachedPayload({ seq: 0 }))
+    );
+
+    await vi.waitFor(() => expect(statuses).toContain("connected"));
+    expect(sockets.sockets).toHaveLength(1);
+    client.stop();
+  });
+
   it.each([
     ["negative sequence", { ...rawAttachedPayload(), seq: -1 }],
     ["out-of-range dimensions", { ...rawAttachedPayload(), cols: 2_001 }],

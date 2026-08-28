@@ -523,6 +523,27 @@ describe("OsDock", () => {
     expect(jumpToSession).not.toHaveBeenCalled();
   });
 
+  it("Should mark Terminal running from catalog truth rather than an open window", () => {
+    const open = windowFixture("window:terminal", "terminal");
+    const { result, rerender } = renderHook(
+      (live: boolean) => useDesktopDock({}, { onNewSession: vi.fn(), terminalLive: live }),
+      { initialProps: true }
+    );
+    setDockState(desktopState());
+    rerender(true);
+
+    expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
+      running: true,
+    });
+
+    setDockState(desktopState({ [open.id]: open }, open.id, [open.id]));
+    rerender(false);
+
+    expect(result.current.entries.find(entry => entry.id === "terminal")).toMatchObject({
+      running: false,
+    });
+  });
+
   it("Should mark the sessions dock icon minimized when every session window is minimized", () => {
     const session = windowFixture("window:session-minimized", "session", {
       instanceKey: "session:minimized",

@@ -6,11 +6,12 @@ import {
   type TerminalSelectionRange,
   type TerminalViewHandle,
 } from "@compozy/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import type { TerminalAttachment } from "../hooks/use-terminal-attachment";
 import { exitNoticeFromTerminal, terminalRetentionNote } from "../lib/terminal-exit";
 import type { TerminalLeaseView } from "../lib/terminal-lease";
+import { TERMINAL_MIN_COLS, TERMINAL_MIN_ROWS } from "../lib/terminal-wire";
 import type { TerminalPaneState } from "../stores/terminal-store";
 import type { TerminalInfo } from "../types";
 import { TerminalConnectingLine } from "./terminal-connecting-line";
@@ -41,6 +42,13 @@ export interface TerminalPaneProps {
   onReconnect?: () => void;
   /** Opens the journal when the terminal itself is gone. */
   onViewJournal?: () => void;
+  /** Input-request cards, pinned on the same surface as the grid. */
+  requestRegion?: ReactNode;
+  /**
+   * The window has dropped below the anatomy that can host a full grid.
+   * Proposals clamp to the protocol minimum rather than a degenerate fit.
+   */
+  compact?: boolean;
 }
 
 /**
@@ -81,6 +89,8 @@ export function TerminalPane({
   onSelectionChange,
   onReconnect,
   onViewJournal,
+  requestRegion,
+  compact = false,
 }: TerminalPaneProps) {
   // A selection is only worth acting on while it exists, so the actions appear
   // with it and leave with it — the range comes from the emulator rather than
@@ -107,28 +117,54 @@ export function TerminalPane({
     return () => window.clearInterval(timer);
   }, [hasExit]);
 
+  const status = pane?.status ?? "connecting";
+  const awaitingFirstFrame = status === "connecting" || status === "idle";
+  const showConnecting =
+    status === "connecting" || status === "reconnecting" || status === "resyncing";
+  const viewers = pane?.viewers ?? terminal.viewers;
+  const settledCols = pane?.status === "connected" ? pane.cols : null;
+  const settledRows = pane?.status === "connected" ? pane.rows : null;
+  const sizeVoteVisible = settledCols !== null && settledRows !== null && viewers > 1;
+
   return (
     <div
       className="flex min-h-0 min-w-0 flex-1 flex-col bg-terminal-bg"
       data-audit-blocked={auditBlocked ? "true" : undefined}
+      data-compact={compact ? "true" : undefined}
       data-testid={`terminal-pane-${terminal.id}`}
     >
-      <TerminalConnectingLine status={pane?.status ?? "connecting"} />
-      {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
-      <TerminalView
-        aria-label={readOnly ? `${terminal.title} — watching` : terminal.title}
-        className="px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
-        {...(engineLoader ? { engineLoader } : {})}
-        handleRef={handleRef}
-        instanceId={instanceId}
-        onData={attachment.sendInput}
-        onProposeDimensions={dimensions =>
-          attachment.proposeDimensions(dimensions.cols, dimensions.rows)
-        }
-        onSelectionChange={readSelection}
-        readOnly={readOnly}
-        screenReaderMode
-      />
+      <div className="relative min-h-0 min-w-0 flex-1">
+        {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
+        <TerminalView
+          aria-label={readOnly ? `${terminal.title} — watching` : terminal.title}
+          className={
+            awaitingFirstFrame
+              ? "invisible px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
+              : "px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
+          }
+          {...(engineLoader ? { engineLoader } : {})}
+          handleRef={handleRef}
+          instanceId={instanceId}
+          onData={attachment.sendInput}
+          onProposeDimensions={dimensions => {
+            const cols = compact ? TERMINAL_MIN_COLS : dimensions.cols;
+            const rows = compact ? TERMINAL_MIN_ROWS : dimensions.rows;
+            attachment.proposeDimensions(cols, rows);
+          }}
+          onSelectionChange={readSelection}
+          readOnly={readOnly}
+          screenReaderMode
+        />
+        {showConnecting ? (
+          <div
+            className={
+              awaitingFirstFrame ? "absolute inset-0 bg-terminal-bg" : "absolute inset-x-0 top-0"
+            }
+          >
+            <TerminalConnectingLine status={status} />
+          </div>
+        ) : null}
+      </div>
       {selection && selectionActions ? (
         <TerminalSelectionActions
           hasActiveSession={selectionActions.hasActiveSession}
@@ -138,6 +174,7 @@ export function TerminalPane({
           onStartSession={() => selectionActions.onStartSession(selection)}
         />
       ) : null}
+      {requestRegion}
       {pane?.errorCode ? (
         <TerminalStreamNotice
           code={pane.errorCode}
@@ -155,10 +192,8 @@ export function TerminalPane({
           retentionNote={terminalRetentionNote(terminal, exitRetentionMs, retentionNow)}
           terminal={terminal}
         />
-      ) : pane?.status === "connected" && pane.cols !== null && pane.rows !== null ? (
-        // The settled size is stated whenever the daemon has said one — alone,
-        // this window is the smallest that can type, so the sentence stays true.
-        <TerminalSizeVoteBar cols={pane.cols} rows={pane.rows} />
+      ) : sizeVoteVisible && settledCols !== null && settledRows !== null ? (
+        <TerminalSizeVoteBar cols={settledCols} rows={settledRows} />
       ) : null}
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { ScrollText } from "lucide-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 
 import {
   Button,
@@ -57,7 +57,17 @@ export interface TerminalJournalPanelProps {
   onOpenTerminal?: (terminalId: string) => void;
   /** Offered from the empty journal, where there is no terminal to open yet. */
   onOpenNewTerminal?: () => void;
-  onReplay?: (recordingId: string) => void;
+  onReplay?: (recordingId: string, entry: TerminalJournalEntry) => void;
+  /** Rows this query examined. Omit until the host has counted them. */
+  examinedCount?: number;
+  /** Rows currently in the table. Defaults to `entries.length`. */
+  loadedCount?: number;
+  /** In-table replay. The host keeps this panel mounted; the table stays visible. */
+  replay?: ReactNode;
+  /** Controlled selection so "Open in journal" can restore the row. */
+  selectedCommandId?: string | null;
+  onSelectedCommandIdChange?: (id: string | null) => void;
+  onCopyCommand?: (command: string) => void | Promise<void>;
 }
 
 /**
@@ -78,16 +88,39 @@ export function TerminalJournalPanel({
   onOpenTerminal,
   onOpenNewTerminal,
   onReplay,
+  examinedCount,
+  loadedCount,
+  replay,
+  selectedCommandId,
+  onSelectedCommandIdChange,
+  onCopyCommand,
 }: TerminalJournalPanelProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [internalId, setInternalId] = useState<string | null>(null);
+  const selectedId = selectedCommandId !== undefined ? selectedCommandId : internalId;
   const selected = entries.find(entry => entry.command_id === selectedId) ?? null;
+  const loaded = loadedCount ?? entries.length;
+
+  function select(id: string | null): void {
+    if (selectedCommandId === undefined) setInternalId(id);
+    onSelectedCommandIdChange?.(id);
+  }
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col" data-testid="terminal-journal">
       <TerminalJournalToolbar chips={chips} onChange={onFiltersChange} />
 
+      {replay ? (
+        <div
+          className="flex min-h-48 min-w-0 flex-1 flex-col border-line border-b"
+          data-testid="terminal-journal-replay"
+        >
+          {replay}
+        </div>
+      ) : null}
+
       {entries.length === 0 ? (
         <TerminalJournalEmpty
+          examinedCount={examinedCount}
           filtered={chips.length > 0}
           hasMore={hasMore}
           onClearFilters={() => onFiltersChange([])}
@@ -129,10 +162,10 @@ export function TerminalJournalPanel({
                     key={entry.command_id}
                     onReplay={
                       entry.recording && onReplay
-                        ? () => onReplay(entry.recording as string)
+                        ? () => onReplay(entry.recording as string, entry)
                         : undefined
                     }
-                    onSelect={() => setSelectedId(entry.command_id)}
+                    onSelect={() => select(entry.command_id)}
                     selected={entry.command_id === selectedId}
                     showOwner={showOwner}
                   />
@@ -143,7 +176,8 @@ export function TerminalJournalPanel({
           {selected ? (
             <TerminalJournalDetail
               entry={selected}
-              onClose={() => setSelectedId(null)}
+              onClose={() => select(null)}
+              onCopyCommand={onCopyCommand}
               onOpenTerminal={
                 selected.terminal_id && onOpenTerminal
                   ? () => onOpenTerminal(selected.terminal_id as string)
@@ -157,7 +191,7 @@ export function TerminalJournalPanel({
       {entries.length > 0 ? (
         <div className="flex min-h-11.5 flex-none items-center gap-3 border-line border-t px-3.5 py-2.25">
           <span className="mr-auto text-badge text-subtle" data-testid="terminal-journal-loaded">
-            {entries.length} {entries.length === 1 ? "row" : "rows"} loaded · newest first
+            {loaded} {loaded === 1 ? "row" : "rows"} loaded · newest first
           </span>
           {hasMore ? (
             <Button

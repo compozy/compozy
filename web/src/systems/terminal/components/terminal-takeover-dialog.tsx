@@ -28,7 +28,7 @@ export function TerminalTakeoverDialog({
   return (
     <ConfirmDialog
       cancelLabel="Cancel"
-      confirmButtonProps={{ "data-testid": "terminal-takeover-confirm" }}
+      confirmButtonProps={{ "data-testid": "terminal-takeover-confirm", variant: "outline" }}
       confirmLabel="Take control"
       contentProps={{ "data-testid": "terminal-takeover-dialog" }}
       description={`${controllerName} is typing in ${terminalTitle} right now. Taking control disconnects their input immediately.`}

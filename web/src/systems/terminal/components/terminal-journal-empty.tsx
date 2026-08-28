@@ -8,12 +8,15 @@ export function TerminalJournalEmpty({
   onLoadMore,
   onClearFilters,
   onOpenTerminal,
+  examinedCount,
 }: {
   filtered: boolean;
   hasMore: boolean;
   onLoadMore: () => void;
   onClearFilters: () => void;
   onOpenTerminal?: () => void;
+  /** Rows this query examined. Omit until the host has counted them. */
+  examinedCount?: number;
 }) {
   if (!filtered) {
     return (
@@ -56,7 +59,11 @@ export function TerminalJournalEmpty({
       data-testid="terminal-journal-filtered-empty"
       description="Older rows load on demand, so a match may still be further back."
       icon={SearchX}
-      title="No matches in the rows loaded"
+      title={
+        examinedCount === undefined
+          ? "No matches in the rows loaded"
+          : `No matches in the ${examinedCount} ${examinedCount === 1 ? "row" : "rows"} loaded`
+      }
     />
   );
 }

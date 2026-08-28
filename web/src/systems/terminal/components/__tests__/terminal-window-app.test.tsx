@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { destroyTerminalInstances } from "@compozy/ui";
 
 import {
+  ANSWERED_PASSWORD_REQUEST,
   CONTESTED_TERMINAL,
   DEV_SERVER_TERMINAL,
   exitedTerminal,
@@ -35,6 +36,10 @@ import {
  * two contention behaviours hold — displacing another person confirms by name
  * before any write, an unchanged browser identity keeps one writable attachment,
  * and tab overflow at the cap collapses rather than shrinking tabs past legibility.
+ * A pending question stays on screen for a watcher or aggregate read, with the
+ * write row absent; Send is offered only with a writable lease on a destination
+ * profile; resolved rows from the host projection, including "by you", stay on
+ * the same stack.
  */
 
 const TERMINAL_LIMIT = 8;
@@ -147,7 +152,9 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId(`terminal-pipe-pane-${MAKE_GATE_TERMINAL.id}`)).toBeInTheDocument();
     expect(screen.getByText("412")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-pipe-chip")).toHaveTextContent("read-only log");
-    // Absent, not disabled.
+    // Signal and Close are the pipe verbs; interactive lease actions stay absent.
+    expect(screen.getByTestId("terminal-signal")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-close")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-release-control")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-stop")).not.toBeInTheDocument();
@@ -337,12 +344,23 @@ describe("TerminalWindowApp — S1 states", () => {
     );
   });
 
-  it("Should state an execute-only platform instead of offering a screen", () => {
+  it("Should state an execute-only platform instead of offering a screen", async () => {
     renderWindow({ interactiveAvailable: false });
 
     expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-tabs")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-open")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "View journal" }));
+    expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+  });
+
+  it("Should publish identity into the OS head instead of drawing a second row", () => {
+    renderWindow({ hostChrome: true });
+
+    expect(screen.queryByTestId("terminal-header")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-journal-head")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-window")).toBeInTheDocument();
   });
 
   it("Should keep an exited terminal readable with its outcome", async () => {
@@ -375,6 +393,76 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(
       screen.getByTestId(`terminal-tab-attention-${PASSWORD_REQUEST.terminal_id}`)
     ).toBeInTheDocument();
+  });
+
+  it("Should keep a watcher's question on screen without offering a write row", async () => {
+    renderWindow({ inputRequests: [PASSWORD_REQUEST], terminals: [PSQL_TERMINAL] });
+
+    await waitFor(() =>
+      expect(
+        screen.getByTestId(`terminal-input-request-${PASSWORD_REQUEST.id}`)
+      ).toBeInTheDocument()
+    );
+    expect(screen.getByText(PASSWORD_REQUEST.reason)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`terminal-input-request-field-${PASSWORD_REQUEST.id}`)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`terminal-input-request-send-${PASSWORD_REQUEST.id}`)
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should keep the question on an aggregate read without offering a write row", async () => {
+    const request = { ...PASSWORD_REQUEST, terminal_id: DEV_SERVER_TERMINAL.id };
+    renderWindow({
+      inputRequests: [request],
+      readOnly: true,
+      terminals: [DEV_SERVER_TERMINAL],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId(`terminal-input-request-${request.id}`)).toBeInTheDocument()
+    );
+    expect(screen.getByText(request.reason)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`terminal-input-request-field-${request.id}`)
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`terminal-input-request-send-${request.id}`)
+    ).not.toBeInTheDocument();
+  });
+
+  it("Should send directly only with a writable lease on a destination profile", async () => {
+    const request = {
+      ...PASSWORD_REQUEST,
+      requested_at: new Date().toISOString(),
+      terminal_id: DEV_SERVER_TERMINAL.id,
+    };
+    renderWindow({
+      inputRequestTitles: new Map([[DEV_SERVER_TERMINAL.id, DEV_SERVER_TERMINAL.title]]),
+      inputRequests: [request],
+      terminals: [DEV_SERVER_TERMINAL],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId(`terminal-input-request-send-${request.id}`)).toHaveTextContent(
+        "Send"
+      )
+    );
+    expect(screen.getByTestId("terminal-input-request-stack")).toBeInTheDocument();
+  });
+
+  it("Should show a resolved answer as by you when the host passes the projection", async () => {
+    renderWindow({
+      resolvedInputRequests: [ANSWERED_PASSWORD_REQUEST],
+      terminals: [PSQL_TERMINAL],
+    });
+
+    await waitFor(() =>
+      expect(screen.getByTestId("terminal-input-resolved-answered")).toBeInTheDocument()
+    );
+    expect(screen.getByText("Answered by you")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-input-request-stack")).toBeInTheDocument();
   });
 
   it("Should show a recording as running, with the way to stop it", async () => {

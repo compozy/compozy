@@ -8,6 +8,7 @@ import {
   buildTerminalQuote,
   terminalSelectionLines,
   TerminalJournalPanel,
+  TerminalNotFoundState,
   TerminalRecordingPlayer,
   TerminalStoreProvider,
   TerminalWindowApp,
@@ -62,6 +63,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     coordinator,
     create,
     inputRequests,
+    resolvedInputRequests,
     journal,
     journalChips,
     manager,
@@ -70,8 +72,11 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     recording,
     reject,
     replay,
+    selectedCommandId,
     setJournalChips,
+    setJournalVisible,
     setReplay,
+    setSelectedCommandId,
     settings,
     stop,
     stopRecording,
@@ -118,49 +123,19 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
 
   const requestedId = matchTerminalInstance(pathname);
   const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
-  if (requestedId && !(catalog.data ?? []).some(terminal => terminal.id === requestedId)) {
-    const fallbackTerminal = catalog.data?.[0];
-    return (
-      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-        <Empty
-          action={
-            fallbackTerminal || openTerminal ? (
-              <Button
-                onClick={() => {
-                  if (!fallbackTerminal) {
-                    openTerminal?.();
-                    return;
-                  }
-                  void coordinator.userRetarget(windowId, {
-                    app: "terminal",
-                    instanceKey: fallbackTerminal.id,
-                    route: {
-                      pathname: `/terminal/${encodeURIComponent(fallbackTerminal.id)}`,
-                      search: {},
-                    },
-                  });
-                }}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                {fallbackTerminal ? "View terminals" : "Open terminal"}
-              </Button>
-            ) : undefined
-          }
-          className="max-w-md"
-          icon={AlertCircle}
-          title="This terminal isn't open anymore"
-        />
-      </div>
-    );
+  if (requestedId && (catalog.data ?? []).length === 0) {
+    return <TerminalNotFoundState onOpenTerminal={openTerminal} />;
   }
   const terminals = orderedTerminals(catalog.data ?? [], requestedId);
   const terminalSettings = settings.data?.config.terminal;
   const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
   const journalEntries = journal.data?.pages.flatMap(page => page.entries) ?? [];
-  const journalContent = replay ? (
-    recording.isPending ? (
+  const canCopyCommand =
+    typeof navigator !== "undefined" &&
+    navigator.clipboard !== undefined &&
+    typeof navigator.clipboard.writeText === "function";
+  const replayNode =
+    replay === null ? undefined : recording.isPending ? (
       <BlockLoading className="flex-1" label="Loading the recording" surface="bare" />
     ) : recording.error ? (
       <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
@@ -193,47 +168,63 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         source={recording.data ?? ""}
         title={replay.title}
       />
-    )
-  ) : journal.isPending ? (
-    <BlockLoading className="flex-1" label="Loading the journal" surface="bare" />
-  ) : journal.error ? (
-    <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
-      <Empty
-        action={
-          <Button onClick={() => void journal.refetch()} size="sm" type="button" variant="outline">
-            Retry
-          </Button>
+    );
+  const journalContent =
+    journal.isPending && replay === null ? (
+      <BlockLoading className="flex-1" label="Loading the journal" surface="bare" />
+    ) : journal.error && replay === null ? (
+      <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">
+        <Empty
+          action={
+            <Button
+              onClick={() => void journal.refetch()}
+              size="sm"
+              type="button"
+              variant="outline"
+            >
+              Retry
+            </Button>
+          }
+          className="max-w-md"
+          description={journal.error instanceof Error ? journal.error.message : undefined}
+          icon={AlertCircle}
+          title="Couldn't load the journal"
+        />
+      </div>
+    ) : (
+      <TerminalJournalPanel
+        chips={journalChips}
+        entries={journalEntries}
+        hasMore={journal.hasNextPage}
+        isLoadingMore={journal.isFetchingNextPage}
+        onCopyCommand={
+          canCopyCommand
+            ? command =>
+                void navigator.clipboard.writeText(command).catch(() => toast.error("Copy failed"))
+            : undefined
         }
-        className="max-w-md"
-        description={journal.error instanceof Error ? journal.error.message : undefined}
-        icon={AlertCircle}
-        title="Couldn't load the journal"
+        onFiltersChange={setJournalChips}
+        onLoadMore={() => void journal.fetchNextPage()}
+        onOpenNewTerminal={openTerminal}
+        onOpenTerminal={terminalId => {
+          void coordinator.userRetarget(windowId, {
+            app: "terminal",
+            instanceKey: terminalId,
+            route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
+          });
+        }}
+        onReplay={(_recordingId, entry) => {
+          const recordingId = entry.recording;
+          if (!recordingId) return;
+          setSelectedCommandId(entry.command_id);
+          setReplay({ id: recordingId, profile: entry.profile_name, title: entry.command });
+        }}
+        onSelectedCommandIdChange={setSelectedCommandId}
+        replay={replayNode}
+        selectedCommandId={selectedCommandId}
+        showOwner={profile.aggregate}
       />
-    </div>
-  ) : (
-    <TerminalJournalPanel
-      chips={journalChips}
-      entries={journalEntries}
-      hasMore={journal.hasNextPage}
-      isLoadingMore={journal.isFetchingNextPage}
-      onFiltersChange={setJournalChips}
-      onLoadMore={() => void journal.fetchNextPage()}
-      onOpenNewTerminal={openTerminal}
-      onOpenTerminal={terminalId => {
-        void coordinator.userRetarget(windowId, {
-          app: "terminal",
-          instanceKey: terminalId,
-          route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
-        });
-      }}
-      onReplay={recordingId => {
-        const entry = journalEntries.find(candidate => candidate.recording === recordingId);
-        if (!entry) return;
-        setReplay({ id: recordingId, profile: entry.profile_name, title: entry.command });
-      }}
-      showOwner={profile.aggregate}
-    />
-  );
+    );
 
   const sendSelection = (terminalId: string, selection: TerminalSelectionRange) => {
     const target = mostRecentSession(manager.getState(), windowId);
@@ -250,6 +241,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   return (
     <>
       <TerminalWindowApp
+        hostChrome
         actions={{
           onOpenTerminal: openTerminal,
           onCloseTerminal: terminalId => close.mutate(terminalId),
@@ -286,11 +278,19 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
           },
         }}
         exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
+        inputRequestTitles={
+          new Map((catalog.data ?? []).map(terminal => [terminal.id, terminal.title]))
+        }
         inputRequests={inputRequests.data ?? []}
         interactiveAvailable={interactiveAvailable}
+        resolvedInputRequests={resolvedInputRequests}
         journal={journalContent}
         limit={terminalSettings?.max_per_workspace ?? 8}
-        onViewJournal={() => void journal.refetch()}
+        onLeaveJournal={() => setJournalVisible(false)}
+        onViewJournal={() => {
+          setJournalVisible(true);
+          void journal.refetch();
+        }}
         profile={profile.destination}
         projectLabel={workspace.runtimeWorkspace?.name}
         readOnly={profile.aggregate}

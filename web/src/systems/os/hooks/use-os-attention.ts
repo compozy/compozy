@@ -175,7 +175,7 @@ export function useOsAttention(
               terminalReadScope.key.profileKey
             ),
             profileId,
-            inputRequests: terminalRequests.data,
+            inputRequests: terminalRequests.data.pending,
             pendingApprovals,
           }).count;
         })();

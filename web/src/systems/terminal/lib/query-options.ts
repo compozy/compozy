@@ -94,18 +94,12 @@ export function terminalPipeOutputQuery(scope: TerminalProfileQueryScope, termin
   });
 }
 
+/** Pending and resolved pins for one scope. Callers pick the half they render. */
 export function terminalInputRequestsQuery(scope: TerminalQueryScope) {
   return queryOptions({
     queryKey: terminalKeys.inputRequests(scope.key),
-    queryFn: async ({ signal }) => {
-      const projection = await fetchTerminalInputRequestProjection(
-        scope.key.workspaceId,
-        scope.params,
-        undefined,
-        signal
-      );
-      return projection.pending;
-    },
+    queryFn: ({ signal }) =>
+      fetchTerminalInputRequestProjection(scope.key.workspaceId, scope.params, undefined, signal),
   });
 }
 

@@ -19,6 +19,8 @@ export interface TerminalOutcomeCopy {
   /** Rendered as demoted mono next to the label. */
   code: string;
   tone: "success" | "neutral";
+  /** Outline plate for stopped/ended — never a filled warning. */
+  hollow: boolean;
   /** Present only when the machine value alone would leave a reader guessing. */
   note?: string;
 }
@@ -33,20 +35,31 @@ export function terminalExitCopy(exit: {
   signal?: string | null;
 }): TerminalOutcomeCopy {
   if (exit.cause === "signaled") {
-    return { label: "Stopped", code: `signal ${exit.signal ?? "unknown"}`, tone: "neutral" };
+    return {
+      label: "Stopped",
+      code: `signal ${exit.signal ?? "unknown"}`,
+      tone: "neutral",
+      hollow: true,
+    };
   }
   if (exit.cause === "unknown" || exit.code === null || exit.code === undefined) {
     return {
       label: "Ended",
       code: "cause unknown",
       tone: "neutral",
+      hollow: true,
       note: "CompozyOS couldn't see how this ended",
     };
   }
   if (exit.code === 0) {
-    return { label: "Succeeded", code: "exit 0", tone: "success" };
+    return { label: "Succeeded", code: "exit 0", tone: "success", hollow: false };
   }
-  return { label: "Finished with errors", code: `exit ${exit.code}`, tone: "neutral" };
+  return {
+    label: "Finished with errors",
+    code: `exit ${exit.code}`,
+    tone: "neutral",
+    hollow: false,
+  };
 }
 
 /** Which permission covered a run. */
@@ -80,12 +93,16 @@ export function terminalConfidenceCopy(detectedBy: TerminalDetectedBy): {
 }
 
 /** What became of a question the agent asked. */
-export function terminalInputOutcomeCopy(outcome: TerminalInputOutcome): string {
+export function terminalInputOutcomeCopy(
+  outcome: TerminalInputOutcome,
+  resolvedBy?: { kind: string }
+): string {
+  const byYou = resolvedBy?.kind === "human" ? " by you" : "";
   switch (outcome) {
     case "answered":
-      return "Answered";
+      return `Answered${byYou}`;
     case "rejected":
-      return "Declined";
+      return `Declined${byYou}`;
     case "superseded":
       return "Superseded";
     case "expired":
@@ -131,9 +148,9 @@ export const TERMINAL_ERROR_COPY: Record<string, { title: string; detail: string
       "Nobody was watching for a while, so it was closed. Its command history is still in the journal.",
   },
   terminal_not_found: {
-    title: "This terminal didn't survive the restart",
+    title: "This terminal isn't here",
     detail:
-      "CompozyOS restarted, and live terminals don't carry across. Everything that ran is in the journal.",
+      "It may have been closed, or this address doesn't match a live terminal. Everything that ran is in the journal.",
   },
   terminal_interactive_unavailable: {
     title: "Interactive terminals aren't available here yet",

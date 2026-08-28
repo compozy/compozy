@@ -1,4 +1,11 @@
-import { CircleStop, Disc, FileText, TerminalSquare, type LucideIcon } from "lucide-react";
+import {
+  CircleStop,
+  Disc,
+  FileText,
+  ScrollText,
+  TerminalSquare,
+  type LucideIcon,
+} from "lucide-react";
 
 import {
   Button,
@@ -8,6 +15,7 @@ import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
+  useTopbarSlot,
 } from "@compozy/ui";
 
 import type { TerminalLeaseView } from "../lib/terminal-lease";
@@ -27,7 +35,35 @@ export interface TerminalHeaderProps {
   onReleaseControl?: () => void;
   onStop?: () => void;
   onClose?: () => void;
+  onSignal?: () => void;
   onStopRecording?: () => void;
+  /**
+   * When true, identity and ≤2 actions publish into the OS window head
+   * instead of drawing a second identity row under the deck.
+   */
+  hostChrome?: boolean;
+}
+
+/** Publishes the journal's identity into the OS window head. */
+export function TerminalJournalHostChrome({
+  hostChrome,
+  projectLabel,
+}: {
+  hostChrome: boolean;
+  projectLabel?: string;
+}) {
+  useTopbarSlot(
+    hostChrome
+      ? {
+          glyph: <TerminalIdentityGlyph icon={ScrollText} />,
+          crumb: "Journal",
+          status: projectLabel ? (
+            <span className="truncate text-badge text-subtle">{projectLabel}</span>
+          ) : undefined,
+        }
+      : null
+  );
+  return null;
 }
 
 /** The framed window glyph — the same recipe the OS window head uses. */
@@ -57,9 +93,52 @@ export function TerminalHeader({
   onReleaseControl,
   onStop,
   onClose,
+  onSignal,
   onStopRecording,
+  hostChrome = false,
 }: TerminalHeaderProps) {
   const isPipe = terminal.mode === "pipe";
+  const actions = (
+    <TerminalHeaderActions
+      isPipe={isPipe}
+      lease={lease}
+      onClose={onClose}
+      onReleaseControl={onReleaseControl}
+      onSignal={onSignal}
+      onStop={onStop}
+      onStopRecording={onStopRecording}
+      recording={recording}
+      onTakeControl={onTakeControl}
+    />
+  );
+  const status = (
+    <>
+      {recording ? (
+        <Pill data-testid="terminal-recording-chip" mono size="sm" tone="neutral">
+          <Pill.Dot pulse tone="danger" />
+          rec {recording.elapsed}
+        </Pill>
+      ) : null}
+      {isPipe ? (
+        <Pill data-testid="terminal-pipe-chip" size="sm" tone="neutral">
+          read-only log
+        </Pill>
+      ) : null}
+      <TerminalLeaseBadge view={lease} viewers={isPipe ? undefined : terminal.viewers} />
+    </>
+  );
+  useTopbarSlot(
+    hostChrome
+      ? {
+          glyph: <TerminalIdentityGlyph icon={isPipe ? FileText : TerminalSquare} />,
+          crumb: terminal.title,
+          count: <MonoId size="sm" value={terminal.id} />,
+          status,
+          actions,
+        }
+      : null
+  );
+  if (hostChrome) return null;
   return (
     <header
       className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
@@ -74,28 +153,8 @@ export function TerminalHeader({
       </span>
       <span aria-hidden="true" className="min-w-2 flex-1" />
       <div className="flex flex-none items-center gap-2">
-        {recording ? (
-          <Pill data-testid="terminal-recording-chip" mono size="sm" tone="neutral">
-            <Pill.Dot pulse tone="danger" />
-            rec {recording.elapsed}
-          </Pill>
-        ) : null}
-        {isPipe ? (
-          <Pill data-testid="terminal-pipe-chip" size="sm" tone="neutral">
-            read-only log
-          </Pill>
-        ) : null}
-        <TerminalLeaseBadge view={lease} viewers={isPipe ? undefined : terminal.viewers} />
-        <TerminalHeaderActions
-          isPipe={isPipe}
-          lease={lease}
-          onClose={onClose}
-          onReleaseControl={onReleaseControl}
-          onStop={onStop}
-          onStopRecording={onStopRecording}
-          recording={recording}
-          onTakeControl={onTakeControl}
-        />
+        {status}
+        {actions}
       </div>
     </header>
   );
@@ -115,23 +174,40 @@ function TerminalHeaderActions({
   onReleaseControl,
   onStop,
   onClose,
+  onSignal,
   onStopRecording,
 }: TerminalHeaderActionsProps) {
   if (isPipe) {
-    return onClose ? (
+    const signal = onSignal ? (
+      <Button
+        data-testid="terminal-signal"
+        onClick={onSignal}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        Signal
+      </Button>
+    ) : null;
+    const close = onClose ? (
+      <Button
+        data-testid="terminal-close"
+        onClick={onClose}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        Close
+      </Button>
+    ) : null;
+    if (!signal && !close) return null;
+    return (
       <>
         <TerminalHeaderRule />
-        <Button
-          data-testid="terminal-close"
-          onClick={onClose}
-          size="sm"
-          type="button"
-          variant="ghost"
-        >
-          Close
-        </Button>
+        {signal}
+        {close}
       </>
-    ) : null;
+    );
   }
   const takeControl =
     lease.canTakeControl && onTakeControl ? (
@@ -188,7 +264,7 @@ function TerminalHeaderActions({
             />
           }
         >
-          <CircleStop aria-hidden="true" className="size-3.5" />
+          <CircleStop aria-hidden="true" className="size-3.5 text-danger" />
         </TooltipTrigger>
         <TooltipContent side="bottom">Stop</TooltipContent>
       </Tooltip>
@@ -216,5 +292,6 @@ type TerminalHeaderActionsProps = Pick<
   | "onReleaseControl"
   | "onStop"
   | "onClose"
+  | "onSignal"
   | "onStopRecording"
 > & { isPipe: boolean };

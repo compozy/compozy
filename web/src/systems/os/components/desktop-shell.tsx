@@ -17,7 +17,7 @@ import type { WindowManagerRegisteredClientView } from "../lib/window-manager-ty
 import { DesktopGate } from "./desktop-gate";
 import { DesktopWorktreeDialogs } from "./desktop-worktree-dialogs";
 import { DesktopMenubar } from "./desktop-menubar";
-import { DesktopDock } from "./desktop-dock";
+import { ShellDesktopDock } from "./desktop-dock";
 import { DesktopManagerSurfaces } from "./desktop-manager-surfaces";
 import { DesktopPagerSurface } from "./desktop-pager-surface";
 import { OsAboutDialog } from "./os-about-dialog";
@@ -312,7 +312,7 @@ function DesktopShellScopedBody({
             manager.refreshSnapshot();
           }}
         />
-        <DesktopDock
+        <ShellDesktopDock
           dormant={firstRun}
           onNewSession={openNewSession}
           badges={attention.badges}

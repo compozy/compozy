@@ -7,6 +7,12 @@ export interface TerminalEmptyStateProps {
   onOpenTerminal?: () => void;
 }
 
+function TerminalEmptyFrame({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center px-6 py-10">{children}</div>
+  );
+}
+
 /**
  * A project with no terminals.
  *
@@ -15,24 +21,26 @@ export interface TerminalEmptyStateProps {
  */
 export function TerminalEmptyState({ onOpenTerminal }: TerminalEmptyStateProps) {
   return (
-    <Empty
-      action={
-        onOpenTerminal ? (
-          <Button
-            data-testid="terminal-empty-open"
-            onClick={onOpenTerminal}
-            size="sm"
-            type="button"
-          >
-            Open a terminal
-          </Button>
-        ) : undefined
-      }
-      data-testid="terminal-empty"
-      description="Open one to run commands in this project — agents can watch, and everything that runs is kept in the journal."
-      icon={TerminalSquare}
-      title="No terminals yet"
-    />
+    <TerminalEmptyFrame>
+      <Empty
+        action={
+          onOpenTerminal ? (
+            <Button
+              data-testid="terminal-empty-open"
+              onClick={onOpenTerminal}
+              size="sm"
+              type="button"
+            >
+              Open a terminal
+            </Button>
+          ) : undefined
+        }
+        data-testid="terminal-empty"
+        framed
+        icon={TerminalSquare}
+        title="No terminals yet"
+      />
+    </TerminalEmptyFrame>
   );
 }
 
@@ -77,26 +85,29 @@ export function TerminalExpiredState({
   onViewJournal,
 }: TerminalExpiredStateProps) {
   return (
-    <Empty
-      action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
-      cause={`terminal_expired · 410 · reclaimed${idleFor ? ` after ${idleFor}` : ""} without viewers`}
-      data-testid="terminal-expired"
-      description={
-        idleFor
-          ? `Nobody was watching for ${idleFor}, so it was closed. Its command history is still in the journal.`
-          : "Nobody was watching for a while, so it was closed. Its command history is still in the journal."
-      }
-      icon={Moon}
-      title="This terminal was cleaned up"
-    />
+    <TerminalEmptyFrame>
+      <Empty
+        action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
+        cause={`terminal_expired · 410 · reclaimed${idleFor ? ` after ${idleFor}` : ""} without viewers`}
+        data-testid="terminal-expired"
+        description={
+          idleFor
+            ? `Nobody was watching for ${idleFor}, so it was closed. Its command history is still in the journal.`
+            : "Nobody was watching for a while, so it was closed. Its command history is still in the journal."
+        }
+        framed
+        icon={Moon}
+        title="This terminal was cleaned up"
+      />
+    </TerminalEmptyFrame>
   );
 }
 
 /**
- * Gone after a runtime restart.
+ * Gone — closed, expired, or never at this address.
  *
- * Deliberately distinct from a program's own exit: no exit code is shown,
- * because none exists.
+ * Distinct from a program's own exit: no exit code is shown, because none
+ * exists. The copy does not invent a restart the daemon did not report.
  */
 export function TerminalNotFoundState({
   onOpenTerminal,
@@ -106,13 +117,16 @@ export function TerminalNotFoundState({
   onViewJournal?: () => void;
 }) {
   return (
-    <Empty
-      action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
-      data-testid="terminal-not-found"
-      description="CompozyOS restarted, and live terminals don't carry across. Everything that ran is in the journal."
-      icon={RotateCcw}
-      title="This terminal didn't survive the restart"
-    />
+    <TerminalEmptyFrame>
+      <Empty
+        action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
+        data-testid="terminal-not-found"
+        description="It may have been closed, or this address doesn't match a live terminal. Everything that ran is in the journal."
+        framed
+        icon={RotateCcw}
+        title="This terminal isn't here"
+      />
+    </TerminalEmptyFrame>
   );
 }
 
@@ -124,19 +138,22 @@ export function TerminalNotFoundState({
  */
 export function TerminalExecuteOnlyState({ onViewJournal }: { onViewJournal?: () => void }) {
   return (
-    <Empty
-      action={
-        onViewJournal ? (
-          <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
-            View journal
-          </Button>
-        ) : undefined
-      }
-      cause="terminal_interactive_unavailable · exec available"
-      data-testid="terminal-execute-only"
-      description="On this platform, agents can still run commands and everything lands in the journal — there's just no live screen to type into."
-      icon={MonitorX}
-      title="Interactive terminals aren't available here yet"
-    />
+    <TerminalEmptyFrame>
+      <Empty
+        action={
+          onViewJournal ? (
+            <Button onClick={onViewJournal} size="sm" type="button" variant="outline">
+              View journal
+            </Button>
+          ) : undefined
+        }
+        cause="terminal_interactive_unavailable · exec available"
+        data-testid="terminal-execute-only"
+        description="On this platform, agents can still run commands and everything lands in the journal — there's just no live screen to type into."
+        framed
+        icon={MonitorX}
+        title="Interactive terminals aren't available here yet"
+      />
+    </TerminalEmptyFrame>
   );
 }

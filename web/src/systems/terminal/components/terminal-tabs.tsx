@@ -39,7 +39,8 @@ export interface TerminalTabsProps {
   showOwner?: boolean;
 }
 
-/** Tabs never shrink past legibility; the surplus collapses behind a caret. */
+/** Tabs never shrink past legibility; the surplus collapses behind a caret.
+ *  UT-118 locks collapse at 5 visible — not a scroll-at-cap strip. */
 const VISIBLE_TAB_LIMIT = 5;
 
 /** The deck-add recipe, shared by the plus button and the overflow caret. */

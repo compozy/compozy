@@ -146,6 +146,35 @@ describe("TerminalJournalPanel", () => {
     expect(screen.getByTestId("terminal-journal-filters-add")).toBeInTheDocument();
   });
 
+  it("Should keep the table mounted when the host passes a replay", () => {
+    renderPanel({
+      replay: <div data-testid="host-replay">replay</div>,
+      selectedCommandId: "cmd-5f0a1e",
+    });
+
+    expect(screen.getByTestId("terminal-journal-replay")).toBeInTheDocument();
+    expect(screen.getByTestId("host-replay")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-row-cmd-5f0a1e")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-detail")).toBeInTheDocument();
+  });
+
+  it("Should restore the selected record when the host clears replay and keeps the id", () => {
+    const { rerender, props } = renderPanel({
+      replay: <div data-testid="host-replay">replay</div>,
+      selectedCommandId: "cmd-77c1d0",
+    });
+
+    expect(screen.getByTestId("terminal-journal-replay")).toBeInTheDocument();
+    rerender(<TerminalJournalPanel {...props} replay={undefined} selectedCommandId="cmd-77c1d0" />);
+
+    expect(screen.queryByTestId("terminal-journal-replay")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-journal-row-cmd-77c1d0")).toHaveAttribute(
+      "data-selected",
+      ""
+    );
+  });
+
   it("Should open the whole record for a row and fold the attribute columns away", async () => {
     renderPanel();
 

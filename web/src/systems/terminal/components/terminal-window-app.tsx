@@ -3,14 +3,15 @@
 import type { TerminalEngineLoader } from "@compozy/ui";
 
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
+import { useCompactTerminalWindow } from "../hooks/use-compact-terminal-window";
 import {
   TERMINAL_NO_TERMINALS,
   useTerminalWindowAppState,
 } from "../hooks/use-terminal-window-app-state";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
-import type { TerminalInfo, TerminalInputRequest } from "../types";
+import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
 import { TerminalEmptyState, TerminalExecuteOnlyState } from "./terminal-empty-states";
-import type { TerminalRecordingState } from "./terminal-header";
+import { TerminalJournalHostChrome, type TerminalRecordingState } from "./terminal-header";
 import { TerminalJournalHead } from "./terminal-journal-panel";
 import { TerminalLimitDialog } from "./terminal-limit-dialog";
 import { TERMINAL_JOURNAL_TAB, terminalPanelDomId, terminalTabDomId } from "./terminal-tab-id";
@@ -19,6 +20,8 @@ import type { TerminalWindowActions } from "./terminal-window-actions";
 import { TerminalWindowBody } from "./terminal-window-body";
 
 export type { TerminalWindowActions } from "./terminal-window-actions";
+
+const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
 
 export interface TerminalWindowAppProps {
   workspaceId: string;
@@ -31,6 +34,9 @@ export interface TerminalWindowAppProps {
   viewerToken?: string | null;
   terminals: readonly TerminalInfo[];
   inputRequests: readonly TerminalInputRequest[];
+  resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
+  /** Terminal id → title, for stacked questions that must name their origin. */
+  inputRequestTitles?: ReadonlyMap<string, string>;
   /** The per-project cap, from `[terminal].max_per_workspace`. */
   limit: number;
   /** `[terminal].exit_retention` in milliseconds. Omit when unknown. */
@@ -46,10 +52,17 @@ export interface TerminalWindowAppProps {
   journal: React.ReactNode;
   /** Refreshes the journal when the operator reveals it. */
   onViewJournal?: () => void;
+  /** The journal tab is no longer the surface being read. */
+  onLeaveJournal?: () => void;
   actions: TerminalWindowActions;
   socketFactory?: TerminalAttachmentSocketFactory;
   /** Replaces the emulator. Tests and playback harnesses only. */
   engineLoader?: TerminalEngineLoader;
+  /**
+   * The OS window already hosts identity in its topbar. Isolated tests leave
+   * this off so the in-app head remains the assertion surface.
+   */
+  hostChrome?: boolean;
 }
 
 /**
@@ -69,6 +82,8 @@ export function TerminalWindowApp({
   viewerToken,
   terminals,
   inputRequests,
+  resolvedInputRequests = EMPTY_RESOLVED,
+  inputRequestTitles,
   limit,
   exitRetentionMs,
   interactiveAvailable,
@@ -78,10 +93,13 @@ export function TerminalWindowApp({
   pipeOutput,
   journal,
   onViewJournal,
+  onLeaveJournal,
   actions,
   socketFactory,
   engineLoader,
+  hostChrome = false,
 }: TerminalWindowAppProps) {
+  const { rootRef, compact } = useCompactTerminalWindow();
   const {
     active,
     activeProfile,
@@ -102,40 +120,52 @@ export function TerminalWindowApp({
     readOnly,
     actions,
     onViewJournal,
+    onLeaveJournal,
   });
 
   if (!interactiveAvailable) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window">
-        <TerminalExecuteOnlyState onViewJournal={() => setActiveTab(TERMINAL_JOURNAL_TAB)} />
+      <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window" ref={rootRef}>
+        {activeTab === TERMINAL_JOURNAL_TAB ? (
+          <>
+            <TerminalJournalHostChrome hostChrome={hostChrome} projectLabel={projectLabel} />
+            {hostChrome ? null : <TerminalJournalHead projectLabel={projectLabel} />}
+            {journal}
+          </>
+        ) : (
+          <TerminalExecuteOnlyState onViewJournal={() => setActiveTab(TERMINAL_JOURNAL_TAB)} />
+        )}
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window">
-      <TerminalTabs
-        activeTab={activeTab}
-        attentionIds={attentionIds}
-        idBase={tabsIdBase}
-        limit={limit}
-        onCloseTerminal={readOnly ? undefined : actions.onCloseTerminal}
-        onOpenTerminal={openTerminal}
-        onSelect={setActiveTab}
-        showOwner={readOnly}
-        terminals={terminals}
-      />
+    <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window" ref={rootRef}>
+      {compact ? null : (
+        <TerminalTabs
+          activeTab={activeTab}
+          attentionIds={attentionIds}
+          idBase={tabsIdBase}
+          limit={limit}
+          onCloseTerminal={readOnly ? undefined : actions.onCloseTerminal}
+          onOpenTerminal={openTerminal}
+          onSelect={setActiveTab}
+          showOwner={readOnly}
+          terminals={terminals}
+        />
+      )}
       <div
         aria-labelledby={
           activeTab === TERMINAL_NO_TERMINALS ? undefined : terminalTabDomId(tabsIdBase, activeTab)
         }
-        className="flex min-h-0 flex-1 flex-col"
+        className="flex min-h-0 flex-1 flex-col bg-terminal-bg"
         id={terminalPanelDomId(tabsIdBase)}
         role="tabpanel"
       >
         {activeTab === TERMINAL_JOURNAL_TAB ? (
           <>
-            <TerminalJournalHead projectLabel={projectLabel} />
+            <TerminalJournalHostChrome hostChrome={hostChrome} projectLabel={projectLabel} />
+            {hostChrome ? null : <TerminalJournalHead projectLabel={projectLabel} />}
             {journal}
           </>
         ) : active === null ? (
@@ -144,9 +174,15 @@ export function TerminalWindowApp({
           <TerminalWindowBody
             actions={actions}
             auditBlocked={auditBlockedIds?.has(active.id) ?? false}
+            compact={compact}
             engineLoader={engineLoader}
             exitRetentionMs={exitRetentionMs}
+            hostChrome={hostChrome}
+            inputRequestTitles={inputRequestTitles}
             inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
+            resolvedInputRequests={resolvedInputRequests.filter(
+              request => request.terminal_id === active.id
+            )}
             // Keyed by the full scoped identity: the same terminal id under a
             // different profile is a different terminal, and must not inherit
             // the previous one's in-flight confirmation.

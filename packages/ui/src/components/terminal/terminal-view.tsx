@@ -142,6 +142,16 @@ export function TerminalView({
     pending,
   ]);
 
+  React.useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !readOnly) return undefined;
+    const declineFocus = () => {
+      instanceRef.current?.terminal.blur();
+    };
+    container.addEventListener("focusin", declineFocus);
+    return () => container.removeEventListener("focusin", declineFocus);
+  }, [containerRef, instanceRef, readOnly]);
+
   return (
     <div
       className={cn("relative min-h-0 min-w-0 flex-1 overflow-hidden", className)}
@@ -250,7 +260,11 @@ function createHandle(
       }
       instance.terminal.reset();
     },
-    focus: () => instanceRef.current?.terminal.focus(),
+    focus: () => {
+      const instance = instanceRef.current;
+      if (!instance || instance.terminal.options.disableStdin) return;
+      instance.terminal.focus();
+    },
     getSelection: () => instanceRef.current?.terminal.getSelection() ?? "",
     getSelectionRange: () => {
       const instance = instanceRef.current;

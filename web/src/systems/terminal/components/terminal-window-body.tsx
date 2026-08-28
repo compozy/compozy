@@ -10,13 +10,15 @@ import { exitNoticeFromTerminal } from "../lib/terminal-exit";
 import { terminalLeaseView } from "../lib/terminal-lease";
 import { terminalPipeOutputQuery, terminalScope } from "../lib/query-options";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
-import type { TerminalInfo, TerminalInputRequest } from "../types";
+import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
 import { TerminalHeader, type TerminalRecordingState } from "./terminal-header";
-import { TerminalInputRequestCard } from "./terminal-input-request";
+import { TerminalInputRequestStack } from "./terminal-input-request-stack";
 import { TerminalPane } from "./terminal-pane";
 import { TerminalPipeLogPane } from "./terminal-pipe-log-pane";
 import { TerminalTakeoverDialog } from "./terminal-takeover-dialog";
 import type { TerminalWindowActions } from "./terminal-window-actions";
+
+const EMPTY_RESOLVED: readonly TerminalResolvedInputRequest[] = [];
 
 export interface TerminalWindowBodyProps {
   terminal: TerminalInfo;
@@ -26,6 +28,8 @@ export interface TerminalWindowBodyProps {
   profile: string;
   readOnly?: boolean;
   inputRequests: readonly TerminalInputRequest[];
+  resolvedInputRequests?: readonly TerminalResolvedInputRequest[];
+  inputRequestTitles?: ReadonlyMap<string, string>;
   auditBlocked: boolean;
   exitRetentionMs?: number;
   recording: TerminalRecordingState | null;
@@ -35,6 +39,8 @@ export interface TerminalWindowBodyProps {
   onViewJournal: () => void;
   socketFactory?: TerminalAttachmentSocketFactory;
   engineLoader?: TerminalEngineLoader;
+  hostChrome?: boolean;
+  compact?: boolean;
 }
 
 /**
@@ -61,6 +67,8 @@ function TerminalInteractiveWindowBody({
   profile,
   readOnly = false,
   inputRequests,
+  resolvedInputRequests = EMPTY_RESOLVED,
+  inputRequestTitles,
   auditBlocked,
   exitRetentionMs,
   recording,
@@ -68,6 +76,8 @@ function TerminalInteractiveWindowBody({
   onViewJournal,
   socketFactory,
   engineLoader,
+  hostChrome = false,
+  compact = false,
 }: TerminalWindowBodyProps) {
   const controller = useTerminalWindowBodyController({
     terminal,
@@ -85,6 +95,7 @@ function TerminalInteractiveWindowBody({
   return (
     <>
       <TerminalHeader
+        hostChrome={hostChrome}
         lease={lease}
         onReleaseControl={controller.releaseControl}
         onStop={controller.stop}
@@ -96,6 +107,7 @@ function TerminalInteractiveWindowBody({
       <TerminalPane
         attachment={attachment}
         auditBlocked={auditBlocked}
+        compact={compact}
         engineLoader={engineLoader}
         exitRetentionMs={exitRetentionMs}
         handleRef={handleRef}
@@ -104,6 +116,18 @@ function TerminalInteractiveWindowBody({
         onReconnect={connection.reconnect}
         onViewJournal={onViewJournal}
         pane={pane}
+        requestRegion={
+          <div aria-live="polite" role="status">
+            <TerminalInputRequestStack
+              canAnswerDirectly={lease.canType && !readOnly}
+              onAnswer={(request, input) => actions.onAnswerInputRequest(request, input)}
+              onReject={request => actions.onRejectInputRequest(request)}
+              pending={inputRequests}
+              resolved={resolvedInputRequests}
+              titles={inputRequestTitles}
+            />
+          </div>
+        }
         selectionActions={{
           hasActiveSession: actions.hasActiveSession,
           onChooseSession: actions.onChooseSession,
@@ -113,19 +137,6 @@ function TerminalInteractiveWindowBody({
         }}
         terminal={terminal}
       />
-      {/* A stable live region: the card mounting inside it is what makes the
-          agent's question audible to someone focused in the grid. */}
-      <div aria-live="polite" role="status">
-        {(readOnly ? [] : inputRequests).map(request => (
-          <TerminalInputRequestCard
-            canAnswerDirectly={lease.canType}
-            key={request.id}
-            onAnswer={input => actions.onAnswerInputRequest(request, input)}
-            onReject={() => actions.onRejectInputRequest(request)}
-            request={request}
-          />
-        ))}
-      </div>
       {controller.pendingTakeover ? (
         <TerminalTakeoverDialog
           controllerName={lease.controllerName ?? "the current controller"}
@@ -148,6 +159,7 @@ function TerminalPipeWindowBody({
   readOnly = false,
   pipeOutput,
   actions,
+  hostChrome = false,
 }: TerminalWindowBodyProps) {
   const scope = terminalScope(workspaceId, profile);
   const output = useQuery({
@@ -165,8 +177,12 @@ function TerminalPipeWindowBody({
   return (
     <>
       <TerminalHeader
+        hostChrome={hostChrome}
         lease={lease}
         onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
+        onSignal={
+          readOnly || terminal.state !== "running" ? undefined : () => actions.onStop(terminal.id)
+        }
         terminal={terminal}
       />
       {/* Waiting and failing must never read as an empty log — an empty log is

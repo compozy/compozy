@@ -6,7 +6,6 @@ import { toast, type Filter } from "@compozy/ui";
 import { useProfileReadScope, useProfiles } from "@/systems/profiles";
 import { useSettingsGeneral } from "@/systems/settings";
 import {
-  answerTerminalInputRequest,
   closeTerminal,
   controlTerminalRecording,
   createTerminal,
@@ -20,6 +19,7 @@ import {
   terminalJournalFiltersFromChips,
   terminalScope,
   useTerminalCatalogStream,
+  useTerminalInputAnswer,
   type TerminalInputRequest,
   type TerminalViewerIdentity,
 } from "@/systems/terminal";
@@ -28,6 +28,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { matchTerminalInstance } from "../../../lib/app-catalog";
+import { decideTerminalCloseHost } from "../lib/terminal-window-close";
 
 const DEFAULT_ROUTE = "/terminal";
 
@@ -43,6 +44,8 @@ export function useTerminalWindowControllerState(windowId: string) {
   const [journalChips, setJournalChips] = useState<Filter<string>[]>([]);
   const journalFilters = terminalJournalFiltersFromChips(journalChips);
   const [replay, setReplay] = useState<TerminalReplaySelection | null>(null);
+  const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
+  const [journalVisible, setJournalVisible] = useState(false);
   const { coordinator, manager } = useOsShell();
   const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
@@ -62,10 +65,15 @@ export function useTerminalWindowControllerState(windowId: string) {
     ...terminalCatalogQuery(catalogScope),
     enabled: workspaceId !== "",
   });
-  const inputRequests = useQuery({
+  const inputRequestProjection = useQuery({
     ...terminalInputRequestsQuery(catalogScope),
     enabled: workspaceId !== "",
   });
+  const inputRequests = {
+    ...inputRequestProjection,
+    data: inputRequestProjection.data?.pending,
+  };
+  const resolvedInputRequests = inputRequestProjection.data?.resolved ?? [];
   const journal = useInfiniteQuery({
     ...terminalJournalQuery(journalScope, journalFilters),
     enabled: workspaceId !== "",
@@ -125,17 +133,32 @@ export function useTerminalWindowControllerState(windowId: string) {
       closeTerminal(workspaceId, terminalId, terminalSelector(terminalId), "HUP"),
     onSuccess: async (_exit, closedId) => {
       await invalidateTerminalReads();
-      const next = (catalog.data ?? []).find(terminal => terminal.id !== closedId);
-      if (matchTerminalInstance(pathname) !== closedId) return;
-      if (next) {
+      const remaining = (catalog.data ?? []).filter(terminal => terminal.id !== closedId);
+      const decision = decideTerminalCloseHost({
+        closedId,
+        routedId: matchTerminalInstance(pathname),
+        remaining,
+        journalVisible,
+      });
+      if (decision.kind === "noop") return;
+      if (decision.kind === "retarget") {
         await coordinator.userRetarget(windowId, {
           app: "terminal",
-          instanceKey: next.id,
-          route: { pathname: `/terminal/${encodeURIComponent(next.id)}`, search: {} },
+          instanceKey: decision.terminalId,
+          route: { pathname: `/terminal/${encodeURIComponent(decision.terminalId)}`, search: {} },
         });
-      } else {
-        await coordinator.userClose(windowId);
+        return;
       }
+      if (decision.kind === "keep") {
+        // Drop the dead terminal from the route so the journal stays the surface.
+        const navigated = manager.navigateWindow(windowId, {
+          pathname: DEFAULT_ROUTE,
+          search: {},
+        });
+        await navigated.completion;
+        return;
+      }
+      await coordinator.userClose(windowId);
     },
     onError: error =>
       toast.error(error instanceof Error ? error.message : "Failed to close terminal"),
@@ -147,13 +170,9 @@ export function useTerminalWindowControllerState(windowId: string) {
     onError: error =>
       toast.error(error instanceof Error ? error.message : "Failed to stop command"),
   });
-  const answer = useMutation({
-    mutationFn: ({ request, value }: { request: TerminalInputRequest; value: string }) =>
-      answerTerminalInputRequest(workspaceId, request.terminal_id, request.id, value, {
-        profile: request.profile_name,
-      }),
+  const answer = useTerminalInputAnswer(workspaceId, {
     onSuccess: invalidateTerminalReads,
-    onError: error => toast.error(error instanceof Error ? error.message : "Failed to answer"),
+    onError: error => toast.error(error.message),
   });
   const reject = useMutation({
     mutationFn: (request: TerminalInputRequest) =>
@@ -182,6 +201,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     coordinator,
     create,
     inputRequests,
+    resolvedInputRequests,
     journal,
     journalChips,
     manager,
@@ -190,8 +210,11 @@ export function useTerminalWindowControllerState(windowId: string) {
     recording,
     reject,
     replay,
+    selectedCommandId,
     setJournalChips,
+    setJournalVisible,
     setReplay,
+    setSelectedCommandId,
     settings,
     stop,
     stopRecording,

@@ -24,11 +24,26 @@ import {
   TERMINAL_MIN_ROWS,
 } from "./terminal-wire";
 
+const U64_MAX = 0xffff_ffff_ffff_ffffn;
+
+/**
+ * One u64, two JSON encodings the wire actually uses.
+ *
+ * Control frames encode the sequence as a decimal string. Some harnesses and
+ * HTTP-shaped payloads send the same integer as a JSON number. Both are one
+ * field — not an alias — and both become `bigint` before anything reads them.
+ */
 const sequenceSchema = z
-  .string()
-  .regex(/^(0|[1-9]\d*)$/)
+  .union([
+    z.string().regex(/^(0|[1-9]\d*)$/),
+    z
+      .number()
+      .int()
+      .nonnegative()
+      .refine(value => Number.isSafeInteger(value), "sequence is not a safe integer"),
+  ])
   .transform(value => BigInt(value))
-  .refine(value => value <= 0xffff_ffff_ffff_ffffn, "sequence exceeds u64");
+  .refine(value => value <= U64_MAX, "sequence exceeds u64");
 const colsSchema = z.number().int().min(TERMINAL_MIN_COLS).max(TERMINAL_MAX_COLS);
 const rowsSchema = z.number().int().min(TERMINAL_MIN_ROWS).max(TERMINAL_MAX_ROWS);
 

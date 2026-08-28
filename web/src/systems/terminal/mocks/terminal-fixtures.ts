@@ -4,6 +4,7 @@ import type {
   TerminalInfo,
   TerminalInputRequest,
   TerminalJournalEntry,
+  TerminalResolvedInputRequest,
 } from "../types";
 
 /**
@@ -173,6 +174,52 @@ export const CONFIRMATION_REQUEST: TerminalInputRequest = {
   requested_at: "2026-08-25T12:47:00Z",
   requester: { kind: "agent", id: "claude-code" },
 };
+
+function resolvedRequest(
+  request: TerminalInputRequest,
+  overrides: Partial<TerminalResolvedInputRequest>
+): TerminalResolvedInputRequest {
+  return {
+    id: request.id,
+    terminal_id: request.terminal_id,
+    profile_id: request.profile_id,
+    profile_name: request.profile_name,
+    requester: request.requester,
+    outcome: "answered",
+    resolved_by: { kind: "human", id: TERMINAL_FIXTURE_VIEWER },
+    redacted: request.redacted,
+    length: 0,
+    requested_at: request.requested_at,
+    resolved_at: request.requested_at,
+    ...overrides,
+  };
+}
+
+export const ANSWERED_PASSWORD_REQUEST = resolvedRequest(PASSWORD_REQUEST, {
+  outcome: "answered",
+  length: 10,
+  resolved_at: "2026-08-25T12:44:00Z",
+});
+
+export const REJECTED_PASSWORD_REQUEST = resolvedRequest(PASSWORD_REQUEST, {
+  id: "req-declined",
+  outcome: "rejected",
+  resolved_at: "2026-08-25T12:41:00Z",
+});
+
+export const SUPERSEDED_PASSWORD_REQUEST = resolvedRequest(PASSWORD_REQUEST, {
+  id: "req-superseded",
+  outcome: "superseded",
+  resolved_by: { kind: "human", id: "marina" },
+  resolved_at: "2026-08-25T12:39:00Z",
+});
+
+export const EXPIRED_PASSWORD_REQUEST = resolvedRequest(PASSWORD_REQUEST, {
+  id: "req-expired",
+  outcome: "expired",
+  resolved_by: { kind: "system", id: "reaper" },
+  resolved_at: "2026-08-25T12:20:00Z",
+});
 
 function journalEntry(overrides: Partial<TerminalJournalEntry>): TerminalJournalEntry {
   return {

@@ -74,7 +74,7 @@ export const OS_APP_DESCRIPTORS: Record<OsAppId, OsAppDescriptor> = {
     title: "Terminal",
     icon: SquareTerminal,
     paths: ["/terminal"],
-    minimumSize: { width: 680, height: 420 },
+    minimumSize: { width: OS_WINDOW_MIN_WIDTH, height: OS_WINDOW_MIN_HEIGHT },
     dock: { group: 1 },
     badge: "terminal",
     matchInstance: matchTerminalInstance,

@@ -39,9 +39,9 @@ export interface TerminalStreamNoticeProps {
   /**
    * Opens the journal.
    *
-   * Offered for `terminal_not_found` alone: the terminal is gone, so there is
-   * nothing to retry, but everything it ran is still recorded. No other code
-   * gets an invented way out.
+   * Offered when the terminal itself is gone (`terminal_not_found`,
+   * `terminal_expired`): there is nothing to retry, but everything it ran is
+   * still recorded. No other code gets an invented way out.
    */
   onViewJournal?: () => void;
 }
@@ -63,18 +63,23 @@ export function TerminalStreamNotice({
   const Icon = NOTICE_ICONS[code];
   // A terminal that no longer exists cannot be reconnected to; its journal is
   // the only thing left to open.
-  const gone = code === "terminal_not_found";
+  const gone = code === "terminal_not_found" || code === "terminal_expired";
   // These failures can be repaired by minting a fresh attachment. A full
   // subscriber list cannot: retrying before someone leaves only repeats the
   // same refusal, even when the caller has a reconnect callback available.
   const retryable =
     code === "ticket_expired" || code === "ticket_invalid" || code === "slow_consumer";
+  const detail =
+    code === "subscriber_limit_reached" && message.trim() !== "" ? message : copy.detail;
+  // Warning is reserved for the audit-blocked pause. Other refusals are
+  // information: the signal grammar must not paint every stream error amber.
+  const variant = code === "journal_unavailable" ? "warning" : "default";
   return (
     // A refusal is urgent — the primitive's assertive `role="alert"` stands.
-    <Alert className="rounded-none" data-testid={`terminal-notice-${code}`} variant="warning">
+    <Alert className="rounded-none" data-testid={`terminal-notice-${code}`} variant={variant}>
       {Icon ? <Icon aria-hidden="true" /> : null}
       <AlertTitle className={NOTICE_TITLE_CLASS}>{copy.title}</AlertTitle>
-      {copy.detail ? <AlertDescription>{copy.detail}</AlertDescription> : null}
+      {detail ? <AlertDescription>{detail}</AlertDescription> : null}
       <AlertMeta>
         <MonoId size="sm" value={code} />
       </AlertMeta>

@@ -166,6 +166,9 @@ function applyViewOptions(instance: TerminalInstance, view: TerminalViewOptions)
     screenReaderMode: view.screenReaderMode,
     scrollback: view.scrollbackLines,
   });
+  // The emulator has no hollow *active* cursor. A watcher stays unfocused so
+  // the outline inactive style is the only cursor it can paint.
+  if (view.readOnly) instance.terminal.blur();
 }
 
 /** Publishes a size the container could host. A degenerate fit says nothing. */

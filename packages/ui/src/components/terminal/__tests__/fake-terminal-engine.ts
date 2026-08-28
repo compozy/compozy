@@ -154,6 +154,7 @@ function createFakeTerminal(
       terminal.resetCount += 1;
     },
     focus: () => undefined,
+    blur: () => undefined,
     dispose: () => {
       terminal.disposed = true;
     },

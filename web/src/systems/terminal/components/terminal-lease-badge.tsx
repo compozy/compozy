@@ -25,7 +25,7 @@ export function TerminalLeaseBadge({ view, viewers, className }: TerminalLeaseBa
         data-lease={view.read}
         data-testid="terminal-lease-badge"
         size="sm"
-        tone={view.read === "you" ? "neutral" : "info"}
+        tone={view.read === "you" || view.read === "nobody" ? "neutral" : "info"}
       >
         {view.read === "agent" && view.controllerName ? (
           <OwnerAvatar
@@ -34,9 +34,9 @@ export function TerminalLeaseBadge({ view, viewers, className }: TerminalLeaseBa
             ownerKind="agent"
             size="sm"
           />
-        ) : (
+        ) : view.read === "you" ? (
           <Keyboard aria-hidden="true" className="size-3" />
-        )}
+        ) : null}
         {/* Only the sentence is a live region. Control changing hands is worth
             announcing; the glyph, the chip and the viewer count around it are
             not, and marking the whole row live would repeat all of it on every
@@ -51,7 +51,7 @@ export function TerminalLeaseBadge({ view, viewers, className }: TerminalLeaseBa
           data-testid="terminal-viewers"
           mono
           size="sm"
-          tone="neutral"
+          tone="info"
         >
           <Eye aria-hidden="true" className="size-3" />
           {viewers}

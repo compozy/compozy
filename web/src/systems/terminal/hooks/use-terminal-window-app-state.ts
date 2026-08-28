@@ -26,6 +26,8 @@ export interface UseTerminalWindowAppStateOptions {
   actions: TerminalWindowActions;
   /** Refreshes the journal when the operator reveals it. */
   onViewJournal?: (() => void) | undefined;
+  /** The journal tab is no longer the surface being read. */
+  onLeaveJournal?: (() => void) | undefined;
 }
 
 export interface TerminalWindowAppState {
@@ -58,6 +60,7 @@ export function useTerminalWindowAppState({
   readOnly,
   actions,
   onViewJournal,
+  onLeaveJournal,
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
   const [selectedTab, setSelectedTab] = useState<TerminalTabId | null>(null);
   const [limitOpen, setLimitOpen] = useState(false);
@@ -82,6 +85,7 @@ export function useTerminalWindowAppState({
   const active = terminals.find(terminal => terminal.id === activeTab) ?? null;
   const setActiveTab = (tab: TerminalTabId) => {
     if (tab === TERMINAL_JOURNAL_TAB) onViewJournal?.();
+    else onLeaveJournal?.();
     setSelectedTab(tab);
   };
   const destinationTerminals = terminals.filter(terminal => terminal.profile_name === profile);

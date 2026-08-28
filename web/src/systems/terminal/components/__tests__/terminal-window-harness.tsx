@@ -168,6 +168,7 @@ export const stubEngineLoader = (): Promise<TerminalEngine> =>
         refresh: () => undefined,
         reset: () => undefined,
         focus: () => undefined,
+        blur: () => undefined,
         dispose: () => undefined,
         getSelection: () => "",
         getSelectionPosition: () => undefined,
