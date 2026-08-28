@@ -11,7 +11,6 @@ import (
 	hookspkg "github.com/compozy/compozy/internal/hooks"
 	"github.com/compozy/compozy/internal/network/identifier"
 	"github.com/compozy/compozy/internal/network/participation"
-	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -106,14 +105,6 @@ func (m *Manager) prepareCreateOptions(ctx context.Context, opts CreateOpts) (Cr
 		return CreateOpts{}, "", err
 	}
 	return prepared, sessionType, nil
-}
-
-func normalizeCreateSpeed(raw speedpkg.Speed) (speed speedpkg.Speed, err error) {
-	speed, err = normalizeRequestedSpeed(raw)
-	if err != nil {
-		return speed, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
-	}
-	return speed, nil
 }
 
 func createSessionScope(global bool) store.SessionScope {

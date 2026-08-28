@@ -289,8 +289,8 @@ func TestRoleObservabilityCoverageMatrix(t *testing.T) {
 	})
 }
 
-func fallbackTestRole(writer roleEventSummaryWriter) ResolvedRole {
-	return ResolvedRole{
+func fallbackTestRole(writer roleEventSummaryWriter) *ResolvedRole {
+	return &ResolvedRole{
 		Role:            compozyconfig.RoleDream,
 		AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
 		Provider:        "primary",

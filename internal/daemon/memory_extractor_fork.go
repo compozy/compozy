@@ -174,7 +174,7 @@ func (e *forkedMemoryExtractor) Extract(
 	if err != nil {
 		return nil, err
 	}
-	child, err := e.spawnExtractorSession(runCtx, role, correlation, turn)
+	child, err := e.spawnExtractorSession(runCtx, &role, correlation, turn)
 	if child != nil {
 		defer e.stopChild(ctx, child.ID)
 	}
@@ -206,7 +206,7 @@ func (e *forkedMemoryExtractor) Extract(
 
 func (e *forkedMemoryExtractor) spawnExtractorSession(
 	ctx context.Context,
-	role ResolvedRole,
+	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	turn memcontract.TurnRecord,
 ) (*session.Session, error) {

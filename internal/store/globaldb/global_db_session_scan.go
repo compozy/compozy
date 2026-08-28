@@ -285,7 +285,16 @@ func populateSessionScanParts(session *store.SessionInfo, row *sessionInfoRow) e
 
 func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 	var row sessionInfoRow
-	if err := scanner.Scan(
+	targets := sessionInfoRuntimeScanTargets(&row)
+	targets = append(targets, sessionInfoStateScanTargets(&row)...)
+	if err := scanner.Scan(targets...); err != nil {
+		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
+	}
+	return row, nil
+}
+
+func sessionInfoRuntimeScanTargets(row *sessionInfoRow) []any {
+	return []any{
 		&row.session.ID, &row.session.ProfileID,
 		&row.name,
 		&row.session.AgentName,
@@ -323,6 +332,11 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.notifyCreator,
 		&row.spawnBudgetJSON,
 		&row.permissionPolicyJSON,
+	}
+}
+
+func sessionInfoStateScanTargets(row *sessionInfoRow) []any {
+	return []any{
 		&row.session.State,
 		&row.archivedAt,
 		&row.parkedAt,
@@ -362,10 +376,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.envLastSyncAt,
 		&row.envLastSyncError,
 		&row.createdAtRaw, &row.updatedAtRaw,
-	); err != nil {
-		return sessionInfoRow{}, fmt.Errorf("store: scan session info: %w", err)
 	}
-	return row, nil
 }
 
 func assignSessionLifecycleTimes(session *store.SessionInfo, row *sessionInfoRow) error {

@@ -32,21 +32,8 @@ func (m *Manager) acceptSessionStart(
 		return nil, errors.New("session: start spec is required")
 	}
 
-	runtime, err := m.resolveAcceptedSessionStartRuntime(spec)
+	runtime, err := m.resolveValidatedAcceptedStartRuntime(acceptCtx, spec)
 	if err != nil {
-		spec.startLogger(m).Warn(
-			"session.start.runtime_prepare_failed",
-			"phase", spec.startAction,
-			"error", err,
-		)
-		return nil, fmt.Errorf("session: resolve %s runtime for %q: %w", spec.startAction, spec.sessionID, err)
-	}
-	if !spec.deferRuntimeValidation {
-		if err := m.validateExplicitStartModel(acceptCtx, &runtime, spec); err != nil {
-			return nil, err
-		}
-	}
-	if err := preparePinnedStartCreationIdentity(spec, runtime.agent); err != nil {
 		return nil, err
 	}
 	releaseLifecycle, err := m.reserveStartLifecycle(
@@ -102,6 +89,35 @@ func (m *Manager) acceptSessionStart(
 	return &acceptedSessionStart{
 		spec: spec, runtime: runtime, session: session, storage: storage, run: run,
 	}, nil
+}
+
+func (m *Manager) resolveValidatedAcceptedStartRuntime(
+	ctx context.Context,
+	spec *sessionStartSpec,
+) (sessionStartRuntime, error) {
+	runtime, err := m.resolveAcceptedSessionStartRuntime(spec)
+	if err != nil {
+		spec.startLogger(m).Warn(
+			"session.start.runtime_prepare_failed",
+			"phase", spec.startAction,
+			"error", err,
+		)
+		return sessionStartRuntime{}, fmt.Errorf(
+			"session: resolve %s runtime for %q: %w",
+			spec.startAction,
+			spec.sessionID,
+			err,
+		)
+	}
+	if !spec.deferRuntimeValidation {
+		if err := m.validateExplicitStartModel(ctx, &runtime, spec); err != nil {
+			return sessionStartRuntime{}, err
+		}
+	}
+	if err := preparePinnedStartCreationIdentity(spec, runtime.agent); err != nil {
+		return sessionStartRuntime{}, err
+	}
+	return runtime, nil
 }
 
 func preparePinnedStartCreationIdentity(spec *sessionStartSpec, agent compozyconfig.ResolvedAgent) error {

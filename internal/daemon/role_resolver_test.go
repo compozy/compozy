@@ -20,9 +20,9 @@ func (f roleResolverFunc) Resolve(
 	return f(ctx, workspaceID, role)
 }
 
-func resolvedRoleResolver(resolved ResolvedRole) RoleResolver {
+func resolvedRoleResolver(resolved *ResolvedRole) RoleResolver {
 	return roleResolverFunc(func(context.Context, string, compozyconfig.RoleName) (ResolvedRole, error) {
-		return resolved, nil
+		return *resolved, nil
 	})
 }
 

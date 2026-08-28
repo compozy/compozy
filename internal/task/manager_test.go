@@ -11123,15 +11123,15 @@ func testManagerStartCoordinatorWithStore(
 		t.Fatalf("CreateTask() error = %v", err)
 	}
 	run := Run{
-		ID:             "run-loop-coordinator-" + suffix,
-		TaskID:         taskRecord.ID,
-		RunKind:        RunKindCoordinator,
-		LoopRunID:      "loop-run-" + suffix,
-		Status:         TaskRunStatusQueued,
-		Attempt:        1,
-		IdempotencyKey: "coordinator:" + suffix,
-		Origin:         Origin{Kind: OriginKindDaemon, Ref: "loop"},
-		QueuedAt:       now,
+		ID:               "run-loop-coordinator-" + suffix,
+		TaskID:           taskRecord.ID,
+		RunKind:          RunKindCoordinator,
+		LoopRunID:        "loop-run-" + suffix,
+		Status:           TaskRunStatusQueued,
+		Attempt:          1,
+		RunContractState: &RunContractState{IdempotencyKey: "coordinator:" + suffix},
+		Origin:           Origin{Kind: OriginKindDaemon, Ref: "loop"},
+		QueuedAt:         now,
 	}
 	if err := store.CreateTaskRun(ctx, run); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)

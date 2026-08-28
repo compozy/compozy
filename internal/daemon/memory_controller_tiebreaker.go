@@ -82,7 +82,7 @@ func (t *daemonMemoryControllerTiebreaker) BreakTie(
 	}
 	invocation, invokeErr := invokeRoleWithFallback(
 		callCtx,
-		prepared.options.resolvedRole,
+		&prepared.options.resolvedRole,
 		memoryControllerCorrelation(request.Candidate),
 		func(attemptCtx context.Context, route roleAttemptRoute) (memoryControllerInvocation, bool, error) {
 			lastRoute = route

@@ -94,7 +94,7 @@ func (g *forkedAutoTitleGenerator) Generate(
 	runCtx, cancelRun := autoTitleRunContext(ctx, g.deadline)
 	defer cancelRun()
 	prompt := renderAutoTitlePrompt(request)
-	child, err := invokeRoleWithFallback(runCtx, role, correlation, func(
+	child, err := invokeRoleWithFallback(runCtx, &role, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {

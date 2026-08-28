@@ -20,17 +20,17 @@ func TestGlobalDBCallsMigration(t *testing.T) {
 		prefixDB, err := openGlobalMigrationPrefixDatabase(
 			t,
 			path,
-			globalMigrationPrefixBefore(t, "00094_schema.sql"),
+			globalMigrationPrefixBefore(t, "00099_schema.sql"),
 		)
 		if err != nil {
-			t.Fatalf("open prefix before 00094 error = %v", err)
+			t.Fatalf("open prefix before 00099 error = %v", err)
 		}
 		ctx := globalMigrationTestContext(t)
 		now := store.FormatTimestamp(time.Date(2026, 8, 27, 12, 0, 0, 0, time.UTC))
 		digest := "sha256:" + strings.Repeat("0", 64)
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO contract_schemas (digest, schema, created_at)
 			VALUES (?, '{"type":"object"}', ?)`, digest, now); err != nil {
-			t.Fatalf("seed contract before 00094 error = %v", err)
+			t.Fatalf("seed contract before 00099 error = %v", err)
 		}
 		if _, err := prefixDB.ExecContext(ctx, `INSERT INTO tasks (
 			id, profile_id, scope, title, status, created_by_kind, created_by_ref,
@@ -39,10 +39,10 @@ func TestGlobalDBCallsMigration(t *testing.T) {
 			'task-calls-migration', ?, 'global', 'Contracted migration task', 'ready',
 			'daemon', 'migration-test', 'daemon', 'migration-test', ?, ?, ?
 		)`, store.DefaultProfileID, now, now, digest); err != nil {
-			t.Fatalf("seed contracted task before 00094 error = %v", err)
+			t.Fatalf("seed contracted task before 00099 error = %v", err)
 		}
 		if err := prefixDB.Close(); err != nil {
-			t.Fatalf("close prefix before 00094 error = %v", err)
+			t.Fatalf("close prefix before 00099 error = %v", err)
 		}
 
 		upgraded, err := openGlobalMigrationUpgrade(t, path)

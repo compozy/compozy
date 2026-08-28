@@ -51,7 +51,7 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 	}
 	role := coordinatorInvocationRole(cfg, r.roleEvents)
 	correlation := roleInvocationCorrelationFromContext(ctx, decision.WorkspaceID)
-	created, err := invokeRoleWithFallback(ctx, role, correlation, func(
+	created, err := invokeRoleWithFallback(ctx, &role, correlation, func(
 		attemptCtx context.Context,
 		route roleAttemptRoute,
 	) (*session.Session, bool, error) {

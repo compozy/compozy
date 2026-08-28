@@ -9,11 +9,7 @@ import {
   settingsDetailRouteStories,
   settingsRootRouteStories,
 } from "./route-story-registry-settings";
-import type {
-  GeneratedRoutePath,
-  RouteStoryExclusion,
-  RouteStoryRegistryEntry,
-} from "./route-story-registry-types";
+import type { RouteStoryExclusion, RouteStoryRegistryEntry } from "./route-story-registry-types";
 
 export type {
   GeneratedRoutePath,

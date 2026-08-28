@@ -78,7 +78,7 @@ func roleInvocationCorrelationFromContext(ctx context.Context, workspaceID strin
 
 func invokeRoleWithFallback[T any](
 	ctx context.Context,
-	role ResolvedRole,
+	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	invoke func(context.Context, roleAttemptRoute) (T, bool, error),
 ) (T, error) {
@@ -135,7 +135,7 @@ func roleAttemptError(role compozyconfig.RoleName, attempt int, err error) error
 
 func recordRoleFallbackEvent(
 	ctx context.Context,
-	role ResolvedRole,
+	role *ResolvedRole,
 	correlation roleInvocationCorrelation,
 	attempt int,
 	route roleAttemptRoute,
