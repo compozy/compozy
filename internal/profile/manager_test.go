@@ -92,9 +92,11 @@ func TestManagerProfileLifecycle(t *testing.T) {
 			ID: parentID, ProfileID: created.ID, AgentName: "coordinator",
 			WorkspaceID: workspaceID, State: "active", RuntimeStatus: store.SessionRuntimeUnbound,
 			Lineage: &store.SessionLineage{
-				RootSessionID:    parentID,
-				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
-				PermissionPolicy: store.SessionPermissionPolicy{Skills: []string{"review"}},
+				RootSessionID: parentID,
+				SpawnBudget:   store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 3},
+				PermissionPolicy: store.SessionPermissionPolicy{
+					Tools: []string{"compozy__call_return"}, Skills: []string{"review"},
+				},
 			}, CreatedAt: now, UpdatedAt: now,
 		}); err != nil {
 			t.Fatalf("RegisterSession(parent) error = %v", err)
@@ -107,7 +109,9 @@ func TestManagerProfileLifecycle(t *testing.T) {
 				ProfileID: created.ID, WorkspaceID: workspaceID,
 				ParentSessionID: parentID, AgentName: "reviewer",
 				GovernedRootID: parentID, Depth: 1, Allowed: true,
-				CallerPolicy: callspkg.PermissionPolicy{Skills: []string{"review"}},
+				CallerPolicy: callspkg.PermissionPolicy{
+					Tools: []string{"compozy__call_return"}, Skills: []string{"review"},
+				},
 			}, []callspkg.AgentRosterEntry{{Name: "reviewer"}}, nil
 		})
 		calls, err := callspkg.NewService(
@@ -124,8 +128,10 @@ func TestManagerProfileLifecycle(t *testing.T) {
 				Kind: participation.OwnerKindSession, ID: parentID, WorkspaceID: workspaceID,
 			},
 			Target: callspkg.Target{Agent: "reviewer"}, Prompt: "profile-owned call",
-			Actor:  callspkg.Actor{Kind: "human", ID: "operator:test"},
-			Narrow: callspkg.PermissionAtoms{Skills: []string{"review"}},
+			Actor: callspkg.Actor{Kind: "human", ID: "operator:test"},
+			Narrow: callspkg.PermissionAtoms{
+				Tools: []string{"compozy__call_return"}, Skills: []string{"review"},
+			},
 		})
 		if err != nil {
 			t.Fatalf("calls.Create() error = %v", err)
