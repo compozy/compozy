@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -35,10 +36,14 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
 		harness, ctx := startImplementTasksE2EHarness(t)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{
-			"--input", `orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
-			"--input", `backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
-			"--input", `frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
-			"--input", `default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
+			"--input",
+			`orchestrator_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"normal"}`,
+			"--input",
+			`backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
+			"--input",
+			`frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
+			"--input",
+			`default_runtime={"provider":"claude","model":"base-model","reasoning":"low","speed":"normal"}`,
 		})
 		assertImplementTasksPerTaskRuntimes(t, detail)
 		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
@@ -492,7 +497,7 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 		}
 		got := *worker.Runtime.Effective
 		got.SpeedResolution = nil
-		if got != expected {
+		if !reflect.DeepEqual(got, expected) {
 			t.Fatalf("spawned worker %q runtime = %#v, want %#v", worker.Name, got, expected)
 		}
 	}
