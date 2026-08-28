@@ -10,6 +10,10 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+// Standalone registries keep committed provider results bounded after caller cancellation.
+// The daemon overrides this fallback with calls.operation_timeout.
+const defaultCompletionTimeout = 30 * time.Second
+
 // RegistryOption configures a runtime registry.
 type RegistryOption func(*RuntimeRegistry)
 
@@ -42,7 +46,8 @@ var _ Registry = (*RuntimeRegistry)(nil)
 // NewRegistry validates providers and returns a deterministic registry.
 func NewRegistry(opts ...RegistryOption) (*RuntimeRegistry, error) {
 	registry := &RuntimeRegistry{
-		policyInputs: DefaultPolicyInputs(),
+		policyInputs:      DefaultPolicyInputs(),
+		completionTimeout: defaultCompletionTimeout,
 	}
 	for _, opt := range opts {
 		opt(registry)

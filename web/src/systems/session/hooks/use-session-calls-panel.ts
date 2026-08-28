@@ -29,16 +29,32 @@ import {
 } from "@/systems/agent-comms";
 
 import { sessionsCompleteListOptions } from "../lib/query-options";
+import { getSessionDisplayTitle, UNTITLED_SESSION_TITLE } from "../lib/session-display-title";
+import type { SessionPayload } from "../types";
 import { useSession } from "./use-sessions";
 
 export interface SessionCallsPanelModel {
   made: CallDirectionSection;
   received: CallDirectionSection;
+  /** Session caller labels keyed by durable session id. */
+  callerNames: ReadonlyMap<string, string>;
   /** Counterparts retention has already removed. Empty until proven. */
   prunedSessionIds: ReadonlySet<string>;
 }
 
 const NO_PRUNED_SESSIONS: ReadonlySet<string> = new Set<string>();
+const NO_CALLER_NAMES: ReadonlyMap<string, string> = new Map<string, string>();
+
+function callerNamesFrom(sessions: readonly SessionPayload[] | null): ReadonlyMap<string, string> {
+  if (!sessions) return NO_CALLER_NAMES;
+  const names = new Map<string, string>();
+  for (const session of sessions) {
+    const title = getSessionDisplayTitle(session);
+    const agentName = session.agent_name?.trim();
+    names.set(session.id, title === UNTITLED_SESSION_TITLE && agentName ? agentName : title);
+  }
+  return names;
+}
 
 /**
  * Which counterparts are gone.
@@ -112,7 +128,8 @@ export function useSessionCallsPanel(
     enabled: enabled && scope.workspaceId !== "" && root !== "",
   });
   const complete = catalog.isSuccess;
-  const known = complete ? new Set(catalog.data.sessions.map(item => item.id)) : null;
+  const catalogSessions = complete ? catalog.data.sessions : null;
+  const known = catalogSessions ? new Set(catalogSessions.map(item => item.id)) : null;
 
   return {
     made: {
@@ -151,6 +168,7 @@ export function useSessionCallsPanel(
         void received.fetchNextPage();
       },
     },
+    callerNames: callerNamesFrom(catalogSessions),
     prunedSessionIds: prunedFrom(madeCalls, receivedCalls, known),
   };
 }

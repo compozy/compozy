@@ -152,12 +152,18 @@ describe("AgentCallsInspectorPanel — directions", () => {
     expect(screen.queryByTestId("agent-calls-panel-received")).not.toBeInTheDocument();
   });
 
-  it("Should name a Received row from the caller kind, never the session id", () => {
+  it("Should name a daemon-shaped human Received row as operator", () => {
     render(
       <AgentCallsInspectorPanel
         made={section([], 0)}
         received={section(
-          [{ ...completedCallFixture, caller: { id: "ses_operator_hidden", kind: "operator" } }],
+          [
+            {
+              ...completedCallFixture,
+              actor: { id: "operator:http", kind: "human" },
+              caller: { id: "ses_operator_hidden", kind: "session" },
+            },
+          ],
           1
         )}
         onOpenCall={vi.fn()}
@@ -166,6 +172,29 @@ describe("AgentCallsInspectorPanel — directions", () => {
 
     expect(screen.getByRole("button", { name: "operator" })).toBeInTheDocument();
     expect(screen.queryByText("ses_operator_hidden")).not.toBeInTheDocument();
+  });
+
+  it("Should name an agent Received row from the session catalog", () => {
+    render(
+      <AgentCallsInspectorPanel
+        made={section([], 0)}
+        received={section(
+          [
+            {
+              ...completedCallFixture,
+              actor: { id: "ses_reviewer", kind: "agent_session" },
+              caller: { id: "ses_reviewer", kind: "session" },
+            },
+          ],
+          1
+        )}
+        callerNames={new Map([["ses_reviewer", "Review lead"]])}
+        onOpenCall={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole("button", { name: "Review lead" })).toBeInTheDocument();
+    expect(screen.queryByText("ses_reviewer")).not.toBeInTheDocument();
   });
 
   it("Should name a Made row without an agent instead of showing a session id", () => {

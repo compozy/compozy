@@ -6,7 +6,7 @@ import type { CallPayload } from "../../types";
 
 function call(overrides: Partial<CallPayload> = {}): CallPayload {
   return {
-    actor: { id: "operator:http", kind: "operator" },
+    actor: { id: "operator:http", kind: "human" },
     agent: "reviewer",
     call_id: "call_01JBD8G2K7Q9",
     caller: { id: "ses_01JBD7ZZAAAA", kind: "session" },

@@ -207,7 +207,6 @@ func TestRuntimeRegistryDispatchValidationAndPolicy(t *testing.T) {
 			provider,
 			WithToolEventSink(&recordingToolEventSink{}),
 			WithPolicyInputs(PolicyInputs{SystemPermissionMode: PermissionModeApproveAll}, ToolsetCatalog{}),
-			WithCompletionTimeout(time.Second),
 		)
 
 		result, err := registry.Call(ctx, Scope{}, CallRequest{

@@ -33,6 +33,8 @@ export interface AgentCallsInspectorPanelProps {
   made: CallDirectionSection;
   received: CallDirectionSection;
   onOpenCall: (callId: string) => void;
+  /** Human-readable caller labels resolved from the complete session catalog. */
+  callerNames?: ReadonlyMap<string, string>;
   /**
    * Session ids that no longer resolve. A call whose counterpart was pruned by
    * retention keeps its record and its identities; only the jump degrades.
@@ -45,12 +47,14 @@ function Section({
   label,
   section,
   direction,
+  callerNames,
   prunedSessionIds,
   onOpenCall,
 }: {
   label: string;
   section: CallDirectionSection;
   direction: "made" | "received";
+  callerNames: ReadonlyMap<string, string>;
   prunedSessionIds: ReadonlySet<string>;
   onOpenCall: (callId: string) => void;
 }) {
@@ -98,6 +102,7 @@ function Section({
                 key={call.call_id}
                 call={call}
                 direction={direction}
+                callerName={callerNames.get(call.caller.id)}
                 pruned={counterpartId !== "" && prunedSessionIds.has(counterpartId)}
                 onOpenCall={onOpenCall}
               />
@@ -131,6 +136,7 @@ function Section({
 }
 
 const NO_PRUNED_SESSIONS: ReadonlySet<string> = new Set();
+const NO_CALLER_NAMES: ReadonlyMap<string, string> = new Map();
 
 function hasPopulation(section: CallDirectionSection): boolean {
   return (section.total ?? section.calls.length) > 0;
@@ -147,6 +153,7 @@ export function AgentCallsInspectorPanel({
   made,
   received,
   onOpenCall,
+  callerNames = NO_CALLER_NAMES,
   prunedSessionIds = NO_PRUNED_SESSIONS,
   "data-testid": testId,
 }: AgentCallsInspectorPanelProps) {
@@ -161,6 +168,7 @@ export function AgentCallsInspectorPanel({
           label="Made"
           section={made}
           direction="made"
+          callerNames={callerNames}
           prunedSessionIds={prunedSessionIds}
           onOpenCall={onOpenCall}
         />
@@ -170,6 +178,7 @@ export function AgentCallsInspectorPanel({
           label="Received"
           section={received}
           direction="received"
+          callerNames={callerNames}
           prunedSessionIds={prunedSessionIds}
           onOpenCall={onOpenCall}
         />

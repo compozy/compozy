@@ -13,7 +13,9 @@ const { catalogRef, sessionRef, madeCallsRef, receivedCallsRef, querySpies, opti
   vi.hoisted(() => ({
     catalogRef: {
       current: {
-        data: undefined as { sessions: { id: string }[] } | undefined,
+        data: undefined as
+          | { sessions: Array<{ id: string; name?: string; agent_name?: string }> }
+          | undefined,
         isSuccess: false,
         isError: false,
         isPending: false,
@@ -181,6 +183,24 @@ describe("useSessionCallsPanel — retained counterpart availability", () => {
     const { result } = renderHook(() => useSessionCallsPanel(rootSessionId));
 
     expect(result.current.prunedSessionIds).toEqual(new Set([childSessionId, callerSessionId]));
+  });
+
+  it("Should resolve caller labels from daemon-shaped session catalog identities", () => {
+    catalogRef.current = {
+      data: {
+        sessions: [
+          { id: rootSessionId },
+          { id: callerSessionId, name: "reviewer", agent_name: "reviewer" },
+        ],
+      },
+      isSuccess: true,
+      isError: false,
+      isPending: false,
+    };
+
+    const { result } = renderHook(() => useSessionCallsPanel(rootSessionId));
+
+    expect(result.current.callerNames.get(callerSessionId)).toBe("reviewer");
   });
 
   it("Should fail open while the catalog is pending", () => {

@@ -26,6 +26,7 @@ export function SessionCallsSection({
   return (
     <AgentCallsInspectorPanel
       data-testid="session-inspector-calls"
+      callerNames={panel.callerNames}
       made={panel.made}
       onOpenCall={callId => {
         void navigate({ to: "/agents/calls/$callId", params: { callId } });

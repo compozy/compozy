@@ -10,7 +10,7 @@ import type { CallPayload } from "../../types";
  */
 function call(overrides: Partial<CallPayload> & Pick<CallPayload, "call_id">): CallPayload {
   return {
-    actor: { id: "operator:http", kind: "operator" },
+    actor: { id: "operator:http", kind: "human" },
     caller: { id: "ses_root", kind: "session" },
     created_at: "2026-08-20T18:12:04Z",
     depth: 1,

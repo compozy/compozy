@@ -112,7 +112,7 @@ function acceptedCall(
     created_at: new Date().toISOString(),
     settled_at: null,
     caller: { id: caller, kind: "session" },
-    actor: { id: caller, kind: "operator" },
+    actor: { id: caller, kind: "human" },
     ...(body.target.agent ? { agent: body.target.agent } : {}),
     child_session_id: childSessionId,
     prompt_preview: prompt,

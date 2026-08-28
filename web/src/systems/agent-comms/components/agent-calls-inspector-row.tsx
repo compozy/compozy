@@ -10,16 +10,18 @@ import type { CallPayload } from "../types";
 export function AgentCallsInspectorRow({
   call,
   direction,
+  callerName,
   pruned,
   onOpenCall,
 }: {
   call: CallPayload;
   direction: "made" | "received";
+  callerName?: string;
   pruned: boolean;
   onOpenCall: (callId: string) => void;
 }) {
   const Arrow = direction === "made" ? ArrowUpRight : ArrowDownLeft;
-  const who = callRowWho(call, direction);
+  const who = callRowWho(call, direction, callerName);
   const state = toCallState(call.state);
   return (
     <Item

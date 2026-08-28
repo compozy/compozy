@@ -26,7 +26,7 @@ interface CallSeed extends Partial<CallPayload> {
 
 export function buildCallFixture(seed: CallSeed): CallPayload {
   return {
-    actor: { id: "operator:http", kind: "operator" },
+    actor: { id: "operator:http", kind: "human" },
     agent: storyAgentNames.compliance,
     caller: { id: callFixtureRootSessionId, kind: "session" },
     created_at: "2026-08-20T18:12:04Z",

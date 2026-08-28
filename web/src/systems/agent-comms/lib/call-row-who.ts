@@ -7,11 +7,17 @@
  */
 import type { CallPayload } from "../types";
 
-export function callRowWho(call: CallPayload, direction: "made" | "received"): string {
+export function callRowWho(
+  call: CallPayload,
+  direction: "made" | "received",
+  callerName?: string
+): string {
   if (direction === "made") {
     const agent = call.agent?.trim();
     return agent ? agent : "unknown agent";
   }
-  if (call.caller.kind === "operator") return "operator";
+  if (call.actor.kind === "human") return "operator";
+  const resolvedCaller = callerName?.trim();
+  if (resolvedCaller) return resolvedCaller;
   return "unknown caller";
 }
