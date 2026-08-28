@@ -964,7 +964,17 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 			}
 		}
 		customInputs, err := loop.ResolveInputs(def, loop.Inputs{Values: map[string]any{
-			"slug": "ship-loops", "implementer": "custom_implementer",
+			"slug":        "ship-loops",
+			"implementer": "custom_implementer",
+			"backend_runtime": map[string]any{
+				"provider": "acpmock", "model": "base-model", "reasoning": "high", "speed": "fast",
+			},
+			"frontend_runtime": map[string]any{
+				"provider": "claude", "model": "opus", "reasoning": "high", "speed": "normal",
+			},
+			"default_runtime": map[string]any{
+				"provider": "acpmock", "model": "docs-model", "reasoning": "high", "speed": "normal",
+			},
 		}})
 		if err != nil {
 			t.Fatalf("ResolveInputs(implement-tasks custom implementer) error = %v", err)
@@ -979,6 +989,15 @@ func TestEmbeddedLoopsShouldKeepSpecCycleRuntimeContracts(t *testing.T) {
 		}
 		if !strings.Contains(customObjective, "Selected implementer Agent: `custom_implementer`.") {
 			t.Fatalf("rendered orchestrate objective missing custom implementer: %q", customObjective)
+		}
+		for _, required := range []string{
+			`- backend: {"model":"base-model","provider":"acpmock","reasoning":"high","speed":"fast"}`,
+			`- frontend: {"model":"opus","provider":"claude","reasoning":"high","speed":"normal"}`,
+			`- default: {"model":"docs-model","provider":"acpmock","reasoning":"high","speed":"normal"}`,
+		} {
+			if !strings.Contains(customObjective, required) {
+				t.Fatalf("rendered custom orchestrate objective missing %q: %q", required, customObjective)
+			}
 		}
 		if strings.Contains(customObjective, "spawn one bounded `code_implementer`") {
 			t.Fatalf("rendered custom objective prescribes default worker Agent: %q", customObjective)

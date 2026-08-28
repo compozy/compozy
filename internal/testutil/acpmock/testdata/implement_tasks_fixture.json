@@ -73,7 +73,8 @@
                 {
                     "name": "conduct-delivery-tasks",
                     "match": {
-                        "raw_user_text_contains": "Selected implementer Agent: `__IMPLEMENTER__`."
+                        "turn_source": "synthetic",
+                        "goal": { "kind": "goal-work", "turn": 1 }
                     },
                     "steps": [
                         {

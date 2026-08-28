@@ -35,6 +35,8 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	t.Parallel()
 
 	t.Run("Should complete the default per-task mode with category runtimes", func(t *testing.T) {
+		t.Parallel()
+
 		harness, ctx := startImplementTasksE2EHarness(t, implementTasksImplementer)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{
 			"--input",
@@ -51,6 +53,8 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	})
 
 	t.Run("Should complete orchestrated mode and stop every category worker", func(t *testing.T) {
+		t.Parallel()
+
 		harness, ctx := startImplementTasksE2EHarness(t, implementTasksImplementer)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{"--input", "mode=orchestrated"})
 		assertImplementTasksOrchestratorRuntimeFallback(t, detail)
@@ -59,13 +63,27 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 	})
 
 	t.Run("Should use the selected Agent and its local skill in orchestrated mode", func(t *testing.T) {
+		t.Parallel()
+
 		harness, ctx := startImplementTasksE2EHarness(t, implementTasksCustomAgent)
 		detail := runImplementTasksE2E(t, ctx, harness, []string{
 			"--input", "mode=orchestrated",
 			"--input", "implementer=" + implementTasksCustomAgent,
+			"--input",
+			`backend_runtime={"provider":"acpmock","model":"base-model","reasoning":"high","speed":"fast"}`,
+			"--input",
+			`frontend_runtime={"provider":"claude","model":"opus","reasoning":"high","speed":"normal"}`,
+			"--input",
+			`default_runtime={"provider":"acpmock","model":"docs-model","reasoning":"high","speed":"normal"}`,
 		})
 		assertImplementTasksOrchestratorRuntimeFallback(t, detail)
 		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
+		assertImplementTasksConductorPromptContains(t, harness,
+			"Selected implementer Agent: `custom_implementer`.",
+			`- backend: {"model":"base-model","provider":"acpmock","reasoning":"high","speed":"fast"}`,
+			`- frontend: {"model":"opus","provider":"claude","reasoning":"high","speed":"normal"}`,
+			`- default: {"model":"docs-model","provider":"acpmock","reasoning":"high","speed":"normal"}`,
+		)
 		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksCustomAgent)
 		assertImplementTasksWorkerPromptContains(t, harness, implementTasksSentinel)
 	})
@@ -593,6 +611,29 @@ func assertImplementTasksWorkerPromptContains(
 		}
 	}
 	t.Fatalf("implement-tasks worker prompts missing Agent-local skill sentinel %q", want)
+}
+
+func assertImplementTasksConductorPromptContains(
+	t testing.TB,
+	harness *e2etest.RuntimeHarness,
+	wants ...string,
+) {
+	t.Helper()
+	records, err := acpmock.ReadDiagnostics(
+		filepath.Join(harness.HomePaths.LogsDir, "implement-tasks-conductor.jsonl"),
+	)
+	if err != nil {
+		t.Fatalf("ReadDiagnostics(implement-tasks conductor) error = %v", err)
+	}
+	prompts := acpmock.PromptDiagnostics(records)
+	if len(prompts) != 1 {
+		t.Fatalf("implement-tasks conductor prompts = %#v, want exactly one", prompts)
+	}
+	for _, want := range wants {
+		if !strings.Contains(prompts[0].Prompt, want) {
+			t.Fatalf("implement-tasks conductor prompt missing %q: %q", want, prompts[0].Prompt)
+		}
+	}
 }
 
 func unsupportedNormalSpeedResolution() *contract.SpeedResolution {
