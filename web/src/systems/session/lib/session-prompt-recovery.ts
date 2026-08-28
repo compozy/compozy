@@ -1,11 +1,17 @@
 import type { UIMessage } from "ai";
 
+import type { TerminalQuote } from "@/systems/terminal/parts";
+
+import { splitQuotedPrompt } from "./session-terminal-quote-prompt";
+
 export interface RejectedSessionPromptDraft {
+  quote: TerminalQuote | null;
   text: string;
 }
 
 export interface RestoredSessionPromptDraft {
   files: readonly File[];
+  quote: TerminalQuote | null;
   text: string;
 }
 
@@ -34,7 +40,8 @@ export class SessionPromptRecovery {
   private readonly listeners = new Set<RecoveryListener>();
 
   public stage({ messages }: { messages: readonly UIMessage[] }): void {
-    this.draft = { text: latestUserPromptText(messages) };
+    const { annotation, quote } = splitQuotedPrompt(latestUserPromptText(messages));
+    this.draft = { quote, text: annotation };
   }
 
   public acknowledge(): void {
@@ -45,7 +52,7 @@ export class SessionPromptRecovery {
     const draft = this.draft;
     this.draft = null;
     if (!draft) return;
-    const restored = { files, text: draft.text };
+    const restored = { files, quote: draft.quote, text: draft.text };
     for (const listener of this.listeners) {
       listener(restored);
     }

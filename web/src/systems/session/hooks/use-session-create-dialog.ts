@@ -14,12 +14,19 @@ import {
 import type { SessionCreateDialogDraft } from "../lib/session-create-draft";
 import { sessionCreateBinding } from "../lib/session-create-binding";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
+import {
+  claimPendingTerminalQuoteForCreate,
+  clearPendingTerminalQuote,
+  restorePendingTerminalQuoteAfterFailedCreate,
+  stageChosenSessionTerminalQuote,
+} from "../lib/session-terminal-quote";
 import { sessionCreateStoreLogic, type SessionCreateStore } from "../stores/session-create-store";
 import { sessionStore } from "../stores/session-store";
 import type { CreateSessionParams, SessionPayload } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import { useSessionEnvironment, type SessionEnvironmentModel } from "./use-session-environment";
 import { type AgentPayload, useAgents } from "@/systems/agent";
+import type { TerminalQuote } from "@/systems/terminal/parts";
 import {
   GLOBAL_SCOPE_COPY,
   destinationLabel,
@@ -147,7 +154,12 @@ export function useSessionCreateDialogViewModel(
   const environment = useSessionEnvironment({
     workspaceId: environmentWorkspaceId,
     target: draft.environment,
-    onTargetChange: next => store.trigger.environmentSelected({ environment: next }),
+    onTargetChange: next => {
+      restorePendingTerminalQuoteAfterFailedCreate(
+        store.getSnapshot().context.pendingSubmit?.terminalQuote ?? null
+      );
+      store.trigger.environmentSelected({ environment: next });
+    },
     enabled: flow.open && scope === "workspace" && destinationReady,
   });
 
@@ -166,18 +178,26 @@ export function useSessionCreateDialogViewModel(
     if (!pendingSubmit) return;
     if (environment.status === "creating" || environment.status === "pending") return;
     if (environment.status !== "ready" || !worktreeId) {
+      restorePendingTerminalQuoteAfterFailedCreate(pendingSubmit.terminalQuote);
       store.trigger.environmentSettled({});
       return;
     }
-    const { agentName, pendingPrompt, request, workspaceId: submitWorkspaceId } = pendingSubmit;
+    const {
+      agentName,
+      pendingPrompt,
+      request,
+      terminalQuote,
+      workspaceId: submitWorkspaceId,
+    } = pendingSubmit;
     store.trigger.submissionRequested({
       agentName,
       workspaceId: submitWorkspaceId,
-      execute: async () => {
-        const session = await createSessionAsync({ ...request, worktree: worktreeId });
-        queuePendingPrompt(session.id, pendingPrompt);
-        return session;
-      },
+      execute: () =>
+        executeCreatedSession(
+          createSessionAsync({ ...request, worktree: worktreeId }),
+          pendingPrompt,
+          terminalQuote
+        ),
       navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
     });
   }, [
@@ -192,7 +212,7 @@ export function useSessionCreateDialogViewModel(
   ]);
 
   const submit = () => {
-    if (!binding || isSubmitting || pendingSubmit !== null) return;
+    if (!binding || flow.operation.status !== "idle" || pendingSubmit !== null) return;
     const agentName = selectedAgentName.trim();
     if (agentName.length === 0) {
       store.trigger.validationFailed({ message: "Select an agent before starting the session." });
@@ -239,23 +259,26 @@ export function useSessionCreateDialogViewModel(
           pendingPrompt,
           previousEnvironment: previousEnvironment ?? { kind: "root" },
           request,
+          terminalQuote: claimPendingTerminalQuoteForCreate(),
           workspaceId: runtimeWorkspaceId ?? environmentWorkspaceId,
         });
         return;
       }
     }
 
+    const terminalQuote = claimPendingTerminalQuoteForCreate();
     store.trigger.submissionRequested({
       agentName,
       workspaceId: runtimeWorkspaceId ?? "",
-      execute: async () => {
-        const session = await createSessionAsync({
-          ...request,
-          ...(scope === "workspace" && worktreeId ? { worktree: worktreeId } : {}),
-        });
-        queuePendingPrompt(session.id, pendingPrompt);
-        return session;
-      },
+      execute: () =>
+        executeCreatedSession(
+          createSessionAsync({
+            ...request,
+            ...(scope === "workspace" && worktreeId ? { worktree: worktreeId } : {}),
+          }),
+          pendingPrompt,
+          terminalQuote
+        ),
       navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
     });
   };
@@ -284,6 +307,7 @@ export function useSessionCreateDialogViewModel(
     isAwaitingEnvironment: pendingSubmit !== null,
     onCancelEnvironment: () => {
       // Abandons the checkout without dismissing the launch details.
+      restorePendingTerminalQuoteAfterFailedCreate(pendingSubmit?.terminalQuote ?? null);
       const restoreTarget = pendingSubmit?.previousEnvironment ?? { kind: "root" };
       environment.cancelPending(restoreTarget);
       store.trigger.environmentRestored({ environment: restoreTarget });
@@ -292,6 +316,9 @@ export function useSessionCreateDialogViewModel(
       // Dismissing mid-creation must not strand a half-built worktree.
       if (!open) environment.cancelPending();
       store.trigger.dialogOpenChanged({ open });
+      if (!open && store.getSnapshot().context.operation.status !== "submitting") {
+        clearPendingTerminalQuote();
+      }
     },
     onModeChange: mode => store.trigger.modeSelected({ mode }),
     onAgentChange: agentName =>
@@ -315,6 +342,29 @@ export function useSessionCreateDialogViewModel(
 function queuePendingPrompt(sessionID: string, prompt: string | null): void {
   if (prompt === null || prompt.trim() === "") return;
   sessionStore.trigger.firstPromptQueued({ sessionId: sessionID, text: prompt });
+}
+
+async function executeCreatedSession(
+  create: Promise<SessionPayload>,
+  pendingPrompt: string | null,
+  quote: TerminalQuote | null
+): Promise<SessionPayload> {
+  try {
+    return finishCreatedSession(await create, pendingPrompt, quote);
+  } catch (error) {
+    restorePendingTerminalQuoteAfterFailedCreate(quote);
+    throw error;
+  }
+}
+
+function finishCreatedSession(
+  session: SessionPayload,
+  pendingPrompt: string | null,
+  quote: TerminalQuote | null
+): SessionPayload {
+  if (quote) stageChosenSessionTerminalQuote(session.id, quote);
+  queuePendingPrompt(session.id, pendingPrompt);
+  return session;
 }
 
 export type { SessionCreateDialogDraft };

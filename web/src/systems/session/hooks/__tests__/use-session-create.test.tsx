@@ -6,6 +6,13 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  buildTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+} from "@/systems/terminal/parts";
+
 import { SessionCreateProvider } from "../../contexts/session-create-context";
 import { createSessionCreateStore } from "../../stores/session-create-store";
 import { sessionStore } from "../../stores/session-store";
@@ -60,6 +67,7 @@ describe("session create workspace binding", () => {
     toastError.mockReset();
     createSessionAsync.mockReset();
     notifyUser.mockReset();
+    takePendingTerminalQuote();
   });
 
   it("Should open against the hidden home workspace while Global scope is active", () => {
@@ -308,5 +316,100 @@ describe("session create workspace binding", () => {
 
     await act(async () => fallback.result.current.run("Plan the release"));
     expect(createSessionAsync).toHaveBeenCalledTimes(2);
+  });
+
+  it("Should hold a sourced quote and keep the create dialog free of the envelope", () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 12,
+      lines: ["FAIL src/api/users.test.ts"],
+    });
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openWithPrompt(quote.text));
+
+    expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
+    expect(store.getSnapshot().context).toMatchObject({
+      open: true,
+      draft: { firstMessage: "" },
+    });
+    expect(store.getSnapshot().context.draft.firstMessage).not.toContain("<terminal_context");
+  });
+
+  it("Should hold a quote object without putting it in the first-message field", () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-9cd7e14b2a66",
+      fromLine: 40,
+      lines: ["make gate"],
+    });
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openWithTerminalQuote(quote));
+
+    expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
+    expect(store.getSnapshot().context.draft.firstMessage).toBe("");
+  });
+
+  it("Should ignore Start gestures that would clear or hold quote while create is submitting", () => {
+    const held = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 12,
+      lines: ["first"],
+    });
+    const later = buildTerminalQuote({
+      terminalId: "term-9cd7e14b2a66",
+      fromLine: 40,
+      lines: ["second"],
+    });
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => {
+      store.trigger.fallbackRequested({ agentName: "general", workspaceId: "ws_home" });
+    });
+    expect(store.getSnapshot().context.operation.status).toBe("submitting");
+    holdPendingTerminalQuote(held);
+
+    act(() => {
+      actions.result.current.openForAgent("codex-agent");
+      actions.result.current.openForWorktree("ws_home", "wt_other");
+      actions.result.current.openWithPrompt(later.text);
+      actions.result.current.openWithTerminalQuote(later);
+    });
+
+    expect(peekPendingTerminalQuote()?.text).toBe(held.text);
+    expect(store.getSnapshot().context).toMatchObject({
+      open: false,
+      operation: { status: "submitting", agentName: "general" },
+    });
+  });
+
+  it("Should drop a leftover held quote when opening create for an agent", () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["leftover"],
+    });
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openWithTerminalQuote(quote));
+    act(() => actions.result.current.openForAgent("general"));
+
+    expect(peekPendingTerminalQuote()).toBeNull();
   });
 });

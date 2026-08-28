@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { buildTerminalQuote } from "@/systems/terminal/parts";
+
 import { FIRST_PROMPT_SEND_FAILED, sendFirstPrompt } from "../../lib/session-first-prompt";
+import {
+  clearSessionTerminalQuote,
+  peekSessionTerminalQuote,
+} from "../../lib/session-terminal-quote";
 import { SESSION_DRAFTS_STORAGE_KEY, sessionStore } from "../session-store";
 
 const { mockNotifyUser } = vi.hoisted(() => ({ mockNotifyUser: vi.fn() }));
@@ -178,6 +184,7 @@ describe("session store", () => {
 
     beforeEach(() => {
       mockNotifyUser.mockReset();
+      clearSessionTerminalQuote(sessionId);
       sessionStore.trigger.sessionInteractionRemoved({ sessionId });
     });
 
@@ -233,6 +240,24 @@ describe("session store", () => {
       sessionStore.trigger.firstPromptQueued({ sessionId, text: "   " });
 
       expect(sessionStore.getSnapshot().context.firstPrompts[sessionId]).toBeUndefined();
+    });
+
+    it("Should stage a sourced quote instead of sending the envelope as the first message", () => {
+      const quote = buildTerminalQuote({
+        terminalId: "term-4f21c9a03b7e",
+        fromLine: 12,
+        lines: ["FAIL src/api/users.test.ts"],
+      });
+      const send = vi.fn();
+      sessionStore.trigger.firstPromptQueued({ sessionId, text: quote.text });
+
+      sendFirstPrompt(sessionId, send);
+
+      expect(send).not.toHaveBeenCalled();
+      expect(peekSessionTerminalQuote(sessionId)?.text).toBe(quote.text);
+      expect(sessionStore.getSnapshot().context.firstPrompts[sessionId]).toBeUndefined();
+      expect(sessionStore.getSnapshot().context.drafts[sessionId]).toBeUndefined();
+      clearSessionTerminalQuote(sessionId);
     });
   });
 });

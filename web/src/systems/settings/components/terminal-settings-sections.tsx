@@ -19,8 +19,8 @@ export type { TerminalSettingsConfig } from "../lib/terminal-settings-types";
  * projecting them here would create a second policy editor.
  */
 export interface TerminalSettingsSectionsProps {
-  draft: TerminalSettingsConfig;
-  setDraft: Dispatch<SetStateAction<TerminalSettingsConfig | null>>;
+  draft: Partial<TerminalSettingsConfig>;
+  setDraft: Dispatch<SetStateAction<Partial<TerminalSettingsConfig> | null>>;
   /** Per-key refusals from config validation, keyed by the TOML key. */
   validationErrors: Record<string, string | null>;
   onValidationError?: (key: keyof TerminalSettingsConfig, message: string | null) => void;
@@ -53,26 +53,28 @@ export function TerminalSettingsSections({
                 patch("default_shell", value);
               }}
               placeholder="Your login shell"
-              value={draft.default_shell}
+              value={draft.default_shell ?? ""}
             />
           }
           data-testid="settings-terminal-default-shell-row"
           error={validationErrors.default_shell}
-          help="An unavailable shell falls back down the chain, and the terminal states which one actually started."
           label="Default shell"
         />
         <SettingRow
           control={
             <Switch
+              aria-invalid={validationErrors.shell_integration ? true : undefined}
               aria-label="Mark command boundaries"
-              checked={draft.shell_integration}
+              checked={draft.shell_integration === true}
               data-testid="settings-terminal-shell-integration"
-              onCheckedChange={checked => patch("shell_integration", checked)}
+              onCheckedChange={checked => {
+                onValidationError?.("shell_integration", null);
+                patch("shell_integration", checked);
+              }}
             />
           }
           data-testid="settings-terminal-shell-integration-row"
           error={validationErrors.shell_integration}
-          help="Off, journal rows record when a command was noticed rather than when it started, and are marked estimated."
           label="Mark command boundaries"
         />
       </SettingsGroup>
@@ -84,9 +86,12 @@ export function TerminalSettingsSections({
               data-testid="settings-terminal-scrollback"
               label="Scrollback kept per terminal"
               minBytes={1}
-              onChange={value => patch("scrollback_bytes", value)}
+              onChange={value => {
+                onValidationError?.("scrollback_bytes", null);
+                patch("scrollback_bytes", value);
+              }}
               onValidityChange={message => onValidationError?.("scrollback_bytes", message)}
-              value={draft.scrollback_bytes}
+              value={draft.scrollback_bytes ?? 0}
             />
           }
           data-testid="settings-terminal-scrollback-row"
@@ -104,12 +109,11 @@ export function TerminalSettingsSections({
                 patch("detached_ttl", value);
               }}
               placeholder="e.g. 24h"
-              value={draft.detached_ttl}
+              value={draft.detached_ttl ?? ""}
             />
           }
           data-testid="settings-terminal-detached-ttl-row"
           error={validationErrors.detached_ttl}
-          help="Activity resets the clock: output or a viewer attaching both count."
           label="Reclaim idle terminals after"
         />
         <SettingRow
@@ -123,7 +127,7 @@ export function TerminalSettingsSections({
                 patch("exit_retention", value);
               }}
               placeholder="e.g. 15m"
-              value={draft.exit_retention}
+              value={draft.exit_retention ?? ""}
             />
           }
           data-testid="settings-terminal-exit-retention-row"
@@ -136,10 +140,14 @@ export function TerminalSettingsSections({
         <SettingRow
           control={
             <Switch
+              aria-invalid={validationErrors.recording ? true : undefined}
               aria-label="Record every terminal"
-              checked={draft.recording}
+              checked={draft.recording === true}
               data-testid="settings-terminal-recording"
-              onCheckedChange={checked => patch("recording", checked)}
+              onCheckedChange={checked => {
+                onValidationError?.("recording", null);
+                patch("recording", checked);
+              }}
             />
           }
           data-testid="settings-terminal-recording-row"
@@ -148,14 +156,38 @@ export function TerminalSettingsSections({
         />
         <SettingRow
           control={
-            <SettingsNumberInput
-              aria-label="Keep recordings for, in days"
-              data-testid="settings-terminal-recording-retention"
-              min={1}
-              onValidityChange={message => onValidationError?.("recording_retention_days", message)}
-              onValueChange={value => patch("recording_retention_days", value)}
-              value={draft.recording_retention_days}
-            />
+            <span className="flex items-center gap-2">
+              {draft.recording_retention_days === undefined ? (
+                <Input
+                  aria-invalid
+                  aria-label="Keep recordings for, in days"
+                  className="w-28 text-right font-mono"
+                  data-testid="settings-terminal-recording-retention"
+                  inputMode="numeric"
+                  onChange={event => {
+                    const parsed = Number.parseInt(event.target.value, 10);
+                    if (Number.isSafeInteger(parsed) && parsed >= 1) {
+                      onValidationError?.("recording_retention_days", null);
+                      patch("recording_retention_days", parsed);
+                    }
+                  }}
+                  value=""
+                />
+              ) : (
+                <SettingsNumberInput
+                  aria-label="Keep recordings for, in days"
+                  className="w-28 text-right font-mono"
+                  data-testid="settings-terminal-recording-retention"
+                  min={1}
+                  onValidityChange={message =>
+                    onValidationError?.("recording_retention_days", message)
+                  }
+                  onValueChange={value => patch("recording_retention_days", value)}
+                  value={draft.recording_retention_days}
+                />
+              )}
+              <span className="text-form-label text-subtle">days</span>
+            </span>
           }
           data-testid="settings-terminal-recording-retention-row"
           error={validationErrors.recording_retention_days}
@@ -166,45 +198,49 @@ export function TerminalSettingsSections({
       <SettingsGroup title="Limits">
         <SettingRow
           control={
-            <SettingsNumberInput
-              aria-label="Terminals per project"
-              data-testid="settings-terminal-max-per-workspace"
-              min={1}
-              onValidityChange={message => onValidationError?.("max_per_workspace", message)}
-              onValueChange={value => patch("max_per_workspace", value)}
+            <OptionalLimitInput
+              ariaLabel="Terminals per project"
+              testId="settings-terminal-max-per-workspace"
               value={draft.max_per_workspace}
+              onValueChange={value => {
+                onValidationError?.("max_per_workspace", null);
+                patch("max_per_workspace", value);
+              }}
+              onValidityChange={message => onValidationError?.("max_per_workspace", message)}
             />
           }
           data-testid="settings-terminal-max-per-workspace-row"
           error={validationErrors.max_per_workspace}
-          help="Counted per profile, so another profile's terminals never consume this budget."
           label="Terminals per project"
         />
         <SettingRow
           control={
-            <SettingsNumberInput
-              aria-label="Terminals per installation"
-              data-testid="settings-terminal-max-per-daemon"
-              min={1}
-              onValidityChange={message => onValidationError?.("max_per_daemon", message)}
-              onValueChange={value => patch("max_per_daemon", value)}
+            <OptionalLimitInput
+              ariaLabel="Terminals per installation"
+              testId="settings-terminal-max-per-daemon"
               value={draft.max_per_daemon}
+              onValueChange={value => {
+                onValidationError?.("max_per_daemon", null);
+                patch("max_per_daemon", value);
+              }}
+              onValidityChange={message => onValidationError?.("max_per_daemon", message)}
             />
           }
           data-testid="settings-terminal-max-per-daemon-row"
           error={validationErrors.max_per_daemon}
-          help="Counted across every project and profile on this machine, so it can be reached before a project's own limit is."
           label="Terminals per installation"
         />
         <SettingRow
           control={
-            <SettingsNumberInput
-              aria-label="Viewers per terminal"
-              data-testid="settings-terminal-max-subscribers"
-              min={1}
-              onValidityChange={message => onValidationError?.("max_subscribers", message)}
-              onValueChange={value => patch("max_subscribers", value)}
+            <OptionalLimitInput
+              ariaLabel="Viewers per terminal"
+              testId="settings-terminal-max-subscribers"
               value={draft.max_subscribers}
+              onValueChange={value => {
+                onValidationError?.("max_subscribers", null);
+                patch("max_subscribers", value);
+              }}
+              onValidityChange={message => onValidationError?.("max_subscribers", message)}
             />
           }
           data-testid="settings-terminal-max-subscribers-row"
@@ -213,6 +249,51 @@ export function TerminalSettingsSections({
         />
       </SettingsGroup>
     </>
+  );
+}
+
+function OptionalLimitInput({
+  ariaLabel,
+  testId,
+  value,
+  onValueChange,
+  onValidityChange,
+}: {
+  ariaLabel: string;
+  testId: string;
+  value: number | undefined;
+  onValueChange: (value: number) => void;
+  onValidityChange: (message: string | null) => void;
+}) {
+  if (value === undefined) {
+    return (
+      <Input
+        aria-invalid
+        aria-label={ariaLabel}
+        className="w-28 text-right font-mono"
+        data-testid={testId}
+        inputMode="numeric"
+        onChange={event => {
+          const parsed = Number.parseInt(event.target.value, 10);
+          if (Number.isSafeInteger(parsed) && parsed >= 1) {
+            onValidityChange(null);
+            onValueChange(parsed);
+          }
+        }}
+        value=""
+      />
+    );
+  }
+  return (
+    <SettingsNumberInput
+      aria-label={ariaLabel}
+      className="w-28 text-right font-mono"
+      data-testid={testId}
+      min={1}
+      onValidityChange={onValidityChange}
+      onValueChange={onValueChange}
+      value={value}
+    />
   );
 }
 

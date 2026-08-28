@@ -1,6 +1,7 @@
 import { createStoreLogic } from "@xstate/store";
 
 import { notifyUser } from "@/lib/user-feedback";
+import type { TerminalQuote } from "@/systems/terminal/parts";
 
 import type { EntityMode } from "@compozy/ui";
 
@@ -36,6 +37,8 @@ interface SessionCreatePendingSubmit {
   agentName: string;
   workspaceId: string;
   pendingPrompt: string | null;
+  /** Quote claimed when this attempt was armed — not the live pending slot. */
+  terminalQuote: TerminalQuote | null;
   previousEnvironment: SessionEnvironmentTarget;
   request: CreateSessionParams;
 }

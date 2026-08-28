@@ -300,6 +300,13 @@ export const routeStoryRegistry = [
   },
   {
     system: "settings",
+    routePath: "/settings/terminal",
+    storybookPath: "/settings/terminal",
+    title: "systems/settings/routes/SettingsTerminal",
+    storyName: "Default",
+  },
+  {
+    system: "settings",
     routePath: "/settings/defaults",
     storybookPath: "/settings/defaults",
     title: "systems/settings/routes/SettingsDefaults",

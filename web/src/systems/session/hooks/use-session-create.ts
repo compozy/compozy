@@ -2,7 +2,11 @@ import { use } from "react";
 import { useSelector } from "@xstate/store-react";
 import { toast } from "sonner";
 
+import type { TerminalQuote } from "@/systems/terminal/parts";
+import { parseTerminalQuote } from "@/systems/terminal/parts";
+
 import { SessionCreateContext } from "../contexts/session-create-context-value";
+import { clearPendingTerminalQuote, holdPendingTerminalQuote } from "../lib/session-terminal-quote";
 import type { SessionCreateStore } from "../stores/session-create-store";
 import { useWorktreeScopeId } from "@/hooks/use-window-scope";
 import { useActiveWorkspace, useScopedWorktreeFilter } from "@/systems/workspace";
@@ -32,6 +36,8 @@ export function useSessionCreateActions() {
       toast.error("Worktrees are not available yet. Try again.");
       return;
     }
+    if (isSessionCreateSubmitting(store)) return;
+    clearPendingTerminalQuote();
     store.trigger.dialogOpened({
       agentName,
       workspaceId: runtimeWorkspaceId,
@@ -41,7 +47,7 @@ export function useSessionCreateActions() {
     });
   };
 
-  const openWithPrompt = (firstMessage: string) => {
+  const openCreateDialog = (firstMessage?: string) => {
     if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
       return;
@@ -53,11 +59,29 @@ export function useSessionCreateActions() {
     store.trigger.dialogOpened({
       agentName: "",
       workspaceId: runtimeWorkspaceId,
-      firstMessage,
+      ...(firstMessage !== undefined ? { firstMessage } : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree" as const, worktreeId: scopedWorktree.worktreeId } }
         : {}),
     });
+  };
+
+  const openWithPrompt = (firstMessage: string) => {
+    if (isSessionCreateSubmitting(store)) return;
+    const quote = parseTerminalQuote(firstMessage);
+    if (quote) {
+      holdPendingTerminalQuote(quote);
+      openCreateDialog("");
+      return;
+    }
+    clearPendingTerminalQuote();
+    openCreateDialog(firstMessage);
+  };
+
+  const openWithTerminalQuote = (quote: TerminalQuote) => {
+    if (isSessionCreateSubmitting(store)) return;
+    holdPendingTerminalQuote(quote);
+    openCreateDialog("");
   };
 
   /**
@@ -69,6 +93,8 @@ export function useSessionCreateActions() {
       toast.error("Choose a workspace before starting a session.");
       return;
     }
+    if (isSessionCreateSubmitting(store)) return;
+    clearPendingTerminalQuote();
     store.trigger.dialogOpened({
       agentName: "",
       workspaceId,
@@ -76,7 +102,11 @@ export function useSessionCreateActions() {
     });
   };
 
-  return { openForAgent, openForWorktree, openWithPrompt };
+  return { openForAgent, openForWorktree, openWithPrompt, openWithTerminalQuote };
+}
+
+function isSessionCreateSubmitting(store: SessionCreateStore): boolean {
+  return store.getSnapshot().context.operation.status === "submitting";
 }
 
 export function useSessionCreateHasActiveWorkspace(): boolean {

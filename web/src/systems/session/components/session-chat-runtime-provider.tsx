@@ -18,13 +18,18 @@ import {
   SessionPromptRecovery,
   type RestoredSessionPromptDraft,
 } from "@/systems/session/lib/session-prompt-recovery";
+import { stageChosenSessionTerminalQuote } from "@/systems/session/lib/session-terminal-quote";
 import { SessionTranscriptThreadProvider } from "@/systems/session/lib/session-transcript-thread-context";
 
 async function restoreRejectedPromptDraft(
   aui: ReturnType<typeof useAui>,
-  draft: RestoredSessionPromptDraft
+  draft: RestoredSessionPromptDraft,
+  sessionId: string
 ): Promise<void> {
   if (aui.composer.getState().text.length === 0) {
+    if (draft.quote) {
+      stageChosenSessionTerminalQuote(sessionId, draft.quote);
+    }
     aui.composer.setText(draft.text);
   }
   for (const file of draft.files) {
@@ -32,7 +37,13 @@ async function restoreRejectedPromptDraft(
   }
 }
 
-function SessionPromptRecoveryBridge({ recovery }: { recovery: SessionPromptRecovery }) {
+function SessionPromptRecoveryBridge({
+  recovery,
+  sessionId,
+}: {
+  recovery: SessionPromptRecovery;
+  sessionId: string;
+}) {
   const aui = useAui();
   const [draft, setDraft] = useState<RestoredSessionPromptDraft | null>(null);
 
@@ -44,7 +55,7 @@ function SessionPromptRecoveryBridge({ recovery }: { recovery: SessionPromptReco
     // assistant-ui finalizes the submitted composer after its onError callback.
     // Restore on the next task so that finalization cannot erase the recovered draft.
     const timeout = window.setTimeout(() => {
-      void restoreRejectedPromptDraft(aui, draft)
+      void restoreRejectedPromptDraft(aui, draft, sessionId)
         .catch(() => {
           toast.error("Couldn't restore the rejected attachment.");
         })
@@ -58,7 +69,7 @@ function SessionPromptRecoveryBridge({ recovery }: { recovery: SessionPromptReco
       active = false;
       window.clearTimeout(timeout);
     };
-  }, [aui, draft]);
+  }, [aui, draft, sessionId]);
 
   return null;
 }
@@ -155,7 +166,7 @@ function SessionChatRuntimeBinding({
   return (
     <AssistantRuntimeProvider runtime={runtime} aui={aui}>
       <SessionPromptDispatchPendingProvider store={promptDispatch}>
-        <SessionPromptRecoveryBridge recovery={promptRecovery} />
+        <SessionPromptRecoveryBridge recovery={promptRecovery} sessionId={sessionId} />
         <SessionRuntimeExtensions
           sessionId={sessionId}
           workspaceId={resolvedWorkspaceId}

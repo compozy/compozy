@@ -80,3 +80,74 @@ export function terminalSelectionLines(selection: string): string[] {
   }
   return lines;
 }
+
+/**
+ * Builds the canonical quote from a grid selection.
+ *
+ * `startLine` is the emulator's 1-based inclusive origin — the same number
+ * `compozy terminal quote --lines` and a pipe log's `firstLineNumber` use.
+ */
+export function terminalQuoteFromSelection(
+  terminalId: string,
+  selection: { startLine: number; text: string }
+): TerminalQuote {
+  return buildTerminalQuote({
+    terminalId,
+    fromLine: selection.startLine,
+    lines: terminalSelectionLines(selection.text),
+  });
+}
+
+/** The sourced block a clipboard write must use — never the raw selection. */
+export function sourcedTerminalQuoteText(
+  terminalId: string,
+  selection: { startLine: number; text: string }
+): string {
+  return terminalQuoteFromSelection(terminalId, selection).text;
+}
+
+export async function copySourcedTerminalQuote(
+  terminalId: string,
+  selection: { startLine: number; text: string }
+): Promise<void> {
+  await navigator.clipboard.writeText(sourcedTerminalQuoteText(terminalId, selection));
+}
+
+const ENVELOPE =
+  /^<terminal_context terminal="([^"]+)" lines="(\d+)-(\d+)">\n([\s\S]*)\n<\/terminal_context>$/;
+
+/**
+ * Recovers a quote from the canonical envelope this module (and the CLI) emit.
+ *
+ * Used at the session boundary when a first message *is* that envelope, so the
+ * chip can carry it instead of showing the XML as a draft.
+ */
+export function parseTerminalQuote(text: string): TerminalQuote | null {
+  const match = ENVELOPE.exec(text);
+  if (!match) return null;
+  const terminalId = unescapeQuoteText(match[1] ?? "");
+  const fromLine = Number.parseInt(match[2] ?? "", 10);
+  const toLine = Number.parseInt(match[3] ?? "", 10);
+  if (!Number.isSafeInteger(fromLine) || !Number.isSafeInteger(toLine) || terminalId === "") {
+    return null;
+  }
+  const lines: string[] = [];
+  for (const raw of (match[4] ?? "").split("\n")) {
+    const lineMatch = /^(\d+) \| (.*)$/.exec(raw);
+    if (!lineMatch) return null;
+    lines.push(unescapeQuoteText(lineMatch[2] ?? ""));
+  }
+  if (lines.length === 0) return null;
+  const quote = buildTerminalQuote({ terminalId, fromLine, lines });
+  if (quote.toLine !== toLine || quote.text !== text) return null;
+  return quote;
+}
+
+function unescapeQuoteText(value: string): string {
+  return value
+    .replaceAll("&apos;", "'")
+    .replaceAll("&quot;", '"')
+    .replaceAll("&gt;", ">")
+    .replaceAll("&lt;", "<")
+    .replaceAll("&amp;", "&");
+}

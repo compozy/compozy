@@ -23,7 +23,10 @@ import {
 
 const EMPTY_QUEUED_PROMPTS: NonNullable<SessionComposerProps["queuedPrompts"]> = [];
 
-interface SessionThreadProps extends Omit<SessionComposerProps, "onCancelPrompt"> {
+interface SessionThreadProps extends Omit<
+  SessionComposerProps,
+  "onCancelPrompt" | "quoteSlot" | "sessionId"
+> {
   /**
    * Absent in read-only mode, where the composer that owns cancellation is not
    * rendered — there is no run this surface could cancel.
@@ -51,7 +54,7 @@ interface SessionThreadProps extends Omit<SessionComposerProps, "onCancelPrompt"
 /**
  * The session surface composition root: pinned goal zone above the transcript
  * scroller, the viewport itself, and the composer zone (goal-command notice,
- * quote handoff, decision dock, and composer) below it.
+ * decision dock, and composer with the quote chip in its stack) below it.
  */
 export function SessionThread({
   sessionId,
@@ -131,7 +134,6 @@ export function SessionThread({
           />
           <ThreadContentRail inset={contentInset} className="pt-2">
             <SessionGoalCommandErrorNotice sessionId={sessionId} />
-            {readOnly ? null : <SessionTerminalQuoteSlot sessionId={sessionId} />}
             {runtimeRunning ? (
               <WorkingIndicator
                 liveDataEnabled={liveDataEnabled}
@@ -142,6 +144,8 @@ export function SessionThread({
           </ThreadContentRail>
           {readOnly ? null : (
             <SessionComposer
+              sessionId={sessionId}
+              quoteSlot={readOnly ? null : <SessionTerminalQuoteSlot sessionId={sessionId} />}
               composerState={renderedComposerState}
               contentInset={contentInset}
               decisionDock={

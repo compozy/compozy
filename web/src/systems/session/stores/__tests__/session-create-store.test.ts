@@ -71,6 +71,7 @@ describe("session-create store", () => {
       pendingPrompt: "Investigate the regression",
       previousEnvironment: { kind: "root" },
       request: { agent_name: "claude-agent", workspace: "ws_alpha" },
+      terminalQuote: null,
       workspaceId: "ws_alpha",
     });
     expect(store.getSnapshot().context.pendingSubmit).not.toBeNull();

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  filterSettingsSections,
   findSettingsSection,
   SETTINGS_ROOT_PATH,
   SETTINGS_SECTIONS,
@@ -11,6 +12,7 @@ describe("settings sections metadata", () => {
   it("exposes the Settings screen order", () => {
     expect(SETTINGS_SECTIONS.map(section => section.slug)).toEqual([
       "general",
+      "terminal",
       "defaults",
       "appearance",
       "layouts",
@@ -50,7 +52,14 @@ describe("settings sections metadata", () => {
 
   it("looks sections up by slug", () => {
     expect(findSettingsSection("memory")?.label).toBe("Memory");
+    expect(findSettingsSection("terminal")?.label).toBe("Terminal");
     expect(findSettingsSection("nope")).toBeUndefined();
     expect(findSettingsSection(null)).toBeUndefined();
+  });
+
+  it("Should find Terminal by the keys an administrator would search", () => {
+    expect(filterSettingsSections("terminal").map(section => section.slug)).toContain("terminal");
+    expect(filterSettingsSections("scrollback").map(section => section.slug)).toEqual(["terminal"]);
+    expect(filterSettingsSections("recording").map(section => section.slug)).toEqual(["terminal"]);
   });
 });

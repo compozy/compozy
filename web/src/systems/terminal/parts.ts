@@ -37,9 +37,19 @@ export {
 } from "./lib/terminal-permission";
 export {
   buildTerminalQuote,
+  copySourcedTerminalQuote,
+  parseTerminalQuote,
+  sourcedTerminalQuoteText,
+  terminalQuoteFromSelection,
   terminalSelectionLines,
   type TerminalQuote,
 } from "./lib/terminal-quote";
+export {
+  clearPendingTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+} from "./lib/terminal-quote-pending";
 export {
   terminalApprovalCopy,
   terminalConfidenceCopy,

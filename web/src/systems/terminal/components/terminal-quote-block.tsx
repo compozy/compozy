@@ -1,8 +1,9 @@
 import { Copy, MessagesSquare, Plus, TerminalSquare, X } from "lucide-react";
 
-import { Button, Eyebrow } from "@compozy/ui";
+import { Button, Eyebrow, cn } from "@compozy/ui";
 
-import type { TerminalQuote } from "../lib/terminal-quote";
+import { copySourcedTerminalQuote, type TerminalQuote } from "../lib/terminal-quote";
+import { holdPendingTerminalQuote } from "../lib/terminal-quote-pending";
 
 export interface TerminalQuoteBlockProps {
   quote: TerminalQuote;
@@ -18,7 +19,7 @@ export interface TerminalQuoteBlockProps {
 export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps) {
   return (
     <div
-      className="overflow-hidden rounded-xs border border-line border-l-2 border-l-line-strong"
+      className="tm-quote overflow-hidden rounded-xs border border-line border-l-2 border-l-line-strong"
       data-testid="terminal-quote-block"
     >
       <div className="flex min-h-6 items-center gap-1.75 bg-canvas-tint px-2.25 font-mono text-micro text-subtle">
@@ -58,6 +59,13 @@ export function TerminalQuoteBlock({ quote, onRemove }: TerminalQuoteBlockProps)
 export interface TerminalSelectionActionsProps {
   /** Absent when no session is active — the gesture then offers a way in. */
   hasActiveSession: boolean;
+  /**
+   * When present, Copy writes the sourced block and Start holds it for
+   * create. Choose passes the quote to the host picker — it must not occupy
+   * the create-only pending slot. The window owner should pass the quote
+   * built from the current selection.
+   */
+  quote?: TerminalQuote;
   onSendToConversation: () => void;
   onChooseSession: () => void;
   onStartSession: () => void;
@@ -72,33 +80,58 @@ export interface TerminalSelectionActionsProps {
  */
 export function TerminalSelectionActions({
   hasActiveSession,
+  quote,
   onSendToConversation,
   onChooseSession,
   onStartSession,
   onCopy,
 }: TerminalSelectionActionsProps) {
+  const handleCopy = () => {
+    if (quote) {
+      void copySourcedTerminalQuote(quote.terminalId, {
+        startLine: quote.fromLine,
+        text: quote.lines.join("\n"),
+      });
+      return;
+    }
+    onCopy();
+  };
+  const handleChoose = () => {
+    onChooseSession();
+  };
+  const handleStart = () => {
+    if (quote) holdPendingTerminalQuote(quote);
+    onStartSession();
+  };
+
   if (hasActiveSession) {
     return (
-      <div className="flex flex-col" data-testid="terminal-selection-actions">
+      <div
+        aria-label="Selection actions"
+        className="min-w-36 rounded-lg bg-canvas-soft p-1 shadow-hairline"
+        data-testid="terminal-selection-actions"
+        role="menu"
+      >
         <SelectionAction
           icon={MessagesSquare}
           label="Send to conversation"
           onSelect={onSendToConversation}
         />
-        <SelectionAction icon={Copy} label="Copy" onSelect={onCopy} />
+        <SelectionAction icon={Copy} label="Copy" onSelect={handleCopy} />
       </div>
     );
   }
   return (
-    <div className="flex flex-col" data-testid="terminal-selection-actions-no-session">
-      <Eyebrow className="px-2.5 py-1.5 text-subtle">No active session</Eyebrow>
-      <SelectionAction icon={MessagesSquare} label="Choose a session…" onSelect={onChooseSession} />
-      <SelectionAction
-        icon={Plus}
-        label="Start a session with this quote"
-        onSelect={onStartSession}
-      />
-      <SelectionAction icon={Copy} label="Copy as quoted block" onSelect={onCopy} />
+    <div
+      aria-label="Selection actions — no active session"
+      className="min-w-36 rounded-lg bg-canvas-soft p-1 shadow-hairline"
+      data-testid="terminal-selection-actions-no-session"
+      role="menu"
+    >
+      <Eyebrow className="px-1.5 py-1 text-muted">No active session</Eyebrow>
+      <SelectionAction icon={MessagesSquare} label="Choose a session…" onSelect={handleChoose} />
+      <SelectionAction icon={Plus} label="Start a session with this quote" onSelect={handleStart} />
+      <SelectionAction icon={Copy} label="Copy as quoted block" onSelect={handleCopy} />
     </div>
   );
 }
@@ -113,9 +146,19 @@ function SelectionAction({
   onSelect: () => void;
 }) {
   return (
-    <Button className="justify-start" onClick={onSelect} size="sm" type="button" variant="ghost">
-      <Icon aria-hidden="true" className="size-3" />
+    <button
+      className={cn(
+        "relative flex w-full cursor-default items-center gap-1.5 rounded-md px-1.5 py-1",
+        "text-left text-small-body outline-hidden select-none",
+        "hover:bg-elevated hover:text-fg-strong focus:bg-elevated focus:text-fg-strong",
+        "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:size-4"
+      )}
+      onClick={onSelect}
+      role="menuitem"
+      type="button"
+    >
+      <Icon aria-hidden="true" />
       {label}
-    </Button>
+    </button>
   );
 }

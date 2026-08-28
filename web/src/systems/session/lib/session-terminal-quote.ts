@@ -1,8 +1,13 @@
 import { createStoreLogic } from "@xstate/store";
 
-import { buildTerminalQuote, type TerminalQuote } from "@/systems/terminal/parts";
-
-import { sessionStore } from "../stores/session-store";
+import {
+  buildTerminalQuote,
+  clearPendingTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+  type TerminalQuote,
+} from "@/systems/terminal/parts";
 
 /**
  * The terminal excerpt waiting in a session's composer.
@@ -57,9 +62,10 @@ export interface StageTerminalQuoteInput {
 /**
  * Stages a selection for a session.
  *
- * Returns the canonical block so the caller can also put it in the composer
- * text — the block is what actually reaches the agent; the on-screen chip is
- * how a person sees and removes it.
+ * The chip is how a person sees the excerpt. The envelope stays in this store
+ * until send, where it is concatenated with the annotation. Writing the XML
+ * into the composer draft would show the agent envelope as if the person typed
+ * it.
  */
 export function stageSessionTerminalQuote(input: StageTerminalQuoteInput): TerminalQuote {
   const quote = buildTerminalQuote({
@@ -67,29 +73,13 @@ export function stageSessionTerminalQuote(input: StageTerminalQuoteInput): Termi
     fromLine: input.fromLine,
     lines: input.lines,
   });
-  // The chip and the block are staged together, here, at the gesture — not
-  // reconciled afterwards by an effect. The block is what actually reaches the
-  // agent; a chip with nothing behind it would send a message about an excerpt
-  // that is not in the message. Staging a second quote replaces the first
-  // rather than stacking them, and staging the same one twice changes nothing.
-  const previous = sessionTerminalQuoteStore.getSnapshot().context.quotes[input.sessionId] ?? null;
   sessionTerminalQuoteStore.trigger.staged({ sessionId: input.sessionId, quote });
-  sessionStore.trigger.composerDraftChanged({
-    sessionId: input.sessionId,
-    text: applyTerminalQuoteToDraft(readDraft(input.sessionId), previous?.text ?? null, quote.text),
-  });
   return quote;
 }
 
-/** Takes the quote back out, leaving whatever was typed around it. */
+/** Takes the quote back out of the session. */
 export function clearSessionTerminalQuote(sessionId: string): void {
-  const quote = sessionTerminalQuoteStore.getSnapshot().context.quotes[sessionId];
   sessionTerminalQuoteStore.trigger.removed({ sessionId });
-  if (!quote) return;
-  sessionStore.trigger.composerDraftChanged({
-    sessionId,
-    text: stripTerminalQuote(readDraft(sessionId), quote),
-  });
 }
 
 /** Removes the visual handoff without changing the submitted composer text. */
@@ -97,41 +87,67 @@ export function discardSessionTerminalQuote(sessionId: string): void {
   sessionTerminalQuoteStore.trigger.removed({ sessionId });
 }
 
-/** Drops a chip when its exact quote block is no longer present in the draft. */
-export function discardSessionTerminalQuoteIfMissing(sessionId: string, draft: string): void {
-  const quote = sessionTerminalQuoteStore.getSnapshot().context.quotes[sessionId];
-  if (quote && !draft.includes(quote.text)) discardSessionTerminalQuote(sessionId);
+export function peekSessionTerminalQuote(sessionId: string): TerminalQuote | null {
+  return sessionTerminalQuoteStore.getSnapshot().context.quotes[sessionId] ?? null;
 }
 
-function readDraft(sessionId: string): string {
-  return sessionStore.getSnapshot().context.drafts[sessionId] ?? "";
-}
+export {
+  clearPendingTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+};
 
-/** Removes the block from a composer draft, leaving whatever was annotated. */
-export function stripTerminalQuote(text: string, quote: TerminalQuote): string {
-  return stripQuoteBlock(text, quote.text);
-}
-
-function stripQuoteBlock(text: string, block: string): string {
-  if (block === "" || !text.includes(block)) return text;
-  return text.replace(block, "").replace(/^\n+/, "").replace(/\n+$/, "");
+/**
+ * Stages a quote onto a session the operator already chose.
+ *
+ * Host integration: after the session picker returns an id, call this with
+ * that id and the quote handed to `openSessionPicker`. Never wait for a
+ * thread to mount.
+ */
+export function stageChosenSessionTerminalQuote(
+  sessionId: string,
+  quote: TerminalQuote
+): TerminalQuote {
+  return stageSessionTerminalQuote({
+    sessionId,
+    terminalId: quote.terminalId,
+    fromLine: quote.fromLine,
+    lines: quote.lines,
+  });
 }
 
 /**
- * Puts the canonical block in the draft, exactly once.
+ * Claims the create-held quote into an in-flight attempt.
  *
- * The block is what actually reaches the agent, so staging a quote has to write
- * it into the composer — a chip with nothing behind it would send a message
- * about a terminal excerpt that is not in the message. Replacing one quote with
- * another removes the first rather than stacking them, and staging the same
- * quote twice changes nothing.
+ * Call this when submit becomes inevitable — the same moment `firstMessage`
+ * is captured. Success must stage this value, never a later global slot.
  */
-export function applyTerminalQuoteToDraft(
-  draft: string,
-  previousBlock: string | null,
-  nextBlock: string
-): string {
-  const base = previousBlock ? stripQuoteBlock(draft, previousBlock) : draft;
-  if (base.includes(nextBlock)) return base;
-  return base === "" ? nextBlock : `${base}\n\n${nextBlock}`;
+export function claimPendingTerminalQuoteForCreate(): TerminalQuote | null {
+  return takePendingTerminalQuote();
+}
+
+/**
+ * Stages a create-held quote onto the session that just received an id.
+ *
+ * Immediate consume only. Create success after await must pass the quote
+ * captured at submit, not call this.
+ */
+export function stagePendingTerminalQuoteForSession(sessionId: string): TerminalQuote | null {
+  const quote = takePendingTerminalQuote();
+  if (!quote) return null;
+  return stageChosenSessionTerminalQuote(sessionId, quote);
+}
+
+/**
+ * Puts a failed attempt's quote back only when nothing newer is waiting.
+ *
+ * Empty slot → restore. Same envelope still held → restore (idempotent).
+ * A different pending quote is a newer intent and must not be overwritten.
+ */
+export function restorePendingTerminalQuoteAfterFailedCreate(quote: TerminalQuote | null): void {
+  if (!quote) return;
+  const current = peekPendingTerminalQuote();
+  if (current !== null && current.text !== quote.text) return;
+  holdPendingTerminalQuote(quote);
 }

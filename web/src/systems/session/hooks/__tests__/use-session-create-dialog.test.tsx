@@ -5,14 +5,26 @@ import { createElement, type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { FIXTURE_AGENT_DEFINITION_DIGEST } from "@/systems/agent/mocks";
-
+import {
+  buildTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+} from "@/systems/terminal/parts";
 import type { SessionPayload } from "../../types";
+import { SessionCreateProvider } from "../../contexts/session-create-context";
+import {
+  clearSessionTerminalQuote,
+  peekSessionTerminalQuote,
+} from "../../lib/session-terminal-quote";
+import { createSessionCreateStore } from "../../stores/session-create-store";
+import { sessionStore } from "../../stores/session-store";
+import { useSessionCreateActions } from "../use-session-create";
 import {
   useSessionCreateDialogController,
   useSessionCreateDialogViewModel,
   type SessionCreateDialogApi,
 } from "../use-session-create-dialog";
-import { sessionStore } from "../../stores/session-store";
 import type { AgentPayload } from "@/systems/agent";
 import type { WorkspacePayload } from "@/systems/workspace";
 import {
@@ -89,6 +101,25 @@ vi.mock("@/systems/workspace/hooks/use-workspaces", () => ({
 vi.mock("../use-session-actions", () => ({
   useCreateSession: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
 }));
+
+vi.mock("@/systems/workspace/hooks/use-active-workspace", () => ({
+  useActiveWorkspace: () => ({
+    activeWorkspaceId: "ws_alpha",
+    runtimeWorkspaceId: "ws_alpha",
+    runtimeWorkspace: { default_agent: "codex-agent" },
+    scope: "workspace" as const,
+  }),
+}));
+
+vi.mock("@/systems/workspace/hooks/use-active-worktree", async importOriginal => ({
+  ...(await importOriginal<object>()),
+  useScopedWorktreeFilter: () => ({
+    worktreeId: undefined,
+    resolved: true,
+  }),
+}));
+
+vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 
 const activeWorkspace: WorkspacePayload = {
   id: "ws_alpha",
@@ -182,6 +213,26 @@ function useSessionCreateDialog(context: {
   };
 }
 
+function renderCreateQuoteLifecycle() {
+  const store = createSessionCreateStore();
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    </QueryClientProvider>
+  );
+  const rendered = renderHook(
+    () => ({
+      actions: useSessionCreateActions(),
+      dialog: useSessionCreateDialogViewModel({ agents, activeWorkspace }, store),
+    }),
+    { wrapper }
+  );
+  return { ...rendered, store };
+}
+
 function useSessionCreateControllerPair() {
   const first = useSessionCreateDialogController();
   const second = useSessionCreateDialogController();
@@ -216,6 +267,8 @@ describe("useSessionCreateDialog", () => {
     // creation behaves exactly as it did before worktrees existed.
     mockWorktreeListingRef.current = undefined;
     sessionStore.trigger.sessionInteractionRemoved({ sessionId: createdSession.id });
+    takePendingTerminalQuote();
+    clearSessionTerminalQuote(createdSession.id);
   });
 
   it("Should isolate draft state between dialog controller instances", () => {
@@ -402,6 +455,144 @@ describe("useSessionCreateDialog", () => {
     });
   });
 
+  it("Should stage a held quote onto the session create just produced", async () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 12,
+      lines: ["FAIL src/api/users.test.ts"],
+    });
+    holdPendingTerminalQuote(quote);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent"));
+    await act(async () => result.current.submit());
+
+    await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
+    expect(peekSessionTerminalQuote(createdSession.id)?.text).toBe(quote.text);
+    expect(peekPendingTerminalQuote()).toBeNull();
+  });
+
+  it("Should stage only the quote captured at submit when Start mutates during create", async () => {
+    const firstQuote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 12,
+      lines: ["FAIL src/api/users.test.ts"],
+    });
+    const laterQuote = buildTerminalQuote({
+      terminalId: "term-9cd7e14b2a66",
+      fromLine: 40,
+      lines: ["second start"],
+    });
+    holdPendingTerminalQuote(firstQuote);
+    let resolveCreate: ((session: SessionPayload) => void) | undefined;
+    mockMutateAsync.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveCreate = resolve;
+        })
+    );
+    const { result, store } = renderCreateQuoteLifecycle();
+
+    act(() => {
+      store.trigger.dialogOpened({
+        agentName: "codex-agent",
+        workspaceId: activeWorkspace.id,
+      });
+    });
+    act(() => result.current.dialog.submit());
+
+    await waitFor(() => {
+      expect(mockMutateAsync).toHaveBeenCalledTimes(1);
+      expect(store.getSnapshot().context.operation.status).toBe("submitting");
+    });
+    expect(peekPendingTerminalQuote()).toBeNull();
+
+    act(() => {
+      result.current.actions.openForAgent("claude-agent");
+      result.current.actions.openWithTerminalQuote(laterQuote);
+    });
+
+    expect(store.getSnapshot().context.draft.agentName).toBe("codex-agent");
+    expect(peekPendingTerminalQuote()).toBeNull();
+
+    await act(async () => {
+      resolveCreate?.(createdSession);
+    });
+
+    await waitFor(() => {
+      expect(peekSessionTerminalQuote(createdSession.id)?.text).toBe(firstQuote.text);
+    });
+    expect(peekPendingTerminalQuote()).toBeNull();
+    expect(peekSessionTerminalQuote(createdSession.id)?.text).not.toBe(laterQuote.text);
+  });
+
+  it("Should restore the captured quote after create fails when nothing newer is pending", async () => {
+    const firstQuote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 12,
+      lines: ["FAIL src/api/users.test.ts"],
+    });
+    const laterQuote = buildTerminalQuote({
+      terminalId: "term-9cd7e14b2a66",
+      fromLine: 40,
+      lines: ["second start"],
+    });
+    holdPendingTerminalQuote(firstQuote);
+    let rejectCreate: ((error: Error) => void) | undefined;
+    mockMutateAsync.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectCreate = reject;
+        })
+    );
+    const { result, store } = renderCreateQuoteLifecycle();
+
+    act(() => {
+      store.trigger.dialogOpened({
+        agentName: "codex-agent",
+        workspaceId: activeWorkspace.id,
+      });
+    });
+    act(() => result.current.dialog.submit());
+
+    await waitFor(() => expect(store.getSnapshot().context.operation.status).toBe("submitting"));
+
+    act(() => {
+      result.current.actions.openForAgent("claude-agent");
+      result.current.actions.openWithTerminalQuote(laterQuote);
+    });
+
+    await act(async () => {
+      rejectCreate?.(new Error("agent executable is unavailable"));
+    });
+
+    await waitFor(() => expect(store.getSnapshot().context.operation.status).toBe("idle"));
+    expect(peekPendingTerminalQuote()?.text).toBe(firstQuote.text);
+    expect(peekSessionTerminalQuote(createdSession.id)).toBeNull();
+  });
+
+  it("Should drop a held quote when the create dialog is dismissed", () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 12,
+      lines: ["FAIL src/api/users.test.ts"],
+    });
+    holdPendingTerminalQuote(quote);
+    const { wrapper } = createWrapper();
+    const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
+      wrapper,
+    });
+
+    act(() => result.current.openDialog("codex-agent"));
+    act(() => result.current.onOpenChange(false));
+
+    expect(peekPendingTerminalQuote()).toBeNull();
+    expect(peekSessionTerminalQuote(createdSession.id)).toBeNull();
+  });
+
   describe("with a new worktree as the environment", () => {
     const readyWorktree = buildWorktreeFixture({
       id: "wt_hotfix",
@@ -513,6 +704,47 @@ describe("useSessionCreateDialog", () => {
 
       expect(mockCancel).toHaveBeenCalledTimes(1);
       expect(result.current.open).toBe(false);
+    });
+
+    it("Should stage the quote captured when the worktree submit was armed", async () => {
+      const quote = buildTerminalQuote({
+        terminalId: "term-4f21c9a03b7e",
+        fromLine: 12,
+        lines: ["FAIL src/api/users.test.ts"],
+      });
+      holdPendingTerminalQuote(quote);
+      const { result, rerender } = armSubmit();
+
+      act(() => result.current.submit());
+
+      expect(peekPendingTerminalQuote()).toBeNull();
+      expect(result.current.isAwaitingEnvironment).toBe(true);
+
+      mockMaterializationRef.current = { status: "ready", worktree: readyWorktree };
+      await act(async () => rerender());
+
+      await waitFor(() =>
+        expect(peekSessionTerminalQuote(createdSession.id)?.text).toBe(quote.text)
+      );
+      expect(peekPendingTerminalQuote()).toBeNull();
+    });
+
+    it("Should restore the captured quote when a worktree wait is canceled", () => {
+      const quote = buildTerminalQuote({
+        terminalId: "term-4f21c9a03b7e",
+        fromLine: 12,
+        lines: ["FAIL src/api/users.test.ts"],
+      });
+      holdPendingTerminalQuote(quote);
+      const { result } = armSubmit();
+
+      act(() => result.current.submit());
+      expect(peekPendingTerminalQuote()).toBeNull();
+
+      act(() => result.current.onCancelEnvironment());
+
+      expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
+      expect(peekSessionTerminalQuote(createdSession.id)).toBeNull();
     });
 
     it("Should stand down when materialization fails, leaving the draft and its exits intact", async () => {

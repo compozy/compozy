@@ -10,12 +10,10 @@ export interface SessionTerminalQuoteSlotProps {
 }
 
 /**
- * The terminal excerpt waiting above the composer.
+ * The terminal excerpt waiting in the composer stack.
  *
  * The chip is how a person sees where the excerpt came from and takes it back
- * out; the canonical block already sits in the draft, put there when the quote
- * was staged. Removing it here strips exactly that block and leaves whatever
- * was typed around it.
+ * out. The envelope stays in the quote store until send.
  */
 export function SessionTerminalQuoteSlot({ sessionId }: SessionTerminalQuoteSlotProps) {
   const quote = useSessionTerminalQuote(sessionId);

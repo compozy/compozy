@@ -2,6 +2,7 @@ import { notifyUser } from "@/lib/user-feedback";
 import { useAgents } from "@/systems/agent";
 import { useActiveWorkspace } from "@/systems/workspace";
 
+import { clearPendingTerminalQuote } from "../lib/session-terminal-quote";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPayload } from "../types";
 import { useCreateSession } from "./use-session-actions";
@@ -43,6 +44,7 @@ export function useSessionPromptFallback({
       if (query.trim() === "" || createDialog.getSnapshot().context.operation.status !== "idle") {
         return;
       }
+      clearPendingTerminalQuote();
       const workspaceId = workspace.runtimeWorkspaceId;
       if (workspaceId === null) {
         notifyUser({ message: "The active workspace is not ready.", tone: "error" });

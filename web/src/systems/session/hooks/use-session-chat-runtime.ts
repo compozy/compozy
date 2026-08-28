@@ -1,6 +1,7 @@
 import { startTransition, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
+import type { UIMessage } from "ai";
 
 import { authorizeStreamFetchInput } from "@/lib/gateway-stream-auth";
 import { reportGatewayResponse } from "@/lib/gateway-access-signal";
@@ -11,6 +12,8 @@ import { sessionKeys } from "../lib/query-keys";
 import { invalidateSessionMutationQueries } from "../lib/session-query-invalidation";
 import { createGoalAwareFetch } from "../lib/session-goal-chat-transport";
 import { createSessionPromptChatTransport } from "../lib/session-prompt-chat-transport";
+import { discardSessionTerminalQuote } from "../lib/session-terminal-quote";
+import { applyTerminalQuoteToPromptMessage } from "../lib/session-terminal-quote-prompt";
 import { SessionPromptRecovery } from "../lib/session-prompt-recovery";
 import { sessionStore } from "../stores/session-store";
 import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-runtime-context-value";
@@ -71,7 +74,8 @@ function buildSessionRuntimeConfig(
   promptDispatch: SessionPromptDispatchStore,
   promptRecovery: SessionPromptRecovery,
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null,
-  idempotencyKeys?: Map<string, string>
+  idempotencyKeys?: Map<string, string>,
+  preparedUserMessages?: Map<string, UIMessage>
 ) {
   const goalAwareFetch = createGoalAwareFetch({
     onRequest: () => {
@@ -145,7 +149,12 @@ function buildSessionRuntimeConfig(
       fetch: trackedFetch,
       ...(getRuntimeSnapshot ? { getRuntimeSnapshot } : {}),
       ...(idempotencyKeys ? { idempotencyKeys } : {}),
-      onPromptPrepared: messages => promptRecovery.stage(messages),
+      ...(preparedUserMessages ? { preparedUserMessages } : {}),
+      onPromptPrepared: messages => {
+        promptRecovery.stage(messages);
+        discardSessionTerminalQuote(sessionId);
+      },
+      prepareUserMessage: message => applyTerminalQuoteToPromptMessage(sessionId, message),
     }),
     onFinish: () => {
       startTransition(() => {
@@ -169,6 +178,7 @@ export function useSessionChatRuntime({
   const queryClient = useQueryClient();
   const promptRuntime = useOptionalSessionPromptRuntimeContext();
   const [idempotencyKeys] = useState(() => new Map<string, string>());
+  const [preparedUserMessages] = useState(() => new Map<string, UIMessage>());
   const attachmentAdapter = useSessionAttachmentAdapter(workspaceId, sessionId);
   const runtimeConfig = buildSessionRuntimeConfig(
     queryClient,
@@ -177,7 +187,8 @@ export function useSessionChatRuntime({
     promptDispatch,
     promptRecovery,
     promptRuntime ? () => getSessionPromptRuntimeSnapshot(promptRuntime) : undefined,
-    idempotencyKeys
+    idempotencyKeys,
+    preparedUserMessages
   );
 
   return useChatRuntime({

@@ -3,7 +3,13 @@ import { LexicalComposerInput } from "@assistant-ui/react-lexical";
 import { useState, type ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
-import { attachmentsFromPromptMessageParts, type QueuedPrompt } from "@/systems/session";
+import {
+  attachmentsFromPromptMessageParts,
+  composeSessionPromptWithTerminalQuote,
+  discardSessionTerminalQuote,
+  useSessionTerminalQuote,
+  type QueuedPrompt,
+} from "@/systems/session";
 import type { SessionPromptCapability } from "@/systems/session/lib/session-prompt-capability";
 import { createSessionCommandFormatter } from "./session-command-formatter";
 import { commandItemPresentation } from "./session-command-menu-model";
@@ -72,6 +78,9 @@ export interface SessionComposerProps {
   promptImageCapability?: SessionPromptCapability;
   /** Agent embedded-context support for the targeted runtime binding. */
   promptEmbeddedContextCapability?: SessionPromptCapability;
+  sessionId: string;
+  /** Sourced quote chip stacked above the annotation field. */
+  quoteSlot?: ReactNode;
 }
 
 export type { SessionComposerCommandCatalog } from "./session-composer-command-menu";
@@ -109,6 +118,8 @@ export function SessionComposer({
   onCommandAction,
   promptImageCapability = "unknown",
   promptEmbeddedContextCapability = "unknown",
+  sessionId,
+  quoteSlot,
 }: SessionComposerProps & { composerState: SessionComposerState }) {
   const { clearComposer, setComposerInputElement, setComposerText, composerText, isRunning } =
     composerState;
@@ -117,7 +128,9 @@ export function SessionComposer({
   const commandFormatter = createSessionCommandFormatter(
     commandCatalog ?? { standaloneSections: [], inlineSkills: [] }
   );
+  const stagedQuote = useSessionTerminalQuote(sessionId);
   const trimmedComposerText = composerText.trim();
+  const promptText = composeSessionPromptWithTerminalQuote(sessionId, trimmedComposerText);
   const composerAttachments = useAuiState(state => state.composer.attachments);
   const promptAttachments = composerAttachments.flatMap(attachment =>
     attachmentsFromPromptMessageParts(attachment.content)
@@ -132,7 +145,7 @@ export function SessionComposer({
     runtimeRunning &&
     canPrompt &&
     allowBusyInput &&
-    (trimmedComposerText.length > 0 || promptAttachments.length > 0) &&
+    (trimmedComposerText.length > 0 || promptAttachments.length > 0 || Boolean(stagedQuote)) &&
     attachmentBlocker === null &&
     !isBusyInputPending;
   const showBusyControls = runtimeRunning || isBusyInputPending;
@@ -155,8 +168,10 @@ export function SessionComposer({
     onReplaceQueuedPrompt,
     onSteerPrompt,
     queuedPrompts,
+    sessionId,
     setComposerText,
-    draft: { attachments: promptAttachments, message: trimmedComposerText },
+    draft: { attachments: promptAttachments, message: promptText },
+    onDraftConsumed: () => discardSessionTerminalQuote(sessionId),
   });
 
   return (
@@ -190,7 +205,7 @@ export function SessionComposer({
             <SessionComposerDropRoot disabled={!canPrompt}>
               <ComposerPrimitive.Root
                 className={cn(
-                  "flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
+                  "tm-composer-stack flex flex-col gap-[7px] rounded-lg border border-line bg-elevated shadow-highlight",
                   "pt-[11px] pr-2.5 pb-2 pl-3.5",
                   "transition-colors duration-base ease-out",
                   "hover:border-line-strong focus-within:border-accent-dim",
@@ -198,7 +213,9 @@ export function SessionComposer({
                   "group-has-[[data-slot=dock]]/composer:rounded-t-none",
                   showQueuedStrip ? "rounded-t-none" : null
                 )}
+                data-testid="session-composer-stack"
               >
+                {quoteSlot}
                 <SessionAttachmentStrip
                   promptEmbeddedContextCapability={promptEmbeddedContextCapability}
                   promptImageCapability={promptImageCapability}
@@ -242,6 +259,8 @@ export function SessionComposer({
                   <SessionComposerPastePlugin />
                 </LexicalComposerInput>
                 <SessionComposerActionRow
+                  hasStagedQuote={Boolean(stagedQuote)}
+                  sessionId={sessionId}
                   actionState={{
                     prompt: canPrompt ? "enabled" : "disabled",
                     enterHint: runtimeRunning && canQueueFromInput ? "queue" : "send",

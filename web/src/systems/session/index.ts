@@ -464,7 +464,6 @@ export {
   type ClarificationDataPartProps,
 } from "./components/clarification-data-part";
 export { RuntimeActivityNotice } from "./components/runtime-activity-notice";
-export { SessionTerminalQuoteSlot } from "./components/session-terminal-quote-slot";
 export {
   SessionInspector,
   type InspectorMemoryState,
@@ -481,8 +480,4 @@ export { useSessionFirstPrompt } from "./hooks/use-session-first-prompt";
 export { sendFirstPrompt, FIRST_PROMPT_SEND_FAILED } from "./lib/session-first-prompt";
 export { useSessionPromptStaging } from "./hooks/use-session-prompt-staging";
 export type { SessionPromptStaging } from "./hooks/use-session-prompt-staging";
-export {
-  discardSessionTerminalQuote,
-  discardSessionTerminalQuoteIfMissing,
-  stageSessionTerminalQuote,
-} from "./lib/session-terminal-quote";
+export * from "./quote";

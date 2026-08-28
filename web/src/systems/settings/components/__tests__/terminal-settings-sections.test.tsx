@@ -28,7 +28,7 @@ function Harness({
   initial?: TerminalSettingsConfig;
   validationErrors?: Record<string, string | null>;
 }) {
-  const [draft, setDraft] = useState<TerminalSettingsConfig | null>(initial);
+  const [draft, setDraft] = useState<Partial<TerminalSettingsConfig> | null>(initial);
   if (draft === null) return null;
   return (
     <UIProvider reducedMotion="never" skipAnimations>
@@ -57,6 +57,9 @@ describe("TerminalSettingsSections", () => {
     // 1 MiB, shown in the unit a person would read it in.
     expect(screen.getByLabelText("Scrollback kept per terminal")).toHaveValue("1");
     expect(screen.getByLabelText("Scrollback kept per terminal unit")).toHaveValue("MB");
+    expect(screen.getByTestId("settings-terminal-recording-retention-row")).toHaveTextContent(
+      "days"
+    );
   });
 
   it("Should never project autonomy policy, which permissions owns", () => {
@@ -105,16 +108,18 @@ describe("TerminalSettingsSections", () => {
 /**
  * The projection that decides whether this section renders at all.
  *
- * Invariant: the ten keys are shown only when the daemon actually projected all
- * ten, with the type each is supposed to have. A form filled with values the
- * runtime never sent would be edited and saved back as if a person had chosen
- * them.
+ * Invariant: the form is hidden only when the daemon omitted the block. A
+ * partial or mistyped key stays on the page and is named on its row.
  */
 describe("readTerminalSettings", () => {
   const FULL_BLOCK = { ...terminalSettingsFixture, default_shell: "/bin/zsh" };
 
   it("Should keep every value the daemon projected", () => {
-    expect(readTerminalSettings({ terminal: FULL_BLOCK })).toEqual(FULL_BLOCK);
+    expect(readTerminalSettings({ terminal: FULL_BLOCK })).toEqual({
+      status: "ready",
+      values: FULL_BLOCK,
+      invalidKeys: [],
+    });
   });
 
   it("Should treat an empty default shell as a real answer", () => {
@@ -122,19 +127,24 @@ describe("readTerminalSettings", () => {
     // a value, not a gap.
     const projected = readTerminalSettings({ terminal: { ...FULL_BLOCK, default_shell: "" } });
 
-    expect(projected?.default_shell).toBe("");
+    expect(projected.status).toBe("ready");
+    expect(projected.values.default_shell).toBe("");
+    expect(projected.invalidKeys).toEqual([]);
   });
 
-  it("Should refuse a block that is missing a key", () => {
+  it("Should keep the section and name a missing key", () => {
     for (const key of Object.keys(FULL_BLOCK)) {
       const partial = { ...FULL_BLOCK } as Record<string, unknown>;
       delete partial[key];
+      const projected = readTerminalSettings({ terminal: partial });
 
-      expect(readTerminalSettings({ terminal: partial })).toBeNull();
+      expect(projected.status).toBe("ready");
+      expect(projected.invalidKeys).toEqual([key]);
+      expect(projected.values).not.toHaveProperty(key);
     }
   });
 
-  it("Should refuse a value that is not the type the key requires", () => {
+  it("Should keep the section and name a value that is not the type the key requires", () => {
     const wrong: Array<[string, unknown]> = [
       ["default_shell", 7],
       ["detached_ttl", null],
@@ -148,7 +158,9 @@ describe("readTerminalSettings", () => {
       ["max_subscribers", false],
     ];
     for (const [key, value] of wrong) {
-      expect(readTerminalSettings({ terminal: { ...FULL_BLOCK, [key]: value } })).toBeNull();
+      const projected = readTerminalSettings({ terminal: { ...FULL_BLOCK, [key]: value } });
+      expect(projected.status).toBe("ready");
+      expect(projected.invalidKeys).toEqual([key]);
     }
   });
 
@@ -160,9 +172,32 @@ describe("readTerminalSettings", () => {
     expect(parsePositiveDurationMilliseconds("15 minutes")).toBeUndefined();
   });
 
-  it("Should render nothing at all when the block is absent", () => {
-    expect(readTerminalSettings({})).toBeNull();
-    expect(readTerminalSettings({ terminal: {} })).toBeNull();
-    expect(readTerminalSettings(null)).toBeNull();
+  it("Should hide the form only when the block is absent", () => {
+    expect(readTerminalSettings({}).status).toBe("absent");
+    expect(readTerminalSettings({ terminal: {} }).status).toBe("absent");
+    expect(readTerminalSettings(null).status).toBe("absent");
+  });
+
+  it("Should render named refusals when a key is missing", () => {
+    const partial = { ...FULL_BLOCK } as Record<string, unknown>;
+    delete partial.scrollback_bytes;
+    const projected = readTerminalSettings({ terminal: partial });
+
+    render(
+      <UIProvider reducedMotion="never" skipAnimations>
+        <TerminalSettingsSections
+          draft={projected.values}
+          setDraft={() => undefined}
+          validationErrors={{
+            scrollback_bytes: "scrollback_bytes is missing or invalid",
+          }}
+        />
+      </UIProvider>
+    );
+
+    expect(screen.getByTestId("settings-terminal-scrollback-row")).toHaveTextContent(
+      "scrollback_bytes is missing or invalid"
+    );
+    expect(screen.getByTestId("settings-terminal-default-shell")).toHaveValue("/bin/zsh");
   });
 });

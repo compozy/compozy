@@ -186,7 +186,7 @@ Good CompozyOS copy often has this shape:
 
 Example:
 
-> Agents should not stop working when a terminal tab closes. CompozyOS keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
+> Agents should not stop working when a session window closes. CompozyOS keeps them in durable sessions — with saved history, resumable state, and the same view from CLI, API, and web.
 
 ## 6. Vocabulary & Naming
 

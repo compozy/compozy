@@ -12,6 +12,8 @@ interface SessionPromptChatTransportOptions {
   getRuntimeSnapshot?: () => SessionPromptRuntimeSnapshot | null;
   idempotencyKeys?: Map<string, string>;
   onPromptPrepared?: (request: { messages: readonly UIMessage[] }) => void;
+  prepareUserMessage?: (message: UIMessage) => UIMessage;
+  preparedUserMessages?: Map<string, UIMessage>;
 }
 
 type SessionPromptRequestBody = Omit<SessionPromptRequest, "messages"> & {
@@ -30,9 +32,9 @@ function latestUserMessage(messages: readonly UIMessage[]): UIMessage {
 
 /**
  * Owns the browser-side prompt identity boundary. The assistant runtime creates
- * the optimistic user message; its ID is the durable message_id, while this
- * transport mints exactly one idempotency key for that submission and reuses it
- * whenever the transport retries the same message.
+ * the optimistic user message; its ID is the durable message_id. This transport
+ * mints one idempotency key and one prepared body per submission and reuses both
+ * when the same message is retried.
  */
 export function createSessionPromptChatTransport({
   api,
@@ -40,12 +42,16 @@ export function createSessionPromptChatTransport({
   getRuntimeSnapshot,
   idempotencyKeys = new Map<string, string>(),
   onPromptPrepared,
+  prepareUserMessage,
+  preparedUserMessages = new Map<string, UIMessage>(),
 }: SessionPromptChatTransportOptions): AssistantChatTransport<UIMessage> {
   return new AssistantChatTransport<UIMessage>({
     api,
     fetch,
     prepareSendMessagesRequest: ({ messages }) => {
-      const message = latestUserMessage(messages);
+      const raw = latestUserMessage(messages);
+      const message = preparedUserMessages.get(raw.id) ?? prepareUserMessage?.(raw) ?? raw;
+      preparedUserMessages.set(message.id, message);
       const messageId = message.id;
       const idempotencyKey = idempotencyKeys.get(messageId) ?? createClientId();
       idempotencyKeys.set(messageId, idempotencyKey);

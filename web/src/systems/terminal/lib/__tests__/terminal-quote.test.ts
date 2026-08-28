@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildTerminalQuote, terminalSelectionLines } from "../terminal-quote";
+import {
+  buildTerminalQuote,
+  parseTerminalQuote,
+  sourcedTerminalQuoteText,
+  terminalQuoteFromSelection,
+  terminalSelectionLines,
+} from "../terminal-quote";
 
 /**
  * Canonical suite for the session quote block (part of UT-117).
@@ -99,5 +105,37 @@ describe("terminalSelectionLines", () => {
   it("Should treat an empty selection as nothing to quote", () => {
     expect(terminalSelectionLines("")).toEqual([]);
     expect(terminalSelectionLines("\n\n")).toEqual([]);
+  });
+});
+
+describe("terminalQuoteFromSelection", () => {
+  it("Should keep the emulator line origin for a pipe or pty selection", () => {
+    const quote = terminalQuoteFromSelection("term-a03b558d21f0", {
+      startLine: 40,
+      text: "make gate\nok",
+    });
+
+    expect(quote.fromLine).toBe(40);
+    expect(quote.toLine).toBe(41);
+    expect(quote.terminalId).toBe("term-a03b558d21f0");
+    expect(
+      sourcedTerminalQuoteText("term-a03b558d21f0", { startLine: 40, text: "make gate\nok" })
+    ).toBe(quote.text);
+  });
+});
+
+describe("parseTerminalQuote", () => {
+  it("Should recover the quote that buildTerminalQuote emitted", () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4aa01f22e6c3",
+      fromLine: 120,
+      lines: ["FAIL src/api/users.test.ts", "1 failed, 41 passed"],
+    });
+
+    expect(parseTerminalQuote(quote.text)).toEqual(quote);
+  });
+
+  it("Should refuse text that is not the sourced envelope", () => {
+    expect(parseTerminalQuote("plain selection text")).toBeNull();
   });
 });

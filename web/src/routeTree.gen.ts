@@ -58,6 +58,7 @@ import { Route as AppSettingsProfilesRouteImport } from './routes/_app/settings/
 import { Route as AppSettingsProvidersRouteImport } from './routes/_app/settings/providers'
 import { Route as AppSettingsRolesRouteImport } from './routes/_app/settings/roles'
 import { Route as AppSettingsSkillsRouteImport } from './routes/_app/settings/skills'
+import { Route as AppSettingsTerminalRouteImport } from './routes/_app/settings/terminal'
 import { Route as AppTasksIdRouteImport } from './routes/_app/tasks.$id'
 import { Route as AppTasksNewRouteImport } from './routes/_app/tasks.new'
 import { Route as AppTerminalIndexRouteImport } from './routes/_app/terminal/index'
@@ -325,6 +326,11 @@ const AppSettingsSkillsRoute = AppSettingsSkillsRouteImport.update({
   path: '/skills',
   getParentRoute: () => AppSettingsRoute,
 } as any)
+const AppSettingsTerminalRoute = AppSettingsTerminalRouteImport.update({
+  id: '/terminal',
+  path: '/terminal',
+  getParentRoute: () => AppSettingsRoute,
+} as any)
 const AppTasksIdRoute = AppTasksIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -478,6 +484,7 @@ export interface FileRoutesByFullPath {
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/settings/terminal': typeof AppSettingsTerminalRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
@@ -543,6 +550,7 @@ export interface FileRoutesByTo {
   '/settings/providers': typeof AppSettingsProvidersRoute
   '/settings/roles': typeof AppSettingsRolesRoute
   '/settings/skills': typeof AppSettingsSkillsRoute
+  '/settings/terminal': typeof AppSettingsTerminalRoute
   '/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/tasks/new': typeof AppTasksNewRoute
   '/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
@@ -615,6 +623,7 @@ export interface FileRoutesById {
   '/_app/settings/providers': typeof AppSettingsProvidersRoute
   '/_app/settings/roles': typeof AppSettingsRolesRoute
   '/_app/settings/skills': typeof AppSettingsSkillsRoute
+  '/_app/settings/terminal': typeof AppSettingsTerminalRoute
   '/_app/tasks/$id': typeof AppTasksIdRouteWithChildren
   '/_app/tasks/new': typeof AppTasksNewRoute
   '/_app/terminal/$terminalId': typeof AppTerminalTerminalIdRoute
@@ -687,6 +696,7 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
+    | '/settings/terminal'
     | '/tasks/$id'
     | '/tasks/new'
     | '/terminal/$terminalId'
@@ -752,6 +762,7 @@ export interface FileRouteTypes {
     | '/settings/providers'
     | '/settings/roles'
     | '/settings/skills'
+    | '/settings/terminal'
     | '/tasks/$id'
     | '/tasks/new'
     | '/terminal/$terminalId'
@@ -823,6 +834,7 @@ export interface FileRouteTypes {
     | '/_app/settings/providers'
     | '/_app/settings/roles'
     | '/_app/settings/skills'
+    | '/_app/settings/terminal'
     | '/_app/tasks/$id'
     | '/_app/tasks/new'
     | '/_app/terminal/$terminalId'
@@ -1198,6 +1210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppSettingsSkillsRouteImport
       parentRoute: typeof AppSettingsRoute
     }
+    '/_app/settings/terminal': {
+      id: '/_app/settings/terminal'
+      path: '/terminal'
+      fullPath: '/settings/terminal'
+      preLoaderRoute: typeof AppSettingsTerminalRouteImport
+      parentRoute: typeof AppSettingsRoute
+    }
     '/_app/tasks/$id': {
       id: '/_app/tasks/$id'
       path: '/$id'
@@ -1534,6 +1553,7 @@ interface AppSettingsRouteChildren {
   AppSettingsProvidersRoute: typeof AppSettingsProvidersRoute
   AppSettingsRolesRoute: typeof AppSettingsRolesRoute
   AppSettingsSkillsRoute: typeof AppSettingsSkillsRoute
+  AppSettingsTerminalRoute: typeof AppSettingsTerminalRoute
   AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
@@ -1555,6 +1575,7 @@ const AppSettingsRouteChildren: AppSettingsRouteChildren = {
   AppSettingsProvidersRoute: AppSettingsProvidersRoute,
   AppSettingsRolesRoute: AppSettingsRolesRoute,
   AppSettingsSkillsRoute: AppSettingsSkillsRoute,
+  AppSettingsTerminalRoute: AppSettingsTerminalRoute,
   AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 

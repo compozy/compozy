@@ -42,10 +42,10 @@ describe("TerminalSelectionActions", () => {
       />
     );
 
-    await userEvent.click(screen.getByRole("button", { name: "Send to conversation" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Send to conversation" }));
     expect(onSendToConversation).toHaveBeenCalledOnce();
 
-    await userEvent.click(screen.getByRole("button", { name: "Copy" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy" }));
     expect(onCopy).toHaveBeenCalledOnce();
   });
 
@@ -66,14 +66,39 @@ describe("TerminalSelectionActions", () => {
     // Never a dead end: the gesture says what is missing and offers both ways
     // to fix it, with copying as the fallback that always works.
     expect(screen.getByTestId("terminal-selection-actions-no-session")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Choose a session…" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Choose a session…" }));
     expect(onChooseSession).toHaveBeenCalledOnce();
 
-    await userEvent.click(screen.getByRole("button", { name: "Start a session with this quote" }));
+    await userEvent.click(
+      screen.getByRole("menuitem", { name: "Start a session with this quote" })
+    );
     expect(onStartSession).toHaveBeenCalledOnce();
 
-    await userEvent.click(screen.getByRole("button", { name: "Copy as quoted block" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy as quoted block" }));
     expect(onCopy).toHaveBeenCalledOnce();
+  });
+
+  it("Should copy the sourced block when the quote is supplied", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText },
+    });
+    const onCopy = vi.fn();
+    render(
+      <TerminalSelectionActions
+        hasActiveSession={false}
+        quote={QUOTE}
+        onChooseSession={vi.fn()}
+        onCopy={onCopy}
+        onSendToConversation={vi.fn()}
+        onStartSession={vi.fn()}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "Copy as quoted block" }));
+    expect(writeText).toHaveBeenCalledWith(QUOTE.text);
+    expect(onCopy).not.toHaveBeenCalled();
   });
 });
 

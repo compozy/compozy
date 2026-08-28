@@ -22,7 +22,12 @@ export {
   settingsSectionPath,
 } from "./lib/sections";
 export { DEFAULT_SETTINGS_SECTION_SLUG } from "./lib/section-paths";
-export { readTerminalSettings } from "./lib/terminal-settings-projection";
+export {
+  readTerminalSettings,
+  terminalSettingsInvalidKeyMessage,
+} from "./lib/terminal-settings-projection";
+export type { TerminalSettingsProjection } from "./lib/terminal-settings-projection";
+export type { TerminalSettingsKey } from "./lib/terminal-settings-types";
 
 // MCP page models (status matrix + editor draft)
 export {

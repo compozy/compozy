@@ -68,9 +68,19 @@ export {
 } from "./lib/terminal-lease";
 export {
   buildTerminalQuote,
+  copySourcedTerminalQuote,
+  parseTerminalQuote,
+  sourcedTerminalQuoteText,
+  terminalQuoteFromSelection,
   terminalSelectionLines,
   type TerminalQuote,
 } from "./lib/terminal-quote";
+export {
+  clearPendingTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+} from "./lib/terminal-quote-pending";
 export {
   TERMINAL_ALL_PROFILES_KEY,
   TERMINAL_JOURNAL_PAGE_SIZE,

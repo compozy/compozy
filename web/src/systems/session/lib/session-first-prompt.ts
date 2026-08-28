@@ -1,5 +1,8 @@
 import { notifyUser } from "@/lib/user-feedback";
 
+import { parseTerminalQuote } from "@/systems/terminal/parts";
+
+import { stageSessionTerminalQuote } from "./session-terminal-quote";
 import { sessionStore } from "../stores/session-store";
 
 /** What the operator is told when the runtime refuses the message they typed. */
@@ -23,6 +26,17 @@ export function sendFirstPrompt(sessionId: string, send: (text: string) => void)
     return;
   }
   sessionStore.trigger.firstPromptClaimed({ sessionId });
+  const quote = parseTerminalQuote(prompt.text);
+  if (quote) {
+    stageSessionTerminalQuote({
+      sessionId,
+      terminalId: quote.terminalId,
+      fromLine: quote.fromLine,
+      lines: quote.lines,
+    });
+    sessionStore.trigger.firstPromptSent({ sessionId });
+    return;
+  }
   try {
     send(prompt.text);
     sessionStore.trigger.firstPromptSent({ sessionId });

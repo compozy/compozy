@@ -25,7 +25,18 @@ import type { SessionTranscriptData } from "@/systems/session/lib/session-transc
 import { SessionThread } from "../session-thread";
 import { formatDataPreview } from "../session-message-parts.logic";
 import { WorkingIndicator } from "../session-working-row";
-import { sessionStore } from "@/systems/session";
+import {
+  clearSessionTerminalQuote,
+  composeQuotedPrompt,
+  peekSessionTerminalQuote,
+  sessionStore,
+} from "@/systems/session";
+import {
+  buildTerminalQuote,
+  holdPendingTerminalQuote,
+  peekPendingTerminalQuote,
+  takePendingTerminalQuote,
+} from "@/systems/terminal/parts";
 
 vi.mock("sonner", () => ({
   toast: {
@@ -2340,9 +2351,13 @@ describe("SessionThread composer running semantics", () => {
     vi.mocked(toast.warning).mockClear();
     sessionStore.trigger.composerDraftDiscarded({ sessionId: primarySessionFixture.id });
     sessionStore.trigger.firstPromptSent({ sessionId: primarySessionFixture.id });
+    takePendingTerminalQuote();
+    clearSessionTerminalQuote(primarySessionFixture.id);
   });
 
   afterEach(() => {
+    takePendingTerminalQuote();
+    clearSessionTerminalQuote(primarySessionFixture.id);
     vi.unstubAllGlobals();
     // The listener tier latches in module scope once a stream authorizes.
     resetGatewayStreamAuth();
@@ -2988,6 +3003,33 @@ describe("SessionThread composer running semantics", () => {
     );
   });
 
+  it("Should restage a queued envelope as a chip and keep the annotation in the composer", async () => {
+    const user = userEvent.setup();
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["FAIL"],
+    });
+    const wire = composeQuotedPrompt("What failed?", quote);
+    renderComposer({
+      isSessionRunning: true,
+      allowBusyInput: true,
+      onQueuePrompt: vi.fn(() => Promise.resolve()),
+      onReplaceQueuedPrompt: vi.fn().mockResolvedValue(undefined),
+      onSteerQueuedPrompt: vi.fn(),
+      onRemoveQueuedPrompt: vi.fn(),
+      queuedPrompts: [{ id: "inq-quote", text: wire }],
+    });
+
+    const row = await screen.findByTestId("composer-queued-prompt-row");
+    await user.click(within(row).getByTestId("composer-queued-edit"));
+
+    await waitFor(() => expect(composerText()).toBe("What failed?"));
+    expect(composerText()).not.toContain("<terminal_context");
+    expect(screen.getByTestId("terminal-quote-block")).toBeInTheDocument();
+    expect(peekSessionTerminalQuote(primarySessionFixture.id)?.text).toBe(quote.text);
+  });
+
   it("Should not queue a second entry when the queued-edit handler disappears", async () => {
     const user = userEvent.setup();
     const onQueuePrompt = vi.fn(() => Promise.resolve());
@@ -3127,6 +3169,87 @@ describe("SessionThread composer running semantics", () => {
     expect(sessionStore.getSnapshot().context.firstPrompts[primarySessionFixture.id]?.text).toBe(
       "Not yet"
     );
+  });
+});
+
+// Invariant: a process-global pending quote is never consumed by an arbitrary
+// mounted thread, including a read-only one. Only create success or an explicit
+// chosen-session stage may take it.
+// Owning layer: SessionThread mount / quote ownership.
+describe("SessionThread pending quote ownership", () => {
+  const otherSessionId = "sess-other";
+
+  beforeEach(() => {
+    takePendingTerminalQuote();
+    clearSessionTerminalQuote(primarySessionFixture.id);
+    clearSessionTerminalQuote(otherSessionId);
+    vi.stubGlobal("fetch", createFetchMock());
+  });
+
+  afterEach(() => {
+    takePendingTerminalQuote();
+    clearSessionTerminalQuote(primarySessionFixture.id);
+    clearSessionTerminalQuote(otherSessionId);
+    vi.unstubAllGlobals();
+  });
+
+  it("Should not consume a pending quote when two threads mount", async () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["one line"],
+    });
+    holdPendingTerminalQuote(quote);
+    const queryClient = createQueryClient();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SessionChatRuntimeProvider
+          sessionId={primarySessionFixture.id}
+          workspaceId={fixtureWorkspaceId()}
+        >
+          <SessionTranscriptThreadProvider
+            messages={[]}
+            status="success"
+            error={null}
+            retry={vi.fn()}
+          >
+            <SessionThread
+              sessionId={primarySessionFixture.id}
+              agentName={primarySessionFixture.agent_name}
+              canPrompt
+              onCancelPrompt={() => {}}
+            />
+            <SessionThread
+              sessionId={otherSessionId}
+              agentName={primarySessionFixture.agent_name}
+              canPrompt
+              readOnly
+            />
+          </SessionTranscriptThreadProvider>
+        </SessionChatRuntimeProvider>
+      </QueryClientProvider>
+    );
+
+    await screen.findByTestId("composer-input");
+    expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
+    expect(peekSessionTerminalQuote(primarySessionFixture.id)).toBeNull();
+    expect(peekSessionTerminalQuote(otherSessionId)).toBeNull();
+    expect(screen.queryByTestId("terminal-quote-block")).not.toBeInTheDocument();
+  });
+
+  it("Should not consume a pending quote when a read-only thread mounts", async () => {
+    const quote = buildTerminalQuote({
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["one line"],
+    });
+    holdPendingTerminalQuote(quote);
+    renderThreadState({ status: "success", readOnly: true });
+
+    await screen.findByText(/Start the conversation/i);
+    expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
+    expect(peekSessionTerminalQuote(primarySessionFixture.id)).toBeNull();
+    expect(screen.queryByTestId("terminal-quote-block")).not.toBeInTheDocument();
   });
 });
 
