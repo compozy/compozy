@@ -642,8 +642,36 @@ model = "three"
 		}
 		got := cfg.Roles.Dream.FallbackChain
 		want := []RoleFallback{{Provider: "c", Model: "three"}}
-		if !slices.Equal(got, want) {
+		if !reflect.DeepEqual(got, want) {
 			t.Fatalf("Roles.Dream.FallbackChain = %#v, want %#v", got, want)
+		}
+	})
+
+	t.Run("Should merge role speed and typed ACP options with provenance", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultWithHome(HomePaths{})
+		path := filepath.Join(t.TempDir(), "roles.toml")
+		writeFile(t, path, `
+[roles.dream]
+speed = "fast"
+acp_options = [{ id = "thinking", bool_value = true }]
+`)
+		if err := ApplyConfigOverlayFile(path, &cfg); err != nil {
+			t.Fatalf("ApplyConfigOverlayFile() error = %v", err)
+		}
+		if cfg.Roles.Dream.Speed != "fast" || len(cfg.Roles.Dream.ACPOptions) != 1 {
+			t.Fatalf("Roles.Dream runtime = %#v, want speed and one ACP option", cfg.Roles.Dream)
+		}
+		option := cfg.Roles.Dream.ACPOptions[0]
+		if option.ID != "thinking" || option.BoolValue == nil || !*option.BoolValue {
+			t.Fatalf("Roles.Dream.ACPOptions = %#v, want thinking=true", cfg.Roles.Dream.ACPOptions)
+		}
+		if got := cfg.RoleFieldSource(RoleDream, RoleFieldSpeed); got != RoleFieldSourceGlobal {
+			t.Fatalf("RoleFieldSource(speed) = %q, want %q", got, RoleFieldSourceGlobal)
+		}
+		if got := cfg.RoleFieldSource(RoleDream, RoleFieldACPOptions); got != RoleFieldSourceGlobal {
+			t.Fatalf("RoleFieldSource(acp_options) = %q, want %q", got, RoleFieldSourceGlobal)
 		}
 	})
 

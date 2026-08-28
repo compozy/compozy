@@ -54,6 +54,7 @@ func providerModelConfigsFromPayload(
 			SupportsReasoning:        cloneBoolPtr(payload.SupportsReasoning),
 			ReasoningEfforts:         reasoningEffortsToStrings(payload.ReasoningEfforts),
 			DefaultReasoningEffort:   strings.TrimSpace(string(payload.DefaultReasoningEffort)),
+			DefaultSpeed:             payload.DefaultSpeed,
 			CostInputPerMillion:      cloneFloat64Ptr(payload.CostInputPerMillion),
 			CostOutputPerMillion:     cloneFloat64Ptr(payload.CostOutputPerMillion),
 			CostCacheReadPerMillion:  cloneFloat64Ptr(payload.CostCacheReadPerMillion),

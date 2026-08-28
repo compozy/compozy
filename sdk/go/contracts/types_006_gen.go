@@ -7,6 +7,12 @@ import (
 	"time"
 )
 
+type ClarifyAnswer struct {
+	Choice   *int   `json:"choice"`
+	Text     string `json:"text"`
+	Fallback bool   `json:"fallback"`
+}
+
 type ClarifyAskParams struct {
 	InvocationID string   `json:"invocation_id"`
 	Question     string   `json:"question"`
@@ -176,12 +182,4 @@ type ContextCompactPayload struct {
 	Strategy       string         `json:"strategy,omitempty"`
 	Summary        string         `json:"summary,omitempty"`
 	ContextBlocks  []ContextBlock `json:"context_blocks,omitempty"`
-}
-
-type ContextCompactionPatch struct {
-	Deny          bool           `json:"deny,omitempty"`
-	DenyReason    string         `json:"deny_reason,omitempty"`
-	Reason        *string        `json:"reason,omitempty"`
-	Strategy      *string        `json:"strategy,omitempty"`
-	ContextBlocks []ContextBlock `json:"context_blocks,omitempty"`
 }

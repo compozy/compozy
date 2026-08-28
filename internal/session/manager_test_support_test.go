@@ -19,6 +19,7 @@ import (
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/events"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/providerexec"
 	"github.com/compozy/compozy/internal/sandbox"
@@ -249,6 +250,10 @@ func newHostedMCPHarness(t *testing.T, extraOpts ...Option) *harness {
 
 func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manager {
 	t.Helper()
+	claudeProvider, err := h.cfg.ResolveProvider(runtimeProviderClaude)
+	if err != nil {
+		t.Fatalf("ResolveProvider(%q) error = %v", runtimeProviderClaude, err)
+	}
 
 	opts := []Option{
 		WithHomePaths(h.homePaths),
@@ -287,6 +292,16 @@ func newManagerWithHarness(t *testing.T, h *harness, extraOpts ...Option) *Manag
 		WithTurnIDGenerator(sequentialIDGenerator("turn")),
 		WithSandboxRegistry(h.sandbox),
 		WithSandboxIDGenerator(sequentialIDGenerator("env")),
+		WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        runtimeProviderClaude,
+			ModelID:           claudeProvider.Models.Default,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: "default"}},
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID(runtimeProviderClaude),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}),
 	}
 	opts = append(opts, extraOpts...)
 
@@ -809,7 +824,9 @@ type fakeWorkspaceResolver struct {
 	mu                     sync.Mutex
 	byRef                  map[string]workspacepkg.ResolvedWorkspace
 	byPath                 map[string]workspacepkg.ResolvedWorkspace
+	byProfile              map[string]workspacepkg.ResolvedWorkspace
 	resolveCalls           []string
+	profileResolveNames    []string
 	resolveOrRegisterCalls []string
 	profileRegisterNames   []string
 	resolveErr             error
@@ -872,6 +889,7 @@ func newFakeWorkspaceResolver(resolved *workspacepkg.ResolvedWorkspace) *fakeWor
 	r := &fakeWorkspaceResolver{
 		byRef:              make(map[string]workspacepkg.ResolvedWorkspace),
 		byPath:             make(map[string]workspacepkg.ResolvedWorkspace),
+		byProfile:          make(map[string]workspacepkg.ResolvedWorkspace),
 		autoRegisterConfig: resolved.Config,
 		autoRegisterAgents: append([]compozyconfig.AgentDef(nil), resolved.Agents...),
 	}
@@ -1023,11 +1041,21 @@ func (r *fakeWorkspaceResolver) ResolveForProfile(
 	idOrPath string,
 	profileName string,
 ) (workspacepkg.ResolvedWorkspace, error) {
+	profileName = strings.TrimSpace(profileName)
+	r.mu.Lock()
+	r.profileResolveNames = append(r.profileResolveNames, profileName)
+	if resolved, ok := r.byProfile[profileName]; ok {
+		r.mu.Unlock()
+		resolved.ProfileName = profileName
+		return cloneResolvedWorkspaceForTests(&resolved), nil
+	}
+	r.mu.Unlock()
+
 	resolved, err := r.Resolve(ctx, idOrPath)
 	if err != nil {
 		return workspacepkg.ResolvedWorkspace{}, err
 	}
-	resolved.ProfileName = strings.TrimSpace(profileName)
+	resolved.ProfileName = profileName
 	return resolved, nil
 }
 
@@ -1192,6 +1220,7 @@ func (d *fakeDriver) Start(ctx context.Context, opts acp.StartOpts) (*AgentProce
 	copied.AdditionalDirs = append([]string(nil), opts.AdditionalDirs...)
 	copied.Env = append([]string(nil), opts.Env...)
 	copied.MCPServers = append([]compozyconfig.MCPServer(nil), opts.MCPServers...)
+	copied.ACPOptions = acp.CloneSessionConfigOptionSelections(opts.ACPOptions)
 	d.startCalls = append(d.startCalls, copied)
 	if copied.ActivateMCPServers != nil {
 		if err := copied.ActivateMCPServers(ctx); err != nil {

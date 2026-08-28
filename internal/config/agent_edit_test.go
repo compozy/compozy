@@ -21,6 +21,12 @@ func TestEditAgentDefFileCategoryPath(t *testing.T) {
 		writeFile(t, path, `---
 name: coder
 provider: claude
+speed: fast
+acp_options:
+  - id: thinking
+    bool_value: true
+  - id: context
+    value_id: 1m
 category_path:
   - Marketing
   - Sales
@@ -52,6 +58,12 @@ Prompt.
 		}
 		if !equalStringSlicesForTest(reloaded.Skills.Disabled, []string{"old-skill", "new-skill"}) {
 			t.Fatalf("LoadAgentDefFile() Skills.Disabled = %#v", reloaded.Skills.Disabled)
+		}
+		reloadedOptions := reloaded.ACPOptionsValue()
+		if reloaded.SpeedValue() != "fast" || len(reloadedOptions) != 2 || reloadedOptions[0].ID != "context" ||
+			reloadedOptions[0].ValueID != "1m" || reloadedOptions[1].ID != "thinking" ||
+			reloadedOptions[1].BoolValue == nil || !*reloadedOptions[1].BoolValue {
+			t.Fatalf("LoadAgentDefFile() runtime defaults = %#v", reloaded)
 		}
 	})
 }

@@ -54,35 +54,9 @@ func runtimeItemString(values map[string]any, key string) string {
 }
 
 func runtimeSpecFromValue(value any) (RuntimeSpec, error) {
-	values, ok := value.(map[string]any)
-	if !ok {
-		return RuntimeSpec{}, fmt.Errorf("runtime must be an object")
-	}
-	runtime := RuntimeSpec{}
-	for key, raw := range values {
-		text, ok := raw.(string)
-		if !ok {
-			return RuntimeSpec{}, fmt.Errorf("%s must be a string", key)
-		}
-		switch key {
-		case runtimeFieldProvider:
-			runtime.Provider = strings.TrimSpace(text)
-		case runtimeFieldModel:
-			runtime.Model = strings.TrimSpace(text)
-		case runtimeFieldReasoning:
-			runtime.Reasoning = strings.TrimSpace(text)
-		case runtimeFieldSpeed:
-			parsed, err := speedpkg.Parse(text)
-			if err != nil {
-				return RuntimeSpec{}, err
-			}
-			runtime.Speed = parsed
-		default:
-			return RuntimeSpec{}, fmt.Errorf(
-				"unknown field %q; see MIGRATION_GUIDE.md#per-task-runtime-selection",
-				key,
-			)
-		}
+	runtime, err := runtimeInputSpec(value)
+	if err != nil {
+		return RuntimeSpec{}, fmt.Errorf("invalid runtime value: %w", err)
 	}
 	return runtime, nil
 }
@@ -106,6 +80,12 @@ func appliedResolvedRuntime(
 	}
 	if strings.TrimSpace(string(intent.Runtime.Speed)) == "" && resolved.Runtime.Speed != "" {
 		resolved.Source.Speed = RuntimeSourceAgent
+	}
+	if len(intent.Runtime.ACPOptions) == 0 && len(resolved.Runtime.ACPOptions) > 0 {
+		resolved.Source.ACPOptions = make(map[string]RuntimeSource, len(resolved.Runtime.ACPOptions))
+		for _, option := range resolved.Runtime.ACPOptions {
+			resolved.Source.ACPOptions[option.ID] = RuntimeSourceAgent
+		}
 	}
 	return resolved
 }

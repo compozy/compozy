@@ -17,7 +17,11 @@ import {
   AGENT_CREATE_PERMISSION_OPTIONS,
   type AgentCreatePermissionChoice,
 } from "../lib/agent-create-draft";
-import { inheritedAgentRuntimeFields } from "../lib/agent-effective-runtime";
+import {
+  hasAgentRuntimeOverride,
+  inheritedAgentRuntimeFields,
+  resolveAgentRuntimeValue,
+} from "../lib/agent-effective-runtime";
 import type { AgentSettingsDraft, AgentSettingsValidation } from "../lib/agent-settings-draft";
 import type { AgentPayload } from "../types";
 import {
@@ -68,6 +72,7 @@ export function AgentSettingsRuntimeSection({
   onOpenProviderSettings,
 }: AgentSettingsRuntimeSectionProps) {
   const effectiveRuntime = agent.effective_runtime;
+  const effectiveValue = resolveAgentRuntimeValue(agent);
   const effectiveProvider = effectiveRuntime?.provider?.trim() ?? "";
   const selectedProvider = draft.provider.trim() || effectiveProvider;
   const providerMatchesEffective = selectedProvider === effectiveProvider;
@@ -81,11 +86,14 @@ export function AgentSettingsRuntimeSection({
       (providerMatchesEffective && selectedModel === effectiveRuntime?.model?.trim()
         ? (effectiveRuntime?.reasoning_effort ?? "")
         : ""),
+    ...(draft.acpOptions
+      ? { acp_options: draft.acpOptions }
+      : effectiveValue.acp_options
+        ? { acp_options: effectiveValue.acp_options }
+        : {}),
   };
   const inheritedFields = inheritedAgentRuntimeFields(agent);
-  const hasRuntimeOverride = Boolean(
-    draft.provider.trim() || draft.model.trim() || draft.reasoningEffort
-  );
+  const hasRuntimeOverride = hasAgentRuntimeOverride(draft);
 
   return (
     <FormSection data-testid="agent-settings-runtime" icon={Settings2} title="Runtime">
@@ -93,7 +101,7 @@ export function AgentSettingsRuntimeSection({
         <FieldHeader>
           <FieldTitle id="agent-settings-runtime-label">Runtime</FieldTitle>
           <HelpTip label="About runtime">
-            Provider, model, and reasoning effort inherited by new sessions.
+            Provider, model, Reasoning, Fast, and advanced options inherited by new sessions.
           </HelpTip>
         </FieldHeader>
         {inheritedFields.length > 0 ? (
@@ -104,13 +112,15 @@ export function AgentSettingsRuntimeSection({
         ) : null}
         <RuntimeSelector
           value={runtimeValue}
-          onChange={next =>
+          onChange={(next, normalizedSpeed) =>
             readOnly
               ? undefined
               : onPatch({
                   provider: next.provider,
                   model: next.model,
                   reasoningEffort: next.reasoning_effort,
+                  acpOptions: next.acp_options ?? [],
+                  ...(normalizedSpeed ? { speed: normalizedSpeed } : {}),
                 })
           }
           providers={providerOptions}
@@ -121,6 +131,8 @@ export function AgentSettingsRuntimeSection({
           onOpenProviderSettings={onOpenProviderSettings}
           disabled={disabled || providersLoading || providerOptions.length === 0}
           readOnly={readOnly}
+          speed={draft.speed || effectiveRuntime?.speed || "normal"}
+          onSpeedChange={speed => (readOnly ? undefined : onPatch({ speed }))}
           ariaLabelledby="agent-settings-runtime-label"
           triggerId="agent-settings-runtime-trigger"
           triggerTestId="agent-settings-runtime-select"
@@ -130,7 +142,9 @@ export function AgentSettingsRuntimeSection({
             className="mt-2"
             data-testid="agent-settings-runtime-use-project-defaults"
             disabled={disabled}
-            onClick={() => onPatch({ provider: "", model: "", reasoningEffort: "" })}
+            onClick={() =>
+              onPatch({ provider: "", model: "", reasoningEffort: "", speed: "", acpOptions: [] })
+            }
             size="sm"
             type="button"
             variant="ghost"

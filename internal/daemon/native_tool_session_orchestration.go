@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/compozy/compozy/internal/acp"
+	"github.com/compozy/compozy/internal/api/contract"
 	core "github.com/compozy/compozy/internal/api/core"
 	"github.com/compozy/compozy/internal/session"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -100,6 +101,7 @@ func (n *daemonNativeTools) sessionSpawn(
 		Model:            strings.TrimSpace(input.Model),
 		ReasoningEffort:  strings.TrimSpace(input.ReasoningEffort),
 		Speed:            speedpkg.Speed(strings.TrimSpace(input.Speed)),
+		ACPOptions:       contract.ACPOptionSelectionsFromPayload(input.ACPOptions),
 		Name:             strings.TrimSpace(input.Name),
 		Workspace:        parent.WorkspaceID,
 		PromptOverlay:    strings.TrimSpace(input.PromptOverlay),

@@ -115,8 +115,11 @@ func (o *loopNativeHookObserver) OnTaskRunTerminal(
 	payload hookspkg.TaskRunLeasePayload,
 ) error {
 	loopRunID := strings.TrimSpace(payload.LoopRunID)
-	if loopRunID == "" || optionalRunKind(payload.RunKind) == taskpkg.RunKindCoordinator.String() {
+	if loopRunID == "" {
 		return nil
+	}
+	if optionalRunKind(payload.RunKind) == taskpkg.RunKindCoordinator.String() {
+		return o.startLoopCoordinatorBackstop(ctx)
 	}
 
 	var errs []error

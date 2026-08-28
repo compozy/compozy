@@ -15,6 +15,7 @@ import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
+import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
   state: null as unknown,
@@ -25,6 +26,14 @@ const dockShell = vi.hoisted(() => ({
     userOpen: vi.fn(),
   },
 }));
+
+const launchCatalog = vi.hoisted(() => ({
+  ready: true,
+  sessions: [] as SessionPayload[],
+  workspaceId: "workspace:test" as string | null,
+}));
+
+const jumpToSession = vi.hoisted(() => vi.fn());
 
 const SNAPSHOT: WindowManagerSnapshot = {
   version: 3,
@@ -71,6 +80,14 @@ vi.mock("../../hooks/use-desktop", () => ({
 
 vi.mock("../../hooks/use-os-shell", () => ({
   useOsShell: () => ({ manager: dockShell.manager, coordinator: dockShell.coordinator }),
+}));
+
+vi.mock("../../hooks/use-session-launch-catalog", () => ({
+  useSessionLaunchCatalog: () => launchCatalog,
+}));
+
+vi.mock("../../hooks/use-attention-jump", () => ({
+  useAttentionJump: () => jumpToSession,
 }));
 
 function windowFixture(
@@ -143,6 +160,21 @@ function renderDock(ui: React.ReactElement) {
   return render(<TooltipProvider delay={0}>{ui}</TooltipProvider>);
 }
 
+function catalogSession(
+  id: string,
+  createdAt: string,
+  overrides: Partial<SessionPayload> = {}
+): SessionPayload {
+  return {
+    id,
+    agent_name: "qa-agent",
+    workspace_id: "workspace:test",
+    created_at: createdAt,
+    archived_at: null,
+    ...overrides,
+  } as SessionPayload;
+}
+
 describe("OsDock", () => {
   beforeEach(() => {
     vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
@@ -151,6 +183,9 @@ describe("OsDock", () => {
     });
     vi.stubGlobal("cancelAnimationFrame", () => undefined);
     vi.clearAllMocks();
+    launchCatalog.ready = true;
+    launchCatalog.sessions = [];
+    launchCatalog.workspaceId = "workspace:test";
     setDockState(desktopState());
   });
 
@@ -360,7 +395,7 @@ describe("OsDock", () => {
     });
   });
 
-  it("Should launch a new session from the dock when no session window exists", () => {
+  it("Should launch a new session from the dock when the catalog is empty", () => {
     const onNewSession = vi.fn();
     const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
     setDockState(desktopState());
@@ -368,37 +403,66 @@ describe("OsDock", () => {
     act(() => result.current.handleSelect("session"));
 
     expect(onNewSession).toHaveBeenCalledOnce();
+    expect(jumpToSession).not.toHaveBeenCalled();
     expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
   });
 
-  it("Should focus the most recently used session window and project its run state", () => {
-    const older = windowFixture("window:session-older", "session", {
-      instanceKey: "session:older",
-      minimized: true,
-      desktopId: "desktop:two",
-      stackId: "stack:session",
-      stackActive: false,
+  it("Should ignore a Sessions dock click while the catalog is still unknown", () => {
+    launchCatalog.ready = false;
+    const onNewSession = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
+    setDockState(desktopState());
+
+    act(() => result.current.handleSelect("session"));
+
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(jumpToSession).not.toHaveBeenCalled();
+  });
+
+  it("Should open the last created session when the catalog has rows and no window is open", () => {
+    launchCatalog.sessions = [
+      catalogSession("sess-older", "2026-08-01T00:00:00Z"),
+      catalogSession("sess-newer", "2026-08-02T00:00:00Z"),
+    ];
+    const onNewSession = vi.fn();
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession }));
+    setDockState(desktopState());
+
+    act(() => result.current.handleSelect("session"));
+
+    expect(onNewSession).not.toHaveBeenCalled();
+    expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "sess-newer",
+      agentName: "qa-agent",
+      workspaceId: "workspace:test",
     });
-    const recent = windowFixture("window:session-recent", "session", {
-      instanceKey: "session:recent",
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+  });
+
+  it("Should open the last created session instead of the most recently used window", () => {
+    launchCatalog.sessions = [
+      catalogSession("sess-older", "2026-08-01T00:00:00Z"),
+      catalogSession("sess-newer", "2026-08-02T00:00:00Z"),
+    ];
+    const older = windowFixture("window:session-older", "session", {
+      instanceKey: "sess-older",
       stackId: "stack:session",
       stackActive: true,
     });
     const onNewSession = vi.fn();
     const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession }));
-    setDockState(
-      desktopState({ [older.id]: older, [recent.id]: recent }, null, [recent.id, older.id])
-    );
+    setDockState(desktopState({ [older.id]: older }, older.id, [older.id]));
     rerender();
 
     act(() => result.current.handleSelect("session"));
 
     expect(onNewSession).not.toHaveBeenCalled();
-    expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(recent.id);
-    expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject({
-      running: true,
-      minimized: false,
+    expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+      sessionId: "sess-newer",
+      agentName: "qa-agent",
+      workspaceId: "workspace:test",
     });
+    expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -417,19 +481,44 @@ describe("OsDock", () => {
       overrides: { stackId: "stack:session", stackActive: false },
       projection: { running: true, minimized: false },
     },
-  ])("Should focus an MRU session window when it is $label", ({ overrides, projection }) => {
-    const target = windowFixture("window:session-target", "session", {
-      instanceKey: "session:target",
-      ...overrides,
-    });
-    const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
-    setDockState(desktopState({ [target.id]: target }, null, [target.id]));
-    rerender();
+  ])(
+    "Should jump to the last created session when its window is $label",
+    ({ overrides, projection }) => {
+      launchCatalog.sessions = [catalogSession("sess-target", "2026-08-02T00:00:00Z")];
+      const target = windowFixture("window:session-target", "session", {
+        instanceKey: "sess-target",
+        ...overrides,
+      });
+      const { result, rerender } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+      setDockState(desktopState({ [target.id]: target }, null, [target.id]));
+      rerender();
 
-    act(() => result.current.handleSelect("session"));
+      act(() => result.current.handleSelect("session"));
 
-    expect(dockShell.coordinator.userActivateWindow).toHaveBeenLastCalledWith(target.id);
-    expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject(projection);
+      expect(jumpToSession).toHaveBeenCalledExactlyOnceWith({
+        sessionId: "sess-target",
+        agentName: "qa-agent",
+        workspaceId: "workspace:test",
+      });
+      expect(dockShell.coordinator.userActivateWindow).not.toHaveBeenCalled();
+      expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject(
+        projection
+      );
+    }
+  );
+
+  it("Should keep the plus control creating a session even when the catalog has rows", async () => {
+    const user = userEvent.setup();
+    const onNewSession = vi.fn();
+    launchCatalog.sessions = [catalogSession("sess-newer", "2026-08-02T00:00:00Z")];
+    renderDock(
+      <DesktopDock badges={{}} onNewSession={onNewSession} pager={null} contextMenusEnabled />
+    );
+
+    await user.click(screen.getByRole("button", { name: "New session" }));
+
+    expect(onNewSession).toHaveBeenCalledOnce();
+    expect(jumpToSession).not.toHaveBeenCalled();
   });
 
   it("Should mark the sessions dock icon minimized when every session window is minimized", () => {

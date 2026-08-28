@@ -94,6 +94,9 @@ func applyDesiredProviderModelCuration(
 	if effort := strings.TrimSpace(desired.DefaultReasoningEffort); effort != "" {
 		projected.DefaultReasoningEffort = effort
 	}
+	if desired.DefaultSpeed != "" {
+		projected.DefaultSpeed = desired.DefaultSpeed
+	}
 	if desired.Deprecated != nil {
 		projected.Deprecated = cloneBoolPtr(desired.Deprecated)
 	}
@@ -176,6 +179,7 @@ func cloneProviderModelConfigs(values []compozyconfig.ProviderModelConfig) []com
 			SupportsReasoning:        cloneBoolPtr(value.SupportsReasoning),
 			ReasoningEfforts:         cloneStringSlicePreserveNil(value.ReasoningEfforts),
 			DefaultReasoningEffort:   value.DefaultReasoningEffort,
+			DefaultSpeed:             value.DefaultSpeed,
 			CostInputPerMillion:      cloneFloat64Ptr(value.CostInputPerMillion),
 			CostOutputPerMillion:     cloneFloat64Ptr(value.CostOutputPerMillion),
 			CostCacheReadPerMillion:  cloneFloat64Ptr(value.CostCacheReadPerMillion),

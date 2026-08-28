@@ -724,6 +724,7 @@ func newHarnessIntegrationWorkspace(
 			{
 				Name:     "coder",
 				Provider: "claude",
+				Model:    "test-model",
 				Prompt:   "You are a coding assistant.",
 			},
 		},

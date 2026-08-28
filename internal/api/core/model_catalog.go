@@ -7,11 +7,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,6 +25,7 @@ const (
 	modelCatalogRefreshSegment   = "refresh"
 	modelCatalogSourcesSegment   = "sources"
 	statusKey                    = "status"
+	modelCatalogWorkspaceAction  = "model_catalog.workspace"
 )
 
 var errModelCatalogRouteNotFound = errors.New("model catalog route not found")
@@ -60,10 +64,16 @@ func (h *BaseHandlers) OpenAIModels(c *gin.Context) {
 		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h != nil && h.MaskInternalErrors)
 		return
 	}
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
 	models, err := service.ListModels(c.Request.Context(), modelcatalog.ListOptions{
-		ProviderID:   providerID,
-		IncludeStale: true,
-		Now:          h.nowUTC(),
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+		IncludeStale:     true,
+		Now:              h.nowUTC(),
 	})
 	if err != nil {
 		RespondOpenAIError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
@@ -136,6 +146,7 @@ func (h *BaseHandlers) curateProviderModel(c *gin.Context, providerParam string)
 			Featured:               request.Featured,
 			Deprecated:             request.Deprecated,
 			DefaultReasoningEffort: request.DefaultReasoningEffort,
+			DefaultSpeed:           request.DefaultSpeed,
 		},
 	)
 	if err != nil {
@@ -143,8 +154,9 @@ func (h *BaseHandlers) curateProviderModel(c *gin.Context, providerParam string)
 		return
 	}
 	c.JSON(http.StatusOK, contract.ProviderModelCurationResponse{
-		Model: ProviderModelPayloadFromModel(result.Model),
-		Apply: SettingsApplyResponseFromResult(result.Apply),
+		Model:        ProviderModelPayloadFromModel(result.Model),
+		Apply:        SettingsApplyResponseFromResult(result.Apply),
+		DefaultSpeed: result.DefaultSpeed,
 	})
 }
 
@@ -152,7 +164,8 @@ func statusForProviderModelCurationError(err error) int {
 	if item, ok := diagnostics.ItemFromError(err); ok {
 		switch item.Code {
 		case diagnosticcontract.CodeModelNotFound,
-			diagnosticcontract.CodeReasoningEffortUnsupported:
+			diagnosticcontract.CodeReasoningEffortUnsupported,
+			diagnosticcontract.CodeSpeedRejected:
 			return http.StatusUnprocessableEntity
 		}
 	}
@@ -217,7 +230,15 @@ func (h *BaseHandlers) providerModelStatus(c *gin.Context, providerParam string)
 		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
 		return
 	}
-	statuses, err := service.ListSourceStatus(c.Request.Context(), providerID)
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
+		return
+	}
+	statuses, err := service.ListSourceStatus(c.Request.Context(), modelcatalog.StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+	})
 	if err != nil {
 		RespondError(c, StatusForModelCatalogError(err), err, h.MaskInternalErrors)
 		return
@@ -260,13 +281,18 @@ func (h *BaseHandlers) modelCatalogListOptions(
 			View: string(view),
 		})
 	}
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		return modelcatalog.ListOptions{}, err
+	}
 	return modelcatalog.ListOptions{
-		ProviderID:   trimmedProvider,
-		SourceID:     sourceID,
-		View:         view,
-		Refresh:      refresh,
-		IncludeStale: includeStale,
-		Now:          h.nowUTC(),
+		ProviderID:       trimmedProvider,
+		SourceID:         sourceID,
+		View:             view,
+		ExecutionContext: executionContext,
+		Refresh:          refresh,
+		IncludeStale:     includeStale,
+		Now:              h.nowUTC(),
 	}, nil
 }
 
@@ -288,13 +314,82 @@ func (h *BaseHandlers) modelCatalogRefreshOptions(
 	if err != nil {
 		return modelcatalog.RefreshOptions{}, err
 	}
+	executionContext, err := h.modelCatalogExecutionContext(c)
+	if err != nil {
+		return modelcatalog.RefreshOptions{}, err
+	}
 	return modelcatalog.RefreshOptions{
-		ProviderID: providerID,
-		SourceID:   sourceID,
-		Force:      request.Force,
-		RequestID:  strings.TrimSpace(request.RequestID),
-		Now:        h.nowUTC(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		ExecutionContext: executionContext,
+		Force:            request.Force,
+		RequestID:        strings.TrimSpace(request.RequestID),
+		Now:              h.nowUTC(),
 	}, nil
+}
+
+func (h *BaseHandlers) modelCatalogExecutionContext(
+	c *gin.Context,
+) (modelcatalog.CatalogExecutionContext, error) {
+	selection, err := h.resolveProfileReadSelection(c)
+	if err != nil {
+		return modelcatalog.CatalogExecutionContext{}, NewModelCatalogValidationError(err)
+	}
+	if selection.Scope.AllProfiles {
+		return modelcatalog.CatalogExecutionContext{}, NewModelCatalogValidationError(
+			errors.New("model catalog requires one profile"),
+		)
+	}
+	profileID := strings.TrimSpace(selection.Scope.ProfileID)
+	workspaceID := strings.TrimSpace(firstNonEmpty(c.Query("workspace_id"), c.Query("workspace")))
+	if workspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: profileID,
+		}, nil
+	}
+	if h == nil || h.Workspaces == nil {
+		return modelcatalog.CatalogExecutionContext{}, fmt.Errorf(
+			"api: %w",
+			workspacepkg.ErrWorkspaceResolverUnavailable,
+		)
+	}
+	resolved, err := h.Workspaces.Resolve(c.Request.Context(), workspaceID)
+	if err != nil {
+		return modelcatalog.CatalogExecutionContext{}, fmt.Errorf(
+			"api: resolve model catalog workspace %q: %w",
+			workspaceID,
+			err,
+		)
+	}
+	canonicalWorkspaceID := strings.TrimSpace(resolved.ID)
+	if canonicalWorkspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{}, errors.New(
+			"api: resolved model catalog workspace has no canonical id",
+		)
+	}
+	if err := h.authorizeModelCatalogWorkspace(c, canonicalWorkspaceID); err != nil {
+		return modelcatalog.CatalogExecutionContext{}, err
+	}
+	return modelcatalog.CatalogExecutionContext{
+		Scope:       modelcatalog.ExecutionScopeWorkspace,
+		ProfileID:   profileID,
+		WorkspaceID: canonicalWorkspaceID,
+	}, nil
+}
+
+func (h *BaseHandlers) authorizeModelCatalogWorkspace(c *gin.Context, workspaceID string) error {
+	credentials := agentCallerCredentialsFromRequest(c)
+	if !hasAgentCallerIdentityCredentials(credentials) {
+		return nil
+	}
+	caller, err := h.resolveAgentCaller(c.Request.Context(), credentials, modelCatalogWorkspaceAction)
+	if err != nil {
+		return err
+	}
+	request := workspaceAccessRequestForCaller(caller, workspaceID)
+	request.Seam = workspaceaccess.SeamCatalog
+	return agentidentity.ValidateWorkspaceAccess(c.Request.Context(), h.WorkspaceAccess, request)
 }
 
 func (h *BaseHandlers) modelCatalogService() (ModelCatalogService, error) {

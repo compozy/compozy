@@ -9,14 +9,17 @@ import (
 	"time"
 
 	apicontract "github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/api/modelcatalogprojection"
 	extensioncontract "github.com/compozy/compozy/internal/extension/contract"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/store"
 )
 
 type hostAPIModelCatalogService interface {
 	ListModels(ctx context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	Refresh(ctx context.Context, opts modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	ListSourceStatus(ctx context.Context, providerID string) ([]modelcatalog.SourceStatus, error)
+	ListSourceStatus(ctx context.Context, opts modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 // WithHostAPIModelCatalogService injects daemon-owned model catalog projections.
@@ -47,11 +50,12 @@ func (h *HostAPIHandler) handleModelsList(
 		return nil, unavailableRPCError(err)
 	}
 	models, err := service.ListModels(ctx, modelcatalog.ListOptions{
-		ProviderID:   providerID,
-		SourceID:     sourceID,
-		Refresh:      params.Refresh,
-		IncludeStale: params.IncludeStale,
-		Now:          h.hostAPINow(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		Refresh:          params.Refresh,
+		IncludeStale:     params.IncludeStale,
+		ExecutionContext: hostAPIModelCatalogExecutionContext(ctx),
+		Now:              h.hostAPINow(),
 	})
 	if err != nil {
 		return nil, hostAPIModelCatalogRPCError(err)
@@ -80,11 +84,12 @@ func (h *HostAPIHandler) handleModelsRefresh(
 		return nil, unavailableRPCError(err)
 	}
 	statuses, err := service.Refresh(ctx, modelcatalog.RefreshOptions{
-		ProviderID: providerID,
-		SourceID:   sourceID,
-		Force:      params.Force,
-		RequestID:  strings.TrimSpace(params.RequestID),
-		Now:        h.hostAPINow(),
+		ProviderID:       providerID,
+		SourceID:         sourceID,
+		Force:            params.Force,
+		RequestID:        strings.TrimSpace(params.RequestID),
+		ExecutionContext: hostAPIModelCatalogExecutionContext(ctx),
+		Now:              h.hostAPINow(),
 	})
 	payload := apicontract.ProviderModelRefreshResponse{
 		Sources: hostAPISourceStatusPayloadsFromStatuses(statuses),
@@ -115,7 +120,10 @@ func (h *HostAPIHandler) handleModelsStatus(
 	if err != nil {
 		return nil, unavailableRPCError(err)
 	}
-	statuses, err := service.ListSourceStatus(ctx, providerID)
+	statuses, err := service.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: hostAPIModelCatalogExecutionContext(ctx),
+	})
 	if err != nil {
 		return nil, unavailableRPCError(err)
 	}
@@ -129,6 +137,38 @@ func (h *HostAPIHandler) modelCatalogService() (hostAPIModelCatalogService, erro
 		return nil, errors.New("extension: model catalog service is unavailable")
 	}
 	return h.modelCatalog, nil
+}
+
+func hostAPIModelCatalogExecutionContext(ctx context.Context) modelcatalog.CatalogExecutionContext {
+	key, _ := hostAPIInstanceKeyFromContext(ctx)
+	profileID := strings.TrimSpace(key.ProfileID)
+	if profileID == "" {
+		profileID = store.DefaultProfileID
+	}
+	workspaceID := strings.TrimSpace(key.WorkspaceID)
+	if resourceSession, ok := hostAPIResourceSessionFromContext(ctx); ok {
+		switch resourceSession.Actor.MaxScope.Kind {
+		case resources.ResourceScopeKindProfile:
+			if scopedProfileID := strings.TrimSpace(resourceSession.Actor.MaxScope.ID); scopedProfileID != "" {
+				profileID = scopedProfileID
+			}
+		case resources.ResourceScopeKindWorkspace:
+			if scopedWorkspaceID := strings.TrimSpace(resourceSession.Actor.MaxScope.ID); scopedWorkspaceID != "" {
+				workspaceID = scopedWorkspaceID
+			}
+		}
+	}
+	if workspaceID == "" {
+		return modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: profileID,
+		}
+	}
+	return modelcatalog.CatalogExecutionContext{
+		Scope:       modelcatalog.ExecutionScopeWorkspace,
+		ProfileID:   profileID,
+		WorkspaceID: workspaceID,
+	}
 }
 
 func (h *HostAPIHandler) hostAPINow() time.Time {
@@ -176,107 +216,19 @@ func hostAPIModelCatalogRPCError(err error) error {
 }
 
 func hostAPIProviderModelListPayloadFromModels(models []modelcatalog.Model) apicontract.ProviderModelListResponse {
-	payload := apicontract.ProviderModelListResponse{
-		Models: make([]apicontract.ProviderModelPayload, 0, len(models)),
-	}
-	for _, model := range models {
-		payload.Models = append(payload.Models, hostAPIProviderModelPayloadFromModel(model))
-	}
-	return payload
+	return modelcatalogprojection.ProviderModelList(models)
 }
 
 func hostAPIProviderModelPayloadFromModel(model modelcatalog.Model) apicontract.ProviderModelPayload {
-	return apicontract.ProviderModelPayload{
-		ProviderID:             model.ProviderID,
-		ModelID:                model.ModelID,
-		DisplayName:            model.DisplayName,
-		Sources:                hostAPISourceRefPayloadsFromRefs(model.Sources),
-		Available:              model.Available,
-		AvailabilityState:      string(model.AvailabilityState),
-		Stale:                  model.Stale,
-		RefreshedAt:            hostAPIModelCatalogTimeString(model.RefreshedAt),
-		ContextWindow:          model.ContextWindow,
-		MaxInputTokens:         model.MaxInputTokens,
-		MaxOutputTokens:        model.MaxOutputTokens,
-		SupportsTools:          model.SupportsTools,
-		SupportsReasoning:      model.SupportsReasoning,
-		ReasoningEfforts:       append([]apicontract.ReasoningEffort(nil), model.ReasoningEfforts...),
-		DefaultReasoningEffort: model.DefaultReasoningEffort,
-		Cost:                   hostAPICostPayloadFromModel(model),
-		Curated:                model.Curated,
-		Deprecated:             model.Deprecated,
-		Hidden:                 model.Hidden,
-		Featured:               model.Featured,
-		ReleaseDate:            hostAPIOptionalModelCatalogString(model.ReleaseDate),
-		ReasoningSource:        model.ReasoningSource,
-		LastError:              modelcatalog.RedactString(model.LastError),
-	}
-}
-
-func hostAPISourceRefPayloadsFromRefs(refs []modelcatalog.SourceRef) []apicontract.ModelCatalogSourceRefPayload {
-	payloads := make([]apicontract.ModelCatalogSourceRefPayload, 0, len(refs))
-	for _, ref := range refs {
-		payloads = append(payloads, apicontract.ModelCatalogSourceRefPayload{
-			SourceID:    ref.SourceID,
-			SourceKind:  string(ref.SourceKind),
-			Priority:    ref.Priority,
-			RefreshedAt: hostAPIModelCatalogTimeString(ref.RefreshedAt),
-			Stale:       ref.Stale,
-			LastError:   modelcatalog.RedactString(ref.LastError),
-		})
-	}
-	return payloads
+	return modelcatalogprojection.ProviderModel(model)
 }
 
 func hostAPISourceStatusPayloadsFromStatuses(
 	statuses []modelcatalog.SourceStatus,
 ) []apicontract.ModelCatalogSourceStatusPayload {
-	payloads := make([]apicontract.ModelCatalogSourceStatusPayload, 0, len(statuses))
-	for _, status := range statuses {
-		payloads = append(payloads, apicontract.ModelCatalogSourceStatusPayload{
-			SourceID:     status.SourceID,
-			SourceKind:   string(status.SourceKind),
-			ProviderID:   status.ProviderID,
-			Priority:     status.Priority,
-			LastRefresh:  hostAPIModelCatalogTimeString(status.LastRefresh),
-			NextRefresh:  hostAPIModelCatalogTimeString(status.NextRefresh),
-			LastSuccess:  hostAPIModelCatalogTimeString(status.LastSuccess),
-			LastError:    modelcatalog.RedactString(status.LastError),
-			RefreshState: string(status.RefreshState),
-			RowCount:     status.RowCount,
-			Stale:        status.Stale,
-		})
-	}
-	return payloads
+	return modelcatalogprojection.SourceStatuses(statuses)
 }
 
 func hostAPICostPayloadFromModel(model modelcatalog.Model) *apicontract.ModelCatalogCostPayload {
-	if model.CostInputPerMillion == nil &&
-		model.CostOutputPerMillion == nil &&
-		model.CostCacheReadPerMillion == nil &&
-		model.CostCacheWritePerMillion == nil &&
-		model.CostReasoningPerMillion == nil {
-		return nil
-	}
-	return &apicontract.ModelCatalogCostPayload{
-		InputPerMillion:      model.CostInputPerMillion,
-		OutputPerMillion:     model.CostOutputPerMillion,
-		CacheReadPerMillion:  model.CostCacheReadPerMillion,
-		CacheWritePerMillion: model.CostCacheWritePerMillion,
-		ReasoningPerMillion:  model.CostReasoningPerMillion,
-	}
-}
-
-func hostAPIOptionalModelCatalogString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}
-
-func hostAPIModelCatalogTimeString(value time.Time) string {
-	if value.IsZero() {
-		return ""
-	}
-	return value.UTC().Format(time.RFC3339Nano)
+	return modelcatalogprojection.Cost(model)
 }

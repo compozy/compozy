@@ -1,6 +1,7 @@
 package loop_test
 
 import (
+	"reflect"
 	"testing"
 
 	loop "github.com/compozy/compozy/internal/loop"
@@ -317,11 +318,10 @@ func assertResolvedRuntime(
 	wantSource loop.RuntimeProvenance,
 ) {
 	t.Helper()
-	if got.Runtime.Provider != wantRuntime.Provider || got.Runtime.Model != wantRuntime.Model ||
-		got.Runtime.Reasoning != wantRuntime.Reasoning || got.Runtime.Speed != wantRuntime.Speed {
+	if !reflect.DeepEqual(got.Runtime, wantRuntime) {
 		t.Fatalf("ResolvedRuntime.Runtime = %#v, want %#v", got.Runtime, wantRuntime)
 	}
-	if got.Source != wantSource {
+	if !reflect.DeepEqual(got.Source, wantSource) {
 		t.Fatalf("ResolvedRuntime.Source = %#v, want %#v", got.Source, wantSource)
 	}
 }

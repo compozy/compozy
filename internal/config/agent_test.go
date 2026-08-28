@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/frontmatter"
 	"github.com/compozy/compozy/internal/reasoning"
 	"github.com/compozy/compozy/internal/resources"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/goccy/go-yaml"
 )
 
@@ -77,12 +78,14 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 	t.Run("Should render and digest semantic definitions canonically", func(t *testing.T) {
 		t.Parallel()
 		draft := AgentDefinitionDraft{
-			Name:      "coder",
-			Provider:  "codex",
-			Tools:     []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
-			Toolsets:  []string{"compozy__network", "compozy__catalog"},
-			DenyTools: []string{"compozy__write_*", "compozy__delete_*"},
-			Skills:    AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
+			Name:       "coder",
+			Provider:   "codex",
+			Speed:      speedpkg.SpeedFast,
+			ACPOptions: []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+			Tools:      []string{"compozy__zeta", "compozy__alpha", "compozy__zeta"},
+			Toolsets:   []string{"compozy__network", "compozy__catalog"},
+			DenyTools:  []string{"compozy__write_*", "compozy__delete_*"},
+			Skills:     AgentSkillsConfig{Disabled: []string{"zeta", "alpha"}},
 			MCPServers: []MCPServer{{
 				Name:      "zeta",
 				Transport: MCPServerTransportStdio,
@@ -116,6 +119,12 @@ func TestAgentDefinitionLifecycleHelpers(t *testing.T) {
 		if !slices.Equal(firstAgent.Tools, []string{"compozy__alpha", "compozy__zeta"}) ||
 			!slices.Equal(secondAgent.Skills.Disabled, []string{"alpha", "zeta"}) {
 			t.Fatalf("canonical agent ordering = %#v", firstAgent)
+		}
+		firstOptions := firstAgent.ACPOptionsValue()
+		if firstAgent.SpeedValue() != speedpkg.SpeedFast || len(firstOptions) != 1 ||
+			firstOptions[0].ID != "thinking" || firstOptions[0].BoolValue == nil ||
+			!*firstOptions[0].BoolValue {
+			t.Fatalf("canonical runtime defaults = %#v", firstAgent)
 		}
 		firstDigest, err := AgentDefinitionDigest(firstAgent)
 		if err != nil {
@@ -911,6 +920,12 @@ name: coder
 provider: claude
 model: claude-opus
 reasoning_effort: max
+speed: fast
+acp_options:
+  - id: context
+    value_id: 1m
+  - id: thinking
+    bool_value: true
 tools: ["compozy__skill_view", "mcp__github__*"]
 toolsets: ["compozy__catalog"]
 deny_tools: ["compozy__task_*"]
@@ -928,8 +943,15 @@ You are a senior Go engineer.
 		}
 
 		if agent.Name != "coder" || agent.Provider != "claude" || agent.Model != "claude-opus" ||
-			agent.ReasoningEffort != providerReasoningMaxKey {
+			agent.ReasoningEffort != providerReasoningMaxKey || agent.SpeedValue() != speedpkg.SpeedFast {
 			t.Fatalf("ParseAgentDef() = %#v", agent)
+		}
+		agentOptions := agent.ACPOptionsValue()
+		if len(agentOptions) != 2 || agentOptions[0].ID != "context" ||
+			agentOptions[0].ValueID != "1m" || agentOptions[0].BoolValue != nil ||
+			agentOptions[1].ID != "thinking" || agentOptions[1].ValueID != "" ||
+			agentOptions[1].BoolValue == nil || !*agentOptions[1].BoolValue {
+			t.Fatalf("ParseAgentDef() ACPOptions = %#v", agentOptions)
 		}
 		if len(agent.Tools) != 2 {
 			t.Fatalf("ParseAgentDef() Tools = %#v", agent.Tools)
@@ -1192,6 +1214,88 @@ prompt`))
 			t.Fatalf("InvalidEffortError = %#v, want agent reasoning path and ultra value", invalid)
 		}
 	})
+
+	t.Run("Should reject invalid authored runtime defaults", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			content string
+			wantErr string
+		}{
+			{
+				name: "Should reject invalid speed",
+				content: `---
+name: coder
+speed: turbo
+---
+
+Prompt.
+`,
+				wantErr: "speed",
+			},
+			{
+				name: "Should reject an ACP option without a value",
+				content: `---
+name: coder
+acp_options:
+  - id: thinking
+---
+
+Prompt.
+`,
+				wantErr: "exactly one value_id or bool_value",
+			},
+			{
+				name: "Should reject an ACP option with both value forms",
+				content: `---
+name: coder
+acp_options:
+  - id: thinking
+    value_id: high
+    bool_value: true
+---
+
+Prompt.
+`,
+				wantErr: "exactly one value_id or bool_value",
+			},
+			{
+				name: "Should reject duplicate ACP option IDs",
+				content: `---
+name: coder
+acp_options:
+  - id: thinking
+    bool_value: true
+  - id: thinking
+    bool_value: false
+---
+
+Prompt.
+`,
+				wantErr: "selected more than once",
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := ParseAgentDef([]byte(tt.content))
+				assertErrorContains(t, err, tt.wantErr)
+			})
+		}
+	})
+}
+
+func assertErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want error containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want error containing %q", err, want)
+	}
 }
 
 func TestParseAgentDefAllowsMissingProvider(t *testing.T) {

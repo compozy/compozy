@@ -247,9 +247,9 @@ func (q *Queries) SweepExpiredSessionAttachLocks(ctx context.Context, now string
 
 const upsertSession = `-- name: UpsertSession :execrows
 INSERT INTO sessions (
-  profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
+  profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
-  selected_provider, selected_model, selected_reasoning_effort, selected_speed,
+  selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
   runtime_selection_revision, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
@@ -262,39 +262,39 @@ INSERT INTO sessions (
   created_at, updated_at
 ) SELECT
   ?1, ?2, ?3, ?4, ?5, ?6,
-  ?7, ?8, ?9,
-  ?10, ?11, ?12,
-  ?13, ?14,
-  ?15, ?16, ?17,
-  ?18, ?19, ?20,
-  ?21,
-  ?22, ?23, ?24,
-  ?25, ?26, ?27, ?28,
-  ?29, ?30, ?31, ?32,
-  ?33, ?34, ?35, ?36,
-  ?37, ?38, ?39, ?40,
-  ?41, ?42, ?43,
-  ?44, ?45, ?46,
-  ?47, ?48, ?49,
-  ?50, ?51, ?52,
-  ?53, ?54, ?55,
-  ?56, ?57, ?58,
-  ?59, ?60,
-  ?61, ?62
-WHERE ?21 IS NULL
+  ?7, ?8, ?9, ?10,
+  ?11, ?12, ?13,
+  ?14, ?15,
+  ?16, ?17, ?18,
+  ?19, ?20, ?21, ?22,
+  ?23,
+  ?24, ?25, ?26,
+  ?27, ?28, ?29, ?30,
+  ?31, ?32, ?33, ?34,
+  ?35, ?36, ?37, ?38,
+  ?39, ?40, ?41, ?42,
+  ?43, ?44, ?45,
+  ?46, ?47, ?48,
+  ?49, ?50, ?51,
+  ?52, ?53, ?54,
+  ?55, ?56, ?57,
+  ?58, ?59, ?60,
+  ?61, ?62,
+  ?63, ?64
+WHERE ?23 IS NULL
    OR EXISTS (
       SELECT 1
       FROM worktrees
-      WHERE worktrees.workspace_id = ?20
-        AND worktrees.id = ?21
+      WHERE worktrees.workspace_id = ?22
+        AND worktrees.id = ?23
         AND worktrees.state = 'ready'
    )
    OR EXISTS (
       SELECT 1
       FROM sessions AS existing_session
       WHERE existing_session.id = ?2
-        AND existing_session.workspace_id = ?20
-        AND existing_session.worktree_id IS ?21
+        AND existing_session.workspace_id = ?22
+        AND existing_session.worktree_id IS ?23
    )
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
@@ -303,6 +303,7 @@ ON CONFLICT(id) DO UPDATE SET
 	model = excluded.model,
 	reasoning_effort = excluded.reasoning_effort,
 	speed = excluded.speed,
+	acp_options_json = excluded.acp_options_json,
 	speed_resolution_json = excluded.speed_resolution_json,
 	runtime_status = excluded.runtime_status,
 	runtime_transition = excluded.runtime_transition,
@@ -313,6 +314,7 @@ ON CONFLICT(id) DO UPDATE SET
 	selected_model = excluded.selected_model,
 	selected_reasoning_effort = excluded.selected_reasoning_effort,
 	selected_speed = excluded.selected_speed,
+	selected_acp_options_json = excluded.selected_acp_options_json,
 	runtime_selection_revision = excluded.runtime_selection_revision,
   workspace_id = excluded.workspace_id,
 	worktree_id = excluded.worktree_id,
@@ -369,6 +371,7 @@ type UpsertSessionParams struct {
 	Model                    string         `json:"model"`
 	ReasoningEffort          string         `json:"reasoning_effort"`
 	Speed                    string         `json:"speed"`
+	AcpOptionsJson           string         `json:"acp_options_json"`
 	SpeedResolutionJson      string         `json:"speed_resolution_json"`
 	RuntimeStatus            string         `json:"runtime_status"`
 	RuntimeTransition        string         `json:"runtime_transition"`
@@ -379,6 +382,7 @@ type UpsertSessionParams struct {
 	SelectedModel            string         `json:"selected_model"`
 	SelectedReasoningEffort  string         `json:"selected_reasoning_effort"`
 	SelectedSpeed            string         `json:"selected_speed"`
+	SelectedAcpOptionsJson   string         `json:"selected_acp_options_json"`
 	RuntimeSelectionRevision int64          `json:"runtime_selection_revision"`
 	WorkspaceID              string         `json:"workspace_id"`
 	WorktreeID               sql.NullString `json:"worktree_id"`
@@ -435,6 +439,7 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.Model,
 		arg.ReasoningEffort,
 		arg.Speed,
+		arg.AcpOptionsJson,
 		arg.SpeedResolutionJson,
 		arg.RuntimeStatus,
 		arg.RuntimeTransition,
@@ -445,6 +450,7 @@ func (q *Queries) UpsertSession(ctx context.Context, arg UpsertSessionParams) (i
 		arg.SelectedModel,
 		arg.SelectedReasoningEffort,
 		arg.SelectedSpeed,
+		arg.SelectedAcpOptionsJson,
 		arg.RuntimeSelectionRevision,
 		arg.WorkspaceID,
 		arg.WorktreeID,

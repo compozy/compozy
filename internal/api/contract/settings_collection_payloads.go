@@ -82,6 +82,7 @@ type SettingsProviderFallbackPayload struct {
 type SettingsProviderItemPayload struct {
 	Name             string                                    `json:"name"`
 	Settings         SettingsProviderSettingsPayload           `json:"settings"`
+	RuntimeStrategy  ProviderRuntimeStrategy                   `json:"runtime_strategy,omitempty"`
 	Default          bool                                      `json:"default"`
 	CommandAvailable bool                                      `json:"command_available"`
 	Credentials      []SettingsProviderCredentialStatusPayload `json:"credentials,omitempty"`

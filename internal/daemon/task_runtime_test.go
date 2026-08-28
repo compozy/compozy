@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/procutil"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/testutil"
@@ -1400,10 +1401,15 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 			ExecutionProfile: &taskpkg.ExecutionProfile{
 				TaskID: "task-profile",
 				Worker: taskpkg.WorkerProfile{
-					Mode:      taskpkg.WorkerModeSelect,
-					AgentName: "builder",
-					Provider:  "codex",
-					Model:     "gpt-5.4",
+					Mode:            taskpkg.WorkerModeSelect,
+					AgentName:       "builder",
+					Provider:        "cursor",
+					Model:           "grok-4.6",
+					ReasoningEffort: "xhigh",
+					Speed:           speedpkg.SpeedFast,
+					ACPOptions: []taskpkg.ACPOptionSelection{{
+						ID: "thinking", BoolValue: new(true),
+					}},
 				},
 			},
 		})
@@ -1414,11 +1420,16 @@ func TestTaskSessionBridgeStartTaskSessionAppliesExecutionProfileWorkerRuntime(t
 		if got, want := createCall.AgentName, "builder"; got != want {
 			t.Fatalf("createCall.AgentName = %q, want %q", got, want)
 		}
-		if got, want := createCall.Provider, "codex"; got != want {
+		if got, want := createCall.Provider, "cursor"; got != want {
 			t.Fatalf("createCall.Provider = %q, want %q", got, want)
 		}
-		if got, want := createCall.Model, "gpt-5.4"; got != want {
+		if got, want := createCall.Model, "grok-4.6"; got != want {
 			t.Fatalf("createCall.Model = %q, want %q", got, want)
+		}
+		if createCall.ReasoningEffort != "xhigh" || createCall.Speed != speedpkg.SpeedFast ||
+			len(createCall.ACPOptions) != 1 || createCall.ACPOptions[0].BoolValue == nil ||
+			!*createCall.ACPOptions[0].BoolValue {
+			t.Fatalf("createCall runtime = %#v, want xhigh/fast/thinking=true", createCall)
 		}
 	})
 

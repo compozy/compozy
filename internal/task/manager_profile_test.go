@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestTaskManagerExecutionProfiles(t *testing.T) {
@@ -122,14 +124,29 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		profile, err := manager.SetExecutionProfile(context.Background(), "task-1", &ExecutionProfile{
 			Coordinator: CoordinatorProfile{Mode: CoordinatorModeGuided, Guidance: "Keep the worker focused."},
 			Worker: WorkerProfile{
-				Mode:                  WorkerModeSelect,
-				AgentName:             "coder",
+				Mode:            WorkerModeSelect,
+				AgentName:       "coder",
+				Provider:        "cursor",
+				Model:           "grok-4.6",
+				ReasoningEffort: "xhigh",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(true)},
+					{ID: "context", ValueID: "1m"},
+				},
 				AllowedAgentNames:     []string{"coder"},
 				RequiredCapabilities:  []string{"go"},
 				PreferredCapabilities: []string{"tests"},
 			},
 			Review: ReviewProfile{
-				AgentName:         "reviewer",
+				AgentName:       "reviewer",
+				Provider:        "claude",
+				Model:           "opus-5",
+				ReasoningEffort: "high",
+				Speed:           speedpkg.SpeedNormal,
+				ACPOptions: []ACPOptionSelection{{
+					ID: "thinking", BoolValue: new(false),
+				}},
 				AllowedAgentNames: []string{"reviewer"},
 			},
 			Sandbox: SandboxPolicy{Mode: SandboxModeRef, SandboxRef: "workspace"},
@@ -143,6 +160,12 @@ func TestTaskManagerExecutionProfiles(t *testing.T) {
 		}
 		if got, want := store.profiles["task-1"].Worker.AgentName, "coder"; got != want {
 			t.Fatalf("stored Worker.AgentName = %q, want %q", got, want)
+		}
+		storedWorker := store.profiles["task-1"].Worker
+		if storedWorker.ReasoningEffort != "xhigh" || storedWorker.Speed != speedpkg.SpeedFast ||
+			len(storedWorker.ACPOptions) != 2 || storedWorker.ACPOptions[0].ID != "context" ||
+			storedWorker.ACPOptions[1].ID != "thinking" {
+			t.Fatalf("stored Worker runtime = %#v, want canonical full runtime", storedWorker)
 		}
 		if !containsEventType(store.events, taskEventProfileUpdated) {
 			t.Fatalf("events = %#v, want %q", sortedEventTypes(store.events), taskEventProfileUpdated)

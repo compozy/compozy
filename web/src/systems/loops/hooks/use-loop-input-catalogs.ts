@@ -6,7 +6,12 @@ import type { RuntimeProviderOption } from "@/systems/runtime";
 import { useSessions } from "@/systems/session";
 import { useSkills } from "@/systems/skill";
 import { useVaultSecrets } from "@/systems/vault";
-import { useWorkspace, useWorkspaces, useWorktrees } from "@/systems/workspace";
+import {
+  useWorkspace,
+  useWorkspaces,
+  useWorktrees,
+  workspaceProviderToOption,
+} from "@/systems/workspace";
 
 import type {
   LoopEntityCatalog,
@@ -91,12 +96,7 @@ export function useLoopInputCatalogValue(
   const workspaceQuery = useWorkspace(workspaceId, { enabled: needs.runtime });
 
   const runtimeProviders: RuntimeProviderOption[] = (workspaceQuery.data?.providers ?? []).map(
-    provider => ({
-      id: provider.name,
-      name: provider.display_name || provider.name,
-      harness: provider.harness,
-      runtime_provider: provider.runtime_provider,
-    })
+    workspaceProviderToOption
   );
   const runtimeCatalog = useRuntimeModelCatalog(runtimeProviders, {
     enabled: needs.runtime && runtimeProviders.length > 0,

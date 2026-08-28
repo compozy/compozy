@@ -80,7 +80,7 @@ func processRecordContext(parent context.Context, timeout time.Duration) (contex
 }
 
 func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
-	if err := opts.Validate(); err != nil {
+	if err := opts.validateBase(); err != nil {
 		return StartOpts{}, err
 	}
 
@@ -109,6 +109,10 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 	if normalized.MCPServers != nil {
 		normalized.MCPServers = append([]compozyconfig.MCPServer(nil), normalized.MCPServers...)
 	}
+	normalized.ACPOptions, err = normalizeSessionConfigOptionSelections(normalized.ACPOptions)
+	if err != nil {
+		return StartOpts{}, fmt.Errorf("acp: normalize start ACP options: %w", err)
+	}
 	normalized.SystemPrompt = strings.TrimSpace(normalized.SystemPrompt)
 	if strings.TrimSpace(normalized.SystemPrompt) == "" {
 		normalized.SystemPromptDelivery = ""
@@ -116,6 +120,10 @@ func normalizeStartOpts(opts StartOpts) (StartOpts, error) {
 		normalized.SystemPromptDelivery = SystemPromptDeliveryFirstTurnPrefix
 	}
 	normalized.PreferredModel = strings.TrimSpace(normalized.PreferredModel)
+	normalized.LaunchModelID = strings.TrimSpace(normalized.LaunchModelID)
+	if normalized.RuntimeStrategy == "" {
+		normalized.RuntimeStrategy = RuntimeApplicationSessionConfig
+	}
 	normalized.ReasoningEffort = strings.TrimSpace(normalized.ReasoningEffort)
 	if normalized.Speed != "" {
 		parsedSpeed, parseErr := speedpkg.Parse(string(normalized.Speed))

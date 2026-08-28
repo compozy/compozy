@@ -1111,7 +1111,7 @@ func TestWindowTabCloseAndReopenV3(t *testing.T) {
 
 func TestDeletedSessionWindowReconciliation(t *testing.T) {
 	t.Run(
-		"Should close every matching placement without reopening or disturbing another workspace",
+		"Should retire matching windows to the session empty route without disturbing another workspace",
 		func(t *testing.T) {
 			t.Parallel()
 			environment := newTestEnvironment(t, DefaultConfig(), "workspace-a", "workspace-b")
@@ -1256,7 +1256,7 @@ func TestDeletedSessionWindowReconciliation(t *testing.T) {
 				t.Fatalf("ReconcileDeletedSession() error = %v", err)
 			}
 			update := <-subscription.Updates()
-			if update.Event == nil || update.Event.CommandID != CommandWindowClose ||
+			if update.Event == nil || update.Event.CommandID != CommandWindowNavigate ||
 				!slices.Equal(update.Event.Changes.WindowIDs, []WindowID{
 					"deleted-floating",
 					"deleted-minimized",
@@ -1280,6 +1280,9 @@ func TestDeletedSessionWindowReconciliation(t *testing.T) {
 					before.Revision+1,
 				)
 			}
+			if _, exists := after.Windows["deleted-closed"]; exists {
+				t.Fatal("already-closed deleted session window returned to the snapshot")
+			}
 			for _, windowID := range []WindowID{
 				"deleted-floating",
 				"deleted-tiled",
@@ -1287,24 +1290,30 @@ func TestDeletedSessionWindowReconciliation(t *testing.T) {
 				"deleted-pinned",
 				"deleted-minimized",
 				"deleted-other-desktop",
-				"deleted-closed",
 			} {
-				if _, exists := after.Windows[windowID]; exists {
-					t.Fatalf("deleted window %q remains in snapshot", windowID)
-				}
+				assertRetiredSessionWindow(t, after, windowID)
+			}
+			if !after.Windows["deleted-pinned"].Pinned {
+				t.Fatal("retired pinned window lost its pin")
+			}
+			if !after.Windows["deleted-minimized"].Minimized {
+				t.Fatal("retired minimized window was restored")
 			}
 			for _, windowID := range []WindowID{"keep-stack", "keep-session", "keep-latest"} {
 				if _, exists := after.Windows[windowID]; !exists {
 					t.Fatalf("unrelated window %q was removed", windowID)
 				}
 			}
+			if windowBelongsToSession(after.Windows["keep-session"], deletedSession) {
+				t.Fatal("unrelated session window was retargeted")
+			}
 			desktopTwoIndex, desktopTwoExists := desktopIndexByID(&after, "desktop-two")
 			if !desktopTwoExists {
 				t.Fatal("deleted-only desktop was removed")
 			}
 			desktopTwo := after.Desktops[desktopTwoIndex]
-			if len(desktopTwo.Groups) != 0 || len(desktopTwo.Floating) != 0 || len(desktopTwo.FloatingStacks) != 0 {
-				t.Fatalf("deleted-only desktop was not left empty: %+v", after.Desktops[desktopTwoIndex])
+			if len(desktopTwo.Floating) != 1 || desktopTwo.Floating[0] != "deleted-other-desktop" {
+				t.Fatalf("retired window left its desktop: %+v", desktopTwo)
 			}
 			requireValidSnapshot(t, after)
 
@@ -1315,11 +1324,6 @@ func TestDeletedSessionWindowReconciliation(t *testing.T) {
 			if len(clients) != 1 || valueOrZero(clients[0].FocusedWindowID) != "keep-latest" ||
 				clients[0].ActiveDesktopID != "desktop-default" {
 				t.Fatalf("repaired client view = %+v", clients)
-			}
-			for _, windowID := range clients[0].FocusOrder {
-				if strings.HasPrefix(string(windowID), "deleted-") {
-					t.Fatalf("deleted window remains in focus order = %+v", clients[0].FocusOrder)
-				}
 			}
 
 			otherWorkspace := mustSnapshot(t, environment.manager, "workspace-b")
@@ -1433,6 +1437,25 @@ func TestDeletedSessionWindowReconciliation(t *testing.T) {
 			t.Fatalf("evicted-entry reconciliation snapshot = %+v, want one revision and empty history", after)
 		}
 	})
+}
+
+func assertRetiredSessionWindow(t *testing.T, snapshot Snapshot, windowID WindowID) {
+	t.Helper()
+	window, exists := snapshot.Windows[windowID]
+	if !exists {
+		t.Fatalf("retired window %q missing", windowID)
+	}
+	if window.Route.Pathname != sessionEmptyRoutePath || window.InstanceKey != nil ||
+		len(window.NavStack) != 0 {
+		t.Fatalf(
+			"retired window %q route=%q instance=%v nav=%d, want %s with cleared instance and stack",
+			windowID,
+			window.Route.Pathname,
+			window.InstanceKey,
+			len(window.NavStack),
+			sessionEmptyRoutePath,
+		)
+	}
 }
 
 func openSessionTestWindow(
@@ -1812,6 +1835,25 @@ func TestWindowNavigation(t *testing.T) {
 		if !rekeyedOnly.Applied || window.InstanceKey == nil || *window.InstanceKey != sameRouteKey {
 			t.Fatalf("Execute(same-route retarget) window = %+v applied=%v, want instance key change applied",
 				window, rekeyedOnly.Applied)
+		}
+
+		emptyKey := ""
+		cleared := executeTestCommand(
+			t,
+			environment.manager,
+			"workspace-a",
+			nil,
+			NavigateWindowCommand{
+				WindowID:    "w1",
+				Route:       testRoute(sessionEmptyRoutePath),
+				InstanceKey: &emptyKey,
+				Mode:        NavigateReplace,
+			},
+		)
+		window = cleared.Snapshot.Windows["w1"]
+		if !cleared.Applied || window.InstanceKey != nil || window.Route.Pathname != sessionEmptyRoutePath {
+			t.Fatalf("Execute(empty-key retarget) window = %+v applied=%v, want cleared instance key",
+				window, cleared.Applied)
 		}
 
 		snapshot, err := environment.manager.Snapshot(t.Context(), "workspace-a")

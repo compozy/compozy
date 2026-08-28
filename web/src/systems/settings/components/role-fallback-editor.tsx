@@ -5,6 +5,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { Button, cn } from "@compozy/ui";
 
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
+import { normalizeRuntimeACPSelections } from "@/systems/runtime";
 
 import type { RolesRuntimeOptions } from "../hooks/use-roles-runtime-options";
 import type { RoleRuntimeValue } from "../lib/roles-config";
@@ -88,6 +89,13 @@ export function RoleFallbackEditor({
           {entries.map((entry, index) => {
             const id = fallbackFieldId(role, index);
             const error = errors[id];
+            const runtimeValue: RoleRuntimeValue = {
+              provider: entry.provider,
+              model: entry.model,
+              reasoning_effort: entry.reasoning_effort,
+              speed: entry.speed ?? "",
+              acp_options: normalizeRuntimeACPSelections(entry.acp_options),
+            };
             return (
               <li
                 key={rowKeys.keys[index]}
@@ -105,7 +113,7 @@ export function RoleFallbackEditor({
                     className="min-w-0 flex-1"
                   >
                     <RoleRuntimeSelector
-                      value={entry}
+                      value={runtimeValue}
                       options={options}
                       disabled={disabled}
                       triggerTestId={`${id}-select`}

@@ -25,7 +25,9 @@ const desktop = {
 };
 const sessionWindowViewSpy = vi.fn((_props: Record<string, unknown>) => null);
 const sessionWindowNoticeSpy = vi.fn((_props: Record<string, unknown>) => null);
+const sessionWindowEmptySpy = vi.fn((_props: Record<string, unknown>) => null);
 const queryOptionsSpy = vi.fn((_options: Record<string, unknown>) => undefined);
+const userRetireSession = vi.fn(() => Promise.resolve(true));
 const userClose = vi.fn(() => Promise.resolve(true));
 const userOpen = vi.fn(() => Promise.resolve(null));
 const workspace = { runtimeWorkspaceId: "ws-1" as string | null };
@@ -107,10 +109,15 @@ vi.mock("../../../hooks/use-desktop", () => ({
 vi.mock("../../../hooks/use-os-shell", () => ({
   useOsShell: () => ({
     coordinator: {
+      userRetireSession,
       userClose,
       userOpen,
     },
   }),
+}));
+
+vi.mock("../session-window-empty", () => ({
+  SessionWindowEmpty: (props: Record<string, unknown>) => sessionWindowEmptySpy(props),
 }));
 
 vi.mock("../session-window-view", () => ({
@@ -136,10 +143,13 @@ describe("SessionWindow", () => {
     documentActivity.active = true;
     sessionWindowViewSpy.mockClear();
     sessionWindowNoticeSpy.mockClear();
+    sessionWindowEmptySpy.mockClear();
     queryOptionsSpy.mockClear();
     scopedDetailSpy.mockClear();
     ownerViewSpy.mockClear();
     foreignState.current = { status: "disabled" };
+    userRetireSession.mockClear();
+    userRetireSession.mockResolvedValue(true);
     userClose.mockClear();
     userClose.mockResolvedValue(true);
     userOpen.mockClear();
@@ -203,17 +213,18 @@ describe("SessionWindow", () => {
       { profile: "marketing" },
       expect.objectContaining({ enabled: true, liveTail: false })
     );
-    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
     await waitFor(() =>
-      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "agents",
-        route: { pathname: "/agents/qa-agent", search: {} },
-      })
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(userClose).not.toHaveBeenCalled();
+    expect(userOpen).not.toHaveBeenCalled();
+    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ windowId: "session:sess-1" })
     );
   });
 
-  it("Should return to the agent after the daemon already removed the deleted session window", async () => {
-    userClose.mockResolvedValue(false);
+  it("Should retire the tab after the daemon already cleared the deleted session window", async () => {
+    userRetireSession.mockResolvedValue(false);
     render(<SessionWindow windowId="session:sess-1" />);
     const props = sessionWindowViewSpy.mock.lastCall?.[0] as
       | { onDeleteSuccess?: () => void }
@@ -221,13 +232,11 @@ describe("SessionWindow", () => {
 
     act(() => props?.onDeleteSuccess?.());
 
-    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
     await waitFor(() =>
-      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "agents",
-        route: { pathname: "/agents/qa-agent", search: {} },
-      })
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
     );
+    expect(userClose).not.toHaveBeenCalled();
+    expect(userOpen).not.toHaveBeenCalled();
   });
 
   it("Should release operator presence when the browser document loses focus", () => {
@@ -255,29 +264,24 @@ describe("SessionWindow", () => {
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
 
-  it("Should show the truthful gone notice and return a restored missing session to its agent list (UT-087)", async () => {
+  it("Should retire a restored missing session onto the empty session route (UT-087)", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");
     queryState.isError = true;
     foreignState.current = { status: "missing" };
     render(<SessionWindow windowId="session:sess-1" />);
 
-    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        error: expect.objectContaining({ message: "Session not found: sess-1" }),
-        session: undefined,
-      })
-    );
-    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
     await waitFor(() =>
-      expect(userOpen).toHaveBeenCalledExactlyOnceWith({
-        app: "agents",
-        route: { pathname: "/agents/qa-agent", search: {} },
-      })
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(userClose).not.toHaveBeenCalled();
+    expect(userOpen).not.toHaveBeenCalled();
+    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ windowId: "session:sess-1" })
     );
   });
 
-  it("Should retain the same gone-state recovery path when the active tab's drilled session disappears (UT-089)", async () => {
+  it("Should retain the same empty-route recovery when the active tab's drilled session disappears (UT-089)", async () => {
     queryState.data = undefined;
     queryState.error = new SessionNotFoundError("sess-1");
     queryState.isError = true;
@@ -285,17 +289,12 @@ describe("SessionWindow", () => {
     desktop.focusedId = "session:sess-1";
     render(<SessionWindow windowId="session:sess-1" />);
 
-    await waitFor(() => expect(userOpen).toHaveBeenCalledTimes(1));
-    expect(sessionWindowViewSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        error: expect.objectContaining({ message: "Session not found: sess-1" }),
-        session: undefined,
-      })
+    await waitFor(() => expect(userRetireSession).toHaveBeenCalledTimes(1));
+    expect(userClose).not.toHaveBeenCalled();
+    expect(userOpen).not.toHaveBeenCalled();
+    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ windowId: "session:sess-1" })
     );
-    expect(userOpen).toHaveBeenLastCalledWith({
-      app: "agents",
-      route: { pathname: "/agents/qa-agent", search: {} },
-    });
   });
 
   it("Should read the session through the profile-enforced route, keyed by the active lens", () => {
@@ -321,6 +320,7 @@ describe("SessionWindow", () => {
 
     // Closing here is what made a visible session look deleted: the scoped miss
     // alone does not mean gone, only "not in this profile".
+    expect(userRetireSession).not.toHaveBeenCalled();
     expect(userClose).not.toHaveBeenCalled();
     expect(userOpen).not.toHaveBeenCalled();
     expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-1", "sess-1", false);
@@ -348,6 +348,7 @@ describe("SessionWindow", () => {
         session,
       })
     );
+    expect(userRetireSession).not.toHaveBeenCalled();
     expect(userClose).not.toHaveBeenCalled();
     expect(sessionWindowNoticeSpy).not.toHaveBeenCalled();
   });
@@ -366,10 +367,13 @@ describe("SessionWindow", () => {
 
     expect(useSessionPresenceSpy).toHaveBeenLastCalledWith("ws-2", "sess-1", false);
     expect(ownerViewSpy).not.toHaveBeenCalled();
-    expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({
-      message: "Session not found: sess-1",
-    });
-    await waitFor(() => expect(userClose).toHaveBeenCalledExactlyOnceWith("session:sess-1"));
+    await waitFor(() =>
+      expect(userRetireSession).toHaveBeenCalledExactlyOnceWith("session:sess-1")
+    );
+    expect(userClose).not.toHaveBeenCalled();
+    expect(sessionWindowEmptySpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ windowId: "session:sess-1" })
+    );
   });
 
   it("Should surface a failed owner lookup instead of claiming the session is gone", async () => {
@@ -383,6 +387,7 @@ describe("SessionWindow", () => {
     await waitFor(() =>
       expect(sessionWindowNoticeSpy).toHaveBeenLastCalledWith({ message: "Owner lookup failed" })
     );
+    expect(userRetireSession).not.toHaveBeenCalled();
     expect(userClose).not.toHaveBeenCalled();
   });
 });

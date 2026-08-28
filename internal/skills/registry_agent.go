@@ -105,10 +105,18 @@ func (r *Registry) ForAgentDefSession(
 	}
 
 	agentSkillsDir := filepath.Join(filepath.Dir(agent.SourcePath), compozyconfig.SkillsDirName)
-	agentLocalSkills, err := r.loadAgentLocalSkills(ctx, agentSkillsDir, target, agent.Skills.Disabled)
+	agentLocalSkills, diagnostics, err := r.loadAgentLocalSkills(ctx, agentSkillsDir, target, agent.Skills.Disabled)
 	if err != nil {
-		r.emitSkillsLoadFailed(ctx, resolvedSkillEventProfileID(resolved), resourceWorkspaceKey(resolved), target, err)
 		return nil, err
+	}
+	for _, diagnostic := range diagnostics {
+		r.emitSkillsLoadFailed(
+			ctx,
+			resolvedSkillEventProfileID(resolved),
+			resourceWorkspaceKey(resolved),
+			target,
+			diagnostic,
+		)
 	}
 	r.emitEventSummaries(
 		ctx,
@@ -273,34 +281,35 @@ func (r *Registry) loadAgentLocalSkills(
 	root string,
 	agentName string,
 	disabledSkills []string,
-) (map[string]*Skill, error) {
+) (map[string]*Skill, []error, error) {
 	trimmedRoot := strings.TrimSpace(root)
 	if trimmedRoot == "" {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	paths, _, err := scanDirectoryWithSnapshots(trimmedRoot)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, nil, nil
 		}
-		return nil, wrapAgentLocalLoadError("sidecar", trimmedRoot, agentName, err)
+		return nil, []error{wrapAgentLocalLoadError("sidecar", trimmedRoot, agentName, err)}, nil
 	}
 	if len(paths) == 0 {
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	skills := make(map[string]*Skill, len(paths))
+	diagnostics := make([]error, 0)
 	for _, skillPath := range paths {
 		if err := checkRegistryContext(ctx); err != nil {
-			return nil, err
+			return nil, diagnostics, err
 		}
 		if err := r.loadAgentLocalSkill(skills, skillPath, agentName, disabledSkills); err != nil {
-			return nil, err
+			diagnostics = append(diagnostics, err)
 		}
 	}
 
-	return skills, nil
+	return skills, diagnostics, nil
 }
 
 func (r *Registry) loadAgentLocalSkill(

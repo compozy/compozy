@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/session"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func createDreamSessionWithFallback(
@@ -16,19 +18,27 @@ func createDreamSessionWithFallback(
 	goal string,
 	workspace string,
 ) (*session.Session, error) {
-	create := func(provider string, model string, reasoningEffort string) (*session.Session, error) {
+	create := func(
+		provider string,
+		model string,
+		reasoningEffort string,
+		speed speedpkg.Speed,
+		options []acp.SessionConfigOptionSelection,
+	) (*session.Session, error) {
 		return sessions.Create(ctx, session.CreateOpts{
 			AgentName:       strings.TrimSpace(route.AgentName),
 			Provider:        strings.TrimSpace(provider),
 			Model:           strings.TrimSpace(model),
 			ReasoningEffort: strings.TrimSpace(reasoningEffort),
+			Speed:           speed,
+			ACPOptions:      acp.CloneSessionConfigOptionSelections(options),
 			Name:            strings.TrimSpace(goal),
 			Workspace:       strings.TrimSpace(workspace),
 			Type:            session.SessionTypeDream,
 		})
 	}
 
-	created, err := create(route.Provider, route.Model, route.ReasoningEffort)
+	created, err := create(route.Provider, route.Model, route.ReasoningEffort, route.Speed, route.ACPOptions)
 	if created != nil {
 		return created, err
 	}
@@ -40,7 +50,13 @@ func createDreamSessionWithFallback(
 				return nil, errors.Join(append(attemptErrors, eventErr)...)
 			}
 		}
-		created, err = create(fallback.Provider, fallback.Model, fallback.ReasoningEffort)
+		created, err = create(
+			fallback.Provider,
+			fallback.Model,
+			fallback.ReasoningEffort,
+			fallback.Speed,
+			session.ACPOptionSelectionsFromConfig(fallback.ACPOptions),
+		)
 		if created != nil {
 			return created, err
 		}

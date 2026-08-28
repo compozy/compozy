@@ -1,5 +1,7 @@
 export const modelCatalogKeys = {
   all: ["model-catalog"] as const,
+  /** One browser-lifetime readiness refresh, separate from catalog invalidation. */
+  initialReadiness: ["model-catalog-readiness", "initial"] as const,
   /** Aggregate cross-provider list (`GET /api/model-catalog/models`). */
   allModels: (
     view?: "curated" | "all",

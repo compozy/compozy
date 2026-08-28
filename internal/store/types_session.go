@@ -56,20 +56,20 @@ func ValidStopReason(r StopReason) bool {
 
 // SessionInfo is the canonical session index row stored in the global database.
 type SessionInfo struct {
-	ID                       string
-	ProfileID                string
-	Name                     string
-	AgentName                string
-	Provider                 string
-	Model                    string
-	ReasoningEffort          string
-	Speed                    speedpkg.Speed
+	ID              string
+	ProfileID       string
+	Name            string
+	AgentName       string
+	Provider        string
+	Model           string
+	ReasoningEffort string
+	Speed           speedpkg.Speed
+	*SessionRuntimeDetails
 	SpeedResolution          *speedpkg.Resolution
 	RuntimeStatus            SessionRuntimeStatus
 	RuntimeTransition        SessionRuntimeTransition
 	RuntimeFailure           string
 	RuntimeGeneration        int64
-	RuntimeRecovery          *SessionRuntimeRecovery
 	SelectedRuntime          *SessionRuntimeSelection
 	RuntimeSelectionRevision int64
 	WorkspaceID              string
@@ -142,11 +142,18 @@ func (s SessionInfo) Validate() error {
 	if err := validateSessionRuntime(s.RuntimeStatus, s.RuntimeTransition, s.RuntimeFailure); err != nil {
 		return err
 	}
-	if err := validateSessionRuntimeRecovery(s.RuntimeStatus, s.RuntimeGeneration, s.RuntimeRecovery); err != nil {
+	if err := validateSessionRuntimeRecovery(
+		s.RuntimeStatus,
+		s.RuntimeGeneration,
+		s.RuntimeRecoveryValue(),
+	); err != nil {
 		return err
 	}
 	if err := validateSessionSpeedMetadata(s.Speed, s.SpeedResolution); err != nil {
 		return err
+	}
+	if err := ValidateSessionACPOptionSelections(s.ACPOptionsValue()); err != nil {
+		return fmt.Errorf("store: validate session ACP options: %w", err)
 	}
 	if err := ValidateSessionRuntimeSelection(s.SelectedRuntime, s.RuntimeSelectionRevision); err != nil {
 		return err
@@ -263,6 +270,7 @@ type SessionStateUpdate struct {
 	Model                    string
 	ReasoningEffort          string
 	Speed                    speedpkg.Speed
+	ACPOptions               []SessionACPOptionSelection
 	SpeedResolution          *speedpkg.Resolution
 	RuntimeStatus            SessionRuntimeStatus
 	RuntimeTransition        SessionRuntimeTransition
@@ -320,6 +328,9 @@ func (u SessionStateUpdate) Validate() error {
 		}
 		if err := validateSessionSpeedMetadata(u.Speed, u.SpeedResolution); err != nil {
 			return err
+		}
+		if err := ValidateSessionACPOptionSelections(u.ACPOptions); err != nil {
+			return fmt.Errorf("store: validate session ACP options: %w", err)
 		}
 	}
 	if u.SelectedRuntimeSet {

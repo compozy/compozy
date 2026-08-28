@@ -5,20 +5,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
 	"maps"
 	"net/http"
-
 	"os"
 	"os/exec"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
-
 	"github.com/compozy/compozy/internal/vault"
 )
 
@@ -37,6 +34,8 @@ const (
 
 const (
 	defaultLiveDiscoveryTimeout = 10 * time.Second
+	// DefaultLiveDiscoveryTTL is the refresh interval for dynamic provider and extension discovery.
+	DefaultLiveDiscoveryTTL     = 5 * time.Minute
 	maxLiveDiscoveryPayloadSize = 8 << 20
 )
 
@@ -84,6 +83,7 @@ type DiscoveryCommandRequest struct {
 	ProviderID string
 	Command    string
 	Args       []string
+	Dir        string
 	Env        []string
 	Timeout    time.Duration
 }
@@ -118,6 +118,7 @@ func (ExecDiscoveryCommandExecutor) RunDiscoveryCommand(
 	}
 	// #nosec G204 -- discovery commands come from validated provider model discovery config.
 	cmd := exec.CommandContext(ctx, req.Command, req.Args...)
+	cmd.Dir = strings.TrimSpace(req.Dir)
 	cmd.Env = append([]string(nil), req.Env...)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -150,22 +151,33 @@ type LiveProviderSourcesConfig struct {
 	CommandExecutor DiscoveryCommandExecutor
 	ACPProbe        ACPModelProbe
 	DefaultTimeout  time.Duration
+	RefreshTTL      time.Duration
+	WorkingDir      string
 }
 
 // NewLiveProviderSources creates provider_live sources for known provider adapters.
 func NewLiveProviderSources(cfg *LiveProviderSourcesConfig) ([]Source, error) {
-	providers := compozyconfig.BuiltinProviders()
-	maps.Copy(providers, cfg.Providers)
-	providerIDs := make([]string, 0, len(providers))
-	for providerID := range providers {
+	resolver := &compozyconfig.Config{Providers: cfg.Providers}
+	providerSet := make(map[string]struct{})
+	for providerID := range compozyconfig.BuiltinProviders() {
 		if _, ok := liveProviderAdapters[providerID]; ok {
-			providerIDs = append(providerIDs, providerID)
+			providerSet[providerID] = struct{}{}
 		}
 	}
-	sort.Strings(providerIDs)
+	for providerID := range cfg.Providers {
+		providerID = compozyconfig.CanonicalProviderName(providerID)
+		if _, registered := liveProviderAdapters[providerID]; registered {
+			providerSet[providerID] = struct{}{}
+		}
+	}
+	providerIDs := slices.Sorted(maps.Keys(providerSet))
 	sources := make([]Source, 0, len(providerIDs))
 	for _, providerID := range providerIDs {
-		source, err := NewLiveProviderSource(providerID, providers[providerID], cfg)
+		provider, err := resolver.ResolveProvider(providerID)
+		if err != nil {
+			return nil, fmt.Errorf("model catalog: resolve live provider %q: %w", providerID, err)
+		}
+		source, err := NewLiveProviderSource(providerID, provider, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -196,6 +208,10 @@ func NewLiveProviderSource(
 	if timeout <= 0 {
 		timeout = defaultLiveDiscoveryTimeout
 	}
+	refreshTTL := cfg.RefreshTTL
+	if refreshTTL <= 0 {
+		refreshTTL = DefaultLiveDiscoveryTTL
+	}
 	executor := cfg.CommandExecutor
 	if executor == nil {
 		executor = ExecDiscoveryCommandExecutor{}
@@ -207,6 +223,14 @@ func NewLiveProviderSource(
 	secretResolver := cfg.SecretResolver
 	if secretResolver == nil {
 		secretResolver = EnvSecretResolver{}
+	}
+	workingDir := strings.TrimSpace(cfg.WorkingDir)
+	if workingDir == "" {
+		resolvedDir, err := os.Getwd()
+		if err != nil {
+			return nil, fmt.Errorf("model catalog: resolve discovery working directory: %w", err)
+		}
+		workingDir = resolvedDir
 	}
 	return &LiveProviderSource{
 		providerID:      trimmedProviderID,
@@ -220,6 +244,8 @@ func NewLiveProviderSource(
 		commandExecutor: executor,
 		acpProbe:        acpProbe,
 		defaultTimeout:  timeout,
+		refreshTTL:      refreshTTL,
+		workingDir:      workingDir,
 	}, nil
 }
 
@@ -240,12 +266,23 @@ type LiveProviderSource struct {
 	commandExecutor DiscoveryCommandExecutor
 	acpProbe        ACPModelProbe
 	defaultTimeout  time.Duration
+	refreshTTL      time.Duration
+	workingDir      string
 
 	providerMu sync.RWMutex
 	provider   compozyconfig.ProviderConfig
 }
 
 var _ Source = (*LiveProviderSource)(nil)
+
+// TTL returns the interval after which a catalog read should revalidate this
+// live source in the background.
+func (s *LiveProviderSource) TTL() time.Duration {
+	if s == nil || s.refreshTTL <= 0 {
+		return DefaultLiveDiscoveryTTL
+	}
+	return s.refreshTTL
+}
 
 // BootstrapOnList reports whether the source should discover once before its first catalog projection.
 func (s *LiveProviderSource) BootstrapOnList() bool {
@@ -277,7 +314,7 @@ func (s *LiveProviderSource) ReplaceProvider(provider compozyconfig.ProviderConf
 	next := compozyconfig.CloneProviderConfig(provider)
 	s.providerMu.Lock()
 	defer s.providerMu.Unlock()
-	changed := liveDiscoveryConfigChanged(s.provider, next)
+	changed := s.discoveryConfigChanged(s.provider, next)
 	s.provider = next
 	return changed
 }
@@ -290,7 +327,7 @@ func (s *LiveProviderSource) CloneWithProvider(
 		return nil, false, errors.New("model catalog: live provider source is required")
 	}
 	next := compozyconfig.CloneProviderConfig(provider)
-	changed := liveDiscoveryConfigChanged(s.providerSnapshot(), next)
+	changed := s.discoveryConfigChanged(s.providerSnapshot(), next)
 	clone, err := NewLiveProviderSource(s.providerID, next, &LiveProviderSourcesConfig{
 		HomePaths:       s.homePaths,
 		BaseEnv:         s.baseEnv,
@@ -299,11 +336,24 @@ func (s *LiveProviderSource) CloneWithProvider(
 		CommandExecutor: s.commandExecutor,
 		ACPProbe:        s.acpProbe,
 		DefaultTimeout:  s.defaultTimeout,
+		RefreshTTL:      s.refreshTTL,
+		WorkingDir:      s.workingDir,
 	})
 	if err != nil {
 		return nil, false, err
 	}
 	return clone, changed, nil
+}
+
+func (s *LiveProviderSource) discoveryConfigChanged(
+	current compozyconfig.ProviderConfig,
+	next compozyconfig.ProviderConfig,
+) bool {
+	if liveDiscoveryConfigChanged(current, next) {
+		return true
+	}
+	return s.adapter.parseACPModelRows != nil &&
+		providerModelMappingFingerprint(current.Models) != providerModelMappingFingerprint(next.Models)
 }
 
 func liveDiscoveryConfigChanged(

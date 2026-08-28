@@ -36,6 +36,38 @@ func RuntimeOwnedByDesktopApp(paths compozyconfig.HomePaths, binaryPath string) 
 	return isDesktopAppInstall(paths.HomeDir, binaryPath, runtime.GOOS)
 }
 
+// DesktopRuntimeMatchesBundle verifies the installed bytes and release identity against a bundle.
+func DesktopRuntimeMatchesBundle(
+	paths compozyconfig.HomePaths,
+	runtimePath string,
+	bundlePath string,
+	metadata DesktopProvenanceMetadata,
+) (bool, error) {
+	metadata, err := normalizeDesktopProvenanceMetadata(metadata)
+	if err != nil {
+		return false, err
+	}
+	marker, err := readDesktopProvenance(desktopProvenancePath(paths, runtimePath))
+	if err != nil {
+		return false, err
+	}
+	if marker.metadata() != metadata {
+		return false, nil
+	}
+	runtimeDigest, err := sha256File(runtimePath)
+	if err != nil {
+		return false, fmt.Errorf("update: hash installed desktop runtime: %w", err)
+	}
+	if !strings.EqualFold(runtimeDigest, strings.TrimSpace(marker.BinarySHA256)) {
+		return false, nil
+	}
+	bundleDigest, err := sha256File(bundlePath)
+	if err != nil {
+		return false, fmt.Errorf("update: hash bundled desktop runtime: %w", err)
+	}
+	return strings.EqualFold(runtimeDigest, bundleDigest), nil
+}
+
 func rewriteDesktopProvenance(
 	paths compozyconfig.HomePaths,
 	binaryPath string,

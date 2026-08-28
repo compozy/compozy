@@ -248,6 +248,7 @@ func (m *Manager) wrapHostHandler(
 		}
 
 		hostCtx := withHostAPIExtensionName(ctx, key.Name)
+		hostCtx = withHostAPIInstanceKey(hostCtx, key)
 		hostCtx = withHostAPICapabilityGrantID(hostCtx, capabilityGrantID)
 		if bridgeRuntime != nil {
 			hostCtx = withHostAPIBridgeRuntime(hostCtx, bridgeRuntime)

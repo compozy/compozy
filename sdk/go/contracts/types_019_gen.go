@@ -7,6 +7,32 @@ import (
 	"time"
 )
 
+type Request struct {
+	Mode            *Mode            `json:"mode,omitempty"`
+	ChannelStrategy *ChannelStrategy `json:"channel_strategy,omitempty"`
+	ChannelID       *string          `json:"channel_id,omitempty"`
+	Bounds          *BoundsRequest   `json:"bounds,omitempty"`
+}
+
+type Resolution struct {
+	Requested Speed            `json:"requested"`
+	Status    ResolutionStatus `json:"status"`
+	Reason    ResolutionReason `json:"reason,omitempty"`
+}
+
+type ResolutionReason string
+
+type ResolutionStatus string
+
+type ResolvedWorktreeMode string
+
+type ResourceGetParams struct {
+	Kind ResourceKind `json:"kind"`
+	ID   string       `json:"id"`
+}
+
+type ResourceKind string
+
 type ResourceOwner struct {
 	Kind ResourceOwnerKind `json:"kind"`
 	ID   string            `json:"id"`
@@ -109,69 +135,4 @@ type Row struct {
 	Actions     []RowAction       `json:"actions,omitempty"`
 	Requires    map[string]string `json:"requires,omitempty"`
 	Fallback    string            `json:"fallback,omitempty"`
-}
-
-type RowAction struct {
-	Title        string            `json:"title"`
-	Icon         string            `json:"icon,omitempty"`
-	Section      string            `json:"section,omitempty"`
-	Primary      bool              `json:"primary,omitempty"`
-	Destructive  bool              `json:"destructive,omitempty"`
-	Confirmation *Confirmation     `json:"confirmation,omitempty"`
-	Shortcut     string            `json:"shortcut,omitempty"`
-	Action       *Action           `json:"action,omitempty"`
-	Handler      string            `json:"handler,omitempty"`
-	SubmitForm   bool              `json:"submit_form,omitempty"`
-	Requires     map[string]string `json:"requires,omitempty"`
-	Fallback     string            `json:"fallback,omitempty"`
-}
-
-type Run struct {
-	ID                   string         `json:"id"`
-	ProfileID            string         `json:"profile_id,omitempty"`
-	JobID                string         `json:"job_id,omitempty"`
-	TriggerID            string         `json:"trigger_id,omitempty"`
-	SessionID            string         `json:"session_id,omitempty"`
-	TaskID               string         `json:"task_id,omitempty"`
-	TaskRunID            string         `json:"task_run_id,omitempty"`
-	LoopRunID            string         `json:"loop_run_id,omitempty"`
-	FireID               string         `json:"fire_id,omitempty"`
-	Status               RunStatus      `json:"status"`
-	Attempt              int            `json:"attempt"`
-	ScheduledAt          *time.Time     `json:"scheduled_at,omitempty"`
-	StartedAt            *time.Time     `json:"started_at,omitempty"`
-	EndedAt              *time.Time     `json:"ended_at,omitempty"`
-	Error                string         `json:"error,omitempty"`
-	DeliveryError        string         `json:"delivery_error,omitempty"`
-	DeliveryErrorAt      *time.Time     `json:"delivery_error_at,omitempty"`
-	NetworkParticipation *Request       `json:"network_participation,omitempty"`
-	Metadata             map[string]any `json:"metadata,omitempty"`
-}
-
-type RunDesignationSummary struct {
-	Index int    `json:"index"`
-	Brief string `json:"brief,omitempty"`
-}
-
-type RunStatus string
-
-type RuntimeSelectionPayload struct {
-	Provider        string      `json:"provider"`
-	Model           string      `json:"model,omitempty"`
-	ReasoningEffort Effort      `json:"reasoning_effort,omitempty"`
-	Speed           Speed       `json:"speed,omitempty"`
-	SpeedResolution *Resolution `json:"speed_resolution,omitempty"`
-}
-
-type SandboxExecParams struct {
-	WorkspaceID string `json:"workspace_id"`
-	SessionID   string `json:"session_id"`
-	Command     string `json:"command"`
-	Timeout     int    `json:"timeout,omitempty"`
-}
-
-type SandboxExecResult struct {
-	ExitCode int    `json:"exit_code"`
-	Stdout   string `json:"stdout,omitempty"`
-	Stderr   string `json:"stderr,omitempty"`
 }

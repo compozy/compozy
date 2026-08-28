@@ -91,6 +91,7 @@ func spawnOptsFromAgentRequest(req contract.AgentSpawnRequest, parentSessionID s
 		Model:            strings.TrimSpace(req.Model),
 		ReasoningEffort:  strings.TrimSpace(string(req.ReasoningEffort)),
 		Speed:            req.Speed,
+		ACPOptions:       contract.ACPOptionSelectionsFromPayload(req.ACPOptions),
 		Name:             strings.TrimSpace(req.Name),
 		Workspace:        strings.TrimSpace(req.Workspace),
 		PromptOverlay:    strings.TrimSpace(req.PromptOverlay),

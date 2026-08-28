@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"strings"
 )
 
@@ -28,6 +29,12 @@ func (m *Service) completeCoordinatorRun(
 		Now:        m.now().UTC(),
 	}, m.generationFinalizer)
 	if strings.TrimSpace(result.Run.ID) == "" {
+		if completionErr == nil {
+			completionErr = fmt.Errorf(
+				"%w: coordinator completion returned no committed run",
+				ErrValidation,
+			)
+		}
 		return nil, completionErr
 	}
 	var postCommitErr error

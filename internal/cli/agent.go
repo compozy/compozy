@@ -36,6 +36,10 @@ const (
 	agentReasoningEffortKey   = "reasoning-effort"
 	agentReasoningEffortValue = "Reasoning Effort"
 	agentReasoningEffortField = "reasoning_effort"
+	agentSpeedValue           = "Speed"
+	agentSpeedField           = "speed"
+	agentACPOptionsValue      = "ACP Options"
+	agentACPOptionsField      = "acp_options"
 )
 
 const (
@@ -254,6 +258,8 @@ func agentBundle(item AgentRecord) outputBundle {
 				{Label: cliCommandValue, Value: stringOrDash(item.Command)},
 				{Label: agentKernelModelValue, Value: stringOrDash(item.Model)},
 				{Label: agentReasoningEffortValue, Value: stringOrDash(string(item.ReasoningEffort))},
+				{Label: agentSpeedValue, Value: stringOrDash(string(item.Speed))},
+				{Label: agentACPOptionsValue, Value: stringOrDash(agentACPOptionsLabel(item.ACPOptions))},
 				{Label: agentCategoryValue, Value: stringOrDash(agentCategoryLabel(item.CategoryPath))},
 				{Label: taskOriginValue, Value: stringOrDash(string(item.Origin))},
 				{Label: automationWorkspaceValue, Value: stringOrDash(item.WorkspaceID)},
@@ -288,6 +294,8 @@ func agentBundle(item AgentRecord) outputBundle {
 				agentCommandKey,
 				agentModelKey,
 				agentReasoningEffortField,
+				agentSpeedField,
+				agentACPOptionsField,
 				agentCategoryKey,
 				taskOriginKey,
 				automationWorkspaceIDKey,
@@ -304,6 +312,8 @@ func agentBundle(item AgentRecord) outputBundle {
 				item.Command,
 				item.Model,
 				string(item.ReasoningEffort),
+				string(item.Speed),
+				agentACPOptionsLabel(item.ACPOptions),
 				agentCategoryLabel(item.CategoryPath),
 				string(item.Origin),
 				item.WorkspaceID,

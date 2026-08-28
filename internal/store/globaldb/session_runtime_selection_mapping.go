@@ -7,7 +7,13 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-func decodeSelectedRuntime(provider, model, reasoningEffort, speed string) *store.SessionRuntimeSelection {
+func decodeSelectedRuntime(
+	provider string,
+	model string,
+	reasoningEffort string,
+	speed string,
+	options []store.SessionACPOptionSelection,
+) *store.SessionRuntimeSelection {
 	if strings.TrimSpace(provider) == "" {
 		return nil
 	}
@@ -16,6 +22,7 @@ func decodeSelectedRuntime(provider, model, reasoningEffort, speed string) *stor
 		Model:           model,
 		ReasoningEffort: reasoningEffort,
 		Speed:           speedpkg.Speed(strings.TrimSpace(speed)),
+		ACPOptions:      options,
 	})
 }
 
@@ -45,9 +52,8 @@ func selectedRuntimeValue(
 	selection *store.SessionRuntimeSelection,
 	value func(*store.SessionRuntimeSelection) string,
 ) string {
-	normalized := store.NormalizeSessionRuntimeSelection(selection)
-	if normalized == nil {
+	if selection == nil {
 		return ""
 	}
-	return value(normalized)
+	return value(selection)
 }

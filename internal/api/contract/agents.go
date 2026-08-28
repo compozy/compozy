@@ -286,6 +286,7 @@ type AgentSpawnRequest struct {
 	Model            string                       `json:"model,omitempty"`
 	ReasoningEffort  ReasoningEffort              `json:"reasoning_effort,omitempty"`
 	Speed            Speed                        `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection    `json:"acp_options,omitempty"`
 	Name             string                       `json:"name,omitempty"`
 	Workspace        string                       `json:"workspace,omitempty"`
 	PromptOverlay    string                       `json:"prompt_overlay,omitempty"`

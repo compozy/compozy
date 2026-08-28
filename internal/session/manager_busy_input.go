@@ -81,6 +81,7 @@ func normalizePromptRuntimeSelectionFromMeta(
 		selection = &RuntimeSelection{
 			Provider: meta.Provider, Model: meta.Model,
 			ReasoningEffort: meta.ReasoningEffort, Speed: meta.Speed,
+			ACPOptions: ACPOptionSelectionsFromStore(meta.ACPOptionsValue()),
 		}
 	}
 	normalized, err := NormalizeRuntimeSelection(*selection)
@@ -236,6 +237,7 @@ func (m *Manager) SteerPrompt(ctx context.Context, id string, opts SteerPromptOp
 	req.messageID = strings.TrimSpace(opts.MessageID)
 	req.idempotencyKey = strings.TrimSpace(opts.IdempotencyKey)
 	req.expectedTurnID = strings.TrimSpace(opts.ExpectedTurnID)
+	req.runtime = cloneRuntimeSelection(opts.Runtime)
 	if opts.AllowCommands {
 		if err := m.preparePromptSkillInvocations(ctx, &req); err != nil {
 			return SendPromptResult{}, err

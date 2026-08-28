@@ -277,6 +277,17 @@ describe("AgentCreateDialog", () => {
     expect(screen.queryByTestId("agent-create-runtime-use-project-defaults")).toBeNull();
   });
 
+  it("Should edit the agent Fast default through the shared runtime selector", async () => {
+    const user = userEvent.setup();
+    renderStatefulDialog({ draft: validDraft() });
+
+    await user.click(screen.getByTestId("agent-create-runtime-select"));
+    const speed = screen.getByTestId("runtime-selector-speed");
+    expect(speed).toHaveAttribute("aria-checked", "false");
+    await user.click(speed);
+    expect(screen.getByTestId("runtime-selector-speed")).toHaveAttribute("aria-checked", "true");
+  });
+
   it("Should translate the selected permission policy into its contract consequence", async () => {
     const user = userEvent.setup();
     renderStatefulDialog({ draft: validDraft() });

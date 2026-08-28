@@ -197,6 +197,7 @@ type ResolvedAgent struct {
 	DisplayName     string
 	Model           string
 	ReasoningEffort string
+	*AgentRuntimeDefaults
 	Tools           []string
 	Toolsets        []string
 	DenyTools       []string

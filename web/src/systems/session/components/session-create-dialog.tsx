@@ -19,7 +19,6 @@ import {
 } from "@/lib/network-participation";
 
 import { SessionCreateAdvancedSection } from "./session-create-advanced-section";
-import { SessionCreateFirstMessage } from "./session-create-first-message";
 import { SessionEnvironmentField } from "./session-environment-field";
 import { SessionCreateSimpleSection } from "./session-create-simple-section";
 import type { AgentPayload } from "@/systems/agent";
@@ -40,8 +39,6 @@ export interface SessionCreateDialogProps {
   destinationReady: boolean;
   sessionName: string;
   onSessionNameChange: (next: string) => void;
-  firstMessage: string;
-  onFirstMessageChange: (next: string) => void;
   selectedAgentName: string;
   networkParticipation: NetworkParticipationDraft;
   onAgentChange: (agentName: string) => void;
@@ -71,8 +68,6 @@ function SessionCreateDialog({
   destinationReady,
   sessionName,
   onSessionNameChange,
-  firstMessage,
-  onFirstMessageChange,
   selectedAgentName,
   networkParticipation,
   onAgentChange,
@@ -150,12 +145,6 @@ function SessionCreateDialog({
               onAgentChange={onAgentChange}
               selectedAgentName={selectedAgentName}
               workspaceSelected={destinationReady}
-            />
-
-            <SessionCreateFirstMessage
-              disabled={isSubmitting || isAwaitingEnvironment}
-              onChange={onFirstMessageChange}
-              value={firstMessage}
             />
 
             {mode === "advanced" ? (

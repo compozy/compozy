@@ -10,9 +10,11 @@ import (
 
 	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
+	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -211,6 +213,11 @@ func TestSessionWorkspaceStatusMappings(t *testing.T) {
 			err:        session.ErrPromptFilesUnsupported,
 			wantStatus: http.StatusUnprocessableEntity,
 		},
+		{
+			name:       "Should map an invalid agent definition to unprocessable entity",
+			err:        skills.ErrAgentLocalInvalid,
+			wantStatus: http.StatusUnprocessableEntity,
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -343,6 +350,10 @@ func TestSessionProviderOptionPayloadsFromConfig(t *testing.T) {
 	seen := make(map[string]bool, len(payloads))
 	for _, payload := range payloads {
 		seen[payload.Name] = true
+		if payload.Name == "openclaw" &&
+			payload.RuntimeStrategy != contract.ProviderRuntimeStrategyProviderManaged {
+			t.Fatalf("openclaw runtime strategy = %q, want provider_managed", payload.RuntimeStrategy)
+		}
 	}
 	for _, want := range expected {
 		if !seen[want.Name] {

@@ -567,7 +567,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			},
 			{
 				toolspkg.ToolIDSessionSpawn,
-				`{"agent_name":"researcher","provider":"codex","model":"gpt-test","reasoning_effort":"high","speed":"fast","ttl_seconds":3600,"notify_creator":false}`,
+				`{"agent_name":"researcher","provider":"codex","model":"gpt-test","reasoning_effort":"high","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],"ttl_seconds":3600,"notify_creator":false}`,
 				`"session_id":"sess-child"`,
 			},
 			{toolspkg.ToolIDSessionStop, `{"session_id":"sess-target"}`, `"state":"stopped"`},
@@ -600,8 +600,15 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		if spawnOpts.ParentSessionID != callerID || spawnOpts.Provider != "codex" ||
 			spawnOpts.Model != "gpt-test" || spawnOpts.ReasoningEffort != "high" ||
-			spawnOpts.Speed != speedpkg.SpeedFast || spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
+			spawnOpts.Speed != speedpkg.SpeedFast || len(spawnOpts.ACPOptions) != 2 ||
+			spawnOpts.NotifyCreator || !spawnOpts.NotifyCreatorSet {
 			t.Fatalf("Spawn() opts = %#v, want runtime overrides and explicit notify_creator=false", spawnOpts)
+		}
+		if spawnOpts.ACPOptions[0].ID != "context" || spawnOpts.ACPOptions[0].ValueID != "1m" ||
+			spawnOpts.ACPOptions[0].BoolValue != nil || spawnOpts.ACPOptions[1].ID != "thinking" ||
+			spawnOpts.ACPOptions[1].ValueID != "" || spawnOpts.ACPOptions[1].BoolValue == nil ||
+			!*spawnOpts.ACPOptions[1].BoolValue {
+			t.Fatalf("Spawn() ACP options = %#v, want typed context and thinking values", spawnOpts.ACPOptions)
 		}
 		if stopTarget != targetID || approval.RequestID != "perm-1" ||
 			approval.ResolvedBy != "agent_session:"+callerID || canceledTarget != targetID {
@@ -3184,6 +3191,7 @@ func TestDaemonNativeTools(t *testing.T) {
 					Hidden:                 true,
 					DefaultReasoningEffort: new(modelcatalog.ReasoningEffortMax),
 				},
+				DefaultSpeed: speedpkg.SpeedFast,
 				Apply: settingspkg.ApplyResult{
 					Applied: true,
 					Record: settingspkg.ApplyRecord{
@@ -3200,10 +3208,13 @@ func TestDaemonNativeTools(t *testing.T) {
 				return settingsService
 			},
 		}, nativeApproveAllPolicyInputs())
+		catalogScope := toolspkg.Scope{
+			Operator: true, ProfileID: "profile-marketing", WorkspaceID: "ws-marketing",
+		}
 
 		listResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			catalogScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsList,
 				Input: json.RawMessage(
@@ -3221,7 +3232,10 @@ func TestDaemonNativeTools(t *testing.T) {
 			catalog.lastList.SourceID != modelcatalog.SourceIDConfig ||
 			catalog.lastList.View != modelcatalog.CatalogViewAll ||
 			catalog.lastList.Refresh ||
-			!catalog.lastList.IncludeStale {
+			!catalog.lastList.IncludeStale ||
+			catalog.lastList.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			catalog.lastList.ExecutionContext.ProfileID != "profile-marketing" ||
+			catalog.lastList.ExecutionContext.WorkspaceID != "ws-marketing" {
 			t.Fatalf("ListModels options = %#v after %d calls", catalog.lastList, catalog.listCalls)
 		}
 
@@ -3242,7 +3256,7 @@ func TestDaemonNativeTools(t *testing.T) {
 
 		refreshResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			catalogScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsRefresh,
 				Input: json.RawMessage(
@@ -3258,13 +3272,16 @@ func TestDaemonNativeTools(t *testing.T) {
 			catalog.lastRefresh.ProviderID != "codex" ||
 			catalog.lastRefresh.SourceID != modelcatalog.SourceIDConfig ||
 			!catalog.lastRefresh.Force ||
-			catalog.lastRefresh.RequestID != "req-1" {
+			catalog.lastRefresh.RequestID != "req-1" ||
+			catalog.lastRefresh.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			catalog.lastRefresh.ExecutionContext.ProfileID != "profile-marketing" ||
+			catalog.lastRefresh.ExecutionContext.WorkspaceID != "ws-marketing" {
 			t.Fatalf("Refresh options = %#v after %d calls", catalog.lastRefresh, catalog.refreshCalls)
 		}
 
 		statusResult, err := registry.Call(
 			t.Context(),
-			toolspkg.Scope{Operator: true},
+			catalogScope,
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsStatus,
 				Input:  json.RawMessage(`{"provider_id":"codex"}`),
@@ -3274,8 +3291,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			t.Fatalf("Registry.Call(provider_models_status) error = %v", err)
 		}
 		requireNativeStructuredContains(t, statusResult, []byte(`"refresh_state":"succeeded"`))
-		if catalog.statusCalls != 1 || catalog.lastStatusProviderID != "codex" {
-			t.Fatalf("ListSourceStatus provider = %q after %d calls", catalog.lastStatusProviderID, catalog.statusCalls)
+		if catalog.statusCalls != 1 || catalog.lastStatus.ProviderID != "codex" ||
+			catalog.lastStatus.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+			catalog.lastStatus.ExecutionContext.ProfileID != "profile-marketing" ||
+			catalog.lastStatus.ExecutionContext.WorkspaceID != "ws-marketing" {
+			t.Fatalf("ListSourceStatus options = %#v after %d calls", catalog.lastStatus, catalog.statusCalls)
 		}
 
 		curateResult, err := registry.Call(
@@ -3284,7 +3304,7 @@ func TestDaemonNativeTools(t *testing.T) {
 			toolspkg.CallRequest{
 				ToolID: toolspkg.ToolIDProviderModelsCurate,
 				Input: json.RawMessage(
-					`{"provider_id":"codex","model_id":"gpt-5.6-sol","hidden":true,"default_effort":"max"}`,
+					`{"provider_id":"codex","model_id":"gpt-5.6-sol","hidden":true,"default_effort":"max","default_speed":"fast"}`,
 				),
 			},
 		)
@@ -3293,13 +3313,16 @@ func TestDaemonNativeTools(t *testing.T) {
 		}
 		requireNativeStructuredContains(t, curateResult, []byte(`"model_id":"gpt-5.6-sol"`))
 		requireNativeStructuredContains(t, curateResult, []byte(`"hidden":true`))
+		requireNativeStructuredContains(t, curateResult, []byte(`"default_speed":"fast"`))
 		if settingsService.calls != 1 ||
 			settingsService.lastRequest.ProviderID != "codex" ||
 			settingsService.lastRequest.ModelID != "gpt-5.6-sol" ||
 			settingsService.lastRequest.Hidden == nil ||
 			!*settingsService.lastRequest.Hidden ||
 			settingsService.lastRequest.DefaultReasoningEffort == nil ||
-			*settingsService.lastRequest.DefaultReasoningEffort != "max" {
+			*settingsService.lastRequest.DefaultReasoningEffort != "max" ||
+			settingsService.lastRequest.DefaultSpeed == nil ||
+			*settingsService.lastRequest.DefaultSpeed != speedpkg.SpeedFast {
 			t.Fatalf("curation request = %#v after %d calls", settingsService.lastRequest, settingsService.calls)
 		}
 
@@ -11981,17 +12004,17 @@ func (s *nativeDreamTriggerService) Enabled() bool {
 }
 
 type nativeModelCatalogService struct {
-	models               []modelcatalog.Model
-	statuses             []modelcatalog.SourceStatus
-	listCalls            int
-	refreshCalls         int
-	statusCalls          int
-	lastList             modelcatalog.ListOptions
-	lastRefresh          modelcatalog.RefreshOptions
-	lastStatusProviderID string
-	listErr              error
-	refreshErr           error
-	statusErr            error
+	models       []modelcatalog.Model
+	statuses     []modelcatalog.SourceStatus
+	listCalls    int
+	refreshCalls int
+	statusCalls  int
+	lastList     modelcatalog.ListOptions
+	lastRefresh  modelcatalog.RefreshOptions
+	lastStatus   modelcatalog.StatusOptions
+	listErr      error
+	refreshErr   error
+	statusErr    error
 }
 
 type nativeProviderModelSettingsService struct {
@@ -12057,10 +12080,10 @@ func (s *nativeModelCatalogService) Refresh(
 
 func (s *nativeModelCatalogService) ListSourceStatus(
 	_ context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	s.statusCalls++
-	s.lastStatusProviderID = providerID
+	s.lastStatus = opts
 	if s.statusErr != nil {
 		return nil, s.statusErr
 	}

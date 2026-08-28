@@ -120,7 +120,8 @@ const providerModelsCurateInputSchema = `{
 		"hidden":{"type":"boolean"},
 		"featured":{"type":"boolean"},
 		"deprecated":{"type":"boolean"},
-		"default_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]}
+		"default_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+		"default_speed":{"type":"string","enum":["normal","fast"]}
 	},
 	"additionalProperties":false
 }`

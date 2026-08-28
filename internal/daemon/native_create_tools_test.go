@@ -327,8 +327,11 @@ func TestNativeAgentCreate(t *testing.T) {
 			ResolveForProfileFn: func(
 				_ context.Context,
 				ref string,
-				_ string,
+				profileName string,
 			) (workspacepkg.ResolvedWorkspace, error) {
+				if profileName != daemonDefaultProfileName {
+					t.Fatalf("ResolveForProfile() profile = %q, want %q", profileName, daemonDefaultProfileName)
+				}
 				return resolveTarget(ref)
 			},
 		}
@@ -468,7 +471,7 @@ func TestNativeAgentCreate(t *testing.T) {
 		result, err := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
 			ToolID: toolspkg.ToolIDAgentCreate,
 			Input: json.RawMessage(
-				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-8","reasoning_effort":"max","prompt":"You scout the codebase."}`,
+				`{"scope":"global","name":"scout","provider":"claude","model":"claude-opus-4-8","reasoning_effort":"max","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],"prompt":"You scout the codebase."}`,
 			),
 		})
 		if err != nil {
@@ -485,6 +488,12 @@ func TestNativeAgentCreate(t *testing.T) {
 		}
 		if got, want := agent.ReasoningEffort, "max"; got != want {
 			t.Fatalf("agent.ReasoningEffort = %q, want %q", got, want)
+		}
+		agentOptions := agent.ACPOptionsValue()
+		if agent.SpeedValue() != "fast" || len(agentOptions) != 2 || agentOptions[0].ID != "context" ||
+			agentOptions[0].ValueID != "1m" || agentOptions[1].ID != "thinking" ||
+			agentOptions[1].BoolValue == nil || !*agentOptions[1].BoolValue {
+			t.Fatalf("agent runtime defaults = speed %q options %#v", agent.SpeedValue(), agentOptions)
 		}
 	})
 

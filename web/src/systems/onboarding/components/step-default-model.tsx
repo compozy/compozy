@@ -67,6 +67,7 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
           </p>
         ) : (
           <RuntimeSelector
+            acpOptions={[]}
             value={model.runtimeValue}
             onChange={model.onRuntimeChange}
             providers={model.runtimeProviders}
@@ -74,6 +75,8 @@ export function StepDefaultModel({ model }: StepDefaultModelProps) {
             loading={model.catalogLoading}
             refreshing={model.catalogRefreshing}
             onRefreshCatalog={model.onRefreshCatalog}
+            speed={model.speed}
+            onSpeedChange={model.onSpeedChange}
             disabled={model.runtimeProviders.length === 0}
             ariaLabelledby="onboarding-runtime-label"
             triggerTestId="onboarding-runtime-select"

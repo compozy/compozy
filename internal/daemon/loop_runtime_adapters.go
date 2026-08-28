@@ -146,6 +146,7 @@ func (r *loopGateJudgeRunner) judgeCreateOptions(
 		Model:                        strings.TrimSpace(req.Runtime.Model),
 		ReasoningEffort:              strings.TrimSpace(req.Runtime.Reasoning),
 		Speed:                        req.Runtime.Speed,
+		ACPOptions:                   loopACPOptionsForSession(req.Runtime.ACPOptions),
 		Name:                         loopRuntimeSessionName("gate", agent, req.CriterionID),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
 		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{

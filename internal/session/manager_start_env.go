@@ -15,14 +15,28 @@ func (m *Manager) sessionStartOpts(
 	session *Session,
 	resolved compozyconfig.ResolvedAgent,
 	mcpServers []compozyconfig.MCPServer,
-) acp.StartOpts {
+) (acp.StartOpts, error) {
 	env := sessionStartEnvForProvider(
 		os.Environ(),
 		session,
 		resolved.EnvPolicy,
 		strings.TrimSpace(s.reasoningEffort),
 	)
-	return acp.StartOpts{
+	providerID := strings.TrimSpace(resolved.RuntimeProvider)
+	if providerID == "" {
+		providerID = strings.TrimSpace(resolved.Provider)
+	}
+	preferredModel := preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved))
+	launchModelID := ""
+	switch providerID {
+	case runtimeProviderClaude:
+		if transportModel := strings.TrimSpace(s.transportModel); transportModel != "" {
+			preferredModel = transportModel
+		}
+	case cursorRuntimeProvider:
+		launchModelID = strings.TrimSpace(s.transportModel)
+	}
+	opts := acp.StartOpts{
 		AgentName:       resolved.Name,
 		Command:         resolved.Command,
 		Cwd:             s.cwd,
@@ -31,9 +45,11 @@ func (m *Manager) sessionStartOpts(
 		MCPServers:      mcpServers,
 		Permissions:     m.startPermissions(session.Type, startSpecPermissions(s, resolved.Permissions)),
 		SystemPrompt:    resolved.Prompt,
-		PreferredModel:  preferredACPModel(resolved, startModelSelectionIsExplicit(s, resolved)),
+		PreferredModel:  preferredModel,
+		LaunchModelID:   launchModelID,
 		ReasoningEffort: strings.TrimSpace(s.reasoningEffort),
 		Speed:           s.speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(s.acpOptions),
 		ResumeSessionID: s.acpSessionID,
 		ToolGateway:     newProviderNativeToolGateway(m, session, s.runtimeMode),
 		ActivateMCPServers: m.sessionMCPServerActivator(
@@ -41,6 +57,7 @@ func (m *Manager) sessionStartOpts(
 			mcpServers,
 		),
 	}
+	return applyProviderRuntimeAdapter(resolved, opts)
 }
 
 func startModelSelectionIsExplicit(s *sessionStartSpec, resolved compozyconfig.ResolvedAgent) bool {

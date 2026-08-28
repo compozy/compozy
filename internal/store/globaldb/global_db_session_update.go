@@ -22,7 +22,10 @@ func buildUpdateSessionStateStatement(update store.SessionStateUpdate, updatedAt
 	if err != nil {
 		return "", nil, err
 	}
-	assignments, args = appendSelectedRuntimeAssignments(assignments, args, update)
+	assignments, args, err = appendSelectedRuntimeAssignments(assignments, args, update)
+	if err != nil {
+		return "", nil, err
+	}
 	if update.StopReasonSet {
 		assignments = append(assignments, "stop_reason = ?", "stop_detail = ?")
 		args = append(args, store.NullableStringPointer(update.StopReason), store.NullableString(update.StopDetail))
@@ -62,12 +65,16 @@ func appendSelectedRuntimeAssignments(
 	assignments []string,
 	args []any,
 	update store.SessionStateUpdate,
-) ([]string, []any) {
+) ([]string, []any, error) {
 	if !update.SelectedRuntimeSet {
-		return assignments, args
+		return assignments, args, nil
 	}
 	selection := store.NormalizeSessionRuntimeSelection(update.SelectedRuntime)
 	provider, model, reasoningEffort, speed := "", "", "", ""
+	optionsJSON, err := encodeCanonicalSelectedRuntimeACPOptions(selection)
+	if err != nil {
+		return nil, nil, err
+	}
 	if selection != nil {
 		provider = selection.Provider
 		model = selection.Model
@@ -79,10 +86,11 @@ func appendSelectedRuntimeAssignments(
 		"selected_model = ?",
 		"selected_reasoning_effort = ?",
 		"selected_speed = ?",
+		"selected_acp_options_json = ?",
 		"runtime_selection_revision = ?",
 	)
-	args = append(args, provider, model, reasoningEffort, speed, update.RuntimeSelectionRevision)
-	return assignments, args
+	args = append(args, provider, model, reasoningEffort, speed, optionsJSON, update.RuntimeSelectionRevision)
+	return assignments, args, nil
 }
 
 func appendSessionRuntimeAssignments(
@@ -97,12 +105,17 @@ func appendSessionRuntimeAssignments(
 	if err != nil {
 		return nil, nil, err
 	}
+	acpOptionsJSON, err := encodeSessionACPOptions(update.ACPOptions, "session ACP options")
+	if err != nil {
+		return nil, nil, err
+	}
 	assignments = append(
 		assignments,
 		"provider = ?",
 		"model = ?",
 		"reasoning_effort = ?",
 		"speed = ?",
+		"acp_options_json = ?",
 		"speed_resolution_json = ?",
 		"runtime_status = ?",
 		"runtime_transition = ?",
@@ -120,6 +133,7 @@ func appendSessionRuntimeAssignments(
 		strings.TrimSpace(update.Model),
 		strings.TrimSpace(update.ReasoningEffort),
 		string(update.Speed),
+		acpOptionsJSON,
 		speedResolutionJSON,
 		string(update.RuntimeStatus),
 		string(update.RuntimeTransition),

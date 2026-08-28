@@ -45,6 +45,8 @@ func validateAgentResourceSpec(
 		Hooks:           cloneHookDecls(spec.Hooks),
 		Prompt:          strings.TrimSpace(spec.Prompt),
 	}
+	normalized.SetSpeed(spec.SpeedValue())
+	normalized.SetACPOptions(spec.ACPOptionsValue())
 	if spec.Capabilities != nil {
 		capabilities, err := normalizeCapabilityCatalog(spec.Capabilities, "agent.capabilities")
 		if err != nil {
@@ -55,6 +57,14 @@ func validateAgentResourceSpec(
 	for idx, server := range normalized.MCPServers {
 		normalized.MCPServers[idx] = normalizeMCPServerResourceSpec(server)
 	}
+	normalizedOptions, err := normalizeACPOptionSelectionsAt(
+		"agent.acp_options",
+		normalized.ACPOptionsValue(),
+	)
+	if err != nil {
+		return AgentDef{}, errors.Join(resources.ErrValidation, err)
+	}
+	normalized.SetACPOptions(normalizedOptions)
 
 	if err := normalized.Validate(); err != nil {
 		return AgentDef{}, errors.Join(resources.ErrValidation, err)

@@ -102,8 +102,9 @@ uploaded through the attachment store before submission. Use
 The store enforces `session.attachments.max_file_bytes`,
 `session.attachments.max_files_per_prompt`, and `session.attachments.allowed_mime`; inspect the
 attachment settings in `references/configuration.md` before submitting large or unsupported files.
-The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, and speed
-are optional snapshot fields. Read the runtime semantics, queued/interrupt snapshot behavior, and
+The first prompt to an unbound session requires `runtime.provider`; model, reasoning effort, speed,
+and typed `acp_options` are optional snapshot fields. Each option sets exactly one of `value_id` or
+`bool_value`. Read the runtime semantics, queued/interrupt snapshot behavior, and
 rollback rule in `references/runtime-operations.md`; inspect `compozy__session_status` for the nested
 `runtime` object rather than deriving it from the session state.
 
@@ -116,8 +117,9 @@ session supervision does not mistake orchestration for inactivity.
 `compozy__session_spawn` creates one governed child of the caller. It requires `agent_name` and a
 positive `ttl_seconds`; optional permission arrays can only narrow the parent. Omitted
 `notify_creator` defaults to true, while explicit false suppresses the synthetic parent wake for
-that child. Optional `provider`, `model`, `reasoning_effort`, and `speed` fields override the named
-agent's runtime for the child. The result returns the child session ID, role, depth, and TTL expiry.
+that child. Optional `provider`, `model`, `reasoning_effort`, `speed`, and `acp_options` fields
+override the named agent's runtime for the child. The result returns the child session ID, role,
+depth, and TTL expiry.
 
 `compozy__session_stop` stops another same-workspace session and is destructive/approval-gated. It is
 idempotent for an already stopped target. `compozy__session_prompt_cancel` cancels only another
@@ -207,13 +209,16 @@ have effective permission mode `approve-all`. Lower modes return `tool_denied` w
 credential, or stream-ticket issuance action. Use the local CLI or private management API when a
 one-time secret must be issued.
 
-`compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, and `default_effort`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found` and `reasoning_effort_unsupported` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
+`compozy__provider_models_list` accepts `view=curated|all` and defaults to curated; the CLI equivalents are `compozy provider models list` and `compozy provider models list --all`. `compozy__provider_models_curate` is mutating, requires `providers.models.write`, and accepts required `provider_id`/`model_id` plus optional `hidden`, `featured`, `deprecated`, `default_effort`, and `default_speed`. Speed accepts `normal` or `fast`; explicit model configurations that omit Fast reject it with `speed_rejected`. Its CLI fallback is `compozy provider models set`. Treat `model_not_found`, `reasoning_effort_unsupported`, and `speed_rejected` as terminal input diagnostics; when the descriptor reports the settings backend unavailable, do not retry blindly.
 For providers with an explicit curated set, the default view contains visible explicit or featured rows; live-only rows appear there only through the no-explicit-set fallback.
-Claude, Codex, and Cursor catalog discovery starts a short-lived ACP session and stores the exact
-values advertised by its `model` option under the provider's `provider_live:<id>` source. Claude and
-Codex resolve the same absolute native CLI executable used by session launch; Cursor uses
-`cursor-agent acp`. Do not substitute human-readable CLI aliases for advertised model IDs. Refresh
-through `compozy__provider_models_refresh` or `compozy provider models refresh <provider>`.
+Claude, Codex, and Hermes catalog discovery starts a short-lived ACP inspection and stores its live
+model and configuration options under `provider_live:<id>`. Cursor runs `cursor-agent models`, groups
+transport aliases into logical models, and keeps valid Reasoning, Fast, and Thinking combinations plus
+private launch bindings. Live sources refresh periodically and after their five-minute TTL; failed
+refreshes keep the last successful rows as stale data. An explicit curated set may keep a new live model
+out of the default view, so use `view=all` before concluding it is absent. OpenClaw is provider-managed
+and exposes no fabricated model controls. Refresh through `compozy__provider_models_refresh` or
+`compozy provider models refresh <provider>`.
 Changing `providers.<id>.models.discovery.*` refreshes that provider source; model metadata-only
 writes do not invoke the provider.
 Model-list and curation results may include a `cost` object with independent `input_per_million`, `output_per_million`, `cache_read_per_million`, `cache_write_per_million`, and `reasoning_per_million` fields. A missing field means that bucket is unpriced; never infer it from another field.

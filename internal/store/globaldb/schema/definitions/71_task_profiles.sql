@@ -13,9 +13,15 @@ CREATE TABLE task_execution_profiles (
 			worker_agent_name        TEXT NOT NULL DEFAULT '',
 			worker_provider          TEXT NOT NULL DEFAULT '',
 			worker_model             TEXT NOT NULL DEFAULT '',
+			worker_reasoning_effort  TEXT NOT NULL DEFAULT '',
+			worker_speed             TEXT NOT NULL DEFAULT '' CHECK (worker_speed IN ('', 'normal', 'fast')),
+			worker_acp_options_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(worker_acp_options_json)),
 			review_agent_name        TEXT NOT NULL DEFAULT '',
 			review_provider          TEXT NOT NULL DEFAULT '',
 			review_model             TEXT NOT NULL DEFAULT '',
+			review_reasoning_effort  TEXT NOT NULL DEFAULT '',
+			review_speed             TEXT NOT NULL DEFAULT '' CHECK (review_speed IN ('', 'normal', 'fast')),
+			review_acp_options_json  TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(review_acp_options_json)),
 			sandbox_mode             TEXT NOT NULL DEFAULT 'inherit' CHECK (
 				sandbox_mode IN ('inherit', 'none', 'ref')
 			),

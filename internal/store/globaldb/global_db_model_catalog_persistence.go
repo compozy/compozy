@@ -13,11 +13,13 @@ import (
 func upsertModelCatalogSourceStatus(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,
+	contextID string,
 	status modelcatalog.SourceStatus,
 ) error {
 	if err := sqlcgen.New(exec).UpsertModelCatalogSourceStatus(ctx, sqlcgen.UpsertModelCatalogSourceStatusParams{
-		SourceID: status.SourceID, ProviderID: status.ProviderID, SourceKind: string(status.SourceKind),
-		Priority: int64(status.Priority), RefreshState: string(status.RefreshState),
+		ContextID: contextID, SourceID: status.SourceID, ProviderID: status.ProviderID,
+		SourceKind: string(status.SourceKind),
+		Priority:   int64(status.Priority), RefreshState: string(status.RefreshState),
 		LastRefreshAt: store.FormatNullableTimestamp(status.LastRefresh),
 		NextRefreshAt: store.FormatNullableTimestamp(status.NextRefresh),
 		LastSuccessAt: store.FormatNullableTimestamp(status.LastSuccess), LastError: status.LastError,
@@ -28,8 +30,15 @@ func upsertModelCatalogSourceStatus(
 	return nil
 }
 
-func insertModelCatalogRow(ctx context.Context, exec modelCatalogSQLExecutor, row modelcatalog.ModelRow) error {
-	if err := sqlcgen.New(exec).InsertModelCatalogRow(ctx, modelCatalogRowParams(row)); err != nil {
+func insertModelCatalogRow(
+	ctx context.Context,
+	exec modelCatalogSQLExecutor,
+	contextID string,
+	row modelcatalog.ModelRow,
+) error {
+	params := modelCatalogRowParams(row)
+	params.ContextID = contextID
+	if err := sqlcgen.New(exec).InsertModelCatalogRow(ctx, params); err != nil {
 		return fmt.Errorf(
 			"store: insert model catalog row %q/%q/%q: %w",
 			row.SourceID,
@@ -44,13 +53,15 @@ func insertModelCatalogRow(ctx context.Context, exec modelCatalogSQLExecutor, ro
 func insertModelCatalogReasoningEfforts(
 	ctx context.Context,
 	exec modelCatalogSQLExecutor,
+	contextID string,
 	row modelcatalog.ModelRow,
 ) error {
 	for rank, effort := range row.ReasoningEfforts {
 		if err := sqlcgen.New(exec).InsertModelCatalogReasoningEffort(
 			ctx,
 			sqlcgen.InsertModelCatalogReasoningEffortParams{
-				SourceID: row.SourceID, ProviderID: row.ProviderID, ModelID: row.ModelID,
+				ContextID: contextID, SourceID: row.SourceID,
+				ProviderID: row.ProviderID, ModelID: row.ModelID,
 				Effort: string(effort), Rank: int64(rank),
 			},
 		); err != nil {
@@ -73,10 +84,14 @@ func listModelCatalogReasoningEfforts(
 			e.effort
 		FROM model_catalog_reasoning_efforts e
 		JOIN model_catalog_rows r
-			ON r.source_id = e.source_id
+			ON r.context_id = e.context_id
+			AND r.source_id = e.source_id
 			AND r.provider_id = e.provider_id
 			AND r.model_id = e.model_id`
-	where, args := modelCatalogRowFilterClauses(opts, "r")
+	where, args, err := modelCatalogRowFilterClauses(opts, "r")
+	if err != nil {
+		return nil, err
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += ` ORDER BY e.source_id ASC, e.provider_id ASC, e.model_id ASC, e.rank ASC, e.effort ASC`
 
@@ -160,7 +175,10 @@ func scanModelCatalogSourceStatus(scanner interface{ Scan(dest ...any) error }) 
 	return status, nil
 }
 
-func modelCatalogRowFilterClauses(opts modelcatalog.ListOptions, alias string) ([]string, []any) {
+func modelCatalogRowFilterClauses(
+	opts modelcatalog.ListOptions,
+	alias string,
+) ([]string, []any, error) {
 	column := func(name string) string {
 		if strings.TrimSpace(alias) == "" {
 			return name
@@ -168,8 +186,17 @@ func modelCatalogRowFilterClauses(opts modelcatalog.ListOptions, alias string) (
 		return strings.TrimSpace(alias) + "." + name
 	}
 
-	where := make([]string, 0, 3)
-	args := make([]any, 0, 2)
+	contextClause, contextArgs, err := modelCatalogContextFilterClause(
+		opts.ExecutionContext,
+		opts.SourceContexts,
+		column("source_id"),
+		column("context_id"),
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	where := []string{contextClause}
+	args := append([]any(nil), contextArgs...)
 	if providerID := strings.TrimSpace(opts.ProviderID); providerID != "" {
 		where = append(where, column("provider_id")+" = ?")
 		args = append(args, providerID)
@@ -181,5 +208,5 @@ func modelCatalogRowFilterClauses(opts modelcatalog.ListOptions, alias string) (
 	if !opts.IncludeStale && !opts.IncludeAll {
 		where = append(where, column("stale")+" = 0")
 	}
-	return where, args
+	return where, args, nil
 }

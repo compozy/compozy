@@ -3,10 +3,12 @@ package session
 import (
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/sandbox"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
@@ -50,6 +52,75 @@ func TestCreateAcceptedLogicalRuntimeLifecycle(t *testing.T) {
 		}
 		if len(page.Entries) != 0 {
 			t.Fatalf("TranscriptPage() entries = %#v, want empty", page.Entries)
+		}
+		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+			t.Fatalf("Stop() cleanup error = %v", err)
+		}
+	})
+
+	t.Run("Should defer live model validation until the first runtime bind", func(t *testing.T) {
+		t.Parallel()
+
+		const cursorModel = "grok-4.5"
+		var catalogCalls atomic.Int64
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{
+			onList: func(modelcatalog.ListOptions) { catalogCalls.Add(1) },
+			models: []modelcatalog.Model{{
+				ProviderID:             cursorRuntimeProvider,
+				ModelID:                cursorModel,
+				AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
+				DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+				TransportBindings: []modelcatalog.ModelTransportBinding{{
+					TransportModelID: "cursor-grok-4.5-high",
+					ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+					Fast:             new(false),
+				}},
+				Sources: []modelcatalog.SourceRef{{
+					SourceID:   modelcatalog.SourceKindProviderLiveID(cursorRuntimeProvider),
+					SourceKind: modelcatalog.SourceKindProviderLive,
+				}},
+			}},
+		}))
+		resolved, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve(%q) error = %v", h.workspaceID, err)
+		}
+		for index := range resolved.Agents {
+			if resolved.Agents[index].Name == "coder" {
+				resolved.Agents[index].Provider = cursorRuntimeProvider
+				resolved.Agents[index].Model = cursorModel
+				resolved.Agents[index].ReasoningEffort = "high"
+			}
+		}
+		h.resolver.upsert(&resolved)
+
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			Session: CreateOpts{AgentName: "coder", Workspace: h.workspaceID},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted() error = %v", err)
+		}
+		if got := catalogCalls.Load(); got != 0 {
+			t.Fatalf("live catalog calls after logical acceptance = %d, want 0", got)
+		}
+
+		result, err := h.manager.SendPrompt(testutil.Context(t), created.ID, SendPromptOpts{
+			Message: "Bind the catalog-validated runtime",
+			Runtime: &RuntimeSelection{
+				Provider:        created.Provider,
+				Model:           created.Model,
+				ReasoningEffort: created.ReasoningEffort,
+				Speed:           created.Speed,
+			},
+		})
+		if err != nil {
+			t.Fatalf("SendPrompt() error = %v", err)
+		}
+		for range result.Events {
+			continue
+		}
+		if got := catalogCalls.Load(); got == 0 {
+			t.Fatal("live catalog calls after first bind = 0, want validation")
 		}
 		if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
 			t.Fatalf("Stop() cleanup error = %v", err)

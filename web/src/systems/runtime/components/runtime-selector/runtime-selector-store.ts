@@ -15,6 +15,7 @@ interface RuntimeSelectorPopupClosed {
 
 interface RuntimeSelectorPopupOpen {
   activeRow: RuntimeSelectorActiveRow | null;
+  advancedExpanded: boolean;
   entryMode: RuntimeSelectorEntryMode;
   favoriteAnnouncement: string;
   phase: "open";
@@ -27,6 +28,7 @@ export type RuntimeSelectorPopupState = RuntimeSelectorPopupClosed | RuntimeSele
 
 type RuntimeSelectorPopupEvents = {
   activeRowChanged: { row: RuntimeSelectorActiveRow | null };
+  advancedOptionsToggled: { expanded: boolean };
   exactEntryCanceled: {};
   exactEntryCommitted: {};
   exactEntryStarted: {};
@@ -40,6 +42,7 @@ type RuntimeSelectorPopupEvents = {
 function openPopupState(): RuntimeSelectorPopupOpen {
   return {
     activeRow: null,
+    advancedExpanded: false,
     entryMode: "catalog",
     favoriteAnnouncement: "",
     phase: "open",
@@ -62,6 +65,10 @@ export const runtimeSelectorPopupLogic = createStoreLogic<
     activeRowChanged: (context, event) => {
       if (context.phase !== "open") return context;
       return { ...context, activeRow: event.row };
+    },
+    advancedOptionsToggled: (context, event) => {
+      if (context.phase !== "open") return context;
+      return { ...context, advancedExpanded: event.expanded };
     },
     exactEntryCanceled: returnToCatalog,
     exactEntryCommitted: returnToCatalog,

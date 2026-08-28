@@ -152,6 +152,8 @@ type SettingsRoleConfigPayload struct {
 	Provider        string                        `json:"provider"`
 	Model           string                        `json:"model"`
 	ReasoningEffort string                        `json:"reasoning_effort"`
+	Speed           *Speed                        `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
 	FallbackChain   []SettingsRoleFallbackPayload `json:"fallback_chain"`
 }
 
@@ -167,6 +169,8 @@ type SettingsMemoryControllerRoleConfigPayload struct {
 	Provider        string                        `json:"provider"`
 	Model           string                        `json:"model"`
 	ReasoningEffort string                        `json:"reasoning_effort"`
+	Speed           *Speed                        `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection     `json:"acp_options"`
 	Timeout         string                        `json:"timeout"`
 	TopK            int                           `json:"top_k"`
 	PromptVersion   string                        `json:"prompt_version"`
@@ -175,9 +179,11 @@ type SettingsMemoryControllerRoleConfigPayload struct {
 }
 
 type SettingsRoleFallbackPayload struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	ReasoningEffort string `json:"reasoning_effort"`
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model"`
+	ReasoningEffort string                    `json:"reasoning_effort"`
+	Speed           *Speed                    `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
 }
 
 type SettingsMemoryDreamGatesPayload struct {

@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import type { Page } from "@playwright/test";
 
-import { appWindow } from "../fixtures/os-navigation";
+import { appWindow, windowFrame } from "../fixtures/os-navigation";
 import { sessionLifecycleSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
@@ -381,6 +381,24 @@ async function captureSettingsViewportMatrix(
     const settingsWin = appWindow(appPage, "settings");
     await expect(settingsWin.getByTestId("settings-shell")).toBeVisible();
     await expect(settingsWin.getByTestId("settings-section-nav")).toBeVisible();
+    const outerBody = windowFrame(settingsWin).locator('[data-slot="os-window-body"]');
+    const outerOverflow = await outerBody.evaluate(
+      element => element.scrollHeight - element.clientHeight
+    );
+    expect(outerOverflow).toBeLessThanOrEqual(2);
+    if (width === 1280) {
+      const sectionBody = settingsWin.getByTestId("settings-page-general-body");
+      await expect(sectionBody).toBeVisible();
+      const maxScrollTop = await sectionBody.evaluate(element => {
+        const maximum = element.scrollHeight - element.clientHeight;
+        element.scrollTop = maximum;
+        return maximum;
+      });
+      expect(maxScrollTop).toBeGreaterThan(0);
+      await expect
+        .poll(async () => await sectionBody.evaluate(element => element.scrollTop))
+        .toBe(maxScrollTop);
+    }
     await browserArtifacts.captureScreenshot(`settings-viewport-${width}`, appPage);
   }
 }

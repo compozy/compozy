@@ -75,7 +75,15 @@ func providerModelCurationFromPayload(
 		Featured:               cloneBoolPtr(payload.Featured),
 		Deprecated:             cloneBoolPtr(payload.Deprecated),
 		DefaultReasoningEffort: cloneReasoningEffortPtr(payload.DefaultReasoningEffort),
+		DefaultSpeed:           cloneSpeedPtr(payload.DefaultSpeed),
 	}
+}
+
+func cloneSpeedPtr(value *contract.Speed) *contract.Speed {
+	if value == nil {
+		return nil
+	}
+	return new(*value)
 }
 
 func cloneReasoningEffortPtr(value *modelcatalog.ReasoningEffort) *modelcatalog.ReasoningEffort {

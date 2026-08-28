@@ -21,12 +21,16 @@ import (
 func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should deep copy curation flags at the extension boundary", func(t *testing.T) {
+	t.Run("Should deep copy runtime and curation fields at the extension boundary", func(t *testing.T) {
 		t.Parallel()
 
 		deprecated := false
 		hidden := true
 		featured := false
+		currentThinking := true
+		bindingFast := true
+		bindingThinking := true
+		selectionThinking := true
 		rows := []extensioncontract.ModelSourceRow{{
 			SourceID:   "extension:ext-models",
 			ProviderID: "codex",
@@ -34,16 +38,41 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 			Deprecated: &deprecated,
 			Hidden:     &hidden,
 			Featured:   &featured,
+			ConfigOptions: []extensioncontract.ModelSourceOptionDescriptor{{
+				ID:          "thinking",
+				Kind:        extensioncontract.ModelSourceOptionKindBoolean,
+				CurrentBool: &currentThinking,
+			}},
+			TransportBindings: []extensioncontract.ModelSourceTransportBinding{{
+				TransportModelID: "transport-model",
+				Fast:             &bindingFast,
+				Thinking:         &bindingThinking,
+				OptionSelections: []extensioncontract.ModelSourceOptionSelection{{
+					ID:        "thinking",
+					BoolValue: &selectionThinking,
+				}},
+			}},
 		}}
 		cloned := cloneModelSourceRows(rows)
 		deprecated = true
 		hidden = false
 		featured = true
+		currentThinking = false
+		bindingFast = false
+		bindingThinking = false
+		selectionThinking = false
 
 		row := cloned[0]
 		if row.Deprecated == nil || *row.Deprecated || row.Hidden == nil || !*row.Hidden ||
 			row.Featured == nil || *row.Featured {
 			t.Fatalf("cloned curation flags = %#v, want false/true/false snapshot", row)
+		}
+		if row.ConfigOptions[0].CurrentBool == nil || !*row.ConfigOptions[0].CurrentBool ||
+			row.TransportBindings[0].Fast == nil || !*row.TransportBindings[0].Fast ||
+			row.TransportBindings[0].Thinking == nil || !*row.TransportBindings[0].Thinking ||
+			row.TransportBindings[0].OptionSelections[0].BoolValue == nil ||
+			!*row.TransportBindings[0].OptionSelections[0].BoolValue {
+			t.Fatalf("cloned runtime fields = %#v, want independent true snapshots", row)
 		}
 	})
 
@@ -62,6 +91,11 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 		cacheWriteCost := 2.5
 		reasoningCost := 12.0
 		releaseDate := "2026-06-26"
+		currentThinking := true
+		bindingFast := true
+		bindingThinking := true
+		selectionThinking := true
+		bindingEffort := apicontract.ReasoningEffort("high")
 		runtime.rows = []extensioncontract.ModelSourceRow{
 			{
 				SourceID:          source.ID(),
@@ -77,6 +111,34 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 				Hidden:            new(true),
 				Featured:          new(true),
 				ReleaseDate:       &releaseDate,
+				ConfigOptions: []extensioncontract.ModelSourceOptionDescriptor{
+					{
+						ID:             "context",
+						Label:          "Context",
+						Kind:           extensioncontract.ModelSourceOptionKindSelect,
+						CurrentValueID: "200k",
+						Values: []extensioncontract.ModelSourceOptionValue{
+							{ValueID: "200k", Label: "200K", GroupID: "window", GroupLabel: "Window"},
+							{ValueID: "1m", Label: "1M", GroupID: "window", GroupLabel: "Window", Order: 1},
+						},
+					},
+					{
+						ID:          "thinking",
+						Label:       "Thinking",
+						Kind:        extensioncontract.ModelSourceOptionKindBoolean,
+						CurrentBool: &currentThinking,
+					},
+				},
+				TransportBindings: []extensioncontract.ModelSourceTransportBinding{{
+					TransportModelID: "provider/model-high-fast-1m",
+					ReasoningEffort:  &bindingEffort,
+					Fast:             &bindingFast,
+					Thinking:         &bindingThinking,
+					OptionSelections: []extensioncontract.ModelSourceOptionSelection{
+						{ID: "context", ValueID: "1m"},
+						{ID: "thinking", BoolValue: &selectionThinking},
+					},
+				}},
 				Cost: &apicontract.ModelCatalogCostPayload{
 					InputPerMillion:      &inputCost,
 					OutputPerMillion:     &outputCost,
@@ -126,6 +188,15 @@ func TestModelSourceShouldPersistValidatedRowsThroughCatalogService(t *testing.T
 			models[0].CostCacheWritePerMillion == nil || *models[0].CostCacheWritePerMillion != cacheWriteCost ||
 			models[0].CostReasoningPerMillion == nil || *models[0].CostReasoningPerMillion != reasoningCost {
 			t.Fatalf("ListModels()[0] five-rate pricing = %#v, want extension rates", models[0])
+		}
+		if len(models[0].ConfigOptions) != 2 || len(models[0].ConfigOptions[0].Values) != 2 ||
+			models[0].ConfigOptions[0].Values[1].GroupLabel != "Window" {
+			t.Fatalf("ListModels()[0] config options = %#v, want grouped select and boolean", models[0].ConfigOptions)
+		}
+		if len(models[0].TransportBindings) != 1 ||
+			models[0].TransportBindings[0].TransportModelID != "provider/model-high-fast-1m" ||
+			len(models[0].TransportBindings[0].OptionSelections) != 2 {
+			t.Fatalf("ListModels()[0] bindings = %#v, want typed transport binding", models[0].TransportBindings)
 		}
 	})
 }
@@ -412,6 +483,75 @@ func TestModelSourceShouldRejectInvalidRowMetadata(t *testing.T) {
 			},
 			wantErr: `default_reasoning_effort "medium" is not in reasoning_efforts`,
 		},
+		{
+			name: "Should reject unsupported option kind",
+			row: extensioncontract.ModelSourceRow{
+				SourceID:   sourceID,
+				ProviderID: "codex",
+				ModelID:    "model",
+				ConfigOptions: []extensioncontract.ModelSourceOptionDescriptor{{
+					ID:   "tier",
+					Kind: "range",
+				}},
+			},
+			wantErr: `kind "range" is not supported`,
+		},
+		{
+			name: "Should reject a current select value outside the descriptor",
+			row: extensioncontract.ModelSourceRow{
+				SourceID:   sourceID,
+				ProviderID: "codex",
+				ModelID:    "model",
+				ConfigOptions: []extensioncontract.ModelSourceOptionDescriptor{{
+					ID:             "tier",
+					Kind:           extensioncontract.ModelSourceOptionKindSelect,
+					CurrentValueID: "missing",
+					Values: []extensioncontract.ModelSourceOptionValue{{
+						ValueID: "standard",
+					}},
+				}},
+			},
+			wantErr: `current_value_id "missing" is not advertised`,
+		},
+		{
+			name: "Should reject a binding selection for an unknown option",
+			row: extensioncontract.ModelSourceRow{
+				SourceID:   sourceID,
+				ProviderID: "codex",
+				ModelID:    "model",
+				TransportBindings: []extensioncontract.ModelSourceTransportBinding{{
+					TransportModelID: "provider/model",
+					OptionSelections: []extensioncontract.ModelSourceOptionSelection{{
+						ID:      "missing",
+						ValueID: "value",
+					}},
+				}},
+			},
+			wantErr: `option id "missing" is not advertised`,
+		},
+		{
+			name: "Should reject a boolean value for a select option",
+			row: extensioncontract.ModelSourceRow{
+				SourceID:   sourceID,
+				ProviderID: "codex",
+				ModelID:    "model",
+				ConfigOptions: []extensioncontract.ModelSourceOptionDescriptor{{
+					ID:   "tier",
+					Kind: extensioncontract.ModelSourceOptionKindSelect,
+					Values: []extensioncontract.ModelSourceOptionValue{{
+						ValueID: "standard",
+					}},
+				}},
+				TransportBindings: []extensioncontract.ModelSourceTransportBinding{{
+					TransportModelID: "provider/model",
+					OptionSelections: []extensioncontract.ModelSourceOptionSelection{{
+						ID:        "tier",
+						BoolValue: new(true),
+					}},
+				}},
+			},
+			wantErr: `select option "tier" requires value_id`,
+		},
 	}
 
 	for _, tt := range tests {
@@ -620,7 +760,7 @@ func TestModelSourceShouldFailClosedWithoutBlockingCatalogList(t *testing.T) {
 		if len(models) != 1 || models[0].ModelID != "configured-model" {
 			t.Fatalf("ListModels() = %#v, want config model despite denied extension source", models)
 		}
-		statuses, err := service.ListSourceStatus(ctx, "codex")
+		statuses, err := service.ListSourceStatus(ctx, modelcatalog.StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v, want nil", err)
 		}
@@ -705,7 +845,48 @@ func newTestModelCatalogService(
 	if err != nil {
 		t.Fatalf("NewService() error = %v", err)
 	}
-	return service
+	return &testScopedModelCatalogService{Service: service}
+}
+
+type testScopedModelCatalogService struct {
+	modelcatalog.Service
+}
+
+func (s *testScopedModelCatalogService) ListModels(
+	ctx context.Context,
+	opts modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	opts.ExecutionContext = extensionTestExecutionContext(opts.ExecutionContext)
+	return s.Service.ListModels(ctx, opts)
+}
+
+func (s *testScopedModelCatalogService) Refresh(
+	ctx context.Context,
+	opts modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	opts.ExecutionContext = extensionTestExecutionContext(opts.ExecutionContext)
+	return s.Service.Refresh(ctx, opts)
+}
+
+func (s *testScopedModelCatalogService) ListSourceStatus(
+	ctx context.Context,
+	opts modelcatalog.StatusOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	opts.ExecutionContext = extensionTestExecutionContext(opts.ExecutionContext)
+	return s.Service.ListSourceStatus(ctx, opts)
+}
+
+func extensionTestExecutionContext(
+	requested modelcatalog.CatalogExecutionContext,
+) modelcatalog.CatalogExecutionContext {
+	if requested.Scope != "" {
+		return requested
+	}
+	return modelcatalog.CatalogExecutionContext{
+		Scope:       modelcatalog.ExecutionScopeWorkspace,
+		ProfileID:   "profile-test",
+		WorkspaceID: "workspace-test",
+	}
 }
 
 func startSubprocessModelSource(

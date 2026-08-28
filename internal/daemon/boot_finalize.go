@@ -138,21 +138,9 @@ func workspaceSkillWatcherRoots(
 			return nil, fmt.Errorf("daemon: list workspaces for skill watcher: %w", err)
 		}
 
-		profileNames := []string{compozyconfig.DefaultProfileDirName}
-		if profiles != nil {
-			listed, listErr := profiles.List(ctx)
-			if listErr != nil {
-				return nil, fmt.Errorf("daemon: list profiles for skill watcher: %w", listErr)
-			}
-			profileNames = profileNames[:0]
-			for _, profile := range listed {
-				if profile.State == profilepkg.StateActive {
-					profileNames = append(profileNames, profile.Name)
-				}
-			}
-			if len(profileNames) == 0 {
-				profileNames = append(profileNames, compozyconfig.DefaultProfileDirName)
-			}
+		profileNames, err := activeResourceProfileNames(ctx, profiles)
+		if err != nil {
+			return nil, err
 		}
 		roots := make([]string, 0, len(workspaces)*len(profileNames)*4)
 		seen := make(map[string]struct{}, cap(roots))
@@ -201,6 +189,7 @@ func workspaceSkillWatcherRoots(
 func workspaceAgentWatcherRoots(
 	homePaths compozyconfig.HomePaths,
 	registry workspaceRegistryReader,
+	profiles extensionProfileCatalog,
 ) func(context.Context) ([]string, error) {
 	if registry == nil {
 		return nil
@@ -210,21 +199,57 @@ func workspaceAgentWatcherRoots(
 		if err != nil {
 			return nil, fmt.Errorf("daemon: list workspaces for agent watcher: %w", err)
 		}
-		roots := make([]string, 0, len(workspaces)*3)
+		profileNames, err := activeResourceProfileNames(ctx, profiles)
+		if err != nil {
+			return nil, err
+		}
+		roots := make([]string, 0, len(workspaces)*len(profileNames)*3)
+		seen := make(map[string]struct{}, cap(roots))
 		for _, workspace := range workspaces {
-			for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
-				workspace.RootDir,
-				workspace.AdditionalDirs,
-				homePaths,
-				"",
-			) {
-				if root.Source != compozyconfig.WorkspaceDiscoverySourceGlobal {
-					roots = append(roots, root.AgentsDir())
+			for _, profileName := range profileNames {
+				for _, root := range compozyconfig.WorkspaceDiscoveryRoots(
+					workspace.RootDir,
+					workspace.AdditionalDirs,
+					homePaths,
+					profileName,
+				) {
+					if root.Source == compozyconfig.WorkspaceDiscoverySourceGlobal {
+						continue
+					}
+					agentsDir := root.AgentsDir()
+					if _, exists := seen[agentsDir]; exists {
+						continue
+					}
+					seen[agentsDir] = struct{}{}
+					roots = append(roots, agentsDir)
 				}
 			}
 		}
 		return roots, nil
 	}
+}
+
+func activeResourceProfileNames(
+	ctx context.Context,
+	profiles extensionProfileCatalog,
+) ([]string, error) {
+	if profiles == nil {
+		return []string{compozyconfig.DefaultProfileDirName}, nil
+	}
+	listed, err := profiles.List(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("daemon: list profiles for resource watcher: %w", err)
+	}
+	profileNames := make([]string, 0, len(listed))
+	for _, profile := range listed {
+		if profile.State == profilepkg.StateActive {
+			profileNames = append(profileNames, profile.Name)
+		}
+	}
+	if len(profileNames) == 0 {
+		profileNames = append(profileNames, compozyconfig.DefaultProfileDirName)
+	}
+	return profileNames, nil
 }
 
 func stopSkillsWatcher(ctx context.Context, cancel context.CancelFunc, done <-chan struct{}) error {

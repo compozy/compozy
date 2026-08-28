@@ -16,7 +16,7 @@ import { sessionCreateBinding } from "../lib/session-create-binding";
 import { activateCreatedSessionWorkspace } from "../lib/session-create-navigation";
 import { sessionCreateStoreLogic, type SessionCreateStore } from "../stores/session-create-store";
 import { sessionStore } from "../stores/session-store";
-import type { CreateSessionParams } from "../types";
+import type { CreateSessionParams, SessionPayload } from "../types";
 import { useCreateSession } from "./use-session-actions";
 import { useSessionEnvironment, type SessionEnvironmentModel } from "./use-session-environment";
 import { type AgentPayload, useAgents } from "@/systems/agent";
@@ -58,7 +58,6 @@ export interface SessionCreateDialogState {
   environment: SessionEnvironmentModel["field"];
   environmentListingState: SessionEnvironmentModel["listingState"];
   environmentListingError?: string;
-  firstMessage: string;
   /** True while a submit the operator already asked for waits on its worktree. */
   isAwaitingEnvironment: boolean;
 }
@@ -69,7 +68,6 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
   onModeChange: (mode: EntityMode) => void;
   onAgentChange: (agentName: string) => void;
   onSessionNameChange: (next: string) => void;
-  onFirstMessageChange: (next: string) => void;
   onNetworkParticipationChange: (next: NetworkParticipationDraft) => void;
   networkParticipation: NetworkParticipationDraft;
   submit: () => void;
@@ -77,6 +75,21 @@ export interface SessionCreateDialogApi extends SessionCreateDialogState {
 
 export interface SessionCreateDialogController {
   store: SessionCreateStore;
+}
+
+async function openCreatedSession(
+  session: SessionPayload,
+  currentWorkspaceId: string | null,
+  scope: WorkspaceScopeMode,
+  navigate: ReturnType<typeof useNavigate>
+): Promise<void> {
+  activateCreatedSessionWorkspace(session, currentWorkspaceId, {
+    skip: scope === "global",
+  });
+  await navigate({
+    to: "/agents/$name/sessions/$id",
+    params: { name: session.agent_name, id: session.id },
+  });
 }
 
 /** Provides the shared session-create store controller used by dialog hosts. */
@@ -101,8 +114,6 @@ export function useSessionCreateDialogViewModel(
   const flow = useSelector(store, snapshot => snapshot.context);
   const { draft } = flow;
   const isSubmitting = flow.operation.status === "submitting";
-  const navigationTarget =
-    flow.operation.status === "navigation-pending" ? flow.operation.target : null;
   const pendingAgentName = flow.operation.status === "submitting" ? flow.operation.agentName : null;
   const pendingWorkspaceId =
     flow.operation.status === "submitting" ? flow.operation.workspaceId : null;
@@ -140,23 +151,6 @@ export function useSessionCreateDialogViewModel(
     enabled: flow.open && scope === "workspace" && destinationReady,
   });
 
-  useEffect(() => {
-    if (!navigationTarget) return;
-    const { attempt, session } = navigationTarget;
-    store.trigger.navigationRequested({
-      attempt,
-      execute: async () => {
-        activateCreatedSessionWorkspace(session, runtimeWorkspaceId, {
-          skip: scope === "global",
-        });
-        await navigate({
-          to: "/agents/$name/sessions/$id",
-          params: { name: session.agent_name, id: session.id },
-        });
-      },
-    });
-  }, [navigate, navigationTarget, runtimeWorkspaceId, scope, store]);
-
   // `mutateAsync` is stable across renders while the mutation object is not, so
   // the armed-submit effect can depend on it without re-entering every keystroke.
   const createSessionAsync = createSession.mutateAsync;
@@ -175,17 +169,27 @@ export function useSessionCreateDialogViewModel(
       store.trigger.environmentSettled({});
       return;
     }
-    const { agentName, firstMessage, request, workspaceId: submitWorkspaceId } = pendingSubmit;
+    const { agentName, pendingPrompt, request, workspaceId: submitWorkspaceId } = pendingSubmit;
     store.trigger.submissionRequested({
       agentName,
       workspaceId: submitWorkspaceId,
       execute: async () => {
         const session = await createSessionAsync({ ...request, worktree: worktreeId });
-        sessionStore.trigger.firstPromptQueued({ sessionId: session.id, text: firstMessage });
+        queuePendingPrompt(session.id, pendingPrompt);
         return session;
       },
+      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
     });
-  }, [createSessionAsync, environment.status, pendingSubmit, store, worktreeId]);
+  }, [
+    createSessionAsync,
+    environment.status,
+    navigate,
+    pendingSubmit,
+    runtimeWorkspaceId,
+    scope,
+    store,
+    worktreeId,
+  ]);
 
   const submit = () => {
     if (!binding || isSubmitting || pendingSubmit !== null) return;
@@ -219,7 +223,7 @@ export function useSessionCreateDialogViewModel(
       ...(sessionName.length > 0 ? { name: sessionName } : {}),
       network_participation: serializeNetworkParticipation(networkParticipation),
     };
-    const firstMessage = draft.firstMessage;
+    const pendingPrompt = flow.pendingPrompt;
 
     if (scope === "workspace") {
       const readiness = environment.ensureReady();
@@ -232,7 +236,7 @@ export function useSessionCreateDialogViewModel(
       if (readiness === "materializing") {
         store.trigger.environmentAwaited({
           agentName,
-          firstMessage,
+          pendingPrompt,
           previousEnvironment: previousEnvironment ?? { kind: "root" },
           request,
           workspaceId: runtimeWorkspaceId ?? environmentWorkspaceId,
@@ -249,11 +253,10 @@ export function useSessionCreateDialogViewModel(
           ...request,
           ...(scope === "workspace" && worktreeId ? { worktree: worktreeId } : {}),
         });
-        // Queued against the durable id, inside the one call that produced it,
-        // so the message can neither precede the session nor be sent twice.
-        sessionStore.trigger.firstPromptQueued({ sessionId: session.id, text: firstMessage });
+        queuePendingPrompt(session.id, pendingPrompt);
         return session;
       },
+      navigate: session => openCreatedSession(session, runtimeWorkspaceId, scope, navigate),
     });
   };
 
@@ -278,11 +281,9 @@ export function useSessionCreateDialogViewModel(
     environment: scope === "workspace" ? environment.field : undefined,
     environmentListingState: environment.listingState,
     environmentListingError: environment.listingError,
-    firstMessage: draft.firstMessage,
     isAwaitingEnvironment: pendingSubmit !== null,
     onCancelEnvironment: () => {
-      // Abandons the checkout without dismissing: what was typed is still the
-      // operator's, and they only asked to stop creating a worktree.
+      // Abandons the checkout without dismissing the launch details.
       const restoreTarget = pendingSubmit?.previousEnvironment ?? { kind: "root" };
       environment.cancelPending(restoreTarget);
       store.trigger.environmentRestored({ environment: restoreTarget });
@@ -296,7 +297,6 @@ export function useSessionCreateDialogViewModel(
     onAgentChange: agentName =>
       store.trigger.agentSelected({ agentName, workspaceId: runtimeWorkspaceId ?? "" }),
     onSessionNameChange: sessionName => store.trigger.sessionNameChanged({ sessionName }),
-    onFirstMessageChange: firstMessage => store.trigger.firstMessageChanged({ firstMessage }),
     onNetworkParticipationChange: next =>
       store.trigger.networkParticipationSelected({
         networkParticipationMode: next.mode,
@@ -310,6 +310,11 @@ export function useSessionCreateDialogViewModel(
     ),
     submit,
   };
+}
+
+function queuePendingPrompt(sessionID: string, prompt: string | null): void {
+  if (prompt === null || prompt.trim() === "") return;
+  sessionStore.trigger.firstPromptQueued({ sessionId: sessionID, text: prompt });
 }
 
 export type { SessionCreateDialogDraft };

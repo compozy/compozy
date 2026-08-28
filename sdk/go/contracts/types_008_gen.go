@@ -7,6 +7,8 @@ import (
 	"time"
 )
 
+type DeliveryAckOutcome string
+
 type DeliveryErrorDetail struct {
 	Message string `json:"message"`
 }
@@ -171,9 +173,4 @@ type Effect struct {
 	OpenURL   *OpenURLEffect   `json:"open_url,omitempty"`
 	OpenApp   *OpenAppEffect   `json:"open_app,omitempty"`
 	PickFiles *PickFilesEffect `json:"pick_files,omitempty"`
-}
-
-type EffectResult struct {
-	EffectID string          `json:"effect_id"`
-	Payload  json.RawMessage `json:"payload,omitempty"`
 }

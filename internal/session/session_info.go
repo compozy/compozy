@@ -3,6 +3,7 @@ package session
 import (
 	"strings"
 
+	"github.com/compozy/compozy/internal/acp"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
@@ -38,6 +39,7 @@ func (s *Session) infoLocked() *Info {
 		Model:                    s.Model,
 		ReasoningEffort:          s.ReasoningEffort,
 		Speed:                    s.Speed,
+		ACPOptions:               acp.CloneSessionConfigOptionSelections(s.ACPOptions),
 		SpeedResolution:          speedpkg.CloneResolution(s.SpeedResolution),
 		RuntimeStatus:            s.RuntimeStatus,
 		RuntimeTransition:        s.RuntimeTransition,

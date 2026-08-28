@@ -11,6 +11,21 @@ import (
 
 type selfBinaryApplier struct{}
 
+// ApplyBinaryReplacement atomically replaces a runtime binary and keeps a rollback copy.
+func ApplyBinaryReplacement(
+	sourcePath string,
+	targetPath string,
+	backupPath string,
+	mode os.FileMode,
+) error {
+	return (selfBinaryApplier{}).ApplyBinary(sourcePath, targetPath, backupPath, mode)
+}
+
+// RestoreBinaryReplacement restores a runtime binary from a rollback copy.
+func RestoreBinaryReplacement(backupPath string, targetPath string, mode os.FileMode) error {
+	return (selfBinaryApplier{}).RestoreBinary(backupPath, targetPath, mode)
+}
+
 func (selfBinaryApplier) ApplyBinary(
 	sourcePath string,
 	targetPath string,

@@ -20,9 +20,13 @@ vi.mock("@/systems/settings", () => ({
   useSettingsProviders: hooks.useSettingsProviders,
 }));
 
-vi.mock("@/systems/workspace", () => ({
-  useWorkspace: hooks.useWorkspace,
-}));
+vi.mock("@/systems/workspace", async importOriginal => {
+  const actual = await importOriginal<typeof import("@/systems/workspace")>();
+  return {
+    ...actual,
+    useWorkspace: hooks.useWorkspace,
+  };
+});
 
 import { useTaskSetupRuntime } from "../use-task-setup-runtime";
 

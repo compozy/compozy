@@ -58,7 +58,16 @@ func TestAgentPayloadEffectiveRuntimeUsesRequestedWorkspaceConfig(t *testing.T) 
 
 func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	t.Helper()
-	agent := compozyconfig.AgentDef{Name: "reviewer", Prompt: "Review changes."}
+	fast := true
+	agent := compozyconfig.AgentDef{
+		Name:   "reviewer",
+		Prompt: "Review changes.",
+	}
+	agent.SetSpeed("fast")
+	agent.SetACPOptions([]compozyconfig.ACPOptionSelection{
+		{ID: "context", ValueID: "1m"},
+		{ID: "thinking", BoolValue: &fast},
+	})
 	entry := core.AgentCatalogEntry{Def: agent, Origin: contract.AgentOriginGlobal}
 	codexConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "codex"}}
 	claudeConfig := compozyconfig.Config{Defaults: compozyconfig.DefaultsConfig{Provider: "claude"}}
@@ -76,6 +85,23 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 	}
 	if codexPayload.Provider != "" || claudePayload.Provider != "" {
 		t.Fatalf("authored Provider = %q/%q, want empty", codexPayload.Provider, claudePayload.Provider)
+	}
+	for name, payload := range map[string]contract.AgentPayload{
+		"codex":  codexPayload,
+		"claude": claudePayload,
+	} {
+		if payload.Speed != contract.SpeedFast || len(payload.ACPOptions) != 2 {
+			t.Fatalf("%s authored runtime defaults = speed %q options %#v", name, payload.Speed, payload.ACPOptions)
+		}
+		if payload.ACPOptions[0].ID != "context" || payload.ACPOptions[0].ValueID != "1m" ||
+			payload.ACPOptions[0].BoolValue != nil || payload.ACPOptions[1].ID != "thinking" ||
+			payload.ACPOptions[1].BoolValue == nil || !*payload.ACPOptions[1].BoolValue {
+			t.Fatalf("%s authored ACP options = %#v", name, payload.ACPOptions)
+		}
+		if payload.EffectiveRuntime == nil || payload.EffectiveRuntime.Speed != contract.SpeedFast ||
+			len(payload.EffectiveRuntime.ACPOptions) != 2 {
+			t.Fatalf("%s effective runtime defaults = %#v", name, payload.EffectiveRuntime)
+		}
 	}
 	if got, want := codexPayload.EffectiveRuntime.Sources.Provider,
 		contract.AgentRuntimeValueSourceProjectDefault; got != want {
@@ -99,16 +125,20 @@ func testAgentPayloadEffectiveRuntime(t *testing.T) {
 			t.Fatalf("%s reasoning = %q, want %q", name, got, want)
 		}
 		if got, want := string(projection.payload.Sources.Provider),
-			string(resolved.RuntimeSources.Provider); got != want {
+			resolved.RuntimeSources.Provider.String(); got != want {
 			t.Fatalf("%s provider source = %q, want %q", name, got, want)
 		}
 		if got, want := string(projection.payload.Sources.Model),
-			string(resolved.RuntimeSources.Model); got != want {
+			resolved.RuntimeSources.Model.String(); got != want {
 			t.Fatalf("%s model source = %q, want %q", name, got, want)
 		}
 		if got, want := string(projection.payload.Sources.ReasoningEffort),
-			string(resolved.RuntimeSources.ReasoningEffort); got != want {
+			resolved.RuntimeSources.ReasoningEffort.String(); got != want {
 			t.Fatalf("%s reasoning source = %q, want %q", name, got, want)
+		}
+		if got, want := string(projection.payload.Sources.Speed),
+			resolved.RuntimeSources.Speed.String(); got != want {
+			t.Fatalf("%s speed source = %q, want %q", name, got, want)
 		}
 	}
 }

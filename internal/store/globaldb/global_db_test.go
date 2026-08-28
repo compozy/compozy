@@ -2303,12 +2303,14 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 			RuntimeStatus:     store.SessionRuntimeRecovering,
 			RuntimeTransition: store.SessionRuntimeTransitionAutomaticRecovery,
 			RuntimeGeneration: 3,
-			RuntimeRecovery: &store.SessionRuntimeRecovery{
-				Attempt:       1,
-				MaxAttempts:   3,
-				Generation:    4,
-				StartedAt:     createdAt,
-				LastAttemptAt: createdAt.Add(time.Second),
+			SessionRuntimeDetails: &store.SessionRuntimeDetails{
+				RuntimeRecovery: &store.SessionRuntimeRecovery{
+					Attempt:       1,
+					MaxAttempts:   3,
+					Generation:    4,
+					StartedAt:     createdAt,
+					LastAttemptAt: createdAt.Add(time.Second),
+				},
 			},
 			SelectedRuntime: &store.SessionRuntimeSelection{
 				Provider:        "claude",
@@ -2340,8 +2342,12 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListSessions(registered recovery) error = %v", err)
 		}
-		if len(registered) != 1 || registered[0].RuntimeGeneration != 3 ||
-			registered[0].RuntimeRecovery == nil || registered[0].RuntimeRecovery.Generation != 4 {
+		if len(registered) != 1 {
+			t.Fatalf("ListSessions(registered recovery) = %#v, want one session", registered)
+		}
+		registeredRecovery := registered[0].RuntimeRecoveryValue()
+		if registered[0].RuntimeGeneration != 3 ||
+			registeredRecovery == nil || registeredRecovery.Generation != 4 {
 			t.Fatalf("ListSessions(registered recovery) = %#v, want durable generation 3 recovering into 4", registered)
 		}
 
@@ -2408,11 +2414,12 @@ func TestGlobalDBRegisterUpdateAndListSessions(t *testing.T) {
 		if sessions[0].Provider != "codex" {
 			t.Fatalf("sessions[0].Provider = %q, want codex", sessions[0].Provider)
 		}
-		if sessions[0].RuntimeGeneration != 4 || sessions[0].RuntimeRecovery != nil {
+		sessionRecovery := sessions[0].RuntimeRecoveryValue()
+		if sessions[0].RuntimeGeneration != 4 || sessionRecovery != nil {
 			t.Fatalf(
 				"session runtime after recovery = generation %d, recovery %#v; want generation 4 without recovery",
 				sessions[0].RuntimeGeneration,
-				sessions[0].RuntimeRecovery,
+				sessionRecovery,
 			)
 		}
 		if sessions[0].Model != "gpt-5.6" || sessions[0].ReasoningEffort != "medium" ||
@@ -3756,6 +3763,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"model",
 				"reasoning_effort",
 				"speed",
+				"acp_options_json",
 				"speed_resolution_json",
 				"runtime_status",
 				"runtime_transition",
@@ -3766,6 +3774,7 @@ func TestGlobalDBRegisterAndListSessionsUseWorkspaceID(t *testing.T) {
 				"selected_model",
 				"selected_reasoning_effort",
 				"selected_speed",
+				"selected_acp_options_json",
 				"runtime_selection_revision",
 				"workspace_id",
 				"scope",

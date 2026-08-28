@@ -11,6 +11,7 @@ const (
 	modelGPT56TerraID           = "gpt-5.6-terra"
 	modelGPT56LunaID            = "gpt-5.6-luna"
 	modelClaudeFable5ID         = "claude-fable-5"
+	modelClaudeOpus5ID          = "claude-opus-5"
 	modelClaudeOpus48ID         = "claude-opus-4-8"
 	modelClaudeSonnet5ID        = "claude-sonnet-5"
 	modelClaudeHaiku45CurrentID = "claude-haiku-4-5-20251001"
@@ -104,9 +105,10 @@ func builtinClaudeModelsConfig() ProviderModelsConfig {
 			Apply: ReasoningApplyACPOption,
 		},
 		Curated: []ProviderModelConfig{
-			claudeReasoningModel(modelClaudeFable5ID, "Claude Fable 5", 1_000_000, 128_000, 10, 50, true, "2026-06-09"),
-			claudeReasoningModel(modelClaudeOpus48ID, "Claude Opus 4.8", 1_000_000, 128_000, 5, 25, false, ""),
-			claudeReasoningModel(modelClaudeSonnet5ID, "Claude Sonnet 5", 1_000_000, 128_000, 3, 15, false, ""),
+			claudeReasoningModel(modelClaudeFable5ID, "Claude Fable 5", 10, 50, true, "2026-06-09"),
+			claudeOpus5Model(),
+			claudeReasoningModel(modelClaudeOpus48ID, "Claude Opus 4.8", 5, 25, false, ""),
+			claudeReasoningModel(modelClaudeSonnet5ID, "Claude Sonnet 5", 3, 15, false, ""),
 			{
 				ID:                   modelClaudeHaiku45CurrentID,
 				DisplayName:          "Claude Haiku 4.5",
@@ -121,11 +123,15 @@ func builtinClaudeModelsConfig() ProviderModelsConfig {
 	}
 }
 
+func claudeOpus5Model() ProviderModelConfig {
+	model := claudeReasoningModel(modelClaudeOpus5ID, "Claude Opus 5", 5, 25, true, "")
+	model.DefaultReasoningEffort = providerMediumKey
+	return model
+}
+
 func claudeReasoningModel(
 	id string,
 	displayName string,
-	contextWindow int64,
-	maxOutput int64,
 	inputCost float64,
 	outputCost float64,
 	featured bool,
@@ -134,8 +140,8 @@ func claudeReasoningModel(
 	return ProviderModelConfig{
 		ID:                id,
 		DisplayName:       displayName,
-		ContextWindow:     new(contextWindow),
-		MaxOutputTokens:   new(maxOutput),
+		ContextWindow:     new(int64(1_000_000)),
+		MaxOutputTokens:   new(int64(128_000)),
 		SupportsTools:     new(true),
 		SupportsReasoning: new(true),
 		ReasoningEfforts: []string{

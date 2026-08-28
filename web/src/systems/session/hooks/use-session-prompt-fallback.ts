@@ -56,7 +56,7 @@ export function useSessionPromptFallback({
         (agents.data?.some(agent => agent.name === defaultAgent) ?? false);
       if (!defaultResolves) {
         createDialog.trigger.dialogOpened({ agentName: "", workspaceId });
-        createDialog.trigger.firstMessageChanged({ firstMessage: query });
+        createDialog.trigger.fallbackPromptStaged({ prompt: query });
         onPickerOpened();
         return;
       }

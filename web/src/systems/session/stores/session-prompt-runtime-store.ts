@@ -3,7 +3,11 @@ import { createStoreLogic } from "@xstate/store";
 import { type RuntimeSpeed } from "@/lib/api-contract";
 
 import type { SessionRuntimeEffective, SessionRuntimeSelection } from "../types";
-import type { RuntimeSelectorValue } from "@/systems/runtime";
+import {
+  normalizeRuntimeACPSelections,
+  runtimeACPSelectionsEqual,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
 
 interface SessionPromptRuntimeInput {
   canPrompt: boolean;
@@ -157,10 +161,12 @@ function selectedContext(runtime: SessionRuntimeSelection | undefined) {
 function runtimeValue(
   runtime: SessionRuntimeEffective | SessionRuntimeSelection | undefined
 ): RuntimeSelectorValue {
+  const acpOptions = normalizeRuntimeACPSelections(runtime?.acp_options);
   return {
     model: runtime?.model?.trim() ?? "",
     provider: runtime?.provider?.trim() ?? "",
     reasoning_effort: runtime?.reasoning_effort ?? "",
+    ...(acpOptions ? { acp_options: acpOptions } : {}),
   };
 }
 
@@ -174,6 +180,10 @@ function sameInput(left: SessionPromptRuntimeInput, right: SessionPromptRuntimeI
     left.effectiveRuntime?.model === right.effectiveRuntime?.model &&
     left.effectiveRuntime?.reasoning_effort === right.effectiveRuntime?.reasoning_effort &&
     left.effectiveRuntime?.speed === right.effectiveRuntime?.speed &&
+    runtimeACPSelectionsEqual(
+      normalizeRuntimeACPSelections(left.effectiveRuntime?.acp_options),
+      normalizeRuntimeACPSelections(right.effectiveRuntime?.acp_options)
+    ) &&
     left.selectionRevision === right.selectionRevision &&
     sameRuntimeSelection(left.selectedRuntime, right.selectedRuntime)
   );
@@ -208,7 +218,11 @@ function sameRuntimeSelection(
     left?.provider === right?.provider &&
     left?.model === right?.model &&
     left?.reasoning_effort === right?.reasoning_effort &&
-    left?.speed === right?.speed
+    left?.speed === right?.speed &&
+    runtimeACPSelectionsEqual(
+      normalizeRuntimeACPSelections(left?.acp_options),
+      normalizeRuntimeACPSelections(right?.acp_options)
+    )
   );
 }
 
@@ -216,6 +230,7 @@ function sameValue(left: RuntimeSelectorValue | null, right: RuntimeSelectorValu
   return (
     left?.provider === right.provider &&
     left?.model === right.model &&
-    left?.reasoning_effort === right.reasoning_effort
+    left?.reasoning_effort === right.reasoning_effort &&
+    runtimeACPSelectionsEqual(left?.acp_options, right.acp_options)
   );
 }

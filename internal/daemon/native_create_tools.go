@@ -33,20 +33,22 @@ type networkChannelUpdateInput struct {
 }
 
 type agentCreateInput struct {
-	Scope           string   `json:"scope"`
-	Workspace       string   `json:"workspace,omitempty"`
-	Name            string   `json:"name"`
-	Provider        string   `json:"provider,omitempty"`
-	Model           string   `json:"model,omitempty"`
-	ReasoningEffort string   `json:"reasoning_effort,omitempty"`
-	Command         string   `json:"command,omitempty"`
-	Prompt          string   `json:"prompt"`
-	Permissions     string   `json:"permissions,omitempty"`
-	Tools           []string `json:"tools,omitempty"`
-	Toolsets        []string `json:"toolsets,omitempty"`
-	DenyTools       []string `json:"deny_tools,omitempty"`
-	CategoryPath    []string `json:"category_path,omitempty"`
-	DisabledSkills  []string `json:"disabled_skills,omitempty"`
+	Scope           string                             `json:"scope"`
+	Workspace       string                             `json:"workspace,omitempty"`
+	Name            string                             `json:"name"`
+	Provider        string                             `json:"provider,omitempty"`
+	Model           string                             `json:"model,omitempty"`
+	ReasoningEffort string                             `json:"reasoning_effort,omitempty"`
+	Speed           string                             `json:"speed,omitempty"`
+	ACPOptions      []contract.AgentACPOptionSelection `json:"acp_options,omitempty"`
+	Command         string                             `json:"command,omitempty"`
+	Prompt          string                             `json:"prompt"`
+	Permissions     string                             `json:"permissions,omitempty"`
+	Tools           []string                           `json:"tools,omitempty"`
+	Toolsets        []string                           `json:"toolsets,omitempty"`
+	DenyTools       []string                           `json:"deny_tools,omitempty"`
+	CategoryPath    []string                           `json:"category_path,omitempty"`
+	DisabledSkills  []string                           `json:"disabled_skills,omitempty"`
 }
 
 func (n *daemonNativeTools) networkChannelCreate(
@@ -165,6 +167,10 @@ func (n *daemonNativeTools) agentCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	profileName, err := n.nativeAgentCreateProfileName(ctx, createReq.Scope, scope.ProfileID)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
+	}
 	agentSkills := n.deps.agentSkills()
 	if agentSkills == nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(
@@ -179,6 +185,7 @@ func (n *daemonNativeTools) agentCreate(
 		&n.deps.Config,
 		n.deps.Workspaces,
 		string(req.ToolID),
+		profileName,
 	)
 	if err != nil {
 		return toolspkg.ToolResult{}, nativeAgentCreateToolError(req.ToolID, err)
@@ -201,6 +208,32 @@ func (n *daemonNativeTools) agentCreate(
 	}
 	payload := core.AgentPayloadFromEntryWithConfig(entry, &created.RuntimeConfig)
 	return structuredResult(map[string]any{daemonAgentField: payload}, "agent "+payload.Name)
+}
+
+func (n *daemonNativeTools) nativeAgentCreateProfileName(
+	ctx context.Context,
+	scope contract.AgentCreateScope,
+	profileID string,
+) (string, error) {
+	if scope != contract.AgentCreateScopeWorkspace {
+		return "", nil
+	}
+	profileID = strings.TrimSpace(profileID)
+	if n.deps.Profiles != nil {
+		profileName, err := n.deps.Profiles.ProfileName(ctx, profileID)
+		if err != nil {
+			return "", fmt.Errorf("daemon: resolve agent create profile: %w", err)
+		}
+		profileName = strings.TrimSpace(profileName)
+		if profileName == "" {
+			return "", errors.New("daemon: resolved agent create profile is empty")
+		}
+		return profileName, nil
+	}
+	if profileID == "" || profileID == store.DefaultProfileID {
+		return daemonDefaultProfileName, nil
+	}
+	return "", errors.New("daemon: profile lookup is unavailable for agent create")
 }
 
 func (n *daemonNativeTools) rollbackNativeAgentCreate(ctx context.Context, sourcePath string) error {
@@ -232,6 +265,8 @@ func (n *daemonNativeTools) agentCreateRequest(
 			Command:         strings.TrimSpace(input.Command),
 			Model:           strings.TrimSpace(input.Model),
 			ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(input.ReasoningEffort)),
+			Speed:           contract.Speed(strings.TrimSpace(input.Speed)),
+			ACPOptions:      cloneNativeAgentACPOptions(input.ACPOptions),
 			Prompt:          input.Prompt,
 			Permissions:     contract.SettingsPermissionMode(strings.TrimSpace(input.Permissions)),
 			Tools:           trimNativeStrings(input.Tools),
@@ -253,6 +288,25 @@ func (n *daemonNativeTools) agentCreateRequest(
 		createReq.Workspace = workspaceRef
 	}
 	return createReq, nil
+}
+
+func cloneNativeAgentACPOptions(
+	options []contract.AgentACPOptionSelection,
+) []contract.AgentACPOptionSelection {
+	if len(options) == 0 {
+		return nil
+	}
+	cloned := make([]contract.AgentACPOptionSelection, len(options))
+	for index, option := range options {
+		cloned[index] = contract.AgentACPOptionSelection{
+			ID:      strings.TrimSpace(option.ID),
+			ValueID: strings.TrimSpace(option.ValueID),
+		}
+		if option.BoolValue != nil {
+			cloned[index].BoolValue = new(*option.BoolValue)
+		}
+	}
+	return cloned
 }
 
 func nativeAgentCreateToolError(id toolspkg.ToolID, err error) error {

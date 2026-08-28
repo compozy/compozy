@@ -27,6 +27,7 @@ import (
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 	skillbundled "github.com/compozy/compozy/skills"
+	shellquote "github.com/kballard/go-shellquote"
 )
 
 type blockingSessionCreatedNotifier struct {
@@ -610,24 +611,100 @@ func TestManagerWorkAdmission(t *testing.T) {
 func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should accept and persist an exact Cursor model id", func(t *testing.T) {
+	t.Run("Should layer agent runtime defaults under explicit session ACP options", func(t *testing.T) {
 		t.Parallel()
 
-		const cursorModel = "grok-4.5[effort=high,fast=true]"
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+		h := newHarness(t)
+		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		for index := range resolvedWorkspace.Agents {
+			if resolvedWorkspace.Agents[index].Name != "coder" {
+				continue
+			}
+			resolvedWorkspace.Agents[index].SetSpeed(speedpkg.SpeedFast)
+			resolvedWorkspace.Agents[index].SetACPOptions([]compozyconfig.ACPOptionSelection{
+				{ID: "context", ValueID: "1m"},
+				{ID: "thinking", BoolValue: new(true)},
+			})
+		}
+		h.resolver.upsert(&resolvedWorkspace)
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			ACPOptions: []acp.SessionConfigOptionSelection{{
+				ID: "context", ValueID: "200k",
+			}},
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+
+		start := h.driver.startCalls[0]
+		if start.Speed != speedpkg.SpeedFast || len(start.ACPOptions) != 2 ||
+			start.ACPOptions[0].ID != "context" || start.ACPOptions[0].ValueID != "200k" ||
+			start.ACPOptions[1].ID != "thinking" || start.ACPOptions[1].BoolValue == nil ||
+			!*start.ACPOptions[1].BoolValue {
+			t.Fatalf(
+				"StartOpts runtime = speed %q options %#v, want inherited fast plus session overlay",
+				start.Speed,
+				start.ACPOptions,
+			)
+		}
+		info := session.Info()
+		meta := readMeta(t, session.MetaPath())
+		if info.Speed != speedpkg.SpeedFast || len(info.ACPOptions) != 2 ||
+			meta.Speed != speedpkg.SpeedFast || len(meta.ACPOptionsValue()) != 2 {
+			t.Fatalf(
+				"effective runtime info=%#v meta=%#v, want materialized defaults",
+				info.ACPOptions,
+				meta.ACPOptions,
+			)
+		}
+		creationProfile := session.Meta().CreationProfile
+		if creationProfile == nil || creationProfile.Speed != speedpkg.SpeedFast ||
+			len(creationProfile.ACPOptions) != 2 || creationProfile.ACPOptions[0].ID != "context" ||
+			creationProfile.ACPOptions[0].ValueID != "200k" || creationProfile.ACPOptions[1].ID != "thinking" ||
+			creationProfile.ACPOptions[1].BoolValue == nil || !*creationProfile.ACPOptions[1].BoolValue {
+			t.Fatalf("creation profile runtime = %#v, want immutable effective defaults", creationProfile)
+		}
+	})
+
+	t.Run("Should compile a logical Cursor model and options into the launch command", func(t *testing.T) {
+		t.Parallel()
+
+		const cursorModel = "grok-4.6"
+		const transportModel = "cursor-grok-4.6-high-fast"
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        "cursor",
 			ModelID:           cursorModel,
 			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			SupportsReasoning: new(true),
+			ReasoningEfforts:  []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
+			TransportBindings: []modelcatalog.ModelTransportBinding{{
+				TransportModelID: transportModel,
+				ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+				Fast:             new(true),
+			}},
 			Sources: []modelcatalog.SourceRef{{
 				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
 				SourceKind: modelcatalog.SourceKindProviderLive,
 			}},
 		}}}))
 		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
-			AgentName: "coder",
-			Provider:  "cursor",
-			Model:     cursorModel,
-			Workspace: h.workspaceID,
+			AgentName:       "coder",
+			Provider:        "cursor",
+			Model:           cursorModel,
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+			Workspace:       h.workspaceID,
 		})
 		if err != nil {
 			t.Fatalf("Create() error = %v", err)
@@ -640,18 +717,82 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		if got := h.driver.startCalls[0].PreferredModel; got != cursorModel {
 			t.Fatalf("StartOpts.PreferredModel = %q, want %q", got, cursorModel)
 		}
+		if got := h.driver.startCalls[0].RuntimeStrategy; got != acp.RuntimeApplicationLaunchArg {
+			t.Fatalf("StartOpts.RuntimeStrategy = %q, want launch_arg", got)
+		}
+		if got := h.driver.startCalls[0].LaunchModelID; got != transportModel {
+			t.Fatalf("StartOpts.LaunchModelID = %q, want %q", got, transportModel)
+		}
+		argv, splitErr := shellquote.Split(h.driver.startCalls[0].Command)
+		if splitErr != nil {
+			t.Fatalf("shellquote.Split(StartOpts.Command) error = %v", splitErr)
+		}
+		wantArgv := []string{
+			"cursor-agent",
+			"--model",
+			transportModel,
+			"acp",
+		}
+		if !slices.Equal(argv, wantArgv) {
+			t.Fatalf("StartOpts.Command argv = %#v, want %#v", argv, wantArgv)
+		}
 		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
 			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+	})
+
+	t.Run("Should resolve a logical Claude model to its live transport alias at start", func(t *testing.T) {
+		t.Parallel()
+
+		const logicalModel = "claude-opus-5"
+		const transportModel = "opus"
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
+			ProviderID:        runtimeProviderClaude,
+			ModelID:           logicalModel,
+			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			TransportBindings: []modelcatalog.ModelTransportBinding{{TransportModelID: transportModel}},
+			Sources: []modelcatalog.SourceRef{{
+				SourceID:   modelcatalog.SourceKindProviderLiveID(runtimeProviderClaude),
+				SourceKind: modelcatalog.SourceKindProviderLive,
+			}},
+		}}}))
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "coder",
+			Provider:  runtimeProviderClaude,
+			Model:     logicalModel,
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if stopErr := h.manager.Stop(testutil.Context(t), session.ID); stopErr != nil {
+				t.Errorf("Stop() error = %v", stopErr)
+			}
+		})
+		if got := h.driver.startCalls[0].PreferredModel; got != transportModel {
+			t.Fatalf("StartOpts.PreferredModel = %q, want private alias %q", got, transportModel)
+		}
+		if got := session.Info().Model; got != logicalModel {
+			t.Fatalf("session.Info().Model = %q, want logical model %q", got, logicalModel)
+		}
+		if got := readMeta(t, session.MetaPath()).Model; got != logicalModel {
+			t.Fatalf("meta.Model = %q, want logical model %q", got, logicalModel)
 		}
 	})
 
 	t.Run("Should reject an aliased Cursor agent default before session reservation", func(t *testing.T) {
 		t.Parallel()
 
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{models: []modelcatalog.Model{{
 			ProviderID:        "cursor",
-			ModelID:           "grok-4.5[effort=high,fast=true]",
+			ModelID:           "grok-4.5",
 			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
+			TransportBindings: []modelcatalog.ModelTransportBinding{{
+				TransportModelID: "cursor-grok-4.5-high",
+				ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+				Fast:             new(false),
+			}},
 			Sources: []modelcatalog.SourceRef{{
 				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
 				SourceKind: modelcatalog.SourceKindProviderLive,
@@ -687,16 +828,28 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	t.Run("Should start an advertised Cursor agent default exactly", func(t *testing.T) {
 		t.Parallel()
 
-		const cursorModel = "grok-4.5[effort=high,fast=true]"
-		h := newHarness(t, WithModelCatalog(cursorModelCatalogStub{models: []modelcatalog.Model{{
-			ProviderID:        "cursor",
-			ModelID:           cursorModel,
-			AvailabilityState: modelcatalog.AvailabilityStateAvailableLive,
-			Sources: []modelcatalog.SourceRef{{
-				SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
-				SourceKind: modelcatalog.SourceKindProviderLive,
-			}},
-		}}}))
+		const cursorModel = "grok-4.5"
+		const transportModel = "cursor-grok-4.5-high"
+		var requestedView modelcatalog.CatalogView
+		h := newHarness(t, WithModelCatalog(modelCatalogStub{
+			onList: func(opts modelcatalog.ListOptions) {
+				requestedView = opts.View
+			},
+			models: []modelcatalog.Model{{
+				ProviderID:             "cursor",
+				ModelID:                cursorModel,
+				AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
+				DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+				TransportBindings: []modelcatalog.ModelTransportBinding{{
+					TransportModelID: transportModel,
+					ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+					Fast:             new(false),
+				}},
+				Sources: []modelcatalog.SourceRef{{
+					SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+					SourceKind: modelcatalog.SourceKindProviderLive,
+				}},
+			}}}))
 		resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 		if err != nil {
 			t.Fatalf("Resolve() error = %v", err)
@@ -724,8 +877,14 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 		if got := h.driver.startCalls[0].PreferredModel; got != cursorModel {
 			t.Fatalf("StartOpts.PreferredModel = %q, want %q", got, cursorModel)
 		}
+		if got := h.driver.startCalls[0].LaunchModelID; got != transportModel {
+			t.Fatalf("StartOpts.LaunchModelID = %q, want %q", got, transportModel)
+		}
 		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
 			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		}
+		if requestedView != modelcatalog.CatalogViewAll {
+			t.Fatalf("model catalog view = %q, want all live discovered models", requestedView)
 		}
 	})
 
@@ -751,10 +910,10 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 			}
 			proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-native")
 			proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
-				ID:      "model",
-				Kind:    acp.SessionConfigOptionKindSelect,
-				Current: cursorModel,
-				Values:  []acp.SessionConfigOptionValue{{Value: cursorModel}},
+				ID:             "model",
+				Kind:           acp.SessionConfigOptionKindSelect,
+				CurrentValueID: cursorModel,
+				Values:         []acp.SessionConfigOptionValue{{Value: cursorModel}},
 			}}})
 			return proc, nil
 		}
@@ -771,11 +930,11 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 				t.Errorf("Stop() error = %v", stopErr)
 			}
 		})
-		if got := session.Info().Model; got != cursorModel {
-			t.Fatalf("session.Info().Model = %q, want %q", got, cursorModel)
+		if got := session.Info().Model; got != "" {
+			t.Fatalf("session.Info().Model = %q, want no private Cursor alias", got)
 		}
-		if got := readMeta(t, session.MetaPath()).Model; got != cursorModel {
-			t.Fatalf("meta.Model = %q, want %q", got, cursorModel)
+		if got := readMeta(t, session.MetaPath()).Model; got != "" {
+			t.Fatalf("meta.Model = %q, want no private Cursor alias", got)
 		}
 	})
 
@@ -1035,27 +1194,37 @@ func TestCreateAppliesRuntimeModelOverride(t *testing.T) {
 	})
 }
 
-type cursorModelCatalogStub struct {
+type modelCatalogStub struct {
 	models []modelcatalog.Model
+	onList func(modelcatalog.ListOptions)
 }
 
-func (s cursorModelCatalogStub) ListModels(
-	context.Context,
-	modelcatalog.ListOptions,
+func (s modelCatalogStub) ListModels(
+	_ context.Context,
+	opts modelcatalog.ListOptions,
 ) ([]modelcatalog.Model, error) {
-	return append([]modelcatalog.Model(nil), s.models...), nil
+	if s.onList != nil {
+		s.onList(opts)
+	}
+	models := make([]modelcatalog.Model, 0, len(s.models))
+	for _, model := range s.models {
+		if opts.ProviderID == "" || model.ProviderID == opts.ProviderID {
+			models = append(models, model)
+		}
+	}
+	return models, nil
 }
 
-func (cursorModelCatalogStub) Refresh(
+func (modelCatalogStub) Refresh(
 	context.Context,
 	modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
 
-func (cursorModelCatalogStub) ListSourceStatus(
+func (modelCatalogStub) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -1171,6 +1340,51 @@ func TestCreateWithWorkspacePathUsesResolveOrRegister(t *testing.T) {
 		}
 		if got, want := h.resolver.profileRegisterNames[0], "marketing"; got != want {
 			t.Fatalf("resolved profile name = %q, want %q", got, want)
+		}
+	})
+}
+
+func TestCreateUsesProfileWorkspaceAgents(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should create a session with an agent from the default profile layer", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		h.resolver.mu.Lock()
+		profileWorkspace := h.resolver.byRef[h.workspaceID]
+		profileWorkspace.Agents = append(profileWorkspace.Agents, compozyconfig.AgentDef{
+			Name:     "marketing",
+			Provider: "claude",
+			Prompt:   "You are a marketing assistant.",
+		})
+		h.resolver.byProfile[sessionDefaultProfileName] = profileWorkspace
+		h.resolver.mu.Unlock()
+
+		session, err := h.manager.Create(testutil.Context(t), CreateOpts{
+			AgentName: "marketing",
+			Name:      "marketing-session",
+			Workspace: h.workspaceID,
+		})
+		if err != nil {
+			t.Fatalf("Create(default profile agent) error = %v", err)
+		}
+		t.Cleanup(func() {
+			reportSessionStop(t, h, session.ID)
+		})
+
+		h.resolver.mu.Lock()
+		profileNames := append([]string(nil), h.resolver.profileResolveNames...)
+		h.resolver.mu.Unlock()
+		if len(profileNames) == 0 || profileNames[0] != sessionDefaultProfileName {
+			t.Fatalf(
+				"ResolveForProfile() names = %v, want first lookup for %q",
+				profileNames,
+				sessionDefaultProfileName,
+			)
+		}
+		if got := session.Info().AgentName; got != "marketing" {
+			t.Fatalf("session agent = %q, want marketing", got)
 		}
 	})
 }

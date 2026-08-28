@@ -12,6 +12,7 @@ import (
 
 	"github.com/BurntSushi/toml"
 	"github.com/compozy/compozy/internal/reasoning"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,6 +30,7 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 		runtimeProvider string
 		defaultModel    string
 		noSessionMCP    bool
+		statusCommand   string
 		loginCommand    string
 		apiKeyEnv       string
 		required        bool
@@ -76,7 +78,13 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 			defaultModel: "gemini-3.1-pro-preview",
 		},
 		{name: "goose", command: "goose acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
-		{name: "hermes", command: "hermes acp", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
+		{
+			name:          "hermes",
+			command:       "hermes acp",
+			harness:       ProviderHarnessACP,
+			authMode:      ProviderAuthModeNativeCLI,
+			statusCommand: "hermes acp --check",
+		},
 		{name: "junie", command: "junie --acp true", harness: ProviderHarnessACP, authMode: ProviderAuthModeNativeCLI},
 		{
 			name:     "kimi-cli",
@@ -261,6 +269,14 @@ func TestBuiltinProvidersContainExpectedCommands(t *testing.T) {
 					tc.loginCommand,
 				)
 			}
+			if strings.TrimSpace(got.AuthStatusCmd) != tc.statusCommand {
+				t.Fatalf(
+					"BuiltinProviders()[%q].AuthStatusCmd = %q, want %q",
+					tc.name,
+					got.AuthStatusCmd,
+					tc.statusCommand,
+				)
+			}
 			slots := got.EffectiveCredentialSlots()
 			if tc.apiKeyEnv == "" {
 				if len(slots) != 0 {
@@ -337,6 +353,19 @@ func TestBuiltinProviderModelCatalogMatchesCurrentContract(t *testing.T) {
 						CostOutputPerMillion:   new(50.0),
 						Featured:               new(true),
 						ReleaseDate:            "2026-06-09",
+					},
+					{
+						ID:                     modelClaudeOpus5ID,
+						DisplayName:            "Claude Opus 5",
+						ContextWindow:          new(int64(1_000_000)),
+						MaxOutputTokens:        new(int64(128_000)),
+						SupportsTools:          new(true),
+						SupportsReasoning:      new(true),
+						ReasoningEfforts:       []string{"low", "medium", "high", "xhigh", "max"},
+						DefaultReasoningEffort: "medium",
+						CostInputPerMillion:    new(5.0),
+						CostOutputPerMillion:   new(25.0),
+						Featured:               new(true),
 					},
 					{
 						ID:                     modelClaudeOpus48ID,
@@ -1022,6 +1051,105 @@ func TestResolveAgentModelOverridesProviderDefault(t *testing.T) {
 	}
 }
 
+func TestResolveAgentPreservesRuntimeDefaults(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should preserve runtime defaults and ownership", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+
+		cfg := DefaultWithHome(homePaths)
+		agent := AgentDef{
+			Name:     "coder",
+			Provider: "claude",
+			Prompt:   "prompt",
+		}
+		agent.SetSpeed(speedpkg.SpeedFast)
+		agent.SetACPOptions([]ACPOptionSelection{
+			{ID: "thinking", BoolValue: new(true)},
+			{ID: "context", ValueID: "1m"},
+		})
+
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		resolvedOptions := resolved.ACPOptionsValue()
+		if resolved.SpeedValue() != speedpkg.SpeedFast || len(resolvedOptions) != 2 {
+			t.Fatalf("ResolveAgent() runtime defaults = %#v", resolved)
+		}
+		if got := resolved.RuntimeSources.Speed; got != RuntimeValueSourceAgent {
+			t.Fatalf("ResolveAgent() speed source = %q, want agent", got)
+		}
+		if resolvedOptions[0].BoolValue == nil || !*resolvedOptions[0].BoolValue ||
+			resolvedOptions[1].ValueID != "1m" {
+			t.Fatalf("ResolveAgent() ACPOptions = %#v", resolvedOptions)
+		}
+		agentOptions := agent.ACPOptionsValue()
+		*agentOptions[0].BoolValue = false
+		agentOptions[1].ValueID = "changed"
+		if !*resolvedOptions[0].BoolValue || resolvedOptions[1].ValueID != "1m" {
+			t.Fatalf("ResolveAgent() ACPOptions alias source data: %#v", resolvedOptions)
+		}
+	})
+
+	t.Run("Should inherit the selected model default speed", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["cursor"] = ProviderConfig{Models: ProviderModelsConfig{
+			Default: "grok-4.5",
+			Curated: []ProviderModelConfig{{ID: "grok-4.5", DefaultSpeed: speedpkg.SpeedFast}},
+		}}
+
+		resolved, err := cfg.ResolveAgent(AgentDef{Name: "coder", Provider: "cursor", Prompt: "prompt"})
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if got := resolved.SpeedValue(); got != speedpkg.SpeedFast {
+			t.Fatalf("ResolveAgent() Speed = %q, want fast", got)
+		}
+		if got := resolved.RuntimeSources.Speed; got != RuntimeValueSourceModelDefault {
+			t.Fatalf("ResolveAgent() speed source = %q, want model_default", got)
+		}
+	})
+
+	t.Run("Should prefer an authored speed over the selected model default", func(t *testing.T) {
+		t.Parallel()
+
+		homePaths, err := ResolveHomePathsFrom(filepath.Join(t.TempDir(), "home"))
+		if err != nil {
+			t.Fatalf("ResolveHomePathsFrom() error = %v", err)
+		}
+		cfg := DefaultWithHome(homePaths)
+		cfg.Providers["cursor"] = ProviderConfig{Models: ProviderModelsConfig{
+			Default: "grok-4.5",
+			Curated: []ProviderModelConfig{{ID: "grok-4.5", DefaultSpeed: speedpkg.SpeedFast}},
+		}}
+		agent := AgentDef{Name: "coder", Provider: "cursor", Prompt: "prompt"}
+		agent.SetSpeed(speedpkg.SpeedNormal)
+
+		resolved, err := cfg.ResolveAgent(agent)
+		if err != nil {
+			t.Fatalf("ResolveAgent() error = %v", err)
+		}
+		if got := resolved.SpeedValue(); got != speedpkg.SpeedNormal {
+			t.Fatalf("ResolveAgent() Speed = %q, want normal", got)
+		}
+		if got := resolved.RuntimeSources.Speed; got != RuntimeValueSourceAgent {
+			t.Fatalf("ResolveAgent() speed source = %q, want agent", got)
+		}
+	})
+}
+
 func TestResolveAgentReasoningEffort(t *testing.T) {
 	t.Parallel()
 
@@ -1186,7 +1314,7 @@ func TestResolveAgentAllowsDirectACPProviderManagedModel(t *testing.T) {
 			if resolved.Model != "" {
 				t.Fatalf("ResolveAgent() Model = %q, want provider-managed empty model", resolved.Model)
 			}
-			if resolved.RuntimeSources.Model != "" {
+			if resolved.RuntimeSources.Model != RuntimeValueSourceUnspecified {
 				t.Fatalf("ResolveAgent() model source = %q, want empty", resolved.RuntimeSources.Model)
 			}
 		})
@@ -1874,6 +2002,15 @@ reasoning_efforts = ["high"]
 default_reasoning_effort = " high "
 `,
 			wantErr: `providers.codex.models.curated[0].default_reasoning_effort`,
+		},
+		{
+			name: "Should reject an invalid default speed",
+			config: `
+[[providers.codex.models.curated]]
+id = "gpt-5.4"
+default_speed = "turbo"
+`,
+			wantErr: `providers.codex.models.curated[0].default_speed`,
 		},
 		{
 			name: "Should reject a negative cache read rate",

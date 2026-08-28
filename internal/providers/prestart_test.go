@@ -121,6 +121,34 @@ func TestPreStarter(t *testing.T) {
 			t.Fatalf("Code = %q, want %q", report.Item.Code, diagcontract.CodeProviderNotAuthenticated)
 		}
 	})
+
+	t.Run("Should use Hermes ACP check only as a bounded import preflight", func(t *testing.T) {
+		t.Parallel()
+
+		report := NewPreStarter().PreStart(testutil.Context(t), compozyconfig.ProviderConfig{
+			Command:       "hermes acp",
+			AuthMode:      compozyconfig.ProviderAuthModeNativeCLI,
+			AuthStatusCmd: "hermes acp --check",
+		}, &ProbeEnv{
+			ProviderName: "hermes",
+			LookPath: func(string) (string, error) {
+				return "/bin/hermes", nil
+			},
+			RunCommand: func(_ context.Context, spec ProviderAuthCommandSpec) (ProviderAuthCommandResult, error) {
+				if !spec.NoTTY {
+					t.Fatal("NoTTY = false, want preflight to be non-interactive")
+				}
+				if spec.Executable != "/bin/hermes" {
+					t.Fatalf("Executable = %q, want /bin/hermes", spec.Executable)
+				}
+				if !slices.Equal(spec.Args, []string{"acp", "--check"}) {
+					t.Fatalf("Args = %#v, want acp --check", spec.Args)
+				}
+				return ProviderAuthCommandResult{ExitCode: 0, Stdout: "Hermes ACP check OK"}, nil
+			},
+		})
+		assertNoPreStartReport(t, report)
+	})
 }
 
 type profileCredentialMetadata map[string]bool

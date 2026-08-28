@@ -144,7 +144,7 @@ export const FallbackEditor: Story = {
         ...settingsRolesConfigWithFallbackFixture.dream,
         fallback_chain: [
           settingsRolesConfigWithFallbackFixture.dream.fallback_chain[0]!,
-          { provider: "", model: "", reasoning_effort: "" },
+          { provider: "", model: "", reasoning_effort: "", acp_options: [] },
         ],
       },
     },

@@ -13,15 +13,15 @@ type sessionDeletionCommand struct {
 	sessionID string
 }
 
-func (sessionDeletionCommand) CommandID() CommandID { return CommandWindowClose }
+func (sessionDeletionCommand) CommandID() CommandID { return CommandWindowNavigate }
 
 func isSessionDeletionCommand(command Command) bool {
 	_, ok := command.(sessionDeletionCommand)
 	return ok
 }
 
-// ReconcileDeletedSession removes every durable window for one deleted
-// session from the owning workspace and publishes the normal workspace event.
+// ReconcileDeletedSession retires every durable window for one deleted
+// session onto the empty session route and publishes the workspace event.
 func (m *Manager) ReconcileDeletedSession(
 	ctx context.Context,
 	workspaceID WorkspaceID,

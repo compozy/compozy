@@ -14,8 +14,11 @@ func (m *Manager) prepareSessionLaunch(
 	runtime *sessionStartRuntime,
 	run *sessionStartRun,
 ) (acp.StartOpts, error) {
-	startOpts := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
-	startOpts, err := m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
+	startOpts, err := m.sessionStartOpts(spec, session, runtime.agent, runtime.mcpServers)
+	if err != nil {
+		return acp.StartOpts{}, startupFailure("session runtime adapter failed", err)
+	}
+	startOpts, err = m.prepareProviderForStart(ctx, session, runtime.agent, startOpts)
 	if err != nil {
 		return acp.StartOpts{}, startupFailure("session provider startup failed", err)
 	}

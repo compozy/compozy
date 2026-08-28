@@ -864,6 +864,19 @@ func TestNormalizeToolConfigValue(t *testing.T) {
 		if !ok || runtimeTable["provider"] != "codex" || runtimeTable["reasoning"] != "high" {
 			t.Fatalf("NormalizeToolConfigValue(loop runtime) = %#v, want runtime object", loopRuntime)
 		}
+		acpValue, err := NormalizeToolConfigValue(ConfigValueACPOptions, []any{
+			map[string]any{"id": "thinking", "bool_value": true},
+			map[string]any{"id": "context", "value_id": "1m"},
+		})
+		if err != nil {
+			t.Fatalf("NormalizeToolConfigValue(ACP options) error = %v", err)
+		}
+		acpOptions, ok := acpValue.([]map[string]any)
+		if !ok || len(acpOptions) != 2 || acpOptions[0]["id"] != "context" ||
+			acpOptions[0]["value_id"] != "1m" || acpOptions[1]["id"] != "thinking" ||
+			acpOptions[1]["bool_value"] != true {
+			t.Fatalf("NormalizeToolConfigValue(ACP options) = %#v, want sorted typed values", acpValue)
+		}
 
 		if _, err := NormalizeToolConfigValue(ConfigValueDuration, "not-a-duration"); err == nil {
 			t.Fatal("NormalizeToolConfigValue(invalid duration) error = nil, want non-nil")

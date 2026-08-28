@@ -11,6 +11,7 @@ import (
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -114,6 +115,66 @@ func TestInvokeRoleWithFallback(t *testing.T) {
 		}
 		if value != "accepted-session" || attempts != 1 {
 			t.Fatalf("value/attempts = %q/%d, want accepted-session/1", value, attempts)
+		}
+	})
+
+	t.Run("Should preserve speed and ACP options on every route", func(t *testing.T) {
+		t.Parallel()
+
+		role := fallbackTestRole(nil)
+		role.setRuntime(
+			speedpkg.SpeedFast,
+			[]compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+		)
+		role.Fallbacks[0].Speed = speedpkg.SpeedNormal
+		role.Fallbacks[0].ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}}
+		role.Fallbacks[1].Speed = speedpkg.SpeedFast
+		role.Fallbacks[1].ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(false)}}
+		var routes []roleAttemptRoute
+		_, err := invokeRoleWithFallback(t.Context(), role, roleInvocationCorrelation{}, func(
+			_ context.Context,
+			route roleAttemptRoute,
+		) (struct{}, bool, error) {
+			routes = append(routes, route)
+			return struct{}{}, false, errors.New("rejected")
+		})
+		if err == nil || len(routes) != 3 {
+			t.Fatalf("invokeRoleWithFallback() error/routes = %v/%d, want exhaustion/3", err, len(routes))
+		}
+		want := []roleAttemptRoute{
+			{
+				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				Provider:        "primary",
+				Model:           "m1",
+				ReasoningEffort: "low",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []compozyconfig.ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(true)},
+				},
+			},
+			{
+				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				Provider:        "secondary",
+				Model:           "m2",
+				ReasoningEffort: "medium",
+				Speed:           speedpkg.SpeedNormal,
+				ACPOptions: []compozyconfig.ACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+				},
+			},
+			{
+				AgentName:       compozyconfig.BuiltinDreamingCuratorAgentName,
+				Provider:        "tertiary",
+				Model:           "m3",
+				ReasoningEffort: "high",
+				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []compozyconfig.ACPOptionSelection{
+					{ID: "thinking", BoolValue: new(false)},
+				},
+			},
+		}
+		if !reflect.DeepEqual(routes, want) {
+			t.Fatalf("routes = %#v, want %#v", routes, want)
 		}
 	})
 

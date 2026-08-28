@@ -36,6 +36,7 @@ const (
 	SeamTool         Seam = "tool"
 	SeamSpawn        Seam = "spawn"
 	SeamCoordination Seam = "coordination"
+	SeamCatalog      Seam = "catalog"
 )
 
 // Request is the complete input to one workspace-access decision.

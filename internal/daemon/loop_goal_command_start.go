@@ -195,6 +195,7 @@ func (s *daemonLoopAPIService) resolveGoalRuntime(
 		return nil, nil
 	}
 	resolved := *runtime
+	resolved.ACPOptions = cloneLoopACPOptions(runtime.ACPOptions)
 	provider := compozyconfig.CanonicalProviderName(resolved.Provider)
 	if provider == "" {
 		return nil, looppkg.NewRuntimeValidationError(looppkg.RuntimeValidationItem{
@@ -322,7 +323,9 @@ func goalStartInputs(
 		NetworkParticipationSnapshot: participation.CloneSpec(network),
 	}
 	if runtime != nil {
-		inputs.ConfigOverrides.RuntimeDefaults = &looppkg.RuntimeDefaults{Worker: *runtime}
+		worker := *runtime
+		worker.ACPOptions = cloneLoopACPOptions(runtime.ACPOptions)
+		inputs.ConfigOverrides.RuntimeDefaults = &looppkg.RuntimeDefaults{Worker: worker}
 	}
 	return inputs
 }

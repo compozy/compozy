@@ -37,6 +37,12 @@ type ActorIdentity struct {
 
 type ActorKind string
 
+type AgentACPOptionSelection struct {
+	ID        string `json:"id"`
+	ValueID   string `json:"value_id,omitempty"`
+	BoolValue *bool  `json:"bool_value,omitempty"`
+}
+
 type AgentCrashedPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
 }
@@ -252,10 +258,4 @@ type AgentSoulConfigProvenancePayload struct {
 	Enabled                bool   `json:"enabled"`
 	MaxBodyBytes           int64  `json:"max_body_bytes"`
 	ContextProjectionBytes int64  `json:"context_projection_bytes"`
-}
-
-type AgentSoulDeleteParams struct {
-	WorkspaceID    string `json:"workspace_id,omitempty"`
-	AgentName      string `json:"agent_name"`
-	ExpectedDigest string `json:"expected_digest"`
 }

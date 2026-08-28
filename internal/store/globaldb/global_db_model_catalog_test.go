@@ -115,8 +115,352 @@ func modelCatalogPricingMigrationPrefix(t *testing.T) store.MigrationStream {
 	)
 }
 
+// Suite: global model-catalog execution-context migration
+// Invariant: provider-independent rows survive in global scope while scoped live observations are rediscovered.
+// Boundary IN: a populated production 00095 GlobalDB prefix.
+// Boundary OUT: head repository reads after close and reopen.
+func TestGlobalDBModelCatalogExecutionContextMigration(t *testing.T) {
+	t.Parallel()
+	t.Run(
+		"Should preserve static rows and discard provider-live observations during the 00096 rebuild",
+		func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+			prefixDB, err := openGlobalMigrationPrefixDatabase(
+				t,
+				path,
+				globalMigrationPrefixBefore(t, "00096_schema.sql"),
+			)
+			if err != nil {
+				t.Fatalf("OpenSQLiteDatabase(00095 prefix) error = %v", err)
+			}
+			ctx := globalMigrationTestContext(t)
+			liveSourceID := modelcatalog.SourceKindProviderLiveID("cursor")
+			seedPreContextCatalogRow := func(sourceID string, sourceKind modelcatalog.SourceKind, modelID string) {
+				t.Helper()
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_sources (
+				source_id, provider_id, source_kind, priority, refresh_state, row_count, stale
+			) VALUES (?, 'cursor', ?, 120, 'succeeded', 1, 0)`, sourceID, sourceKind); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_sources(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_rows (
+				source_id, provider_id, model_id, source_kind, priority,
+				display_name, supports_reasoning, default_reasoning_effort
+			) VALUES (?, 'cursor', ?, ?, 120, ?, 1, 'high')`,
+					sourceID,
+					modelID,
+					sourceKind,
+					"Model "+modelID,
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_rows(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_reasoning_efforts (
+				source_id, provider_id, model_id, effort, rank
+			) VALUES (?, 'cursor', ?, 'high', 0)`, sourceID, modelID); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_reasoning_efforts(%s) error = %v", sourceID, execErr)
+				}
+				transportModelID := modelID + "[effort=high,fast=true]"
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_transport_bindings (
+				source_id, provider_id, model_id, transport_model_id,
+				label, reasoning_effort, fast, thinking, rank
+			) VALUES (?, 'cursor', ?, ?, ?, 'high', 1, 0, 0)`,
+					sourceID,
+					modelID,
+					transportModelID,
+					"High fast",
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_transport_bindings(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_options (
+				source_id, provider_id, model_id, option_id,
+				label, category, kind, current_value_id
+			) VALUES (?, 'cursor', ?, 'context', 'Context', 'runtime', 'select', 'large')`,
+					sourceID,
+					modelID,
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_options(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_option_values (
+				source_id, provider_id, model_id, option_id, value_id, label, rank
+			) VALUES (?, 'cursor', ?, 'context', 'large', 'Large', 0)`, sourceID, modelID); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_option_values(%s) error = %v", sourceID, execErr)
+				}
+				if _, execErr := prefixDB.ExecContext(ctx, `INSERT INTO model_catalog_transport_binding_selections (
+				source_id, provider_id, model_id, transport_model_id, option_id, value_id
+			) VALUES (?, 'cursor', ?, ?, 'context', 'large')`,
+					sourceID,
+					modelID,
+					transportModelID,
+				); execErr != nil {
+					t.Fatalf("seed 00095 model_catalog_transport_binding_selections(%s) error = %v", sourceID, execErr)
+				}
+			}
+			seedPreContextCatalogRow("config", modelcatalog.SourceKindConfig, "grok-static")
+			seedPreContextCatalogRow(liveSourceID, modelcatalog.SourceKindProviderLive, "grok-live")
+			if err := prefixDB.Close(); err != nil {
+				t.Fatalf("prefixDB.Close() error = %v", err)
+			}
+
+			upgraded, err := openGlobalMigrationUpgrade(t, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(00096 upgrade) error = %v", err)
+			}
+			if err := upgraded.Close(ctx); err != nil {
+				t.Fatalf("GlobalDB.Close(upgrade) error = %v", err)
+			}
+			reopened, err := OpenGlobalDB(ctx, path)
+			if err != nil {
+				t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+			}
+			t.Cleanup(func() {
+				if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+					t.Errorf("GlobalDB.Close(reopen) error = %v", closeErr)
+				}
+			})
+
+			rows, err := reopened.ListRows(ctx, modelcatalog.ListOptions{
+				ProviderID:       "cursor",
+				SourceID:         "config",
+				ExecutionContext: modelcatalog.GlobalCatalogExecutionContext(),
+				SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+					"config": modelcatalog.GlobalCatalogExecutionContext(),
+				},
+				IncludeAll:   true,
+				IncludeStale: true,
+			})
+			if err != nil {
+				t.Fatalf("ListRows(static after 00096) error = %v", err)
+			}
+			if len(rows) != 1 || rows[0].ModelID != "grok-static" ||
+				!slices.Equal(
+					rows[0].ReasoningEfforts,
+					[]modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
+				) ||
+				len(rows[0].ConfigOptions) != 1 || rows[0].ConfigOptions[0].CurrentValueID != "large" ||
+				len(rows[0].ConfigOptions[0].Values) != 1 || rows[0].ConfigOptions[0].Values[0].ValueID != "large" ||
+				len(rows[0].TransportBindings) != 1 ||
+				rows[0].TransportBindings[0].TransportModelID != "grok-static[effort=high,fast=true]" ||
+				len(rows[0].TransportBindings[0].OptionSelections) != 1 ||
+				rows[0].TransportBindings[0].OptionSelections[0].ValueID != "large" {
+				t.Fatalf("static rows after 00096 = %#v, want complete config row", rows)
+			}
+
+			var liveRecords int
+			if err := reopened.db.QueryRowContext(ctx, `SELECT
+			(SELECT COUNT(*) FROM model_catalog_sources WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_rows WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_reasoning_efforts WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_transport_bindings WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_options WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_option_values WHERE source_id = ?) +
+			(SELECT COUNT(*) FROM model_catalog_transport_binding_selections WHERE source_id = ?)`,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+				liveSourceID,
+			).Scan(&liveRecords); err != nil {
+				t.Fatalf("count provider-live records after 00096 error = %v", err)
+			}
+			if liveRecords != 0 {
+				t.Fatalf("provider-live records after 00096 = %d, want 0 for rediscovery", liveRecords)
+			}
+		},
+	)
+}
+
 func TestGlobalDBModelCatalogStore(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should isolate live rows and prune superseded fingerprints within one workspace", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		copyCurrentSchemaGlobalDBSeed(t, path)
+		globalDB, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB() error = %v", err)
+		}
+		sourceID := modelcatalog.SourceKindProviderLiveID("cursor")
+		contextA := modelcatalog.CatalogExecutionContext{
+			Scope:              modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:          "profile-a",
+			WorkspaceID:        "workspace-a",
+			CommandFingerprint: modelcatalog.CatalogExecutionFingerprint("cursor-a"),
+		}
+		contextB := modelcatalog.CatalogExecutionContext{
+			Scope:              modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:          "profile-a",
+			WorkspaceID:        "workspace-a",
+			CommandFingerprint: modelcatalog.CatalogExecutionFingerprint("cursor-b"),
+		}
+		contextOtherWorkspace := modelcatalog.CatalogExecutionContext{
+			Scope:              modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:          "profile-a",
+			WorkspaceID:        "workspace-b",
+			CommandFingerprint: modelcatalog.CatalogExecutionFingerprint("cursor-a"),
+		}
+		persistLive := func(executionContext modelcatalog.CatalogExecutionContext, modelID string) {
+			t.Helper()
+			row := modelCatalogRow(sourceID, "cursor", modelID, modelcatalog.SourceKindProviderLive, 110)
+			status := modelCatalogStatus(sourceID, "cursor", modelcatalog.SourceKindProviderLive, 110)
+			if replaceErr := globalDB.ReplaceSourceRows(
+				ctx,
+				executionContext,
+				sourceID,
+				"cursor",
+				[]modelcatalog.ModelRow{row},
+				status,
+			); replaceErr != nil {
+				t.Fatalf("ReplaceSourceRows(%s) error = %v", modelID, replaceErr)
+			}
+		}
+		listLive := func(db *GlobalDB, executionContext modelcatalog.CatalogExecutionContext) []modelcatalog.ModelRow {
+			t.Helper()
+			rows, listErr := db.ListRows(ctx, modelcatalog.ListOptions{
+				ProviderID: "cursor",
+				SourceID:   sourceID,
+				SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+					sourceID: executionContext,
+				},
+				IncludeAll:   true,
+				IncludeStale: true,
+			})
+			if listErr != nil {
+				t.Fatalf("ListRows() error = %v", listErr)
+			}
+			return rows
+		}
+
+		persistLive(contextA, "model-a")
+		persistLive(contextOtherWorkspace, "model-other-workspace")
+		if rows := listLive(globalDB, contextA); len(rows) != 1 || rows[0].ModelID != "model-a" {
+			t.Fatalf("context A rows = %#v, want model-a", rows)
+		}
+		if rows := listLive(globalDB, contextOtherWorkspace); len(rows) != 1 ||
+			rows[0].ModelID != "model-other-workspace" {
+			t.Fatalf("other workspace rows = %#v, want isolated model", rows)
+		}
+
+		persistLive(contextB, "model-b")
+		if rows := listLive(globalDB, contextA); len(rows) != 0 {
+			t.Fatalf("superseded context A rows = %#v, want pruned", rows)
+		}
+		if rows := listLive(globalDB, contextB); len(rows) != 1 || rows[0].ModelID != "model-b" {
+			t.Fatalf("context B rows = %#v, want model-b", rows)
+		}
+		if rows := listLive(globalDB, contextOtherWorkspace); len(rows) != 1 ||
+			rows[0].ModelID != "model-other-workspace" {
+			t.Fatalf("other workspace rows after prune = %#v, want preserved", rows)
+		}
+		contextAID, err := contextA.ID()
+		if err != nil {
+			t.Fatalf("contextA.ID() error = %v", err)
+		}
+		var contextACount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM model_catalog_execution_contexts WHERE context_id = ?`,
+			contextAID,
+		).Scan(&contextACount); err != nil {
+			t.Fatalf("query superseded execution context error = %v", err)
+		}
+		if contextACount != 0 {
+			t.Fatalf("superseded execution context count = %d, want 0", contextACount)
+		}
+
+		configRow := modelCatalogRow("config", "cursor", "static-model", modelcatalog.SourceKindConfig, 120)
+		configStatus := modelCatalogStatus("config", "cursor", modelcatalog.SourceKindConfig, 120)
+		err = globalDB.ReplaceSourceRows(
+			ctx,
+			modelcatalog.GlobalCatalogExecutionContext(),
+			"config",
+			"cursor",
+			[]modelcatalog.ModelRow{configRow},
+			configStatus,
+		)
+		if err != nil {
+			t.Fatalf("ReplaceSourceRows(config) error = %v", err)
+		}
+		combined, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: "cursor",
+			SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+				"config": modelcatalog.GlobalCatalogExecutionContext(),
+				sourceID: contextB,
+			},
+			IncludeAll:   true,
+			IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(combined) error = %v", err)
+		}
+		if got, want := len(combined), 2; got != want {
+			t.Fatalf("len(ListRows(combined)) = %d, want %d: %#v", got, want, combined)
+		}
+
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("CloseGlobalDB() error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := reopened.Close(testutil.Context(t)); closeErr != nil {
+				t.Errorf("CloseGlobalDB(reopened) error = %v", closeErr)
+			}
+		})
+		if rows := listLive(reopened, contextB); len(rows) != 1 || rows[0].ModelID != "model-b" {
+			t.Fatalf("reopened context B rows = %#v, want model-b", rows)
+		}
+		if rows := listLive(reopened, contextOtherWorkspace); len(rows) != 1 ||
+			rows[0].ModelID != "model-other-workspace" {
+			t.Fatalf("reopened other workspace rows = %#v, want isolated model", rows)
+		}
+	})
+
+	t.Run("Should reject source kinds stored in the wrong execution scope", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		liveRow := modelCatalogRow(
+			"provider_live:cursor",
+			"cursor",
+			"model",
+			modelcatalog.SourceKindProviderLive,
+			110,
+		)
+		liveStatus := modelCatalogStatus(
+			"provider_live:cursor",
+			"cursor",
+			modelcatalog.SourceKindProviderLive,
+			110,
+		)
+		err := globalDB.ReplaceSourceRows(
+			ctx,
+			modelcatalog.GlobalCatalogExecutionContext(),
+			liveRow.SourceID,
+			liveRow.ProviderID,
+			[]modelcatalog.ModelRow{liveRow},
+			liveStatus,
+		)
+		assertGlobalDBErrorContains(t, err, "requires a scoped execution context")
+
+		configRow := modelCatalogRow("config", "cursor", "model", modelcatalog.SourceKindConfig, 120)
+		configStatus := modelCatalogStatus("config", "cursor", modelcatalog.SourceKindConfig, 120)
+		err = globalDB.ReplaceSourceRows(
+			ctx,
+			modelCatalogTestExecutionContext(modelcatalog.SourceKindProviderLive),
+			configRow.SourceID,
+			configRow.ProviderID,
+			[]modelcatalog.ModelRow{configRow},
+			configStatus,
+		)
+		assertGlobalDBErrorContains(t, err, "requires the global execution context")
+	})
 
 	t.Run("Should join reasoning-effort scan and rows-close errors", func(t *testing.T) {
 		t.Parallel()
@@ -197,12 +541,174 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if oldEffortCount != 0 {
 			t.Fatalf("old effort count = %d, want 0", oldEffortCount)
 		}
-		statuses, err := globalDB.ListSourceStatus(ctx, "codex")
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
 		if len(statuses) != 1 || statuses[0].RowCount != 1 {
 			t.Fatalf("statuses = %#v, want one status with row_count 1", statuses)
+		}
+	})
+
+	t.Run("Should round trip transport bindings through replacement and reopen", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), GlobalDatabaseName)
+		globalDB := openGlobalDBForTest(t, path)
+		ctx := testutil.Context(t)
+		reasoningEffort := modelcatalog.ReasoningEffortHigh
+		fast := true
+		thinking := false
+		row := modelCatalogRow("config", "cursor", "grok-4.6", modelcatalog.SourceKindConfig, 120)
+		row.TransportBindings = []modelcatalog.ModelTransportBinding{
+			{
+				TransportModelID: "grok-4.6[effort=high,fast=true]",
+				Label:            "Grok 4.6 · High · Fast",
+				ReasoningEffort:  &reasoningEffort,
+				Fast:             &fast,
+				Thinking:         &thinking,
+			},
+			{
+				TransportModelID: "grok-4.6",
+				Label:            "Grok 4.6",
+			},
+		}
+		replaceModelCatalogRows(
+			t,
+			globalDB,
+			"config",
+			"cursor",
+			modelcatalog.SourceKindConfig,
+			120,
+			[]modelcatalog.ModelRow{row},
+		)
+
+		assertTransportBindingRoundTrip(ctx, t, globalDB, row.TransportBindings)
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close(before reopen) error = %v", err)
+		}
+		reopened, err := OpenGlobalDB(ctx, path)
+		if err != nil {
+			t.Fatalf("OpenGlobalDB(reopen) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := reopened.Close(testutil.Context(t)); err != nil {
+				t.Errorf("Close(reopened) error = %v", err)
+			}
+		})
+		assertTransportBindingRoundTrip(ctx, t, reopened, row.TransportBindings)
+	})
+
+	t.Run("Should replace transport bindings without leaving old rows", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		oldRow := modelCatalogRow("config", "cursor", "grok-4.6", modelcatalog.SourceKindConfig, 120)
+		oldRow.TransportBindings = []modelcatalog.ModelTransportBinding{{
+			TransportModelID: "grok-4.6[effort=low,fast=false]",
+			Label:            "Grok 4.6 · Low",
+		}}
+		replaceModelCatalogRows(
+			t,
+			globalDB,
+			"config",
+			"cursor",
+			modelcatalog.SourceKindConfig,
+			120,
+			[]modelcatalog.ModelRow{oldRow},
+		)
+
+		newRow := modelCatalogRow("config", "cursor", "grok-4.6", modelcatalog.SourceKindConfig, 120)
+		newRow.TransportBindings = []modelcatalog.ModelTransportBinding{{
+			TransportModelID: "grok-4.6[effort=xhigh,fast=true]",
+			Label:            "Grok 4.6 · XHigh · Fast",
+		}}
+		replaceModelCatalogRows(
+			t,
+			globalDB,
+			"config",
+			"cursor",
+			modelcatalog.SourceKindConfig,
+			120,
+			[]modelcatalog.ModelRow{newRow},
+		)
+
+		rows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: "cursor", SourceID: "config", IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(after binding replacement) error = %v", err)
+		}
+		if len(rows) != 1 || len(rows[0].TransportBindings) != 1 {
+			t.Fatalf("rows(after binding replacement) = %#v, want one model with one binding", rows)
+		}
+		if got := rows[0].TransportBindings[0].TransportModelID; got != newRow.TransportBindings[0].TransportModelID {
+			t.Fatalf("transport model id = %q, want %q", got, newRow.TransportBindings[0].TransportModelID)
+		}
+		var oldCount int
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT COUNT(*) FROM model_catalog_transport_bindings
+			 WHERE source_id = ? AND provider_id = ? AND model_id = ? AND transport_model_id = ?`,
+			"config",
+			"cursor",
+			"grok-4.6",
+			oldRow.TransportBindings[0].TransportModelID,
+		).Scan(&oldCount); err != nil {
+			t.Fatalf("QueryRowContext(old binding) error = %v", err)
+		}
+		if oldCount != 0 {
+			t.Fatalf("old binding count = %d, want 0", oldCount)
+		}
+	})
+
+	t.Run("Should associate transport bindings with the complete model key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		globalDB := openTestGlobalDB(t)
+		first := modelCatalogRow("config", "cursor", "grok-4.5", modelcatalog.SourceKindConfig, 120)
+		first.TransportBindings = []modelcatalog.ModelTransportBinding{{
+			TransportModelID: "grok-4.5[effort=high,fast=true]",
+			Label:            "Grok 4.5 · High · Fast",
+		}}
+		second := modelCatalogRow("config", "cursor", "grok-4.6", modelcatalog.SourceKindConfig, 120)
+		second.TransportBindings = []modelcatalog.ModelTransportBinding{{
+			TransportModelID: "grok-4.6[effort=xhigh,fast=true]",
+			Label:            "Grok 4.6 · XHigh · Fast",
+		}}
+		replaceModelCatalogRows(
+			t,
+			globalDB,
+			"config",
+			"cursor",
+			modelcatalog.SourceKindConfig,
+			120,
+			[]modelcatalog.ModelRow{first, second},
+		)
+
+		rows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: "cursor", SourceID: "config", IncludeStale: true,
+		})
+		if err != nil {
+			t.Fatalf("ListRows(composite binding key) error = %v", err)
+		}
+		if len(rows) != 2 {
+			t.Fatalf("rows(composite binding key) = %#v, want two rows", rows)
+		}
+		for _, want := range []modelcatalog.ModelRow{first, second} {
+			var got *modelcatalog.ModelRow
+			for index := range rows {
+				if rows[index].ModelID == want.ModelID {
+					got = &rows[index]
+					break
+				}
+			}
+			if got == nil || len(got.TransportBindings) != 1 ||
+				got.TransportBindings[0].TransportModelID != want.TransportBindings[0].TransportModelID {
+				t.Fatalf("row for model %q = %#v, want binding %#v", want.ModelID, got, want.TransportBindings)
+			}
 		}
 	})
 
@@ -266,6 +772,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 		err := globalDB.ReplaceSourceRows(
 			ctx,
+			modelcatalog.GlobalCatalogExecutionContext(),
 			"config",
 			"codex",
 			[]modelcatalog.ModelRow{invalid},
@@ -286,7 +793,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			!slices.Equal(rows[0].ReasoningEfforts, original.ReasoningEfforts) {
 			t.Fatalf("rows after failed replace = %#v, want original row preserved", rows)
 		}
-		statuses, err := globalDB.ListSourceStatus(ctx, "codex")
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus(after failed replace) error = %v", err)
 		}
@@ -321,18 +828,20 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 		err := globalDB.ReplaceSourceRowsBatch(ctx, []modelcatalog.SourceRowsReplacement{
 			{
-				SourceID:   "config",
-				ProviderID: "claude",
+				ExecutionContext: modelcatalog.GlobalCatalogExecutionContext(),
+				SourceID:         "config",
+				ProviderID:       "claude",
 				Rows: []modelcatalog.ModelRow{
 					modelCatalogRow("config", "claude", "new-claude", modelcatalog.SourceKindConfig, 120),
 				},
 				Status: modelCatalogStatus("config", "claude", modelcatalog.SourceKindConfig, 120),
 			},
 			{
-				SourceID:   "config",
-				ProviderID: "codex",
-				Rows:       []modelcatalog.ModelRow{invalid},
-				Status:     modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120),
+				ExecutionContext: modelcatalog.GlobalCatalogExecutionContext(),
+				SourceID:         "config",
+				ProviderID:       "codex",
+				Rows:             []modelcatalog.ModelRow{invalid},
+				Status:           modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120),
 			},
 		})
 		if err == nil {
@@ -355,7 +864,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if !slices.Equal(got, want) {
 			t.Fatalf("rows after failed batch = %#v, want %#v", got, want)
 		}
-		statuses, err := globalDB.ListSourceStatus(ctx, "")
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{})
 		if err != nil {
 			t.Fatalf("ListSourceStatus(after failed batch) error = %v", err)
 		}
@@ -376,6 +885,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		row.ExpiresAt = time.Time{}
 		if err := globalDB.ReplaceSourceRows(
 			ctx,
+			modelcatalog.GlobalCatalogExecutionContext(),
 			"builtin",
 			"blackbox",
 			[]modelcatalog.ModelRow{row},
@@ -488,7 +998,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		replaceModelCatalogRows(t, globalDB, "models_dev", "codex", modelcatalog.SourceKindModelsDev, 50, nil)
 		replaceModelCatalogRows(t, globalDB, "models_dev", "claude", modelcatalog.SourceKindModelsDev, 50, nil)
 
-		statuses, err := globalDB.ListSourceStatus(ctx, "")
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{})
 		if err != nil {
 			t.Fatalf("ListSourceStatus(all) error = %v", err)
 		}
@@ -503,7 +1013,10 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 				t.Fatalf("status has empty provider sentinel: %#v", status)
 			}
 		}
-		codexStatuses, err := globalDB.ListSourceStatus(ctx, "codex")
+		codexStatuses, err := globalDB.ListSourceStatus(
+			ctx,
+			modelcatalog.StatusOptions{ProviderID: "codex"},
+		)
 		if err != nil {
 			t.Fatalf("ListSourceStatus(codex) error = %v", err)
 		}
@@ -518,6 +1031,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		globalDB := openTestGlobalDB(t)
 		err := globalDB.ReplaceSourceRows(
 			testutil.Context(t),
+			modelcatalog.GlobalCatalogExecutionContext(),
 			"models_dev",
 			"",
 			nil,
@@ -581,6 +1095,33 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 				want:   "reasoning effort",
 			},
 			{
+				name: "Should reject blank transport model id",
+				rows: []modelcatalog.ModelRow{
+					func() modelcatalog.ModelRow {
+						row := modelCatalogRow("config", "codex", "gpt-5.4", modelcatalog.SourceKindConfig, 120)
+						row.TransportBindings = []modelcatalog.ModelTransportBinding{{Label: "missing id"}}
+						return row
+					}(),
+				},
+				status: modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120),
+				want:   "transport model id is required",
+			},
+			{
+				name: "Should reject duplicate transport model id",
+				rows: []modelcatalog.ModelRow{
+					func() modelcatalog.ModelRow {
+						row := modelCatalogRow("config", "codex", "gpt-5.4", modelcatalog.SourceKindConfig, 120)
+						row.TransportBindings = []modelcatalog.ModelTransportBinding{
+							{TransportModelID: "gpt-5.4-high"},
+							{TransportModelID: "gpt-5.4-high"},
+						}
+						return row
+					}(),
+				},
+				status: modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120),
+				want:   "duplicate transport model id",
+			},
+			{
 				name: "Should reject a non-finite reasoning rate",
 				rows: []modelcatalog.ModelRow{
 					func() modelcatalog.ModelRow {
@@ -597,7 +1138,14 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 				t.Parallel()
 
 				globalDB := openTestGlobalDB(t)
-				err := globalDB.ReplaceSourceRows(testutil.Context(t), "config", "codex", tc.rows, tc.status)
+				err := globalDB.ReplaceSourceRows(
+					testutil.Context(t),
+					modelcatalog.GlobalCatalogExecutionContext(),
+					"config",
+					"codex",
+					tc.rows,
+					tc.status,
+				)
 				if err == nil || !strings.Contains(err.Error(), tc.want) {
 					t.Fatalf("ReplaceSourceRows() error = %v, want containing %q", err, tc.want)
 				}
@@ -612,6 +1160,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		nilCtx := nilModelCatalogTestContext()
 		if err := globalDB.ReplaceSourceRows(
 			nilCtx,
+			modelcatalog.GlobalCatalogExecutionContext(),
 			"config",
 			"codex",
 			nil,
@@ -622,7 +1171,10 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		if _, err := globalDB.ListRows(nilCtx, modelcatalog.ListOptions{}); err == nil {
 			t.Fatal("ListRows(nil context) error = nil, want validation error")
 		}
-		if _, err := globalDB.ListSourceStatus(nilCtx, "codex"); err == nil {
+		if _, err := globalDB.ListSourceStatus(
+			nilCtx,
+			modelcatalog.StatusOptions{ProviderID: "codex"},
+		); err == nil {
 			t.Fatal("ListSourceStatus(nil context) error = nil, want validation error")
 		}
 	})
@@ -695,11 +1247,18 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 		status := modelCatalogStatus("config", "codex", modelcatalog.SourceKindConfig, 120)
 		status.RefreshState = ""
-		if err := globalDB.ReplaceSourceRows(ctx, "config", "codex", []modelcatalog.ModelRow{row}, status); err != nil {
+		if err := globalDB.ReplaceSourceRows(
+			ctx,
+			modelcatalog.GlobalCatalogExecutionContext(),
+			"config",
+			"codex",
+			[]modelcatalog.ModelRow{row},
+			status,
+		); err != nil {
 			t.Fatalf("ReplaceSourceRows() error = %v", err)
 		}
 
-		statuses, err := globalDB.ListSourceStatus(ctx, "codex")
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
@@ -752,11 +1311,24 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		failed.RefreshState = modelcatalog.RefreshStateFailed
 		failed.LastError = "redacted refresh failed"
 		failed.Stale = true
-		if err := globalDB.ReplaceSourceRows(ctx, "provider_live:codex", "codex", nil, failed); err != nil {
+		liveContext := modelCatalogTestExecutionContext(modelcatalog.SourceKindProviderLive)
+		if err := globalDB.ReplaceSourceRows(
+			ctx,
+			liveContext,
+			"provider_live:codex",
+			"codex",
+			nil,
+			failed,
+		); err != nil {
 			t.Fatalf("ReplaceSourceRows(failed) error = %v", err)
 		}
 
-		statuses, err := globalDB.ListSourceStatus(ctx, "codex")
+		statuses, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{
+			ProviderID: "codex",
+			SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+				"provider_live:codex": liveContext,
+			},
+		})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
@@ -770,7 +1342,12 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		}
 		rows, err := globalDB.ListRows(
 			ctx,
-			modelcatalog.ListOptions{ProviderID: "codex", SourceID: "provider_live:codex", IncludeStale: true},
+			modelcatalog.ListOptions{
+				ProviderID: "codex", SourceID: "provider_live:codex", IncludeStale: true,
+				SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+					"provider_live:codex": liveContext,
+				},
+			},
 		)
 		if err != nil {
 			t.Fatalf("ListRows(after failed replace) error = %v", err)
@@ -809,7 +1386,14 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 			[]modelcatalog.ModelRow{alpha},
 		)
 
-		rows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{ProviderID: "codex", IncludeStale: true})
+		extensionContext := modelCatalogTestExecutionContext(modelcatalog.SourceKindExtension)
+		rows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+			ProviderID: "codex", IncludeStale: true,
+			SourceContexts: map[string]modelcatalog.CatalogExecutionContext{
+				"extension:a_source": extensionContext,
+				"extension:z_source": extensionContext,
+			},
+		})
 		if err != nil {
 			t.Fatalf("ListRows() error = %v", err)
 		}
@@ -901,7 +1485,7 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 		); err != nil {
 			t.Fatalf("ExecContext(corrupt status timestamp) error = %v", err)
 		}
-		if _, err := globalDB.ListSourceStatus(ctx, "codex"); err == nil ||
+		if _, err := globalDB.ListSourceStatus(ctx, modelcatalog.StatusOptions{ProviderID: "codex"}); err == nil ||
 			!strings.Contains(err.Error(), "last_refresh_at") {
 			t.Fatalf("ListSourceStatus(corrupt timestamp) error = %v, want last_refresh_at parse error", err)
 		}
@@ -997,6 +1581,68 @@ func TestGlobalDBModelCatalogStore(t *testing.T) {
 	})
 }
 
+func assertTransportBindingRoundTrip(
+	ctx context.Context,
+	t *testing.T,
+	globalDB *GlobalDB,
+	want []modelcatalog.ModelTransportBinding,
+) {
+	t.Helper()
+
+	rows, err := globalDB.ListRows(ctx, modelcatalog.ListOptions{
+		ProviderID: "cursor", SourceID: "config", IncludeStale: true,
+	})
+	if err != nil {
+		t.Fatalf("ListRows(transport bindings) error = %v", err)
+	}
+	if len(rows) != 1 {
+		t.Fatalf("rows(transport bindings) = %#v, want one row", rows)
+	}
+	got := rows[0].TransportBindings
+	if len(got) != len(want) {
+		t.Fatalf("transport bindings = %#v, want %#v", got, want)
+	}
+	for index := range want {
+		if got[index].TransportModelID != want[index].TransportModelID ||
+			got[index].Label != want[index].Label {
+			t.Fatalf("transport binding[%d] = %#v, want %#v", index, got[index], want[index])
+		}
+		if (got[index].ReasoningEffort == nil) != (want[index].ReasoningEffort == nil) ||
+			(got[index].ReasoningEffort != nil &&
+				*got[index].ReasoningEffort != *want[index].ReasoningEffort) {
+			t.Fatalf("transport binding[%d] reasoning effort = %#v, want %#v", index, got[index], want[index])
+		}
+		if (got[index].Fast == nil) != (want[index].Fast == nil) ||
+			(got[index].Fast != nil && *got[index].Fast != *want[index].Fast) {
+			t.Fatalf("transport binding[%d] fast = %#v, want %#v", index, got[index], want[index])
+		}
+		if (got[index].Thinking == nil) != (want[index].Thinking == nil) ||
+			(got[index].Thinking != nil && *got[index].Thinking != *want[index].Thinking) {
+			t.Fatalf("transport binding[%d] thinking = %#v, want %#v", index, got[index], want[index])
+		}
+		if !modelOptionSelectionsEqual(got[index].OptionSelections, want[index].OptionSelections) {
+			t.Fatalf(
+				"transport binding[%d] option selections = %#v, want %#v",
+				index,
+				got[index].OptionSelections,
+				want[index].OptionSelections,
+			)
+		}
+	}
+}
+
+func modelOptionSelectionsEqual(
+	left []modelcatalog.ModelOptionSelection,
+	right []modelcatalog.ModelOptionSelection,
+) bool {
+	return slices.EqualFunc(left, right, func(a, b modelcatalog.ModelOptionSelection) bool {
+		if a.ID != b.ID || a.ValueID != b.ValueID || (a.BoolValue == nil) != (b.BoolValue == nil) {
+			return false
+		}
+		return a.BoolValue == nil || *a.BoolValue == *b.BoolValue
+	})
+}
+
 func replaceModelCatalogRows(
 	t *testing.T,
 	globalDB *GlobalDB,
@@ -1010,12 +1656,29 @@ func replaceModelCatalogRows(
 
 	if err := globalDB.ReplaceSourceRows(
 		testutil.Context(t),
+		modelCatalogTestExecutionContext(sourceKind),
 		sourceID,
 		providerID,
 		rows,
 		modelCatalogStatus(sourceID, providerID, sourceKind, priority),
 	); err != nil {
 		t.Fatalf("ReplaceSourceRows(%s/%s) error = %v", sourceID, providerID, err)
+	}
+}
+
+func modelCatalogTestExecutionContext(sourceKind modelcatalog.SourceKind) modelcatalog.CatalogExecutionContext {
+	switch sourceKind {
+	case modelcatalog.SourceKindProviderLive, modelcatalog.SourceKindExtension, modelcatalog.SourceKindACPSession:
+		return modelcatalog.CatalogExecutionContext{
+			Scope:              modelcatalog.ExecutionScopeWorkspace,
+			ProfileID:          "profile-test",
+			WorkspaceID:        "workspace-test",
+			CommandFingerprint: modelcatalog.CatalogExecutionFingerprint("test", string(sourceKind)),
+		}
+	case modelcatalog.SourceKindBuiltin, modelcatalog.SourceKindConfig, modelcatalog.SourceKindModelsDev:
+		return modelcatalog.GlobalCatalogExecutionContext()
+	default:
+		panic("unhandled model catalog test source kind: " + string(sourceKind))
 	}
 }
 
@@ -1082,6 +1745,17 @@ func assertModelCatalogModelIDs(t *testing.T, rows []modelcatalog.ModelRow, want
 	slices.Sort(want)
 	if !slices.Equal(got, want) {
 		t.Fatalf("model ids = %#v, want %#v", got, want)
+	}
+}
+
+func assertGlobalDBErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want error containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want error containing %q", err, want)
 	}
 }
 

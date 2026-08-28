@@ -40,7 +40,7 @@ func (r *reviewRouter) createRoute(
 		}
 		promptOverlay = joinPromptOverlays(taskOverlay, promptOverlay)
 	}
-	return &session.CreateOpts{
+	opts := &session.CreateOpts{
 		Name:          reviewSessionName(taskRecord.ID),
 		AgentName:     agentName,
 		Provider:      review.Provider,
@@ -48,7 +48,14 @@ func (r *reviewRouter) createRoute(
 		Workspace:     taskRecord.WorkspaceID,
 		Type:          session.SessionTypeSystem,
 		PromptOverlay: promptOverlay,
-	}, "", nil
+	}
+	applyTaskRuntimeOptions(
+		opts,
+		review.ReasoningEffort,
+		review.Speed,
+		review.ACPOptions,
+	)
+	return opts, "", nil
 }
 
 func (r *reviewRouter) selectCreateAgent(

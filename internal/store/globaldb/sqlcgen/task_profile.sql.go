@@ -61,8 +61,10 @@ func (q *Queries) DeleteTaskProfilePeers(ctx context.Context, taskID string) err
 const getTaskExecutionProfile = `-- name: GetTaskExecutionProfile :one
 SELECT task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
        coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
-       worker_provider, worker_model, review_agent_name, review_provider,
-       review_model, sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
+       worker_provider, worker_model, worker_reasoning_effort, worker_speed,
+       worker_acp_options_json, review_agent_name, review_provider, review_model,
+       review_reasoning_effort, review_speed, review_acp_options_json,
+       sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
        runtime_mode, created_at, updated_at,
        network_mode, network_channel_strategy, network_channel, network_bounds_json
 FROM task_execution_profiles
@@ -80,9 +82,15 @@ type GetTaskExecutionProfileRow struct {
 	WorkerAgentName        string         `json:"worker_agent_name"`
 	WorkerProvider         string         `json:"worker_provider"`
 	WorkerModel            string         `json:"worker_model"`
+	WorkerReasoningEffort  string         `json:"worker_reasoning_effort"`
+	WorkerSpeed            string         `json:"worker_speed"`
+	WorkerAcpOptionsJson   string         `json:"worker_acp_options_json"`
 	ReviewAgentName        string         `json:"review_agent_name"`
 	ReviewProvider         string         `json:"review_provider"`
 	ReviewModel            string         `json:"review_model"`
+	ReviewReasoningEffort  string         `json:"review_reasoning_effort"`
+	ReviewSpeed            string         `json:"review_speed"`
+	ReviewAcpOptionsJson   string         `json:"review_acp_options_json"`
 	SandboxMode            string         `json:"sandbox_mode"`
 	SandboxRef             string         `json:"sandbox_ref"`
 	WorktreeMode           string         `json:"worktree_mode"`
@@ -110,9 +118,15 @@ func (q *Queries) GetTaskExecutionProfile(ctx context.Context, taskID string) (G
 		&i.WorkerAgentName,
 		&i.WorkerProvider,
 		&i.WorkerModel,
+		&i.WorkerReasoningEffort,
+		&i.WorkerSpeed,
+		&i.WorkerAcpOptionsJson,
 		&i.ReviewAgentName,
 		&i.ReviewProvider,
 		&i.ReviewModel,
+		&i.ReviewReasoningEffort,
+		&i.ReviewSpeed,
+		&i.ReviewAcpOptionsJson,
 		&i.SandboxMode,
 		&i.SandboxRef,
 		&i.WorktreeMode,
@@ -364,8 +378,10 @@ const upsertTaskExecutionProfile = `-- name: UpsertTaskExecutionProfile :exec
 INSERT INTO task_execution_profiles (
   task_id, coordinator_mode, coordinator_agent_name, coordinator_provider,
   coordinator_model, coordinator_guidance, worker_mode, worker_agent_name,
-  worker_provider, worker_model, review_agent_name, review_provider,
-  review_model, sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
+  worker_provider, worker_model, worker_reasoning_effort, worker_speed,
+  worker_acp_options_json, review_agent_name, review_provider, review_model,
+  review_reasoning_effort, review_speed, review_acp_options_json,
+  sandbox_mode, sandbox_ref, worktree_mode, worktree_ref,
   runtime_mode, created_at, updated_at,
   network_mode, network_channel_strategy, network_channel, network_bounds_json
 ) VALUES (
@@ -375,9 +391,11 @@ INSERT INTO task_execution_profiles (
   ?10, ?11, ?12,
   ?13, ?14, ?15,
   ?16, ?17, ?18,
-  ?19, ?20,
-  ?21, ?22, ?23,
-  ?24
+  ?19, ?20, ?21,
+  ?22, ?23, ?24,
+  ?25, ?26,
+  ?27, ?28, ?29,
+  ?30
 )
 ON CONFLICT(task_id) DO UPDATE SET
   coordinator_mode = excluded.coordinator_mode,
@@ -389,9 +407,15 @@ ON CONFLICT(task_id) DO UPDATE SET
   worker_agent_name = excluded.worker_agent_name,
   worker_provider = excluded.worker_provider,
   worker_model = excluded.worker_model,
+  worker_reasoning_effort = excluded.worker_reasoning_effort,
+  worker_speed = excluded.worker_speed,
+  worker_acp_options_json = excluded.worker_acp_options_json,
   review_agent_name = excluded.review_agent_name,
   review_provider = excluded.review_provider,
   review_model = excluded.review_model,
+  review_reasoning_effort = excluded.review_reasoning_effort,
+  review_speed = excluded.review_speed,
+  review_acp_options_json = excluded.review_acp_options_json,
   sandbox_mode = excluded.sandbox_mode,
   sandbox_ref = excluded.sandbox_ref,
   worktree_mode = excluded.worktree_mode,
@@ -415,9 +439,15 @@ type UpsertTaskExecutionProfileParams struct {
 	WorkerAgentName        string         `json:"worker_agent_name"`
 	WorkerProvider         string         `json:"worker_provider"`
 	WorkerModel            string         `json:"worker_model"`
+	WorkerReasoningEffort  string         `json:"worker_reasoning_effort"`
+	WorkerSpeed            string         `json:"worker_speed"`
+	WorkerAcpOptionsJson   string         `json:"worker_acp_options_json"`
 	ReviewAgentName        string         `json:"review_agent_name"`
 	ReviewProvider         string         `json:"review_provider"`
 	ReviewModel            string         `json:"review_model"`
+	ReviewReasoningEffort  string         `json:"review_reasoning_effort"`
+	ReviewSpeed            string         `json:"review_speed"`
+	ReviewAcpOptionsJson   string         `json:"review_acp_options_json"`
 	SandboxMode            string         `json:"sandbox_mode"`
 	SandboxRef             string         `json:"sandbox_ref"`
 	WorktreeMode           string         `json:"worktree_mode"`
@@ -443,9 +473,15 @@ func (q *Queries) UpsertTaskExecutionProfile(ctx context.Context, arg UpsertTask
 		arg.WorkerAgentName,
 		arg.WorkerProvider,
 		arg.WorkerModel,
+		arg.WorkerReasoningEffort,
+		arg.WorkerSpeed,
+		arg.WorkerAcpOptionsJson,
 		arg.ReviewAgentName,
 		arg.ReviewProvider,
 		arg.ReviewModel,
+		arg.ReviewReasoningEffort,
+		arg.ReviewSpeed,
+		arg.ReviewAcpOptionsJson,
 		arg.SandboxMode,
 		arg.SandboxRef,
 		arg.WorktreeMode,

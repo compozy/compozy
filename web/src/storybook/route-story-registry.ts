@@ -472,6 +472,13 @@ export const routeStoryRegistry = [
     storyName: "Default",
   },
   {
+    system: "session",
+    routePath: "/sessions",
+    storybookPath: "/sessions",
+    title: "systems/session/routes/Sessions",
+    storyName: "Default",
+  },
+  {
     system: "network",
     routePath: "/network/$workspaceId/$channel/threads/$threadId",
     storybookPath: `${storyNetworkBasePath}/threads/${storyThreadId}`,
@@ -486,11 +493,3 @@ export const routeStoryRegistry = [
     storyName: "DirectDetail",
   },
 ] satisfies RouteStoryRegistryEntry[];
-
-export const routeStoryRegistryByRoutePath = new Map<GeneratedRoutePath, RouteStoryRegistryEntry>(
-  routeStoryRegistry.map(entry => [entry.routePath, entry])
-);
-
-export const routeStorySystems = Array.from(
-  new Set(routeStoryRegistry.map(entry => entry.system))
-).sort();

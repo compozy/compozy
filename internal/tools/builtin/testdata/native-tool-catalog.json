@@ -9,7 +9,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "b9f637dceb8976a631c02cd9a815509f1d99c5ae0667210f60c2285ea7dcde3a",
+    "input_schema_digest": "47cabe30c5a49f874f1916171e0e152404b1281a504400aea4a17732093ea7d5",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0"
   },
   {
@@ -2380,7 +2380,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "a4691b273ff24b936aad410578168bfa55cfaa879274a125f89513e44511dc32",
+    "input_schema_digest": "b98e81bf1a2f1ed6f1d3124d0f4d26e981e32de53a4a0837cb6725c6f98148b8",
     "output_schema_digest": "a2c799262a3ce3c19ef5cdd983bf3d12b43ab3c426227091b909dcb7054738c0",
     "required_capabilities": [
       "providers.models.write"
@@ -2731,7 +2731,7 @@
     "read_only": false,
     "destructive": false,
     "open_world": false,
-    "input_schema_digest": "26e1819b8dca5d34d9a00b4a3bb3dcdb6ae353496a42f3605d06631b62e92488",
+    "input_schema_digest": "3e41dd9c2265d3ff4625f30852c8a7b5efd9e8dc3db342320c35a9f7baadd9e6",
     "output_schema_digest": "76e84cdf27d8568b97f360d2312a801468e39079f3c51199d965c59c2f382671"
   },
   {

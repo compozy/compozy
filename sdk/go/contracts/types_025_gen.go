@@ -7,6 +7,109 @@ import (
 	"time"
 )
 
+type TaskCatalogOwnerFacetPayload struct {
+	Owner Ownership `json:"owner"`
+	Count int       `json:"count"`
+}
+
+type TaskCatalogRunPayload struct {
+	ID                           string               `json:"id"`
+	TaskID                       string               `json:"task_id"`
+	Status                       TaskRunStatus        `json:"status"`
+	Attempt                      int                  `json:"attempt"`
+	RecoveryCount                int                  `json:"recovery_count"`
+	PreviousRunID                string               `json:"previous_run_id,omitempty"`
+	FailureKind                  string               `json:"failure_kind,omitempty"`
+	MaxAttempts                  int                  `json:"max_attempts"`
+	SessionID                    string               `json:"session_id,omitempty"`
+	WorktreeID                   string               `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         ResolvedWorktreeMode `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string               `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy                    *ActorIdentity       `json:"claimed_by,omitempty"`
+	LeaseUntil                   *time.Time           `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time           `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *Spec                `json:"resolved_network_participation,omitempty"`
+	QueuedAt                     time.Time            `json:"queued_at"`
+	ClaimedAt                    *time.Time           `json:"claimed_at,omitempty"`
+	StartedAt                    *time.Time           `json:"started_at,omitempty"`
+	EndedAt                      *time.Time           `json:"ended_at,omitempty"`
+	Error                        string               `json:"error,omitempty"`
+}
+
+type TaskCatalogStatusFacetPayload struct {
+	Status Status `json:"status"`
+	Count  int    `json:"count"`
+}
+
+type TaskContext struct {
+	ProfileID                    string `json:"profile_id,omitempty"`
+	TaskID                       string `json:"task_id,omitempty"`
+	ParentTaskID                 string `json:"parent_task_id,omitempty"`
+	WorkspaceID                  string `json:"workspace_id,omitempty"`
+	WorkflowID                   string `json:"workflow_id,omitempty"`
+	ResolvedNetworkParticipation *Spec  `json:"resolved_network_participation,omitempty"`
+	AgentName                    string `json:"agent_name,omitempty"`
+	ActorKind                    string `json:"actor_kind,omitempty"`
+	ActorID                      string `json:"actor_id,omitempty"`
+	OriginKind                   string `json:"origin_kind,omitempty"`
+	OriginRef                    string `json:"origin_ref,omitempty"`
+	TaskStatus                   string `json:"task_status,omitempty"`
+	RunID                        string `json:"run_id,omitempty"`
+	ReleaseReason                string `json:"release_reason,omitempty"`
+	ClaimTokenHash               string `json:"claim_token_hash,omitempty"`
+}
+
+type TaskCreateParams struct {
+	ID                   string          `json:"id,omitempty"`
+	Identifier           string          `json:"identifier,omitempty"`
+	Scope                TaskScope       `json:"scope"`
+	Workspace            string          `json:"workspace,omitempty"`
+	NetworkParticipation *Request        `json:"network_participation,omitempty"`
+	Title                string          `json:"title"`
+	Description          string          `json:"description,omitempty"`
+	Priority             Priority        `json:"priority,omitempty"`
+	MaxAttempts          *int            `json:"max_attempts,omitempty"`
+	AutoEnqueueOnReady   bool            `json:"auto_enqueue_on_ready,omitempty"`
+	Draft                bool            `json:"draft,omitempty"`
+	ApprovalPolicy       ApprovalPolicy  `json:"approval_policy,omitempty"`
+	Owner                *Ownership      `json:"owner,omitempty"`
+	WakeCreator          *bool           `json:"wake_creator,omitempty"`
+	Metadata             json.RawMessage `json:"metadata,omitempty"`
+}
+
+type TaskDashboard struct {
+	Totals          TaskDashboardTotalsPayload            `json:"totals"`
+	Cards           TaskDashboardCardsPayload             `json:"cards"`
+	StatusBreakdown []TaskDashboardStatusBreakdownPayload `json:"status_breakdown,omitempty"`
+	Queue           TaskDashboardQueuePayload             `json:"queue"`
+	Health          TaskDashboardHealthPayload            `json:"health"`
+	ActiveRuns      TaskDashboardActiveRunsPayload        `json:"active_runs"`
+	Freshness       TaskDashboardFreshnessPayload         `json:"freshness"`
+}
+
+type TaskDashboardActiveRunPayload struct {
+	TaskID                       string        `json:"task_id"`
+	TaskIdentifier               string        `json:"task_identifier,omitempty"`
+	TaskTitle                    string        `json:"task_title"`
+	TaskStatus                   Status        `json:"task_status"`
+	TaskPriority                 Priority      `json:"task_priority,omitempty"`
+	TaskOwner                    *Ownership    `json:"task_owner,omitempty"`
+	Scope                        TaskScope     `json:"scope"`
+	WorkspaceID                  string        `json:"workspace_id,omitempty"`
+	LatestEventSeq               int64         `json:"latest_event_seq"`
+	RunID                        string        `json:"run_id"`
+	RunStatus                    TaskRunStatus `json:"run_status"`
+	Attempt                      int           `json:"attempt"`
+	MaxAttempts                  int           `json:"max_attempts"`
+	SessionID                    string        `json:"session_id,omitempty"`
+	ResolvedNetworkParticipation *Spec         `json:"resolved_network_participation,omitempty"`
+	LastActivityAt               time.Time     `json:"last_activity_at"`
+	AgeMilli                     int64         `json:"age_ms"`
+	HealthStatus                 string        `json:"health_status"`
+	Stuck                        bool          `json:"stuck"`
+	Error                        string        `json:"error,omitempty"`
+}
+
 type TaskDashboardActiveRunsPayload struct {
 	Total    int                             `json:"total"`
 	Running  int                             `json:"running"`
@@ -156,65 +259,4 @@ type TaskDetail struct {
 	Runs                 []TaskRun                        `json:"runs,omitempty"`
 	DesignationRollups   []TaskDesignationRollupPayload   `json:"designation_rollups,omitempty"`
 	Events               []TaskEventPayload               `json:"events,omitempty"`
-}
-
-type TaskEventPayload struct {
-	ID        string          `json:"id"`
-	TaskID    string          `json:"task_id"`
-	RunID     string          `json:"run_id,omitempty"`
-	EventType string          `json:"event_type"`
-	Actor     ActorIdentity   `json:"actor"`
-	Origin    Origin          `json:"origin"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Timestamp time.Time       `json:"timestamp"`
-}
-
-type TaskHealth struct {
-	Status                     string             `json:"status"`
-	QueueDepthTotal            int                `json:"queue_depth_total"`
-	OldestQueuedAt             time.Time          `json:"oldest_queued_at"`
-	OldestQueueAgeMilli        int64              `json:"oldest_queue_age_ms"`
-	QueueDepth                 []TaskQueueDepth   `json:"queue_depth,omitempty"`
-	StuckRuns                  []StuckTaskRun     `json:"stuck_runs,omitempty"`
-	ActiveOrphanRuns           int                `json:"active_orphan_runs"`
-	TaskTotals                 []TaskStatusTotal  `json:"task_totals,omitempty"`
-	RunTotals                  []TaskRunTotal     `json:"run_totals,omitempty"`
-	OwnerTotals                []TaskOwnerTotal   `json:"owner_totals,omitempty"`
-	ForcedStopsSinceStart      int                `json:"forced_stops_since_start"`
-	DuplicateIngressSinceStart int                `json:"duplicate_ingress_since_start"`
-	ChannelMismatchSinceStart  int                `json:"channel_mismatch_since_start"`
-	RecoverySinceStart         TaskRecoveryTotals `json:"recovery_since_start"`
-}
-
-type TaskInbox struct {
-	UnreadTotal   int                         `json:"unread_total"`
-	ArchivedTotal int                         `json:"archived_total"`
-	Groups        []TaskInboxLaneGroupPayload `json:"groups"`
-	Page          CountedCursorPagePayload    `json:"page"`
-	Facets        TaskInboxFacetsPayload      `json:"facets"`
-}
-
-type TaskInboxFacetsPayload struct {
-	Statuses   []TaskInboxStatusFacetPayload   `json:"statuses"`
-	Priorities []TaskInboxPriorityFacetPayload `json:"priorities"`
-}
-
-type TaskInboxItemPayload struct {
-	Task             TaskInboxTaskPayload   `json:"task"`
-	Lane             TaskInboxLane          `json:"lane"`
-	ApprovalPolicy   ApprovalPolicy         `json:"approval_policy,omitempty"`
-	ApprovalState    ApprovalState          `json:"approval_state,omitempty"`
-	BlockingReason   string                 `json:"blocking_reason,omitempty"`
-	LatestActivityAt time.Time              `json:"latest_activity_at"`
-	Run              *TaskCatalogRunPayload `json:"run,omitempty"`
-	Triage           TaskTriageStatePayload `json:"triage"`
-}
-
-type TaskInboxLane string
-
-type TaskInboxLaneGroupPayload struct {
-	Lane        TaskInboxLane          `json:"lane"`
-	Count       int                    `json:"count"`
-	UnreadCount int                    `json:"unread_count"`
-	Items       []TaskInboxItemPayload `json:"items,omitempty"`
 }

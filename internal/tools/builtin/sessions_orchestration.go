@@ -110,6 +110,7 @@ const sessionSpawnInputSchema = `{
 		"agent_name":{"type":"string","minLength":1},
 		"provider":{"type":"string"},"model":{"type":"string"},
 		"reasoning_effort":{"type":"string"},"speed":{"type":"string","enum":["normal","fast"]},
+		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
 		"name":{"type":"string"},
 		"prompt_overlay":{"type":"string"},"spawn_role":{"type":"string"},
 		"ttl_seconds":{"type":"integer","minimum":1},

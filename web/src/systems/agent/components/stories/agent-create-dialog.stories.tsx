@@ -18,6 +18,7 @@ const providerOptions: RuntimeProviderOption[] = (workspaceDetailFixture.provide
     name: provider.display_name?.trim() || provider.name,
     ...(provider.harness?.trim() ? { harness: provider.harness.trim() } : {}),
     runtime_provider: provider.runtime_provider?.trim() || provider.name,
+    runtime_strategy: provider.runtime_strategy,
   })
 );
 

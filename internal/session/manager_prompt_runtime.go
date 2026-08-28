@@ -39,19 +39,27 @@ func (m *Manager) ensurePromptRuntime(
 	if snapshot.process != nil && runtimeSelectionsEqual(snapshot.selection, plan.selection) {
 		return snapshot.process, nil
 	}
-
+	if err := m.validateExplicitStartModel(ctx, &plan.runtime, &plan.spec); err != nil {
+		return nil, err
+	}
 	if snapshot.process != nil &&
 		strings.TrimSpace(snapshot.selection.Provider) == strings.TrimSpace(plan.selection.Provider) {
-		if configurator, ok := m.driver.(RuntimeConfigurator); ok {
-			liveErr := m.configurePromptRuntime(ctx, session, configurator, &snapshot, plan.selection)
-			if liveErr == nil {
-				return snapshot.process, nil
+		runtimeProvider := strings.TrimSpace(plan.runtime.agent.RuntimeProvider)
+		if runtimeProvider == "" {
+			runtimeProvider = strings.TrimSpace(plan.runtime.agent.Provider)
+		}
+		if RuntimeStrategyForProvider(runtimeProvider) == acp.RuntimeApplicationSessionConfig {
+			if configurator, ok := m.driver.(RuntimeConfigurator); ok {
+				liveErr := m.configurePromptRuntime(ctx, session, configurator, &snapshot, plan)
+				if liveErr == nil {
+					return snapshot.process, nil
+				}
+				proc, replacementErr := m.replacePromptRuntime(ctx, session, &snapshot, plan)
+				if replacementErr == nil {
+					return proc, nil
+				}
+				return nil, errors.Join(liveErr, replacementErr)
 			}
-			proc, replacementErr := m.replacePromptRuntime(ctx, session, &snapshot, plan)
-			if replacementErr == nil {
-				return proc, nil
-			}
-			return nil, errors.Join(liveErr, replacementErr)
 		}
 	}
 
@@ -63,8 +71,17 @@ func (m *Manager) configurePromptRuntime(
 	session *Session,
 	configurator RuntimeConfigurator,
 	snapshot *runtimeBindingSnapshot,
-	selection RuntimeSelection,
+	plan *promptRuntimePlan,
 ) error {
+	if plan == nil {
+		return errors.New("session: prompt runtime plan is required")
+	}
+	selection := plan.selection
+	requestedConfig := runtimeConfigForSelection(selection, plan.spec.transportModel)
+	rollbackConfig := runtimeConfigForSelection(
+		snapshot.selection,
+		currentTransportModel(snapshot.acpCaps),
+	)
 	if err := session.beginRuntimeTransition(
 		RuntimeStatusReconfiguring,
 		RuntimeTransitionLiveConfiguration,
@@ -79,14 +96,14 @@ func (m *Manager) configurePromptRuntime(
 		return errors.Join(err, m.persistSessionLifecycleState(cleanupCtx, session, false))
 	}
 
-	err := configurator.ConfigureRuntime(ctx, snapshot.process, runtimeConfigForSelection(selection))
+	err := configurator.ConfigureRuntime(ctx, snapshot.process, requestedConfig)
 	if err != nil {
 		cleanupCtx, cancel := m.lifecycleCleanupContext()
 		defer cancel()
 		rollbackErr := configurator.ConfigureRuntime(
 			cleanupCtx,
 			snapshot.process,
-			runtimeConfigForSelection(snapshot.selection),
+			rollbackConfig,
 		)
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		persistErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
@@ -105,7 +122,7 @@ func (m *Manager) configurePromptRuntime(
 		rollbackErr := configurator.ConfigureRuntime(
 			cleanupCtx,
 			snapshot.process,
-			runtimeConfigForSelection(snapshot.selection),
+			rollbackConfig,
 		)
 		session.restoreRuntimeBinding(snapshot, err.Error(), m.now())
 		restoreErr := m.persistSessionLifecycleState(cleanupCtx, session, false)
@@ -184,12 +201,25 @@ func (m *Manager) restorePromptRuntime(
 	return errors.Join(cause, persistErr)
 }
 
-func runtimeConfigForSelection(selection RuntimeSelection) acp.RuntimeConfig {
+func runtimeConfigForSelection(selection RuntimeSelection, transportModel string) acp.RuntimeConfig {
+	model := strings.TrimSpace(transportModel)
+	if model == "" {
+		model = selection.Model
+	}
 	return acp.RuntimeConfig{
-		Model:           selection.Model,
+		Model:           model,
 		ReasoningEffort: selection.ReasoningEffort,
 		Speed:           selection.Speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(selection.ACPOptions),
 	}
+}
+
+func currentTransportModel(caps acp.Caps) string {
+	model, ok := acp.ModelConfigOption(caps.ConfigOptions)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(model.CurrentValueID)
 }
 
 func (m *Manager) stopReplacedRuntime(session *Session, proc *AgentProcess, emitHook bool) error {
@@ -245,6 +275,7 @@ func (m *Manager) preparePromptRuntimePlan(
 	spec.model = selection.Model
 	spec.reasoningEffort = selection.ReasoningEffort
 	spec.speed = selection.Speed
+	spec.acpOptions = acp.CloneSessionConfigOptionSelections(selection.ACPOptions)
 	runtime, err := m.resolveSessionStartRuntime(&spec)
 	if err != nil {
 		return nil, err
@@ -258,9 +289,12 @@ func (m *Manager) preparePromptRuntimePlan(
 		Model:           spec.model,
 		ReasoningEffort: spec.reasoningEffort,
 		Speed:           spec.speed,
+		ACPOptions:      acp.CloneSessionConfigOptionSelections(spec.acpOptions),
 	}
 	if resolvedSelection.Model == "" {
 		resolvedSelection.Model = runtime.agent.Model
 	}
-	return &promptRuntimePlan{selection: resolvedSelection, spec: spec, runtime: runtime}, nil
+	return &promptRuntimePlan{
+		selection: resolvedSelection, spec: spec, runtime: runtime,
+	}, nil
 }

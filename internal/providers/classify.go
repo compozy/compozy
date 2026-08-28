@@ -197,10 +197,22 @@ func ClassifyProbeResultContext(
 	return Classification{
 		State:   ProviderAuthStateUnknown,
 		Code:    diagcontract.CodeProviderClassificationUnknown,
-		Message: "Provider auth probe completed but Compozy could not classify the result.",
+		Message: unknownProbeMessage(outcome),
 		Kind:    ProviderFailureUnknown,
 		Action:  ProviderFailureActionInspect,
 	}
+}
+
+func unknownProbeMessage(outcome ProbeOutcome) string {
+	message := "Provider auth probe completed but Compozy could not classify the result."
+	detail := strings.TrimSpace(outcome.Stderr)
+	if detail == "" {
+		detail = strings.TrimSpace(outcome.Stdout)
+	}
+	if detail == "" {
+		return message
+	}
+	return message + " Output: " + diagnostics.RedactAndBound(detail, 1024)
 }
 
 func classifyNativeCLIProbePrecondition(
@@ -317,7 +329,14 @@ func ClassifyError(err error) Classification {
 
 func outputLooksAuthenticated(outcome ProbeOutcome) bool {
 	combined := strings.ToLower(strings.TrimSpace(outcome.Stdout + "\n" + outcome.Stderr))
-	return combined == "" || hasAny(combined, "authenticated", "logged in", "login ok", "authorized")
+	return combined == "" || hasAny(
+		combined,
+		"authenticated",
+		"logged in",
+		"login ok",
+		"authorized",
+		"hermes acp check ok",
+	)
 }
 
 func hasAny(value string, needles ...string) bool {

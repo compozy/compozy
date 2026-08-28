@@ -10,8 +10,11 @@ import (
 	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
-// RuntimeSpec is the provider/model/reasoning/speed intent resolved by the Loop engine.
+// RuntimeSpec is provider, model, reasoning, speed, and typed ACP option intent resolved by the Loop engine.
 type RuntimeSpec = dsl.RuntimeSpec
+
+// ACPOptionSelection is one typed provider-advertised ACP option value.
+type ACPOptionSelection = dsl.ACPOptionSelection
 
 // RuntimeDefaults contains worker and judge default runtime intent.
 type RuntimeDefaults = dsl.RuntimeDefaults
@@ -26,10 +29,11 @@ type RuntimeRule = dsl.RuntimeRule
 type RuntimeSource string
 
 const (
-	runtimeFieldProvider  = "provider"
-	runtimeFieldModel     = "model"
-	runtimeFieldReasoning = "reasoning"
-	runtimeFieldSpeed     = "speed"
+	runtimeFieldProvider   = "provider"
+	runtimeFieldModel      = "model"
+	runtimeFieldReasoning  = "reasoning"
+	runtimeFieldSpeed      = "speed"
+	runtimeFieldACPOptions = "acp_options"
 
 	// RuntimeSourceRun identifies a per-run runtime rule.
 	RuntimeSourceRun RuntimeSource = "run"
@@ -51,10 +55,11 @@ const (
 
 // RuntimeProvenance records the source of every resolved runtime field.
 type RuntimeProvenance struct {
-	Provider  RuntimeSource `json:"provider,omitempty"`
-	Model     RuntimeSource `json:"model,omitempty"`
-	Reasoning RuntimeSource `json:"reasoning,omitempty"`
-	Speed     RuntimeSource `json:"speed,omitempty"`
+	Provider   RuntimeSource            `json:"provider,omitempty"`
+	Model      RuntimeSource            `json:"model,omitempty"`
+	Reasoning  RuntimeSource            `json:"reasoning,omitempty"`
+	Speed      RuntimeSource            `json:"speed,omitempty"`
+	ACPOptions map[string]RuntimeSource `json:"acp_options,omitempty"`
 }
 
 // ResolvedRuntime is field-merged runtime intent plus per-field provenance.

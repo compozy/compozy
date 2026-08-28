@@ -131,7 +131,7 @@ func (httpModelCatalogServiceStub) Refresh(
 
 func (httpModelCatalogServiceStub) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -139,7 +139,7 @@ func (httpModelCatalogServiceStub) ListSourceStatus(
 type httpModelCatalogServiceSpy struct {
 	listModelsFn       func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	refreshFn          func(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	listSourceStatusFn func(context.Context, string) ([]modelcatalog.SourceStatus, error)
+	listSourceStatusFn func(context.Context, modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 func (s *httpModelCatalogServiceSpy) ListModels(
@@ -164,10 +164,10 @@ func (s *httpModelCatalogServiceSpy) Refresh(
 
 func (s *httpModelCatalogServiceSpy) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	if s.listSourceStatusFn != nil {
-		return s.listSourceStatusFn(ctx, providerID)
+		return s.listSourceStatusFn(ctx, opts)
 	}
 	return nil, nil
 }
@@ -202,7 +202,7 @@ func newHTTPModelCatalogRouter(
 type coreModelCatalogService interface {
 	ListModels(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	Refresh(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	ListSourceStatus(context.Context, string) ([]modelcatalog.SourceStatus, error)
+	ListSourceStatus(context.Context, modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 func httpSeedCatalogModel(providerID string, modelID string) modelcatalog.Model {

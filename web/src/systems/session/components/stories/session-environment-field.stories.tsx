@@ -152,12 +152,10 @@ export const NonGitWorkspaceFieldAbsent: Story = {
         destinationLabel={workspace.name}
         destinationReady
         environmentListingState="unsupported"
-        firstMessage=""
         isAwaitingEnvironment={false}
         isSubmitting={false}
         mode="advanced"
         onCancelEnvironment={fn()}
-        onFirstMessageChange={fn()}
         networkParticipation={
           { mode: "local", channelStrategy: "", channelId: "" } satisfies NetworkParticipationDraft
         }

@@ -28,8 +28,12 @@ type SessionConfigOption struct {
 	Description string
 	Category    string
 	Kind        SessionConfigOptionKind
-	Current     string
-	Values      []SessionConfigOptionValue
+	// ReadOnly marks discovery-only options that do not have a matching ACP
+	// mutation method. They remain visible for validation and inspection.
+	ReadOnly       bool
+	CurrentValueID string
+	CurrentBool    *bool
+	Values         []SessionConfigOptionValue
 }
 
 // SessionConfigOptionValue captures one selectable value for an ACP config option.
@@ -37,6 +41,8 @@ type SessionConfigOptionValue struct {
 	Value       string
 	Label       string
 	Description string
+	GroupID     string
+	GroupLabel  string
 }
 
 // CloneSessionConfigOptions returns a deep copy of session config options.
@@ -46,10 +52,17 @@ func CloneSessionConfigOptions(options []SessionConfigOption) []SessionConfigOpt
 	}
 	cloned := make([]SessionConfigOption, 0, len(options))
 	for _, option := range options {
-		copyOption := option
-		copyOption.Values = append([]SessionConfigOptionValue(nil), option.Values...)
-		cloned = append(cloned, copyOption)
+		cloned = append(cloned, cloneSessionConfigOption(option))
 	}
+	return cloned
+}
+
+func cloneSessionConfigOption(option SessionConfigOption) SessionConfigOption {
+	cloned := option
+	if option.CurrentBool != nil {
+		cloned.CurrentBool = new(*option.CurrentBool)
+	}
+	cloned.Values = append([]SessionConfigOptionValue(nil), option.Values...)
 	return cloned
 }
 
@@ -75,13 +88,13 @@ func sessionConfigOptionFromSDK(option acpsdk.SessionConfigOption) (SessionConfi
 			return SessionConfigOption{}, false
 		}
 		return SessionConfigOption{
-			ID:          id,
-			Label:       strings.TrimSpace(selectOption.Name),
-			Description: trimStringPointer(selectOption.Description),
-			Category:    trimConfigOptionCategory(selectOption.Category),
-			Kind:        SessionConfigOptionKindSelect,
-			Current:     strings.TrimSpace(string(selectOption.CurrentValue)),
-			Values:      sessionConfigValuesFromSDK(selectOption.Options),
+			ID:             id,
+			Label:          strings.TrimSpace(selectOption.Name),
+			Description:    trimStringPointer(selectOption.Description),
+			Category:       trimConfigOptionCategory(selectOption.Category),
+			Kind:           SessionConfigOptionKindSelect,
+			CurrentValueID: strings.TrimSpace(string(selectOption.CurrentValue)),
+			Values:         sessionConfigValuesFromSDK(selectOption.Options),
 		}, true
 	case option.Boolean != nil:
 		booleanOption := option.Boolean
@@ -89,17 +102,13 @@ func sessionConfigOptionFromSDK(option acpsdk.SessionConfigOption) (SessionConfi
 		if id == "" {
 			return SessionConfigOption{}, false
 		}
-		current := booleanFalseText
-		if booleanOption.CurrentValue {
-			current = booleanTrueText
-		}
 		return SessionConfigOption{
 			ID:          id,
 			Label:       strings.TrimSpace(booleanOption.Name),
 			Description: trimStringPointer(booleanOption.Description),
 			Category:    trimConfigOptionCategory(booleanOption.Category),
 			Kind:        SessionConfigOptionKindBoolean,
-			Current:     current,
+			CurrentBool: new(booleanOption.CurrentValue),
 		}, true
 	default:
 		return SessionConfigOption{}, false
@@ -117,13 +126,17 @@ func sessionConfigValuesFromSDK(options acpsdk.SessionConfigSelectOptions) []Ses
 	values := make([]SessionConfigOptionValue, 0)
 	if options.Ungrouped != nil {
 		for _, value := range *options.Ungrouped {
-			values = append(values, sessionConfigValueFromSDK(value))
+			values = append(values, sessionConfigValueFromSDK(value, "", ""))
 		}
 	}
 	if options.Grouped != nil {
 		for _, group := range *options.Grouped {
 			for _, value := range group.Options {
-				values = append(values, sessionConfigValueFromSDK(value))
+				values = append(values, sessionConfigValueFromSDK(
+					value,
+					strings.TrimSpace(string(group.Group)),
+					strings.TrimSpace(group.Name),
+				))
 			}
 		}
 	}
@@ -133,11 +146,17 @@ func sessionConfigValuesFromSDK(options acpsdk.SessionConfigSelectOptions) []Ses
 	return values
 }
 
-func sessionConfigValueFromSDK(value acpsdk.SessionConfigSelectOption) SessionConfigOptionValue {
+func sessionConfigValueFromSDK(
+	value acpsdk.SessionConfigSelectOption,
+	groupID string,
+	groupLabel string,
+) SessionConfigOptionValue {
 	return SessionConfigOptionValue{
 		Value:       strings.TrimSpace(string(value.Value)),
 		Label:       strings.TrimSpace(value.Name),
 		Description: trimStringPointer(value.Description),
+		GroupID:     groupID,
+		GroupLabel:  groupLabel,
 	}
 }
 
@@ -188,6 +207,29 @@ func findSelectConfigOption(options []SessionConfigOption, candidateIDs ...strin
 		}
 	}
 	return SessionConfigOption{}, false
+}
+
+func findConfigOptionByID(options []SessionConfigOption, id string) (SessionConfigOption, bool) {
+	id = strings.TrimSpace(id)
+	if id == "" || countConfigOptionID(options, id) != 1 {
+		return SessionConfigOption{}, false
+	}
+	for _, option := range options {
+		if strings.TrimSpace(option.ID) == id {
+			return option, true
+		}
+	}
+	return SessionConfigOption{}, false
+}
+
+func countConfigOptionID(options []SessionConfigOption, id string) int {
+	count := 0
+	for _, option := range options {
+		if strings.TrimSpace(option.ID) == strings.TrimSpace(id) {
+			count++
+		}
+	}
+	return count
 }
 
 func configOptionAllowsValue(option SessionConfigOption, value string) bool {

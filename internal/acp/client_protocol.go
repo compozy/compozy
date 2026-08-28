@@ -10,6 +10,7 @@ import (
 
 	acpsdk "github.com/coder/acp-go-sdk"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	"github.com/compozy/compozy/internal/diagnostics"
 	shellquote "github.com/kballard/go-shellquote"
 )
 
@@ -78,10 +79,11 @@ func captureCaps(
 }
 
 func attachStderr(err error, stderr string) error {
-	if strings.TrimSpace(stderr) == "" {
+	bounded := diagnostics.RedactAndBound(stderr, maxFailureSummaryBytes)
+	if bounded == "" {
 		return err
 	}
-	return fmt.Errorf("%w: stderr=%s", err, strings.TrimSpace(stderr))
+	return fmt.Errorf("%w: stderr=%s", err, bounded)
 }
 
 func (d *Driver) waitForPromptQuiescence(active *activePromptState) {

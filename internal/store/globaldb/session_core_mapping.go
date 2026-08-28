@@ -14,15 +14,39 @@ import (
 
 func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionParams, error) {
 	session := record.session
-	speedResolutionJSON, network, err := sessionCatalogRuntimeProjections(session)
+	session.SelectedRuntime = store.NormalizeSessionRuntimeSelection(session.SelectedRuntime)
+	speedResolutionJSON, network, acpOptionsJSON, selectedACPOptionsJSON, err :=
+		sessionCatalogRuntimeProjections(session)
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}
-	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(session.RuntimeRecovery)
+	runtimeRecoveryJSON, err := encodeSessionRuntimeRecovery(session.RuntimeRecoveryValue())
 	if err != nil {
 		return sqlcgen.UpsertSessionParams{}, err
 	}
-	params := sqlcgen.UpsertSessionParams{
+	params := newSessionUpsertParams(
+		session,
+		speedResolutionJSON,
+		network,
+		runtimeRecoveryJSON,
+		acpOptionsJSON,
+		selectedACPOptionsJSON,
+		record.activityJSON,
+	)
+	applySessionCatalogLineage(&params, record)
+	return params, nil
+}
+
+func newSessionUpsertParams(
+	session store.SessionInfo,
+	speedResolutionJSON string,
+	network participationSnapshotFields,
+	runtimeRecoveryJSON string,
+	acpOptionsJSON string,
+	selectedACPOptionsJSON string,
+	activityJSON string,
+) sqlcgen.UpsertSessionParams {
+	return sqlcgen.UpsertSessionParams{
 		ProfileID:                session.ProfileID,
 		ID:                       session.ID,
 		Name:                     nullableSessionString(session.Name),
@@ -31,6 +55,7 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 		Model:                    strings.TrimSpace(session.Model),
 		ReasoningEffort:          strings.TrimSpace(session.ReasoningEffort),
 		Speed:                    string(session.Speed),
+		AcpOptionsJson:           acpOptionsJSON,
 		SpeedResolutionJson:      speedResolutionJSON,
 		RuntimeStatus:            string(session.RuntimeStatus),
 		RuntimeTransition:        string(session.RuntimeTransition),
@@ -41,6 +66,7 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 		SelectedModel:            selectedRuntimeModel(session.SelectedRuntime),
 		SelectedReasoningEffort:  selectedRuntimeReasoningEffort(session.SelectedRuntime),
 		SelectedSpeed:            selectedRuntimeSpeed(session.SelectedRuntime),
+		SelectedAcpOptionsJson:   selectedACPOptionsJSON,
 		RuntimeSelectionRevision: session.RuntimeSelectionRevision,
 		WorkspaceID:              session.WorkspaceID,
 		WorktreeID:               nullableSessionString(session.WorktreeID),
@@ -69,7 +95,7 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 			session.Liveness,
 		),
 		StallReason:     sessionLivenessStallReason(session.Liveness),
-		ActivityJson:    record.activityJSON,
+		ActivityJson:    activityJSON,
 		TranscriptEpoch: session.TranscriptEpoch,
 		SoulSnapshotID: nullableSessionString(
 			session.SoulSnapshotID,
@@ -91,8 +117,6 @@ func upsertSessionParams(record *sessionCatalogRecord) (sqlcgen.UpsertSessionPar
 		),
 		UpdatedAt: store.FormatTimestamp(session.UpdatedAt),
 	}
-	applySessionCatalogLineage(&params, record)
-	return params, nil
 }
 
 func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *sessionCatalogRecord) {
@@ -110,16 +134,24 @@ func applySessionCatalogLineage(params *sqlcgen.UpsertSessionParams, record *ses
 
 func sessionCatalogRuntimeProjections(
 	session store.SessionInfo,
-) (string, participationSnapshotFields, error) {
+) (string, participationSnapshotFields, string, string, error) {
 	speedResolutionJSON, err := encodeSessionSpeedResolution(session.SpeedResolution)
 	if err != nil {
-		return "", participationSnapshotFields{}, err
+		return "", participationSnapshotFields{}, "", "", err
 	}
 	network, err := encodeParticipationSnapshot(session.WorkspaceID, session.NetworkSpecSnapshot())
 	if err != nil {
-		return "", participationSnapshotFields{}, err
+		return "", participationSnapshotFields{}, "", "", err
 	}
-	return speedResolutionJSON, network, nil
+	acpOptionsJSON, err := encodeSessionACPOptions(session.ACPOptionsValue(), "session ACP options")
+	if err != nil {
+		return "", participationSnapshotFields{}, "", "", err
+	}
+	selectedACPOptionsJSON, err := encodeCanonicalSelectedRuntimeACPOptions(session.SelectedRuntime)
+	if err != nil {
+		return "", participationSnapshotFields{}, "", "", err
+	}
+	return speedResolutionJSON, network, acpOptionsJSON, selectedACPOptionsJSON, nil
 }
 
 func encodeSessionSpeedResolution(value *speedpkg.Resolution) (string, error) {

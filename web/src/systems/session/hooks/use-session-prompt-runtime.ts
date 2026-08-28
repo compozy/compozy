@@ -8,23 +8,33 @@ import type { SessionPromptRuntimeSnapshot } from "../contexts/session-prompt-ru
 import type { SessionPromptRuntimeStore } from "../stores/session-prompt-runtime-store";
 import type { SessionRuntimeEffective } from "../types";
 import { useSetSessionRuntime } from "./use-session-runtime-selection";
-import { resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
+import { normalizeRuntimeSpeed, resolveAgentRuntimeValue, useAgents } from "@/systems/agent";
 import {
   providerNeedsAuth,
   type RuntimeCatalogProvider,
   useRuntimeModelCatalog,
 } from "@/systems/model-catalog";
 import { type ProviderSummary, useProviders } from "@/systems/providers";
-import type { RuntimeProviderOption, RuntimeSelectorValue } from "@/systems/runtime";
-import { type SessionProviderOption, useWorkspace } from "@/systems/workspace";
+import {
+  normalizeRuntimeACPSelections,
+  type RuntimeProviderOption,
+  type RuntimeSelectorValue,
+} from "@/systems/runtime";
+import {
+  type SessionProviderOption,
+  useWorkspace,
+  workspaceProviderToOption,
+} from "@/systems/workspace";
 
 function runtimeValueFromEffective(
   effective: SessionRuntimeEffective | undefined
 ): RuntimeSelectorValue {
+  const acpOptions = normalizeRuntimeACPSelections(effective?.acp_options);
   return {
     provider: effective?.provider?.trim() ?? "",
     model: effective?.model?.trim() ?? "",
     reasoning_effort: effective?.reasoning_effort ?? "",
+    ...(acpOptions ? { acp_options: acpOptions } : {}),
   };
 }
 
@@ -47,6 +57,7 @@ function snapshotFromSelection(
       ? { reasoning_effort: value.reasoning_effort }
       : {}),
     ...(speed === "fast" ? { speed } : {}),
+    ...(value.acp_options ? { acp_options: value.acp_options } : {}),
   };
 }
 
@@ -61,10 +72,7 @@ function runtimeProviderOptions(
     ])
   );
   return (providers ?? []).map(provider => ({
-    id: provider.name,
-    name: provider.display_name?.trim() || provider.name,
-    ...(provider.harness?.trim() ? { harness: provider.harness.trim() } : {}),
-    runtime_provider: provider.runtime_provider?.trim() || provider.name,
+    ...workspaceProviderToOption(provider),
     needs_auth: needsAuthByProvider.get(provider.name) ?? false,
   }));
 }
@@ -85,19 +93,25 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
   const agents = useAgents(input.workspaceId, { enabled: input.canPrompt });
   const agent = agents.data?.find(candidate => candidate.name === input.agentName);
   const agentRuntime = resolveAgentRuntimeValue(agent);
+  const agentSpeed =
+    normalizeRuntimeSpeed(agent?.effective_runtime?.speed ?? agent?.speed) || "normal";
   const fallbackValue = runtimeValueFromEffective(input.effectiveRuntime);
   const defaultValue = fallbackValue.provider.length > 0 ? fallbackValue : agentRuntime;
-  const defaultSpeed = runtimeSpeedFromEffective(input.effectiveRuntime);
+  const defaultSpeed = input.effectiveRuntime
+    ? runtimeSpeedFromEffective(input.effectiveRuntime)
+    : agentSpeed;
   const value = selectedValue ?? defaultValue;
   const speed = selectedSpeed ?? defaultSpeed;
 
   useEffect(() => {
     const fallback = runtimeValueFromEffective(input.effectiveRuntime);
     store.trigger.defaultRuntimeResolved({
-      speed: runtimeSpeedFromEffective(input.effectiveRuntime),
+      speed: input.effectiveRuntime
+        ? runtimeSpeedFromEffective(input.effectiveRuntime)
+        : agentSpeed,
       value: fallback.provider.length > 0 ? fallback : agentRuntime,
     });
-  }, [agentRuntime, input.effectiveRuntime, store]);
+  }, [agentRuntime, agentSpeed, input.effectiveRuntime, store]);
   useEffect(
     () => () => {
       runtimeSelectionController.current?.abort();
@@ -207,9 +221,13 @@ export function useSessionPromptRuntime(store: SessionPromptRuntimeStore) {
       void workspace.refetch();
       void globalProviders.refetch();
     },
-    onRuntimeChange: (next: RuntimeSelectorValue) => {
+    onRuntimeChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => {
+      const nextSpeed = normalizedSpeed ?? speed;
       store.trigger.runtimeSelected({ value: next });
-      persistRuntimeSelection(next, speed);
+      if (normalizedSpeed && normalizedSpeed !== speed) {
+        store.trigger.speedSelected({ speed: normalizedSpeed });
+      }
+      persistRuntimeSelection(next, nextSpeed);
     },
     onSpeedChange: (next: RuntimeSpeed) => {
       store.trigger.speedSelected({ speed: next });

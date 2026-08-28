@@ -1,13 +1,14 @@
 package modelcatalog
 
 import (
+	"errors"
 	"fmt"
-
 	"net/url"
-
+	"slices"
 	"strings"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
@@ -18,7 +19,7 @@ const (
 	liveDiscoveryHTTP    liveDiscoveryKind = "http"
 	liveDiscoveryCommand liveDiscoveryKind = "command"
 	liveDiscoveryACP     liveDiscoveryKind = "acp"
-	cursorACPCommand                       = "cursor-agent acp"
+	cursorModelsCommand                    = "cursor-agent models"
 )
 
 type liveAuthScheme string
@@ -35,13 +36,23 @@ type liveProviderAdapter struct {
 	defaultEndpoint   string
 	defaultCommand    string
 	bootstrapOnList   bool
-	acpOnly           bool
-	parseCommandRows  func(string, string, time.Time) ([]ModelRow, error)
+	commandOnly       bool
+	parseCommandRows  liveCommandRowsParser
+	parseACPModelRows liveACPModelRowsParser
 	authScheme        liveAuthScheme
 	authRequired      bool
 	credentialEnvKeys []string
 	headers           map[string]string
 }
+
+type liveCommandRowsParser func(string, string, time.Time) ([]ModelRow, error)
+
+type liveACPModelRowsParser func(
+	string,
+	compozyconfig.ProviderModelsConfig,
+	acp.SessionConfigOption,
+	time.Time,
+) []ModelRow
 
 type liveDiscoveryTarget struct {
 	kind     liveDiscoveryKind
@@ -68,6 +79,7 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 	liveSourcesClaudeKey: {
 		defaultKind:       liveDiscoveryACP,
 		bootstrapOnList:   true,
+		parseACPModelRows: parseClaudeModelRows,
 		authScheme:        liveAuthAnthropic,
 		authRequired:      true,
 		credentialEnvKeys: []string{"ANTHROPIC_API_KEY"},
@@ -111,16 +123,18 @@ var liveProviderAdapters = map[string]liveProviderAdapter{
 		defaultCommand: "opencode models",
 	},
 	liveSourcesCursorKey: {
-		defaultKind:     liveDiscoveryACP,
-		defaultCommand:  cursorACPCommand,
-		bootstrapOnList: true,
-		acpOnly:         true,
+		defaultKind:      liveDiscoveryCommand,
+		defaultCommand:   cursorModelsCommand,
+		bootstrapOnList:  true,
+		parseCommandRows: parseCursorModelRows,
+		commandOnly:      true,
 	},
 	"openclaw": {
 		defaultKind: liveDiscoveryNone,
 	},
 	liveSourcesHermesKey: {
-		defaultKind: liveDiscoveryNone,
+		defaultKind:     liveDiscoveryACP,
+		bootstrapOnList: true,
 	},
 	"pi": {
 		defaultKind: liveDiscoveryNone,
@@ -151,9 +165,9 @@ func (s *LiveProviderSource) discoveryTarget(
 		return liveDiscoveryTarget{}, err
 	}
 	if configuredEndpoint != "" {
-		if s.adapter.acpOnly {
+		if s.adapter.commandOnly {
 			return liveDiscoveryTarget{}, fmt.Errorf(
-				"model catalog: provider %q requires an ACP discovery command, not an endpoint",
+				"model catalog: provider %q requires a model discovery command, not an endpoint",
 				s.providerID,
 			)
 		}
@@ -215,6 +229,100 @@ func (s *LiveProviderSource) defaultEndpoint(provider compozyconfig.ProviderConf
 		return s.adapter.defaultEndpoint
 	}
 	return joinEndpoint(baseURL, defaultEndpointPath(s.adapter.defaultEndpoint))
+}
+
+// CatalogExecutionFingerprint identifies the effective live discovery invocation without storing secrets.
+func (s *LiveProviderSource) CatalogExecutionFingerprint() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("model catalog: live provider source is required")
+	}
+	provider := s.providerSnapshot()
+	target, err := s.discoveryTarget(provider)
+	if err != nil {
+		target = s.discoveryFingerprintTarget(provider, err)
+	}
+	command := strings.TrimSpace(target.command)
+	if command != "" {
+		bin, args, parseErr := parseDiscoveryCommand(command)
+		if parseErr == nil {
+			command = strings.Join(append([]string{bin}, args...), "\x1f")
+		}
+	}
+	credentialShape := make([]string, 0, len(provider.EffectiveCredentialSlots()))
+	for _, slot := range provider.EffectiveCredentialSlots() {
+		credentialShape = append(credentialShape, strings.Join([]string{
+			strings.TrimSpace(slot.Name),
+			strings.TrimSpace(slot.TargetEnv),
+			fmt.Sprintf("%t", slot.Required),
+		}, "\x1f"))
+	}
+	modelMappings := ""
+	if s.adapter.parseACPModelRows != nil {
+		modelMappings = providerModelMappingFingerprint(provider.Models)
+	}
+	return CatalogExecutionFingerprint(
+		s.providerID,
+		string(target.kind),
+		strings.TrimSpace(target.endpoint),
+		command,
+		strings.TrimSpace(s.workingDir),
+		string(provider.EffectiveHarness()),
+		string(provider.EffectiveAuthMode()),
+		string(provider.EffectiveEnvPolicy()),
+		string(provider.EffectiveHomePolicy()),
+		strings.Join(credentialShape, "\x1e"),
+		modelMappings,
+	), nil
+}
+
+func providerModelMappingFingerprint(models compozyconfig.ProviderModelsConfig) string {
+	modelIDs := make([]string, 0, len(models.Curated)+1)
+	modelIDs = append(modelIDs, strings.TrimSpace(models.Default))
+	for _, model := range models.Curated {
+		modelIDs = append(modelIDs, strings.TrimSpace(model.ID))
+	}
+	slices.Sort(modelIDs)
+	return strings.Join(modelIDs, "\x1e")
+}
+
+func (s *LiveProviderSource) discoveryFingerprintTarget(
+	provider compozyconfig.ProviderConfig,
+	discoveryErr error,
+) liveDiscoveryTarget {
+	discovery := provider.Models.Discovery
+	target := liveDiscoveryTarget{
+		kind:     s.adapter.defaultKind,
+		endpoint: strings.TrimSpace(discovery.Endpoint),
+		command:  strings.TrimSpace(discovery.Command),
+	}
+	if target.endpoint != "" {
+		target.kind = liveDiscoveryHTTP
+	}
+	if target.command != "" {
+		target.kind = liveDiscoveryCommand
+		if s.adapter.defaultKind == liveDiscoveryACP {
+			target.kind = liveDiscoveryACP
+		}
+	}
+	if target.endpoint == "" && target.command == "" {
+		switch target.kind {
+		case liveDiscoveryHTTP:
+			target.endpoint = s.defaultEndpoint(provider)
+		case liveDiscoveryCommand:
+			target.command = s.adapter.defaultCommand
+		case liveDiscoveryACP:
+			target.command = strings.TrimSpace(provider.Command)
+			if target.command == "" {
+				target.command = s.adapter.defaultCommand
+			}
+		}
+	}
+	if errors.Is(discoveryErr, ErrSourceDisabled) {
+		target.kind = liveDiscoveryKind("disabled:" + string(target.kind))
+	} else {
+		target.kind = liveDiscoveryKind("invalid:" + string(target.kind))
+	}
+	return target
 }
 
 func joinEndpoint(baseURL string, path string) string {

@@ -25,6 +25,7 @@ export interface UseReasoningSliderArgs {
   value: ReasoningEffort | "";
   /** Model default shown as the selected stop while the wire value is "". */
   defaultEffort: ReasoningEffort | "";
+  disabled?: boolean;
   onSelect: (effort: ReasoningEffort) => void;
 }
 
@@ -58,6 +59,7 @@ export function useReasoningSlider({
   levels,
   value,
   defaultEffort,
+  disabled = false,
   onSelect,
 }: UseReasoningSliderArgs): ReasoningSliderModel {
   const dragRef = useRef<{ startX: number; engaged: boolean } | null>(null);
@@ -78,11 +80,13 @@ export function useReasoningSlider({
   const dragging = dragP != null;
 
   const commit = (index: number) => {
+    if (disabled) return;
     const effort = stops[Math.max(0, Math.min(last, index))];
     if (effort && effort !== value) onSelect(effort);
   };
 
   const handlePointerDown = (event: PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
     if (event.button !== 0) return;
     dragRef.current = { startX: event.clientX, engaged: false };
     if (typeof event.currentTarget.setPointerCapture === "function") {
@@ -91,6 +95,7 @@ export function useReasoningSlider({
   };
 
   const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
     const drag = dragRef.current;
     if (!drag) return;
     if (!drag.engaged) {
@@ -101,6 +106,7 @@ export function useReasoningSlider({
   };
 
   const handlePointerUp = (event: PointerEvent<HTMLDivElement>) => {
+    if (disabled) return;
     if (!dragRef.current) return;
     dragRef.current = null;
     setDragP(null);
@@ -108,11 +114,13 @@ export function useReasoningSlider({
   };
 
   const handlePointerCancel = () => {
+    if (disabled) return;
     dragRef.current = null;
     setDragP(null);
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) return;
     // From the unset state any directional key selects the first real level.
     const base = unset ? -1 : activeIndex;
     if (event.key === "ArrowRight" || event.key === "ArrowUp") {

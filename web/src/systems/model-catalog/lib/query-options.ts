@@ -1,10 +1,11 @@
-import { queryOptions } from "@tanstack/react-query";
+import { queryOptions, type QueryClient } from "@tanstack/react-query";
 
 import {
   ModelCatalogApiError,
   getProviderModelStatus,
   listAllModels,
   listProviderModels,
+  refreshAllModels,
 } from "../adapters/model-catalog-api";
 import type { AllModelsQuery, ProviderModelsQuery } from "../types";
 import { modelCatalogKeys } from "./query-keys";
@@ -47,6 +48,24 @@ export function providerModelsListOptions(args: ProviderModelsListOptionsArgs) {
 
 export interface AllModelsListOptionsArgs extends Omit<AllModelsQuery, "refresh"> {
   enabled?: boolean;
+}
+
+export function initialModelCatalogReadinessOptions(queryClient: QueryClient, enabled: boolean) {
+  return queryOptions({
+    queryKey: modelCatalogKeys.initialReadiness,
+    queryFn: async ({ signal }) => {
+      await refreshAllModels({}, signal);
+      await queryClient.invalidateQueries({ queryKey: modelCatalogKeys.all });
+      return true;
+    },
+    enabled,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: Number.POSITIVE_INFINITY,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
+  });
 }
 
 export function allModelsListOptions(args: AllModelsListOptionsArgs = {}) {

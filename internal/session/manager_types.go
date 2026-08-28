@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/compozy/compozy/internal/acp"
 	"github.com/compozy/compozy/internal/admission"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
@@ -29,6 +30,7 @@ type CreateOpts struct {
 	Model            string
 	ReasoningEffort  string
 	Speed            speedpkg.Speed
+	ACPOptions       []acp.SessionConfigOptionSelection
 	CWD              string
 	SandboxRef       string
 	DisableSandbox   bool

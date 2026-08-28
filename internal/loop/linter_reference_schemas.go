@@ -19,6 +19,23 @@ func inputSchema(input dsl.Input) refs.Schema {
 				runtimeFieldProvider:  map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
 				runtimeFieldModel:     map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
 				runtimeFieldReasoning: map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+				runtimeFieldACPOptions: map[string]any{
+					jsonSchemaTypeKey: jsonSchemaArrayType,
+					"items": map[string]any{
+						jsonSchemaTypeKey: jsonSchemaObjectType,
+						jsonSchemaPropertiesKey: map[string]any{
+							runtimeACPOptionIDKey:        map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+							runtimeACPOptionValueIDKey:   map[string]any{jsonSchemaTypeKey: jsonSchemaStringType},
+							runtimeACPOptionBoolValueKey: map[string]any{jsonSchemaTypeKey: jsonSchemaBooleanType},
+						},
+						jsonSchemaAdditionalPropertiesKey: false,
+						jsonSchemaRequiredKey:             []string{runtimeACPOptionIDKey},
+						jsonSchemaOneOfKey: []any{
+							map[string]any{jsonSchemaRequiredKey: []string{runtimeACPOptionValueIDKey}},
+							map[string]any{jsonSchemaRequiredKey: []string{runtimeACPOptionBoolValueKey}},
+						},
+					},
+				},
 			},
 			jsonSchemaAdditionalPropertiesKey: false,
 		}

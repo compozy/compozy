@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/goccy/go-yaml"
 )
 
@@ -27,6 +28,8 @@ type AgentDefinitionDraft struct {
 	Command         string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []ACPOptionSelection
 	Tools           []string
 	Toolsets        []string
 	DenyTools       []string
@@ -73,7 +76,7 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 	if err := ValidateAuthoredAgentName(agentName); err != nil {
 		return nil, AgentDef{}, errors.Join(ErrInvalidAgentDefinition, err)
 	}
-	agent := canonicalAgentDefinition(AgentDef{
+	agent := AgentDef{
 		Name:            agentName,
 		Provider:        strings.TrimSpace(draft.Provider),
 		Command:         strings.TrimSpace(draft.Command),
@@ -88,7 +91,10 @@ func RenderAgentDefinition(draft AgentDefinitionDraft) ([]byte, AgentDef, error)
 		MCPServers:      cloneMCPServers(draft.MCPServers),
 		Hooks:           cloneHookDecls(draft.Hooks),
 		Prompt:          strings.TrimSpace(draft.Prompt),
-	})
+	}
+	agent.SetSpeed(draft.Speed)
+	agent.SetACPOptions(draft.ACPOptions)
+	agent = canonicalAgentDefinition(agent)
 	agent.Skills = normalizeAgentSkillsConfig(agent.Skills)
 	agent.CategoryPath = normalizeAgentCategoryPath(agent.CategoryPath)
 	if err := agent.Validate(); err != nil {
@@ -129,6 +135,8 @@ func AgentDefinitionDraftFromDef(agent AgentDef) AgentDefinitionDraft {
 		Command:         canonical.Command,
 		Model:           canonical.Model,
 		ReasoningEffort: canonical.ReasoningEffort,
+		Speed:           canonical.SpeedValue(),
+		ACPOptions:      CloneACPOptionSelections(canonical.ACPOptionsValue()),
 		Tools:           cloneStrings(canonical.Tools),
 		Toolsets:        cloneStrings(canonical.Toolsets),
 		DenyTools:       cloneStrings(canonical.DenyTools),
@@ -152,6 +160,8 @@ func AgentDefinitionDigest(agent AgentDef) (string, error) {
 }
 
 func canonicalAgentDefinition(agent AgentDef) AgentDef {
+	agent.SetSpeed(agent.SpeedValue())
+	agent.SetACPOptions(canonicalACPOptionSelections(agent.ACPOptionsValue()))
 	agent.Tools = sortedAgentDefinitionAtoms(agent.Tools)
 	agent.Toolsets = sortedAgentDefinitionAtoms(agent.Toolsets)
 	agent.DenyTools = sortedAgentDefinitionAtoms(agent.DenyTools)

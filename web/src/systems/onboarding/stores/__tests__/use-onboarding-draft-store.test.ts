@@ -1,5 +1,5 @@
 // Suite: onboarding draft store
-// Invariant: draft transitions preserve monotonic progress, unique workspace paths, credential boundaries, and v5 persistence.
+// Invariant: draft transitions preserve monotonic progress, unique workspace paths, runtime defaults, credential boundaries, and v6 persistence.
 // Boundary IN: onboarding draft state and local-storage persistence.
 // Boundary OUT: wizard/query orchestration, owned by the onboarding hook suites.
 import { rehydrateStore } from "@xstate/store/persist";
@@ -92,12 +92,13 @@ describe("onboardingDraftStore", () => {
     );
   });
 
-  it("round-trips a v5 draft without restoring a memory-only API key", async () => {
+  it("round-trips a v6 draft without restoring a memory-only API key", async () => {
     onboardingDraftStore.trigger.stepVisited({ step: 2 });
     onboardingDraftStore.trigger.runtimeSelected({
       provider: "claude",
       model: "opus",
       reasoning: "high",
+      normalizedSpeed: "fast",
     });
     onboardingDraftStore.trigger.authModeChosen({ authMode: "bound_secret" });
     onboardingDraftStore.trigger.envVarEntered({ envVar: "ANTHROPIC_API_KEY" });
@@ -117,11 +118,25 @@ describe("onboardingDraftStore", () => {
       provider: "claude",
       model: "opus",
       reasoning: "high",
+      speed: "fast",
       authMode: "bound_secret",
       authModeTouched: true,
       envVar: "ANTHROPIC_API_KEY",
       apiKey: "",
       workspaces: [{ path: "/workspace", name: "workspace", workspaceId: "ws_main" }],
     });
+  });
+
+  it("keeps the selected model's normalized speed until the operator changes it", () => {
+    onboardingDraftStore.trigger.runtimeSelected({
+      provider: "cursor",
+      model: "grok-4.5",
+      reasoning: "high",
+      normalizedSpeed: "fast",
+    });
+    expect(draft().speed).toBe("fast");
+
+    onboardingDraftStore.trigger.speedSelected({ speed: "normal" });
+    expect(draft().speed).toBe("normal");
   });
 });

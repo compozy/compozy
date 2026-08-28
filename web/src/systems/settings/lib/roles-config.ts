@@ -1,4 +1,5 @@
-import type { ReasoningEffort } from "@/lib/api-contract";
+import type { ReasoningEffort, RuntimeSpeed } from "@/lib/api-contract";
+import type { RuntimeACPOptionSelection } from "@/systems/runtime";
 
 import type { RoleFallbackEntry, RoleName, SettingsRolesConfig } from "../types";
 
@@ -170,12 +171,16 @@ export interface RoleRuntimeValue {
   provider: string;
   model: string;
   reasoning_effort: string;
+  speed: RuntimeSpeed | "";
+  acp_options?: RuntimeACPOptionSelection[];
 }
 
 export const EMPTY_ROLE_RUNTIME: RoleRuntimeValue = {
   provider: "",
   model: "",
   reasoning_effort: "",
+  speed: "",
+  acp_options: undefined,
 };
 
 /**
@@ -187,14 +192,18 @@ export function applyRoleRuntimeEdit(
   role: RoleName,
   value: RoleRuntimeValue
 ): SettingsRolesConfig {
+  const nextRole = {
+    ...config[role],
+    provider: value.provider,
+    model: value.model,
+    reasoning_effort: value.reasoning_effort,
+    acp_options: value.acp_options ?? [],
+  } as SettingsRolesConfig[RoleName] & { speed?: RuntimeSpeed };
+  if (value.speed) nextRole.speed = value.speed;
+  else delete nextRole.speed;
   return {
     ...config,
-    [role]: {
-      ...config[role],
-      provider: value.provider,
-      model: value.model,
-      reasoning_effort: value.reasoning_effort,
-    },
+    [role]: nextRole,
   } as SettingsRolesConfig;
 }
 
@@ -204,7 +213,7 @@ export function clearRoleRuntime(config: SettingsRolesConfig, role: RoleName): S
 }
 
 export function emptyFallbackEntry(): RoleFallbackEntry {
-  return { provider: "", model: "", reasoning_effort: "" };
+  return { provider: "", model: "", reasoning_effort: "", acp_options: [] };
 }
 
 function applyRoleFallbackChain(
@@ -244,8 +253,15 @@ export function setFallbackRuntime(
   index: number,
   value: RoleRuntimeValue
 ): SettingsRolesConfig {
-  const chain = config[role].fallback_chain.map((entry, entryIndex) =>
-    entryIndex === index ? { ...entry, ...value } : entry
-  );
+  const chain = config[role].fallback_chain.map((entry, entryIndex) => {
+    if (entryIndex !== index) return entry;
+    return {
+      provider: value.provider,
+      model: value.model,
+      reasoning_effort: value.reasoning_effort,
+      acp_options: value.acp_options ?? [],
+      ...(value.speed ? { speed: value.speed } : {}),
+    };
+  });
   return applyRoleFallbackChain(config, role, chain);
 }

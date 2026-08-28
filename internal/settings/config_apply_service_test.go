@@ -17,6 +17,7 @@ import (
 	diagnosticcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb"
 	"github.com/compozy/compozy/internal/windowmanager"
@@ -178,6 +179,8 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		roles := cfg.Roles
 		roles.MemoryExtractor.Model = "anthropic/claude-sonnet-4"
+		roles.MemoryExtractor.Speed = "fast"
+		roles.MemoryExtractor.ACPOptions = []compozyconfig.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "http"), SectionUpdateRequest{
 			SectionRequest: SectionRequest{Section: SectionRoles},
@@ -197,6 +200,14 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		if got, want := persisted.Roles.MemoryExtractor.Model, "anthropic/claude-sonnet-4"; got != want {
 			t.Fatalf("persisted roles.memory_extractor.model = %q, want %q", got, want)
+		}
+		if got, want := persisted.Roles.MemoryExtractor.Speed, speedpkg.SpeedFast; got != want {
+			t.Fatalf("persisted roles.memory_extractor.speed = %q, want %q", got, want)
+		}
+		persistedOption := persisted.Roles.MemoryExtractor.ACPOptions
+		if len(persistedOption) != 1 || persistedOption[0].ID != "thinking" ||
+			persistedOption[0].BoolValue == nil || !*persistedOption[0].BoolValue {
+			t.Fatalf("persisted roles.memory_extractor.acp_options = %#v, want thinking=true", persistedOption)
 		}
 		active, err := service.ActiveConfig(ctx)
 		if err != nil {
@@ -266,7 +277,8 @@ func TestConfigApplyServiceRecordsLiveApplyAndAdvancesGeneration(t *testing.T) {
 		}
 		roles := cfg.Roles
 		roles.AutoTitle.FallbackChain = []compozyconfig.RoleFallback{{
-			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium",
+			Provider: "codex", Model: "gpt-5-mini", ReasoningEffort: "medium", Speed: "fast",
+			ACPOptions: []compozyconfig.ACPOptionSelection{{ID: "context", ValueID: "1m"}},
 		}}
 
 		result, err := service.ApplySection(WithMutationSource(ctx, "uds"), SectionUpdateRequest{
@@ -1753,6 +1765,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 		featured := false
 		deprecated := false
 		defaultEffort := modelcatalog.ReasoningEffortMax
+		defaultSpeed := speedpkg.SpeedFast
 		result, err := service.ApplyProviderModelCuration(
 			WithMutationSource(context.Background(), "cli"),
 			ProviderModelCurationRequest{
@@ -1762,6 +1775,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 				Featured:               &featured,
 				Deprecated:             &deprecated,
 				DefaultReasoningEffort: &defaultEffort,
+				DefaultSpeed:           &defaultSpeed,
 			},
 		)
 		if err != nil {
@@ -1786,6 +1800,9 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			*result.Model.DefaultReasoningEffort != modelcatalog.ReasoningEffortMax {
 			t.Fatalf("DefaultReasoningEffort = %#v, want max", result.Model.DefaultReasoningEffort)
 		}
+		if got := result.DefaultSpeed; got != speedpkg.SpeedFast {
+			t.Fatalf("DefaultSpeed = %q, want fast", got)
+		}
 
 		configText := readFile(t, homePaths.ConfigFile)
 		for _, want := range []string{
@@ -1793,6 +1810,7 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			`id = "gpt-5.6-sol"`,
 			`hidden = true`,
 			`default_reasoning_effort = "max"`,
+			`default_speed = "fast"`,
 		} {
 			if !strings.Contains(configText, want) {
 				t.Fatalf("config is missing %q:\n%s", want, configText)
@@ -1818,6 +1836,40 @@ func TestConfigApplyServiceCuratesProviderModelsLive(t *testing.T) {
 			if strings.Contains(curatedTable, forbidden) {
 				t.Fatalf("config froze catalog enrichment %q:\n%s", forbidden, configText)
 			}
+		}
+	})
+
+	t.Run("Should reject Fast when the model advertises only normal configurations", func(t *testing.T) {
+		t.Parallel()
+
+		service, homePaths, catalog, applier := providerModelCurationTestService(t)
+		catalog.mu.Lock()
+		model := catalog.models["codex"][0]
+		model.TransportBindings = []modelcatalog.ModelTransportBinding{{
+			TransportModelID: "gpt-5.6-sol",
+		}}
+		catalog.models["codex"] = []modelcatalog.Model{model}
+		catalog.mu.Unlock()
+		before := readFile(t, homePaths.ConfigFile)
+		fast := speedpkg.SpeedFast
+
+		_, err := service.ApplyProviderModelCuration(t.Context(), ProviderModelCurationRequest{
+			ProviderID:   "codex",
+			ModelID:      "gpt-5.6-sol",
+			DefaultSpeed: &fast,
+		})
+		if err == nil {
+			t.Fatal("ApplyProviderModelCuration(fast) error = nil, want speed_rejected")
+		}
+		item, ok := diagnostics.ItemFromError(err)
+		if !ok || item.Code != diagnosticcontract.CodeSpeedRejected {
+			t.Fatalf("diagnostic = %#v, %v; want speed_rejected", item, ok)
+		}
+		if got := readFile(t, homePaths.ConfigFile); got != before {
+			t.Fatalf("unsupported-speed curation changed config:\n%s", got)
+		}
+		if applier.calls != 0 {
+			t.Fatalf("ApplyActiveConfig() calls = %d, want 0", applier.calls)
 		}
 	})
 
@@ -2467,7 +2519,11 @@ func providerModelCurationTestService(
 					modelcatalog.ReasoningEffortXHigh,
 					modelcatalog.ReasoningEffortMax,
 				},
-				DefaultReasoningEffort:   &defaultEffort,
+				DefaultReasoningEffort: &defaultEffort,
+				TransportBindings: []modelcatalog.ModelTransportBinding{
+					{Fast: new(false)},
+					{Fast: new(true)},
+				},
 				ContextWindow:            &contextWindow,
 				MaxOutputTokens:          &maxOutputTokens,
 				SupportsTools:            &supportsTools,

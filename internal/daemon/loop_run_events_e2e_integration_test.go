@@ -1680,6 +1680,24 @@ func logLoopRunTimeoutDebug(
 		}
 		t.Logf("loop run timeout task %s runs = %#v", taskID, runs)
 	}
+	logPayload, err := os.ReadFile(harness.HomePaths.LogFile)
+	if err != nil {
+		t.Logf("loop run timeout daemon log error = %v", err)
+		return
+	}
+	debugLines := make([]string, 0)
+	for line := range strings.SplitSeq(string(logPayload), "\n") {
+		if strings.Contains(line, `"msg":"httpapi: request"`) {
+			continue
+		}
+		debugLines = append(debugLines, line)
+	}
+	const maxDebugLogBytes = 32 << 10
+	debugLog := strings.Join(debugLines, "\n")
+	if len(debugLog) > maxDebugLogBytes {
+		debugLog = debugLog[len(debugLog)-maxDebugLogBytes:]
+	}
+	t.Logf("loop run timeout daemon log tail = %s", debugLog)
 }
 
 func compactLoopRunEvents(events []loopRunSSEEvent) []string {

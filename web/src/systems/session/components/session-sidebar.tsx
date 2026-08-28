@@ -10,7 +10,7 @@ export interface SessionSidebarProps {
   sessions: readonly SessionPayload[];
   disconnected: boolean;
   collapsedThreadIds: readonly string[];
-  currentSessionId: string;
+  currentSessionId?: string;
   view: SessionListViewModel;
   onToggleThread: (sessionId: string) => void;
   onSelectSession: (session: SessionPayload) => void;

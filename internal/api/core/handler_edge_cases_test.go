@@ -513,7 +513,8 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			"/workspaces/ws-workspace/sessions/sess-123/prompt",
 			[]byte(`{"message":"inspect the release","message_id":"msg-core-dispatch",`+
 				`"idempotency_key":"idem-core-dispatch","runtime":{"provider":"codex","model":"gpt-5.6-sol",`+
-				`"reasoning_effort":"high","speed":"fast"}}`),
+				`"reasoning_effort":"high","speed":"fast","acp_options":[{"id":"context","value_id":"1m"},`+
+				`{"id":"thinking","bool_value":true}]}}`),
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want %d; body=%s", recorder.Code, http.StatusOK, recorder.Body.String())
@@ -526,7 +527,10 @@ func TestCorePromptDispatchShouldBuildOneCanonicalSessionCommand(t *testing.T) {
 			t.Fatalf("SendPrompt() opts = %#v, want canonical prompt metadata", gotOpts)
 		}
 		if gotOpts.Runtime == nil || gotOpts.Runtime.Provider != "codex" || gotOpts.Runtime.Model != "gpt-5.6-sol" ||
-			gotOpts.Runtime.ReasoningEffort != "high" || gotOpts.Runtime.Speed != contract.SpeedFast {
+			gotOpts.Runtime.ReasoningEffort != "high" || gotOpts.Runtime.Speed != contract.SpeedFast ||
+			len(gotOpts.Runtime.ACPOptions) != 2 || gotOpts.Runtime.ACPOptions[0].ID != "context" ||
+			gotOpts.Runtime.ACPOptions[0].ValueID != "1m" || gotOpts.Runtime.ACPOptions[1].ID != "thinking" ||
+			gotOpts.Runtime.ACPOptions[1].BoolValue == nil || !*gotOpts.Runtime.ACPOptions[1].BoolValue {
 			t.Fatalf("SendPrompt() runtime = %#v, want selected codex runtime", gotOpts.Runtime)
 		}
 		if gotOpts.Caller.Kind != "human" || gotOpts.Caller.ID != "local-user" || gotOpts.Caller.Source != "http" {

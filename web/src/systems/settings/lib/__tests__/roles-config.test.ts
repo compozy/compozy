@@ -44,7 +44,12 @@ describe("fallback chain operations", () => {
   it("Should append an empty entry immutably", () => {
     const next = addFallbackEntry(settingsRolesConfigFixture, "dream");
     expect(next.dream.fallback_chain).toHaveLength(1);
-    expect(next.dream.fallback_chain[0]).toEqual({ provider: "", model: "", reasoning_effort: "" });
+    expect(next.dream.fallback_chain[0]).toEqual({
+      provider: "",
+      model: "",
+      reasoning_effort: "",
+      acp_options: [],
+    });
     expect(settingsRolesConfigFixture.dream.fallback_chain).toHaveLength(0);
   });
 
@@ -59,11 +64,15 @@ describe("fallback chain operations", () => {
       provider: "google",
       model: "gemini-3-pro",
       reasoning_effort: "high",
+      speed: "fast",
+      acp_options: [{ id: "thinking", bool_value: true }],
     });
     expect(next.dream.fallback_chain[1]).toEqual({
       provider: "google",
       model: "gemini-3-pro",
       reasoning_effort: "high",
+      speed: "fast",
+      acp_options: [{ id: "thinking", bool_value: true }],
     });
     expect(settingsRolesConfigWithFallbackFixture.dream.fallback_chain[1].provider).toBe("openai");
   });
@@ -75,11 +84,15 @@ describe("role runtime edits", () => {
       provider: "anthropic",
       model: "claude-haiku-4-5",
       reasoning_effort: "medium",
+      speed: "fast",
+      acp_options: [{ id: "context", value_id: "1m" }],
     });
 
     expect(next.auto_title.provider).toBe("anthropic");
     expect(next.auto_title.model).toBe("claude-haiku-4-5");
     expect(next.auto_title.reasoning_effort).toBe("medium");
+    expect(next.auto_title.speed).toBe("fast");
+    expect(next.auto_title.acp_options).toEqual([{ id: "context", value_id: "1m" }]);
     expect(settingsRolesConfigFixture.auto_title.provider).toBe("");
     expect(next.dream).toEqual(settingsRolesConfigFixture.dream);
   });
@@ -90,6 +103,8 @@ describe("role runtime edits", () => {
     expect(cleared.memory_controller.provider).toBe("");
     expect(cleared.memory_controller.model).toBe("");
     expect(cleared.memory_controller.reasoning_effort).toBe("");
+    expect(cleared.memory_controller.speed).toBeUndefined();
+    expect(cleared.memory_controller.acp_options).toEqual([]);
     expect(settingsRolesConfigFixture.memory_controller.model).toBe("anthropic/claude-haiku-4");
   });
 });

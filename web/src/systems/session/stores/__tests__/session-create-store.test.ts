@@ -5,7 +5,7 @@ import { createSessionCreateStore } from "../session-create-store";
 
 // Suite: session-create store transitions
 // Invariant: returning to Simple removes every Advanced-only launch field while preserving
-// the durable session identity and the operator's own prose (session name, first message).
+// durable identity, while a composer fallback prompt remains separate from the launch draft.
 // Owning layer: session-create interaction store. Canonical suite: this store suite.
 // Boundary IN: dialog mode and draft events. Boundary OUT: dialog view-model wiring, owned by hooks/__tests__/use-session-create-dialog.test.tsx.
 describe("session-create store", () => {
@@ -33,24 +33,25 @@ describe("session-create store", () => {
     });
   });
 
-  // The field is visible in both modes, so a mode switch is not a decision to
-  // discard what was written — unlike the launch fields Simple genuinely hides.
-  it("Should keep the typed first message across a mode switch and an agent change", () => {
+  it("Should keep a staged fallback prompt outside the launch draft", () => {
     const store = createSessionCreateStore();
     store.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: "ws_alpha" });
-    store.trigger.firstMessageChanged({ firstMessage: "Investigate the regression" });
+    store.trigger.fallbackPromptStaged({ prompt: "Investigate the regression" });
     store.trigger.environmentSelected({ environment: { kind: "new", name: "" } });
 
     store.trigger.modeSelected({ mode: "advanced" });
     store.trigger.modeSelected({ mode: "simple" });
     store.trigger.agentSelected({ agentName: "codex-agent", workspaceId: "ws_alpha" });
 
-    expect(store.getSnapshot().context.draft).toMatchObject({
-      agentName: "codex-agent",
-      firstMessage: "Investigate the regression",
-      // The environment is workspace-scoped launch state, so it still resets.
-      environment: ADVANCED_DEFAULTS.environment,
+    expect(store.getSnapshot().context).toMatchObject({
+      draft: {
+        agentName: "codex-agent",
+        // The environment is workspace-scoped launch state, so it still resets.
+        environment: ADVANCED_DEFAULTS.environment,
+      },
+      pendingPrompt: "Investigate the regression",
     });
+    expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
   });
 
   it.each(["", "   "])("Should preserve general for an empty agent selection %j", agentName => {
@@ -67,7 +68,7 @@ describe("session-create store", () => {
     store.trigger.dialogOpened({ agentName: "claude-agent", workspaceId: "ws_alpha" });
     store.trigger.environmentAwaited({
       agentName: "claude-agent",
-      firstMessage: "Investigate the regression",
+      pendingPrompt: "Investigate the regression",
       previousEnvironment: { kind: "root" },
       request: { agent_name: "claude-agent", workspace: "ws_alpha" },
       workspaceId: "ws_alpha",

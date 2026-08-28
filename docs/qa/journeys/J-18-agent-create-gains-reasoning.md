@@ -1,38 +1,42 @@
-# J-18 — Author an agent whose runtime now carries reasoning
+# J-18 — Author an agent with reusable runtime controls
 
-Agent-create's RuntimeStep was the weakest of the three old pickers: bare `model_id` strings, no availability, and **no reasoning at all** (`model-selector` _spec §1 defect 4, §6.2). The migration replaces its provider+model leaf selects with the unified `RuntimeSelector` and, for the first time, lets an agent definition carry a default `reasoning_effort` that resolves into `StartOpts` for sessions created without an explicit override. The regression risk is draft/params threading: reasoning must flow through `validateAgentCreateDraft`/`buildCreateAgentParams` exactly like model, be omitted when empty, and be cleared when the provider changes.
+Agent authoring uses the unified `RuntimeSelector` and persists reusable provider, logical model,
+Reasoning, Fast, and typed ACP-option defaults. Sessions inherit those values unless a durable session
+selection or prompt snapshot replaces them. The regression risk is cross-surface threading: every
+authored value must round-trip through AGENT.md, API/UDS/CLI/native tools, and the web without exposing
+private provider transport aliases.
 
 ```mermaid
 flowchart TD
     E1[Entry: Agents view → New agent] --> W[Create-agent wizard]
-    E2[Entry: agent authoring via HTTP/UDS/CLI/compozy__agent_create] --> STRUCT[Create the same canonical provider·model·reasoning definition through structured input]
+    E2[Entry: agent authoring via HTTP/UDS/CLI/compozy__agent_create] --> STRUCT[Create the same canonical typed runtime definition through structured input]
     W --> B[Basics step]
     B --> R[Runtime step]
-    R --> SEL[Unified RuntimeSelector: provider · model · reasoning]
+    R --> SEL[Unified RuntimeSelector: provider · model · Reasoning · Fast · advanced options]
     SEL --> PICKP{Change provider?}
-    PICKP -->|yes| CLR[Draft provider set; model AND reasoningEffort cleared]
+    PICKP -->|yes| CLR[Draft provider set; unsupported model and controls cleared]
     PICKP -->|no| PICKM[Pick curated model with availability + chips]
     CLR --> PICKM
-    PICKM --> PICKE[Pick a default reasoning effort or leave Default]
+    PICKM --> PICKE[Pick supported default Reasoning, Fast, and ACP options or inherit defaults]
     PICKE --> NEXT[Advance to Instructions / Access]
     NEXT --> SUB[Create agent]
     SUB --> PARAMS{buildCreateAgentParams}
-    PARAMS -->|model non-empty → include; reasoning non-empty → include reasoning_effort| POST[POST create agent with agent.reasoning_effort]
+    PARAMS -->|selected fields valid| POST[POST create agent with typed runtime defaults]
     PARAMS -->|empty axes omitted| POST
     STRUCT --> POST
-    POST --> OK[Agent created; default runtime incl. reasoning written to AGENT.md]
-    OK --> FRESHREAD[Fresh read-back: GET /api/agents/:name · UDS parity · CLI compozy agent info · AGENT.md file — stored runtime shows the reasoning default; NO native agent read tool exists]
-    FRESHREAD --> SESS[New session without override resolves agent default reasoning into StartOpts — true_end_state]
+    POST --> OK[Agent created; typed runtime defaults written to AGENT.md]
+    OK --> FRESHREAD[Fresh read-back: GET /api/agents/:name · UDS parity · CLI compozy agent info · AGENT.md file — stored runtime shows every public default]
+    FRESHREAD --> SESS[New session without override resolves every supported agent runtime default — true_end_state]
     SESS --> OVERRIDE[A later session with an explicit runtime override wins over the agent default — terminal]
-    R -.->|scope switch workspace↔global| RESETALL[Provider/model/reasoning reset for the new scope's providers]
+    R -.->|scope switch workspace↔global| RESETALL[Provider, model, and controls reset for the new scope]
     R -.->|command override field| CMD[Neutral placeholder — no leaked model version]
 ```
 
 ```yaml
 journey:
   id: J-18
-  name: "Author an agent whose runtime now carries reasoning"
-  value_statement: "My agent definition can pin a default reasoning effort, not just a provider and model — and new sessions inherit it without me re-picking every time."
+  name: "Author an agent with reusable runtime controls"
+  value_statement: "My agent definition can pin the supported runtime controls once, and new sessions inherit them without me re-picking every time."
   personas: [Bruno, Ada]
   entry_points:
     - url: "web Agents view → New agent → Runtime step"
@@ -42,47 +46,46 @@ journey:
   actions:
     - step: 1
       verb: "Reach the Runtime step of the create-agent wizard"
-      expected_observable: "The step shows one RuntimeSelector (provider · model · reasoning) plus a Command override field — not two bare leaf selects; the model list is the curated view with availability and capability chips (no raw model_id strings)."
+      expected_observable: "The step shows one RuntimeSelector rather than separate leaf selects, uses curated model browsing with availability and capability chips, and includes provider, logical model, Reasoning, Fast, and advertised advanced options plus a Command override field; no raw or transport model alias is visible."
     - step: 2
-      verb: "Pick a provider, model, and default reasoning effort"
-      expected_observable: "Reasoning is selectable when the model advertises effort; changing the provider clears both model and reasoning; the Command field's placeholder carries no concrete model version (COPY.md)."
+      verb: "Pick a provider, model, Reasoning, Fast, and advertised advanced options"
+      expected_observable: "Only valid controls and combinations are selectable; changing provider or model clears values the new descriptor cannot honor."
     - step: 3
       verb: "Complete the wizard and create the agent"
-      expected_observable: "The create request's agent object includes reasoning_effort only when a non-empty effort was chosen (omitted otherwise), threaded like model through buildCreateAgentParams."
+      expected_observable: "The create request carries speed and typed acp_options only when selected, with exactly one typed value per ACP option."
     - step: 4
       verb: "Start a session from that agent without overriding runtime"
-      expected_observable: "The session resolves the agent's default reasoning_effort into StartOpts exactly like provider/model defaults."
+      expected_observable: "The session resolves the agent's model, Reasoning, Fast, and ACP-option defaults before the first prompt; a later session or prompt override wins per field or option ID."
   goal:
-    observable: "An agent definition persists a provider·model·reasoning default; sessions created from it inherit the reasoning effort with no per-session picking."
-    side_effects: [agent-created-with-reasoning-default, catalog-fetched-view-all]
-  true_end_state: "Fresh-read the created definition through HTTP/UDS/CLI/web and its AGENT.md file: every surface shows the same stored reasoning default; a session started with no override applies it, while an explicit session override wins."
+    observable: "An agent definition persists supported runtime defaults; sessions created from it inherit them with no repeated picking."
+    side_effects: [agent-created-with-runtime-defaults, catalog-fetched-view-all]
+  true_end_state: "Fresh-read the created definition through HTTP/UDS/CLI/web and AGENT.md: every surface shows the same logical runtime defaults; a session started with no override applies them, while durable session and prompt overrides win per field or option ID."
   exit:
-    natural: "Operator has a reusable agent whose sessions reason at the chosen depth by default."
+    natural: "Operator has a reusable agent whose sessions start with the chosen supported controls."
   abandonment:
     - at_step: 2
       how: "Operator switches wizard scope (workspace ↔ global) mid-pick."
-      resume: "Provider/model/reasoning reset to the new scope's provider set; no stale cross-scope selection survives."
+      resume: "Provider, model, and unsupported controls reset to the new scope's catalog; no stale cross-scope selection survives."
     - at_step: 3
-      how: "Operator leaves reasoning at Default and creates the agent."
-      resume: "No reasoning_effort is written; sessions fall back to the provider/adapter default (empty ≠ 'none')."
-  crosses: [runtime-selector, agent-create-draft, agent-config-reasoning, model-catalog-view, start-opts-resolution]
+      how: "Operator leaves runtime controls at their inherited values and creates the agent."
+      resume: "No explicit speed or ACP options are written; sessions continue through provider/project defaults."
+  crosses: [runtime-selector, agent-create-draft, agent-runtime-options, model-catalog-view, start-opts-resolution]
 
 design_reference:
   screens:
     - "docs/design/opendesign/provider-model-reasoning-selector.html (Agent config · 'now carries reasoning too')"
     - "Storybook systems/agent AgentCreateDialog runtime step"
   truthful_ui_checks:
-    - "Reasoning control only appears when the model advertises effort; otherwise the model row shows the reasoning-on/none note, not a fake effort control."
-    - "reasoning_effort is omitted from the create-agent params when empty; present (a canonical level) when chosen."
-    - "Provider change clears model AND reasoning in the draft (no stale reasoning for a model the new provider doesn't offer)."
+    - "Reasoning, Fast, and advanced controls appear only when the model/provider descriptor supports them."
+    - "Each ACP option emits exactly one select or boolean value; empty defaults are omitted."
+    - "Provider or model changes clear every selection the new descriptor cannot honor."
     - "Command placeholder shows no concrete/versioned model id (COPY.md claim standards)."
 
 e2e_backbone:
   web:
-    - "E2E-web (make test-e2e-web): agent-create wizard completes with a reasoning default selected."
+    - "Browser walk: agent creation completes with Fast and one advertised advanced option selected."
   runtime:
-    - "Unit/integration: agent config reasoning_effort default resolves into StartOpts for a session created without an explicit override (task 01 suite)."
+    - "Focused runtime integration: agent model, Reasoning, Fast, and ACP-option defaults resolve into StartOpts without an explicit override."
   manual:
-    - "Charter CH-029 (Bruno) walks the RuntimeStep reasoning add + draft/params threading + provider-change clear."
-    - "Charter CH-036 (Ada) creates the same agent definition through HTTP/UDS/CLI/compozy__agent_create, then fresh-reads it through the real read surfaces (there is no native agent read tool)."
+    - "CH-provider-runtime-strategies walks Fast/options authoring, readback, inheritance, precedence, and invalidation."
 ```

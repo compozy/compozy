@@ -14,6 +14,8 @@ compozy agent duplicate <source> <new-name> [flags]
 ### Options
 
 ```
+      --acp-option stringArray      ACP select option default (repeatable: id=value_id)
+      --acp-toggle stringArray      ACP boolean option default (repeatable: id=true|false)
       --category stringArray        Agent category path segment (repeatable)
       --command string              Optional provider command override
       --deny-tool stringArray       Denied tool pattern (repeatable)
@@ -26,6 +28,7 @@ compozy agent duplicate <source> <new-name> [flags]
       --provider string             Provider name for sessions using this agent
       --reasoning-effort string     Optional default reasoning effort
       --scope string                Target scope: global or workspace (default: source origin)
+      --speed string                Optional default runtime speed (normal or fast)
       --tool stringArray            Allowed tool pattern (repeatable)
       --toolset stringArray         Allowed toolset reference (repeatable)
       --workspace string            Override source or target workspace (ID, name, or path)

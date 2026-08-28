@@ -130,6 +130,7 @@ func (b *loopActionSessionBinder) baseCreateOptions(
 		Model:                        strings.TrimSpace(runtime.Model),
 		ReasoningEffort:              strings.TrimSpace(runtime.Reasoning),
 		Speed:                        runtime.Speed,
+		ACPOptions:                   loopACPOptionsForSession(runtime.ACPOptions),
 		Name:                         loopRuntimeSessionName(kind, agent, req.Handle),
 		ResolvedNetworkParticipation: req.NetworkParticipation,
 		NetworkOwnerKey: participation.OwnerKey(participation.OwnerRef{
@@ -165,15 +166,19 @@ func validatePinnedRuntime(runtime looppkg.RuntimeSpec, profile store.SessionCre
 	if requested := runtime.Speed; requested != "" && requested != profile.Speed {
 		return bindingMismatch("requested runtime speed differs from pinned creation profile")
 	}
+	if len(runtime.ACPOptions) > 0 && !loopACPOptionsMatchStore(runtime.ACPOptions, profile.ACPOptions) {
+		return bindingMismatch("requested runtime ACP options differ from pinned creation profile")
+	}
 	return nil
 }
 
 func appliedRuntimeFromCreateOptions(opts session.CreateOpts) looppkg.RuntimeSpec {
 	return looppkg.RuntimeSpec{
-		Provider:  strings.TrimSpace(opts.Provider),
-		Model:     strings.TrimSpace(opts.Model),
-		Reasoning: strings.TrimSpace(opts.ReasoningEffort),
-		Speed:     opts.Speed,
+		Provider:   strings.TrimSpace(opts.Provider),
+		Model:      strings.TrimSpace(opts.Model),
+		Reasoning:  strings.TrimSpace(opts.ReasoningEffort),
+		Speed:      opts.Speed,
+		ACPOptions: loopACPOptionsFromSession(opts.ACPOptions),
 	}
 }
 
@@ -188,6 +193,7 @@ func createOptionsFromProfile(
 		Model:                        profile.Model,
 		ReasoningEffort:              profile.ReasoningEffort,
 		Speed:                        profile.Speed,
+		ACPOptions:                   session.ACPOptionSelectionsFromStore(profile.ACPOptions),
 		CWD:                          profile.CWD,
 		Worktree:                     profile.WorktreeRef,
 		SandboxRef:                   profile.SandboxRef,
@@ -229,6 +235,7 @@ func profileFromPolicyResolution(
 		Model:           resolution.agent.Model,
 		ReasoningEffort: opts.ReasoningEffort,
 		Speed:           opts.Speed,
+		ACPOptions:      opts.ACPOptions,
 		ProfileID:       opts.ProfileID,
 		WorkspaceID:     resolution.workspace.ID,
 		CWD:             opts.CWD,

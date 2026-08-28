@@ -89,6 +89,8 @@ export function AgentRuntimeControl({ agent, workspaceId, labelledBy }: AgentRun
         onRefreshCatalog={runtime.onRefreshCatalog}
         providers={runtime.providerOptions}
         refreshing={runtime.modelCatalogRefreshing}
+        speed={runtime.speed}
+        onSpeedChange={runtime.onSpeedChange}
         triggerId="agent-detail-runtime-trigger"
         triggerTestId="agent-detail-runtime-select"
         value={runtime.value}

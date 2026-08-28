@@ -9,10 +9,11 @@ import (
 
 // SessionRuntimeSelection is the durable runtime preference for future prompts.
 type SessionRuntimeSelection struct {
-	Provider        string         `json:"provider"`
-	Model           string         `json:"model,omitempty"`
-	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
-	Speed           speedpkg.Speed `json:"speed,omitempty"`
+	Provider        string                      `json:"provider"`
+	Model           string                      `json:"model,omitempty"`
+	ReasoningEffort string                      `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed              `json:"speed,omitempty"`
+	ACPOptions      []SessionACPOptionSelection `json:"acp_options,omitempty"`
 }
 
 // SessionRuntimeSelectionState keeps a selected runtime and its revision together.
@@ -61,6 +62,7 @@ func NormalizeSessionRuntimeSelection(selection *SessionRuntimeSelection) *Sessi
 		Model:           strings.TrimSpace(selection.Model),
 		ReasoningEffort: strings.TrimSpace(selection.ReasoningEffort),
 		Speed:           selection.Speed,
+		ACPOptions:      NormalizeSessionACPOptionSelections(selection.ACPOptions),
 	}
 	if normalized.Speed == "" {
 		normalized.Speed = speedpkg.SpeedNormal
@@ -82,6 +84,9 @@ func ValidateSessionRuntimeSelection(selection *SessionRuntimeSelection, revisio
 	}
 	if _, err := speedpkg.Parse(string(normalized.Speed)); err != nil {
 		return fmt.Errorf("store: validate selected runtime speed: %w", err)
+	}
+	if err := ValidateSessionACPOptionSelections(normalized.ACPOptions); err != nil {
+		return fmt.Errorf("store: validate selected runtime ACP options: %w", err)
 	}
 	return nil
 }

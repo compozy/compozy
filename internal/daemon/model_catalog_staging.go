@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"sort"
 	"time"
 
@@ -15,6 +14,7 @@ import (
 type stagedLiveProviderConfigs struct {
 	effective map[string]compozyconfig.ProviderConfig
 	sources   map[string]*modelcatalog.LiveProviderSource
+	previous  map[string]*modelcatalog.LiveProviderSource
 	changed   []string
 }
 
@@ -63,7 +63,7 @@ func (r *modelCatalogRuntime) stageModelCatalogGeneration(
 	if err := r.refreshStagedConfig(ctx, plan, configSource, providers, now); err != nil {
 		return stagedModelCatalogGeneration{}, err
 	}
-	if err := refreshStagedLive(ctx, plan, live, now); err != nil {
+	if err := refreshStagedLive(ctx, plan, live, r.catalogExecutionContexts(), now); err != nil {
 		return stagedModelCatalogGeneration{}, err
 	}
 	return stagedModelCatalogGeneration{
@@ -85,9 +85,10 @@ func (r *modelCatalogRuntime) refreshStagedConfig(
 	providerIDs := reconcileProviderIDs(r.configSource.ProviderIDs(), providers)
 	for _, providerID := range providerIDs {
 		if _, err := plan.Refresh(ctx, source, modelcatalog.RefreshOptions{
-			ProviderID: providerID,
-			Force:      true,
-			Now:        now,
+			ProviderID:       providerID,
+			ExecutionContext: modelcatalog.GlobalCatalogExecutionContext(),
+			Force:            true,
+			Now:              now,
 		}); err != nil {
 			return fmt.Errorf("daemon: reconcile model catalog config provider %q: %w", providerID, err)
 		}
@@ -99,22 +100,38 @@ func refreshStagedLive(
 	ctx context.Context,
 	plan *modelcatalog.RefreshPlan,
 	live stagedLiveProviderConfigs,
+	executionContexts []modelcatalog.CatalogExecutionContext,
 	now time.Time,
 ) error {
-	for _, providerID := range live.changed {
-		statuses, refreshErr := plan.Refresh(ctx, live.sources[providerID], modelcatalog.RefreshOptions{
-			ProviderID: providerID,
-			Force:      true,
-			Now:        now,
-		})
-		if refreshErr == nil {
-			continue
-		}
-		if ctx.Err() != nil {
-			return fmt.Errorf("daemon: reconcile live model catalog provider %q: %w", providerID, ctx.Err())
-		}
-		if !recordedLiveRefreshFailure(statuses, providerID) {
-			return fmt.Errorf("daemon: reconcile live model catalog provider %q: %w", providerID, refreshErr)
+	for _, executionContext := range executionContexts {
+		for _, providerID := range live.changed {
+			previousExecutionContext, err := previousLiveExecutionContext(
+				live.previous[providerID],
+				executionContext,
+			)
+			if err != nil {
+				return fmt.Errorf(
+					"daemon: resolve prior live model catalog context for %q: %w",
+					providerID,
+					err,
+				)
+			}
+			statuses, refreshErr := plan.Refresh(ctx, live.sources[providerID], modelcatalog.RefreshOptions{
+				ProviderID:               providerID,
+				ExecutionContext:         executionContext,
+				PreviousExecutionContext: previousExecutionContext,
+				Force:                    true,
+				Now:                      now,
+			})
+			if refreshErr == nil {
+				continue
+			}
+			if ctx.Err() != nil {
+				return fmt.Errorf("daemon: reconcile live model catalog provider %q: %w", providerID, ctx.Err())
+			}
+			if !recordedLiveRefreshFailure(statuses, providerID) {
+				return fmt.Errorf("daemon: reconcile live model catalog provider %q: %w", providerID, refreshErr)
+			}
 		}
 	}
 	return nil
@@ -152,11 +169,23 @@ func reconcileProviderIDs(
 func (r *modelCatalogRuntime) stageLiveProviderConfigs(
 	providers map[string]compozyconfig.ProviderConfig,
 ) (stagedLiveProviderConfigs, error) {
-	effective := compozyconfig.BuiltinProviders()
-	maps.Copy(effective, providers)
+	resolver := &compozyconfig.Config{Providers: providers}
+	effective := make(map[string]compozyconfig.ProviderConfig, len(r.liveSources))
+	for providerID := range r.liveSources {
+		provider, err := resolver.ResolveProvider(providerID)
+		if err != nil {
+			return stagedLiveProviderConfigs{}, fmt.Errorf(
+				"daemon: resolve live model catalog provider %q: %w",
+				providerID,
+				err,
+			)
+		}
+		effective[providerID] = provider
+	}
 	staged := stagedLiveProviderConfigs{
 		effective: effective,
 		sources:   make(map[string]*modelcatalog.LiveProviderSource, len(r.liveSources)),
+		previous:  make(map[string]*modelcatalog.LiveProviderSource, len(r.liveSources)),
 		changed:   make([]string, 0, len(r.liveSources)),
 	}
 	for providerID, source := range r.liveSources {
@@ -169,10 +198,27 @@ func (r *modelCatalogRuntime) stageLiveProviderConfigs(
 			)
 		}
 		staged.sources[providerID] = clone
+		staged.previous[providerID] = source
 		if changed {
 			staged.changed = append(staged.changed, providerID)
 		}
 	}
 	sort.Strings(staged.changed)
 	return staged, nil
+}
+
+func previousLiveExecutionContext(
+	source *modelcatalog.LiveProviderSource,
+	executionContext modelcatalog.CatalogExecutionContext,
+) (modelcatalog.CatalogExecutionContext, error) {
+	if source == nil {
+		return modelcatalog.CatalogExecutionContext{}, errors.New(
+			"daemon: previous live model catalog source is required",
+		)
+	}
+	fingerprint, err := source.CatalogExecutionFingerprint()
+	if err != nil {
+		return modelcatalog.CatalogExecutionContext{}, err
+	}
+	return executionContext.WithCommandFingerprint(fingerprint)
 }

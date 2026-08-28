@@ -99,11 +99,12 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		RuntimeTransition:        info.RuntimeTransition,
 		RuntimeFailure:           strings.TrimSpace(info.RuntimeFailure),
 		RuntimeGeneration:        info.RuntimeGeneration,
-		RuntimeRecovery:          store.CloneSessionRuntimeRecovery(info.RuntimeRecovery),
+		RuntimeRecovery:          info.RuntimeRecoveryValue(),
 		Provider:                 strings.TrimSpace(info.Provider),
 		Model:                    strings.TrimSpace(info.Model),
 		ReasoningEffort:          strings.TrimSpace(info.ReasoningEffort),
 		Speed:                    info.Speed,
+		ACPOptions:               session.ACPOptionSelectionsFromStore(info.ACPOptionsValue()),
 		SpeedResolution:          speedpkg.CloneResolution(info.SpeedResolution),
 		SelectedRuntime:          runtimeSelectionFromStoreInfo(info.SelectedRuntime),
 		RuntimeSelectionRevision: info.RuntimeSelectionRevision,
@@ -171,6 +172,7 @@ func runtimeSelectionPayloadFromInfo(info *session.Info) *contract.RuntimeSelect
 		Model:           strings.TrimSpace(info.Model),
 		ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(info.ReasoningEffort)),
 		Speed:           info.Speed,
+		ACPOptions:      contract.ACPOptionSelectionPayloadsFromACP(info.ACPOptions),
 		SpeedResolution: speedpkg.CloneResolution(info.SpeedResolution),
 	}
 }
@@ -215,6 +217,7 @@ func runtimeSelectionFromStoreInfo(selection *store.SessionRuntimeSelection) *se
 		Model:           normalized.Model,
 		ReasoningEffort: normalized.ReasoningEffort,
 		Speed:           normalized.Speed,
+		ACPOptions:      session.ACPOptionSelectionsFromStore(normalized.ACPOptions),
 	}
 }
 

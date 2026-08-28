@@ -7,6 +7,70 @@ import (
 	"time"
 )
 
+type ModelSourceRow struct {
+	SourceID               string                        `json:"source_id"`
+	ProviderID             string                        `json:"provider_id"`
+	ModelID                string                        `json:"model_id"`
+	DisplayName            string                        `json:"display_name,omitempty"`
+	Priority               int                           `json:"priority,omitempty"`
+	Available              *bool                         `json:"available,omitempty"`
+	Stale                  bool                          `json:"stale,omitempty"`
+	RefreshedAt            time.Time                     `json:"refreshed_at"`
+	ExpiresAt              time.Time                     `json:"expires_at"`
+	ContextWindow          *int64                        `json:"context_window,omitempty"`
+	MaxInputTokens         *int64                        `json:"max_input_tokens,omitempty"`
+	MaxOutputTokens        *int64                        `json:"max_output_tokens,omitempty"`
+	SupportsTools          *bool                         `json:"supports_tools,omitempty"`
+	SupportsReasoning      *bool                         `json:"supports_reasoning,omitempty"`
+	ReasoningEfforts       []Effort                      `json:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort *Effort                       `json:"default_reasoning_effort,omitempty"`
+	ConfigOptions          []ModelSourceOptionDescriptor `json:"config_options,omitempty"`
+	TransportBindings      []ModelSourceTransportBinding `json:"transport_bindings,omitempty"`
+	Cost                   *ModelCatalogCostPayload      `json:"cost,omitempty"`
+	Deprecated             *bool                         `json:"deprecated,omitempty"`
+	Hidden                 *bool                         `json:"hidden,omitempty"`
+	Featured               *bool                         `json:"featured,omitempty"`
+	ReleaseDate            *string                       `json:"release_date,omitempty"`
+	LastError              string                        `json:"last_error,omitempty"`
+}
+
+type ModelSourceTransportBinding struct {
+	TransportModelID string                       `json:"transport_model_id"`
+	Label            string                       `json:"label,omitempty"`
+	ReasoningEffort  *Effort                      `json:"reasoning_effort,omitempty"`
+	Fast             *bool                        `json:"fast,omitempty"`
+	Thinking         *bool                        `json:"thinking,omitempty"`
+	OptionSelections []ModelSourceOptionSelection `json:"option_selections,omitempty"`
+}
+
+type ModelsListParams struct {
+	ProviderID   string `json:"provider_id,omitempty"`
+	SourceID     string `json:"source_id,omitempty"`
+	Refresh      bool   `json:"refresh,omitempty"`
+	IncludeStale bool   `json:"include_stale,omitempty"`
+}
+
+type ModelsRefreshParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+	SourceID   string `json:"source_id,omitempty"`
+	Force      bool   `json:"force,omitempty"`
+	RequestID  string `json:"request_id,omitempty"`
+}
+
+type ModelsStatusParams struct {
+	ProviderID string `json:"provider_id,omitempty"`
+}
+
+type NetworkBudgetUsagePayload struct {
+	ParticipationStatus ParticipationStatus `json:"participation_status"`
+	WakesUsed           int                 `json:"wakes_used"`
+	WallTimeUsed        string              `json:"wall_time_used"`
+	InputTokensUsed     int64               `json:"input_tokens_used"`
+	OutputTokensUsed    int64               `json:"output_tokens_used"`
+	ExhaustedReason     string              `json:"exhausted_reason,omitempty"`
+	UpdatedAt           time.Time           `json:"updated_at"`
+}
+
 type NetworkCapabilityBriefPayload struct {
 	ID      string `json:"id"`
 	Summary string `json:"summary"`
@@ -215,59 +279,4 @@ type NetworkMessagePersistedPayload struct {
 
 type NetworkObservationPatch struct {
 	Labels map[string]string `json:"labels,omitempty"`
-}
-
-type NetworkParticipationPreResolvePatch struct {
-	Deny       bool     `json:"deny,omitempty"`
-	DenyReason string   `json:"deny_reason,omitempty"`
-	Request    *Request `json:"request,omitempty"`
-}
-
-type NetworkParticipationPreResolvePayload struct {
-	WorkspaceID string   `json:"workspace_id"`
-	Owner       OwnerRef `json:"owner"`
-	Request     *Request `json:"request,omitempty"`
-	Source      Source   `json:"source,omitempty"`
-	OwnerKey    string   `json:"owner_key,omitempty"`
-}
-
-type NetworkParticipationResolvedPatch struct{}
-
-type NetworkParticipationResolvedPayload struct {
-	WorkspaceID string   `json:"workspace_id"`
-	Owner       OwnerRef `json:"owner"`
-	OwnerKey    string   `json:"owner_key,omitempty"`
-	Spec        Spec     `json:"resolved_network_participation"`
-}
-
-type NetworkPayload struct {
-	Event       HookEvent  `json:"event"`
-	Timestamp   time.Time  `json:"timestamp"`
-	WorkspaceID string     `json:"workspace_id,omitempty"`
-	SessionID   string     `json:"session_id,omitempty"`
-	Channel     string     `json:"channel,omitempty"`
-	Surface     string     `json:"surface,omitempty"`
-	ThreadID    string     `json:"thread_id,omitempty"`
-	DirectID    string     `json:"direct_id,omitempty"`
-	MessageID   string     `json:"message_id,omitempty"`
-	Kind        string     `json:"kind,omitempty"`
-	Direction   string     `json:"direction,omitempty"`
-	WorkID      string     `json:"work_id,omitempty"`
-	WorkState   string     `json:"work_state,omitempty"`
-	PeerID      string     `json:"peer_id,omitempty"`
-	PeerFrom    string     `json:"peer_from,omitempty"`
-	PeerTo      string     `json:"peer_to,omitempty"`
-	LastSeenAt  *time.Time `json:"last_seen_at,omitempty"`
-	TraceID     string     `json:"trace_id,omitempty"`
-	CausationID string     `json:"causation_id,omitempty"`
-}
-
-type NetworkPeerCardPayload struct {
-	PeerID              string                          `json:"peer_id"`
-	DisplayName         *string                         `json:"display_name,omitempty"`
-	ProfilesSupported   []string                        `json:"profiles_supported"`
-	Capabilities        []NetworkCapabilityBriefPayload `json:"capabilities"`
-	ArtifactsSupported  []string                        `json:"artifacts_supported"`
-	TrustModesSupported []string                        `json:"trust_modes_supported"`
-	Ext                 map[string]json.RawMessage      `json:"ext,omitempty"`
 }

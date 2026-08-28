@@ -29,6 +29,7 @@ type modelCatalogRowKey struct {
 // ReplaceSourceRows atomically replaces all model rows and status for one provider-scoped source.
 func (g *ModelCatalogRepo) ReplaceSourceRows(
 	ctx context.Context,
+	executionContext modelcatalog.CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 	rows []modelcatalog.ModelRow,
@@ -37,7 +38,13 @@ func (g *ModelCatalogRepo) ReplaceSourceRows(
 	if err := g.checkReady(ctx, "replace model catalog source rows"); err != nil {
 		return err
 	}
-	normalizedRows, normalizedStatus, err := normalizeModelCatalogReplacement(sourceID, providerID, rows, status)
+	normalizedContext, normalizedRows, normalizedStatus, err := normalizeModelCatalogReplacement(
+		executionContext,
+		sourceID,
+		providerID,
+		rows,
+		status,
+	)
 	if err != nil {
 		return err
 	}
@@ -46,7 +53,7 @@ func (g *ModelCatalogRepo) ReplaceSourceRows(
 		ctx,
 		"model catalog source replacement",
 		func(exec modelCatalogSQLExecutor) error {
-			return replaceModelCatalogSourceRows(ctx, exec, normalizedRows, normalizedStatus)
+			return replaceModelCatalogSourceRows(ctx, exec, normalizedContext, normalizedRows, normalizedStatus)
 		},
 	)
 }
@@ -111,7 +118,10 @@ func listModelCatalogRows(
 			release_date,
 			last_error
 		FROM model_catalog_rows`
-	where, args := modelCatalogRowFilterClauses(opts, "")
+	where, args, err := modelCatalogRowFilterClauses(opts, "")
+	if err != nil {
+		return nil, err
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += ` ORDER BY provider_id ASC, model_id ASC, priority DESC, refreshed_at DESC, source_id ASC`
 
@@ -137,21 +147,13 @@ func listModelCatalogRows(
 		return nil, fmt.Errorf("store: iterate model catalog rows: %w", err)
 	}
 
-	efforts, err := listModelCatalogReasoningEfforts(ctx, exec, opts)
-	if err != nil {
-		return nil, err
-	}
-	for index := range catalogRows {
-		key := modelCatalogKey(catalogRows[index].SourceID, catalogRows[index].ProviderID, catalogRows[index].ModelID)
-		catalogRows[index].ReasoningEfforts = efforts[key]
-	}
-	return catalogRows, nil
+	return hydrateModelCatalogRows(ctx, exec, opts, catalogRows)
 }
 
 // ListSourceStatus returns provider-scoped source status rows.
 func (g *ModelCatalogRepo) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) (statuses []modelcatalog.SourceStatus, err error) {
 	if err := g.checkReady(ctx, "list model catalog source status"); err != nil {
 		return nil, err
@@ -169,7 +171,10 @@ func (g *ModelCatalogRepo) ListSourceStatus(
 			row_count,
 			stale
 		FROM model_catalog_sources`
-	where, args := store.BuildClauses(store.StringClause("provider_id", providerID))
+	where, args, err := modelCatalogStatusFilterClauses(opts)
+	if err != nil {
+		return nil, err
+	}
 	sqlQuery = store.AppendWhere(sqlQuery, where)
 	sqlQuery += ` ORDER BY provider_id ASC, source_id ASC`
 
@@ -203,35 +208,47 @@ func (g *ModelCatalogRepo) ListSourceStatus(
 }
 
 func normalizeModelCatalogReplacement(
+	executionContext modelcatalog.CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 	rows []modelcatalog.ModelRow,
 	status modelcatalog.SourceStatus,
-) ([]modelcatalog.ModelRow, modelcatalog.SourceStatus, error) {
+) (modelcatalog.CatalogExecutionContext, []modelcatalog.ModelRow, modelcatalog.SourceStatus, error) {
+	normalizedContext, err := modelcatalog.NormalizePersistedExecutionContext(executionContext)
+	if err != nil {
+		return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, err
+	}
 	trimmedSourceID, err := requireModelCatalogValue(sourceID, "source id")
 	if err != nil {
-		return nil, modelcatalog.SourceStatus{}, err
+		return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, err
 	}
 	trimmedProviderID, err := requireModelCatalogValue(providerID, "provider id")
 	if err != nil {
-		return nil, modelcatalog.SourceStatus{}, err
+		return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, err
 	}
 	normalizedStatus, err := normalizeModelCatalogStatus(trimmedSourceID, trimmedProviderID, status)
 	if err != nil {
-		return nil, modelcatalog.SourceStatus{}, err
+		return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, err
+	}
+	if err := validateModelCatalogSourceExecutionScope(normalizedContext, normalizedStatus.SourceKind); err != nil {
+		return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, err
 	}
 
 	normalizedRows := make([]modelcatalog.ModelRow, 0, len(rows))
 	for index, row := range rows {
 		normalizedRow, err := normalizeModelCatalogRow(trimmedSourceID, trimmedProviderID, normalizedStatus, row)
 		if err != nil {
-			return nil, modelcatalog.SourceStatus{}, fmt.Errorf("store: normalize model catalog row %d: %w", index, err)
+			return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, fmt.Errorf(
+				"store: normalize model catalog row %d: %w",
+				index,
+				err,
+			)
 		}
 		if normalizedStatus.Priority == 0 {
 			normalizedStatus.Priority = normalizedRow.Priority
 		}
 		if normalizedRow.Priority != normalizedStatus.Priority {
-			return nil, modelcatalog.SourceStatus{}, fmt.Errorf(
+			return modelcatalog.CatalogExecutionContext{}, nil, modelcatalog.SourceStatus{}, fmt.Errorf(
 				"store: model catalog row %q priority %d does not match source priority %d",
 				normalizedRow.ModelID,
 				normalizedRow.Priority,
@@ -241,7 +258,23 @@ func normalizeModelCatalogReplacement(
 		normalizedRows = append(normalizedRows, normalizedRow)
 	}
 	normalizedStatus.RowCount = len(normalizedRows)
-	return normalizedRows, normalizedStatus, nil
+	return normalizedContext, normalizedRows, normalizedStatus, nil
+}
+
+func validateModelCatalogSourceExecutionScope(
+	executionContext modelcatalog.CatalogExecutionContext,
+	sourceKind modelcatalog.SourceKind,
+) error {
+	scopedSource := sourceKind == modelcatalog.SourceKindProviderLive ||
+		sourceKind == modelcatalog.SourceKindExtension ||
+		sourceKind == modelcatalog.SourceKindACPSession
+	if scopedSource && executionContext.Scope == modelcatalog.ExecutionScopeGlobal {
+		return fmt.Errorf("store: model catalog source kind %q requires a scoped execution context", sourceKind)
+	}
+	if !scopedSource && executionContext.Scope != modelcatalog.ExecutionScopeGlobal {
+		return fmt.Errorf("store: model catalog source kind %q requires the global execution context", sourceKind)
+	}
+	return nil
 }
 
 func normalizeModelCatalogStatus(
@@ -346,26 +379,15 @@ func normalizeModelCatalogRow(
 		}
 		normalized.ReleaseDate = releaseDate
 	}
-	if normalized.DefaultReasoningEffort != nil {
-		effort := modelcatalog.ReasoningEffort(strings.TrimSpace(string(*normalized.DefaultReasoningEffort)))
-		switch {
-		case effort == "":
-			normalized.DefaultReasoningEffort = nil
-		case !modelcatalog.IsValidEffort(string(effort)):
-			return modelcatalog.ModelRow{}, fmt.Errorf("default reasoning effort %q is unsupported", effort)
-		default:
-			normalized.DefaultReasoningEffort = &effort
-		}
+	if err := normalizeModelCatalogRowReasoning(&normalized); err != nil {
+		return modelcatalog.ModelRow{}, err
 	}
-	for index, effort := range normalized.ReasoningEfforts {
-		trimmed := modelcatalog.ReasoningEffort(strings.TrimSpace(string(effort)))
-		if trimmed == "" {
-			return modelcatalog.ModelRow{}, fmt.Errorf("reasoning effort %d is required", index)
-		}
-		if !modelcatalog.IsValidEffort(string(trimmed)) {
-			return modelcatalog.ModelRow{}, fmt.Errorf("reasoning effort %d value %q is unsupported", index, trimmed)
-		}
-		normalized.ReasoningEfforts[index] = trimmed
+	normalized.ConfigOptions, err = normalizeModelCatalogOptions(normalized.ConfigOptions)
+	if err != nil {
+		return modelcatalog.ModelRow{}, err
+	}
+	if err := normalizeModelCatalogRowBindings(&normalized); err != nil {
+		return modelcatalog.ModelRow{}, err
 	}
 	return normalized, nil
 }

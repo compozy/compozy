@@ -55,11 +55,10 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 	if err := validateCreateNetworkParticipant(agentName, sessionID, networkParticipation.Mode); err != nil {
 		return sessionStartSpec{}, err
 	}
-	requestedSpeed, err := normalizeRequestedSpeed(opts.Speed)
+	requestedSpeed, acpOptions, err := normalizeCreateRuntimeOptions(opts)
 	if err != nil {
-		return sessionStartSpec{}, fmt.Errorf("%w: %w", ErrInvalidRuntimeOverride, err)
+		return sessionStartSpec{}, err
 	}
-
 	return sessionStartSpec{
 		sessionID:                sessionID,
 		profileID:                normalizeCreateProfileID(opts.ProfileID),
@@ -70,6 +69,7 @@ func (m *Manager) prepareCreateStart(ctx context.Context, opts CreateOpts) (sess
 		model:                    strings.TrimSpace(opts.Model),
 		reasoningEffort:          strings.TrimSpace(opts.ReasoningEffort),
 		speed:                    requestedSpeed,
+		acpOptions:               acpOptions,
 		permissions:              opts.Permissions,
 		sandboxDisabled:          location.sandboxDisabled,
 		workspace:                location.workspace,

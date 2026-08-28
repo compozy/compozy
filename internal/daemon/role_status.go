@@ -9,6 +9,7 @@ import (
 
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
 
@@ -69,6 +70,8 @@ func (r *roleResolver) projectRoleStatus(
 		Provider:        roleStatusString(common.Provider),
 		Model:           roleStatusString(common.Model),
 		ReasoningEffort: roleStatusString(common.ReasoningEffort),
+		Speed:           roleStatusSpeed(common.Speed),
+		ACPOptions:      roleStatusACPOptions(common.ACPOptions),
 		FallbackChain:   roleStatusFallbacks(common.FallbackChain),
 		Diagnostics:     diagnostics,
 	}
@@ -134,7 +137,33 @@ func roleStatusFallbacks(fallbacks []compozyconfig.RoleFallback) []contract.Role
 			Provider:        strings.TrimSpace(fallback.Provider),
 			Model:           strings.TrimSpace(fallback.Model),
 			ReasoningEffort: strings.TrimSpace(fallback.ReasoningEffort),
+			Speed:           fallback.Speed,
+			ACPOptions:      roleStatusACPOptions(fallback.ACPOptions),
 		})
+	}
+	return result
+}
+
+func roleStatusSpeed(value speedpkg.Speed) *contract.Speed {
+	trimmed := strings.TrimSpace(string(value))
+	if trimmed == "" {
+		return nil
+	}
+	speed := contract.Speed(trimmed)
+	return &speed
+}
+
+func roleStatusACPOptions(options []compozyconfig.ACPOptionSelection) []contract.AgentACPOptionSelection {
+	if len(options) == 0 {
+		return []contract.AgentACPOptionSelection{}
+	}
+	result := make([]contract.AgentACPOptionSelection, 0, len(options))
+	for _, option := range options {
+		selection := contract.AgentACPOptionSelection{ID: option.ID, ValueID: option.ValueID}
+		if option.BoolValue != nil {
+			selection.BoolValue = new(*option.BoolValue)
+		}
+		result = append(result, selection)
 	}
 	return result
 }
@@ -152,6 +181,12 @@ func roleStatusProvenance(all map[string]string, status contract.RoleStatus) map
 	}
 	if status.ReasoningEffort != nil {
 		fields = append(fields, compozyconfig.RoleFieldReasoning)
+	}
+	if status.Speed != nil {
+		fields = append(fields, compozyconfig.RoleFieldSpeed)
+	}
+	if len(status.ACPOptions) > 0 {
+		fields = append(fields, compozyconfig.RoleFieldACPOptions)
 	}
 	if status.Timeout != nil {
 		fields = append(fields, roleFieldTimeout)

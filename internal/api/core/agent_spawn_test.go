@@ -21,54 +21,57 @@ import (
 
 func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 	t.Parallel()
+	t.Run("Should map spawn ACP options and default auto-stop", func(t *testing.T) {
+		t.Parallel()
 
-	var got session.SpawnOpts
-	manager := &spawnStubSessionManager{}
-	manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
-		if id != "sess-parent" {
-			return nil, session.ErrSessionNotFound
+		var got session.SpawnOpts
+		manager := &spawnStubSessionManager{}
+		manager.StatusFn = func(_ context.Context, id string) (*session.Info, error) {
+			if id != "sess-parent" {
+				return nil, session.ErrSessionNotFound
+			}
+			return agentSpawnCallerInfo(), nil
 		}
-		return agentSpawnCallerInfo(), nil
-	}
-	manager.spawnFn = func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
-		got = opts
-		notifyCreator := opts.NotifyCreator
-		if !opts.NotifyCreatorSet {
-			notifyCreator = true
+		manager.spawnFn = func(_ context.Context, opts session.SpawnOpts) (*session.Session, error) {
+			got = opts
+			notifyCreator := opts.NotifyCreator
+			if !opts.NotifyCreatorSet {
+				notifyCreator = true
+			}
+			ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
+			return &session.Session{
+				ID:                   "sess-child",
+				Name:                 opts.Name,
+				AgentName:            opts.AgentName,
+				Provider:             opts.Provider,
+				Speed:                opts.Speed,
+				WorkspaceID:          "ws-1",
+				Workspace:            "/workspace/project",
+				NetworkParticipation: testLiveParticipation("ws-1", "builders"),
+				Type:                 session.SessionTypeSpawned,
+				State:                session.StateActive,
+				Lineage: &store.SessionLineage{
+					ParentSessionID:  opts.ParentSessionID,
+					RootSessionID:    "sess-parent",
+					SpawnDepth:       1,
+					SpawnRole:        opts.SpawnRole,
+					TTLExpiresAt:     &ttl,
+					AutoStopOnParent: opts.AutoStopOnParent,
+					NotifyCreator:    notifyCreator,
+					SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1, TTLSeconds: 60},
+					PermissionPolicy: opts.PermissionPolicy,
+				},
+			}, nil
 		}
-		ttl := time.Date(2026, 4, 26, 12, 1, 0, 0, time.UTC)
-		return &session.Session{
-			ID:                   "sess-child",
-			Name:                 opts.Name,
-			AgentName:            opts.AgentName,
-			Provider:             opts.Provider,
-			Speed:                opts.Speed,
-			WorkspaceID:          "ws-1",
-			Workspace:            "/workspace/project",
-			NetworkParticipation: testLiveParticipation("ws-1", "builders"),
-			Type:                 session.SessionTypeSpawned,
-			State:                session.StateActive,
-			Lineage: &store.SessionLineage{
-				ParentSessionID:  opts.ParentSessionID,
-				RootSessionID:    "sess-parent",
-				SpawnDepth:       1,
-				SpawnRole:        opts.SpawnRole,
-				TTLExpiresAt:     &ttl,
-				AutoStopOnParent: opts.AutoStopOnParent,
-				NotifyCreator:    notifyCreator,
-				SpawnBudget:      store.SessionSpawnBudget{MaxChildren: 5, MaxDepth: 1, TTLSeconds: 60},
-				PermissionPolicy: opts.PermissionPolicy,
-			},
-		}, nil
-	}
 
-	router := agentSpawnRouter(manager)
-	body := []byte(`{
+		router := agentSpawnRouter(manager)
+		body := []byte(`{
 		"agent_name":"coder",
 		"provider":"codex",
 		"model":"gpt-test",
 		"reasoning_effort":" high ",
 		"speed":"fast",
+		"acp_options":[{"id":"context","value_id":"1m"},{"id":"thinking","bool_value":true}],
 		"name":"child",
 		"workspace":"ws-target",
 		"prompt_overlay":"focus",
@@ -77,76 +80,83 @@ func TestBaseHandlersAgentSpawnMapsRequestAndDefaultsAutoStop(t *testing.T) {
 		"permissions":{"tools":["read"],"skills":["go"]},
 		"idempotency_key":"spawn-1"
 	}`)
-	rec := httptest.NewRecorder()
-	req := httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		"/api/agent/spawn",
-		bytes.NewReader(body),
-	)
-	req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")
-	req.Header.Set(agentidentity.HeaderAgent, "coder")
-	router.ServeHTTP(rec, req)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/agent/spawn",
+			bytes.NewReader(body),
+		)
+		req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")
+		req.Header.Set(agentidentity.HeaderAgent, "coder")
+		router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("status = %d body=%s, want 201", rec.Code, rec.Body.String())
-	}
-	if got.ParentSessionID != "sess-parent" ||
-		got.AgentName != "coder" ||
-		got.Provider != "codex" ||
-		got.Model != "gpt-test" ||
-		got.ReasoningEffort != "high" ||
-		got.Speed != speedpkg.SpeedFast ||
-		got.Name != "child" ||
-		got.Workspace != "ws-target" ||
-		got.PromptOverlay != "focus" ||
-		got.SpawnRole != "worker" ||
-		got.TTL != time.Minute ||
-		!got.AutoStopOnParent ||
-		got.NotifyCreator ||
-		got.NotifyCreatorSet ||
-		got.IdempotencyKey != "spawn-1" {
-		t.Fatalf("spawn opts = %#v, want mapped request with auto_stop default", got)
-	}
-	if len(got.PermissionPolicy.Tools) != 1 || got.PermissionPolicy.Tools[0] != "read" {
-		t.Fatalf("permission policy = %#v, want narrowed read tool", got.PermissionPolicy)
-	}
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("status = %d body=%s, want 201", rec.Code, rec.Body.String())
+		}
+		if got.ParentSessionID != "sess-parent" ||
+			got.AgentName != "coder" ||
+			got.Provider != "codex" ||
+			got.Model != "gpt-test" ||
+			got.ReasoningEffort != "high" ||
+			got.Speed != speedpkg.SpeedFast ||
+			len(got.ACPOptions) != 2 ||
+			got.Name != "child" ||
+			got.Workspace != "ws-target" ||
+			got.PromptOverlay != "focus" ||
+			got.SpawnRole != "worker" ||
+			got.TTL != time.Minute ||
+			!got.AutoStopOnParent ||
+			got.NotifyCreator ||
+			got.NotifyCreatorSet ||
+			got.IdempotencyKey != "spawn-1" {
+			t.Fatalf("spawn opts = %#v, want mapped request with auto_stop default", got)
+		}
+		if got.ACPOptions[0].ID != "context" || got.ACPOptions[0].ValueID != "1m" ||
+			got.ACPOptions[1].ID != "thinking" || got.ACPOptions[1].BoolValue == nil ||
+			!*got.ACPOptions[1].BoolValue {
+			t.Fatalf("spawn ACP options = %#v, want typed select and boolean", got.ACPOptions)
+		}
+		if len(got.PermissionPolicy.Tools) != 1 || got.PermissionPolicy.Tools[0] != "read" {
+			t.Fatalf("permission policy = %#v, want narrowed read tool", got.PermissionPolicy)
+		}
 
-	var response contract.AgentSpawnResponse
-	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-		t.Fatalf("json.Unmarshal(response) error = %v", err)
-	}
-	if response.Spawn.Session.ID != "sess-child" ||
-		response.Spawn.Lineage.ParentSessionID != "sess-parent" ||
-		!response.Spawn.Lineage.NotifyCreator ||
-		len(response.Spawn.Permissions.Tools) != 1 ||
-		response.Spawn.Permissions.Tools[0] != "read" {
-		t.Fatalf("spawn response = %#v, want child projection with permissions", response.Spawn)
-	}
+		var response contract.AgentSpawnResponse
+		if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+			t.Fatalf("json.Unmarshal(response) error = %v", err)
+		}
+		if response.Spawn.Session.ID != "sess-child" ||
+			response.Spawn.Lineage.ParentSessionID != "sess-parent" ||
+			!response.Spawn.Lineage.NotifyCreator ||
+			len(response.Spawn.Permissions.Tools) != 1 ||
+			response.Spawn.Permissions.Tools[0] != "read" {
+			t.Fatalf("spawn response = %#v, want child projection with permissions", response.Spawn)
+		}
 
-	body = []byte(`{
+		body = []byte(`{
 		"agent_name":"coder",
 		"spawn_role":"worker",
 		"ttl_seconds":60,
 		"notify_creator":false,
 		"permissions":{"tools":["read"],"skills":["go"]}
 	}`)
-	rec = httptest.NewRecorder()
-	req = httptest.NewRequestWithContext(
-		context.Background(),
-		http.MethodPost,
-		"/api/agent/spawn",
-		bytes.NewReader(body),
-	)
-	req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")
-	req.Header.Set(agentidentity.HeaderAgent, "coder")
-	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("explicit opt-out status = %d body=%s, want 201", rec.Code, rec.Body.String())
-	}
-	if got.NotifyCreator || !got.NotifyCreatorSet {
-		t.Fatalf("spawn opts = %#v, want explicit notify_creator=false", got)
-	}
+		rec = httptest.NewRecorder()
+		req = httptest.NewRequestWithContext(
+			context.Background(),
+			http.MethodPost,
+			"/api/agent/spawn",
+			bytes.NewReader(body),
+		)
+		req.Header.Set(agentidentity.HeaderSessionID, "sess-parent")
+		req.Header.Set(agentidentity.HeaderAgent, "coder")
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("explicit opt-out status = %d body=%s, want 201", rec.Code, rec.Body.String())
+		}
+		if got.NotifyCreator || !got.NotifyCreatorSet {
+			t.Fatalf("spawn opts = %#v, want explicit notify_creator=false", got)
+		}
+	})
 }
 
 func TestBaseHandlersAgentSpawnStrictDecodeRejectsUnknownPermissionCategory(t *testing.T) {

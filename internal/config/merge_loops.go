@@ -91,10 +91,11 @@ type loopRuntimeDefaultsOverlay struct {
 }
 
 type loopRuntimeSpecOverlay struct {
-	Provider  *string `toml:"provider"`
-	Model     *string `toml:"model"`
-	Reasoning *string `toml:"reasoning"`
-	Speed     *string `toml:"speed"`
+	Provider   *string                   `toml:"provider"`
+	Model      *string                   `toml:"model"`
+	Reasoning  *string                   `toml:"reasoning"`
+	Speed      *string                   `toml:"speed"`
+	ACPOptions *[]dsl.ACPOptionSelection `toml:"acp_options"`
 }
 
 func (o *loopsOverlay) Apply(dst *LoopsConfig) {
@@ -130,7 +131,7 @@ func (o *loopsOverlay) recordInputSources(dst *LoopsConfig, source string) {
 	}
 }
 
-func (o loopsDefaultsOverlay) Apply(dst *LoopsDefaultsConfig) {
+func (o *loopsDefaultsOverlay) Apply(dst *LoopsDefaultsConfig) {
 	o.Delivery.Apply(&dst.Delivery)
 	o.Watch.Apply(&dst.Watch)
 }
@@ -262,5 +263,8 @@ func (o loopRuntimeSpecOverlay) Apply(dst *dsl.RuntimeSpec) {
 	}
 	if o.Speed != nil {
 		dst.Speed = speedpkg.Speed(*o.Speed)
+	}
+	if o.ACPOptions != nil {
+		dst.ACPOptions = dsl.CloneACPOptionSelections(*o.ACPOptions)
 	}
 }

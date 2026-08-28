@@ -89,6 +89,25 @@ func (s *ModelSource) Priority() int {
 	return modelcatalog.PriorityExtension
 }
 
+// TTL keeps extension-provided releases on the same automatic refresh cadence as live providers.
+func (s *ModelSource) TTL() time.Duration {
+	return modelcatalog.DefaultLiveDiscoveryTTL
+}
+
+// CatalogExecutionFingerprint isolates rows produced by one installed extension generation.
+func (s *ModelSource) CatalogExecutionFingerprint() (string, error) {
+	if s == nil {
+		return "", fmt.Errorf("extension: model source is required")
+	}
+	return modelcatalog.CatalogExecutionFingerprint(
+		s.sourceID,
+		strings.TrimSpace(s.info.Name),
+		strings.TrimSpace(s.info.Version),
+		strings.TrimSpace(s.info.Checksum),
+		strings.TrimSpace(s.info.ManifestPath),
+	), nil
+}
+
 // ListModels calls the extension models/list service and validates rows before persistence.
 func (s *ModelSource) ListModels(ctx context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.ModelRow, error) {
 	if ctx == nil {
@@ -210,6 +229,10 @@ func (s *ModelSource) validateRow(
 	if err != nil {
 		return modelcatalog.ModelRow{}, false, err
 	}
+	configOptions, transportBindings, err := modelSourceRuntimeOptions(index, row)
+	if err != nil {
+		return modelcatalog.ModelRow{}, false, err
+	}
 	refreshedAt := row.RefreshedAt
 	if refreshedAt.IsZero() {
 		refreshedAt = now
@@ -232,6 +255,8 @@ func (s *ModelSource) validateRow(
 		SupportsReasoning:      row.SupportsReasoning,
 		ReasoningEfforts:       efforts,
 		DefaultReasoningEffort: defaultEffort,
+		ConfigOptions:          configOptions,
+		TransportBindings:      transportBindings,
 		Deprecated:             row.Deprecated,
 		Hidden:                 row.Hidden,
 		Featured:               row.Featured,
@@ -420,6 +445,7 @@ func cloneModelSourceRows(src []extensioncontract.ModelSourceRow) []extensioncon
 				ReasoningPerMillion:  cloneModelSourceFloat64Pointer(src[index].Cost.ReasoningPerMillion),
 			}
 		}
+		cloneModelSourceRuntimeFields(&cloned[index], src[index])
 	}
 	return cloned
 }

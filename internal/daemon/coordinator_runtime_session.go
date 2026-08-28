@@ -60,6 +60,8 @@ func (r *coordinatorRuntime) startCoordinatorSession(
 			Provider:                     route.Provider,
 			Model:                        route.Model,
 			ReasoningEffort:              route.ReasoningEffort,
+			Speed:                        route.Speed,
+			ACPOptions:                   session.ACPOptionSelectionsFromConfig(route.ACPOptions),
 			Name:                         coordinatorSessionName(decision.WorkspaceID),
 			Workspace:                    decision.WorkspaceID,
 			ResolvedNetworkParticipation: &coordinatorParticipation,
@@ -106,7 +108,7 @@ func coordinatorInvocationRole(
 	cfg compozyconfig.ResolvedCoordinatorRole,
 	events roleEventSummaryWriter,
 ) ResolvedRole {
-	return ResolvedRole{
+	role := ResolvedRole{
 		Role:            compozyconfig.RoleCoordinator,
 		AgentName:       cfg.AgentName,
 		Provider:        cfg.Provider,
@@ -115,6 +117,8 @@ func coordinatorInvocationRole(
 		Fallbacks:       append([]compozyconfig.RoleFallback(nil), cfg.Fallbacks...),
 		eventWriter:     events,
 	}
+	role.setRuntime(cfg.Speed, cfg.ACPOptions)
+	return role
 }
 
 func (r *coordinatorRuntime) stopCoordinatorSessionWithCause(

@@ -126,7 +126,7 @@ func resolveEffectiveConfig(
 	}
 	effective := EffectiveConfig{
 		ReattemptStrategy: ReattemptFailedOnly,
-		EnabledChecks:     cloneRawMessage(emptyChecksJSON),
+		EnabledChecks:     newEffectiveChecksJSON(emptyChecksJSON),
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
 		Environment:       dsl.EnvironmentSpec{Mode: dsl.EnvironmentRoot},
 		Lifecycle:         DefaultLifecycleConfig(),
@@ -231,7 +231,7 @@ func mergeConfigLayer(effective *EffectiveConfig, layer LoopConfig, source strin
 		setEffectiveConfigSource(effective, "/reattempt_strategy", source)
 	}
 	if len(layer.EnabledChecks) > 0 {
-		effective.EnabledChecks = cloneRawMessage(layer.EnabledChecks)
+		effective.EnabledChecks = newEffectiveChecksJSON(layer.EnabledChecks)
 		setEffectiveConfigSource(effective, "/enabled_checks_json", source)
 	}
 	if layer.IterationCap != nil {
@@ -286,10 +286,10 @@ func validateEffectiveConfig(cfg EffectiveConfig) error {
 	default:
 		return fmt.Errorf("%w: budget_on_exceeded is invalid: %q", ErrValidation, cfg.BudgetOnExceeded)
 	}
-	if len(cfg.EnabledChecks) == 0 {
+	if len(effectiveChecksBytes(cfg.EnabledChecks)) == 0 {
 		return fmt.Errorf("%w: enabled_checks_json is required", ErrValidation)
 	}
-	if !json.Valid(cfg.EnabledChecks) {
+	if !json.Valid(effectiveChecksBytes(cfg.EnabledChecks)) {
 		return fmt.Errorf("%w: enabled_checks_json must be valid JSON", ErrValidation)
 	}
 	if _, err := ResolveNodeLifecycleConfig(dsl.Node{}, nil, cfg.Lifecycle); err != nil {

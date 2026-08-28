@@ -2494,35 +2494,56 @@ func TestUDSTransportSettingsReadParityMatchesHTTP(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			sampleStarted := time.Now()
-			httpValue := tc.decode()
-			if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, tc.path, nil, httpValue); err != nil {
-				t.Fatalf("HTTPJSON(%s) error = %v", tc.path, err)
-			}
-
-			udsValue := tc.decode()
-			if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, tc.path, nil, udsValue); err != nil {
-				t.Fatalf("UDSJSON(%s) error = %v", tc.path, err)
-			}
-			assertAndNormalizeSettingsReadParityVolatileFields(
-				t,
-				httpValue,
-				udsValue,
-				time.Since(sampleStarted),
-			)
-
-			if !reflect.DeepEqual(httpValue, udsValue) {
-				httpPayload, err := json.Marshal(httpValue)
-				if err != nil {
-					t.Fatalf("json.Marshal(%s HTTP payload) error = %v", tc.path, err)
-				}
-				udsPayload, err := json.Marshal(udsValue)
-				if err != nil {
-					t.Fatalf("json.Marshal(%s UDS payload) error = %v", tc.path, err)
-				}
-				t.Fatalf("%s HTTP payload = %s, want UDS parity %s", tc.path, httpPayload, udsPayload)
-			}
+			assertSettingsReadParityEventually(t, ctx, runtimeHarness, tc.path, tc.decode)
 		})
+	}
+}
+
+// Invariant: HTTP and UDS converge on the same settings projection after a concurrent live catalog
+// revision settles; a revision committed between sequential reads is not a transport mismatch.
+func assertSettingsReadParityEventually(
+	t *testing.T,
+	ctx context.Context,
+	runtimeHarness *e2etest.RuntimeHarness,
+	path string,
+	decode func() any,
+) {
+	t.Helper()
+
+	for {
+		sampleStarted := time.Now()
+		httpValue := decode()
+		if err := runtimeHarness.HTTPJSON(ctx, http.MethodGet, path, nil, httpValue); err != nil {
+			t.Fatalf("HTTPJSON(%s) error = %v", path, err)
+		}
+
+		udsValue := decode()
+		if err := runtimeHarness.UDSJSON(ctx, http.MethodGet, path, nil, udsValue); err != nil {
+			t.Fatalf("UDSJSON(%s) error = %v", path, err)
+		}
+		assertAndNormalizeSettingsReadParityVolatileFields(
+			t,
+			httpValue,
+			udsValue,
+			time.Since(sampleStarted),
+		)
+		if reflect.DeepEqual(httpValue, udsValue) {
+			return
+		}
+
+		select {
+		case <-ctx.Done():
+			httpPayload, err := json.Marshal(httpValue)
+			if err != nil {
+				t.Fatalf("json.Marshal(%s HTTP payload) error = %v", path, err)
+			}
+			udsPayload, err := json.Marshal(udsValue)
+			if err != nil {
+				t.Fatalf("json.Marshal(%s UDS payload) error = %v", path, err)
+			}
+			t.Fatalf("%s HTTP payload = %s, want UDS parity %s", path, httpPayload, udsPayload)
+		case <-time.After(25 * time.Millisecond):
+		}
 	}
 }
 

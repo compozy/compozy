@@ -159,15 +159,17 @@ func loopRuntimeDefaultsFromConfig(cfg loopdsl.RuntimeDefaults) *looppkg.Runtime
 }
 
 func runtimeSpecEmpty(runtime looppkg.RuntimeSpec) bool {
-	return runtime.Provider == "" && runtime.Model == "" && runtime.Reasoning == "" && runtime.Speed == ""
+	return runtime.Provider == "" && runtime.Model == "" && runtime.Reasoning == "" &&
+		runtime.Speed == "" && len(runtime.ACPOptions) == 0
 }
 
 func runtimeSpecFromConfig(cfg loopdsl.RuntimeSpec) looppkg.RuntimeSpec {
 	return looppkg.RuntimeSpec{
-		Provider:  strings.TrimSpace(cfg.Provider),
-		Model:     strings.TrimSpace(cfg.Model),
-		Reasoning: strings.TrimSpace(cfg.Reasoning),
-		Speed:     cfg.Speed,
+		Provider:   strings.TrimSpace(cfg.Provider),
+		Model:      strings.TrimSpace(cfg.Model),
+		Reasoning:  strings.TrimSpace(cfg.Reasoning),
+		Speed:      cfg.Speed,
+		ACPOptions: loopdsl.CloneACPOptionSelections(cfg.ACPOptions),
 	}
 }
 
@@ -176,7 +178,10 @@ func loopRuntimeRulesFromConfig(rules []loopdsl.RuntimeRule) []looppkg.RuntimeRu
 		return nil
 	}
 	cloned := make([]looppkg.RuntimeRule, len(rules))
-	copy(cloned, rules)
+	for index, rule := range rules {
+		cloned[index] = rule
+		cloned[index].Runtime.ACPOptions = loopdsl.CloneACPOptionSelections(rule.Runtime.ACPOptions)
+	}
 	return cloned
 }
 

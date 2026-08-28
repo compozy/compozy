@@ -4536,6 +4536,30 @@ func assertErrorContains(t *testing.T, err error, want string) {
 	}
 }
 
+func assertACPOptions(
+	t *testing.T,
+	options []contract.AgentACPOptionSelection,
+	selectID string,
+	selectValue string,
+	booleanID string,
+	booleanValue bool,
+) {
+	t.Helper()
+
+	if len(options) != 2 || options[0].ID != selectID || options[0].ValueID != selectValue ||
+		options[0].BoolValue != nil || options[1].ID != booleanID || options[1].ValueID != "" ||
+		options[1].BoolValue == nil || *options[1].BoolValue != booleanValue {
+		t.Fatalf(
+			"ACP options = %#v, want %s=%s and %s=%t",
+			options,
+			selectID,
+			selectValue,
+			booleanID,
+			booleanValue,
+		)
+	}
+}
+
 func executeRootCommandWithExit(
 	t *testing.T,
 	deps commandDeps,

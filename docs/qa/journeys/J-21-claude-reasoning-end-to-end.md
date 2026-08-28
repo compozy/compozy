@@ -17,9 +17,10 @@ flowchart TD
     OPTIONS --> EFFORT{Reasoning requested?}
     EFFORT -->|advertised level| APPLY[Apply reasoning option]
     EFFORT -->|empty| NORPC[Use provider default; no effort RPC]
-    APPLY --> DISPATCH[Dispatch this prompt]
-    NORPC --> DISPATCH
-    DISPATCH --> TRACE[ACP trace: model → effort when selected → prompt]
+    APPLY --> EXTRA[Apply Fast, then remaining ACP options in stable ID order]
+    EXTRA --> DISPATCH[Dispatch this prompt]
+    NORPC --> EXTRA
+    DISPATCH --> TRACE[ACP trace: model → effort when selected → Fast when requested → remaining ACP options → prompt]
     TRACE --> LATER[Later prompt may choose a different snapshot]
     LATER --> END[Earlier prompt history remains unchanged — true end]
     OPTIONS -->|missing or unsupported| FAIL[Typed 422 / CLI code; no dispatch]
@@ -44,7 +45,7 @@ journey:
       expected_observable: "The composer exposes only advertised levels; choosing max is visibly scoped to the next submitted prompt."
     - step: 2
       verb: "Send the prompt"
-      expected_observable: "ACP applies model before reasoning and both before dispatching that prompt; an omitted reasoning effort sends no effort RPC."
+      expected_observable: "ACP applies model, refreshes descriptors, applies Reasoning and Fast, then remaining options in stable ID order before dispatch; an omitted effort sends no effort RPC."
     - step: 3
       verb: "Send a later prompt with another runtime"
       expected_observable: "The new prompt receives its own snapshot while earlier transcript/runtime evidence remains unchanged."

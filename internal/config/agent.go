@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/fileutil"
 	"github.com/compozy/compozy/internal/frontmatter"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/goccy/go-yaml"
 )
 
@@ -18,24 +19,25 @@ var resourceProfileNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 // AgentDef is the parsed representation of an AGENT.md file.
 type AgentDef struct {
-	Name                string               `json:"name"                       yaml:"name"                       toml:"name"`
-	Provider            string               `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
-	Command             string               `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
-	Model               string               `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
-	ReasoningEffort     string               `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
-	Tools               []string             `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
-	Toolsets            []string             `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
-	DenyTools           []string             `json:"deny_tools,omitempty"       yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
-	Permissions         string               `json:"permissions,omitempty"      yaml:"permissions,omitempty"      toml:"permissions,omitempty"`
-	Skills              AgentSkillsConfig    `json:"skills,omitzero"            yaml:"skills,omitempty"           toml:"skills,omitempty"`
-	CategoryPath        []string             `json:"category_path,omitempty"    yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
-	MCPServers          []MCPServer          `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
-	Hooks               []hookspkg.HookDecl  `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
-	Capabilities        *CapabilityCatalog   `json:"capabilities,omitempty"     yaml:"-"                          toml:"-"`
-	Prompt              string               `json:"prompt,omitempty"           yaml:"-"`
-	SourcePath          string               `json:"-"                          yaml:"-"                          toml:"-"`
-	SourceLayer         string               `json:"-"                          yaml:"-"                          toml:"-"`
-	ShadowedDefinitions []AgentDefinitionRef `json:"-"                          yaml:"-"                          toml:"-"`
+	Name                  string `json:"name"                       yaml:"name"                       toml:"name"`
+	Provider              string `json:"provider,omitempty"         yaml:"provider"                   toml:"provider"`
+	Command               string `json:"command,omitempty"          yaml:"command,omitempty"          toml:"command,omitempty"`
+	Model                 string `json:"model,omitempty"            yaml:"model,omitempty"            toml:"model,omitempty"`
+	ReasoningEffort       string `json:"reasoning_effort,omitempty" yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	*AgentRuntimeDefaults ` yaml:",inline" toml:",inline"`
+	Tools                 []string             `json:"tools,omitempty"            yaml:"tools,omitempty"            toml:"tools,omitempty"`
+	Toolsets              []string             `json:"toolsets,omitempty"         yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
+	DenyTools             []string             `json:"deny_tools,omitempty"       yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
+	Permissions           string               `json:"permissions,omitempty"      yaml:"permissions,omitempty"      toml:"permissions,omitempty"`
+	Skills                AgentSkillsConfig    `json:"skills,omitzero"            yaml:"skills,omitempty"           toml:"skills,omitempty"`
+	CategoryPath          []string             `json:"category_path,omitempty"    yaml:"category_path,omitempty"    toml:"category_path,omitempty"`
+	MCPServers            []MCPServer          `json:"mcp_servers,omitempty"      yaml:"mcp_servers,omitempty"      toml:"mcp_servers,omitempty"`
+	Hooks                 []hookspkg.HookDecl  `json:"hooks,omitempty"            yaml:"hooks,omitempty"            toml:"hooks,omitempty"`
+	Capabilities          *CapabilityCatalog   `json:"capabilities,omitempty"     yaml:"-"                          toml:"-"`
+	Prompt                string               `json:"prompt,omitempty"           yaml:"-"`
+	SourcePath            string               `json:"-"                          yaml:"-"                          toml:"-"`
+	SourceLayer           string               `json:"-"                          yaml:"-"                          toml:"-"`
+	ShadowedDefinitions   []AgentDefinitionRef `json:"-"                          yaml:"-"                          toml:"-"`
 }
 
 // AgentDefinitionRef identifies one lower-precedence definition hidden by a winner.
@@ -50,6 +52,8 @@ type parsedAgentDef struct {
 	Command         string                  `yaml:"command,omitempty"          toml:"command,omitempty"`
 	Model           string                  `yaml:"model,omitempty"            toml:"model,omitempty"`
 	ReasoningEffort string                  `yaml:"reasoning_effort,omitempty" toml:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed          `yaml:"speed,omitempty"            toml:"speed,omitempty"`
+	ACPOptions      []ACPOptionSelection    `yaml:"acp_options,omitempty"      toml:"acp_options,omitempty"`
 	Tools           []string                `yaml:"tools,omitempty"            toml:"tools,omitempty"`
 	Toolsets        []string                `yaml:"toolsets,omitempty"         toml:"toolsets,omitempty"`
 	DenyTools       []string                `yaml:"deny_tools,omitempty"       toml:"deny_tools,omitempty"`
@@ -309,6 +313,12 @@ func ParseAgentDef(content []byte) (AgentDef, error) {
 		MCPServers:      cloneMCPServers(parsed.MCPServers),
 		Prompt:          strings.TrimSpace(body),
 	}
+	agent.SetSpeed(parsed.Speed)
+	normalizedOptions, err := normalizeACPOptionSelectionsAt("agent.acp_options", parsed.ACPOptions)
+	if err != nil {
+		return AgentDef{}, err
+	}
+	agent.SetACPOptions(normalizedOptions)
 	if len(parsed.Hooks) > 0 {
 		agent.Hooks = make([]hookspkg.HookDecl, 0, len(parsed.Hooks))
 		for idx := range parsed.Hooks {

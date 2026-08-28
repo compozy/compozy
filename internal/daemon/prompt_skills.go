@@ -259,13 +259,10 @@ func resolvePromptSkillsWorkspace(
 		trimmedProfileID := strings.TrimSpace(profileID)
 		var resolved workspacepkg.ResolvedWorkspace
 		var err error
-		if trimmedProfileID == "" || trimmedProfileID == store.DefaultProfileID {
+		if trimmedProfileID == "" {
 			resolved, err = resolver.Resolve(ctx, target)
 		} else {
-			if profileNames == nil {
-				return nil, errors.New("daemon: profile name resolver is required for session skill resolution")
-			}
-			profileName, profileErr := profileNames.ProfileName(ctx, trimmedProfileID)
+			profileName, profileErr := resolvePromptSkillsProfileName(ctx, profileNames, trimmedProfileID)
 			if profileErr != nil {
 				return nil, fmt.Errorf("daemon: resolve session profile %q: %w", trimmedProfileID, profileErr)
 			}
@@ -299,6 +296,20 @@ func resolvePromptSkillsWorkspace(
 		},
 		ProfileID: strings.TrimSpace(profileID),
 	}, nil
+}
+
+func resolvePromptSkillsProfileName(
+	ctx context.Context,
+	profileNames session.ProfileNameResolver,
+	profileID string,
+) (string, error) {
+	if profileNames != nil {
+		return profileNames.ProfileName(ctx, profileID)
+	}
+	if profileID == store.DefaultProfileID {
+		return daemonDefaultProfileName, nil
+	}
+	return "", errors.New("daemon: profile name resolver is required for session skill resolution")
 }
 
 func firstTrimmed(values ...string) string {

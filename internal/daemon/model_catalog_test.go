@@ -6,20 +6,55 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/compozy/compozy/internal/acp"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 )
 
 func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should preserve builtin model mappings while staging a partial provider override", func(t *testing.T) {
+		t.Parallel()
+
+		builtin := compozyconfig.BuiltinProviders()["claude"]
+		source, err := modelcatalog.NewLiveProviderSource(
+			"claude",
+			builtin,
+			&modelcatalog.LiveProviderSourcesConfig{},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		runtime := &modelCatalogRuntime{
+			liveSources: map[string]*modelcatalog.LiveProviderSource{"claude": source},
+		}
+		staged, err := runtime.stageLiveProviderConfigs(map[string]compozyconfig.ProviderConfig{
+			"claude": {
+				AuthMode:     compozyconfig.ProviderAuthModeNone,
+				NoneSecurity: compozyconfig.ProviderNoneSecurityLocalTransport,
+			},
+		})
+		if err != nil {
+			t.Fatalf("stageLiveProviderConfigs() error = %v", err)
+		}
+		provider := staged.effective["claude"]
+		if provider.Models.Default != builtin.Models.Default ||
+			len(provider.Models.Curated) != len(builtin.Models.Curated) {
+			t.Fatalf("staged Claude models = %#v, want preserved builtin mappings", provider.Models)
+		}
+		if provider.Command == "" || provider.EffectiveAuthMode() != compozyconfig.ProviderAuthModeNone {
+			t.Fatalf("staged Claude provider = %#v, want builtin command plus auth override", provider)
+		}
+	})
 
 	t.Run("Should compose catalog service when global DB and config are available", func(t *testing.T) {
 		t.Parallel()
@@ -68,9 +103,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:      homePaths,
-				ACPProbe:       probe,
-				DefaultTimeout: 5 * time.Second,
+				HomePaths:       homePaths,
+				CommandExecutor: probe,
+				DefaultTimeout:  5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -169,13 +204,16 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListModels(offline discovery) error = %v", err)
 		}
-		model, ok := findCatalogModel(models, "new-model")
-		if !ok || !model.Stale {
-			t.Fatalf("offline discovery model = %#v, want stale new-model", model)
-		}
-		statuses, err := service.ListSourceStatus(ctx, "cursor")
+		statuses, err := service.ListSourceStatus(
+			ctx,
+			modelcatalog.StatusOptions{ProviderID: "cursor"},
+		)
 		if err != nil {
 			t.Fatalf("ListSourceStatus(offline discovery) error = %v", err)
+		}
+		model, ok := findCatalogModel(models, "new-model")
+		if !ok || !model.Stale {
+			t.Fatalf("offline discovery model/statuses = %#v/%#v, want stale new-model", model, statuses)
 		}
 		status, ok := findSourceStatus(statuses, modelcatalog.SourceKindProviderLiveID("cursor"))
 		if !ok || status.RefreshState != modelcatalog.RefreshStateFailed {
@@ -200,7 +238,10 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if containsCatalogModel(models, "cursor", "new-model") {
 			t.Fatalf("ListModels(disabled discovery) = %#v, want live row cleared", models)
 		}
-		statuses, err = service.ListSourceStatus(ctx, "cursor")
+		statuses, err = service.ListSourceStatus(
+			ctx,
+			modelcatalog.StatusOptions{ProviderID: "cursor"},
+		)
 		if err != nil {
 			t.Fatalf("ListSourceStatus(disabled discovery) error = %v", err)
 		}
@@ -235,9 +276,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:      homePaths,
-				ACPProbe:       probe,
-				DefaultTimeout: 5 * time.Second,
+				HomePaths:       homePaths,
+				CommandExecutor: probe,
+				DefaultTimeout:  5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -421,9 +462,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:      homePaths,
-				ACPProbe:       probe,
-				DefaultTimeout: 5 * time.Second,
+				HomePaths:       homePaths,
+				CommandExecutor: probe,
+				DefaultTimeout:  5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -475,7 +516,10 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		nilResult := make(chan statusResult, 1)
 		go func() {
 			var missing context.Context
-			statuses, statusErr := runtime.ListSourceStatus(missing, "cursor")
+			statuses, statusErr := runtime.ListSourceStatus(
+				missing,
+				modelcatalog.StatusOptions{ProviderID: "cursor"},
+			)
 			nilResult <- statusResult{statuses: statuses, err: statusErr}
 		}()
 		select {
@@ -491,7 +535,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		go func() {
 			statuses, statusErr := runtime.ListSourceStatus(
 				newCancelWhenWaitedContext(ctx),
-				"cursor",
+				modelcatalog.StatusOptions{ProviderID: "cursor"},
 			)
 			canceledResult <- statusResult{statuses: statuses, err: statusErr}
 		}()
@@ -636,9 +680,9 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			"cursor",
 			provider,
 			&modelcatalog.LiveProviderSourcesConfig{
-				HomePaths:      homePaths,
-				ACPProbe:       probe,
-				DefaultTimeout: 5 * time.Second,
+				HomePaths:       homePaths,
+				CommandExecutor: probe,
+				DefaultTimeout:  5 * time.Second,
 			},
 		)
 		if err != nil {
@@ -687,7 +731,10 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if !errors.Is(err, persistErr) {
 			t.Fatalf("ReconcileConfig() error = %v, want persistence identity", err)
 		}
-		statuses, statusErr := db.ListSourceStatus(ctx, "cursor")
+		statuses, statusErr := db.ListSourceStatus(
+			ctx,
+			modelcatalog.StatusOptions{ProviderID: "cursor"},
+		)
 		if statusErr != nil {
 			t.Fatalf("ListSourceStatus(cursor) error = %v", statusErr)
 		}
@@ -761,18 +808,39 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 	t.Run("Should record live source status when optional dependency is missing", func(t *testing.T) {
 		t.Parallel()
 
-		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, nil)
+		missingHermes := filepath.Join(t.TempDir(), "missing-hermes")
+		daemonInstance, _, _ := bootModelCatalogTestDaemon(t, func(cfg *compozyconfig.Config) {
+			provider, err := cfg.ResolveProvider("hermes")
+			if err != nil {
+				t.Fatalf("ResolveProvider(hermes) error = %v", err)
+			}
+			provider.Command = missingHermes
+			cfg.Providers["hermes"] = provider
+		})
 		ctx := testutil.Context(t)
-		_, err := daemonInstance.modelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
+		refreshStatuses, err := daemonInstance.modelCatalog.Refresh(ctx, modelcatalog.RefreshOptions{
 			ProviderID: "hermes",
 			SourceID:   modelcatalog.SourceKindProviderLiveID("hermes"),
 			Force:      true,
 		})
 		if !errors.Is(err, modelcatalog.ErrAllSourcesFailed) {
-			t.Fatalf("ModelCatalog.Refresh(hermes live) error = %v, want ErrAllSourcesFailed", err)
+			t.Fatalf(
+				"ModelCatalog.Refresh(hermes live) statuses/error = %#v/%v, want ErrAllSourcesFailed",
+				refreshStatuses,
+				err,
+			)
+		}
+		if _, ok := findSourceStatus(
+			refreshStatuses,
+			modelcatalog.SourceKindProviderLiveID("hermes"),
+		); !ok {
+			t.Fatalf("ModelCatalog.Refresh(hermes live) statuses = %#v, want provider_live status", refreshStatuses)
 		}
 
-		statuses, err := daemonInstance.modelCatalog.ListSourceStatus(ctx, "hermes")
+		statuses, err := daemonInstance.modelCatalog.ListSourceStatus(
+			ctx,
+			modelcatalog.StatusOptions{ProviderID: "hermes"},
+		)
 		if err != nil {
 			t.Fatalf("ModelCatalog.ListSourceStatus(hermes) error = %v", err)
 		}
@@ -836,7 +904,7 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		waitForCatalogTestSignal(t, service.released, "refresh release")
 	})
 
-	t.Run("Should cancel and join list discovery on shutdown", func(t *testing.T) {
+	t.Run("Should return persisted models while live warmup is still running", func(t *testing.T) {
 		t.Parallel()
 
 		service := newBlockingModelCatalogListService()
@@ -850,26 +918,151 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if err != nil {
 			t.Fatalf("newModelCatalogRuntime() error = %v", err)
 		}
+		homePaths := testHomePaths(t)
+		cfg := testConfig(t, homePaths)
+		provider, err := cfg.ResolveProvider("cursor")
+		if err != nil {
+			t.Fatalf("ResolveProvider(cursor) error = %v", err)
+		}
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			&modelcatalog.LiveProviderSourcesConfig{
+				HomePaths:       homePaths,
+				CommandExecutor: &configReloadACPProbe{},
+				DefaultTimeout:  5 * time.Second,
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
 
-		listErrCh := make(chan error, 1)
-		go func() {
-			_, listErr := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
-			listErrCh <- listErr
-		}()
-		waitForCatalogTestSignal(t, service.started, "list discovery start")
+		models, err := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
+		if err != nil {
+			t.Fatalf("ListModels() error = %v", err)
+		}
+		if !containsCatalogModel(models, "codex", "persisted-model") {
+			t.Fatalf("ListModels() = %#v, want persisted model before warmup completes", models)
+		}
+		waitForCatalogTestSignal(t, service.started, "live warmup start")
 
 		if err := runtime.Shutdown(testutil.Context(t)); err != nil {
 			t.Fatalf("Shutdown() error = %v", err)
 		}
-		waitForCatalogTestSignal(t, service.released, "list discovery release")
-		listErr := waitForCatalogTestError(t, listErrCh, "list shutdown cancellation")
-		if !errors.Is(listErr, context.Canceled) {
-			t.Fatalf("ListModels(shutdown) error = %v, want context.Canceled", listErr)
-		}
+		waitForCatalogTestSignal(t, service.released, "live warmup release")
 		if _, err := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{}); err == nil {
 			t.Fatal("ListModels(after shutdown) error = nil, want admission failure")
 		}
 	})
+
+	t.Run("Should revalidate live sources after every catalog read", func(t *testing.T) {
+		t.Parallel()
+
+		service := newCatalogReadRefreshService()
+		runtime, err := newModelCatalogRuntime(
+			testutil.Context(t),
+			service,
+			discardLogger(),
+			time.Now,
+			5*time.Second,
+		)
+		if err != nil {
+			t.Fatalf("newModelCatalogRuntime() error = %v", err)
+		}
+		provider := compozyconfig.BuiltinProviders()["cursor"]
+		liveSource, err := modelcatalog.NewLiveProviderSource(
+			"cursor",
+			provider,
+			&modelcatalog.LiveProviderSourcesConfig{},
+		)
+		if err != nil {
+			t.Fatalf("NewLiveProviderSource() error = %v", err)
+		}
+		runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+		t.Cleanup(func() {
+			if shutdownErr := runtime.Shutdown(testutil.Context(t)); shutdownErr != nil {
+				t.Fatalf("Shutdown() error = %v", shutdownErr)
+			}
+		})
+
+		for call := range 2 {
+			models, listErr := runtime.ListModels(testutil.Context(t), modelcatalog.ListOptions{})
+			if listErr != nil {
+				t.Fatalf("ListModels(call %d) error = %v", call+1, listErr)
+			}
+			if !containsCatalogModel(models, "codex", "persisted-model") {
+				t.Fatalf("ListModels(call %d) = %#v, want persisted model", call+1, models)
+			}
+			refresh := service.waitForRefresh(t)
+			if refresh.ProviderID != "cursor" ||
+				refresh.SourceID != modelcatalog.SourceKindProviderLiveID("cursor") ||
+				refresh.Force {
+				t.Fatalf("background refresh = %#v, want non-forced Cursor live refresh", refresh)
+			}
+		}
+	})
+
+	t.Run(
+		"Should refresh provider and extension sources periodically and stop the ticker on shutdown",
+		func(t *testing.T) {
+			t.Parallel()
+
+			service := newCatalogReadRefreshService()
+			runtime, err := newModelCatalogRuntime(
+				testutil.Context(t),
+				service,
+				discardLogger(),
+				time.Now,
+				5*time.Second,
+			)
+			if err != nil {
+				t.Fatalf("newModelCatalogRuntime() error = %v", err)
+			}
+			provider := compozyconfig.BuiltinProviders()["cursor"]
+			liveSource, err := modelcatalog.NewLiveProviderSource(
+				"cursor",
+				provider,
+				&modelcatalog.LiveProviderSourcesConfig{},
+			)
+			if err != nil {
+				t.Fatalf("NewLiveProviderSource() error = %v", err)
+			}
+			runtime.liveSources = map[string]*modelcatalog.LiveProviderSource{"cursor": liveSource}
+			extensionSource := catalogDynamicSource{id: "extension/acme"}
+			runtime.dynamicSources = map[string]modelcatalog.Source{
+				liveSource.ID():      liveSource,
+				extensionSource.ID(): extensionSource,
+			}
+			ticker := newManualModelCatalogRefreshTicker()
+			runtime.newRefreshTicker = func(interval time.Duration) modelCatalogRefreshTicker {
+				if interval != modelCatalogDynamicRefreshSweepInterval {
+					t.Fatalf("refresh ticker interval = %s, want %s", interval, modelCatalogDynamicRefreshSweepInterval)
+				}
+				return ticker
+			}
+			runtime.startDynamicRefreshLoop()
+
+			ticker.tick <- time.Now()
+			refreshes := map[string]modelcatalog.RefreshOptions{}
+			for range 2 {
+				refresh := service.waitForRefresh(t)
+				refreshes[refresh.SourceID] = refresh
+			}
+			cursorRefresh := refreshes[liveSource.ID()]
+			if cursorRefresh.ProviderID != "cursor" || cursorRefresh.Force {
+				t.Fatalf("periodic Cursor refresh = %#v, want non-forced provider refresh", cursorRefresh)
+			}
+			extensionRefresh := refreshes[extensionSource.ID()]
+			if extensionRefresh.ProviderID != "" || extensionRefresh.Force {
+				t.Fatalf("periodic extension refresh = %#v, want non-forced source refresh", extensionRefresh)
+			}
+			if err := runtime.Shutdown(testutil.Context(t)); err != nil {
+				t.Fatalf("Shutdown() error = %v", err)
+			}
+			waitForCatalogTestSignal(t, ticker.stopped, "model catalog refresh ticker stop")
+		},
+	)
 
 	t.Run("Should return shutdown deadline when refresh worker does not stop in time", func(t *testing.T) {
 		t.Parallel()
@@ -1005,7 +1198,13 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if service.lastList.Refresh {
 			t.Fatalf("List opts Refresh = true, want false after daemon refresh handoff")
 		}
-		if _, err := runtime.ListSourceStatus(testutil.Context(t), "codex"); err != nil {
+		if !service.lastList.SkipRefreshIfEmpty {
+			t.Fatal("List opts SkipRefreshIfEmpty = false, want persisted read without implicit discovery")
+		}
+		if _, err := runtime.ListSourceStatus(
+			testutil.Context(t),
+			modelcatalog.StatusOptions{ProviderID: "codex"},
+		); err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}
 	})
@@ -1047,7 +1246,10 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 		if _, err := unavailable.Refresh(testutil.Context(t), modelcatalog.RefreshOptions{}); err == nil {
 			t.Fatal("Refresh(unavailable) error = nil, want validation error")
 		}
-		if _, err := unavailable.ListSourceStatus(testutil.Context(t), "codex"); err == nil {
+		if _, err := unavailable.ListSourceStatus(
+			testutil.Context(t),
+			modelcatalog.StatusOptions{ProviderID: "codex"},
+		); err == nil {
 			t.Fatal("ListSourceStatus(unavailable) error = nil, want validation error")
 		}
 	})
@@ -1131,7 +1333,7 @@ func bootModelCatalogTestDaemon(
 func bootModelCatalogTestDaemonWithSetup(
 	t *testing.T,
 	mutate func(*compozyconfig.Config),
-	setup func(*testing.T, compozyconfig.HomePaths),
+	setup func(*testing.T, compozyconfig.HomePaths, *compozyconfig.Config),
 ) (*Daemon, RuntimeDeps, RuntimeDeps) {
 	t.Helper()
 
@@ -1146,7 +1348,7 @@ func bootModelCatalogTestDaemonWithSetup(
 		mutate(&cfg)
 	}
 	if setup != nil {
-		setup(t, homePaths)
+		setup(t, homePaths, &cfg)
 	}
 
 	daemonInstance := newTestDaemon(t, homePaths, &cfg)
@@ -1179,7 +1381,11 @@ func bootModelCatalogTestDaemonWithSetup(
 	return daemonInstance, httpDeps, udsDeps
 }
 
-func seedPreExplicitCurationRows(t *testing.T, homePaths compozyconfig.HomePaths) {
+func seedPreExplicitCurationRows(
+	t *testing.T,
+	homePaths compozyconfig.HomePaths,
+	cfg *compozyconfig.Config,
+) {
 	t.Helper()
 
 	ctx := testutil.Context(t)
@@ -1188,6 +1394,7 @@ func seedPreExplicitCurationRows(t *testing.T, homePaths compozyconfig.HomePaths
 		t.Fatalf("OpenGlobalDB() error = %v", err)
 	}
 	refreshedAt := time.Date(2026, 6, 1, 12, 0, 0, 0, time.UTC)
+	liveExecutionContext := preExplicitCurationLiveExecutionContext(t, homePaths, cfg)
 	persist := func(
 		sourceID string,
 		kind modelcatalog.SourceKind,
@@ -1195,7 +1402,11 @@ func seedPreExplicitCurationRows(t *testing.T, homePaths compozyconfig.HomePaths
 		rows []modelcatalog.ModelRow,
 	) {
 		t.Helper()
-		if err := db.ReplaceSourceRows(ctx, sourceID, "codex", rows, modelcatalog.SourceStatus{
+		executionContext := modelcatalog.GlobalCatalogExecutionContext()
+		if kind == modelcatalog.SourceKindProviderLive {
+			executionContext = liveExecutionContext
+		}
+		if err := db.ReplaceSourceRows(ctx, executionContext, sourceID, "codex", rows, modelcatalog.SourceStatus{
 			SourceID:     sourceID,
 			SourceKind:   kind,
 			ProviderID:   "codex",
@@ -1269,6 +1480,47 @@ func seedPreExplicitCurationRows(t *testing.T, homePaths compozyconfig.HomePaths
 	}
 }
 
+func preExplicitCurationLiveExecutionContext(
+	t *testing.T,
+	homePaths compozyconfig.HomePaths,
+	cfg *compozyconfig.Config,
+) modelcatalog.CatalogExecutionContext {
+	t.Helper()
+	if cfg == nil {
+		t.Fatal("model catalog test config is required")
+	}
+	sources, err := modelcatalog.NewLiveProviderSources(&modelcatalog.LiveProviderSourcesConfig{
+		Providers: cfg.Providers,
+		HomePaths: homePaths,
+	})
+	if err != nil {
+		t.Fatalf("NewLiveProviderSources() error = %v", err)
+	}
+	for _, source := range sources {
+		if source.ID() != modelcatalog.SourceKindProviderLiveID("codex") {
+			continue
+		}
+		liveSource, ok := source.(*modelcatalog.LiveProviderSource)
+		if !ok {
+			t.Fatalf("codex source type = %T, want *modelcatalog.LiveProviderSource", source)
+		}
+		fingerprint, fingerprintErr := liveSource.CatalogExecutionFingerprint()
+		if fingerprintErr != nil {
+			t.Fatalf("CatalogExecutionFingerprint(codex) error = %v", fingerprintErr)
+		}
+		executionContext, contextErr := (modelcatalog.CatalogExecutionContext{
+			Scope:     modelcatalog.ExecutionScopeProfile,
+			ProfileID: store.DefaultProfileID,
+		}).WithCommandFingerprint(fingerprint)
+		if contextErr != nil {
+			t.Fatalf("WithCommandFingerprint(codex) error = %v", contextErr)
+		}
+		return executionContext
+	}
+	t.Fatal("codex live model source is required")
+	return modelcatalog.CatalogExecutionContext{}
+}
+
 func containsCatalogModel(models []modelcatalog.Model, providerID string, modelID string) bool {
 	for _, model := range models {
 		if model.ProviderID == providerID && model.ModelID == modelID {
@@ -1327,15 +1579,94 @@ type recordingModelCatalogService struct {
 	lastList     modelcatalog.ListOptions
 }
 
+type catalogReadRefreshService struct {
+	refreshes chan modelcatalog.RefreshOptions
+}
+
+type catalogDynamicSource struct {
+	id string
+}
+
+func (s catalogDynamicSource) ID() string                  { return s.id }
+func (catalogDynamicSource) Kind() modelcatalog.SourceKind { return modelcatalog.SourceKindExtension }
+func (catalogDynamicSource) Priority() int                 { return modelcatalog.PriorityExtension }
+func (catalogDynamicSource) TTL() time.Duration            { return modelcatalog.DefaultLiveDiscoveryTTL }
+func (catalogDynamicSource) ListModels(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.ModelRow, error) {
+	return nil, nil
+}
+
+type manualModelCatalogRefreshTicker struct {
+	tick    chan time.Time
+	stopped chan struct{}
+	stop    sync.Once
+}
+
+func newManualModelCatalogRefreshTicker() *manualModelCatalogRefreshTicker {
+	return &manualModelCatalogRefreshTicker{
+		tick:    make(chan time.Time, 1),
+		stopped: make(chan struct{}),
+	}
+}
+
+func (t *manualModelCatalogRefreshTicker) C() <-chan time.Time {
+	return t.tick
+}
+
+func (t *manualModelCatalogRefreshTicker) Stop() {
+	t.stop.Do(func() { close(t.stopped) })
+}
+
+func newCatalogReadRefreshService() *catalogReadRefreshService {
+	return &catalogReadRefreshService{refreshes: make(chan modelcatalog.RefreshOptions, 4)}
+}
+
+func (s *catalogReadRefreshService) ListModels(
+	context.Context,
+	modelcatalog.ListOptions,
+) ([]modelcatalog.Model, error) {
+	return []modelcatalog.Model{{ProviderID: "codex", ModelID: "persisted-model"}}, nil
+}
+
+func (s *catalogReadRefreshService) Refresh(
+	_ context.Context,
+	opts modelcatalog.RefreshOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	s.refreshes <- opts
+	return nil, nil
+}
+
+func (s *catalogReadRefreshService) ListSourceStatus(
+	context.Context,
+	modelcatalog.StatusOptions,
+) ([]modelcatalog.SourceStatus, error) {
+	return nil, nil
+}
+
+func (s *catalogReadRefreshService) waitForRefresh(
+	t *testing.T,
+) modelcatalog.RefreshOptions {
+	t.Helper()
+	select {
+	case refresh := <-s.refreshes:
+		return refresh
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for catalog read refresh")
+		return modelcatalog.RefreshOptions{}
+	}
+}
+
 type configReloadACPProbe struct {
 	mu       sync.Mutex
-	requests []modelcatalog.ACPModelProbeRequest
+	requests []modelcatalog.DiscoveryCommandRequest
 }
 
 type generationACPProbe struct {
 	mu        sync.Mutex
-	requests  []modelcatalog.ACPModelProbeRequest
-	started   chan modelcatalog.ACPModelProbeRequest
+	requests  []modelcatalog.DiscoveryCommandRequest
+	started   chan modelcatalog.DiscoveryCommandRequest
 	releaseA  chan struct{}
 	releaseB  chan struct{}
 	releaseAO sync.Once
@@ -1344,16 +1675,16 @@ type generationACPProbe struct {
 
 func newGenerationACPProbe() *generationACPProbe {
 	return &generationACPProbe{
-		started:  make(chan modelcatalog.ACPModelProbeRequest, 2),
+		started:  make(chan modelcatalog.DiscoveryCommandRequest, 2),
 		releaseA: make(chan struct{}),
 		releaseB: make(chan struct{}),
 	}
 }
 
-func (e *generationACPProbe) InspectModels(
+func (e *generationACPProbe) RunDiscoveryCommand(
 	ctx context.Context,
-	req modelcatalog.ACPModelProbeRequest,
-) ([]acp.SessionConfigOption, error) {
+	req modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
 	e.mu.Unlock()
@@ -1369,14 +1700,17 @@ func (e *generationACPProbe) InspectModels(
 		release = e.releaseB
 		modelID = "live-b"
 	default:
-		return nil, fmt.Errorf("unexpected discovery command %q", req.Command)
+		return modelcatalog.DiscoveryCommandResult{}, fmt.Errorf(
+			"unexpected discovery command %q",
+			req.Command,
+		)
 	}
 	select {
 	case <-release:
 	case <-ctx.Done():
-		return nil, ctx.Err()
+		return modelcatalog.DiscoveryCommandResult{}, ctx.Err()
 	}
-	return cursorModelOptions(modelID), nil
+	return modelcatalog.DiscoveryCommandResult{Stdout: modelID + " - " + modelID}, nil
 }
 
 func (e *generationACPProbe) waitForCommand(t *testing.T, want string) {
@@ -1426,6 +1760,7 @@ var _ modelcatalog.Store = (*failingModelCatalogStore)(nil)
 
 func (s *failingModelCatalogStore) ReplaceSourceRows(
 	ctx context.Context,
+	executionContext modelcatalog.CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 	rows []modelcatalog.ModelRow,
@@ -1434,7 +1769,7 @@ func (s *failingModelCatalogStore) ReplaceSourceRows(
 	if sourceID == s.failedSource {
 		return s.err
 	}
-	return s.Store.ReplaceSourceRows(ctx, sourceID, providerID, rows, status)
+	return s.Store.ReplaceSourceRows(ctx, executionContext, sourceID, providerID, rows, status)
 }
 
 func (s *failingModelCatalogStore) ReplaceSourceRowsBatch(
@@ -1449,26 +1784,27 @@ func (s *failingModelCatalogStore) ReplaceSourceRowsBatch(
 	return s.Store.ReplaceSourceRowsBatch(ctx, replacements)
 }
 
-func (e *configReloadACPProbe) InspectModels(
+func (e *configReloadACPProbe) RunDiscoveryCommand(
 	_ context.Context,
-	req modelcatalog.ACPModelProbeRequest,
-) ([]acp.SessionConfigOption, error) {
+	req modelcatalog.DiscoveryCommandRequest,
+) (modelcatalog.DiscoveryCommandResult, error) {
 	e.mu.Lock()
 	e.requests = append(e.requests, req)
 	e.mu.Unlock()
 	if req.Command == "cursor-offline" {
-		return nil, errors.New("cursor discovery offline")
+		return modelcatalog.DiscoveryCommandResult{Stderr: "cursor discovery offline"},
+			errors.New("cursor discovery offline")
 	}
 	modelID := "old-model"
 	if req.Command == "cursor-new" {
 		modelID = "new-model"
 	}
-	return cursorModelOptions(modelID), nil
+	return modelcatalog.DiscoveryCommandResult{Stdout: modelID + " - " + modelID}, nil
 }
 
 func (e *configReloadACPProbe) LastRequest(
 	t *testing.T,
-) modelcatalog.ACPModelProbeRequest {
+) modelcatalog.DiscoveryCommandRequest {
 	t.Helper()
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -1482,18 +1818,6 @@ func (e *configReloadACPProbe) CallCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return len(e.requests)
-}
-
-func cursorModelOptions(modelID string) []acp.SessionConfigOption {
-	return []acp.SessionConfigOption{{
-		ID:       "model",
-		Category: "model",
-		Kind:     acp.SessionConfigOptionKindSelect,
-		Values: []acp.SessionConfigOptionValue{{
-			Value: modelID,
-			Label: modelID,
-		}},
-	}}
 }
 
 func (s *recordingModelCatalogService) ListModels(
@@ -1515,7 +1839,7 @@ func (s *recordingModelCatalogService) Refresh(
 
 func (s *recordingModelCatalogService) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -1556,7 +1880,7 @@ func (s *manuallyReleasedModelCatalogService) Refresh(
 
 func (s *manuallyReleasedModelCatalogService) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -1598,6 +1922,7 @@ func (c *cancelWhenWaitedContext) Err() error {
 
 func (r *modelCatalogStoreRegistry) ReplaceSourceRows(
 	context.Context,
+	modelcatalog.CatalogExecutionContext,
 	string,
 	string,
 	[]modelcatalog.ModelRow,
@@ -1622,7 +1947,7 @@ func (r *modelCatalogStoreRegistry) ListRows(
 
 func (r *modelCatalogStoreRegistry) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -1657,15 +1982,18 @@ func (s *blockingModelCatalogService) Refresh(
 
 func (s *blockingModelCatalogService) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
 
 func (s *blockingModelCatalogListService) ListModels(
 	ctx context.Context,
-	_ modelcatalog.ListOptions,
+	opts modelcatalog.ListOptions,
 ) ([]modelcatalog.Model, error) {
+	if opts.SkipRefreshIfEmpty {
+		return []modelcatalog.Model{{ProviderID: "codex", ModelID: "persisted-model"}}, nil
+	}
 	s.startOnce.Do(func() { close(s.started) })
 	<-ctx.Done()
 	s.releasedOnce.Do(func() { close(s.released) })
@@ -1673,15 +2001,18 @@ func (s *blockingModelCatalogListService) ListModels(
 }
 
 func (s *blockingModelCatalogListService) Refresh(
-	context.Context,
-	modelcatalog.RefreshOptions,
+	ctx context.Context,
+	_ modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
-	return nil, nil
+	s.startOnce.Do(func() { close(s.started) })
+	<-ctx.Done()
+	s.releasedOnce.Do(func() { close(s.released) })
+	return nil, ctx.Err()
 }
 
 func (s *blockingModelCatalogListService) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }

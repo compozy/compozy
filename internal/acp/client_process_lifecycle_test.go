@@ -28,9 +28,11 @@ func TestACPHelperProcess(_ *testing.T) {
 		filePath: os.Getenv(testHelperFileKey),
 	}
 	input := io.Reader(os.Stdin)
+	var captureFile *os.File
 	capturePath := strings.TrimSpace(os.Getenv(testHelperCaptureKey))
 	if capturePath != "" {
-		captureFile, err := os.Create(capturePath)
+		var err error
+		captureFile, err = os.Create(capturePath)
 		if err != nil {
 			if _, printErr := fmt.Fprintf(os.Stderr, "create capture file: %v\n", err); printErr != nil {
 				os.Exit(1)
@@ -38,22 +40,19 @@ func TestACPHelperProcess(_ *testing.T) {
 			os.Exit(1)
 		}
 		input = io.TeeReader(os.Stdin, captureFile)
+	}
 
-		conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
-		agent.conn = conn
-		<-conn.Done()
+	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
+	agent.conn = conn
+	<-conn.Done()
+	if captureFile != nil {
 		if err := captureFile.Close(); err != nil {
 			if _, printErr := fmt.Fprintf(os.Stderr, "close capture file: %v\n", err); printErr != nil {
 				os.Exit(1)
 			}
 			os.Exit(1)
 		}
-		os.Exit(0)
 	}
-
-	conn := acpsdk.NewAgentSideConnection(agent, os.Stdout, input)
-	agent.conn = conn
-	<-conn.Done()
 	os.Exit(0)
 }
 

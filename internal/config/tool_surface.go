@@ -360,6 +360,8 @@ func NormalizeToolConfigValue(kind ValueKind, value any) (any, error) {
 			return nil, fmt.Errorf("config: expected object value, got %T", value)
 		}
 		return normalizeTreeValue(table)
+	case ConfigValueACPOptions:
+		return normalizeToolACPOptions(value)
 	case ConfigValueScalar, ConfigValueLoopInput:
 		return normalizeScalarConfigValue(kind, value)
 	default:

@@ -16,6 +16,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	diagcontract "github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	"github.com/compozy/compozy/internal/vault"
@@ -61,6 +62,62 @@ func (r profileNameResolverMap) ProfileName(ctx context.Context, profileID strin
 		return "", fmt.Errorf("unknown profile id %q", profileID)
 	}
 	return name, nil
+}
+
+func TestProviderManagedRuntimeRejectsUnsupportedControls(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		opts acp.StartOpts
+		want string
+	}{
+		{name: "model", opts: acp.StartOpts{PreferredModel: "opus-5"}, want: "model selection"},
+		{name: "reasoning", opts: acp.StartOpts{ReasoningEffort: "high"}, want: "reasoning effort"},
+		{name: "Fast", opts: acp.StartOpts{Speed: speedpkg.SpeedFast}, want: "Fast mode"},
+		{
+			name: "ACP option",
+			opts: acp.StartOpts{ACPOptions: []acp.SessionConfigOptionSelection{{
+				ID: "thinking", BoolValue: new(true),
+			}}},
+			want: "ACP options",
+		},
+		{
+			name: "transport binding", opts: acp.StartOpts{LaunchModelID: "private-alias"},
+			want: "transport model binding",
+		},
+	}
+	for _, test := range tests {
+		t.Run("Should reject "+test.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := compileProviderManagedRuntime(test.opts)
+			assertProviderRuntimeErrorContains(t, err, test.want)
+		})
+	}
+
+	t.Run("Should accept the provider-neutral normal speed without emitting a control", func(t *testing.T) {
+		t.Parallel()
+
+		accepted, err := compileProviderManagedRuntime(acp.StartOpts{Speed: speedpkg.SpeedNormal})
+		if err != nil {
+			t.Fatalf("compileProviderManagedRuntime(normal) error = %v", err)
+		}
+		if accepted.Speed != "" || accepted.RuntimeStrategy != "" {
+			t.Fatalf("compileProviderManagedRuntime(normal) = %#v, want provider-owned runtime controls", accepted)
+		}
+	})
+}
+
+func assertProviderRuntimeErrorContains(t *testing.T, err error, want string) {
+	t.Helper()
+
+	if err == nil {
+		t.Fatalf("error = nil, want error containing %q", want)
+	}
+	if !strings.Contains(err.Error(), want) {
+		t.Fatalf("error = %v, want error containing %q", err, want)
+	}
 }
 
 func TestProviderRuntimeEnvironmentLookupUsesPlatformSemantics(t *testing.T) {
@@ -934,7 +991,7 @@ func TestPrepareProviderForStartInjectsSecretsAndMaterializesPiRuntime(t *testin
 	)
 }
 
-func TestPreferredACPModelUsesProviderTransportValue(t *testing.T) {
+func TestPreferredACPModelPreservesLogicalModelValue(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -944,16 +1001,16 @@ func TestPreferredACPModelUsesProviderTransportValue(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "Should translate canonical Claude Sonnet ID at the ACP boundary",
+			name:     "Should preserve canonical Claude Sonnet ID before catalog resolution",
 			provider: runtimeProviderClaude,
 			model:    "claude-sonnet-5",
-			want:     "sonnet",
+			want:     "claude-sonnet-5",
 		},
 		{
-			name:     "Should translate canonical Claude Opus ID at the ACP boundary",
+			name:     "Should preserve canonical Claude Opus ID before catalog resolution",
 			provider: runtimeProviderClaude,
 			model:    "claude-opus-4-8",
-			want:     "opus[1m]",
+			want:     "claude-opus-4-8",
 		},
 		{
 			name:     "Should preserve an unknown Claude model for live validation",

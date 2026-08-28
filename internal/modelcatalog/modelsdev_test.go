@@ -308,7 +308,7 @@ func TestModelsDevSource(t *testing.T) {
 		if !model.Stale {
 			t.Fatal("Model.Stale = false, want true")
 		}
-		statuses, err := service.ListSourceStatus(testutil.Context(t), "codex")
+		statuses, err := service.ListSourceStatus(testutil.Context(t), StatusOptions{ProviderID: "codex"})
 		if err != nil {
 			t.Fatalf("ListSourceStatus() error = %v", err)
 		}

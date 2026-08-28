@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { primaryAgentFixture } from "@/systems/agent/testing";
+import type { RuntimeSelectorProps } from "@/systems/runtime";
 
 import {
   buildSettingsDraftFromAgent,
@@ -12,28 +13,50 @@ import type { AgentSettingsSection } from "../../lib/agent-settings-search";
 import type { AgentPayload } from "../../types";
 import { AgentSettingsPanels, type AgentSettingsPanelsProps } from "../agent-settings-panels";
 
-vi.mock("@/systems/runtime/components/runtime-selector", () => ({
-  RuntimeSelector: ({
-    triggerTestId,
-    onChange,
-    value,
-  }: {
-    triggerTestId?: string;
-    onChange: (next: { provider: string; model: string; reasoning_effort: string }) => void;
-    value: { provider: string; model: string; reasoning_effort: string };
-  }) => (
-    <button
-      type="button"
-      data-testid={triggerTestId}
-      data-provider={value.provider}
-      data-model={value.model}
-      data-reasoning-effort={value.reasoning_effort}
-      onClick={() => onChange({ provider: "codex", model: "gpt-5", reasoning_effort: "high" })}
-    >
-      Runtime selector
-    </button>
-  ),
-}));
+vi.mock("@/systems/runtime/components/runtime-selector", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/runtime/components/runtime-selector")>();
+  return {
+    ...actual,
+    RuntimeSelector: ({
+      triggerTestId,
+      onChange,
+      value,
+      speed,
+      onSpeedChange,
+    }: Pick<
+      RuntimeSelectorProps,
+      "triggerTestId" | "onChange" | "value" | "speed" | "onSpeedChange"
+    >) => (
+      <>
+        <button
+          type="button"
+          data-testid={triggerTestId}
+          data-provider={value.provider}
+          data-model={value.model}
+          data-reasoning-effort={value.reasoning_effort}
+          onClick={() =>
+            onChange({
+              provider: "codex",
+              model: "gpt-5",
+              reasoning_effort: "high",
+              acp_options: [{ id: "context", value_id: "large" }],
+            })
+          }
+        >
+          Runtime selector
+        </button>
+        <button
+          type="button"
+          data-testid="agent-settings-speed"
+          onClick={() => onSpeedChange?.("fast")}
+        >
+          {speed}
+        </button>
+      </>
+    ),
+  };
+});
 
 function agent(overrides: Partial<AgentPayload> = {}): AgentPayload {
   return {
@@ -135,9 +158,18 @@ describe("AgentSettingsPanels", () => {
       provider: "codex",
       model: "gpt-5",
       reasoningEffort: "high",
+      acpOptions: [{ id: "context", value_id: "large" }],
     });
+    await user.click(screen.getByTestId("agent-settings-speed"));
+    expect(onPatch).toHaveBeenCalledWith({ speed: "fast" });
     await user.click(screen.getByTestId("agent-settings-runtime-use-project-defaults"));
-    expect(onPatch).toHaveBeenCalledWith({ provider: "", model: "", reasoningEffort: "" });
+    expect(onPatch).toHaveBeenCalledWith({
+      provider: "",
+      model: "",
+      reasoningEffort: "",
+      speed: "",
+      acpOptions: [],
+    });
     await user.click(screen.getByTestId("agent-settings-permissions-approve-all"));
     expect(onPatch).toHaveBeenCalledWith({ permissions: "approve-all", legacyPermissions: null });
 

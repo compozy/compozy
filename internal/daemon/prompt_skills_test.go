@@ -609,6 +609,40 @@ func TestSessionCommandServiceProjectsAndRevalidatesExactSkillSources(t *testing
 		}
 	})
 
+	t.Run("Should resolve default-profile commands through the profile layer", func(t *testing.T) {
+		t.Parallel()
+
+		registry := &stubSessionCommandSkills{}
+		resolver := &stubPromptSkillsWorkspaceResolver{
+			resolved: workspacepkg.ResolvedWorkspace{ProfileID: "unscoped"},
+			profiles: map[string]workspacepkg.ResolvedWorkspace{
+				daemonDefaultProfileName: {
+					ProfileID: store.DefaultProfileID, ProfileName: daemonDefaultProfileName,
+				},
+			},
+		}
+		service := newSessionCommandService(
+			registry,
+			nil,
+			func() promptSkillsWorkspaceResolver { return resolver },
+			promptSkillsProfileNameResolver{store.DefaultProfileID: daemonDefaultProfileName},
+		)
+		info := &session.Info{
+			ID: "sess-default-profile", ProfileID: store.DefaultProfileID, AgentName: "coder",
+			WorkspaceID: "ws-default", Workspace: "/workspace",
+		}
+
+		if _, err := service.Catalog(t.Context(), info, compozyconfig.AgentDef{Name: "coder"}); err != nil {
+			t.Fatalf("Catalog() error = %v", err)
+		}
+		if got, want := resolver.requestedProfile, daemonDefaultProfileName; got != want {
+			t.Fatalf("ResolveForProfile() profile = %q, want %q", got, want)
+		}
+		if got, want := registry.resolvedProfileID, store.DefaultProfileID; got != want {
+			t.Fatalf("registry resolved profile = %q, want default profile %q", got, want)
+		}
+	})
+
 	t.Run("Should resolve an extension agent only after the authored lookup reports it absent", func(t *testing.T) {
 		t.Parallel()
 

@@ -1451,9 +1451,9 @@ func TestHandleSessionUpdateVariants(t *testing.T) {
 
 		proc := newDirectProcess(t, compozyconfig.PermissionModeApproveAll)
 		proc.setCaps(Caps{ConfigOptions: []SessionConfigOption{{
-			ID:      "mode",
-			Kind:    SessionConfigOptionKindSelect,
-			Current: "ask",
+			ID:             "mode",
+			Kind:           SessionConfigOptionKindSelect,
+			CurrentValueID: "ask",
 			Values: []SessionConfigOptionValue{
 				{Value: "agent"},
 				{Value: "plan"},

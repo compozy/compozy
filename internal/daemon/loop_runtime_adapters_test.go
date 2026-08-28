@@ -152,6 +152,7 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			AllowedTools: []string{allowedTools[1], allowedTools[0], allowedTools[0]},
 			Runtime: &looppkg.RuntimeSpec{
 				Provider: "codex", Model: "gpt-5.6-terra", Reasoning: "high",
+				ACPOptions: []looppkg.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 			},
 			ContractBlock:             "Follow the loop contract.",
 			NetworkParticipation:      new(loopParticipation),
@@ -175,6 +176,10 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got, want := createCall.Workspace, "ws-loop"; got != want {
 			t.Fatalf("CreateOpts.Workspace = %q, want %q", got, want)
+		}
+		if len(createCall.ACPOptions) != 1 || createCall.ACPOptions[0].ID != "thinking" ||
+			createCall.ACPOptions[0].BoolValue == nil || !*createCall.ACPOptions[0].BoolValue {
+			t.Fatalf("CreateOpts.ACPOptions = %#v, want thinking=true", createCall.ACPOptions)
 		}
 		if got := participationSnapshotValue(createCall.ResolvedNetworkParticipation); got != loopParticipation {
 			t.Fatalf("CreateOpts participation = %#v, want owner-bound %#v", got, loopParticipation)
@@ -219,6 +224,15 @@ func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 			t.Fatalf(
 				"binding AppliedRuntime = %#v, want final CreateOpts runtime",
 				binding.AppliedRuntime,
+			)
+		}
+		if len(binding.AppliedRuntime.ACPOptions) != 1 ||
+			binding.AppliedRuntime.ACPOptions[0].ID != "thinking" ||
+			binding.AppliedRuntime.ACPOptions[0].BoolValue == nil ||
+			!*binding.AppliedRuntime.ACPOptions[0].BoolValue {
+			t.Fatalf(
+				"binding AppliedRuntime ACPOptions = %#v, want thinking=true",
+				binding.AppliedRuntime.ACPOptions,
 			)
 		}
 	})
@@ -590,6 +604,7 @@ func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 	profile := store.SessionCreationProfile{
 		ProfileID: store.DefaultProfileID,
 		Provider:  "claude", Model: "opus", ReasoningEffort: "high",
+		ACPOptions: []store.SessionACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
 	}
 	cases := []struct {
 		name    string
@@ -598,6 +613,12 @@ func TestValidatePinnedRuntimeShouldRejectRuntimeDivergence(t *testing.T) {
 		{name: "Should reject provider divergence", runtime: looppkg.RuntimeSpec{Provider: "codex"}},
 		{name: "Should reject model divergence", runtime: looppkg.RuntimeSpec{Model: "sonnet"}},
 		{name: "Should reject reasoning divergence", runtime: looppkg.RuntimeSpec{Reasoning: "max"}},
+		{
+			name: "Should reject ACP option divergence",
+			runtime: looppkg.RuntimeSpec{
+				ACPOptions: []looppkg.ACPOptionSelection{{ID: "thinking", BoolValue: new(false)}},
+			},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -644,13 +665,16 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 
 		_, err := runner.Judge(context.Background(), gate.JudgeRequest{
-			GateID:               "quality-gate",
-			CriterionID:          "review",
-			LoopRunID:            "loop-run-judge",
-			Attempt:              2,
-			CorrelationID:        "goal-judge:stable-attempt",
-			WorkspaceID:          "ws-loop",
-			Agent:                "loop-judge",
+			GateID:        "quality-gate",
+			CriterionID:   "review",
+			LoopRunID:     "loop-run-judge",
+			Attempt:       2,
+			CorrelationID: "goal-judge:stable-attempt",
+			WorkspaceID:   "ws-loop",
+			Agent:         "loop-judge",
+			Runtime: looppkg.RuntimeSpec{
+				ACPOptions: []looppkg.ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}},
+			},
 			Rubric:               "Review the evidence.",
 			NetworkParticipation: new(loopParticipation),
 		})
@@ -669,6 +693,10 @@ func TestLoopGateJudgeRunnerShouldApplyPolicyGate(t *testing.T) {
 		}
 		if got, want := createCall.NetworkOwnerKey, "loop_run:loop-run-judge"; got != want {
 			t.Fatalf("CreateOpts.NetworkOwnerKey = %q, want %q", got, want)
+		}
+		if len(createCall.ACPOptions) != 1 || createCall.ACPOptions[0].ID != "thinking" ||
+			createCall.ACPOptions[0].BoolValue == nil || !*createCall.ACPOptions[0].BoolValue {
+			t.Fatalf("judge CreateOpts.ACPOptions = %#v, want thinking=true", createCall.ACPOptions)
 		}
 		if got, want := sessions.stopCount(), 1; got != want {
 			t.Fatalf("Stop call count = %d, want %d", got, want)

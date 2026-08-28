@@ -158,7 +158,6 @@ func executedDefinitionDigest(data []byte) string {
 }
 
 func cloneEffectiveConfig(config EffectiveConfig) EffectiveConfig {
-	config.EnabledChecks = cloneRawMessage(config.EnabledChecks)
 	config.RuntimeDefaults = *cloneRuntimeDefaults(&config.RuntimeDefaults)
 	config.RuntimeRules = cloneRuntimeRules(config.RuntimeRules)
 	config.RunRuntimeRules = cloneRuntimeRules(config.RunRuntimeRules)

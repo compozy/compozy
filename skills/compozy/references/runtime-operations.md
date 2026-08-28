@@ -150,7 +150,7 @@ cannot be validated fail closed.
 
     compozy session new --agent general --name review-run
     compozy session new --agent codex --cwd /absolute/path/to/worktree --name fix-task
-    compozy session prompt <session-id> "Inspect the failing build." --provider codex --model gpt-5.6-sol --reasoning-effort high --speed fast
+    compozy session prompt <session-id> "Inspect the failing build." --provider cursor --model grok-4.6 --reasoning-effort high --speed fast
     compozy session attachments upload <session-id> ./diagram.png -o json
     compozy session list --all -o json
     compozy session list --type user --state active --sort last_activity -o json
@@ -170,7 +170,7 @@ cannot be validated fail closed.
     compozy session history <session-id> --last 20 --after 42
     compozy session rewind <session-id> --message-id <message-id>
     compozy session prompt <session-id> "Summarize the last three tool results."
-    compozy session runtime set <session-id> --provider claude --model claude-fable-5 --reasoning-effort max
+    compozy session runtime set <session-id> --provider cursor --model claude-opus-5 --reasoning-effort high --speed fast --acp-toggle thinking=true
     compozy session runtime clear <session-id>
     compozy session resume <session-id>
     compozy session resume --latest --workspace checkout-api
@@ -196,8 +196,11 @@ cannot be validated fail closed.
 
 `compozy session new` is promptless and accepts no runtime selection. It returns the durable active,
 unbound session; use its ID in a later `compozy session prompt`. A prompt to an unbound session must
-select `--provider`; `--model`, `--reasoning-effort`, and `--speed` refine that prompt's snapshot.
-`--speed` defaults to `normal`; `fast` applies only through an unambiguous ACP select/value-ID option.
+select `--provider`; `--model`, `--reasoning-effort`, `--speed`, repeatable `--acp-option id=value`,
+and repeatable `--acp-toggle id=true|false` refine that prompt's snapshot. `--speed` defaults to
+`normal`; live catalog descriptors and valid option combinations remain authoritative. Fast is applied
+only when the live descriptor exposes one unambiguous speed option; absent or ambiguous support is
+`unsupported`, and provider refusal is `rejected`.
 
 Session attachments are durable, workspace/session-scoped refs. Upload with
 `POST /api/workspaces/:workspace_id/sessions/:session_id/attachments` or
@@ -346,10 +349,10 @@ CompozyOS routes six daemon-owned background responsibilities through the closed
     compozy roles show dream --workspace <id|name|path> -o json
 
 HTTP and UDS expose the same `GET /api/roles` and `GET /api/roles/{role}` payloads. Each projection
-reports `enabled`, `resolution_mode`, nullable agent/provider/model/reasoning values, controller-only
-`timeout`, the ordered `fallback_chain`, per-field `provenance`, and current `diagnostics`. Preserve
-nulls: `resolution_mode=inherit` means the invoking context decides at invocation, not that a client
-should substitute `[defaults]`.
+reports `enabled`, `resolution_mode`, nullable agent/provider/model/reasoning/speed values, typed
+`acp_options`, controller-only `timeout`, the ordered `fallback_chain`, per-field `provenance`, and
+current `diagnostics`. Preserve nulls: `resolution_mode=inherit` means the invoking context decides at
+invocation, not that a client should substitute `[defaults]`.
 
 `coordinator` and `dreaming-curator` are virtual builtin identities and never fleet entries. A
 configured authored agent that cannot be resolved produces `role_agent_not_found`; an unknown role
@@ -363,22 +366,28 @@ a workspace overlay. A fallback may advance only at the owning invocation's pre-
 an accepted ACP session is never silently rerouted. Immediately before each fallback attempt, CompozyOS
 emits `role.fallback.used`; the event records that the route was tried, not that it succeeded.
 
-Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, and
-`fallback_chain`. Coordinator additionally owns `ttl`, `max_children`, and
+Session-backed roles accept `enabled`, `agent`, `provider`, `model`, `reasoning_effort`, `speed`,
+`acp_options`, and `fallback_chain`. ACP option entries require `id` and exactly one of `value_id` or
+`bool_value`; fallback routes may set the same runtime fields. Coordinator additionally owns `ttl`, `max_children`, and
 `max_active_sessions_per_workspace`. The in-process `memory_controller` has no `agent`; it owns
-`timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop runtime defaults/rules,
+the same runtime fields plus `timeout`, `top_k`, `prompt_version`, and `max_tokens_out`. Do not move Loop runtime defaults/rules,
 TaskExecutionProfile selectors, automation resources, or subsystem policy into `[roles]`.
 
 ### Usage cost truth
 
 Provider model metadata is global config. Use Provider Settings HTTP/UDS or `config.toml` for the
 five pricing fields and `models.reasoning.apply`; use atomic model curation for flags and default
-effort. `acp_option` applies an advertised ACP effort, while `none` exposes no selectable strategy.
+effort or speed. A model's `default_speed` applies when the agent omits `speed`; an authored agent
+value wins. `acp_option` applies an advertised ACP effort, while `none` exposes no selectable strategy.
 Inspect the redacted effective state with `compozy config show` after a live apply or restart.
 `compozy__provider_models_status` is read-only. `compozy__provider_models_refresh` accepts optional
 provider/source filters, `force`, and `request_id`; it retains successful sources on partial failure
 and redacts credential material from errors. CLI fallbacks are `compozy provider models status` and
 `compozy provider models refresh`.
+
+Provider discovery, automatic refresh, stale fallback, logical IDs, private aliases, curated views, and
+OpenClaw's provider-managed limits are defined once in
+`references/native-tools.md#runtime-and-workspace-tools`.
 
 The session usage endpoint
 `GET /api/workspaces/{workspace_id}/sessions/{session_id}/usage` returns token totals plus

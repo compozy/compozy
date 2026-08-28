@@ -37,6 +37,11 @@ var (
 	ErrLoadSessionFailed = errors.New("acp: load session failed")
 	// errModelConfigOptionRequired reports that a requested model needs an advertised ACP model option.
 	errModelConfigOptionRequired = errors.New("acp: model config option required")
+	// errModelConfigOptionReadOnly reports that model discovery has no writable
+	// mutation in the active ACP protocol.
+	errModelConfigOptionReadOnly = errors.New(
+		"acp: model discovery is read-only; session/set_model is unavailable in the active ACP protocol",
+	)
 	// errProcessConnectionUninitialized reports that the driver received a process without an ACP connection.
 	errProcessConnectionUninitialized = errors.New("acp: process connection is not initialized")
 	// errProcessLifecycleUninitialized reports that the driver received a process without a managed lifecycle.
@@ -177,7 +182,9 @@ func (d *Driver) cleanupFailedStart(process *AgentProcess, startErr error) error
 	if startErr == nil || process == nil {
 		return startErr
 	}
-	if stopErr := d.Stop(context.Background(), process); stopErr != nil {
+	stopErr := d.Stop(context.Background(), process)
+	startErr = attachStderr(startErr, process.Stderr())
+	if stopErr != nil {
 		return errors.Join(startErr, fmt.Errorf("acp: stop failed while cleaning up failed start: %w", stopErr))
 	}
 	return startErr

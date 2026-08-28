@@ -35,7 +35,6 @@ func (s *Session) metaLocked() store.SessionMeta {
 		RuntimeTransition: s.RuntimeTransition,
 		RuntimeFailure:    store.SessionRuntimeFailurePointer(s.RuntimeFailure),
 		RuntimeGeneration: s.RuntimeGeneration,
-		RuntimeRecovery:   store.CloneSessionRuntimeRecovery(s.RuntimeRecovery),
 		RuntimeSelection: store.NewSessionRuntimeSelectionState(
 			storeSessionRuntimeSelection(s.SelectedRuntime),
 			s.RuntimeSelectionRevision,
@@ -59,6 +58,8 @@ func (s *Session) metaLocked() store.SessionMeta {
 		CreatedAt:            s.CreatedAt,
 		UpdatedAt:            s.UpdatedAt,
 	}
+	meta.SetACPOptions(storeOptionSelectionsFromACP(s.ACPOptions))
+	meta.SetRuntimeRecovery(s.RuntimeRecovery)
 	meta.SetEffectivePermissions(s.EffectivePermissions)
 	meta.SetEffectiveProviderAuthMode(string(s.effectiveProviderAuthMode))
 	meta.SetWorktreeID(s.WorktreeID)

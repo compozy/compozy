@@ -63,6 +63,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'claude-opus-4',
 			'high',
 			'fast',
+			'[{"id":"context","value_id":"large"},{"id":"thinking","bool_value":true}]',
 			'{"requested":"fast","status":"applied"}',
 			'ready',
 			'live_configuration',
@@ -73,6 +74,7 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			'claude-fable-5',
 			'max',
 			'normal',
+			'[{"id":"thinking","bool_value":true}]',
 			4,
 			'ws-1',
 			'wt-scan',
@@ -170,6 +172,12 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 		if got, want := info.RuntimeStatus, store.SessionRuntimeReady; got != want {
 			t.Fatalf("info.RuntimeStatus = %q, want %q", got, want)
 		}
+		infoOptions := info.ACPOptionsValue()
+		if len(infoOptions) != 2 || infoOptions[0].ID != "context" ||
+			infoOptions[0].ValueID != "large" || infoOptions[1].ID != "thinking" ||
+			infoOptions[1].BoolValue == nil || !*infoOptions[1].BoolValue {
+			t.Fatalf("info ACP options = %#v, want context=large and thinking=true", infoOptions)
+		}
 		if got, want := info.RuntimeTransition, store.SessionRuntimeTransitionLiveConfiguration; got != want {
 			t.Fatalf("info.RuntimeTransition = %q, want %q", got, want)
 		}
@@ -180,6 +188,10 @@ func TestScanSessionInfoReadsStopFields(t *testing.T) {
 			info.SelectedRuntime.Model != "claude-fable-5" ||
 			info.SelectedRuntime.ReasoningEffort != "max" ||
 			info.SelectedRuntime.Speed != speedpkg.SpeedNormal ||
+			len(info.SelectedRuntime.ACPOptions) != 1 ||
+			info.SelectedRuntime.ACPOptions[0].ID != "thinking" ||
+			info.SelectedRuntime.ACPOptions[0].BoolValue == nil ||
+			!*info.SelectedRuntime.ACPOptions[0].BoolValue ||
 			info.RuntimeSelectionRevision != 4 {
 			t.Fatalf(
 				"info selected runtime = %#v revision %d, want Claude Fable max at revision 4",
@@ -327,6 +339,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'',
 			'',
 			'',
+			'',
 			'unbound',
 			'',
 			'',
@@ -336,6 +349,7 @@ func TestScanSessionInfoHandlesNullStopReason(t *testing.T) {
 			'',
 			'',
 			'',
+			'[]',
 			0,
 			'ws-1',
 			NULL,
@@ -450,6 +464,7 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'',
 			'',
 			'',
+			'',
 			'unbound',
 			'',
 			'',
@@ -459,6 +474,7 @@ func TestScanSessionInfoRejectsInvalidSandboxLastSyncAt(t *testing.T) {
 			'',
 			'',
 			'',
+			'[]',
 			0,
 			'ws-1',
 			NULL,
@@ -546,6 +562,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'',
 			'',
 			'',
+			'',
 			'unbound',
 			'',
 			'',
@@ -555,6 +572,7 @@ func TestScanSessionInfoRejectsStallStateWithoutReason(t *testing.T) {
 			'',
 			'',
 			'',
+			'[]',
 			0,
 			'ws-1',
 			NULL,

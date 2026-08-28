@@ -78,6 +78,7 @@ func newProviderModelsSetCommand(deps commandDeps) *cobra.Command {
 	var featured bool
 	var deprecated bool
 	var defaultEffort string
+	var defaultSpeed string
 	cmd := &cobra.Command{
 		Use:   "set <provider> <model>",
 		Short: "Curate one provider model",
@@ -106,6 +107,10 @@ func newProviderModelsSetCommand(deps commandDeps) *cobra.Command {
 				effort := contract.ReasoningEffort(strings.TrimSpace(defaultEffort))
 				request.DefaultReasoningEffort = &effort
 			}
+			if cmd.Flags().Changed("default-speed") {
+				speed := contract.Speed(strings.TrimSpace(defaultSpeed))
+				request.DefaultSpeed = &speed
+			}
 			record, err := client.CurateProviderModel(cmd.Context(), providerID, request)
 			if err != nil {
 				return err
@@ -117,6 +122,7 @@ func newProviderModelsSetCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().BoolVar(&featured, "featured", false, "Set whether the model is featured")
 	cmd.Flags().BoolVar(&deprecated, "deprecated", false, "Set whether the model is deprecated")
 	cmd.Flags().StringVar(&defaultEffort, "default-effort", "", "Set the model's default reasoning effort")
+	cmd.Flags().StringVar(&defaultSpeed, "default-speed", "", "Set the model's default speed")
 	return cmd
 }
 

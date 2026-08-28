@@ -17,6 +17,7 @@ import (
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/session"
+	"github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/transcript"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -198,6 +199,7 @@ func statusForSessionValidationError(err error) (int, bool) {
 	case isProviderNegotiationFailure(err),
 		isProviderAuthFailure(err),
 		isReasoningEffortUnsupportedFailure(err),
+		errors.Is(err, skills.ErrAgentLocalInvalid),
 		errors.Is(err, session.ErrPromptImagesUnsupported),
 		errors.Is(err, session.ErrPromptFilesUnsupported):
 		return http.StatusUnprocessableEntity, true

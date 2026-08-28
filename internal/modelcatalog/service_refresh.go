@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -12,10 +13,15 @@ import (
 func (s *CatalogService) storedSourceIDsForProvider(
 	ctx context.Context,
 	providerID string,
+	opts RefreshOptions,
 	now time.Time,
 ) (map[string]struct{}, error) {
 	owned := make(map[string]struct{})
-	statuses, err := s.store.ListSourceStatus(ctx, providerID)
+	statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: opts.ExecutionContext,
+		SourceContexts:   cloneSourceExecutionContexts(opts.SourceContexts),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list stored source ownership for %q: %w", providerID, err)
 	}
@@ -25,10 +31,12 @@ func (s *CatalogService) storedSourceIDsForProvider(
 		}
 	}
 	rows, err := s.store.ListRows(ctx, ListOptions{
-		ProviderID:   providerID,
-		IncludeAll:   true,
-		IncludeStale: true,
-		Now:          now,
+		ProviderID:       providerID,
+		ExecutionContext: opts.ExecutionContext,
+		SourceContexts:   cloneSourceExecutionContexts(opts.SourceContexts),
+		IncludeAll:       true,
+		IncludeStale:     true,
+		Now:              now,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("model catalog: list stored rows for provider %q: %w", providerID, err)
@@ -103,7 +111,11 @@ func (s *CatalogService) refreshAllProviders(
 		}
 		providers := sourceProviders(source)
 		if len(providers) > 0 {
-			storedProviders, err := s.storedProvidersForSource(ctx, source, now)
+			executionContext, contextErr := sourceExecutionContext(opts.SourceContexts, source.ID())
+			if contextErr != nil {
+				return statuses, contextErr
+			}
+			storedProviders, err := s.storedProvidersForSource(ctx, source, executionContext, now)
 			if err != nil {
 				return statuses, err
 			}
@@ -202,10 +214,20 @@ func (s *CatalogService) refreshSource(
 	opts RefreshOptions,
 	now time.Time,
 ) ([]SourceStatus, refreshOutcome, error) {
+	executionContext, err := sourceExecutionContext(opts.SourceContexts, source.ID())
+	if err != nil {
+		return nil, refreshOutcomeEmpty, err
+	}
 	if !opts.Force &&
 		strings.TrimSpace(opts.ProviderID) != "" &&
-		sourceHasFreshStatus(ctx, s.store, source, opts.ProviderID, now) {
-		statuses, err := s.store.ListSourceStatus(ctx, opts.ProviderID)
+		sourceHasFreshStatus(ctx, s.store, source, opts.ProviderID, executionContext, now) {
+		statuses, err := s.store.ListSourceStatus(ctx, StatusOptions{
+			ProviderID:       opts.ProviderID,
+			ExecutionContext: executionContext,
+			SourceContexts: map[string]CatalogExecutionContext{
+				source.ID(): executionContext,
+			},
+		})
 		if err != nil {
 			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: load fresh source status: %w", err)
 		}
@@ -213,8 +235,12 @@ func (s *CatalogService) refreshSource(
 	}
 
 	rows, err := source.ListModels(ctx, ListOptions{
-		ProviderID:   opts.ProviderID,
-		SourceID:     source.ID(),
+		ProviderID:       opts.ProviderID,
+		SourceID:         source.ID(),
+		ExecutionContext: executionContext,
+		SourceContexts: map[string]CatalogExecutionContext{
+			source.ID(): executionContext,
+		},
 		Refresh:      true,
 		IncludeAll:   true,
 		IncludeStale: true,
@@ -224,9 +250,18 @@ func (s *CatalogService) refreshSource(
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, refreshOutcomeEmpty, ctxErr
 		}
-		return s.recordSourceFailure(ctx, source, opts.ProviderID, rows, now, err)
+		return s.recordSourceFailure(
+			ctx,
+			source,
+			opts.ProviderID,
+			executionContext,
+			opts.PreviousExecutionContext,
+			rows,
+			now,
+			err,
+		)
 	}
-	statuses, err := s.persistSourceRows(ctx, source, opts.ProviderID, rows, now, false, "")
+	statuses, err := s.persistSourceRows(ctx, source, opts.ProviderID, rows, executionContext, now, false, "")
 	if err != nil {
 		return nil, refreshOutcomeEmpty, err
 	}
@@ -240,58 +275,45 @@ func (s *CatalogService) recordSourceFailure(
 	ctx context.Context,
 	source Source,
 	providerID string,
+	executionContext CatalogExecutionContext,
+	previousExecutionContext CatalogExecutionContext,
 	rows []ModelRow,
 	now time.Time,
 	sourceErr error,
 ) ([]SourceStatus, refreshOutcome, error) {
 	if errors.Is(sourceErr, ErrSourceDisabled) {
-		statuses, err := s.persistDisabledSource(ctx, source, providerID, now)
+		statuses, err := s.persistDisabledSource(ctx, source, providerID, executionContext, now)
 		return statuses, refreshOutcomeEmpty, err
 	}
 	redacted := sourceErrorText(sourceErr)
 	if len(rows) > 0 {
 		staleRows := markRowsStale(rows, redacted)
-		statuses, err := s.persistSourceRows(ctx, source, providerID, staleRows, now, true, redacted)
+		statuses, err := s.persistSourceRows(
+			ctx,
+			source,
+			providerID,
+			staleRows,
+			executionContext,
+			now,
+			true,
+			redacted,
+		)
 		if err != nil {
 			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
 		}
 		return statuses, refreshOutcomeStale, sourceErr
 	}
 
-	providers, err := s.providersForSource(ctx, source, providerID, now)
-	if err != nil {
-		return nil, refreshOutcomeEmpty, err
-	}
-	statuses := make([]SourceStatus, 0, len(providers))
-	staleCount := 0
-	for _, provider := range providers {
-		previous, err := s.store.ListRows(ctx, ListOptions{
-			ProviderID:   provider,
-			SourceID:     source.ID(),
-			IncludeAll:   true,
-			IncludeStale: true,
-			Now:          now,
-		})
-		if err != nil {
-			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: load stale rows for %q: %w", source.ID(), err)
-		}
-		staleRows := markRowsStale(previous, redacted)
-		status := sourceStatus(source, provider, now, len(staleRows), true, redacted, RefreshStateFailed)
-		if err := s.preserveLastSuccess(ctx, provider, &status); err != nil {
-			return nil, refreshOutcomeEmpty, errors.Join(sourceErr, err)
-		}
-		if err := s.store.ReplaceSourceRows(ctx, source.ID(), provider, staleRows, status); err != nil {
-			return nil, refreshOutcomeEmpty, fmt.Errorf("model catalog: persist failed source status: %w", err)
-		}
-		if len(staleRows) > 0 {
-			staleCount += len(staleRows)
-		}
-		statuses = append(statuses, status)
-	}
-	if staleCount > 0 {
-		return statuses, refreshOutcomeStale, sourceErr
-	}
-	return statuses, refreshOutcomeEmpty, sourceErr
+	return s.recordEmptySourceFailure(
+		ctx,
+		source,
+		providerID,
+		executionContext,
+		previousExecutionContext,
+		now,
+		redacted,
+		sourceErr,
+	)
 }
 
 func (s *CatalogService) withRefreshFlight(
@@ -357,14 +379,40 @@ func (s *CatalogService) joinExistingRefreshFlight(
 }
 
 func refreshFlightScopeKey(providerKey string, opts RefreshOptions) string {
-	return fmt.Sprintf("%s\x00%s\x00%t", providerKey, strings.TrimSpace(opts.SourceID), opts.Force)
+	contextParts := make([]string, 0, len(opts.SourceContexts))
+	for sourceID, executionContext := range opts.SourceContexts {
+		contextParts = append(contextParts, sourceID+"="+executionContext.CommandFingerprint)
+	}
+	sort.Strings(contextParts)
+	return fmt.Sprintf(
+		"%s\x00%s\x00%s\x00%s\x00%t\x00%s",
+		providerKey,
+		strings.TrimSpace(opts.SourceID),
+		executionContextScopeKey(opts.ExecutionContext),
+		strings.TrimSpace(opts.ExecutionContext.CommandFingerprint),
+		opts.Force,
+		strings.Join(contextParts, "\x1e"),
+	)
 }
 
-func sourceHasFreshStatus(ctx context.Context, store Store, source Source, providerID string, now time.Time) bool {
+func sourceHasFreshStatus(
+	ctx context.Context,
+	store Store,
+	source Source,
+	providerID string,
+	executionContext CatalogExecutionContext,
+	now time.Time,
+) bool {
 	if ttlProvider, ok := source.(sourceTTLProvider); !ok || ttlProvider.TTL() <= 0 {
 		return false
 	}
-	statuses, err := store.ListSourceStatus(ctx, providerID)
+	statuses, err := store.ListSourceStatus(ctx, StatusOptions{
+		ProviderID:       providerID,
+		ExecutionContext: executionContext,
+		SourceContexts: map[string]CatalogExecutionContext{
+			source.ID(): executionContext,
+		},
+	})
 	if err != nil {
 		return false
 	}

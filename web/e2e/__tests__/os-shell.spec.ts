@@ -364,16 +364,24 @@ test("E2E-136: Sessions dock action starts creation cold and focuses an existing
   await expect(createDialog).toHaveCount(0);
 
   const session = await createNamedSession(runtime, workspace.id, "Dock focus target");
-  const sessionWindowID = await openSessionWindowInAuthority(runtime, workspace.id, session);
-  const sessionWindowView = sessionWindow(appPage, session.id);
-  await expect(sessionWindowView).toBeVisible();
-  await expect.poll(() => windowID(sessionWindowView)).toBe(sessionWindowID);
-
-  await sessionWindowView.getByRole("button", { name: "Minimize window" }).click();
-  await expect(sessionWindowView).toBeHidden();
+  await expect
+    .poll(async () => {
+      const payload = await runtime.requestJSON<{ sessions: { id: string }[] }>(
+        `/api/sessions?workspace_id=${encodeURIComponent(workspace.id)}`
+      );
+      return payload.sessions.some(row => row.id === session.id);
+    })
+    .toBe(true);
   await sessionsDockButton.click();
-  await expect(sessionWindowView).toBeVisible();
-  await expect(windowFrame(sessionWindowView)).toHaveAttribute("data-focused", "");
+  const seededWindow = sessionWindow(appPage, session.id);
+  await expect(seededWindow).toBeVisible();
+  await expect(createDialog).toHaveCount(0);
+
+  await seededWindow.getByRole("button", { name: "Minimize window" }).click();
+  await expect(seededWindow).toBeHidden();
+  await sessionsDockButton.click();
+  await expect(seededWindow).toBeVisible();
+  await expect(windowFrame(seededWindow)).toHaveAttribute("data-focused", "");
 });
 
 test("ENG-136: Session menu owns the sessions catalog", async ({ appPage, runtime }) => {

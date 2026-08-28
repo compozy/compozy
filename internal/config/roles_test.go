@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	speedpkg "github.com/compozy/compozy/internal/speed"
 )
 
 func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
@@ -87,11 +89,20 @@ func TestDefaultRolesConfigPreservesRoleBehavior(t *testing.T) {
 		source := DefaultRolesConfig()
 		source.Dream.FallbackChain = []RoleFallback{{Provider: "primary", Model: "dream-model"}}
 		source.MemoryController.FallbackChain = []RoleFallback{{Provider: "backup", Model: "controller-model"}}
+		source.Dream.Speed = speedpkg.SpeedFast
+		source.Dream.ACPOptions = []ACPOptionSelection{{ID: "thinking", BoolValue: new(true)}}
+		source.Dream.FallbackChain[0].ACPOptions = []ACPOptionSelection{{ID: "context", ValueID: "1m"}}
 		cloned := CloneRolesConfig(&source)
 		cloned.Dream.FallbackChain[0].Model = "changed-dream"
 		cloned.MemoryController.FallbackChain[0].Model = "changed-controller"
+		cloned.Dream.Speed = speedpkg.SpeedNormal
+		*cloned.Dream.ACPOptions[0].BoolValue = false
+		cloned.Dream.FallbackChain[0].ACPOptions[0].ValueID = "128k"
 		if source.Dream.FallbackChain[0].Model != "dream-model" ||
-			source.MemoryController.FallbackChain[0].Model != "controller-model" {
+			source.MemoryController.FallbackChain[0].Model != "controller-model" ||
+			source.Dream.Speed != speedpkg.SpeedFast ||
+			source.Dream.ACPOptions[0].BoolValue == nil || !*source.Dream.ACPOptions[0].BoolValue ||
+			source.Dream.FallbackChain[0].ACPOptions[0].ValueID != "1m" {
 			t.Fatalf("CloneRolesConfig() mutated source fallbacks: %#v", source)
 		}
 	})
@@ -186,10 +197,8 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg := DefaultRolesConfig()
 		cfg.Dream.FallbackChain = []RoleFallback{{Provider: "missing", Model: "model-a"}}
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.dream.fallback_chain[0].provider") ||
-			!strings.Contains(err.Error(), "missing") {
-			t.Fatalf("Validate() error = %v, want wrapped provider-resolution failure", err)
-		}
+		assertErrorContains(t, err, "roles.dream.fallback_chain[0].provider")
+		assertErrorContains(t, err, "missing")
 	})
 
 	t.Run("Should reject an invalid reasoning effort", func(t *testing.T) {
@@ -198,10 +207,27 @@ func TestRolesConfigValidateEnforcesBoundsAndRoutes(t *testing.T) {
 		cfg := DefaultRolesConfig()
 		cfg.MemoryExtractor.ReasoningEffort = "extreme"
 		err := cfg.Validate("roles", &Config{})
-		if err == nil || !strings.Contains(err.Error(), "roles.memory_extractor.reasoning_effort") ||
-			!strings.Contains(err.Error(), "extreme") {
-			t.Fatalf("Validate() error = %v, want reasoning enum error", err)
-		}
+		assertErrorContains(t, err, "roles.memory_extractor.reasoning_effort")
+		assertErrorContains(t, err, "extreme")
+	})
+
+	t.Run("Should reject an invalid role speed", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultRolesConfig()
+		cfg.Dream.Speed = "burst"
+		err := cfg.Validate("roles", &Config{})
+		assertErrorContains(t, err, "roles.dream.speed")
+	})
+
+	t.Run("Should reject role speed duplicated by its ACP option", func(t *testing.T) {
+		t.Parallel()
+
+		cfg := DefaultRolesConfig()
+		cfg.Dream.Speed = speedpkg.SpeedFast
+		cfg.Dream.ACPOptions = []ACPOptionSelection{{ID: "speed", ValueID: "fast"}}
+		err := cfg.Validate("roles", &Config{})
+		assertErrorContains(t, err, "duplicates speed")
 	})
 
 	t.Run("Should reject an invalid optional agent reference when configured", func(t *testing.T) {

@@ -29,6 +29,7 @@ func cloneLoopDefaultConfig(source LoopDefaultConfig) LoopDefaultConfig {
 func cloneRuntimeSpec(source dsl.RuntimeSpec) dsl.RuntimeSpec {
 	cloned := source
 	cloned.Extra = cloneConfigAnyMap(source.Extra)
+	cloned.ACPOptions = dsl.CloneACPOptionSelections(source.ACPOptions)
 	return cloned
 }
 

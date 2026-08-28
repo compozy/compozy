@@ -52,25 +52,30 @@ vi.mock("@/systems/model-catalog/lib/to-runtime-selector-options", () => ({
   providerNeedsAuth: () => false,
 }));
 
-vi.mock("@/systems/runtime/components/runtime-selector", () => ({
-  RuntimeSelector: ({
-    disabled,
-    value,
-  }: {
-    disabled?: boolean;
-    value: { provider: string; model: string; reasoning_effort: string };
-  }) => (
-    <button
-      disabled={disabled}
-      type="button"
-      data-provider={value.provider}
-      data-model={value.model}
-      data-reasoning-effort={value.reasoning_effort}
-    >
-      Runtime selector
-    </button>
-  ),
-}));
+vi.mock("@/systems/runtime/components/runtime-selector", async importOriginal => {
+  const actual =
+    await importOriginal<typeof import("@/systems/runtime/components/runtime-selector")>();
+  return {
+    ...actual,
+    RuntimeSelector: ({
+      disabled,
+      value,
+    }: {
+      disabled?: boolean;
+      value: { provider: string; model: string; reasoning_effort: string };
+    }) => (
+      <button
+        disabled={disabled}
+        type="button"
+        data-provider={value.provider}
+        data-model={value.model}
+        data-reasoning-effort={value.reasoning_effort}
+      >
+        Runtime selector
+      </button>
+    ),
+  };
+});
 
 vi.mock("@/systems/settings/hooks/use-settings-collections", () => ({
   useSettingsProviders: () => mocks.settings,

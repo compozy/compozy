@@ -48,6 +48,7 @@ export {
 } from "./lib/active-workspace";
 export type { ActiveWorkspaceResolution, WorkspaceChipIdentity } from "./lib/active-workspace";
 export { toWorkspaceCommandSelectOptions } from "./lib/workspace-command-select-options";
+export { workspaceProviderToOption } from "./lib/provider-runtime-option";
 export type { WorkspaceScopeMode } from "./lib/workspace-scope-mode";
 export { workspaceKeys } from "./lib/query-keys";
 export {

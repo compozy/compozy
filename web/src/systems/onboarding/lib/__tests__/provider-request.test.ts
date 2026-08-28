@@ -24,6 +24,7 @@ describe("buildOnboardingProviderRequest", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
       model: "claude-opus-4-8",
       reasoning: "xhigh",
+      speed: "fast",
       authMode: "native_cli",
       envVar: "",
       apiKey: "",
@@ -36,6 +37,7 @@ describe("buildOnboardingProviderRequest", () => {
     expect(body.model_curation).toEqual({
       model_id: "claude-opus-4-8",
       default_effort: "xhigh",
+      default_speed: "fast",
     });
   });
 
@@ -43,6 +45,7 @@ describe("buildOnboardingProviderRequest", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
       model: "claude-sonnet-5",
       reasoning: "high",
+      speed: "normal",
       authMode: "native_cli",
       envVar: "",
       apiKey: "",
@@ -53,6 +56,7 @@ describe("buildOnboardingProviderRequest", () => {
     expect(body.model_curation).toEqual({
       model_id: "claude-sonnet-5",
       default_effort: "high",
+      default_speed: "normal",
     });
   });
 
@@ -60,6 +64,7 @@ describe("buildOnboardingProviderRequest", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
       model: "claude-opus-4-8",
       reasoning: "",
+      speed: "normal",
       authMode: "native_cli",
       envVar: "ANTHROPIC_API_KEY",
       apiKey: "sk-should-be-ignored",
@@ -88,6 +93,7 @@ describe("buildOnboardingProviderRequest", () => {
       {
         model: "claude-opus-4-8",
         reasoning: "",
+        speed: "normal",
         authMode: "native_cli",
         envVar: "",
         apiKey: "sk-should-be-ignored",
@@ -103,6 +109,7 @@ describe("buildOnboardingProviderRequest", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
       model: "claude-opus-4-8",
       reasoning: "",
+      speed: "normal",
       authMode: "bound_secret",
       envVar: "ANTHROPIC_API_KEY",
       apiKey: "",
@@ -118,6 +125,7 @@ describe("buildOnboardingProviderRequest", () => {
       buildOnboardingProviderRequest(baseSettings, {
         model: "claude-opus-4-8",
         reasoning: "",
+        speed: "normal",
         authMode: "bound_secret",
         envVar: "",
         apiKey: "sk-real-key",
@@ -143,6 +151,7 @@ describe("buildOnboardingProviderRequest", () => {
       {
         model: "claude-opus-4-8",
         reasoning: "",
+        speed: "normal",
         authMode: "bound_secret",
         envVar: "",
         apiKey: "",
@@ -157,6 +166,7 @@ describe("buildOnboardingProviderRequest", () => {
     const body = buildOnboardingProviderRequest(baseSettings, {
       model: "claude-opus-4-8",
       reasoning: "",
+      speed: "normal",
       authMode: "bound_secret",
       envVar: "ANTHROPIC_API_KEY",
       apiKey: "sk-real-key",

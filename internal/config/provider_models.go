@@ -1,5 +1,7 @@
 package config
 
+import speedpkg "github.com/compozy/compozy/internal/speed"
+
 // ProviderModelsConfig describes provider-scoped model defaults and metadata.
 type ProviderModelsConfig struct {
 	Default   string                        `toml:"default,omitempty"`
@@ -18,24 +20,25 @@ type ProviderModelsDiscoveryConfig struct {
 
 // ProviderModelConfig describes one curated provider model entry.
 type ProviderModelConfig struct {
-	ID                       string   `toml:"id"`
-	DisplayName              string   `toml:"display_name,omitempty"`
-	ContextWindow            *int64   `toml:"context_window,omitempty"`
-	MaxInputTokens           *int64   `toml:"max_input_tokens,omitempty"`
-	MaxOutputTokens          *int64   `toml:"max_output_tokens,omitempty"`
-	SupportsTools            *bool    `toml:"supports_tools,omitempty"`
-	SupportsReasoning        *bool    `toml:"supports_reasoning,omitempty"`
-	ReasoningEfforts         []string `toml:"reasoning_efforts,omitempty"`
-	DefaultReasoningEffort   string   `toml:"default_reasoning_effort,omitempty"`
-	CostInputPerMillion      *float64 `toml:"cost_input_per_million,omitempty"`
-	CostOutputPerMillion     *float64 `toml:"cost_output_per_million,omitempty"`
-	CostCacheReadPerMillion  *float64 `toml:"cost_cache_read_per_million,omitempty"`
-	CostCacheWritePerMillion *float64 `toml:"cost_cache_write_per_million,omitempty"`
-	CostReasoningPerMillion  *float64 `toml:"cost_reasoning_per_million,omitempty"`
-	Deprecated               *bool    `toml:"deprecated,omitempty"`
-	Hidden                   *bool    `toml:"hidden,omitempty"`
-	Featured                 *bool    `toml:"featured,omitempty"`
-	ReleaseDate              string   `toml:"release_date,omitempty"`
+	ID                       string         `toml:"id"`
+	DisplayName              string         `toml:"display_name,omitempty"`
+	ContextWindow            *int64         `toml:"context_window,omitempty"`
+	MaxInputTokens           *int64         `toml:"max_input_tokens,omitempty"`
+	MaxOutputTokens          *int64         `toml:"max_output_tokens,omitempty"`
+	SupportsTools            *bool          `toml:"supports_tools,omitempty"`
+	SupportsReasoning        *bool          `toml:"supports_reasoning,omitempty"`
+	ReasoningEfforts         []string       `toml:"reasoning_efforts,omitempty"`
+	DefaultReasoningEffort   string         `toml:"default_reasoning_effort,omitempty"`
+	DefaultSpeed             speedpkg.Speed `toml:"default_speed,omitempty"`
+	CostInputPerMillion      *float64       `toml:"cost_input_per_million,omitempty"`
+	CostOutputPerMillion     *float64       `toml:"cost_output_per_million,omitempty"`
+	CostCacheReadPerMillion  *float64       `toml:"cost_cache_read_per_million,omitempty"`
+	CostCacheWritePerMillion *float64       `toml:"cost_cache_write_per_million,omitempty"`
+	CostReasoningPerMillion  *float64       `toml:"cost_reasoning_per_million,omitempty"`
+	Deprecated               *bool          `toml:"deprecated,omitempty"`
+	Hidden                   *bool          `toml:"hidden,omitempty"`
+	Featured                 *bool          `toml:"featured,omitempty"`
+	ReleaseDate              string         `toml:"release_date,omitempty"`
 }
 
 func cloneProviderModelsConfig(src ProviderModelsConfig) ProviderModelsConfig {
@@ -74,6 +77,7 @@ func cloneProviderModelConfigs(src []ProviderModelConfig) []ProviderModelConfig 
 			SupportsReasoning:        cloneProviderModelPtr(model.SupportsReasoning),
 			ReasoningEfforts:         cloneStrings(model.ReasoningEfforts),
 			DefaultReasoningEffort:   model.DefaultReasoningEffort,
+			DefaultSpeed:             model.DefaultSpeed,
 			CostInputPerMillion:      cloneProviderModelPtr(model.CostInputPerMillion),
 			CostOutputPerMillion:     cloneProviderModelPtr(model.CostOutputPerMillion),
 			CostCacheReadPerMillion:  cloneProviderModelPtr(model.CostCacheReadPerMillion),

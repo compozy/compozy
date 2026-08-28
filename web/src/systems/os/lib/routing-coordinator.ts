@@ -1,27 +1,22 @@
-import { resolveAppDescriptorForPath as resolveAppForPath } from "./app-catalog";
-import type {
-  OsDesktopRuntimeStore,
-  OsOpenTarget,
-  OsWindowRoute,
-  WindowManagerCommandOutcome,
-  WindowManagerOpenOutcome,
-} from "./os-types";
+import {
+  resolveAppDescriptorForPath as resolveAppForPath,
+  SESSION_EMPTY_PATH,
+} from "./app-catalog";
+import type { OsOpenTarget, OsWindowRoute, WindowManagerOpenOutcome } from "./os-types";
 import { mruWindowInstance } from "./window-instance-lookup";
+import type {
+  OsRouterPort,
+  RouteReconciliation,
+  RoutingManager,
+} from "./routing-coordinator-contract";
+import {
+  isDesktopDefaultViewIntent,
+  withoutDesktopDefaultViewIntent,
+} from "./routing-default-view-intent";
 import { sameOsWindowRoute } from "./window-manager-route";
 import { defaultOsWindowRoute } from "./window-manager-view";
 
-const DESKTOP_DEFAULT_VIEW_INTENT_KEY = "_compozy_desktop_default";
-
-function isDesktopDefaultViewIntent(route: OsWindowRoute): boolean {
-  const marker = route.search[DESKTOP_DEFAULT_VIEW_INTENT_KEY];
-  return route.pathname === "/" && (marker === "1" || marker === 1);
-}
-
-function withoutDesktopDefaultViewIntent(route: OsWindowRoute): OsWindowRoute {
-  if (!isDesktopDefaultViewIntent(route)) return route;
-  const { [DESKTOP_DEFAULT_VIEW_INTENT_KEY]: _intent, ...search } = route.search;
-  return { pathname: route.pathname, search };
-}
+export type { OsRouterPort } from "./routing-coordinator-contract";
 
 /**
  * The routing coordinator is the ONLY URL↔WM bridge (Safety Invariant 13).
@@ -37,41 +32,6 @@ function withoutDesktopDefaultViewIntent(route: OsWindowRoute): OsWindowRoute {
  * - `workspace-switch`: swap + rehydrate, then one navigate to the target
  *   workspace's focused window route (or `/`).
  */
-
-export interface OsRouterPort {
-  /** Pushes one history entry reflecting the location. */
-  navigate(route: OsWindowRoute): void;
-  /** Truths up hydration or remote authority without manufacturing history. */
-  replace(route: OsWindowRoute): void;
-}
-
-type RoutingManager = {
-  getState(): Pick<OsDesktopRuntimeStore, "client" | "windows" | "focusedId" | "hydration">;
-  openOrFocus(target: OsOpenTarget): WindowManagerOpenOutcome;
-  closeWindow(windowId: string): Promise<boolean>;
-  focusWindow(windowId: string): WindowManagerCommandOutcome;
-  restoreWindow(windowId: string): WindowManagerCommandOutcome;
-  minimizeWindow(windowId: string): Promise<boolean>;
-  zoomWindow(windowId: string): WindowManagerCommandOutcome;
-  navigateWindow(
-    windowId: string,
-    route: OsWindowRoute,
-    mode?: "replace" | "push" | "pop"
-  ): WindowManagerCommandOutcome;
-  retargetWindow(
-    windowId: string,
-    instanceKey: string,
-    route: OsWindowRoute
-  ): WindowManagerCommandOutcome;
-  popWindowRoute(windowId: string): WindowManagerCommandOutcome;
-};
-
-interface RouteReconciliation {
-  token: number;
-  route: OsWindowRoute;
-  desktopDefaultView: boolean;
-  inFlight: boolean;
-}
 
 export class RoutingCoordinator {
   private readonly manager: RoutingManager;
@@ -301,6 +261,17 @@ export class RoutingCoordinator {
     const outcome = this.manager.retargetWindow(windowId, target.instanceKey, target.route);
     if (!(await outcome.completion)) return false;
     this.pushRoute(target.route);
+    return true;
+  }
+
+  /** Drop the session instance and land on the empty route so the frame stays. */
+  async userRetireSession(windowId: string): Promise<boolean> {
+    const state = this.manager.getState();
+    if (!state.windows[windowId]) return false;
+    const route = { pathname: SESSION_EMPTY_PATH, search: {} };
+    const outcome = this.manager.retargetWindow(windowId, "", route);
+    if (!(await outcome.completion)) return false;
+    this.pushRoute(route);
     return true;
   }
 

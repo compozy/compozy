@@ -2,7 +2,6 @@ package loop
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"testing"
 
@@ -31,7 +30,7 @@ func TestApplyEffectiveGateConfigShouldFilterRuntimeCriteria(t *testing.T) {
 			},
 		}
 		effective := EffectiveConfig{
-			EnabledChecks: json.RawMessage(`{"project_check":{"enabled":false}}`),
+			EnabledChecks: new(EffectiveChecksJSON(`{"project_check":{"enabled":false}}`)),
 		}
 
 		filtered, empty, err := applyEffectiveGateConfig(runtimeGate, effective)
@@ -59,7 +58,7 @@ func TestApplyEffectiveGateConfigShouldFilterRuntimeCriteria(t *testing.T) {
 			}},
 		}
 		effective := EffectiveConfig{
-			EnabledChecks: json.RawMessage(`{"project_check":{"command":"go test ./internal/loop"}}`),
+			EnabledChecks: new(EffectiveChecksJSON(`{"project_check":{"command":"go test ./internal/loop"}}`)),
 		}
 
 		filtered, empty, err := applyEffectiveGateConfig(runtimeGate, effective)

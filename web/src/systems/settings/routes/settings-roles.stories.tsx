@@ -89,8 +89,13 @@ export const FallbackEditor: Story = {
               dream: {
                 ...settingsRolesConfigFixture.dream,
                 fallback_chain: [
-                  { provider: "anthropic", model: "claude-sonnet-5", reasoning_effort: "" },
-                  { provider: "", model: "gpt-5", reasoning_effort: "high" },
+                  {
+                    provider: "anthropic",
+                    model: "claude-sonnet-5",
+                    reasoning_effort: "",
+                    acp_options: [],
+                  },
+                  { provider: "", model: "gpt-5", reasoning_effort: "high", acp_options: [] },
                 ],
               },
             },

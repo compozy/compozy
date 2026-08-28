@@ -2,18 +2,15 @@ import { shallowEqual } from "@xstate/store";
 
 import type { OsAttentionBadges } from "../lib/attention-model";
 import { dockAppDescriptors, OS_APP_DESCRIPTORS } from "../lib/app-catalog";
+import { pickLastCreatedSession } from "../lib/last-created-session";
 import { dockBadgeFor, dockIconForApp, type OsDockEntry } from "../lib/os-dock-model";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
-import {
-  activationTarget,
-  appRunState,
-  mruWindowInstance,
-  windowInstancesFor,
-  type OsAppRunState,
-} from "../lib/window-instance-lookup";
+import { activationTarget, appRunState, type OsAppRunState } from "../lib/window-instance-lookup";
 import type { OsAppId, OsPresentation } from "../lib/os-types";
+import { useAttentionJump } from "./use-attention-jump";
 import { useDesktop } from "./use-desktop";
 import { useOsShell } from "./use-os-shell";
+import { useSessionLaunchCatalog } from "./use-session-launch-catalog";
 
 export interface DesktopDockModel {
   entries: OsDockEntry[];
@@ -38,6 +35,8 @@ export function useDesktopDock(
   { onNewSession }: UseDesktopDockOptions
 ): DesktopDockModel {
   const { manager, coordinator } = useOsShell();
+  const launchCatalog = useSessionLaunchCatalog();
+  const jumpToSession = useAttentionJump();
   const presentation = useDesktop(state => state.presentation);
   // Magnification composes every gate the prototype applies (os-v2.js): the
   // appearance toggle here, the system reduced-motion preference inside
@@ -88,15 +87,19 @@ export function useDesktopDock(
     const appId = id as OsAppId;
     const state = manager.getState();
     if (appId === "session") {
-      const sessionWindows = windowInstancesFor(state.windows, { app: "session" });
-      if (sessionWindows.length === 0) {
+      if (!launchCatalog.ready) return;
+      const latest = pickLastCreatedSession(launchCatalog.sessions);
+      if (latest === null) {
         onNewSession();
         return;
       }
-      const target = mruWindowInstance(state.windows, state.client?.focusOrder ?? [], {
-        app: "session",
+      const workspaceId = latest.workspace_id?.trim() || launchCatalog.workspaceId;
+      if (!workspaceId) return;
+      jumpToSession({
+        sessionId: latest.id,
+        agentName: latest.agent_name,
+        workspaceId,
       });
-      if (target !== null) void coordinator.userActivateWindow(target.id);
       return;
     }
     // Repeat activation cycles the app's instances (ADR-002); minimizing the

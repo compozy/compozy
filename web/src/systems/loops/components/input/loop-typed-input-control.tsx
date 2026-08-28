@@ -17,19 +17,14 @@ import {
 } from "@compozy/ui";
 
 import { AgentCommandSelect } from "@/systems/agent";
-import {
-  REASONING_EFFORT_ORDER,
-  RuntimeSelector,
-  type RuntimeSelectorValue,
-} from "@/systems/runtime";
 import { WorktreeRefSelect } from "@/systems/workspace";
 import { useLocalRowKeys } from "@/hooks/use-local-row-keys";
-import type { RuntimeSpeed } from "@/lib/api-contract";
 
 import type { LoopInputSchemaField } from "../../types";
 import type { LoopEntityKind } from "../../lib/loop-input-kinds";
 import { useLoopInputCatalogs } from "../../hooks/use-loop-input-catalogs";
 import type { LoopEntityCatalog } from "../../lib/loop-input-catalogs";
+import { LoopRuntimeValueControl } from "./loop-runtime-value-control";
 
 interface EntityValueControlProps {
   kind: LoopEntityKind;
@@ -294,73 +289,6 @@ export function LoopEntityListValueControl({
   );
 }
 
-function runtimeValue(value: unknown): RuntimeSelectorValue {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return { provider: "", model: "", reasoning_effort: "" };
-  }
-  const record = value as Record<string, unknown>;
-  const reasoning = typeof record.reasoning === "string" ? record.reasoning : "";
-  const knownReasoning = new Set<string>(REASONING_EFFORT_ORDER);
-  return {
-    provider: typeof record.provider === "string" ? record.provider : "",
-    model: typeof record.model === "string" ? record.model : "",
-    reasoning_effort: knownReasoning.has(reasoning)
-      ? (reasoning as RuntimeSelectorValue["reasoning_effort"])
-      : "",
-  };
-}
-
-function runtimeSpeed(value: unknown): RuntimeSpeed | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return undefined;
-  const speed = (value as Record<string, unknown>).speed;
-  return speed === "normal" || speed === "fast" ? speed : undefined;
-}
-
-function emittedRuntime(value: RuntimeSelectorValue, speed?: RuntimeSpeed): Record<string, string> {
-  const next: Record<string, string> = {};
-  if (value.provider) next.provider = value.provider;
-  if (value.model) next.model = value.model;
-  if (value.reasoning_effort) next.reasoning = value.reasoning_effort;
-  if (speed) next.speed = speed;
-  return next;
-}
-
-function RuntimeValueControl({
-  value,
-  controlId,
-  testId,
-  disabled,
-  invalid,
-  onChange,
-}: Omit<EntityValueControlProps, "kind" | "value" | "onChange"> & {
-  value: unknown;
-  onChange: (value: unknown) => void;
-}) {
-  const catalogs = useLoopInputCatalogs();
-  const current = runtimeValue(value);
-  const currentSpeed = runtimeSpeed(value);
-  return (
-    <RuntimeSelector
-      allowCustomProvider
-      ariaLabelledby={undefined}
-      catalogStatus={catalogs.runtimeError}
-      className={cn("w-full", invalid && "border-danger")}
-      disabled={disabled}
-      loading={catalogs.runtimeLoading}
-      models={catalogs.runtimeModels}
-      onChange={next => onChange(emittedRuntime(next, currentSpeed))}
-      onSpeedChange={speed => onChange(emittedRuntime(current, speed))}
-      onRefreshCatalog={catalogs.refreshRuntime}
-      providers={catalogs.runtimeProviders}
-      refreshing={catalogs.refreshingRuntime}
-      triggerId={controlId}
-      triggerTestId={testId}
-      value={current}
-      speed={currentSpeed ?? "normal"}
-    />
-  );
-}
-
 export interface LoopTypedInputControlProps {
   field: LoopInputSchemaField;
   value: unknown;
@@ -432,7 +360,7 @@ export function LoopTypedInputControl({
   }
   if (field.type === "runtime") {
     return (
-      <RuntimeValueControl
+      <LoopRuntimeValueControl
         controlId={controlId}
         describedBy={describedBy}
         disabled={disabled}

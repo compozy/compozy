@@ -14,12 +14,14 @@ type sessionInfoRow struct {
 	session                store.SessionInfo
 	name                   sql.NullString
 	worktreeID             sql.NullString
+	acpOptionsJSON         string
 	speedResolutionJSON    string
 	runtimeRecoveryJSON    string
 	selectedProvider       string
 	selectedModel          string
 	selectedReasoning      string
 	selectedSpeed          string
+	selectedACPOptionsJSON string
 	networkSpecJSON        string
 	networkMode            string
 	networkChannel         sql.NullString
@@ -86,16 +88,13 @@ func scanSessionInfo(scanner rowScanner) (store.SessionInfo, error) {
 	session.Model = strings.TrimSpace(row.session.Model)
 	session.ReasoningEffort = strings.TrimSpace(row.session.ReasoningEffort)
 	session.Speed = speedpkg.Speed(strings.TrimSpace(string(row.session.Speed)))
+	if err := applySessionACPOptionsScan(&session, &row); err != nil {
+		return store.SessionInfo{}, err
+	}
 	session.RuntimeStatus = row.session.RuntimeStatus
 	session.RuntimeTransition = row.session.RuntimeTransition
 	session.RuntimeFailure = strings.TrimSpace(row.session.RuntimeFailure)
 	session.RuntimeGeneration = row.session.RuntimeGeneration
-	session.SelectedRuntime = decodeSelectedRuntime(
-		row.selectedProvider,
-		row.selectedModel,
-		row.selectedReasoning,
-		row.selectedSpeed,
-	)
 	if err := applySessionRuntimeScan(&session, &row); err != nil {
 		return store.SessionInfo{}, err
 	}
@@ -168,11 +167,11 @@ func applySessionRuntimeScan(session *store.SessionInfo, row *sessionInfoRow) er
 	if err != nil {
 		return err
 	}
-	session.RuntimeRecovery = recovery
+	session.SetRuntimeRecovery(recovery)
 	if err := store.ValidateSessionRuntimeRecovery(
 		session.RuntimeStatus,
 		session.RuntimeGeneration,
-		session.RuntimeRecovery,
+		session.RuntimeRecoveryValue(),
 	); err != nil {
 		return err
 	}
@@ -286,6 +285,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.session.Model,
 		&row.session.ReasoningEffort,
 		&row.session.Speed,
+		&row.acpOptionsJSON,
 		&row.speedResolutionJSON,
 		&row.session.RuntimeStatus,
 		&row.session.RuntimeTransition,
@@ -296,6 +296,7 @@ func scanSessionInfoRow(scanner rowScanner) (sessionInfoRow, error) {
 		&row.selectedModel,
 		&row.selectedReasoning,
 		&row.selectedSpeed,
+		&row.selectedACPOptionsJSON,
 		&row.session.RuntimeSelectionRevision,
 		&row.session.WorkspaceID,
 		&row.worktreeID,

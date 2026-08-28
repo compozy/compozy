@@ -27,17 +27,21 @@ type DuplicateAgentRequest struct {
 
 // DuplicateAgentOverrides captures caller-editable fields applied to a clone.
 type DuplicateAgentOverrides struct {
-	Provider        string                   `json:"provider,omitempty"`
-	Command         string                   `json:"command,omitempty"`
-	Model           string                   `json:"model,omitempty"`
-	ReasoningEffort ReasoningEffort          `json:"reasoning_effort,omitempty"`
-	Tools           []string                 `json:"tools,omitempty"`
-	Toolsets        []string                 `json:"toolsets,omitempty"`
-	DenyTools       []string                 `json:"deny_tools,omitempty"`
-	Permissions     SettingsPermissionMode   `json:"permissions,omitempty"`
-	CategoryPath    []string                 `json:"category_path,omitempty"`
-	Skills          *CreateAgentSkillsConfig `json:"skills,omitempty"`
-	Prompt          string                   `json:"prompt,omitempty"`
+	Provider        string                    `json:"provider,omitempty"`
+	Command         string                    `json:"command,omitempty"`
+	Model           string                    `json:"model,omitempty"`
+	ReasoningEffort ReasoningEffort           `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
+	ClearSpeed      bool                      `json:"clear_speed,omitempty"`
+	ClearACPOptions bool                      `json:"clear_acp_options,omitempty"`
+	Tools           []string                  `json:"tools,omitempty"`
+	Toolsets        []string                  `json:"toolsets,omitempty"`
+	DenyTools       []string                  `json:"deny_tools,omitempty"`
+	Permissions     SettingsPermissionMode    `json:"permissions,omitempty"`
+	CategoryPath    []string                  `json:"category_path,omitempty"`
+	Skills          *CreateAgentSkillsConfig  `json:"skills,omitempty"`
+	Prompt          string                    `json:"prompt,omitempty"`
 }
 
 // DeleteAgentResponse reports the effective definition removed from disk.
@@ -63,6 +67,7 @@ type AgentEffectiveRuntimeSources struct {
 	Provider        AgentRuntimeValueSource `json:"provider"`
 	Model           AgentRuntimeValueSource `json:"model,omitempty"`
 	ReasoningEffort AgentRuntimeValueSource `json:"reasoning_effort,omitempty"`
+	Speed           AgentRuntimeValueSource `json:"speed,omitempty"`
 }
 
 // AgentEffectiveRuntimePayload is the workspace-scoped runtime projection for
@@ -71,6 +76,8 @@ type AgentEffectiveRuntimePayload struct {
 	Provider        string                       `json:"provider"`
 	Model           string                       `json:"model,omitempty"`
 	ReasoningEffort ReasoningEffort              `json:"reasoning_effort,omitempty"`
+	Speed           Speed                        `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection    `json:"acp_options,omitempty"`
 	Sources         AgentEffectiveRuntimeSources `json:"sources"`
 }
 
@@ -87,6 +94,8 @@ type AgentPayload struct {
 	Command          string                         `json:"command,omitempty"`
 	Model            string                         `json:"model,omitempty"`
 	ReasoningEffort  ReasoningEffort                `json:"reasoning_effort,omitempty"`
+	Speed            Speed                          `json:"speed,omitempty"`
+	ACPOptions       []AgentACPOptionSelection      `json:"acp_options,omitempty"`
 	Tools            []string                       `json:"tools,omitempty"`
 	Toolsets         []string                       `json:"toolsets,omitempty"`
 	DenyTools        []string                       `json:"deny_tools,omitempty"`

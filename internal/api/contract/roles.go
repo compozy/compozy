@@ -11,9 +11,11 @@ const (
 
 // RoleFallbackStatus is one configured fallback route in declaration order.
 type RoleFallbackStatus struct {
-	Provider        string `json:"provider"`
-	Model           string `json:"model"`
-	ReasoningEffort string `json:"reasoning_effort,omitempty"`
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model"`
+	ReasoningEffort string                    `json:"reasoning_effort,omitempty"`
+	Speed           Speed                     `json:"speed,omitempty"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options,omitempty"`
 }
 
 // RoleDiagnostic reports a current configuration-resolution problem without simulating an invocation.
@@ -25,17 +27,19 @@ type RoleDiagnostic struct {
 
 // RoleStatus is the effective configuration projection for one background role.
 type RoleStatus struct {
-	Role            string               `json:"role"`
-	Enabled         bool                 `json:"enabled"`
-	ResolutionMode  RoleResolutionMode   `json:"resolution_mode"`
-	Agent           *string              `json:"agent"`
-	Provider        *string              `json:"provider"`
-	Model           *string              `json:"model"`
-	ReasoningEffort *string              `json:"reasoning_effort"`
-	Timeout         *string              `json:"timeout,omitempty"`
-	FallbackChain   []RoleFallbackStatus `json:"fallback_chain"`
-	Provenance      map[string]string    `json:"provenance"`
-	Diagnostics     []RoleDiagnostic     `json:"diagnostics"`
+	Role            string                    `json:"role"`
+	Enabled         bool                      `json:"enabled"`
+	ResolutionMode  RoleResolutionMode        `json:"resolution_mode"`
+	Agent           *string                   `json:"agent"`
+	Provider        *string                   `json:"provider"`
+	Model           *string                   `json:"model"`
+	ReasoningEffort *string                   `json:"reasoning_effort"`
+	Speed           *Speed                    `json:"speed"`
+	ACPOptions      []AgentACPOptionSelection `json:"acp_options"`
+	Timeout         *string                   `json:"timeout,omitempty"`
+	FallbackChain   []RoleFallbackStatus      `json:"fallback_chain"`
+	Provenance      map[string]string         `json:"provenance"`
+	Diagnostics     []RoleDiagnostic          `json:"diagnostics"`
 }
 
 // RolesResponse wraps the closed role roster.

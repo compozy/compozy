@@ -191,7 +191,7 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("Should drain every missed timeline page and preserve live structured fields", func(t *testing.T) {
+	t.Run("Should drain missed pages and durable events committed after the terminal stream frame", func(t *testing.T) {
 		stdout, _, err := executeRootCommand(
 			t,
 			deps,
@@ -214,10 +214,10 @@ func TestLoopRunReadCommands(t *testing.T) {
 			t.Fatalf("loop events error = %v", err)
 		}
 		lines := strings.Split(strings.TrimSpace(stdout), "\n")
-		if len(lines) != 5 {
+		if len(lines) != 6 {
 			t.Fatalf("timeline lines = %d: %q", len(lines), stdout)
 		}
-		wantSequences := []int64{2, 3, 4, 6, 7}
+		wantSequences := []int64{2, 3, 4, 6, 7, 8}
 		for index, line := range lines {
 			var entry looppkg.TimelineEntry
 			if err := json.Unmarshal([]byte(line), &entry); err != nil {
@@ -242,13 +242,13 @@ func TestLoopRunReadCommands(t *testing.T) {
 			"events",
 			"run-a",
 			"--after",
-			"7",
+			"9",
 			"--workspace",
 			"alpha",
 			"-o",
 			"jsonl",
 		)
-		if exitCode != 1 || stderr != "error: position 7 is beyond this run's history (head: 6)\n" {
+		if exitCode != 1 || stderr != "error: position 9 is beyond this run's history (head: 8)\n" {
 			t.Fatalf("loop events exact error = %q", stderr)
 		}
 
@@ -553,18 +553,28 @@ func loopReadTimelineFixture(now time.Time) func(
 		_ string,
 		query LoopTimelineQuery,
 	) (contract.LoopTimelineResponse, error) {
-		if query.After > 6 {
+		if query.After > 8 {
 			return contract.LoopTimelineResponse{}, &daemonAPIError{
 				statusCode: http.StatusBadRequest,
 				status:     http.StatusText(http.StatusBadRequest),
 				payload: contract.ErrorPayload{
-					Error: fmt.Sprintf("position %d is beyond this run's history (head: 6)", query.After),
+					Error: fmt.Sprintf("position %d is beyond this run's history (head: 8)", query.After),
 					Code:  looppkg.ErrTimelinePositionBeyondHead.Error(),
 					Details: map[string]string{
-						"position": strconv.FormatInt(query.After, 10), "head_seq": "6",
+						"position": strconv.FormatInt(query.After, 10), "head_seq": "8",
 					},
 				},
 			}
+		}
+		if query.After == 7 {
+			return looppkg.TimelinePage{
+				RunID:   "run-a",
+				HeadSeq: 8,
+				Entries: []looppkg.TimelineEntry{{
+					Seq: 8, Kind: looppkg.RunEventGoalStatusChanged,
+					Title: "goal status: completed", At: now.Add(8 * time.Second),
+				}},
+			}, nil
 		}
 		if query.After == 1 {
 			if query.Limit != 2 {

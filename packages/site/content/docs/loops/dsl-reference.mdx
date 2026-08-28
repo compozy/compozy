@@ -47,7 +47,14 @@ inputs:
   worker_runtime:
     {
       type: runtime,
-      default: { provider: codex, model: gpt-5.5-codex, reasoning: high, speed: fast },
+      default:
+        {
+          provider: codex,
+          model: gpt-5.5-codex,
+          reasoning: high,
+          speed: fast,
+          acp_options: [{ id: thinking, bool_value: true }],
+        },
     }
   verify_command: { type: string, default: "" }
   auto_commit: { type: boolean, default: false }
@@ -55,15 +62,15 @@ inputs:
   release_token: { type: ref, ref: { kind: secret } }
 ```
 
-| Type      | Accepts                                     | Notes                                                             |
-| --------- | ------------------------------------------- | ----------------------------------------------------------------- |
-| `string`  | text                                        |                                                                   |
-| `number`  | int or float                                |                                                                   |
-| `boolean` | bool                                        |                                                                   |
-| `file`    | text                                        | The value is not browsed or checked for existence.                |
-| `agent`   | an exact agent name                         | The daemon checks the workspace agent catalog.                    |
-| `ref`     | an exact resource name                      | `ref.kind` selects the catalog used for validation.               |
-| `runtime` | `{ provider?, model?, reasoning?, speed? }` | A partial object that can be bound directly to an action runtime. |
+| Type      | Accepts                                                   | Notes                                                                                                                                          |
+| --------- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `string`  | text                                                      |                                                                                                                                                |
+| `number`  | int or float                                              |                                                                                                                                                |
+| `boolean` | bool                                                      |                                                                                                                                                |
+| `file`    | text                                                      | The value is not browsed or checked for existence.                                                                                             |
+| `agent`   | an exact agent name                                       | The daemon checks the workspace agent catalog.                                                                                                 |
+| `ref`     | an exact resource name                                    | `ref.kind` selects the catalog used for validation.                                                                                            |
+| `runtime` | `{ provider?, model?, reasoning?, speed?, acp_options? }` | A partial object that can be bound directly to an action runtime. Each ACP option requires `id` and exactly one of `value_id` or `bool_value`. |
 
 Per-input fields: `type` (required), `required` (default `false`), `description`, `default`, and
 `ref` (for `type: ref`). String-like inputs may also declare `enum`; those choices take precedence
@@ -99,11 +106,19 @@ contract:
   no_progress: { window: 3 }
   budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt } # 0 = off
   runtime_defaults:
-    worker: { provider: codex, model: gpt-5.4, reasoning: high, speed: fast }
+    worker:
+      {
+        provider: codex,
+        model: gpt-5.4,
+        reasoning: high,
+        speed: fast,
+        acp_options: [{ id: thinking, bool_value: true }],
+      }
     judge: { provider: claude, model: opus, speed: normal }
   runtime_rules:
     - match: { type: frontend, complexity: high }
-      runtime: { model: gpt-5.5-codex, speed: normal }
+      runtime:
+        { model: gpt-5.5-codex, speed: normal, acp_options: [{ id: context, value_id: large }] }
 ```
 
 `verification` uses the same [gate criteria](#the-gate-contract) shape as a `gate` node. `stop_when`
@@ -115,7 +130,8 @@ full on the [guardrails](/docs/loops/guardrails) page. `terminal_states` lists t
 Each `runtime_rules` entry matches one exact task `id`, one `type`, one `complexity`, or the
 conjunction `type + complexity`. The conjunction is AND, and `id` cannot be combined with another
 selector. Specificity is `id > type + complexity > type > complexity`. Matching rules merge runtime
-fields independently; a later equal-specificity rule wins only the non-empty fields it sets.
+fields and ACP option IDs independently; a later equal-specificity rule wins only the non-empty fields
+and option IDs it sets.
 
 A `command` check is authored shell code. Any runtime value inserted into `check` must end with
 `| shellQuote`, as in the example above. Publish and dry-run reject unquoted command substitutions so
@@ -177,8 +193,9 @@ Cross-generation references keep the same authored shape on every pass. On gener
 node outputs use zero values from their declared schemas and verdict lists are empty, so a valid
 history path can be rendered during initial and sparse repair generations. Use the generation
 number when history-dependent prose should be omitted.
-`params.runtime` accepts either a literal `{ provider, model, reasoning, speed }` object or one exact
-reference to a declared runtime input:
+`params.runtime` accepts either a literal `{ provider, model, reasoning, speed, acp_options }` object
+or one exact reference to a declared runtime input. Each `acp_options` entry requires `id` and exactly
+one of `value_id` or `bool_value`:
 
 ```yaml
 params:
@@ -189,9 +206,9 @@ Field interpolation inside a runtime object is invalid. Worker fields resolve in
 order, from highest to lowest precedence: per-run rule, imported task frontmatter, referenced
 runtime input, configured rule, literal `params.runtime`, `runtime_defaults.worker`, then empty
 fields from the agent definition. `resolved_runtime.source` reports a referenced value as `input`.
-Rule specificity is `id > type + complexity > type > complexity`; matching rules merge fields
-independently, and a later equal-specificity rule wins only the non-empty fields it sets. A child
-`run-loop` resolves its own rules and never inherits the parent's per-run rules.
+Rule specificity is `id > type + complexity > type > complexity`; matching rules merge scalar fields
+and ACP option IDs independently, and a later equal-specificity rule wins only the values it sets. A
+child `run-loop` resolves its own rules and never inherits the parent's per-run rules.
 `run-agent` sessions use the target agent definition plus workspace defaults for sandbox and
 permission policy. `allowed_tools` is a narrowing override only: every listed value must be a
 canonical tool ID already allowed by the resolved agent profile. A widening or unknown tool

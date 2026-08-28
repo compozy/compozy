@@ -48,6 +48,27 @@ symbol, and separate blocking defects from suggestions.
 The body after the second `---` is trimmed and stored as the agent prompt. An empty body is a
 validation error.
 
+Add provider-supported runtime defaults with typed ACP options:
+
+```yaml
+---
+name: cursor-reviewer
+provider: cursor
+model: grok-4.6
+reasoning_effort: high
+speed: fast
+acp_options:
+  - id: thinking
+    bool_value: true
+permissions: approve-reads
+---
+Review the current changes and report correctness risks.
+```
+
+Each `acp_options` entry sets exactly one of `value_id` for a select option or `bool_value` for a
+boolean option. The selected model's live catalog descriptor is authoritative; unsupported IDs,
+values, or combinations fail before the first prompt.
+
 ## Discovery paths
 
 CompozyOS resolves agents from the workspace snapshot attached to the session.
@@ -77,9 +98,9 @@ into the same catalog used by agent reads.
 Agent list and detail responses identify the effective definition with `origin` (`global` or
 `workspace`) and `workspace_id` when the winner is workspace-local. They also return the resolved
 `skills` policy, a canonical `definition_digest`, and a workspace-scoped `effective_runtime`
-projection. That projection reports the provider, model, reasoning effort, and the source of each
-value (`agent`, `project_default`, `provider_default`, or `model_default`) without rewriting the
-authored fields. Use those fields instead of inferring the winner or runtime from a filesystem path.
+projection. That projection reports provider, model, reasoning effort, speed, ACP options, and source
+metadata without rewriting the authored fields. Use it instead of inferring the winner or runtime
+from a filesystem path.
 
 A workspace definition shadows a global definition with the same name. Updates, duplicates, and
 deletes target the effective winner. Deleting the workspace winner can therefore reveal the global
@@ -164,6 +185,8 @@ Session creation first resolves the agent name, then resolves the provider and r
 | Command          | `agent.command` -> provider `command`                                                                   | `provider "<name>" command is required`                                                         |
 | Model            | `agent.model` -> provider `models.default`                                                              | Empty is allowed when the provider has no default.                                              |
 | Reasoning effort | session override -> `agent.reasoning_effort` -> curated model default -> empty provider/adapter default | Must be canonical and advertised by the active model before the first prompt.                   |
+| Speed            | prompt override -> durable session selection -> `agent.speed` -> `normal`                               | `fast` must be valid for the selected model and provider strategy.                              |
+| ACP options      | prompt override -> durable session selection -> `agent.acp_options`                                     | Each select or boolean value must be advertised for the selected model.                         |
 | Tools            | `agent.tools`                                                                                           | Must be exact canonical ToolIDs or namespace-prefix wildcards.                                  |
 | Toolsets         | `agent.toolsets`                                                                                        | Must be canonical ToolsetIDs.                                                                   |
 | Deny tools       | `agent.deny_tools`                                                                                      | Same grammar as `tools`; denies narrow later policy evaluation.                                 |
@@ -204,6 +227,8 @@ These are the frontmatter fields accepted by the current `internal/config` parse
 | `command`          | string                      | no       | provider `command`                                   | Overrides the provider launch command for this agent. Parsed with shell-style quoting, but launched without a shell.                                                                                                                                                                                                    |
 | `model`            | string                      | no       | provider `models.default`                            | Exact model preference. After ACP session creation/load, CompozyOS applies it through the advertised model option and never aliases or falls back from an unknown ID.                                                                                                                                                   |
 | `reasoning_effort` | string                      | no       | curated model default, then provider/adapter default | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`; session creation overrides the agent value.                                                                                                                                                                                                              |
+| `speed`            | string                      | no       | `normal`                                             | `normal` or `fast`. A session or prompt override wins; `fast` must be present in the selected model's valid configurations.                                                                                                                                                                                             |
+| `acp_options`      | object array                | no       | empty                                                | Typed ACP option defaults. Every entry requires `id` and exactly one of `value_id` or `bool_value`; live descriptors validate the final selection.                                                                                                                                                                      |
 | `tools`            | string array                | no       | empty                                                | Optional agent-local allowlist of exact canonical ToolIDs such as `compozy__skill_view`, or namespace-prefix wildcards such as `compozy__skill_*` and `mcp__github__*`. Empty leaves the hosted projection uncapped by the agent definition.                                                                            |
 | `toolsets`         | string array                | no       | empty                                                | Optional agent-local allowlist of canonical ToolsetIDs such as `compozy__tasks` or `linear__read`. Empty leaves the hosted projection uncapped by the agent definition.                                                                                                                                                 |
 | `deny_tools`       | string array                | no       | empty                                                | Same grammar as `tools`. Denies can overlap allows and are interpreted as a narrowing layer by registry policy.                                                                                                                                                                                                         |
@@ -218,9 +243,12 @@ both formats, unknown fields fail validation.
 `category_path` has one canonical shape: an array of path segments. CompozyOS rejects `categories` and
 slash-string values such as `"Marketing/Sales"`.
 
-ACP session creation/load happens first. CompozyOS then applies the resolved model through the advertised
-model option, replaces its option snapshot with the response, and applies the resolved reasoning
-effort before the first prompt. Empty effort sends no RPC; explicit `none` does when advertised.
+For standard ACP providers, session creation/load happens first. CompozyOS applies model, replaces the
+option snapshot with the response, applies Reasoning and Fast, then applies remaining options in stable
+ID order while refreshing and revalidating after every response. Cursor compiles that same logical
+selection into a private launch alias and replaces the process when a launch-bound value changes.
+OpenClaw is provider-managed and rejects these runtime controls. Empty effort sends no RPC; explicit
+`none` does when advertised.
 
 ## MCP servers
 

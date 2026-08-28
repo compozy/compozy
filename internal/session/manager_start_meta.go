@@ -19,6 +19,7 @@ func sessionStartSpecFromMeta(
 		return sessionStartSpec{}, err
 	}
 	selectedRuntime, selectionRevision := store.SessionRuntimeSelectionStateValues(meta.RuntimeSelection)
+	acpOptions := ACPOptionSelectionsFromStore(meta.ACPOptionsValue())
 	spec := sessionStartSpec{
 		sessionID:                meta.ID,
 		profileID:                strings.TrimSpace(meta.ProfileID),
@@ -31,6 +32,7 @@ func sessionStartSpecFromMeta(
 		model:                    strings.TrimSpace(meta.Model),
 		reasoningEffort:          strings.TrimSpace(meta.ReasoningEffort),
 		speed:                    requestedSpeed,
+		acpOptions:               acpOptions,
 		selectedRuntime:          runtimeSelectionFromSessionStore(selectedRuntime),
 		runtimeSelectionRevision: selectionRevision,
 		permissions:              compozyconfig.PermissionMode(strings.TrimSpace(meta.EffectivePermissionsValue())),

@@ -38,6 +38,8 @@ CREATE TABLE session_health (
 		runtime_model TEXT NOT NULL DEFAULT '',
 		runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
 		runtime_speed TEXT NOT NULL DEFAULT '',
+		runtime_acp_options_json TEXT NOT NULL DEFAULT '[]'
+			CHECK (json_valid(runtime_acp_options_json)),
 		turn_id TEXT NOT NULL CHECK (length(trim(turn_id)) > 0),
 		event_id TEXT NOT NULL CHECK (length(trim(event_id)) > 0),
 		result_json TEXT CHECK (result_json IS NULL OR json_valid(result_json)),
@@ -71,6 +73,8 @@ CREATE TABLE session_health (
 			runtime_model TEXT NOT NULL DEFAULT '',
 			runtime_reasoning_effort TEXT NOT NULL DEFAULT '',
 			runtime_speed TEXT NOT NULL DEFAULT '',
+			runtime_acp_options_json TEXT NOT NULL DEFAULT '[]'
+			CHECK (json_valid(runtime_acp_options_json)),
 			session_generation INTEGER NOT NULL DEFAULT 0,
 			task_run_id TEXT NOT NULL DEFAULT '',
 			run_generation INTEGER,
@@ -95,6 +99,8 @@ CREATE TABLE sessions (
 		model          TEXT NOT NULL DEFAULT '',
 		reasoning_effort TEXT NOT NULL DEFAULT '',
 		speed          TEXT NOT NULL DEFAULT '',
+		acp_options_json TEXT NOT NULL DEFAULT '[]'
+			CHECK (json_valid(acp_options_json)),
 		speed_resolution_json TEXT NOT NULL DEFAULT '',
 		runtime_status TEXT NOT NULL DEFAULT 'unbound',
 		runtime_transition TEXT NOT NULL DEFAULT '',
@@ -106,6 +112,8 @@ CREATE TABLE sessions (
 		selected_model TEXT NOT NULL DEFAULT '',
 		selected_reasoning_effort TEXT NOT NULL DEFAULT '',
 		selected_speed TEXT NOT NULL DEFAULT '',
+		selected_acp_options_json TEXT NOT NULL DEFAULT '[]'
+			CHECK (json_valid(selected_acp_options_json)),
 		runtime_selection_revision INTEGER NOT NULL DEFAULT 0,
 		workspace_id   TEXT NOT NULL,
 		scope          TEXT NOT NULL DEFAULT 'workspace' CHECK (scope IN ('global', 'workspace')),

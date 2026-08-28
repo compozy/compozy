@@ -15,7 +15,7 @@ INSERT INTO session_prompt_admissions (
   id, workspace_id, session_id, message_id, idempotency_key, operation,
   fingerprint_version, request_fingerprint, state, mode, authored_text,
 	 skill_invocations_json, attachments_json,
-  runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed,
+  runtime_provider, runtime_model, runtime_reasoning_effort, runtime_speed, runtime_acp_options_json,
   turn_id, event_id, created_at, updated_at
 ) VALUES (
   sqlc.arg(id), sqlc.arg(workspace_id), sqlc.arg(session_id), sqlc.arg(message_id),
@@ -23,7 +23,7 @@ INSERT INTO session_prompt_admissions (
   sqlc.arg(request_fingerprint), sqlc.arg(state), sqlc.arg(mode), sqlc.arg(authored_text),
 	 sqlc.arg(skill_invocations_json), sqlc.arg(attachments_json),
   sqlc.arg(runtime_provider), sqlc.arg(runtime_model), sqlc.arg(runtime_reasoning_effort),
-  sqlc.arg(runtime_speed), sqlc.arg(turn_id), sqlc.arg(event_id),
+  sqlc.arg(runtime_speed), sqlc.arg(runtime_acp_options_json), sqlc.arg(turn_id), sqlc.arg(event_id),
   sqlc.arg(created_at), sqlc.arg(updated_at)
 );
 
@@ -31,7 +31,7 @@ INSERT INTO session_prompt_admissions (
 UPDATE session_prompt_admissions
 SET state = sqlc.arg(dispatch_committed_state),
     authored_text = '', runtime_provider = '', runtime_model = '',
-    runtime_reasoning_effort = '', runtime_speed = '',
+    runtime_reasoning_effort = '', runtime_speed = '', runtime_acp_options_json = '[]',
     dispatch_committed_at = sqlc.arg(dispatch_committed_at), updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND session_id = sqlc.arg(session_id)
@@ -42,7 +42,7 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 UPDATE session_prompt_admissions
 SET state = sqlc.arg(completed_state), result_json = sqlc.arg(result_json),
     authored_text = '', runtime_provider = '', runtime_model = '',
-    runtime_reasoning_effort = '', runtime_speed = '',
+    runtime_reasoning_effort = '', runtime_speed = '', runtime_acp_options_json = '[]',
     completed_at = sqlc.arg(completed_at), updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND session_id = sqlc.arg(session_id)
@@ -53,7 +53,7 @@ WHERE workspace_id = sqlc.arg(workspace_id)
 UPDATE session_prompt_admissions
 SET state = sqlc.arg(indeterminate_state), indeterminate_reason = sqlc.arg(indeterminate_reason),
     authored_text = '', runtime_provider = '', runtime_model = '',
-    runtime_reasoning_effort = '', runtime_speed = '', updated_at = sqlc.arg(updated_at)
+    runtime_reasoning_effort = '', runtime_speed = '', runtime_acp_options_json = '[]', updated_at = sqlc.arg(updated_at)
 WHERE workspace_id = sqlc.arg(workspace_id)
   AND session_id = sqlc.arg(session_id)
   AND idempotency_key = sqlc.arg(idempotency_key)

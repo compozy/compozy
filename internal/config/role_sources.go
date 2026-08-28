@@ -16,6 +16,8 @@ const (
 	RoleFieldProvider               = "provider"
 	RoleFieldModel                  = "model"
 	RoleFieldReasoning              = "reasoning_effort"
+	RoleFieldSpeed                  = "speed"
+	RoleFieldACPOptions             = "acp_options"
 	RoleFieldFallbacks              = "fallback_chain"
 )
 
@@ -52,6 +54,8 @@ func defaultRoleFieldSources() RoleFieldSources {
 			RoleFieldProvider,
 			RoleFieldModel,
 			RoleFieldReasoning,
+			RoleFieldSpeed,
+			RoleFieldACPOptions,
 			RoleFieldFallbacks,
 		}
 		if role != RoleMemoryController {
@@ -101,6 +105,8 @@ func recordRoleOverlaySources(sources RoleFieldSources, role RoleName, overlay r
 	recordSource(sources, role, RoleFieldProvider, source, overlay.Provider != nil)
 	recordSource(sources, role, RoleFieldModel, source, overlay.Model != nil)
 	recordSource(sources, role, RoleFieldReasoning, source, overlay.ReasoningEffort != nil)
+	recordSource(sources, role, RoleFieldSpeed, source, overlay.Speed != nil)
+	recordSource(sources, role, RoleFieldACPOptions, source, overlay.ACPOptions != nil)
 	recordSource(sources, role, RoleFieldFallbacks, source, overlay.FallbackChain != nil)
 }
 
@@ -113,6 +119,8 @@ func recordMemoryControllerSources(
 	recordSource(sources, RoleMemoryController, RoleFieldProvider, source, overlay.Provider != nil)
 	recordSource(sources, RoleMemoryController, RoleFieldModel, source, overlay.Model != nil)
 	recordSource(sources, RoleMemoryController, RoleFieldReasoning, source, overlay.ReasoningEffort != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldSpeed, source, overlay.Speed != nil)
+	recordSource(sources, RoleMemoryController, RoleFieldACPOptions, source, overlay.ACPOptions != nil)
 	recordSource(sources, RoleMemoryController, "timeout", source, overlay.Timeout != nil)
 	recordSource(sources, RoleMemoryController, "top_k", source, overlay.TopK != nil)
 	recordSource(sources, RoleMemoryController, "prompt_version", source, overlay.PromptVersion != nil)

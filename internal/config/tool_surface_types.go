@@ -15,6 +15,7 @@ const (
 	ConfigValueTable
 	ConfigValueScalar
 	ConfigValueLoopInput
+	ConfigValueACPOptions
 )
 
 // PathDenial is the config package's path-policy decision.

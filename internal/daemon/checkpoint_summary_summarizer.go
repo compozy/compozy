@@ -77,6 +77,8 @@ func (s *daemonCheckpointSummarizer) Summarize(
 			Provider:            route.Provider,
 			Model:               route.Model,
 			ReasoningEffort:     route.ReasoningEffort,
+			Speed:               route.Speed,
+			ACPOptions:          session.ACPOptionSelectionsFromConfig(route.ACPOptions),
 			Name:                checkpointSummarySessionName,
 			Workspace:           strings.TrimSpace(request.WorkspaceRoot),
 			Type:                session.SessionTypeDream,

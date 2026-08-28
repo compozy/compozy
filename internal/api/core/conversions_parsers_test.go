@@ -51,6 +51,14 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				Model:           "claude-fable-5",
 				ReasoningEffort: "max",
 				Speed:           speedpkg.SpeedFast,
+				ACPOptions: []acp.SessionConfigOptionSelection{
+					{ID: "context", ValueID: "1m"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
+			},
+			ACPOptions: []acp.SessionConfigOptionSelection{
+				{ID: "context", ValueID: "1m"},
+				{ID: "thinking", BoolValue: new(true)},
 			},
 			RuntimeSelectionRevision: 7,
 			SpeedResolution: &speedpkg.Resolution{
@@ -119,14 +127,22 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 				SupportedModes:        []string{"chat"},
 				ConfigOptions: []acp.SessionConfigOption{
 					{
-						ID:      "reasoning_effort",
-						Label:   "Reasoning effort",
-						Kind:    acp.SessionConfigOptionKindSelect,
-						Current: "high",
+						ID:             "reasoning_effort",
+						Label:          "Reasoning effort",
+						Category:       "thought_level",
+						Kind:           acp.SessionConfigOptionKindSelect,
+						CurrentValueID: "high",
 						Values: []acp.SessionConfigOptionValue{
-							{Value: "low", Label: "Low"},
-							{Value: "high", Label: "High"},
+							{Value: "low", Label: "Low", GroupID: "standard", GroupLabel: "Standard"},
+							{Value: "high", Label: "High", GroupID: "frontier", GroupLabel: "Frontier"},
 						},
+					},
+					{
+						ID:          "thinking",
+						Label:       "Thinking",
+						Category:    "model_config",
+						Kind:        acp.SessionConfigOptionKindBoolean,
+						CurrentBool: new(true),
 					},
 				},
 			},
@@ -164,12 +180,26 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
 			payload.Runtime.Selected.Model != "claude-fable-5" ||
 			payload.Runtime.Selected.ReasoningEffort != "max" ||
-			payload.Runtime.Selected.Speed != contract.SpeedFast || payload.Runtime.SelectionRevision != 7 {
+			payload.Runtime.Selected.Speed != contract.SpeedFast ||
+			len(payload.Runtime.Selected.ACPOptions) != 2 ||
+			payload.Runtime.Selected.ACPOptions[0].ID != "context" ||
+			payload.Runtime.Selected.ACPOptions[0].ValueID != "1m" ||
+			payload.Runtime.Selected.ACPOptions[1].ID != "thinking" ||
+			payload.Runtime.Selected.ACPOptions[1].BoolValue == nil ||
+			!*payload.Runtime.Selected.ACPOptions[1].BoolValue || payload.Runtime.SelectionRevision != 7 {
 			t.Fatalf(
 				"payload selected runtime = %#v revision %d, want Claude selection at revision 7",
 				payload.Runtime.Selected,
 				payload.Runtime.SelectionRevision,
 			)
+		}
+		if payload.Runtime.Effective == nil || len(payload.Runtime.Effective.ACPOptions) != 2 ||
+			payload.Runtime.Effective.ACPOptions[0].ID != "context" ||
+			payload.Runtime.Effective.ACPOptions[0].ValueID != "1m" ||
+			payload.Runtime.Effective.ACPOptions[1].ID != "thinking" ||
+			payload.Runtime.Effective.ACPOptions[1].BoolValue == nil ||
+			!*payload.Runtime.Effective.ACPOptions[1].BoolValue {
+			t.Fatalf("payload effective runtime ACP options = %#v", payload.Runtime.Effective)
 		}
 		if payload.State != session.StateActive || payload.Runtime.ACPSessionID != "acp-123" {
 			t.Fatalf("payload session fields = %#v", payload)
@@ -214,15 +244,24 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		if got := payload.Runtime.ACPCaps.SupportedModes; len(got) != 1 || got[0] != "chat" {
 			t.Fatalf("supported modes = %#v, want [chat]", got)
 		}
-		if len(payload.Runtime.ACPCaps.ConfigOptions) != 1 {
+		if len(payload.Runtime.ACPCaps.ConfigOptions) != 2 {
 			t.Fatalf("config options = %#v", payload.Runtime.ACPCaps.ConfigOptions)
 		}
-		if got := payload.Runtime.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" || got.Current != "high" ||
+		if got := payload.Runtime.ACPCaps.ConfigOptions[0]; got.ID != "reasoning_effort" ||
+			got.CurrentValueID != "high" || got.CurrentBool != nil || got.Category != "thought_level" ||
 			got.Kind != "select" || len(got.Values) != 2 {
 			t.Fatalf("config option payload = %#v", got)
 		}
 		if got := payload.Runtime.ACPCaps.ConfigOptions[0].Values; got[0].Value != "low" || got[1].Value != "high" {
 			t.Fatalf("config option values = %#v, want [low high]", got)
+		}
+		if got := payload.Runtime.ACPCaps.ConfigOptions[0].Values[1]; got.GroupID != "frontier" ||
+			got.GroupLabel != "Frontier" {
+			t.Fatalf("grouped config option value = %#v", got)
+		}
+		if got := payload.Runtime.ACPCaps.ConfigOptions[1]; got.ID != "thinking" ||
+			got.CurrentBool == nil || !*got.CurrentBool || got.CurrentValueID != "" {
+			t.Fatalf("boolean config option payload = %#v", got)
 		}
 		if payload.Sandbox == nil || payload.Sandbox.SandboxID != "env-1" ||
 			payload.Sandbox.Backend != "local" ||
@@ -308,19 +347,34 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 		t.Parallel()
 
 		info := store.SessionInfo{
-			ID:                "sess-catalog",
-			AgentName:         "coder",
-			Provider:          "codex",
-			Model:             "gpt-5.4",
-			ReasoningEffort:   "high",
-			Speed:             speedpkg.SpeedFast,
-			RuntimeStatus:     store.SessionRuntimeReady,
-			RuntimeTransition: store.SessionRuntimeTransitionLiveConfiguration,
-			WorkspaceID:       "ws-catalog",
-			SessionType:       string(session.SessionTypeUser),
-			State:             string(session.StateActive),
-			CreatedAt:         time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
-			UpdatedAt:         time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
+			ID:              "sess-catalog",
+			AgentName:       "coder",
+			Provider:        "codex",
+			Model:           "gpt-5.4",
+			ReasoningEffort: "high",
+			Speed:           speedpkg.SpeedFast,
+			SessionRuntimeDetails: &store.SessionRuntimeDetails{
+				ACPOptions: []store.SessionACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
+			},
+			SelectedRuntime: &store.SessionRuntimeSelection{
+				Provider: "claude",
+				Model:    "claude-opus-5",
+				ACPOptions: []store.SessionACPOptionSelection{
+					{ID: "context", ValueID: "1m"},
+					{ID: "thinking", BoolValue: new(true)},
+				},
+			},
+			RuntimeSelectionRevision: 2,
+			RuntimeStatus:            store.SessionRuntimeReady,
+			RuntimeTransition:        store.SessionRuntimeTransitionLiveConfiguration,
+			WorkspaceID:              "ws-catalog",
+			SessionType:              string(session.SessionTypeUser),
+			State:                    string(session.StateActive),
+			CreatedAt:                time.Date(2026, 4, 3, 12, 0, 0, 0, time.UTC),
+			UpdatedAt:                time.Date(2026, 4, 3, 12, 1, 0, 0, time.UTC),
 		}
 		payload := core.SessionPayloadFromStoreInfo(&info)
 		if payload.Runtime.Status != session.RuntimeStatusReady ||
@@ -328,8 +382,28 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Runtime.Effective == nil || payload.Runtime.Effective.Provider != "codex" ||
 			payload.Runtime.Effective.Model != "gpt-5.4" ||
 			payload.Runtime.Effective.ReasoningEffort != "high" ||
-			payload.Runtime.Effective.Speed != contract.SpeedFast {
+			payload.Runtime.Effective.Speed != contract.SpeedFast ||
+			len(payload.Runtime.Effective.ACPOptions) != 2 ||
+			payload.Runtime.Effective.ACPOptions[0].ID != "context" ||
+			payload.Runtime.Effective.ACPOptions[0].ValueID != "1m" ||
+			payload.Runtime.Effective.ACPOptions[1].ID != "thinking" ||
+			payload.Runtime.Effective.ACPOptions[1].BoolValue == nil ||
+			!*payload.Runtime.Effective.ACPOptions[1].BoolValue {
 			t.Fatalf("catalog runtime = %#v", payload.Runtime)
+		}
+		if payload.Runtime.Selected == nil || payload.Runtime.Selected.Provider != "claude" ||
+			payload.Runtime.Selected.Model != "claude-opus-5" ||
+			len(payload.Runtime.Selected.ACPOptions) != 2 ||
+			payload.Runtime.Selected.ACPOptions[0].ID != "context" ||
+			payload.Runtime.Selected.ACPOptions[0].ValueID != "1m" ||
+			payload.Runtime.Selected.ACPOptions[1].ID != "thinking" ||
+			payload.Runtime.Selected.ACPOptions[1].BoolValue == nil ||
+			!*payload.Runtime.Selected.ACPOptions[1].BoolValue || payload.Runtime.SelectionRevision != 2 {
+			t.Fatalf(
+				"catalog selected runtime = %#v revision %d",
+				payload.Runtime.Selected,
+				payload.Runtime.SelectionRevision,
+			)
 		}
 		if payload.Runtime.ACPCaps != nil {
 			t.Fatalf("catalog runtime caps = %#v, want nil without a live ACP process", payload.Runtime.ACPCaps)

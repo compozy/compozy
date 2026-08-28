@@ -101,6 +101,17 @@ const agentListInputSchema = `{
 	"additionalProperties":false
 }`
 
+const acpOptionSelectionInputSchema = `{
+	"oneOf":[
+		{"type":"object","required":["id","value_id"],"properties":{
+			"id":{"type":"string","minLength":1},"value_id":{"type":"string","minLength":1}
+		},"additionalProperties":false},
+		{"type":"object","required":["id","bool_value"],"properties":{
+			"id":{"type":"string","minLength":1},"bool_value":{"type":"boolean"}
+		},"additionalProperties":false}
+	]
+}`
+
 var agentCreateInputSchema = `{
 	"type":"object",
 	"required":["scope","name","prompt"],
@@ -111,6 +122,8 @@ var agentCreateInputSchema = `{
 		"provider":{"type":"string"},
 		"model":{"type":"string"},
 		"reasoning_effort":{"type":"string","enum":["none","minimal","low","medium","high","xhigh","max"]},
+		"speed":{"type":"string","enum":["normal","fast"]},
+		"acp_options":{"type":"array","items":` + acpOptionSelectionInputSchema + `},
 		"command":{"type":"string"},
 		"prompt":{"type":"string"},
 		"permissions":{"type":"string","enum":["deny-all","approve-reads","approve-all"]},

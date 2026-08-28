@@ -22,9 +22,9 @@ import {
 
 // Invariant: creation submits only durable session identity and launch context, derives Global
 // from the hidden home registration without a worktree choice, materializes a project environment
-// before binding to it, queues the typed first message against the created session, and hands off
-// to the canonical session route. Every exit from a pending environment — Cancel, dismiss, or
-// failure — rolls the worktree back and keeps what the operator typed.
+// before binding to it, and hands off to the canonical session route without inventing a prompt.
+// A prompt already sent from the composer is staged separately while its agent fallback waits.
+// Every exit from a pending environment rolls the worktree back without losing that staged prompt.
 // Owning layer: session-create view model. Canonical suite: this hook test.
 const {
   mockCancel,
@@ -152,17 +152,25 @@ function createWrapper() {
   return { wrapper };
 }
 
+interface TestSessionCreateDialogApi extends SessionCreateDialogApi {
+  openDialog: (agentName: string) => void;
+  pendingPrompt: string | null;
+  stageFallbackPrompt: (prompt: string) => void;
+}
+
 function useSessionCreateDialog(context: {
   agents: AgentPayload[] | undefined;
   activeWorkspace: WorkspacePayload | undefined;
   scope?: "workspace" | "global";
   projectWorkspaceId?: string | null;
   homeWorkspaceId?: string;
-}): SessionCreateDialogApi & { openDialog: (agentName: string) => void } {
+}): TestSessionCreateDialogApi {
   const controller = useSessionCreateDialogController();
   const dialog = useSessionCreateDialogViewModel(context, controller.store);
+  const pendingPrompt = useSelector(controller.store, snapshot => snapshot.context.pendingPrompt);
   return {
     ...dialog,
+    pendingPrompt,
     openDialog: agentName => {
       if (!context.activeWorkspace) return;
       controller.store.trigger.dialogOpened({
@@ -170,6 +178,7 @@ function useSessionCreateDialog(context: {
         workspaceId: context.activeWorkspace.id,
       });
     },
+    stageFallbackPrompt: prompt => controller.store.trigger.fallbackPromptStaged({ prompt }),
   };
 }
 
@@ -275,6 +284,7 @@ describe("useSessionCreateDialog", () => {
     );
     expect(mockSetActiveWorkspaceId).not.toHaveBeenCalled();
     expect(result.current.restoreFocusOnClose).toBe(false);
+    expect(sessionStore.getSnapshot().context.firstPrompts[createdSession.id]).toBeUndefined();
   });
 
   it("Should restore focus after dismissal but not after handing off to the created session", async () => {
@@ -375,14 +385,14 @@ describe("useSessionCreateDialog", () => {
     expect(result.current.submitError).toBe("Select an agent before starting the session.");
   });
 
-  it("Should queue the typed first message against the session it created", async () => {
+  it("Should queue only a prompt staged by the composer fallback", async () => {
     const { wrapper } = createWrapper();
     const { result } = renderHook(() => useSessionCreateDialog({ agents, activeWorkspace }), {
       wrapper,
     });
 
     act(() => result.current.openDialog("codex-agent"));
-    act(() => result.current.onFirstMessageChange("Investigate the regression"));
+    act(() => result.current.stageFallbackPrompt("Investigate the regression"));
     await act(async () => result.current.submit());
 
     await waitFor(() => expect(mockMutateAsync).toHaveBeenCalledTimes(1));
@@ -407,8 +417,8 @@ describe("useSessionCreateDialog", () => {
       });
 
       act(() => rendered.result.current.openDialog("codex-agent"));
-      act(() => rendered.result.current.onFirstMessageChange("Investigate the regression"));
-      // Through the field's own handler — the seam the dialog actually renders,
+      act(() => rendered.result.current.stageFallbackPrompt("Investigate the regression"));
+      // Through the environment field's handler — the seam the dialog actually renders,
       // so a regression that materializes on selection is visible here.
       act(() =>
         rendered.result.current.environment?.onChange({
@@ -446,7 +456,7 @@ describe("useSessionCreateDialog", () => {
       );
     });
 
-    it("Should cancel the worktree on Cancel and keep the dialog and the typed message", async () => {
+    it("Should cancel the worktree on Cancel and keep the dialog and staged prompt", async () => {
       const { result, rerender } = armSubmit();
       act(() => result.current.submit());
       await act(async () => rerender());
@@ -455,7 +465,7 @@ describe("useSessionCreateDialog", () => {
 
       expect(mockCancel).toHaveBeenCalledTimes(1);
       expect(result.current.open).toBe(true);
-      expect(result.current.firstMessage).toBe("Investigate the regression");
+      expect(result.current.pendingPrompt).toBe("Investigate the regression");
       expect(result.current.environment?.value).toEqual({ kind: "root" });
       expect(result.current.isAwaitingEnvironment).toBe(false);
       expect(mockMutateAsync).not.toHaveBeenCalled();
@@ -515,7 +525,7 @@ describe("useSessionCreateDialog", () => {
 
       expect(result.current.isAwaitingEnvironment).toBe(false);
       expect(mockMutateAsync).not.toHaveBeenCalled();
-      expect(result.current.firstMessage).toBe("Investigate the regression");
+      expect(result.current.pendingPrompt).toBe("Investigate the regression");
       // Retry, pick another environment, and fall back to the root are all still
       // on the table — the field renders them from this same model.
       expect(result.current.environment?.materialization.status).toBe("failed");

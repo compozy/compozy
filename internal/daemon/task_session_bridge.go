@@ -355,4 +355,10 @@ func applyTaskSessionWorkerProfile(opts *session.CreateOpts, profile *taskpkg.Ex
 	opts.AgentName = strings.TrimSpace(worker.AgentName)
 	opts.Provider = strings.TrimSpace(worker.Provider)
 	opts.Model = strings.TrimSpace(worker.Model)
+	applyTaskRuntimeOptions(
+		opts,
+		worker.ReasoningEffort,
+		worker.Speed,
+		worker.ACPOptions,
+	)
 }

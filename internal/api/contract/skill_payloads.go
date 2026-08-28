@@ -2,17 +2,6 @@ package contract
 
 import "time"
 
-// SessionProviderOptionPayload is one workspace-visible session provider option.
-type SessionProviderOptionPayload struct {
-	Name            string `json:"name"`
-	DisplayName     string `json:"display_name,omitempty"`
-	Harness         string `json:"harness,omitempty"`
-	RuntimeProvider string `json:"runtime_provider,omitempty"`
-	AuthMode        string `json:"auth_mode,omitempty"`
-	EnvPolicy       string `json:"env_policy,omitempty"`
-	HomePolicy      string `json:"home_policy,omitempty"`
-}
-
 type SkillShadowEntryPayload struct {
 	Path             string    `json:"path"`
 	Tier             string    `json:"tier"`

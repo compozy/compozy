@@ -120,3 +120,21 @@ func cloneResourceMutationActor(actor resources.MutationActor) resources.Mutatio
 		GrantedScopes: append([]resources.ResourceScopeKind(nil), actor.GrantedScopes...),
 	}
 }
+
+func withHostAPIInstanceKey(ctx context.Context, key InstanceKey) context.Context {
+	if ctx == nil {
+		return nil
+	}
+	return context.WithValue(ctx, hostAPIInstanceKeyContextKey, key.Normalize())
+}
+
+func hostAPIInstanceKeyFromContext(ctx context.Context) (InstanceKey, bool) {
+	if ctx == nil {
+		return InstanceKey{}, false
+	}
+	key, ok := ctx.Value(hostAPIInstanceKeyContextKey).(InstanceKey)
+	if !ok {
+		return InstanceKey{}, false
+	}
+	return key.Normalize(), true
+}

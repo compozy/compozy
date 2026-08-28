@@ -38,6 +38,7 @@ func cloneRuntimeRules(rules []RuntimeRule) []RuntimeRule {
 
 func cloneRuntimeSpec(runtime RuntimeSpec) RuntimeSpec {
 	runtime.Extra = maps.Clone(runtime.Extra)
+	runtime.ACPOptions = dsl.CloneACPOptionSelections(runtime.ACPOptions)
 	return runtime
 }
 
@@ -93,5 +94,10 @@ func mergeRuntimeSpec(
 	if value := strings.TrimSpace(string(layer.Speed)); value != "" {
 		target.Speed = layer.Speed
 		setEffectiveConfigSource(effective, path+"/speed", source)
+	}
+	mergedOptions, appliedOptionIDs := dsl.MergeACPOptionSelections(target.ACPOptions, layer.ACPOptions)
+	target.ACPOptions = mergedOptions
+	for _, optionID := range appliedOptionIDs {
+		setEffectiveConfigSource(effective, path+"/acp_options/"+optionID, source)
 	}
 }

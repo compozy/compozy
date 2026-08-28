@@ -19,6 +19,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	"github.com/compozy/compozy/internal/modelcatalog"
 	"github.com/compozy/compozy/internal/session/inputqueue"
 	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
@@ -924,11 +925,11 @@ func TestManagerPromptAdmissionReplay(t *testing.T) {
 				session.mu.Lock()
 				defer session.mu.Unlock()
 				session.ACPCaps = acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
-					ID:       "model",
-					Category: "model",
-					Kind:     acp.SessionConfigOptionKindSelect,
-					Current:  "other-model",
-					Values:   []acp.SessionConfigOptionValue{{Value: "other-model"}},
+					ID:             "model",
+					Category:       "model",
+					Kind:           acp.SessionConfigOptionKindSelect,
+					CurrentValueID: "other-model",
+					Values:         []acp.SessionConfigOptionValue{{Value: "other-model"}},
 				}}}
 			},
 		},
@@ -949,7 +950,7 @@ func TestManagerPromptAdmissionReplay(t *testing.T) {
 			h := newHarness(
 				t,
 				WithSessionInputQueueStore(queueStore),
-				WithModelCatalog(cursorModelCatalogStub{}),
+				WithModelCatalog(modelCatalogStub{}),
 			)
 			registerManagerInputQueueWorkspace(t, queueStore, h)
 			session := createCursorPromptAdmissionSession(t, h)
@@ -1716,7 +1717,7 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 		if result.Goal == nil || result.Goal.Outcome != GoalOutcomeStatus {
 			t.Fatalf("Goal result = %#v, want structured status", result)
 		}
-		if gotRuntime == nil || *gotRuntime != *wantRuntime {
+		if gotRuntime == nil || !runtimeSelectionsEqual(*gotRuntime, *wantRuntime) {
 			t.Fatalf("Goal command runtime = %#v, want %#v", gotRuntime, wantRuntime)
 		}
 	})
@@ -2162,10 +2163,30 @@ func TestManagerGoalCommandDispatchShouldPreserveIngressAndDraftAdmission(t *tes
 	})
 }
 
-const cursorPromptAdmissionModel = "grok-4.5[effort=high,fast=true]"
+const (
+	cursorPromptAdmissionModel     = "grok-4.5"
+	cursorPromptAdmissionTransport = "cursor-grok-4.5-high"
+)
 
 func createCursorPromptAdmissionSession(t *testing.T, h *harness) *Session {
 	t.Helper()
+	originalCatalog := h.manager.modelCatalog
+	t.Cleanup(func() { h.manager.modelCatalog = originalCatalog })
+	h.manager.modelCatalog = modelCatalogStub{models: []modelcatalog.Model{{
+		ProviderID:             "cursor",
+		ModelID:                cursorPromptAdmissionModel,
+		AvailabilityState:      modelcatalog.AvailabilityStateAvailableLive,
+		DefaultReasoningEffort: new(modelcatalog.ReasoningEffortHigh),
+		TransportBindings: []modelcatalog.ModelTransportBinding{{
+			TransportModelID: cursorPromptAdmissionTransport,
+			ReasoningEffort:  new(modelcatalog.ReasoningEffortHigh),
+			Fast:             new(false),
+		}},
+		Sources: []modelcatalog.SourceRef{{
+			SourceID:   modelcatalog.SourceKindProviderLiveID("cursor"),
+			SourceKind: modelcatalog.SourceKindProviderLive,
+		}},
+	}}}
 
 	resolvedWorkspace, err := h.resolver.Resolve(testutil.Context(t), h.workspaceID)
 	if err != nil {
@@ -2174,22 +2195,26 @@ func createCursorPromptAdmissionSession(t *testing.T, h *harness) *Session {
 	for index := range resolvedWorkspace.Agents {
 		if resolvedWorkspace.Agents[index].Name == "coder" {
 			resolvedWorkspace.Agents[index].Provider = "cursor"
-			resolvedWorkspace.Agents[index].Model = ""
+			resolvedWorkspace.Agents[index].Model = cursorPromptAdmissionModel
 		}
 	}
 	h.resolver.upsert(&resolvedWorkspace)
 	h.driver.startHook = func(opts acp.StartOpts, _ int) (*fakeProcess, error) {
 		proc := newFakeProcess(opts.AgentName, opts.Command, opts.Cwd, "acp-cursor-prompt-admission")
 		proc.handle.setCaps(acp.Caps{ConfigOptions: []acp.SessionConfigOption{{
-			ID:       "model",
-			Category: "model",
-			Kind:     acp.SessionConfigOptionKindSelect,
-			Current:  cursorPromptAdmissionModel,
-			Values:   []acp.SessionConfigOptionValue{{Value: cursorPromptAdmissionModel}},
+			ID:             "model",
+			Category:       "model",
+			Kind:           acp.SessionConfigOptionKindSelect,
+			CurrentValueID: cursorPromptAdmissionTransport,
+			Values:         []acp.SessionConfigOptionValue{{Value: cursorPromptAdmissionTransport}},
 		}}})
 		return proc, nil
 	}
-	return createSession(t, h)
+	session := createSession(t, h)
+	if originalCatalog != nil {
+		h.manager.modelCatalog = originalCatalog
+	}
+	return session
 }
 
 func assertCursorAliasRejectedBeforeDispatch(t *testing.T, err error) {

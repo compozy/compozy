@@ -47,19 +47,19 @@ type SessionProviderExecutionState struct {
 
 // SessionMeta is the atomically-written session metadata document.
 type SessionMeta struct {
-	ID                string                        `json:"id"`
-	Name              string                        `json:"name,omitempty"`
-	AgentName         string                        `json:"agent_name"`
-	Provider          string                        `json:"provider,omitempty"`
-	Model             string                        `json:"model,omitempty"`
-	ReasoningEffort   string                        `json:"reasoning_effort,omitempty"`
-	Speed             speedpkg.Speed                `json:"speed,omitempty"`
+	ID              string         `json:"id"`
+	Name            string         `json:"name,omitempty"`
+	AgentName       string         `json:"agent_name"`
+	Provider        string         `json:"provider,omitempty"`
+	Model           string         `json:"model,omitempty"`
+	ReasoningEffort string         `json:"reasoning_effort,omitempty"`
+	Speed           speedpkg.Speed `json:"speed,omitempty"`
+	*SessionRuntimeDetails
 	SpeedResolution   *speedpkg.Resolution          `json:"speed_resolution,omitempty"`
 	RuntimeStatus     SessionRuntimeStatus          `json:"runtime_status"`
 	RuntimeTransition SessionRuntimeTransition      `json:"runtime_transition,omitempty"`
 	RuntimeFailure    *string                       `json:"runtime_failure,omitempty"`
 	RuntimeGeneration int64                         `json:"runtime_generation,omitempty"`
-	RuntimeRecovery   *SessionRuntimeRecovery       `json:"runtime_recovery,omitempty"`
 	RuntimeSelection  *SessionRuntimeSelectionState `json:"runtime_selection,omitempty"`
 	*SessionProviderExecutionState
 	ProfileID   string `json:"profile_id"`
@@ -308,6 +308,9 @@ func (m SessionMeta) NetworkOwnerKeySnapshot() string {
 }
 
 func validateSessionCreationMetadata(meta SessionMeta) error {
+	if err := ValidateSessionACPOptionSelections(meta.ACPOptionsValue()); err != nil {
+		return fmt.Errorf("store: validate session ACP options: %w", err)
+	}
 	identity := SessionCreationIdentity{
 		CreationProfileRef: meta.CreationProfileRef,
 		PolicySpecDigest:   meta.PolicySpecDigest,

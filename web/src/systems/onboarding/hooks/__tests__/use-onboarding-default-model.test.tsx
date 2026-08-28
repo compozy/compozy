@@ -121,6 +121,7 @@ describe("useOnboardingDefaultModel", () => {
       model: "claude-opus-4-8",
       reasoning_effort: "high",
     });
+    expect(result.current.speed).toBe("normal");
     expect(result.current.runtimeProviders.map(provider => provider.id)).toEqual([
       "claude",
       "codex",
@@ -155,7 +156,26 @@ describe("useOnboardingDefaultModel", () => {
     expect(state.apiKey).toBe("");
   });
 
-  it("Should fold the selector's model and reasoning into the provider settings write on commit", async () => {
+  it("Should accept the selector's normalized speed and expose explicit speed changes", () => {
+    const { result } = renderHook(() => useOnboardingDefaultModel());
+
+    act(() =>
+      result.current.onRuntimeChange(
+        {
+          provider: "cursor",
+          model: "grok-4.5",
+          reasoning_effort: "high",
+        },
+        "fast"
+      )
+    );
+    expect(result.current.speed).toBe("fast");
+
+    act(() => result.current.onSpeedChange("normal"));
+    expect(result.current.speed).toBe("normal");
+  });
+
+  it("Should fold the selector's model, reasoning, and speed into the provider settings write on commit", async () => {
     act(() => {
       onboardingDraftStore.trigger.runtimeSelected({
         provider: "claude",
@@ -163,6 +183,7 @@ describe("useOnboardingDefaultModel", () => {
         reasoning: "xhigh",
       });
       onboardingDraftStore.trigger.authModeChosen({ authMode: "native_cli" });
+      onboardingDraftStore.trigger.speedSelected({ speed: "fast" });
     });
     const { result } = renderHook(() => useOnboardingDefaultModel());
 
@@ -182,6 +203,7 @@ describe("useOnboardingDefaultModel", () => {
     expect(request.body.model_curation).toEqual({
       model_id: "claude-opus-4-8",
       default_effort: "xhigh",
+      default_speed: "fast",
     });
     expect(mockUpdatePersona.mutateAsync).toHaveBeenCalledWith({
       body: { config: { agent: "general", provider: "claude", sandbox: "" } },

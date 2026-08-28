@@ -11,6 +11,7 @@ import (
 
 	"github.com/compozy/compozy/internal/network/participation"
 	"github.com/compozy/compozy/internal/soul"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	worktreepkg "github.com/compozy/compozy/internal/worktree"
@@ -189,19 +190,34 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if err := store.WriteSessionMeta(
 			store.SessionMetaFile(filepath.Join(h.home.SessionsDir, childID)),
 			store.SessionMeta{
-				ID:                   childID,
-				ProfileID:            store.DefaultProfileID,
-				Name:                 "Child",
-				AgentName:            "coder",
-				Provider:             "claude",
-				Model:                " gpt-5.6 ",
-				ReasoningEffort:      " high ",
-				RuntimeFailure:       store.SessionRuntimeFailurePointer(" runtime warning "),
+				ID:              childID,
+				ProfileID:       store.DefaultProfileID,
+				Name:            "Child",
+				AgentName:       "coder",
+				Provider:        "claude",
+				Model:           " gpt-5.6 ",
+				ReasoningEffort: " high ",
+				Speed:           speedpkg.SpeedFast,
+				SessionRuntimeDetails: &store.SessionRuntimeDetails{
+					ACPOptions: []store.SessionACPOptionSelection{{ID: "mode", ValueID: "plan"}},
+				},
+				RuntimeFailure:    store.SessionRuntimeFailurePointer(" runtime warning "),
+				RuntimeStatus:     store.SessionRuntimeReady,
+				RuntimeTransition: store.SessionRuntimeTransitionProcessReplacement,
+				RuntimeGeneration: 2,
+				RuntimeSelection: store.NewSessionRuntimeSelectionState(&store.SessionRuntimeSelection{
+					Provider:        "cursor",
+					Model:           "grok-4.6",
+					ReasoningEffort: "xhigh",
+					Speed:           speedpkg.SpeedFast,
+					ACPOptions: []store.SessionACPOptionSelection{{
+						ID: "thinking", BoolValue: new(true),
+					}},
+				}, 1),
 				WorkspaceID:          h.workspaceID,
 				NetworkParticipation: participation.CloneSpec(participation.LocalSpec()),
 				SessionType:          "worker",
 				State:                "stopped",
-				RuntimeStatus:        store.SessionRuntimeUnbound,
 				ACPSessionID:         &acpSessionID,
 				StopReason:           &stopReason,
 				StopDetail:           "agent process exited",
@@ -274,6 +290,32 @@ func TestReconciliationPreservesDurableSessionProjectionMetadata(t *testing.T) {
 		if indexed.Model != "gpt-5.6" || indexed.ReasoningEffort != "high" ||
 			indexed.RuntimeFailure != "runtime warning" {
 			t.Fatalf("indexed runtime metadata = %#v, want trimmed metadata", indexed)
+		}
+		if indexed.Speed != speedpkg.SpeedFast || indexed.RuntimeStatus != store.SessionRuntimeReady ||
+			indexed.RuntimeTransition != store.SessionRuntimeTransitionProcessReplacement ||
+			indexed.RuntimeGeneration != 2 {
+			t.Fatalf("indexed effective runtime = %#v, want complete durable runtime", indexed)
+		}
+		indexedOptions := indexed.ACPOptionsValue()
+		if len(indexedOptions) != 1 || indexedOptions[0].ID != "mode" ||
+			indexedOptions[0].ValueID != "plan" {
+			t.Fatalf("indexed ACP options = %#v, want mode=plan", indexedOptions)
+		}
+		if indexed.SelectedRuntime == nil || indexed.SelectedRuntime.Provider != "cursor" ||
+			indexed.SelectedRuntime.Model != "grok-4.6" ||
+			indexed.SelectedRuntime.ReasoningEffort != "xhigh" ||
+			indexed.SelectedRuntime.Speed != speedpkg.SpeedFast || indexed.RuntimeSelectionRevision != 1 {
+			t.Fatalf(
+				"indexed selected runtime = %#v revision %d, want Grok 4.6 xhigh fast at revision 1",
+				indexed.SelectedRuntime,
+				indexed.RuntimeSelectionRevision,
+			)
+		}
+		if len(indexed.SelectedRuntime.ACPOptions) != 1 ||
+			indexed.SelectedRuntime.ACPOptions[0].ID != "thinking" ||
+			indexed.SelectedRuntime.ACPOptions[0].BoolValue == nil ||
+			!*indexed.SelectedRuntime.ACPOptions[0].BoolValue {
+			t.Fatalf("indexed selected ACP options = %#v, want thinking=true", indexed.SelectedRuntime.ACPOptions)
 		}
 		if indexed.Lineage == nil ||
 			indexed.Lineage.ParentSessionID != parentID ||

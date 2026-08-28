@@ -127,6 +127,9 @@ func (r SessionPromptAdmissionRequest) Normalize() SessionPromptAdmissionRequest
 // Validate ensures an admission has complete, stable identity before persistence.
 func (r SessionPromptAdmissionRequest) Validate() error {
 	normalized := r.Normalize()
+	if err := ValidateSessionInputRuntime(normalized.Runtime); err != nil {
+		return err
+	}
 	switch {
 	case normalized.ID == "":
 		return errors.New("store: session prompt admission id is required")

@@ -44,7 +44,12 @@ func (p *RefreshPlan) Refresh(
 	if source == nil {
 		return nil, errors.New("model catalog: refresh plan source is required")
 	}
+	contexts, err := resolveSourceExecutionContexts([]Source{source}, opts.ExecutionContext)
+	if err != nil {
+		return nil, err
+	}
 	opts.SourceID = source.ID()
+	opts.SourceContexts = contexts
 	staging := &CatalogService{store: p.store}
 	return staging.refreshSources(ctx, []Source{source}, opts, defaultNow(opts.Now))
 }
@@ -69,6 +74,7 @@ var _ Store = (*refreshPlanStore)(nil)
 
 func (s *refreshPlanStore) ReplaceSourceRows(
 	ctx context.Context,
+	executionContext CatalogExecutionContext,
 	sourceID string,
 	providerID string,
 	rows []ModelRow,
@@ -80,12 +86,16 @@ func (s *refreshPlanStore) ReplaceSourceRows(
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	key := refreshPlanSourceProviderKey(sourceID, providerID)
+	key, err := refreshPlanSourceProviderKey(executionContext, sourceID, providerID)
+	if err != nil {
+		return err
+	}
 	s.replacements[key] = SourceRowsReplacement{
-		SourceID:   sourceID,
-		ProviderID: providerID,
-		Rows:       cloneModelRows(rows),
-		Status:     status,
+		ExecutionContext: executionContext,
+		SourceID:         sourceID,
+		ProviderID:       providerID,
+		Rows:             cloneModelRows(rows),
+		Status:           status,
 	}
 	return nil
 }
@@ -103,7 +113,14 @@ func (s *refreshPlanStore) ReplaceSourceRowsBatch(
 	next := make(map[string]SourceRowsReplacement, len(s.replacements)+len(replacements))
 	maps.Copy(next, s.replacements)
 	for _, replacement := range replacements {
-		key := refreshPlanSourceProviderKey(replacement.SourceID, replacement.ProviderID)
+		key, err := refreshPlanSourceProviderKey(
+			replacement.ExecutionContext,
+			replacement.SourceID,
+			replacement.ProviderID,
+		)
+		if err != nil {
+			return err
+		}
 		replacement.Rows = cloneModelRows(replacement.Rows)
 		next[key] = replacement
 	}
@@ -118,7 +135,7 @@ func (s *refreshPlanStore) ListRows(ctx context.Context, opts ListOptions) ([]Mo
 	}
 	result := make([]ModelRow, 0, len(rows))
 	for _, row := range rows {
-		if _, replaced := s.replacements[refreshPlanSourceProviderKey(row.SourceID, row.ProviderID)]; replaced {
+		if replacementMatchesRow(s.replacements, row, opts) {
 			continue
 		}
 		result = append(result, row)
@@ -139,22 +156,23 @@ func (s *refreshPlanStore) ListRows(ctx context.Context, opts ListOptions) ([]Mo
 
 func (s *refreshPlanStore) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts StatusOptions,
 ) ([]SourceStatus, error) {
-	statuses, err := s.base.ListSourceStatus(ctx, providerID)
+	statuses, err := s.base.ListSourceStatus(ctx, opts)
 	if err != nil {
 		return nil, err
 	}
 	result := make([]SourceStatus, 0, len(statuses)+len(s.replacements))
 	for _, status := range statuses {
-		if _, replaced := s.replacements[refreshPlanSourceProviderKey(status.SourceID, status.ProviderID)]; replaced {
+		if replacementMatchesStatus(s.replacements, status, opts) {
 			continue
 		}
 		result = append(result, status)
 	}
-	trimmedProviderID := strings.TrimSpace(providerID)
+	trimmedProviderID := strings.TrimSpace(opts.ProviderID)
 	for _, replacement := range s.replacements {
-		if trimmedProviderID == "" || replacement.ProviderID == trimmedProviderID {
+		if (trimmedProviderID == "" || replacement.ProviderID == trimmedProviderID) &&
+			replacementContextSelected(replacement, opts.SourceContexts) {
 			result = append(result, replacement.Status)
 		}
 	}
@@ -183,6 +201,9 @@ func (s *refreshPlanStore) snapshot() []SourceRowsReplacement {
 }
 
 func replacementMatchesList(replacement SourceRowsReplacement, opts ListOptions) bool {
+	if !replacementContextSelected(replacement, opts.SourceContexts) {
+		return false
+	}
 	providerID := strings.TrimSpace(opts.ProviderID)
 	if providerID != "" && replacement.ProviderID != providerID {
 		return false
@@ -191,6 +212,64 @@ func replacementMatchesList(replacement SourceRowsReplacement, opts ListOptions)
 	return sourceID == "" || replacement.SourceID == sourceID
 }
 
-func refreshPlanSourceProviderKey(sourceID string, providerID string) string {
-	return strings.TrimSpace(sourceID) + "\x00" + strings.TrimSpace(providerID)
+func refreshPlanSourceProviderKey(
+	executionContext CatalogExecutionContext,
+	sourceID string,
+	providerID string,
+) (string, error) {
+	contextID, err := executionContext.ID()
+	if err != nil {
+		return "", err
+	}
+	return contextID + "\x00" + strings.TrimSpace(sourceID) + "\x00" + strings.TrimSpace(providerID), nil
+}
+
+func replacementMatchesRow(
+	replacements map[string]SourceRowsReplacement,
+	row ModelRow,
+	opts ListOptions,
+) bool {
+	return replacementMatchesSourceProvider(replacements, opts.SourceContexts, row.SourceID, row.ProviderID)
+}
+
+func replacementMatchesStatus(
+	replacements map[string]SourceRowsReplacement,
+	status SourceStatus,
+	opts StatusOptions,
+) bool {
+	return replacementMatchesSourceProvider(replacements, opts.SourceContexts, status.SourceID, status.ProviderID)
+}
+
+func replacementMatchesSourceProvider(
+	replacements map[string]SourceRowsReplacement,
+	contexts map[string]CatalogExecutionContext,
+	sourceID string,
+	providerID string,
+) bool {
+	executionContext, ok := contexts[sourceID]
+	if !ok {
+		return false
+	}
+	key, err := refreshPlanSourceProviderKey(executionContext, sourceID, providerID)
+	if err != nil {
+		return false
+	}
+	_, replaced := replacements[key]
+	return replaced
+}
+
+func replacementContextSelected(
+	replacement SourceRowsReplacement,
+	contexts map[string]CatalogExecutionContext,
+) bool {
+	selected, ok := contexts[replacement.SourceID]
+	if !ok {
+		return false
+	}
+	selectedID, err := selected.ID()
+	if err != nil {
+		return false
+	}
+	replacementID, err := replacement.ExecutionContext.ID()
+	return err == nil && selectedID == replacementID
 }

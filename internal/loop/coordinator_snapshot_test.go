@@ -25,7 +25,7 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		effective := EffectiveConfig{
 			HumanGateEnabled:  true,
 			ReattemptStrategy: ReattemptFullBody,
-			EnabledChecks:     []byte(`{"judge":true}`),
+			EnabledChecks:     new(EffectiveChecksJSON(`{"judge":true}`)),
 			IterationCap:      7,
 			BudgetTokens:      101,
 			BudgetWallSec:     202,
@@ -435,7 +435,7 @@ func TestExecutedDefinitionSnapshotShouldCanonicalizeTypedNodeParams(t *testing.
 	}
 	effective := EffectiveConfig{
 		ReattemptStrategy: ReattemptFailedOnly,
-		EnabledChecks:     []byte(`{}`),
+		EnabledChecks:     new(EffectiveChecksJSON(`{}`)),
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
 		RuntimeDefaults: RuntimeDefaults{
 			Judge: RuntimeSpec{Model: "judge-v1"},
@@ -552,7 +552,7 @@ func pinnedSnapshotDefinition() dsl.Definition {
 func snapshotEffectiveConfig() EffectiveConfig {
 	return EffectiveConfig{
 		ReattemptStrategy: ReattemptFailedOnly,
-		EnabledChecks:     []byte(`{}`),
+		EnabledChecks:     new(EffectiveChecksJSON(`{}`)),
 		IterationCap:      1,
 		BudgetOnExceeded:  dsl.BudgetExceededHalt,
 		NoProgressWindow:  1,

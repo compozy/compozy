@@ -1,11 +1,22 @@
 import { useSelector, useStore } from "@xstate/store-react";
 
+import type { RuntimeSpeed } from "@/lib/api-contract";
+
 import { runtimeModelKey } from "./model-key";
 import { buildRuntimeListModel, type RailFilter } from "./runtime-list-model";
+import {
+  advancedRuntimeOptions,
+  sanitizeRuntimeACPSelections,
+  setRuntimeACPSelection,
+} from "./runtime-advanced-options-model";
 import { runtimeSelectorPopupLogic } from "./runtime-selector-store";
 import { useRuntimeFavorites } from "./use-runtime-favorites";
 import {
+  modelSupportsFast,
+  modelSupportsReasoningEffort,
   resolveReasoningState,
+  type RuntimeACPOption,
+  type RuntimeACPOptionSelection,
   type RuntimeModelOption,
   type RuntimeProviderOption,
   type RuntimeSelectorValue,
@@ -21,10 +32,16 @@ export type {
 
 export interface UseRuntimeSelectorArgs {
   value: RuntimeSelectorValue;
-  onChange: (next: RuntimeSelectorValue) => void;
+  onChange: (next: RuntimeSelectorValue, normalizedSpeed?: RuntimeSpeed) => void;
   providers: RuntimeProviderOption[];
   models: RuntimeModelOption[];
+  acpOptions?: RuntimeACPOption[];
   allowCustomProvider?: boolean;
+  speed?: RuntimeSpeed;
+}
+
+function isProviderManaged(provider: RuntimeProviderOption | undefined): boolean {
+  return provider?.runtime_strategy === "provider_managed";
 }
 
 function resolveActiveCustomProvider(
@@ -43,7 +60,9 @@ export function useRuntimeSelector({
   onChange,
   providers,
   models,
+  acpOptions,
   allowCustomProvider = false,
+  speed,
 }: UseRuntimeSelectorArgs) {
   const popupStore = useStore(runtimeSelectorPopupLogic);
   const popupState = useSelector(popupStore, snapshot => snapshot.context);
@@ -51,6 +70,7 @@ export function useRuntimeSelector({
   const railFilter = popupState.phase === "open" ? popupState.railFilter : "all";
   const query = popupState.phase === "open" ? popupState.query : "";
   const entryMode = popupState.phase === "open" ? popupState.entryMode : "catalog";
+  const advancedExpanded = popupState.phase === "open" ? popupState.advancedExpanded : false;
   // The active row is a compound (provider,model) cursor, never a list index.
   // The derived index below therefore follows the model through reordering.
   const activeRow = popupState.phase === "open" ? popupState.activeRow : null;
@@ -70,6 +90,26 @@ export function useRuntimeSelector({
     : undefined;
   const activeProvider = providerById.get(value.provider);
   const reasoningState = resolveReasoningState(selectedModel);
+  const effectiveACPOptions = acpOptions ?? selectedModel?.acp_options;
+  const advancedOptions = advancedRuntimeOptions(effectiveACPOptions);
+  const sanitizedACPSelections = sanitizeRuntimeACPSelections(
+    value.acp_options,
+    effectiveACPOptions
+  );
+  const normalizedReasoning =
+    value.reasoning_effort !== "" &&
+    !modelSupportsReasoningEffort(selectedModel, value.reasoning_effort)
+      ? ""
+      : value.reasoning_effort;
+  const normalizedValue: RuntimeSelectorValue = {
+    ...value,
+    reasoning_effort: normalizedReasoning,
+    ...(effectiveACPOptions
+      ? sanitizedACPSelections
+        ? { acp_options: sanitizedACPSelections }
+        : { acp_options: undefined }
+      : {}),
+  };
 
   const isFavoriteModel = (model: RuntimeModelOption) =>
     favorites.isFavorite(runtimeModelKey(model.provider, model.id));
@@ -94,7 +134,7 @@ export function useRuntimeSelector({
     models,
     modelByKey,
     providerById,
-    value,
+    value: normalizedValue,
     activeCustomProvider,
     allowCustomProvider,
     recentKeys: favorites.recents,
@@ -119,6 +159,10 @@ export function useRuntimeSelector({
 
   const close = () => popupStore.trigger.popupClosed();
 
+  const setAdvancedExpanded = (expanded: boolean) => {
+    popupStore.trigger.advancedOptionsToggled({ expanded });
+  };
+
   const changeRail = (target: RailFilter) => {
     // The rail is a local list filter only — `all`, `fav`, and provider IDs
     // never mutate the controlled value or clear the current model/effort.
@@ -137,18 +181,32 @@ export function useRuntimeSelector({
     const rz = resolveReasoningState(model);
     const keepsLevel =
       rz.mode === "levels" &&
-      (value.reasoning_effort === "" || rz.levels.includes(value.reasoning_effort));
-    onChange({
+      (normalizedValue.reasoning_effort === "" ||
+        rz.levels.includes(normalizedValue.reasoning_effort));
+    const targetACPOptions = acpOptions ?? model?.acp_options;
+    const nextSelections = targetACPOptions
+      ? sanitizeRuntimeACPSelections(normalizedValue.acp_options, targetACPOptions)
+      : undefined;
+    const nextValue: RuntimeSelectorValue = {
+      ...normalizedValue,
       provider,
       model: id,
-      reasoning_effort: keepsLevel ? value.reasoning_effort : "",
-    });
+      reasoning_effort: keepsLevel ? normalizedValue.reasoning_effort : "",
+    };
+    nextValue.acp_options = nextSelections;
+    const normalizedSpeed =
+      speed === "fast" &&
+      (isProviderManaged(providerById.get(provider)) || !modelSupportsFast(model))
+        ? "normal"
+        : undefined;
+    onChange(nextValue, normalizedSpeed);
     favorites.pushRecent(runtimeModelKey(provider, id));
   };
 
   const pickModel = (provider: string, modelId: string) => {
     const id = modelId.trim();
     if (id.length === 0) return;
+    if (isProviderManaged(providerById.get(provider))) return;
     const model = modelByKey.get(runtimeModelKey(provider, id));
     if (model?.disabled) return;
     emitSelection(provider, id, model);
@@ -168,6 +226,7 @@ export function useRuntimeSelector({
     // emitted with an empty or guessed provider (no default substitution).
     if (provider.length === 0 || (!allowCustomProvider && !providerById.has(provider)))
       return false;
+    if (isProviderManaged(providerById.get(provider))) return false;
     // A custom ID may coincide with a known row for the active provider; reuse
     // its reasoning profile, otherwise commit it as a provisional exact ID.
     emitSelection(provider, id, modelByKey.get(runtimeModelKey(provider, id)));
@@ -181,7 +240,22 @@ export function useRuntimeSelector({
   };
 
   const setReasoning = (effort: RuntimeSelectorValue["reasoning_effort"]) => {
-    onChange({ ...value, reasoning_effort: effort });
+    if (isProviderManaged(activeProvider)) return;
+    if (effort !== "" && !modelSupportsReasoningEffort(selectedModel, effort)) return;
+    onChange({ ...normalizedValue, reasoning_effort: effort });
+  };
+
+  const setACPOption = (selection: RuntimeACPOptionSelection | null) => {
+    if (isProviderManaged(activeProvider)) return;
+    const nextSelections = setRuntimeACPSelection(
+      normalizedValue.acp_options,
+      selection,
+      effectiveACPOptions
+    );
+    onChange({
+      ...normalizedValue,
+      ...(nextSelections ? { acp_options: nextSelections } : { acp_options: undefined }),
+    });
   };
 
   const toggleFavorite = (provider: string, id: string) =>
@@ -278,6 +352,8 @@ export function useRuntimeSelector({
     query,
     changeQuery,
     entryMode,
+    advancedExpanded,
+    advancedOptions,
     startExactEntry,
     cancelExactEntry,
     highlightIndex,
@@ -292,10 +368,15 @@ export function useRuntimeSelector({
     selectedModel,
     activeProvider,
     reasoningState,
+    providerManaged: isProviderManaged(activeProvider),
+    speedSupported: modelSupportsFast(selectedModel),
+    value: normalizedValue,
     pickModel,
     pickCustom,
     commitCustom,
     setReasoning,
+    setACPOption,
+    setAdvancedExpanded,
   };
 }
 

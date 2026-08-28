@@ -16,6 +16,9 @@ type agentDefinitionFlags struct {
 	command         string
 	model           string
 	reasoningEffort string
+	speed           string
+	acpOptions      []string
+	acpToggles      []string
 	prompt          string
 	promptFile      string
 	tools           []string
@@ -35,6 +38,14 @@ func addAgentDefinitionFlags(cmd *cobra.Command, flags *agentDefinitionFlags) {
 	cmd.Flags().StringVar(&flags.command, agentCommandKey, "", "Optional provider command override")
 	cmd.Flags().StringVar(&flags.model, agentModelKey, "", "Optional provider model")
 	cmd.Flags().StringVar(&flags.reasoningEffort, agentReasoningEffortKey, "", "Optional default reasoning effort")
+	cmd.Flags().StringVar(&flags.speed, "speed", "", "Optional default runtime speed (normal or fast)")
+	bindACPOptionFlags(
+		cmd,
+		&flags.acpOptions,
+		&flags.acpToggles,
+		"ACP select option default (repeatable: id=value_id)",
+		"ACP boolean option default (repeatable: id=true|false)",
+	)
 	cmd.Flags().StringVar(&flags.prompt, "prompt", "", "Agent system prompt body")
 	cmd.Flags().StringVar(&flags.promptFile, "prompt-file", "", "Read the agent system prompt body from a file")
 	cmd.Flags().StringArrayVar(&flags.tools, "tool", nil, "Allowed tool pattern (repeatable)")
@@ -68,6 +79,14 @@ func createAgentRequestFromFlags(
 	if err := validateAgentReasoningEffort(flags.reasoningEffort); err != nil {
 		return contract.CreateAgentRequest{}, err
 	}
+	speed, err := parseAgentSpeedFlag(flags.speed)
+	if err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
+	acpOptions, err := parseACPFlags(flags.acpOptions, flags.acpToggles)
+	if err != nil {
+		return contract.CreateAgentRequest{}, err
+	}
 	workspace, err := resolveWorkspaceFlagOverride(cmd, deps, client, false)
 	if err != nil {
 		return contract.CreateAgentRequest{}, err
@@ -90,6 +109,8 @@ func createAgentRequestFromFlags(
 			Command:         strings.TrimSpace(flags.command),
 			Model:           strings.TrimSpace(flags.model),
 			ReasoningEffort: contract.ReasoningEffort(strings.TrimSpace(flags.reasoningEffort)),
+			Speed:           speed,
+			ACPOptions:      acpOptions,
 			Tools:           normalizeAgentFlagValues(flags.tools),
 			Toolsets:        normalizeAgentFlagValues(flags.toolsets),
 			DenyTools:       normalizeAgentFlagValues(flags.denyTools),
@@ -177,6 +198,8 @@ func createAgentPayloadFromRecord(agent AgentRecord) contract.CreateAgentPayload
 		Command:         agent.Command,
 		Model:           agent.Model,
 		ReasoningEffort: agent.ReasoningEffort,
+		Speed:           agent.Speed,
+		ACPOptions:      cloneAgentACPOptions(agent.ACPOptions),
 		Tools:           cloneStrings(agent.Tools),
 		Toolsets:        cloneStrings(agent.Toolsets),
 		DenyTools:       cloneStrings(agent.DenyTools),
@@ -206,6 +229,20 @@ func applyAgentDefinitionOverrides(
 			return err
 		}
 		payload.ReasoningEffort = contract.ReasoningEffort(strings.TrimSpace(flags.reasoningEffort))
+	}
+	if cmd.Flags().Changed("speed") {
+		speed, err := parseAgentSpeedFlag(flags.speed)
+		if err != nil {
+			return err
+		}
+		payload.Speed = speed
+	}
+	if cmd.Flags().Changed(runtimeACPOptionFlag) || cmd.Flags().Changed(runtimeACPToggleFlag) {
+		options, err := parseACPFlags(flags.acpOptions, flags.acpToggles)
+		if err != nil {
+			return err
+		}
+		payload.ACPOptions = options
 	}
 	if cmd.Flags().Changed("tool") {
 		payload.Tools = normalizeAgentFlagValues(flags.tools)
@@ -248,6 +285,7 @@ func duplicateAgentOverridesFromFlags(
 	changed := false
 	for _, name := range []string{
 		cliProviderKey, agentCommandKey, agentModelKey, agentReasoningEffortKey,
+		"speed", runtimeACPOptionFlag, runtimeACPToggleFlag,
 		clientToolsPromptKey, "prompt-file", toolToolKey, "toolset", "deny-tool", configPermissionsKey, agentCategoryKey,
 		agentDisableSkillFlag,
 	} {
@@ -261,6 +299,8 @@ func duplicateAgentOverridesFromFlags(
 		Command:         payload.Command,
 		Model:           payload.Model,
 		ReasoningEffort: payload.ReasoningEffort,
+		Speed:           payload.Speed,
+		ACPOptions:      cloneAgentACPOptions(payload.ACPOptions),
 		Tools:           payload.Tools,
 		Toolsets:        payload.Toolsets,
 		DenyTools:       payload.DenyTools,

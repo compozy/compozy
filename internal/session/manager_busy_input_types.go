@@ -93,6 +93,7 @@ type SteerPromptOpts struct {
 	MessageID      string
 	IdempotencyKey string
 	ExpectedTurnID string
+	Runtime        *RuntimeSelection
 	AllowCommands  bool
 	Caller         PromptCaller
 }

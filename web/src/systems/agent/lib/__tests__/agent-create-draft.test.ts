@@ -22,6 +22,11 @@ const context: AgentCreateValidationContext = {
   providersLoading: false,
 };
 
+// Invariant: agent create and duplicate payloads preserve typed ACP option
+// selections while omitting absent overrides and never stringifying booleans.
+// Owning layer: agent draft and request mappers.
+// Canonical suite: agent-create-draft unit suite.
+
 /** A globally-scoped draft that is valid apart from the reasoning field under test. */
 function baseDraft(reasoningEffort: string): AgentCreateDialogDraft {
   return {
@@ -111,6 +116,31 @@ describe("agent-create-draft reasoning effort validation", () => {
     const params = buildCreateAgentParams(baseDraft("high"), null, context);
     expect(params?.agent.reasoning_effort).toBe("high");
   });
+
+  it("Should carry the agent Fast default through to the built request", () => {
+    const params = buildCreateAgentParams({ ...baseDraft("high"), speed: "fast" }, null, context);
+
+    expect(params?.agent.speed).toBe("fast");
+  });
+
+  it("Should carry typed ACP selections through to the create request", () => {
+    const params = buildCreateAgentParams(
+      {
+        ...baseDraft(""),
+        acpOptions: [
+          { id: "context", value_id: "1m" },
+          { id: "thinking", bool_value: true },
+        ],
+      },
+      null,
+      context
+    );
+
+    expect(params?.agent.acp_options).toEqual([
+      { id: "context", value_id: "1m" },
+      { id: "thinking", bool_value: true },
+    ]);
+  });
 });
 
 describe("agent-create-draft disclosure tiers", () => {
@@ -199,6 +229,47 @@ describe("duplicate draft mapping", () => {
       },
     });
     expect(params).not.toHaveProperty("agent");
+  });
+
+  it("Should include changed typed ACP selections in duplicate overrides", () => {
+    const sourceWithOptions = {
+      ...source,
+      acp_options: [{ id: "thinking", bool_value: true }],
+    } as AgentPayload;
+    const draft = {
+      ...buildDraftFromAgentPayload(sourceWithOptions, true),
+      name: "release-captain-copy",
+      acpOptions: [{ id: "thinking", bool_value: false }],
+    };
+    const workspaceContext: AgentCreateValidationContext = {
+      ...context,
+      hasActiveWorkspace: true,
+      providerOptions,
+    };
+
+    const params = buildDuplicateAgentParams(
+      sourceWithOptions,
+      draft,
+      "ws_alpha",
+      workspaceContext
+    );
+    expect(params?.overrides).toEqual({ acp_options: [{ id: "thinking", bool_value: false }] });
+  });
+
+  it("Should include a changed Fast default in duplicate overrides", () => {
+    const draft = {
+      ...buildDraftFromAgentPayload(source, true),
+      name: "release-captain-copy",
+      speed: "fast" as const,
+    };
+    const workspaceContext: AgentCreateValidationContext = {
+      ...context,
+      hasActiveWorkspace: true,
+      providerOptions,
+    };
+
+    const params = buildDuplicateAgentParams(source, draft, "ws_alpha", workspaceContext);
+    expect(params?.overrides).toEqual({ speed: "fast" });
   });
 
   it("Should return null when the duplicate name is noncanonical", () => {

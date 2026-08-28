@@ -96,7 +96,7 @@ func (udsModelCatalogServiceStub) Refresh(
 
 func (udsModelCatalogServiceStub) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -104,7 +104,7 @@ func (udsModelCatalogServiceStub) ListSourceStatus(
 type udsModelCatalogServiceSpy struct {
 	listModelsFn       func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	refreshFn          func(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	listSourceStatusFn func(context.Context, string) ([]modelcatalog.SourceStatus, error)
+	listSourceStatusFn func(context.Context, modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 func (s *udsModelCatalogServiceSpy) ListModels(
@@ -129,10 +129,10 @@ func (s *udsModelCatalogServiceSpy) Refresh(
 
 func (s *udsModelCatalogServiceSpy) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	if s.listSourceStatusFn != nil {
-		return s.listSourceStatusFn(ctx, providerID)
+		return s.listSourceStatusFn(ctx, opts)
 	}
 	return nil, nil
 }

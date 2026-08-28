@@ -11,12 +11,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/config/lifecycle"
 	"github.com/compozy/compozy/internal/diagnosticcontract"
 	"github.com/compozy/compozy/internal/diagnostics"
 	"github.com/compozy/compozy/internal/modelcatalog"
+	profilepkg "github.com/compozy/compozy/internal/profile"
+	"github.com/compozy/compozy/internal/session"
 	settingspkg "github.com/compozy/compozy/internal/settings"
+	speedpkg "github.com/compozy/compozy/internal/speed"
+	"github.com/compozy/compozy/internal/store"
+	workspacepkg "github.com/compozy/compozy/internal/workspace"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 	"github.com/gin-gonic/gin"
 )
 
@@ -44,6 +51,7 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		t.Parallel()
 
 		effort := modelcatalog.ReasoningEffortHigh
+		fast := true
 		releaseDate := "2026-06-26"
 		model := modelcatalog.Model{
 			ProviderID:             "codex",
@@ -56,10 +64,21 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 			SupportsReasoning:      new(true),
 			ReasoningEfforts:       []modelcatalog.ReasoningEffort{modelcatalog.ReasoningEffortHigh},
 			DefaultReasoningEffort: &effort,
-			Curated:                true,
-			Featured:               true,
-			ReleaseDate:            &releaseDate,
-			ReasoningSource:        modelcatalog.ReasoningSourceACP,
+			ConfigOptions: []modelcatalog.ModelOptionDescriptor{{
+				ID: "thinking", Label: "Thinking", Kind: modelcatalog.ModelOptionKindBoolean,
+				CurrentBool: new(false),
+			}},
+			TransportBindings: []modelcatalog.ModelTransportBinding{
+				{
+					TransportModelID: "private-provider-alias",
+					ReasoningEffort:  &effort,
+					Fast:             &fast,
+				},
+			},
+			Curated:         true,
+			Featured:        true,
+			ReleaseDate:     &releaseDate,
+			ReasoningSource: modelcatalog.ReasoningSourceACP,
 			Sources: []modelcatalog.SourceRef{
 				{
 					SourceID:    modelcatalog.SourceIDConfig,
@@ -82,6 +101,16 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		if payload.DefaultReasoningEffort == nil || *payload.DefaultReasoningEffort != "high" {
 			t.Fatalf("DefaultReasoningEffort = %#v, want high", payload.DefaultReasoningEffort)
 		}
+		if len(payload.Configurations) != 1 || payload.Configurations[0].ReasoningEffort == nil ||
+			*payload.Configurations[0].ReasoningEffort != contract.ReasoningEffort("high") ||
+			payload.Configurations[0].Fast == nil || !*payload.Configurations[0].Fast {
+			t.Fatalf("Configurations = %#v, want high fast", payload.Configurations)
+		}
+		if len(payload.ConfigOptions) != 1 || payload.ConfigOptions[0].ID != "thinking" ||
+			payload.ConfigOptions[0].Kind != "boolean" || payload.ConfigOptions[0].CurrentBool == nil ||
+			*payload.ConfigOptions[0].CurrentBool {
+			t.Fatalf("ConfigOptions = %#v, want public thinking=false descriptor", payload.ConfigOptions)
+		}
 		if !payload.Curated || !payload.Featured || payload.ReleaseDate != releaseDate ||
 			payload.ReasoningSource != modelcatalog.ReasoningSourceACP {
 			t.Fatalf("curation/reasoning metadata = %#v, want curated featured ACP model", payload)
@@ -92,6 +121,10 @@ func TestProviderModelPayloadConversion(t *testing.T) {
 		}
 		if !strings.Contains(string(encoded), `"available":null`) {
 			t.Fatalf("payload JSON = %s, want nullable available field", encoded)
+		}
+		if strings.Contains(string(encoded), "private-provider-alias") ||
+			strings.Contains(string(encoded), "transport_model_id") {
+			t.Fatalf("payload JSON leaked private transport binding: %s", encoded)
 		}
 	})
 
@@ -174,6 +207,10 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 				if got, want := opts.View, modelcatalog.CatalogViewCurated; got != want {
 					t.Fatalf("View = %q, want %q", got, want)
 				}
+				if opts.ExecutionContext.Scope != modelcatalog.ExecutionScopeProfile ||
+					opts.ExecutionContext.ProfileID != store.DefaultProfileID {
+					t.Fatalf("ExecutionContext = %#v, want default profile scope", opts.ExecutionContext)
+				}
 				return []modelcatalog.Model{seedModelCatalogModel("codex", "gpt-5.4")}, nil
 			},
 		}
@@ -193,6 +230,133 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 		decodeModelCatalogResponse(t, recorder, &payload)
 		if len(payload.Models) != 1 || payload.Models[0].ProviderID != "codex" {
 			t.Fatalf("payload = %#v, want codex model", payload)
+		}
+	})
+
+	t.Run("Should resolve a workspace alias to its canonical catalog context", func(t *testing.T) {
+		t.Parallel()
+
+		service := &modelCatalogServiceSpy{
+			listModelsFn: func(_ context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.Model, error) {
+				if opts.ExecutionContext.Scope != modelcatalog.ExecutionScopeWorkspace ||
+					opts.ExecutionContext.ProfileID != store.DefaultProfileID ||
+					opts.ExecutionContext.WorkspaceID != "ws-canonical" {
+					t.Fatalf("ExecutionContext = %#v, want default profile in ws-canonical", opts.ExecutionContext)
+				}
+				return nil, nil
+			},
+		}
+		engine := newModelCatalogCoreEngineWithConfig(t, &BaseHandlerConfig{
+			ModelCatalog: service,
+			Workspaces: workspaceResolveServiceStub{resolve: func(
+				_ context.Context,
+				ref string,
+			) (workspacepkg.ResolvedWorkspace, error) {
+				if ref != "alpha" {
+					t.Fatalf("Resolve() ref = %q, want alpha", ref)
+				}
+				return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-canonical"}}, nil
+			}},
+		})
+		recorder := performModelCatalogRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/model-catalog/providers/codex/models?workspace_id=alpha",
+			nil,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should resolve an explicit profile catalog context", func(t *testing.T) {
+		t.Parallel()
+
+		service := &modelCatalogServiceSpy{
+			listModelsFn: func(_ context.Context, opts modelcatalog.ListOptions) ([]modelcatalog.Model, error) {
+				if opts.ExecutionContext.Scope != modelcatalog.ExecutionScopeProfile ||
+					opts.ExecutionContext.ProfileID != "profile-marketing" {
+					t.Fatalf("ExecutionContext = %#v, want marketing profile scope", opts.ExecutionContext)
+				}
+				return nil, nil
+			},
+		}
+		engine := newModelCatalogCoreEngineWithConfig(t, &BaseHandlerConfig{
+			ModelCatalog: service,
+			Profiles:     modelCatalogProfileServiceStub{},
+		})
+		recorder := performModelCatalogRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/model-catalog/providers/codex/models?profile=marketing",
+			nil,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("status = %d, want 200; body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should reject an aggregate profile catalog context", func(t *testing.T) {
+		t.Parallel()
+
+		service := &modelCatalogServiceSpy{
+			listModelsFn: func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error) {
+				t.Fatal("ListModels() called for all_profiles catalog request")
+				return nil, nil
+			},
+		}
+		engine := newModelCatalogCoreEngine(t, service)
+		recorder := performModelCatalogRequest(
+			t,
+			engine,
+			http.MethodGet,
+			"/model-catalog/providers/codex/models?all_profiles=true",
+			nil,
+		)
+		if recorder.Code != http.StatusBadRequest {
+			t.Fatalf("status = %d, want 400; body=%s", recorder.Code, recorder.Body.String())
+		}
+	})
+
+	t.Run("Should deny an agent catalog read across workspaces", func(t *testing.T) {
+		t.Parallel()
+
+		engine := newModelCatalogCoreEngineWithConfig(t, &BaseHandlerConfig{
+			ModelCatalog: &modelCatalogServiceSpy{},
+			Sessions: modelCatalogSessionManagerStub{info: &session.Info{
+				ID: "sess-agent", ProfileID: "profile-agent", AgentName: "coder",
+				WorkspaceID: "ws-origin", State: session.StateActive,
+			}},
+			Workspaces: workspaceResolveServiceStub{resolve: func(
+				_ context.Context,
+				_ string,
+			) (workspacepkg.ResolvedWorkspace, error) {
+				return workspacepkg.ResolvedWorkspace{Workspace: workspacepkg.Workspace{ID: "ws-foreign"}}, nil
+			}},
+			WorkspaceAccess: modelCatalogWorkspaceAccessStub{authorize: func(
+				_ context.Context,
+				req workspaceaccess.Request,
+			) (workspaceaccess.Decision, error) {
+				if req.Seam == workspaceaccess.SeamCatalog {
+					return workspaceaccess.Decision{Source: workspaceaccess.SourceDenied}, nil
+				}
+				return workspaceaccess.Decision{Allowed: true, Source: workspaceaccess.SourceSameWorkspace}, nil
+			}},
+		})
+		recorder := performModelCatalogRequestWithHeaders(
+			t,
+			engine,
+			http.MethodGet,
+			"/model-catalog/providers/codex/models?workspace_id=foreign",
+			map[string]string{
+				agentidentity.HeaderSessionID: "sess-agent",
+				agentidentity.HeaderAgent:     "coder",
+			},
+		)
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403; body=%s", recorder.Code, recorder.Body.String())
 		}
 	})
 
@@ -328,6 +492,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 
 		hidden := true
 		defaultEffort := contract.ReasoningEffort("max")
+		defaultSpeed := contract.Speed("fast")
 		settingsService := &modelCatalogSettingsServiceStub{
 			applyCurationFn: func(
 				_ context.Context,
@@ -337,14 +502,16 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 					t.Fatalf("curation request identity = %q/%q", req.ProviderID, req.ModelID)
 				}
 				if req.Hidden == nil || !*req.Hidden || req.DefaultReasoningEffort == nil ||
-					*req.DefaultReasoningEffort != "max" {
-					t.Fatalf("curation request = %#v, want hidden and max", req)
+					*req.DefaultReasoningEffort != "max" || req.DefaultSpeed == nil ||
+					*req.DefaultSpeed != speedpkg.SpeedFast {
+					t.Fatalf("curation request = %#v, want hidden, max, and fast", req)
 				}
 				model := seedModelCatalogModel("codex", "gpt-5.6-sol")
 				model.Hidden = true
 				model.DefaultReasoningEffort = new(modelcatalog.ReasoningEffortMax)
 				return settingspkg.ProviderModelCurationResult{
-					Model: model,
+					Model:        model,
+					DefaultSpeed: speedpkg.SpeedFast,
 					Apply: settingspkg.ApplyResult{
 						Applied: true,
 						Record: settingspkg.ApplyRecord{
@@ -362,6 +529,7 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 			ModelID:                "gpt-5.6-sol",
 			Hidden:                 &hidden,
 			DefaultReasoningEffort: &defaultEffort,
+			DefaultSpeed:           &defaultSpeed,
 		})
 		if err != nil {
 			t.Fatalf("json.Marshal(curation request) error = %v", err)
@@ -379,8 +547,8 @@ func TestProviderModelCatalogHandlers(t *testing.T) {
 		var payload contract.ProviderModelCurationResponse
 		decodeModelCatalogResponse(t, recorder, &payload)
 		if !payload.Model.Hidden || payload.Model.DefaultReasoningEffort == nil ||
-			*payload.Model.DefaultReasoningEffort != "max" {
-			t.Fatalf("curated model payload = %#v, want hidden max", payload.Model)
+			*payload.Model.DefaultReasoningEffort != "max" || payload.DefaultSpeed != contract.Speed("fast") {
+			t.Fatalf("curated model payload = %#v, want hidden, max, and fast", payload)
 		}
 		if !payload.Apply.Applied || payload.Apply.Lifecycle != contract.SettingsApplyLifecycle(lifecycle.Live) ||
 			payload.Apply.ActiveGeneration != 4 {
@@ -497,7 +665,7 @@ func (coreModelCatalogServiceStub) Refresh(
 
 func (coreModelCatalogServiceStub) ListSourceStatus(
 	context.Context,
-	string,
+	modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	return nil, nil
 }
@@ -505,7 +673,7 @@ func (coreModelCatalogServiceStub) ListSourceStatus(
 type modelCatalogServiceSpy struct {
 	listModelsFn       func(context.Context, modelcatalog.ListOptions) ([]modelcatalog.Model, error)
 	refreshFn          func(context.Context, modelcatalog.RefreshOptions) ([]modelcatalog.SourceStatus, error)
-	listSourceStatusFn func(context.Context, string) ([]modelcatalog.SourceStatus, error)
+	listSourceStatusFn func(context.Context, modelcatalog.StatusOptions) ([]modelcatalog.SourceStatus, error)
 }
 
 func (s *modelCatalogServiceSpy) ListModels(
@@ -530,10 +698,10 @@ func (s *modelCatalogServiceSpy) Refresh(
 
 func (s *modelCatalogServiceSpy) ListSourceStatus(
 	ctx context.Context,
-	providerID string,
+	opts modelcatalog.StatusOptions,
 ) ([]modelcatalog.SourceStatus, error) {
 	if s.listSourceStatusFn != nil {
-		return s.listSourceStatusFn(ctx, providerID)
+		return s.listSourceStatusFn(ctx, opts)
 	}
 	return nil, errors.New("unexpected ListSourceStatus call")
 }
@@ -550,7 +718,7 @@ func newModelCatalogCoreEngineWithSettings(
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	handlers := NewBaseHandlers(&BaseHandlerConfig{
+	return newModelCatalogCoreEngineWithConfig(t, &BaseHandlerConfig{
 		ModelCatalog:  service,
 		Settings:      settings,
 		TransportName: "test",
@@ -558,11 +726,65 @@ func newModelCatalogCoreEngineWithSettings(
 			return time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC)
 		},
 	})
+}
+
+func newModelCatalogCoreEngineWithConfig(t *testing.T, cfg *BaseHandlerConfig) *gin.Engine {
+	t.Helper()
+	if cfg == nil {
+		t.Fatal("BaseHandlerConfig is required")
+	}
+	if cfg.TransportName == "" {
+		cfg.TransportName = "test"
+	}
+	if cfg.Now == nil {
+		cfg.Now = func() time.Time { return time.Date(2026, 5, 7, 12, 30, 0, 0, time.UTC) }
+	}
+	handlers := NewBaseHandlers(cfg)
 	engine := gin.New()
 	engine.GET("/model-catalog/*catalog_path", handlers.ModelCatalogRoute)
 	engine.POST("/model-catalog/*catalog_path", handlers.ModelCatalogRoute)
 	engine.GET("/openai/v1/models", handlers.OpenAIModels)
 	return engine
+}
+
+type modelCatalogSessionManagerStub struct {
+	SessionManager
+	info *session.Info
+}
+
+type modelCatalogProfileServiceStub struct {
+	ProfileService
+}
+
+func (modelCatalogProfileServiceStub) Resolve(
+	_ context.Context,
+	input profilepkg.ResolveInput,
+) (profilepkg.Resolution, error) {
+	if input.Flag != "marketing" {
+		return profilepkg.Resolution{}, fmt.Errorf("unexpected profile %q", input.Flag)
+	}
+	return profilepkg.Resolution{
+		Profile: profilepkg.Profile{ID: "profile-marketing", Name: "marketing", State: profilepkg.StateActive},
+		Source:  profilepkg.ResolutionSourceFlag,
+	}, nil
+}
+
+type modelCatalogWorkspaceAccessStub struct {
+	authorize func(context.Context, workspaceaccess.Request) (workspaceaccess.Decision, error)
+}
+
+func (s modelCatalogWorkspaceAccessStub) Authorize(
+	ctx context.Context,
+	req workspaceaccess.Request,
+) (workspaceaccess.Decision, error) {
+	return s.authorize(ctx, req)
+}
+
+func (s modelCatalogSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
+	if s.info == nil {
+		return nil, session.ErrSessionNotFound
+	}
+	return s.info, nil
 }
 
 type modelCatalogSettingsServiceStub struct {
@@ -594,6 +816,23 @@ func performModelCatalogRequest(
 
 	recorder := httptest.NewRecorder()
 	req := httptest.NewRequestWithContext(context.Background(), method, path, strings.NewReader(string(body)))
+	engine.ServeHTTP(recorder, req)
+	return recorder
+}
+
+func performModelCatalogRequestWithHeaders(
+	t *testing.T,
+	engine http.Handler,
+	method string,
+	path string,
+	headers map[string]string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	recorder := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), method, path, nil)
+	for name, value := range headers {
+		req.Header.Set(name, value)
+	}
 	engine.ServeHTTP(recorder, req)
 	return recorder
 }

@@ -17,39 +17,10 @@ import type { AgentSettingsSection } from "../lib/agent-settings-search";
 import { useAgent, useUpdateAgent } from "./use-agents";
 import { useAgentDeleteFlow } from "./use-agent-delete-flow";
 import { useUnsavedGuard } from "./use-unsaved-guard";
-import {
-  providerNeedsAuth,
-  type RuntimeCatalogProvider,
-  useRuntimeModelCatalog,
-} from "@/systems/model-catalog";
-import type { RuntimeModelOption, RuntimeProviderOption } from "@/systems/runtime";
-import { type SettingsProviderEntry, useSettingsProviders } from "@/systems/settings";
-import { type SessionProviderOption, useActiveWorkspace, useWorkspace } from "@/systems/workspace";
-
-function settingsProviderToOption(provider: SettingsProviderEntry): RuntimeProviderOption {
-  const displayName = provider.settings.display_name?.trim();
-  const harness = provider.settings.harness?.trim();
-  const runtimeProvider = provider.settings.runtime_provider?.trim();
-  return {
-    id: provider.name,
-    name: displayName || provider.name,
-    ...(harness ? { harness } : {}),
-    ...(runtimeProvider ? { runtime_provider: runtimeProvider } : {}),
-    needs_auth: providerNeedsAuth(provider.auth_status?.state),
-  };
-}
-
-function workspaceProviderToOption(provider: SessionProviderOption): RuntimeProviderOption {
-  const displayName = provider.display_name?.trim();
-  const harness = provider.harness?.trim();
-  const runtimeProvider = provider.runtime_provider?.trim();
-  return {
-    id: provider.name,
-    name: displayName || provider.name,
-    ...(harness ? { harness } : {}),
-    runtime_provider: runtimeProvider || provider.name,
-  };
-}
+import { type RuntimeCatalogProvider, useRuntimeModelCatalog } from "@/systems/model-catalog";
+import type { RuntimeModelOption } from "@/systems/runtime";
+import { settingsProviderToOption, useSettingsProviders } from "@/systems/settings";
+import { useActiveWorkspace, useWorkspace, workspaceProviderToOption } from "@/systems/workspace";
 
 export interface UseAgentSettingsPageOptions {
   name: string;

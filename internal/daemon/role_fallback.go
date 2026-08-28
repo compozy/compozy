@@ -11,6 +11,7 @@ import (
 	"github.com/compozy/compozy/internal/api/contract"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	eventspkg "github.com/compozy/compozy/internal/events"
+	speedpkg "github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/store"
 )
 
@@ -41,6 +42,8 @@ type roleAttemptRoute struct {
 	Provider        string
 	Model           string
 	ReasoningEffort string
+	Speed           speedpkg.Speed
+	ACPOptions      []compozyconfig.ACPOptionSelection
 }
 
 type roleFallbackEventPayload struct {
@@ -88,6 +91,8 @@ func invokeRoleWithFallback[T any](
 		Provider:        strings.TrimSpace(role.Provider),
 		Model:           strings.TrimSpace(role.Model),
 		ReasoningEffort: strings.TrimSpace(role.ReasoningEffort),
+		Speed:           role.speedValue(),
+		ACPOptions:      compozyconfig.CloneACPOptionSelections(role.acpOptionsValue()),
 	}
 	value, accepted, err := invoke(ctx, primary)
 	if accepted {
@@ -100,6 +105,8 @@ func invokeRoleWithFallback[T any](
 			Provider:        strings.TrimSpace(fallback.Provider),
 			Model:           strings.TrimSpace(fallback.Model),
 			ReasoningEffort: strings.TrimSpace(fallback.ReasoningEffort),
+			Speed:           fallback.Speed,
+			ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
 		}
 		attempt := index + 1
 		if eventErr := recordRoleFallbackEvent(ctx, role, correlation, attempt, route); eventErr != nil {

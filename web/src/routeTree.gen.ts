@@ -22,6 +22,7 @@ import { Route as AppMarketplaceRouteImport } from './routes/_app/marketplace'
 import { Route as AppNetworkRouteImport } from './routes/_app/network'
 import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
 import { Route as AppSandboxRouteImport } from './routes/_app/sandbox'
+import { Route as AppSessionsRouteImport } from './routes/_app/sessions'
 import { Route as AppSettingsRouteImport } from './routes/_app/settings'
 import { Route as AppTasksRouteImport } from './routes/_app/tasks'
 import { Route as AppTriggersRouteImport } from './routes/_app/triggers'
@@ -137,6 +138,11 @@ const AppNewTabRoute = AppNewTabRouteImport.update({
 const AppSandboxRoute = AppSandboxRouteImport.update({
   id: '/sandbox',
   path: '/sandbox',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppSessionsRoute = AppSessionsRouteImport.update({
+  id: '/sessions',
+  path: '/sessions',
   getParentRoute: () => AppRoute,
 } as any)
 const AppSettingsRoute = AppSettingsRouteImport.update({
@@ -421,6 +427,7 @@ export interface FileRoutesByFullPath {
   '/network': typeof AppNetworkRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
   '/sandbox': typeof AppSandboxRoute
+  '/sessions': typeof AppSessionsRoute
   '/settings': typeof AppSettingsRouteWithChildren
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRouteWithChildren
@@ -484,6 +491,7 @@ export interface FileRoutesByTo {
   '/network': typeof AppNetworkRouteWithChildren
   '/new-tab': typeof AppNewTabRoute
   '/sandbox': typeof AppSandboxRoute
+  '/sessions': typeof AppSessionsRoute
   '/tasks': typeof AppTasksRouteWithChildren
   '/triggers': typeof AppTriggersRouteWithChildren
   '/vault': typeof AppVaultRoute
@@ -550,6 +558,7 @@ export interface FileRoutesById {
   '/_app/network': typeof AppNetworkRouteWithChildren
   '/_app/new-tab': typeof AppNewTabRoute
   '/_app/sandbox': typeof AppSandboxRoute
+  '/_app/sessions': typeof AppSessionsRoute
   '/_app/settings': typeof AppSettingsRouteWithChildren
   '/_app/tasks': typeof AppTasksRouteWithChildren
   '/_app/triggers': typeof AppTriggersRouteWithChildren
@@ -619,6 +628,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/new-tab'
     | '/sandbox'
+    | '/sessions'
     | '/settings'
     | '/tasks'
     | '/triggers'
@@ -682,6 +692,7 @@ export interface FileRouteTypes {
     | '/network'
     | '/new-tab'
     | '/sandbox'
+    | '/sessions'
     | '/tasks'
     | '/triggers'
     | '/vault'
@@ -747,6 +758,7 @@ export interface FileRouteTypes {
     | '/_app/network'
     | '/_app/new-tab'
     | '/_app/sandbox'
+    | '/_app/sessions'
     | '/_app/settings'
     | '/_app/tasks'
     | '/_app/triggers'
@@ -898,6 +910,13 @@ declare module '@tanstack/react-router' {
       path: '/sandbox'
       fullPath: '/sandbox'
       preLoaderRoute: typeof AppSandboxRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/_app/sessions': {
+      id: '/_app/sessions'
+      path: '/sessions'
+      fullPath: '/sessions'
+      preLoaderRoute: typeof AppSessionsRouteImport
       parentRoute: typeof AppRoute
     }
     '/_app/settings': {
@@ -1539,6 +1558,7 @@ interface AppRouteChildren {
   AppNetworkRoute: typeof AppNetworkRouteWithChildren
   AppNewTabRoute: typeof AppNewTabRoute
   AppSandboxRoute: typeof AppSandboxRoute
+  AppSessionsRoute: typeof AppSessionsRoute
   AppSettingsRoute: typeof AppSettingsRouteWithChildren
   AppTasksRoute: typeof AppTasksRouteWithChildren
   AppTriggersRoute: typeof AppTriggersRouteWithChildren
@@ -1558,6 +1578,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNetworkRoute: AppNetworkRouteWithChildren,
   AppNewTabRoute: AppNewTabRoute,
   AppSandboxRoute: AppSandboxRoute,
+  AppSessionsRoute: AppSessionsRoute,
   AppSettingsRoute: AppSettingsRouteWithChildren,
   AppTasksRoute: AppTasksRouteWithChildren,
   AppTriggersRoute: AppTriggersRouteWithChildren,

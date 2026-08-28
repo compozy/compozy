@@ -4,26 +4,9 @@ import { toast } from "sonner";
 import { useSessionPresence } from "@/systems/session";
 import { useActiveWorkspace } from "@/systems/workspace";
 
-import type { OsShellHandle } from "../../../contexts/os-shell-context";
 import { useOsShell } from "../../../hooks/use-os-shell";
 import { useSessionWindowResolution } from "./use-session-window-resolution";
 import { useSessionWindowRuntime } from "./use-session-window-runtime";
-
-function returnToAgent(
-  coordinator: OsShellHandle["coordinator"],
-  windowId: string,
-  agentName: string
-): void {
-  void coordinator.userClose(windowId).then(() => {
-    void coordinator.userOpen({
-      app: "agents",
-      route: {
-        pathname: `/agents/${encodeURIComponent(agentName)}`,
-        search: {},
-      },
-    });
-  });
-}
 
 /** Resolves the session window identity and owns its redirect/delete lifecycle. */
 export function useSessionWindowController(windowId: string) {
@@ -33,13 +16,18 @@ export function useSessionWindowController(windowId: string) {
   const { liveTailEnabled, presenceEnabled, sessionId, agentName } =
     useSessionWindowRuntime(windowId);
   const [deletedSessionId, setDeletedSessionId] = useState<string | null>(null);
-  const deletedLocally = sessionId !== null && deletedSessionId === sessionId;
-  const effectiveLiveTailEnabled = liveTailEnabled && !deletedLocally;
+  const deletedByOperator = sessionId !== null && deletedSessionId === sessionId;
   const resolution = useSessionWindowResolution({
     sessionId,
     runtimeWorkspaceId,
-    liveTailEnabled: effectiveLiveTailEnabled,
+    liveTailEnabled: liveTailEnabled && !deletedByOperator,
   });
+  const remotelyGone =
+    sessionId !== null &&
+    ((resolution.scopedMiss && resolution.foreign.status === "missing") ||
+      resolution.crossesWorkspace);
+  const deletedLocally = deletedByOperator || remotelyGone;
+  const effectiveLiveTailEnabled = liveTailEnabled && !deletedLocally;
   useSessionPresence(
     resolution.workspaceId,
     sessionId,
@@ -50,20 +38,10 @@ export function useSessionWindowController(windowId: string) {
   );
 
   useEffect(() => {
-    if (agentName === null || deletedLocally) return;
-    const gone = resolution.scopedMiss && resolution.foreign.status === "missing";
-    if (!gone && !resolution.crossesWorkspace) return;
+    if (sessionId === null || deletedByOperator || !remotelyGone) return;
     toast.error("Session not found");
-    returnToAgent(coordinator, windowId, agentName);
-  }, [
-    agentName,
-    coordinator,
-    deletedLocally,
-    resolution.crossesWorkspace,
-    resolution.foreign.status,
-    resolution.scopedMiss,
-    windowId,
-  ]);
+    void coordinator.userRetireSession(windowId);
+  }, [coordinator, deletedByOperator, remotelyGone, sessionId, windowId]);
 
   return {
     ...resolution,
@@ -73,9 +51,9 @@ export function useSessionWindowController(windowId: string) {
     liveTailEnabled,
     sessionId,
     handleDeleteSuccess: () => {
-      if (sessionId === null || agentName === null) return;
+      if (sessionId === null) return;
       setDeletedSessionId(sessionId);
-      returnToAgent(coordinator, windowId, agentName);
+      void coordinator.userRetireSession(windowId);
     },
   };
 }

@@ -55,9 +55,9 @@ ORDER BY updated_at DESC, session_id DESC;
 
 -- name: UpsertSession :execrows
 INSERT INTO sessions (
-  profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, speed_resolution_json,
+  profile_id, id, name, agent_name, provider, model, reasoning_effort, speed, acp_options_json, speed_resolution_json,
   runtime_status, runtime_transition, runtime_failure, runtime_generation, runtime_recovery_json,
-  selected_provider, selected_model, selected_reasoning_effort, selected_speed,
+  selected_provider, selected_model, selected_reasoning_effort, selected_speed, selected_acp_options_json,
   runtime_selection_revision, workspace_id, worktree_id, session_type,
   network_spec_json, network_mode, network_channel, network_source, state,
   parent_session_id, root_session_id, spawn_depth, spawn_role, ttl_expires_at,
@@ -70,11 +70,11 @@ INSERT INTO sessions (
   created_at, updated_at
 ) SELECT
   sqlc.arg(profile_id), sqlc.arg(id), sqlc.narg(name), sqlc.arg(agent_name), sqlc.arg(provider), sqlc.arg(model),
-  sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(speed_resolution_json),
+  sqlc.arg(reasoning_effort), sqlc.arg(speed), sqlc.arg(acp_options_json), sqlc.arg(speed_resolution_json),
   sqlc.arg(runtime_status), sqlc.arg(runtime_transition), sqlc.arg(runtime_failure),
   sqlc.arg(runtime_generation), sqlc.arg(runtime_recovery_json),
   sqlc.arg(selected_provider), sqlc.arg(selected_model), sqlc.arg(selected_reasoning_effort),
-  sqlc.arg(selected_speed), sqlc.arg(runtime_selection_revision), sqlc.arg(workspace_id),
+  sqlc.arg(selected_speed), sqlc.arg(selected_acp_options_json), sqlc.arg(runtime_selection_revision), sqlc.arg(workspace_id),
   sqlc.narg(worktree_id),
   sqlc.arg(session_type), sqlc.arg(network_spec_json), sqlc.arg(network_mode),
   sqlc.narg(network_channel), sqlc.arg(network_source), sqlc.arg(state), sqlc.narg(parent_session_id),
@@ -111,6 +111,7 @@ ON CONFLICT(id) DO UPDATE SET
 	model = excluded.model,
 	reasoning_effort = excluded.reasoning_effort,
 	speed = excluded.speed,
+	acp_options_json = excluded.acp_options_json,
 	speed_resolution_json = excluded.speed_resolution_json,
 	runtime_status = excluded.runtime_status,
 	runtime_transition = excluded.runtime_transition,
@@ -121,6 +122,7 @@ ON CONFLICT(id) DO UPDATE SET
 	selected_model = excluded.selected_model,
 	selected_reasoning_effort = excluded.selected_reasoning_effort,
 	selected_speed = excluded.selected_speed,
+	selected_acp_options_json = excluded.selected_acp_options_json,
 	runtime_selection_revision = excluded.runtime_selection_revision,
   workspace_id = excluded.workspace_id,
 	worktree_id = excluded.worktree_id,

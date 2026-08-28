@@ -9,6 +9,7 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/memory"
 	"github.com/compozy/compozy/internal/memory/consolidation"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	taskpkg "github.com/compozy/compozy/internal/task"
 )
@@ -64,6 +65,8 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 			Provider:        resolved.Provider,
 			Model:           resolved.Model,
 			ReasoningEffort: resolved.ReasoningEffort,
+			Speed:           resolved.speedValue(),
+			ACPOptions:      session.ACPOptionSelectionsFromConfig(resolved.acpOptionsValue()),
 			Fallbacks:       append([]compozyconfig.RoleFallback(nil), resolved.Fallbacks...),
 			BeforeFallback: func(fallbackCtx context.Context, attempt int, fallback compozyconfig.RoleFallback) error {
 				return recordRoleFallbackEvent(fallbackCtx, resolved, correlation, attempt, roleAttemptRoute{
@@ -71,6 +74,8 @@ func dreamSessionRouteResolver(roles RoleResolver) consolidation.SessionRouteRes
 					Provider:        fallback.Provider,
 					Model:           fallback.Model,
 					ReasoningEffort: fallback.ReasoningEffort,
+					Speed:           fallback.Speed,
+					ACPOptions:      compozyconfig.CloneACPOptionSelections(fallback.ACPOptions),
 				})
 			},
 		}, nil

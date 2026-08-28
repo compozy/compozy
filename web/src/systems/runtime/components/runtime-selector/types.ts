@@ -48,6 +48,8 @@ export interface RuntimeSelectorValue {
   provider: string;
   model: string;
   reasoning_effort: ReasoningEffort | "";
+  /** Explicit ACP option overrides, excluding dedicated model/reasoning/speed fields. */
+  acp_options?: RuntimeACPOptionSelection[];
 }
 
 /** `composer` removes trigger chrome while preserving runtime identity. */
@@ -55,6 +57,66 @@ export type RuntimeSelectorVariant = "default" | "small" | "compact" | "composer
 
 export type RuntimeAvailability = "live" | "stale" | "unavailable";
 export type RuntimeReasoningSource = "acp" | "catalog";
+export type RuntimeProviderStrategy = "session_config" | "launch_arg" | "provider_managed";
+
+/** One ACP select value as advertised by the active session. */
+export interface RuntimeACPOptionValue {
+  value: string;
+  label?: string;
+  description?: string;
+  group_id?: string;
+  group_label?: string;
+}
+
+/**
+ * Public ACP configuration metadata. Transport-specific model aliases never
+ * cross this boundary; only controls the ACP advertised are rendered.
+ */
+export interface RuntimeACPOption {
+  id: string;
+  label?: string;
+  description?: string;
+  category?: string;
+  kind: string;
+  current_value_id?: string;
+  current_bool?: boolean | null;
+  values?: RuntimeACPOptionValue[];
+}
+
+/** A typed ACP option override; exactly one of value_id or bool_value is set. */
+export type RuntimeACPOptionSelection =
+  | { id: string; value_id: string; bool_value?: never }
+  | { id: string; value_id?: never; bool_value: boolean };
+
+/** Public model capability combinations, independent of provider transport IDs. */
+export interface RuntimeModelConfiguration {
+  reasoning_effort?: ReasoningEffort | null;
+  fast?: boolean | null;
+  thinking?: boolean | null;
+}
+
+/** Whether the public model matrix contains a configuration for this effort. */
+export function modelSupportsReasoningEffort(
+  model: RuntimeModelOption | undefined,
+  effort: ReasoningEffort
+): boolean {
+  if (!model) return false;
+  if (!model.configurations || model.configurations.length === 0) {
+    return model.efforts.includes(effort);
+  }
+  return model.configurations.some(configuration => configuration.reasoning_effort === effort);
+}
+
+/**
+ * An observed configuration matrix is authoritative for Fast support. Rows
+ * without a matrix stay permissive because they represent provider-default or
+ * not-yet-observed capability data; the daemon still validates the request at
+ * dispatch time.
+ */
+export function modelSupportsFast(model: RuntimeModelOption | undefined): boolean {
+  if (!model?.configurations || model.configurations.length === 0) return true;
+  return model.configurations.some(configuration => configuration.fast === true);
+}
 
 /** Provider rail option. Auth state drives dimming + disabled model rows. */
 export interface RuntimeProviderOption {
@@ -63,6 +125,8 @@ export interface RuntimeProviderOption {
   harness?: string;
   runtime_provider?: string;
   needs_auth?: boolean;
+  /** How this provider applies model/config controls at runtime. */
+  runtime_strategy?: RuntimeProviderStrategy;
 }
 
 /**
@@ -87,6 +151,10 @@ export interface RuntimeModelOption {
   /** Canonical default within `efforts` ("" = provider default). Sanitized by the mapper. */
   default_effort?: ReasoningEffort | "";
   reasoning_source?: RuntimeReasoningSource;
+  /** Public valid combinations for the model; aliases stay server-side. */
+  configurations?: RuntimeModelConfiguration[];
+  /** Provider/model option descriptors available before a session is active. */
+  acp_options?: RuntimeACPOption[];
   availability: RuntimeAvailability;
   curated?: boolean;
   featured?: boolean;

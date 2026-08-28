@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	shellquote "github.com/kballard/go-shellquote"
 	"github.com/spf13/cobra"
 )
@@ -67,9 +68,25 @@ func parseConfigSetValue(kind configSetValueKind, raw string) (any, error) {
 			return values, nil
 		}
 		return raw, nil
+	case configSetACPOptions:
+		return parseConfigSetACPOptions(raw, trimmed)
 	default:
 		return nil, fmt.Errorf("cli: unsupported config value kind %d", kind)
 	}
+}
+
+func parseConfigSetACPOptions(raw string, trimmed string) (any, error) {
+	var decoded any
+	decoder := json.NewDecoder(strings.NewReader(trimmed))
+	decoder.UseNumber()
+	if err := decoder.Decode(&decoded); err != nil {
+		return nil, fmt.Errorf("cli: parse ACP options %q: %w", raw, err)
+	}
+	normalized, err := normalizeConfigSetJSONValue(decoded)
+	if err != nil {
+		return nil, fmt.Errorf("cli: normalize ACP options %q: %w", raw, err)
+	}
+	return compozyconfig.NormalizeToolConfigValue(compozyconfig.ConfigValueACPOptions, normalized)
 }
 
 func parseConfigNumericValue(kind configSetValueKind, raw string, trimmed string) (any, error) {

@@ -26,6 +26,7 @@ func (s *LiveProviderSource) listCommand(
 		ProviderID: s.providerID,
 		Command:    bin,
 		Args:       args,
+		Dir:        s.workingDir,
 		Env:        env,
 		Timeout:    timeout,
 	})
