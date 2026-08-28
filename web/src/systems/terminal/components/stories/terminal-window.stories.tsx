@@ -89,6 +89,7 @@ const ACTIONS: TerminalWindowAppProps["actions"] = {
   onOpenTerminal: fn(),
   onCloseTerminal: fn(),
   onStop: fn(),
+  onWait: fn(),
   onStopRecording: fn(),
   onAnswerInputRequest: fn(),
   onRejectInputRequest: fn(),

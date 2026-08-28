@@ -162,8 +162,9 @@ describe("SessionTerminalBlock", () => {
 
     rerender(<TerminalExpiredState idleFor="6 hours" />);
     expect(screen.getByTestId("terminal-expired")).toHaveTextContent(
-      "Nobody was watching for 6 hours"
+      "reclaimed after 6 hours without viewers"
     );
+    expect(screen.getByTestId("terminal-expired")).not.toHaveTextContent("Nobody was watching");
   });
 });
 

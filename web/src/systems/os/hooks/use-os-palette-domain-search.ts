@@ -35,6 +35,7 @@ import {
 } from "../lib/os-palette-domain-search";
 import type { CmdPaletteRankSignals } from "../lib/cmd-palette-types";
 import { useOsPaletteWorkspaceCatalogs } from "./use-os-palette-workspace-catalogs";
+import { useOsPaletteTerminalSection } from "./use-os-palette-terminal-search";
 
 export type {
   OsPaletteDomainRow,
@@ -148,6 +149,16 @@ export function useOsPaletteDomainSearch({
   usePaletteInfiniteCatalog(loops, loopsWorkspaceEnabled);
   usePaletteInfiniteCatalog(globalMemories, globalKnowledgeEnabled);
   usePaletteInfiniteCatalog(workspaceMemories, workspaceKnowledgeEnabled);
+
+  const terminalsSection = useOsPaletteTerminalSection({
+    enabled: domainEnabled("Terminals"),
+    workspaceId: scopedWorkspace,
+    profile,
+    query,
+    signals,
+    workspaceLabel: scopedWorkspace ? workspaceNames.get(scopedWorkspace) : undefined,
+    limit: domainLimit,
+  });
 
   if (signals === null) return [];
   const wsLabel = (id?: string | null) => workspaceLabel(scope, id, workspaceNames);
@@ -474,6 +485,7 @@ export function useOsPaletteDomainSearch({
     )
   );
 
+  domainSections.push(terminalsSection);
   const order = new Map(signals.weights.group_order.map((group, index) => [group, index]));
   return domainSections.sort(
     (left, right) =>

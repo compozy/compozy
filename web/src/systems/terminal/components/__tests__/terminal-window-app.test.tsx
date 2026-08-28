@@ -35,7 +35,7 @@ import {
  * Invariant: every S1 state renders with its distinguishing behaviour, and the
  * two contention behaviours hold — displacing another person confirms by name
  * before any write, an unchanged browser identity keeps one writable attachment,
- * and tab overflow at the cap collapses rather than shrinking tabs past legibility.
+ * and every tab stays visible at min 96px through the per-workspace cap.
  * A pending question stays on screen for a watcher or aggregate read, with the
  * write row absent; Send is offered only with a writable lease on a destination
  * profile; resolved rows from the host projection, including "by you", stay on
@@ -114,6 +114,7 @@ describe("TerminalWindowApp — S1 states", () => {
     await waitFor(() =>
       expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument()
     );
+    expect(screen.getByTestId("terminal-lease-badge")).toHaveAttribute("data-lease", "me");
     expect(screen.getByTestId("terminal-lease-badge")).toHaveTextContent("You're in control");
     expect(screen.getByTestId("terminal-release-control")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
@@ -125,17 +126,16 @@ describe("TerminalWindowApp — S1 states", () => {
     await waitFor(() =>
       expect(screen.getByTestId(`terminal-pane-${PSQL_TERMINAL.id}`)).toBeInTheDocument()
     );
+    expect(screen.getByTestId("terminal-lease-badge")).toHaveAttribute("data-lease", "agent");
     expect(screen.getByTestId("terminal-lease-badge")).toHaveTextContent(
       "Claude Code is in control"
     );
     expect(screen.getByTestId("terminal-take-control")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-release-control")).not.toBeInTheDocument();
-    // Watching is read-only, and the grid says so through its own label.
     await waitFor(() =>
-      expect(
-        screen.getByRole("log", { name: `${PSQL_TERMINAL.title} — watching` })
-      ).toBeInTheDocument()
+      expect(screen.getByRole("log", { name: PSQL_TERMINAL.title })).toBeInTheDocument()
     );
+    expect(screen.queryByRole("log", { name: `${PSQL_TERMINAL.title} — watching` })).toBeNull();
   });
 
   it("Should render a pipe terminal as a log with no interactive affordance", async () => {
@@ -152,9 +152,12 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByTestId(`terminal-pipe-pane-${MAKE_GATE_TERMINAL.id}`)).toBeInTheDocument();
     expect(screen.getByText("412")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-pipe-chip")).toHaveTextContent("read-only log");
-    // Signal and Close are the pipe verbs; interactive lease actions stay absent.
-    expect(screen.getByTestId("terminal-signal")).toBeInTheDocument();
+    // Wait and Close are the pipe head verbs; Signal lives in overflow.
+    expect(screen.getByTestId("terminal-wait")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-close")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-signal")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("terminal-pipe-overflow"));
+    expect(await screen.findByTestId("terminal-signal")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-take-control")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-release-control")).not.toBeInTheDocument();
     expect(screen.queryByTestId("terminal-stop")).not.toBeInTheDocument();
@@ -202,19 +205,26 @@ describe("TerminalWindowApp — S1 states", () => {
     const socket = recordingSocketFactory();
     renderWindow({ socketFactory: socket.factory, terminals: [DEV_SERVER_TERMINAL] });
 
-    // Waiting is stated in one line over an empty grid.
+    // Waiting is stated in one line over an invisible grid — socket open is not attached.
     const connecting = await screen.findByTestId("terminal-connecting");
     expect(connecting).toHaveTextContent("Connecting…");
     expect(connecting).toHaveAttribute("data-status", "connecting");
+    expect(screen.getByRole("log", { name: DEV_SERVER_TERMINAL.title })).toHaveClass("invisible");
 
     await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
     await waitFor(() => expect(screen.queryByTestId("terminal-connecting")).toBeNull());
+    expect(screen.getByRole("log", { name: DEV_SERVER_TERMINAL.title })).not.toHaveClass(
+      "invisible"
+    );
 
     const passesBeforeDrop = socket.connectionCount();
     await socket.drop();
     const reconnecting = await screen.findByTestId("terminal-connecting");
     expect(reconnecting).toHaveTextContent("Reconnecting…");
     expect(reconnecting).toHaveAttribute("data-status", "reconnecting");
+    expect(screen.getByRole("log", { name: DEV_SERVER_TERMINAL.title })).not.toHaveClass(
+      "invisible"
+    );
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
     await socket.readyForConnectionCount(passesBeforeDrop + 1);
     await socket.deliver(TERMINAL_SERVER_OP.attached, attachedPayload());
@@ -345,14 +355,21 @@ describe("TerminalWindowApp — S1 states", () => {
   });
 
   it("Should state an execute-only platform instead of offering a screen", async () => {
-    renderWindow({ interactiveAvailable: false });
+    renderWindow({ interactiveAvailable: false, terminals: [] });
 
     expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-tabs")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
     expect(screen.queryByTestId("terminal-open")).not.toBeInTheDocument();
+    expect(screen.getByTestId("terminal-execute-only")).not.toHaveTextContent("On this platform");
 
     await userEvent.click(screen.getByRole("button", { name: "View journal" }));
+    expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "true");
+    expect(screen.queryByTestId("terminal-execute-only")).not.toBeInTheDocument();
     expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByTestId("terminal-tab-journal"));
+    expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "false");
   });
 
   it("Should publish identity into the OS head instead of drawing a second row", () => {
@@ -592,11 +609,93 @@ describe("TerminalWindowApp — contention", () => {
       error: { code: "terminal_not_found", message: "no terminal term-4f21c9a03b7e" },
     });
 
-    // Nothing to reconnect to; everything it ran is still recorded.
-    const notice = await screen.findByTestId("terminal-notice-terminal_not_found");
-    expect(notice).not.toHaveTextContent("Reconnect");
-    await userEvent.click(screen.getByTestId("terminal-notice-view-journal"));
+    const gone = await screen.findByTestId("terminal-not-found");
+    expect(gone).toHaveTextContent("terminal_not_found");
+    expect(gone).not.toHaveTextContent("Reconnect");
+    expect(gone).not.toHaveTextContent("It may have been closed");
+    expect(screen.queryByTestId("terminal-notice-terminal_not_found")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "View journal" }));
+    expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "true");
     expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+  });
+
+  it("Should state a reclaimed terminal from the stream with its idle period", async () => {
+    const socket = recordingSocketFactory();
+    renderWindow({
+      detachedTtl: "24h",
+      socketFactory: socket.factory,
+      terminals: [DEV_SERVER_TERMINAL],
+    });
+    await screen.findByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`);
+
+    await socket.ready();
+    await socket.deliver(TERMINAL_SERVER_OP.error, {
+      error: { code: "terminal_expired", message: "terminal expired" },
+    });
+
+    const expired = await screen.findByTestId("terminal-expired");
+    expect(expired).toHaveTextContent("reclaimed after 24h without viewers");
+    expect(expired).not.toHaveTextContent("Nobody was watching");
+    expect(within(expired).getByRole("button", { name: "View journal" })).toBeInTheDocument();
+    expect(
+      within(expired).getByRole("button", { name: "Open a new terminal" })
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-open")).toBeInTheDocument();
+  });
+
+  it.each([
+    { code: "terminal_expired", testId: "terminal-expired" },
+    { code: "terminal_not_found", testId: "terminal-not-found" },
+  ] as const)("Should gate the $code create CTA at the project cap", async ({ code, testId }) => {
+    const actions = stubWindowActions();
+    const socket = recordingSocketFactory();
+    const current = TERMINAL_FIXTURES_AT_CAP[0];
+    if (!current) throw new Error("cap fixture must include a current terminal");
+    renderWindow({
+      actions,
+      requestedTerminalId: current.id,
+      socketFactory: socket.factory,
+      terminals: TERMINAL_FIXTURES_AT_CAP,
+    });
+    await screen.findByTestId(`terminal-pane-${current.id}`);
+
+    await socket.ready();
+    await socket.deliver(TERMINAL_SERVER_OP.error, {
+      error: { code, message: code },
+    });
+
+    const state = await screen.findByTestId(testId);
+    await userEvent.click(within(state).getByRole("button", { name: "Open a new terminal" }));
+
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("terminal-limit-dialog")).toBeInTheDocument();
+  });
+
+  it("Should keep chrome and say the routed terminal is gone", () => {
+    renderWindow({
+      requestedTerminalId: "term-missing",
+      terminals: TERMINAL_FIXTURES,
+    });
+
+    const gone = screen.getByTestId("terminal-not-found");
+    expect(gone).toHaveTextContent("terminal_not_found");
+    expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-open")).toBeInTheDocument();
+    expect(within(gone).getByRole("button", { name: "View journal" })).toBeInTheDocument();
+    expect(within(gone).getByRole("button", { name: "Open a new terminal" })).toBeInTheDocument();
+  });
+
+  it("Should retarget the host when a PTY tab is selected", async () => {
+    const onSelectTerminal = vi.fn();
+    const next = TERMINAL_FIXTURES[1];
+    renderWindow({
+      onSelectTerminal,
+      requestedTerminalId: DEV_SERVER_TERMINAL.id,
+      terminals: TERMINAL_FIXTURES,
+    });
+
+    await userEvent.click(screen.getByTestId(`terminal-tab-select-${next.id}`));
+    expect(onSelectTerminal).toHaveBeenCalledExactlyOnceWith(next.id);
   });
 
   it("Should show the daemon's own words for a refusal it has no copy for", async () => {
@@ -640,31 +739,35 @@ describe("TerminalWindowApp — contention", () => {
     );
   });
 
-  it("Should collapse the surplus tabs at the cap instead of shrinking them", async () => {
+  it("Should keep every tab visible at the cap and name the limit in the identity trail", async () => {
     renderWindow({ terminals: TERMINAL_FIXTURES_AT_CAP });
 
-    const overflow = screen.getByTestId("terminal-tab-overflow");
-    expect(overflow).toHaveAttribute("aria-label", "3 more terminals");
-    // Every remaining tab keeps its own row in the strip rather than shrinking.
-    expect(screen.getAllByRole("tab").length).toBeLessThan(TERMINAL_FIXTURES_AT_CAP.length + 1);
+    expect(screen.queryByTestId("terminal-tab-overflow")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(TERMINAL_FIXTURES_AT_CAP.length + 1);
+    expect(screen.getByTestId("terminal-cap-count")).toHaveTextContent(
+      `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT}`
+    );
+    for (const terminal of TERMINAL_FIXTURES_AT_CAP) {
+      expect(screen.getByTestId(`terminal-tab-select-${terminal.id}`)).toBeInTheDocument();
+    }
 
-    await userEvent.click(overflow);
-
-    expect(await screen.findByText("e2e suite")).toBeInTheDocument();
+    const last = TERMINAL_FIXTURES_AT_CAP[TERMINAL_FIXTURES_AT_CAP.length - 1];
+    await userEvent.click(screen.getByTestId(`terminal-tab-select-${last.id}`));
+    expect(screen.getByTestId(`terminal-tab-select-${last.id}`)).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
   });
 
-  it("Should keep the terminal you are looking at on the strip", async () => {
-    renderWindow({ terminals: TERMINAL_FIXTURES_AT_CAP });
-    const hidden = TERMINAL_FIXTURES_AT_CAP[TERMINAL_FIXTURES_AT_CAP.length - 1];
+  it("Should keep the journal mounted when switching away from it", async () => {
+    renderWindow();
 
-    await userEvent.click(screen.getByTestId("terminal-tab-overflow"));
-    await userEvent.click(await screen.findByText(hidden.title));
+    await userEvent.click(screen.getByTestId("terminal-tab-journal"));
+    expect(screen.getByTestId("journal-slot")).toBeVisible();
 
-    // Selecting from the surplus promotes it: a pane no visible tab claims,
-    // with no tab marked selected, is not a tablist.
-    const tab = await screen.findByTestId(`terminal-tab-select-${hidden.id}`);
-    expect(tab).toHaveAttribute("aria-selected", "true");
-    expect(tab).toHaveAttribute("tabindex", "0");
+    await userEvent.click(screen.getByTestId(`terminal-tab-select-${DEV_SERVER_TERMINAL.id}`));
+    expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("journal-slot")).not.toBeVisible();
   });
 
   it("Should move selection and focus together across the tab strip", async () => {

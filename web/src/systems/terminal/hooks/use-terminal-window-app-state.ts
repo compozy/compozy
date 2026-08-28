@@ -24,6 +24,13 @@ export interface UseTerminalWindowAppStateOptions {
   limit: number;
   readOnly: boolean;
   actions: TerminalWindowActions;
+  /**
+   * The PTY the route named. `undefined` is an isolated window with no host
+   * route. `null` is `/terminal` with no id. A string is `/terminal/:id`.
+   */
+  requestedTerminalId?: string | null;
+  /** Retargets the host route to this PTY. Absent in isolated windows. */
+  onSelectTerminal?: (terminalId: string) => void;
   /** Refreshes the journal when the operator reveals it. */
   onViewJournal?: (() => void) | undefined;
   /** The journal tab is no longer the surface being read. */
@@ -38,6 +45,8 @@ export interface TerminalWindowAppState {
   attentionIds: ReadonlySet<string>;
   destinationTerminals: TerminalInfo[];
   limitOpen: boolean;
+  /** The route named a PTY that is not in this catalog. */
+  missingRequested: boolean;
   openTerminal: (() => void) | undefined;
   setActiveTab: (tab: TerminalTabId) => void;
   setLimitOpen: (open: boolean) => void;
@@ -48,8 +57,8 @@ export interface TerminalWindowAppState {
  * The window's interaction state: which tab is looked at, whether the limit
  * dialog is open, and the scope those facts belong to.
  *
- * An empty project opens on the terminals view, not on the journal: with
- * nothing running, the honest first offer is opening a terminal.
+ * When the host names a PTY, that route is the only selection truth. The
+ * journal is a local overlay on top of it — it is not a second PTY id.
  */
 export function useTerminalWindowAppState({
   workspaceId,
@@ -59,10 +68,13 @@ export function useTerminalWindowAppState({
   limit,
   readOnly,
   actions,
+  requestedTerminalId,
+  onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
   const [selectedTab, setSelectedTab] = useState<TerminalTabId | null>(null);
+  const [journalOpen, setJournalOpen] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
   const tabsIdBase = useId();
   // Interaction state belongs to one `(workspace, profile)`: a dialog opened
@@ -74,18 +86,41 @@ export function useTerminalWindowAppState({
     setPreviousScope(scope);
     setLimitOpen(false);
     setSelectedTab(null);
+    setJournalOpen(false);
   }
   const attentionIds = new Set(inputRequests.map(request => request.terminal_id));
-  const selected =
-    selectedTab !== null &&
-    (selectedTab === TERMINAL_JOURNAL_TAB || hasTerminal(terminals, selectedTab))
-      ? selectedTab
-      : (terminals[0]?.id ?? null);
-  const activeTab: TerminalTabId = selected ?? TERMINAL_NO_TERMINALS;
+  const routeOwned = requestedTerminalId !== undefined;
+  const missingRequested =
+    routeOwned &&
+    requestedTerminalId !== null &&
+    !hasTerminal(terminals, requestedTerminalId) &&
+    !journalOpen;
+  const activeTab = resolveActiveTab({
+    journalOpen,
+    missingRequested,
+    requestedTerminalId,
+    routeOwned,
+    selectedTab,
+    terminals,
+  });
   const active = terminals.find(terminal => terminal.id === activeTab) ?? null;
   const setActiveTab = (tab: TerminalTabId) => {
-    if (tab === TERMINAL_JOURNAL_TAB) onViewJournal?.();
-    else onLeaveJournal?.();
+    if (tab === TERMINAL_JOURNAL_TAB) {
+      if (journalOpen && terminals.length === 0) {
+        setJournalOpen(false);
+        onLeaveJournal?.();
+        return;
+      }
+      setJournalOpen(true);
+      onViewJournal?.();
+      return;
+    }
+    setJournalOpen(false);
+    onLeaveJournal?.();
+    if (onSelectTerminal) {
+      onSelectTerminal(tab);
+      return;
+    }
     setSelectedTab(tab);
   };
   const destinationTerminals = terminals.filter(terminal => terminal.profile_name === profile);
@@ -113,9 +148,44 @@ export function useTerminalWindowAppState({
     attentionIds,
     destinationTerminals,
     limitOpen,
+    missingRequested,
     openTerminal,
     setActiveTab,
     setLimitOpen,
     tabsIdBase,
   };
+}
+
+function resolveActiveTab({
+  journalOpen,
+  missingRequested,
+  requestedTerminalId,
+  routeOwned,
+  selectedTab,
+  terminals,
+}: {
+  journalOpen: boolean;
+  missingRequested: boolean;
+  requestedTerminalId: string | null | undefined;
+  routeOwned: boolean;
+  selectedTab: TerminalTabId | null;
+  terminals: readonly TerminalInfo[];
+}): TerminalTabId {
+  if (journalOpen) return TERMINAL_JOURNAL_TAB;
+  if (missingRequested && requestedTerminalId) return requestedTerminalId;
+  if (routeOwned) {
+    if (typeof requestedTerminalId === "string" && hasTerminal(terminals, requestedTerminalId)) {
+      return requestedTerminalId;
+    }
+    const first = terminals[0];
+    return first ? first.id : TERMINAL_NO_TERMINALS;
+  }
+  if (
+    selectedTab !== null &&
+    (selectedTab === TERMINAL_JOURNAL_TAB || hasTerminal(terminals, selectedTab))
+  ) {
+    return selectedTab;
+  }
+  const first = terminals[0];
+  return first ? first.id : TERMINAL_NO_TERMINALS;
 }

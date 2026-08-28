@@ -15,7 +15,6 @@ import {
 } from "@compozy/ui";
 
 import type { TerminalJournalEntry } from "../types";
-import { TerminalIdentityGlyph } from "./terminal-header";
 import { TerminalJournalDetail } from "./terminal-journal-detail";
 import { TerminalJournalEmpty } from "./terminal-journal-empty";
 import { TerminalJournalFooter } from "./terminal-journal-footer";
@@ -34,7 +33,7 @@ export function TerminalJournalHead({ projectLabel }: { projectLabel?: string })
       className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
       data-testid="terminal-journal-head"
     >
-      <TerminalIdentityGlyph icon={ScrollText} />
+      <ScrollText aria-hidden="true" className="size-3.5 text-muted" />
       <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
         Journal
       </span>

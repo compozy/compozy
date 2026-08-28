@@ -1,32 +1,19 @@
-import type { TerminalSelectionRange } from "@compozy/ui";
 import { BlockLoading, Button, Empty, toast } from "@compozy/ui";
 import { AlertCircle, FolderOpen } from "lucide-react";
 
-import { stageSessionTerminalQuote, useSessionCreateActions } from "@/systems/session";
 import { parsePositiveDurationMilliseconds } from "@/systems/settings";
 import {
-  buildTerminalQuote,
-  terminalSelectionLines,
   TerminalJournalPanel,
-  TerminalNotFoundState,
   TerminalRecordingPlayer,
   TerminalStoreProvider,
   TerminalWindowApp,
-  type TerminalInfo,
 } from "@/systems/terminal";
 
 import type { OsDesktopRuntimeStore } from "../../lib/os-types";
 import { useDesktop } from "../../hooks/use-desktop";
 import { matchTerminalInstance } from "../../lib/app-catalog";
 import { useTerminalWindowControllerState } from "./hooks/use-terminal-window-controller-state";
-
-function orderedTerminals(terminals: readonly TerminalInfo[], requestedId: string | null) {
-  if (requestedId === null) return terminals;
-  const requested = terminals.find(terminal => terminal.id === requestedId);
-  return requested
-    ? [requested, ...terminals.filter(terminal => terminal.id !== requestedId)]
-    : terminals;
-}
+import { useTerminalWindowHostActions } from "./hooks/use-terminal-window-host-actions";
 
 function mostRecentSession(state: OsDesktopRuntimeStore, currentWindowId: string) {
   for (const id of state.client?.focusOrder ?? []) {
@@ -34,6 +21,13 @@ function mostRecentSession(state: OsDesktopRuntimeStore, currentWindowId: string
     if (id !== currentWindowId && candidate?.app === "session" && candidate.instanceKey) {
       return { id, sessionId: candidate.instanceKey };
     }
+  }
+  return null;
+}
+
+function sessionWindowId(state: OsDesktopRuntimeStore, sessionId: string): string | null {
+  for (const [id, window] of Object.entries(state.windows)) {
+    if (window.app === "session" && window.instanceKey === sessionId) return id;
   }
   return null;
 }
@@ -47,15 +41,10 @@ export function TerminalWindow({ windowId }: { windowId: string }) {
 }
 
 function TerminalWindowController({ windowId }: { windowId: string }) {
-  const sessionCreate = useSessionCreateActions();
   const activeSessionWindowId = useDesktop(state => mostRecentSession(state, windowId)?.id ?? null);
   const activeSessionId = useDesktop(
     state => mostRecentSession(state, windowId)?.sessionId ?? null
   );
-  const activeSession =
-    activeSessionWindowId && activeSessionId
-      ? { id: activeSessionWindowId, sessionId: activeSessionId }
-      : null;
   const {
     answer,
     catalog,
@@ -80,12 +69,30 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     settings,
     stop,
     stopRecording,
+    wait,
     viewerId,
     viewerToken,
     viewer,
     workspace,
     workspaceId,
   } = useTerminalWindowControllerState(windowId);
+  const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
+  const actions = useTerminalWindowHostActions({
+    coordinator,
+    getActiveSessionId: () => mostRecentSession(manager.getState(), windowId)?.sessionId ?? null,
+    activateSession: sessionId => {
+      const target = sessionWindowId(manager.getState(), sessionId);
+      if (target) void coordinator.userActivateWindow(target);
+    },
+    hasActiveSession: activeSessionWindowId !== null && activeSessionId !== null,
+    openTerminal,
+    close: terminalId => close.mutate(terminalId),
+    stop: terminalId => stop.mutate(terminalId),
+    wait: terminalId => wait.mutate(terminalId),
+    stopRecording: terminalId => stopRecording.mutate(terminalId),
+    answer: (request, value) => answer.mutate({ request, value }),
+    reject: request => reject.mutate(request),
+  });
 
   if (workspaceId === "") {
     return (
@@ -122,11 +129,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
   }
 
   const requestedId = matchTerminalInstance(pathname);
-  const openTerminal = viewer ? () => create.mutate(viewer) : undefined;
-  if (requestedId && (catalog.data ?? []).length === 0) {
-    return <TerminalNotFoundState onOpenTerminal={openTerminal} />;
-  }
-  const terminals = orderedTerminals(catalog.data ?? [], requestedId);
+  const terminals = catalog.data ?? [];
   const terminalSettings = settings.data?.config.terminal;
   const interactiveAvailable = !workspace.runtimeWorkspace?.sandbox_ref;
   const journalEntries = journal.data?.pages.flatMap(page => page.entries) ?? [];
@@ -226,79 +229,38 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       />
     );
 
-  const sendSelection = (terminalId: string, selection: TerminalSelectionRange) => {
-    const target = mostRecentSession(manager.getState(), windowId);
-    if (!target) return;
-    stageSessionTerminalQuote({
-      sessionId: target.sessionId,
-      terminalId,
-      fromLine: selection.startLine,
-      lines: terminalSelectionLines(selection.text),
-    });
-    void coordinator.userActivateWindow(target.id);
-  };
-
   return (
-    <>
-      <TerminalWindowApp
-        hostChrome
-        actions={{
-          onOpenTerminal: openTerminal,
-          onCloseTerminal: terminalId => close.mutate(terminalId),
-          onStop: terminalId => stop.mutate(terminalId),
-          onStopRecording: terminalId => stopRecording.mutate(terminalId),
-          onAnswerInputRequest: (request, value) => answer.mutate({ request, value }),
-          onRejectInputRequest: request => reject.mutate(request),
-          onCopySelection: (_terminalId, selection) => {
-            void navigator.clipboard
-              .writeText(selection.text)
-              .catch(() => toast.error("Copy failed"));
-          },
-          onSendSelection: sendSelection,
-          onChooseSession: () => {
-            void coordinator.userOpen({
-              app: "agents",
-              route: { pathname: "/agents", search: {} },
-            });
-          },
-          onStartSession: (terminalId, selection) => {
-            const quote = buildTerminalQuote({
-              terminalId,
-              fromLine: selection.startLine,
-              lines: terminalSelectionLines(selection.text),
-            });
-            sessionCreate.openWithPrompt(quote.text);
-          },
-          hasActiveSession: activeSession !== null,
-          onOpenSettings: () => {
-            void coordinator.userOpen({
-              app: "settings",
-              route: { pathname: "/settings/general", search: {} },
-            });
-          },
-        }}
-        exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
-        inputRequestTitles={
-          new Map((catalog.data ?? []).map(terminal => [terminal.id, terminal.title]))
-        }
-        inputRequests={inputRequests.data ?? []}
-        interactiveAvailable={interactiveAvailable}
-        resolvedInputRequests={resolvedInputRequests}
-        journal={journalContent}
-        limit={terminalSettings?.max_per_workspace ?? 8}
-        onLeaveJournal={() => setJournalVisible(false)}
-        onViewJournal={() => {
-          setJournalVisible(true);
-          void journal.refetch();
-        }}
-        profile={profile.destination}
-        projectLabel={workspace.runtimeWorkspace?.name}
-        readOnly={profile.aggregate}
-        terminals={terminals}
-        viewerId={viewerId}
-        viewerToken={viewerToken}
-        workspaceId={workspaceId}
-      />
-    </>
+    <TerminalWindowApp
+      hostChrome
+      actions={actions}
+      detachedTtl={terminalSettings?.detached_ttl}
+      exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
+      inputRequestTitles={new Map(terminals.map(terminal => [terminal.id, terminal.title]))}
+      inputRequests={inputRequests.data ?? []}
+      interactiveAvailable={interactiveAvailable}
+      resolvedInputRequests={resolvedInputRequests}
+      journal={journalContent}
+      limit={terminalSettings?.max_per_workspace ?? 8}
+      onLeaveJournal={() => setJournalVisible(false)}
+      onSelectTerminal={terminalId => {
+        void coordinator.userRetarget(windowId, {
+          app: "terminal",
+          instanceKey: terminalId,
+          route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
+        });
+      }}
+      onViewJournal={() => {
+        setJournalVisible(true);
+        void journal.refetch();
+      }}
+      profile={profile.destination}
+      projectLabel={workspace.runtimeWorkspace?.name}
+      readOnly={profile.aggregate}
+      requestedTerminalId={requestedId}
+      terminals={terminals}
+      viewerId={viewerId}
+      viewerToken={viewerToken}
+      workspaceId={workspaceId}
+    />
   );
 }

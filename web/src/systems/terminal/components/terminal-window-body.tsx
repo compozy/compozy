@@ -11,6 +11,7 @@ import { terminalLeaseView } from "../lib/terminal-lease";
 import { terminalPipeOutputQuery, terminalScope } from "../lib/query-options";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
+import { TerminalExpiredState, TerminalNotFoundState } from "./terminal-empty-states";
 import { TerminalHeader, type TerminalRecordingState } from "./terminal-header";
 import { TerminalInputRequestStack } from "./terminal-input-request-stack";
 import { TerminalPane } from "./terminal-pane";
@@ -41,6 +42,10 @@ export interface TerminalWindowBodyProps {
   engineLoader?: TerminalEngineLoader;
   hostChrome?: boolean;
   compact?: boolean;
+  /** `[terminal].detached_ttl`, already phrased when known. */
+  detachedTtl?: string;
+  terminalCount?: number;
+  limit?: number;
 }
 
 /**
@@ -78,6 +83,9 @@ function TerminalInteractiveWindowBody({
   engineLoader,
   hostChrome = false,
   compact = false,
+  detachedTtl,
+  terminalCount,
+  limit,
 }: TerminalWindowBodyProps) {
   const controller = useTerminalWindowBodyController({
     terminal,
@@ -91,18 +99,47 @@ function TerminalInteractiveWindowBody({
   });
   const { connection } = controller;
   const { lease, pane, attachment, handleRef } = connection;
+  const goneCode = pane?.errorCode;
+  if (goneCode === "terminal_expired" || goneCode === "terminal_not_found") {
+    return (
+      <>
+        <TerminalHeader
+          hostChrome={hostChrome}
+          lease={lease}
+          limit={limit}
+          recording={recording}
+          terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
+          terminalCount={terminalCount}
+        />
+        {goneCode === "terminal_expired" ? (
+          <TerminalExpiredState
+            idleFor={detachedTtl}
+            onOpenTerminal={actions.onOpenTerminal}
+            onViewJournal={onViewJournal}
+          />
+        ) : (
+          <TerminalNotFoundState
+            onOpenTerminal={actions.onOpenTerminal}
+            onViewJournal={onViewJournal}
+          />
+        )}
+      </>
+    );
+  }
 
   return (
     <>
       <TerminalHeader
         hostChrome={hostChrome}
         lease={lease}
+        limit={limit}
         onReleaseControl={controller.releaseControl}
         onStop={controller.stop}
         onStopRecording={controller.stopRecording}
         onTakeControl={controller.takeControl}
         recording={recording}
         terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
+        terminalCount={terminalCount}
       />
       <TerminalPane
         attachment={attachment}
@@ -130,7 +167,7 @@ function TerminalInteractiveWindowBody({
         }
         selectionActions={{
           hasActiveSession: actions.hasActiveSession,
-          onChooseSession: actions.onChooseSession,
+          onChooseSession: selection => actions.onChooseSession(terminal.id, selection),
           onCopy: selection => actions.onCopySelection(terminal.id, selection),
           onSendToConversation: selection => actions.onSendSelection(terminal.id, selection),
           onStartSession: selection => actions.onStartSession(terminal.id, selection),
@@ -160,6 +197,8 @@ function TerminalPipeWindowBody({
   pipeOutput,
   actions,
   hostChrome = false,
+  terminalCount,
+  limit,
 }: TerminalWindowBodyProps) {
   const scope = terminalScope(workspaceId, profile);
   const output = useQuery({
@@ -179,11 +218,14 @@ function TerminalPipeWindowBody({
       <TerminalHeader
         hostChrome={hostChrome}
         lease={lease}
+        limit={limit}
         onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
         onSignal={
           readOnly || terminal.state !== "running" ? undefined : () => actions.onStop(terminal.id)
         }
+        onWait={readOnly ? undefined : () => actions.onWait(terminal.id)}
         terminal={terminal}
+        terminalCount={terminalCount}
       />
       {/* Waiting and failing must never read as an empty log — an empty log is
           a real state that means the command printed nothing. */}
@@ -213,6 +255,13 @@ function TerminalPipeWindowBody({
           exit={exitNoticeFromTerminal(terminal)}
           firstLineNumber={pipeOutput?.firstLineNumber ?? 1}
           lines={pipeOutput?.lines ?? splitTerminalOutput(output.data?.content ?? "")}
+          selectionActions={{
+            hasActiveSession: actions.hasActiveSession,
+            onChooseSession: selection => actions.onChooseSession(terminal.id, selection),
+            onCopy: selection => actions.onCopySelection(terminal.id, selection),
+            onSendToConversation: selection => actions.onSendSelection(terminal.id, selection),
+            onStartSession: selection => actions.onStartSession(terminal.id, selection),
+          }}
           terminal={terminal}
         />
       )}

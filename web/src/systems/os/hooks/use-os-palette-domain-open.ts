@@ -6,6 +6,7 @@ import { useActiveWorkspace } from "@/systems/workspace";
 import { useDesktop } from "./use-desktop";
 import { useFocusedWorktreeScopeId } from "./use-worktree-scope";
 import { useOsShell } from "./use-os-shell";
+import { resolveAppForPath } from "../lib/app-registry";
 import { windowManagerCommandsAvailable } from "../lib/window-manager-command-availability";
 import { applyPaletteWorktreeSelection } from "../lib/os-palette-worktree-selection";
 import type { OsPaletteDomainRow } from "../lib/os-palette-domain-search";
@@ -24,8 +25,13 @@ function domainOpenError(row: OsPaletteDomainRow): void {
 }
 
 function openDomainRoute(coordinator: RoutingCoordinator, row: OsPaletteDomainRow): void {
+  const instanceKey = resolveAppForPath(row.route.pathname)?.instanceKey;
   void coordinator
-    .userOpen({ app: row.app, route: row.route })
+    .userOpen({
+      app: row.app,
+      route: row.route,
+      ...(instanceKey ? { instanceKey } : {}),
+    })
     .then(windowId => {
       if (windowId === null) domainOpenError(row);
     })

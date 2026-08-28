@@ -248,6 +248,8 @@ describe("OsDock", () => {
       <OsDock
         items={[
           { id: "dashboard", name: "Dashboard", icon: "dashboard", badge: 0 },
+          { id: "terminal", name: "Terminal", icon: "terminal", badge: 1 },
+          { id: "sessions", name: "Sessions", icon: "sessions", badge: 3 },
           { id: "tasks", name: "Tasks", icon: "tasks", badge: 12 },
         ]}
         onSelect={vi.fn()}
@@ -255,7 +257,9 @@ describe("OsDock", () => {
     );
 
     expect(screen.getByRole("button", { name: "Dashboard" })).not.toHaveTextContent("0");
-    expect(screen.getByRole("button", { name: "Tasks" })).toHaveTextContent("9+");
+    expect(screen.getByRole("button", { name: "Terminal — 1 needs you" })).toHaveTextContent("1");
+    expect(screen.getByRole("button", { name: "Sessions — 3 need you" })).toHaveTextContent("3");
+    expect(screen.getByRole("button", { name: "Tasks — 12 need you" })).toHaveTextContent("9+");
   });
 
   it("Should show the launcher name in a tooltip on focus", async () => {

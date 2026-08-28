@@ -21,6 +21,7 @@ import {
   paletteWorkspaceCatalogFilters,
   section,
   taskRoute,
+  terminalRoute,
   triggerRoute,
   vaultRoute,
   workspaceLabel,
@@ -69,6 +70,10 @@ describe("os-palette-domain-search helpers", () => {
     expect(triggerRoute("trigger-42")).toEqual({ pathname: "/triggers/trigger-42", search: {} });
     expect(bridgeRoute("bridge-42")).toEqual({ pathname: "/bridges/bridge-42", search: {} });
     expect(agentRoute("agent/ops")).toEqual({ pathname: "/agents/agent%2Fops", search: {} });
+    expect(terminalRoute("term/4f21")).toEqual({
+      pathname: "/terminal/term%2F4f21",
+      search: {},
+    });
 
     const sameNameRoutes = ["task-a", "task-b"].map(id => taskRoute(id));
     expect(sameNameRoutes).toEqual([

@@ -23,6 +23,7 @@ import {
   signalTerminal,
   terminalScopeQuery,
   terminalStreamPath,
+  waitTerminal,
 } from "../terminal-api";
 
 const WORKSPACE_ID = "ws/atlas";
@@ -104,6 +105,16 @@ describe("terminal REST requests", () => {
       init: expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ signal: "INT" }),
+      }),
+    });
+
+    respond({ reason: "exit", screen: "", untrusted: true, exit_code: 0 });
+    await waitTerminal(WORKSPACE_ID, TERMINAL_ID, { until: "exit" }, PROFILE);
+    expect(lastRequest()).toMatchObject({
+      url: expect.stringContaining("/term%2Fone/wait?profile=work+profile"),
+      init: expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ until: "exit" }),
       }),
     });
   });

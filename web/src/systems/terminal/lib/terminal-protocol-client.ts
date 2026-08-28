@@ -287,7 +287,6 @@ export class TerminalProtocolClient {
     socket.onopen = () => {
       if (this.socket !== socket) return;
       this.socketOpen = true;
-      this.setStatus("connected");
       this.flushLeaseRequest();
     };
     socket.onmessage = event => this.handleMessage(event);

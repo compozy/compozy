@@ -21,6 +21,7 @@ import {
   terminalRecordingResponseSchema,
   terminalResponseSchema,
   terminalSignalResponseSchema,
+  terminalWaitResponseSchema,
   terminalErrorCodeSchema,
   type TerminalErrorCode,
   type TerminalErrorDetails,
@@ -44,6 +45,8 @@ import type {
   TerminalScopeParams,
   TerminalSignal,
   TerminalViewerIdentity,
+  TerminalWaitResult,
+  TerminalWaitUntil,
 } from "../types";
 
 /**
@@ -283,6 +286,21 @@ export async function signalTerminal(
     withQuery(url, terminalScopeQuery({ profile: scope.profile })),
     terminalSignalResponseSchema,
     { method: "POST", body: JSON.stringify({ signal }), signal: abortSignal }
+  );
+}
+
+export async function waitTerminal(
+  workspaceId: string,
+  terminalId: string,
+  condition: { until: TerminalWaitUntil; pattern?: string; timeout_ms?: number },
+  scope: TerminalProfileScopeParams,
+  abortSignal?: AbortSignal
+): Promise<TerminalWaitResult> {
+  const url = terminalURL(workspaceId, terminalId, "/wait");
+  return parseTerminalResponse(
+    withQuery(url, terminalScopeQuery({ profile: scope.profile })),
+    terminalWaitResponseSchema,
+    { method: "POST", body: JSON.stringify(condition), signal: abortSignal }
   );
 }
 

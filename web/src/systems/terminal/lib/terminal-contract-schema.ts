@@ -18,6 +18,8 @@ type TerminalJournalResponse =
   operations["queryTerminalJournal"]["responses"][200]["content"]["application/json"];
 type TerminalRecordingResponse =
   operations["controlTerminalRecording"]["responses"][200]["content"]["application/json"];
+type TerminalWaitResponse =
+  operations["waitTerminal"]["responses"][200]["content"]["application/json"];
 
 export type TerminalInfo = TerminalListResponse["terminals"][number];
 
@@ -250,6 +252,13 @@ export const terminalRecordingResponseSchema: z.ZodType<TerminalRecordingRespons
     }),
   }
 );
+export const terminalWaitUntilSchema = z.enum(["exit", "idle", "match"]);
+export const terminalWaitResponseSchema: z.ZodType<TerminalWaitResponse> = z.strictObject({
+  exit_code: z.number().int().nullable().optional(),
+  reason: z.string(),
+  screen: z.string(),
+  untrusted: z.boolean(),
+});
 export const terminalErrorDetailsSchema = z.strictObject({
   current: z.number().int().nonnegative().optional(),
   max: z.number().int().positive().optional(),

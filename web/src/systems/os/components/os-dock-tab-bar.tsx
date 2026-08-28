@@ -4,7 +4,12 @@ import { Icon } from "@compozy/ui";
 
 import { cn } from "@/lib/utils";
 
-import { isOsDockSeparator, type OsDockEntry, type OsDockItemData } from "../lib/os-dock-model";
+import {
+  dockItemAccessibleName,
+  isOsDockSeparator,
+  type OsDockEntry,
+  type OsDockItemData,
+} from "../lib/os-dock-model";
 import { DockIcon } from "./os-dock-icons";
 
 /** Counts cap at "9+" without collapsing the zero/non-zero distinction. */
@@ -28,7 +33,7 @@ function TabBarItem({
       data-slot="os-dock-item"
       data-app={item.id}
       data-state={state}
-      aria-label={item.name}
+      aria-label={dockItemAccessibleName(item)}
       disabled={disabled}
       className={cn(
         "relative grid size-dock-tab-item shrink-0 place-items-center rounded-lg",

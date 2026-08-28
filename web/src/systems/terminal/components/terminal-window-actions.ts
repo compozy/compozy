@@ -15,6 +15,7 @@ export interface TerminalWindowActions {
   onOpenTerminal?: () => void;
   onCloseTerminal: (terminalId: string) => void;
   onStop: (terminalId: string) => void;
+  onWait: (terminalId: string) => void;
   onStopRecording?: (terminalId: string) => void;
   onAnswerInputRequest: (request: TerminalInputRequest, input: string) => void;
   onRejectInputRequest: (request: TerminalInputRequest) => void;
@@ -29,7 +30,7 @@ export interface TerminalWindowActions {
   onSendSelection: (terminalId: string, selection: TerminalSelectionRange) => void;
   onCopySelection: (terminalId: string, selection: TerminalSelectionRange) => void;
   /** No conversation is open: the gesture offers a way in rather than failing. */
-  onChooseSession: () => void;
+  onChooseSession: (terminalId: string, selection: TerminalSelectionRange) => void;
   onStartSession: (terminalId: string, selection: TerminalSelectionRange) => void;
   /** True while a conversation is open to send to. */
   hasActiveSession: boolean;

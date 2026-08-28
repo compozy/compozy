@@ -2,8 +2,10 @@ export { SessionTerminalQuoteSlot } from "./components/session-terminal-quote-sl
 export { useSessionTerminalQuote } from "./hooks/use-session-terminal-quote";
 export {
   claimPendingTerminalQuoteForCreate,
+  clearChooseSessionTerminalQuote,
   clearPendingTerminalQuote,
   clearSessionTerminalQuote,
+  consumeChooseSessionTerminalQuote,
   discardSessionTerminalQuote,
   holdPendingTerminalQuote,
   peekPendingTerminalQuote,

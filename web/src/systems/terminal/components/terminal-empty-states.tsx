@@ -90,11 +90,6 @@ export function TerminalExpiredState({
         action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
         cause={`terminal_expired · 410 · reclaimed${idleFor ? ` after ${idleFor}` : ""} without viewers`}
         data-testid="terminal-expired"
-        description={
-          idleFor
-            ? `Nobody was watching for ${idleFor}, so it was closed. Its command history is still in the journal.`
-            : "Nobody was watching for a while, so it was closed. Its command history is still in the journal."
-        }
         framed
         icon={Moon}
         title="This terminal was cleaned up"
@@ -120,8 +115,8 @@ export function TerminalNotFoundState({
     <TerminalEmptyFrame>
       <Empty
         action={terminalHistoryActions({ onOpenTerminal, onViewJournal })}
+        cause="terminal_not_found"
         data-testid="terminal-not-found"
-        description="It may have been closed, or this address doesn't match a live terminal. Everything that ran is in the journal."
         framed
         icon={RotateCcw}
         title="This terminal isn't here"
@@ -149,7 +144,6 @@ export function TerminalExecuteOnlyState({ onViewJournal }: { onViewJournal?: ()
         }
         cause="terminal_interactive_unavailable · exec available"
         data-testid="terminal-execute-only"
-        description="On this platform, agents can still run commands and everything lands in the journal — there's just no live screen to type into."
         framed
         icon={MonitorX}
         title="Interactive terminals aren't available here yet"

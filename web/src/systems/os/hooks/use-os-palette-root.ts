@@ -1,7 +1,8 @@
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 
 import { notifyUser } from "@/lib/user-feedback";
-import { useSessionPromptFallback } from "@/systems/session";
+import { consumeChooseSessionTerminalQuote, useSessionPromptFallback } from "@/systems/session";
+import { clearChooseSessionTerminalQuote } from "@/systems/terminal/parts";
 import { useActiveWorkspace } from "@/systems/workspace";
 
 import { usePaletteRegistry } from "./use-palette-registry";
@@ -147,6 +148,11 @@ export function useOsPaletteRoot({
   });
 
   const close = () => onOpenChange(false);
+  // The choose-slot is an external store. Closing the picker without a pick
+  // must drop it — consume already took, so this is a no-op on a real land.
+  useEffect(() => {
+    if (!open) clearChooseSessionTerminalQuote();
+  }, [open]);
   const openDomainRow = useOsPaletteDomainOpen(close);
   const fallback =
     assembly.fallback !== null &&
@@ -185,6 +191,7 @@ export function useOsPaletteRoot({
   };
 
   const landSession = (session: OsPaletteSessionResult) => {
+    consumeChooseSessionTerminalQuote(session.sessionId);
     // A landing that moves the shell to another workspace says so; the context
     // changing under the operator is never silent (US-017.EC-3).
     if (session.workspaceId !== "" && session.workspaceId !== runtimeWorkspaceId) {
@@ -204,12 +211,14 @@ export function useOsPaletteRoot({
   };
 
   const openSession = (session: OsPaletteSessionResult) => {
-    close();
     if (destination) {
+      consumeChooseSessionTerminalQuote(session.sessionId);
+      close();
       pickDestination({ app: "session", instanceKey: session.sessionId, route: session.route });
       return;
     }
     landSession(session);
+    close();
   };
 
   const goToTab = (windowId: string) => {
@@ -267,8 +276,8 @@ export function useOsPaletteRoot({
         });
         return;
       case "land-session":
-        close();
         landSession(intent.session);
+        close();
         return;
       case "go-to-tab":
         goToTab(intent.windowId);

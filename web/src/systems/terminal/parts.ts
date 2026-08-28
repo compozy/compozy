@@ -51,6 +51,12 @@ export {
   takePendingTerminalQuote,
 } from "./lib/terminal-quote-pending";
 export {
+  clearChooseSessionTerminalQuote,
+  holdChooseSessionTerminalQuote,
+  peekChooseSessionTerminalQuote,
+  takeChooseSessionTerminalQuote,
+} from "./lib/terminal-quote-choose";
+export {
   terminalApprovalCopy,
   terminalConfidenceCopy,
   terminalExitCopy,

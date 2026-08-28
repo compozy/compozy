@@ -2,9 +2,11 @@ import { createStoreLogic } from "@xstate/store";
 
 import {
   buildTerminalQuote,
+  clearChooseSessionTerminalQuote,
   clearPendingTerminalQuote,
   holdPendingTerminalQuote,
   peekPendingTerminalQuote,
+  takeChooseSessionTerminalQuote,
   takePendingTerminalQuote,
   type TerminalQuote,
 } from "@/systems/terminal/parts";
@@ -92,6 +94,7 @@ export function peekSessionTerminalQuote(sessionId: string): TerminalQuote | nul
 }
 
 export {
+  clearChooseSessionTerminalQuote,
   clearPendingTerminalQuote,
   holdPendingTerminalQuote,
   peekPendingTerminalQuote,
@@ -115,6 +118,18 @@ export function stageChosenSessionTerminalQuote(
     fromLine: quote.fromLine,
     lines: quote.lines,
   });
+}
+
+/**
+ * Claims the choose-held quote onto the session the operator just picked.
+ *
+ * Exact-once: take clears the slot. Dismiss must call
+ * `clearChooseSessionTerminalQuote` instead of this.
+ */
+export function consumeChooseSessionTerminalQuote(sessionId: string): TerminalQuote | null {
+  const quote = takeChooseSessionTerminalQuote();
+  if (!quote) return null;
+  return stageChosenSessionTerminalQuote(sessionId, quote);
 }
 
 /**

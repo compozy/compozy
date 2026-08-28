@@ -1,17 +1,7 @@
-import { ChevronRight, FileText, Plus, ScrollText, X } from "lucide-react";
-import { useRef } from "react";
+import { FileText, Plus, ScrollText, X } from "lucide-react";
+import { useState } from "react";
 
-import {
-  cn,
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  Pill,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@compozy/ui";
+import { cn, Pill, Tooltip, TooltipContent, TooltipTrigger } from "@compozy/ui";
 
 import { terminalExitCopy } from "../lib/terminal-copy";
 import type { TerminalInfo } from "../types";
@@ -39,47 +29,16 @@ export interface TerminalTabsProps {
   showOwner?: boolean;
 }
 
-/** Tabs never shrink past legibility; the surplus collapses behind a caret.
- *  UT-118 locks collapse at 5 visible — not a scroll-at-cap strip. */
-const VISIBLE_TAB_LIMIT = 5;
-
-/** The deck-add recipe, shared by the plus button and the overflow caret. */
+/** The deck-add recipe for the plus button. */
 const DECK_CONTROL_CLASS =
   "mb-[calc((var(--height-deck-tab)-var(--size-deck-add))/2)] grid size-deck-add shrink-0 place-items-center rounded-menubar-control text-subtle transition-colors duration-base hover:bg-btn-default-fill hover:text-fg-strong focus-visible:shadow-focus-ring focus-visible:outline-none";
 
 /**
- * Which tabs are on the strip, and which are behind the caret.
+ * The project's terminals as a switcher, plus the pinned journal.
  *
- * The strip keeps its order, with one exception: the terminal you are looking
- * at is always on it. Selecting one from the overflow and leaving it hidden
- * would show a pane no visible tab claims, and no tab marked selected at all —
- * so it takes the last visible slot and the tab it displaces joins the surplus.
- */
-function splitTabs(
-  terminals: readonly TerminalInfo[],
-  activeTab: TerminalTabId
-): { visible: TerminalInfo[]; overflow: TerminalInfo[] } {
-  const visible = terminals.slice(0, VISIBLE_TAB_LIMIT);
-  const overflow = terminals.slice(VISIBLE_TAB_LIMIT);
-  const hiddenIndex = overflow.findIndex(terminal => terminal.id === activeTab);
-  if (hiddenIndex < 0 || visible.length === 0) return { visible, overflow };
-  const promoted = overflow[hiddenIndex];
-  const displaced = visible[visible.length - 1];
-  return {
-    visible: [...visible.slice(0, -1), promoted],
-    overflow: [...overflow.slice(0, hiddenIndex), displaced, ...overflow.slice(hiddenIndex + 1)],
-  };
-}
-
-/**
- * The project's terminals as a deck, plus the pinned journal.
- *
- * The strip speaks the OS shell's deck grammar — rail ground, top-rounded tabs,
- * the active tab fusing with the identity head beneath it — so a terminal
- * window reads like every other tabbed window in the shell. State lives on the
- * tab and nowhere else: a running dot, a warning dot only while a question is
- * waiting, the log glyph in place of the dot for a pipe terminal, and an exited
- * tab keeping its code as micro mono.
+ * Every tab stays on the strip at min 96px until the per-workspace cap. The
+ * daemon refuses create at the cap, so overflow never hides a live terminal.
+ * Identity lives in the OS topbar; this strip only switches the visible pane.
  */
 export function TerminalTabs({
   terminals,
@@ -92,15 +51,14 @@ export function TerminalTabs({
   onCloseTerminal,
   showOwner = false,
 }: TerminalTabsProps) {
-  const { visible, overflow } = splitTabs(terminals, activeTab);
-  const tabRefs = useRef<Map<TerminalTabId, HTMLButtonElement>>(new Map());
+  const [tabNodes] = useState(() => new Map<TerminalTabId, HTMLButtonElement>());
   const atLimit = terminals.length >= limit;
   // Arrow keys move between tabs, as a tablist owes its users; the strip owns
   // the movement because only it knows the order, including the pinned journal.
   // Focus travels with the selection in the same gesture — the tab left behind
   // becomes unreachable by Tab the moment it stops being selected, so leaving
   // focus on it would strand the keyboard on an element nothing can return to.
-  const order: TerminalTabId[] = [...visible.map(terminal => terminal.id), TERMINAL_JOURNAL_TAB];
+  const order: TerminalTabId[] = [...terminals.map(terminal => terminal.id), TERMINAL_JOURNAL_TAB];
   const moveSelection = (event: React.KeyboardEvent, from: TerminalTabId) => {
     const jump =
       event.key === "Home" ? order[0] : event.key === "End" ? order[order.length - 1] : null;
@@ -111,11 +69,11 @@ export function TerminalTabs({
     event.preventDefault();
     const next = jump ?? order[(index + step + order.length) % order.length];
     onSelect(next);
-    tabRefs.current.get(next)?.focus();
+    tabNodes.get(next)?.focus();
   };
   const registerTab = (tab: TerminalTabId) => (element: HTMLButtonElement | null) => {
-    if (element === null) tabRefs.current.delete(tab);
-    else tabRefs.current.set(tab, element);
+    if (element === null) tabNodes.delete(tab);
+    else tabNodes.set(tab, element);
   };
   const journalActive = activeTab === TERMINAL_JOURNAL_TAB;
   return (
@@ -126,7 +84,7 @@ export function TerminalTabs({
       role="tablist"
     >
       <div className="no-scrollbar flex min-w-0 items-end gap-0.5 overflow-x-auto">
-        {visible.map(terminal => (
+        {terminals.map(terminal => (
           <TerminalTab
             active={activeTab === terminal.id}
             idBase={idBase}
@@ -141,14 +99,6 @@ export function TerminalTabs({
           />
         ))}
       </div>
-      {overflow.length > 0 ? (
-        <TerminalTabOverflow
-          attentionIds={attentionIds}
-          onSelect={onSelect}
-          showOwner={showOwner}
-          terminals={overflow}
-        />
-      ) : null}
       {onOpenTerminal ? (
         <Tooltip>
           <TooltipTrigger
@@ -310,58 +260,5 @@ function TerminalTab({
         </button>
       ) : null}
     </div>
-  );
-}
-
-/**
- * The surplus at the cap.
- *
- * The strip collapses into one affordance rather than shrinking every tab past
- * the point where its name can be read.
- */
-function TerminalTabOverflow({
-  terminals,
-  attentionIds,
-  onSelect,
-  showOwner,
-}: {
-  terminals: readonly TerminalInfo[];
-  attentionIds?: ReadonlySet<string>;
-  onSelect: (tab: TerminalTabId) => void;
-  showOwner: boolean;
-}) {
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        render={
-          <button
-            aria-label={`${terminals.length} more terminals`}
-            className={DECK_CONTROL_CLASS}
-            data-testid="terminal-tab-overflow"
-            type="button"
-          />
-        }
-      >
-        <ChevronRight aria-hidden="true" className="size-3" strokeWidth={1.5} />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {terminals.map(terminal => (
-          <DropdownMenuItem key={terminal.id} onClick={() => onSelect(terminal.id)}>
-            {terminal.title}
-            {showOwner ? ` · ${terminal.profile_name}` : ""}
-            {attentionIds?.has(terminal.id) ? (
-              <Pill.Dot
-                aria-hidden={undefined}
-                aria-label="Input requested"
-                className="ml-auto"
-                role="img"
-                size="sm"
-                tone="warning"
-              />
-            ) : null}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 }

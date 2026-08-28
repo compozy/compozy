@@ -60,7 +60,7 @@ function RequestPin({
 }) {
   return (
     <div
-      className="flex flex-col gap-2.5 border-line border-t bg-canvas px-3.5 py-3"
+      className="flex flex-col gap-2.5 border-line border-t bg-terminal-bg px-3.5 py-3"
       data-redacted={request.redacted ? "true" : undefined}
       data-testid={`terminal-input-request-${request.id}`}
     >
@@ -219,7 +219,7 @@ export function TerminalInputResolvedRow({ request, supersededBy }: TerminalInpu
   const Glyph = RESOLVED_GLYPHS[request.outcome];
   return (
     <div
-      className="flex flex-none items-center gap-2 border-line border-t bg-canvas px-3.5 py-3"
+      className="flex flex-none items-center gap-2 border-line border-t bg-terminal-bg px-3.5 py-3"
       data-outcome={request.outcome}
       data-testid={`terminal-input-resolved-${request.outcome}`}
     >

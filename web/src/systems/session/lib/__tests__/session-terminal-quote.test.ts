@@ -1,8 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  clearChooseSessionTerminalQuote,
+  holdChooseSessionTerminalQuote,
   holdPendingTerminalQuote,
+  peekChooseSessionTerminalQuote,
   peekPendingTerminalQuote,
+  takeChooseSessionTerminalQuote,
   takePendingTerminalQuote,
 } from "@/systems/terminal/parts";
 
@@ -10,6 +14,7 @@ import { sessionStore } from "../../stores/session-store";
 import { createTerminalQuoteHostActions } from "../session-terminal-quote-actions";
 import {
   clearSessionTerminalQuote,
+  consumeChooseSessionTerminalQuote,
   peekSessionTerminalQuote,
   restorePendingTerminalQuoteAfterFailedCreate,
   stageChosenSessionTerminalQuote,
@@ -35,6 +40,7 @@ const SESSION_ID = "sess-77ab";
 beforeEach(() => {
   clearSessionTerminalQuote(SESSION_ID);
   takePendingTerminalQuote();
+  clearChooseSessionTerminalQuote();
   sessionStore.trigger.composerDraftDiscarded({ sessionId: SESSION_ID });
 });
 
@@ -304,6 +310,56 @@ describe("session terminal quote — pending create / chosen session", () => {
     const handed = openSessionPicker.mock.calls[0]?.[0];
     expect(handed?.terminalId).toBe("term-4f21c9a03b7e");
     expect(peekPendingTerminalQuote()).toBeNull();
+  });
+
+  it("Should take a choose-held quote exactly once and leave the create slot alone", () => {
+    const quote = stageSessionTerminalQuote({
+      sessionId: OTHER_ID,
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["choose once"],
+    });
+    clearSessionTerminalQuote(OTHER_ID);
+    holdPendingTerminalQuote(quote);
+    holdChooseSessionTerminalQuote(quote);
+
+    expect(takeChooseSessionTerminalQuote()?.text).toBe(quote.text);
+    expect(takeChooseSessionTerminalQuote()).toBeNull();
+    expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
+    expect(peekChooseSessionTerminalQuote()).toBeNull();
+  });
+
+  it("Should drop a choose-held quote without staging it", () => {
+    const quote = stageSessionTerminalQuote({
+      sessionId: OTHER_ID,
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["dismissed"],
+    });
+    clearSessionTerminalQuote(OTHER_ID);
+    holdChooseSessionTerminalQuote(quote);
+
+    clearChooseSessionTerminalQuote();
+
+    expect(peekChooseSessionTerminalQuote()).toBeNull();
+    expect(consumeChooseSessionTerminalQuote(SESSION_ID)).toBeNull();
+    expect(peekSessionTerminalQuote(SESSION_ID)).toBeNull();
+  });
+
+  it("Should consume a choose-held quote onto the picked session once", () => {
+    const quote = stageSessionTerminalQuote({
+      sessionId: OTHER_ID,
+      terminalId: "term-9cd7e14b2a66",
+      fromLine: 4,
+      lines: ["picked"],
+    });
+    clearSessionTerminalQuote(OTHER_ID);
+    holdChooseSessionTerminalQuote(quote);
+
+    expect(consumeChooseSessionTerminalQuote(SESSION_ID)?.text).toBe(quote.text);
+    expect(consumeChooseSessionTerminalQuote(SESSION_ID)).toBeNull();
+    expect(peekSessionTerminalQuote(SESSION_ID)?.text).toBe(quote.text);
+    expect(peekChooseSessionTerminalQuote()).toBeNull();
   });
 });
 

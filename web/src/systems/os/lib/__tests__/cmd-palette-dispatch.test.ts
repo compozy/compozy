@@ -88,6 +88,16 @@ describe("cmd-palette dispatch seam (UT-105)", () => {
     });
     expect(ports.navigate).toHaveBeenCalledExactlyOnceWith("settings", "/settings/appearance", {});
 
+    const { ports: terminalPorts } = portsFixture();
+    await dispatchPaletteCommand({
+      command: paletteCommand({
+        id: "app.open.terminal",
+        action: { kind: "navigate", app: "terminal" },
+      }),
+      ports: terminalPorts,
+    });
+    expect(terminalPorts.navigate).toHaveBeenCalledExactlyOnceWith("terminal", null, {});
+
     // A navigate action carries intent beyond its destination — which lifecycle
     // flow to raise, against which target. Dropping it would land the operator
     // on a page that has to guess why they arrived.

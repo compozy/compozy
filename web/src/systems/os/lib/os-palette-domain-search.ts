@@ -116,6 +116,10 @@ export function agentRoute(name: string): OsWindowRoute {
   return { pathname: `/agents/${encodedSegment(name)}`, search: {} };
 }
 
+export function terminalRoute(id: string): OsWindowRoute {
+  return { pathname: `/terminal/${encodedSegment(id)}`, search: {} };
+}
+
 export function marketplaceEntryRoute(input: {
   kind: "mcp" | "extension" | "skill";
   entryId: string;

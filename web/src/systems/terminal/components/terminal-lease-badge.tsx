@@ -2,6 +2,7 @@ import { Eye, Keyboard } from "lucide-react";
 
 import { cn, OwnerAvatar, Pill } from "@compozy/ui";
 
+import { terminalLeaseDataAttr } from "../lib/terminal-lease-attr";
 import type { TerminalLeaseView } from "../lib/terminal-lease";
 
 export interface TerminalLeaseBadgeProps {
@@ -22,7 +23,7 @@ export function TerminalLeaseBadge({ view, viewers, className }: TerminalLeaseBa
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
       <Pill
-        data-lease={view.read}
+        data-lease={terminalLeaseDataAttr(view.read)}
         data-testid="terminal-lease-badge"
         size="sm"
         tone={view.read === "you" || view.read === "nobody" ? "neutral" : "info"}

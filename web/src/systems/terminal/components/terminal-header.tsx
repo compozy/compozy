@@ -1,14 +1,11 @@
-import {
-  CircleStop,
-  Disc,
-  FileText,
-  ScrollText,
-  TerminalSquare,
-  type LucideIcon,
-} from "lucide-react";
+import { CircleStop, Ellipsis, FileText, ScrollText, TerminalSquare } from "lucide-react";
 
 import {
   Button,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
   MonoId,
   Pill,
   Separator,
@@ -31,11 +28,16 @@ export interface TerminalHeaderProps {
   terminal: TerminalInfo;
   lease: TerminalLeaseView;
   recording?: TerminalRecordingState | null;
+  /** How many terminals this project has, for the cap trail. */
+  terminalCount?: number;
+  /** The per-project cap, from `[terminal].max_per_workspace`. */
+  limit?: number;
   onTakeControl?: () => void;
   onReleaseControl?: () => void;
   onStop?: () => void;
   onClose?: () => void;
   onSignal?: () => void;
+  onWait?: () => void;
   onStopRecording?: () => void;
   /**
    * When true, identity and ≤2 actions publish into the OS window head
@@ -55,7 +57,7 @@ export function TerminalJournalHostChrome({
   useTopbarSlot(
     hostChrome
       ? {
-          glyph: <TerminalIdentityGlyph icon={ScrollText} />,
+          glyph: <ScrollText />,
           crumb: "Journal",
           status: projectLabel ? (
             <span className="truncate text-badge text-subtle">{projectLabel}</span>
@@ -66,14 +68,13 @@ export function TerminalJournalHostChrome({
   return null;
 }
 
-/** The framed window glyph — the same recipe the OS window head uses. */
-export function TerminalIdentityGlyph({ icon: Icon }: { icon: LucideIcon }) {
+function terminalCapCount(terminalCount: number | undefined, limit: number | undefined) {
+  if (terminalCount === undefined || limit === undefined || terminalCount < limit || limit <= 0) {
+    return null;
+  }
   return (
-    <span
-      aria-hidden="true"
-      className="inline-flex size-topbar-glyph shrink-0 items-center justify-center rounded border border-line bg-badge-fill text-muted"
-    >
-      <Icon className="size-3.5" />
+    <span data-testid="terminal-cap-count">
+      {terminalCount} of {limit}
     </span>
   );
 }
@@ -89,15 +90,20 @@ export function TerminalHeader({
   terminal,
   lease,
   recording,
+  terminalCount,
+  limit,
   onTakeControl,
   onReleaseControl,
   onStop,
   onClose,
   onSignal,
+  onWait,
   onStopRecording,
   hostChrome = false,
 }: TerminalHeaderProps) {
   const isPipe = terminal.mode === "pipe";
+  const capCount = terminalCapCount(terminalCount, limit);
+  const identityCount = capCount ?? <MonoId size="sm" value={terminal.id} />;
   const actions = (
     <TerminalHeaderActions
       isPipe={isPipe}
@@ -107,6 +113,7 @@ export function TerminalHeader({
       onSignal={onSignal}
       onStop={onStop}
       onStopRecording={onStopRecording}
+      onWait={onWait}
       recording={recording}
       onTakeControl={onTakeControl}
     />
@@ -130,9 +137,9 @@ export function TerminalHeader({
   useTopbarSlot(
     hostChrome
       ? {
-          glyph: <TerminalIdentityGlyph icon={isPipe ? FileText : TerminalSquare} />,
+          glyph: isPipe ? <FileText /> : <TerminalSquare />,
           crumb: terminal.title,
-          count: <MonoId size="sm" value={terminal.id} />,
+          count: identityCount,
           status,
           actions,
         }
@@ -145,11 +152,15 @@ export function TerminalHeader({
       data-testid="terminal-header"
     >
       <span className="flex min-w-0 items-center gap-2">
-        <TerminalIdentityGlyph icon={isPipe ? FileText : TerminalSquare} />
+        {isPipe ? (
+          <FileText aria-hidden="true" className="size-3.5 text-muted" />
+        ) : (
+          <TerminalSquare aria-hidden="true" className="size-3.5 text-muted" />
+        )}
         <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
           {terminal.title}
         </span>
-        <MonoId size="sm" value={terminal.id} />
+        {identityCount}
       </span>
       <span aria-hidden="true" className="min-w-2 flex-1" />
       <div className="flex flex-none items-center gap-2">
@@ -164,7 +175,9 @@ export function TerminalHeader({
  * At most two trailing actions, set off from the chips by a hairline.
  *
  * On a pipe terminal the interactive verbs are absent rather than disabled: a
- * greyed-out Take control would still claim the feature exists here.
+ * greyed-out Take control would still claim the feature exists here. Wait and
+ * Close stay on the head; Signal moves to overflow so the head never grows a
+ * third verb.
  */
 function TerminalHeaderActions({
   isPipe,
@@ -175,40 +188,11 @@ function TerminalHeaderActions({
   onStop,
   onClose,
   onSignal,
+  onWait,
   onStopRecording,
 }: TerminalHeaderActionsProps) {
-  if (isPipe) {
-    const signal = onSignal ? (
-      <Button
-        data-testid="terminal-signal"
-        onClick={onSignal}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        Signal
-      </Button>
-    ) : null;
-    const close = onClose ? (
-      <Button
-        data-testid="terminal-close"
-        onClick={onClose}
-        size="sm"
-        type="button"
-        variant="ghost"
-      >
-        Close
-      </Button>
-    ) : null;
-    if (!signal && !close) return null;
-    return (
-      <>
-        <TerminalHeaderRule />
-        {signal}
-        {close}
-      </>
-    );
-  }
+  if (isPipe)
+    return <TerminalPipeHeaderActions onClose={onClose} onSignal={onSignal} onWait={onWait} />;
   const takeControl =
     lease.canTakeControl && onTakeControl ? (
       <Button data-testid="terminal-take-control" onClick={onTakeControl} size="sm" type="button">
@@ -228,28 +212,18 @@ function TerminalHeaderActions({
       </Button>
     ) : null;
   // Recording does not touch the lease, so it never takes the lease action's
-  // place: a watcher can still take control of a terminal that is recording,
-  // and whoever holds it can still give it back. Stopping the recording is the
-  // quieter of the two and stands beside it as an icon.
+  // place. Stopping the recording is ghost text; danger stays on the rec dot.
   const quietAction =
     recording && onStopRecording ? (
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              aria-label="Stop recording"
-              data-testid="terminal-stop-recording"
-              onClick={onStopRecording}
-              size="icon-sm"
-              type="button"
-              variant="ghost"
-            />
-          }
-        >
-          <Disc aria-hidden="true" className="size-3.5 text-danger" />
-        </TooltipTrigger>
-        <TooltipContent side="bottom">Stop recording</TooltipContent>
-      </Tooltip>
+      <Button
+        data-testid="terminal-stop-recording"
+        onClick={onStopRecording}
+        size="sm"
+        type="button"
+        variant="ghost"
+      >
+        Stop recording
+      </Button>
     ) : onStop && !lease.canTakeControl ? (
       <Tooltip>
         <TooltipTrigger
@@ -280,6 +254,54 @@ function TerminalHeaderActions({
   );
 }
 
+function TerminalPipeHeaderActions({
+  onClose,
+  onSignal,
+  onWait,
+}: Pick<TerminalHeaderActionsProps, "onClose" | "onSignal" | "onWait">) {
+  const wait = onWait ? (
+    <Button data-testid="terminal-wait" onClick={onWait} size="sm" type="button" variant="ghost">
+      Wait
+    </Button>
+  ) : null;
+  const close = onClose ? (
+    <Button data-testid="terminal-close" onClick={onClose} size="sm" type="button" variant="ghost">
+      Close
+    </Button>
+  ) : null;
+  const overflow = onSignal ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="More actions"
+            data-testid="terminal-pipe-overflow"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis aria-hidden="true" className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem data-testid="terminal-signal" onClick={onSignal}>
+          Signal
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+  if (!wait && !close && !overflow) return null;
+  return (
+    <>
+      <TerminalHeaderRule />
+      {wait}
+      {close}
+      {overflow}
+    </>
+  );
+}
+
 function TerminalHeaderRule() {
   return <Separator className="h-3.5 self-center" orientation="vertical" />;
 }
@@ -293,5 +315,6 @@ type TerminalHeaderActionsProps = Pick<
   | "onStop"
   | "onClose"
   | "onSignal"
+  | "onWait"
   | "onStopRecording"
 > & { isPipe: boolean };

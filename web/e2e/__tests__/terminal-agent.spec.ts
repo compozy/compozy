@@ -363,7 +363,7 @@ test("E2E-004: watcher takeover and release update two browser contexts", async 
     const terminalId = await openAgentTerminal(harness, "agent-watch-control");
     await ensureProjectWorkspace(appPage, runtime);
     const firstWindow = await openAppWindow(appPage, "Terminal", "terminal");
-    const firstGrid = firstWindow.getByRole("log", { name: /watching/u });
+    const firstGrid = firstWindow.getByRole("log", { name: "agent-watch-control" });
     await expect(firstGrid).toHaveAttribute("data-readonly", "true");
     await firstGrid.click();
     await appPage.keyboard.type("watcher-must-not-write");

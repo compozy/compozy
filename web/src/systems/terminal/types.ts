@@ -121,6 +121,10 @@ export type TerminalScopeParams =
 
 export type TerminalProfileScopeParams = Extract<TerminalScopeParams, { profile: string }>;
 
+export type TerminalWaitUntil = "exit" | "idle" | "match";
+export type TerminalWaitResult =
+  operations["waitTerminal"]["responses"][200]["content"]["application/json"];
+
 export interface TerminalScopeKey {
   workspaceId: string;
   profileKey: string;

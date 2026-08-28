@@ -605,6 +605,18 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
+  it("Should stay connecting after the socket opens until ATTACHED arrives", async () => {
+    const { client, sockets, statuses } = buildClient();
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+
+    sockets.last().open();
+
+    expect(statuses).not.toContain("connected");
+    expect(statuses.at(-1)).toBe("connecting");
+    client.stop();
+  });
+
   it.each([
     ["negative sequence", { ...rawAttachedPayload(), seq: -1 }],
     ["out-of-range dimensions", { ...rawAttachedPayload(), cols: 2_001 }],

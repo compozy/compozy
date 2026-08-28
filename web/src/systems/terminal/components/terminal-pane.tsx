@@ -11,6 +11,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { TerminalAttachment } from "../hooks/use-terminal-attachment";
 import { exitNoticeFromTerminal, terminalRetentionNote } from "../lib/terminal-exit";
 import type { TerminalLeaseView } from "../lib/terminal-lease";
+import { terminalQuoteFromSelection } from "../lib/terminal-quote";
 import { TERMINAL_MIN_COLS, TERMINAL_MIN_ROWS } from "../lib/terminal-wire";
 import type { TerminalPaneState } from "../stores/terminal-store";
 import type { TerminalInfo } from "../types";
@@ -62,7 +63,7 @@ export interface TerminalPaneProps {
 export interface TerminalPaneSelectionActions {
   hasActiveSession: boolean;
   onSendToConversation: (selection: TerminalSelectionRange) => void;
-  onChooseSession: () => void;
+  onChooseSession: (selection: TerminalSelectionRange) => void;
   onStartSession: (selection: TerminalSelectionRange) => void;
   onCopy: (selection: TerminalSelectionRange) => void;
 }
@@ -136,7 +137,7 @@ export function TerminalPane({
       <div className="relative min-h-0 min-w-0 flex-1">
         {pane?.gap ? <TerminalGapSeam gap={pane.gap} /> : null}
         <TerminalView
-          aria-label={readOnly ? `${terminal.title} — watching` : terminal.title}
+          aria-label={terminal.title}
           className={
             awaitingFirstFrame
               ? "invisible px-3.5 pt-2.5 pb-3 font-mono text-code-block tracking-mono"
@@ -168,10 +169,11 @@ export function TerminalPane({
       {selection && selectionActions ? (
         <TerminalSelectionActions
           hasActiveSession={selectionActions.hasActiveSession}
-          onChooseSession={selectionActions.onChooseSession}
+          onChooseSession={() => selectionActions.onChooseSession(selection)}
           onCopy={() => selectionActions.onCopy(selection)}
           onSendToConversation={() => selectionActions.onSendToConversation(selection)}
           onStartSession={() => selectionActions.onStartSession(selection)}
+          quote={terminalQuoteFromSelection(terminal.id, selection)}
         />
       ) : null}
       {requestRegion}

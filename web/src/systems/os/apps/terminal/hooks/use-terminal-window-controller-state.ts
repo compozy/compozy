@@ -11,6 +11,7 @@ import {
   createTerminal,
   rejectTerminalInputRequest,
   signalTerminal,
+  waitTerminal,
   terminalCatalogQuery,
   terminalInputRequestsQuery,
   terminalJournalQuery,
@@ -70,8 +71,10 @@ export function useTerminalWindowControllerState(windowId: string) {
     enabled: workspaceId !== "",
   });
   const inputRequests = {
-    ...inputRequestProjection,
     data: inputRequestProjection.data?.pending,
+    error: inputRequestProjection.error,
+    isPending: inputRequestProjection.isPending,
+    refetch: inputRequestProjection.refetch,
   };
   const resolvedInputRequests = inputRequestProjection.data?.resolved ?? [];
   const journal = useInfiniteQuery({
@@ -186,6 +189,13 @@ export function useTerminalWindowControllerState(windowId: string) {
     onSuccess: invalidateTerminalReads,
     onError: error => toast.error(error instanceof Error ? error.message : "Failed to decline"),
   });
+  const wait = useMutation({
+    mutationFn: (terminalId: string) =>
+      waitTerminal(workspaceId, terminalId, { until: "exit" }, terminalSelector(terminalId)),
+    onSuccess: invalidateTerminalReads,
+    onError: error =>
+      toast.error(error instanceof Error ? error.message : "Failed to wait for the command"),
+  });
   const stopRecording = useMutation({
     mutationFn: (terminalId: string) =>
       controlTerminalRecording(workspaceId, terminalId, "stop", terminalSelector(terminalId)),
@@ -218,6 +228,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     settings,
     stop,
     stopRecording,
+    wait,
     viewerId,
     viewerToken,
     viewer,

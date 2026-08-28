@@ -10,6 +10,7 @@ export {
   fetchTerminalInputRequestProjection,
   rejectTerminalInputRequest,
   signalTerminal,
+  waitTerminal,
 } from "./adapters/terminal-api";
 export { TerminalStoreProvider } from "./contexts/terminal-store-context";
 export {
@@ -75,6 +76,12 @@ export {
   terminalSelectionLines,
   type TerminalQuote,
 } from "./lib/terminal-quote";
+export {
+  clearChooseSessionTerminalQuote,
+  holdChooseSessionTerminalQuote,
+  peekChooseSessionTerminalQuote,
+  takeChooseSessionTerminalQuote,
+} from "./lib/terminal-quote-choose";
 export {
   clearPendingTerminalQuote,
   holdPendingTerminalQuote,
@@ -224,4 +231,6 @@ export type {
   TerminalScopeParams,
   TerminalSignal,
   TerminalViewerIdentity,
+  TerminalWaitResult,
+  TerminalWaitUntil,
 } from "./types";

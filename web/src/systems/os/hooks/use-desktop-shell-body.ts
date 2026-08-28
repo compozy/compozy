@@ -40,6 +40,8 @@ import { useDocumentTitleBadge } from "./use-document-title-badge";
 import { useFocusedSessionId } from "./use-focused-session-id";
 import { useOsAttention } from "./use-os-attention";
 import { openPaletteView } from "./use-os-palette-view-stack";
+import { subscribePaletteViewRaise } from "../lib/raise-palette-view";
+import type { PaletteViewId } from "../lib/palette-view-registry";
 import { useOsReducedMotion } from "./use-os-reduced-motion";
 import { useOsShell } from "./use-os-shell";
 import { useOsShortcuts } from "./use-os-shortcuts";
@@ -302,6 +304,10 @@ export function useDesktopShellBody(model: DesktopShellModel, options: DesktopSh
     }
   });
   useEffect(() => subscribeDesktopSummon(onDesktopSummon), []);
+  const onPaletteViewRaise = useEffectEvent((viewId: PaletteViewId) => {
+    paletteShell.openPaletteView(viewId);
+  });
+  useEffect(() => subscribePaletteViewRaise(onPaletteViewRaise), []);
   // The daemon forwards agent-initiated client operations over the same
   // channel; they enter the same table as ⌘W and the palette row (SI-17).
   const executeClientOp = useEffectEvent(paletteDispatch.executeClientOp);

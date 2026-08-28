@@ -1,5 +1,6 @@
 "use client";
 
+import { Activity } from "react";
 import type { TerminalEngineLoader } from "@compozy/ui";
 
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
@@ -10,7 +11,11 @@ import {
 } from "../hooks/use-terminal-window-app-state";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
-import { TerminalEmptyState, TerminalExecuteOnlyState } from "./terminal-empty-states";
+import {
+  TerminalEmptyState,
+  TerminalExecuteOnlyState,
+  TerminalNotFoundState,
+} from "./terminal-empty-states";
 import { TerminalJournalHostChrome, type TerminalRecordingState } from "./terminal-header";
 import { TerminalJournalHead } from "./terminal-journal-panel";
 import { TerminalLimitDialog } from "./terminal-limit-dialog";
@@ -41,6 +46,8 @@ export interface TerminalWindowAppProps {
   limit: number;
   /** `[terminal].exit_retention` in milliseconds. Omit when unknown. */
   exitRetentionMs?: number;
+  /** `[terminal].detached_ttl`, already phrased when known. */
+  detachedTtl?: string;
   /** False where the platform cannot host an interactive terminal at all. */
   interactiveAvailable: boolean;
   /** Aggregate profile reads cannot mutate terminals owned by another profile. */
@@ -50,6 +57,10 @@ export interface TerminalWindowAppProps {
   /** Pipe terminals render captured output rather than a live stream. */
   pipeOutput?: Readonly<Record<string, { lines: readonly string[]; firstLineNumber: number }>>;
   journal: React.ReactNode;
+  /** The PTY the host route named. Isolated windows omit this. */
+  requestedTerminalId?: string | null;
+  /** Retargets the host to `/terminal/:id`. Isolated windows omit this. */
+  onSelectTerminal?: (terminalId: string) => void;
   /** Refreshes the journal when the operator reveals it. */
   onViewJournal?: () => void;
   /** The journal tab is no longer the surface being read. */
@@ -70,9 +81,8 @@ export interface TerminalWindowAppProps {
  *
  * Composes the tab strip, the identity head and one pane, and owns the scope:
  * which `(workspace, profile)` these terminals belong to, and which buffers may
- * still exist. It offers no affordance the daemon cannot honour — on an
- * execute-only platform the whole interactive half is absent rather than
- * disabled.
+ * still exist. The journal stays mounted across tab changes so its scroll and
+ * selection survive. Execute-only still hosts the journal tab and empty chrome.
  */
 export function TerminalWindowApp({
   workspaceId,
@@ -86,12 +96,15 @@ export function TerminalWindowApp({
   inputRequestTitles,
   limit,
   exitRetentionMs,
+  detachedTtl,
   interactiveAvailable,
   readOnly = false,
   auditBlockedIds,
   recordings,
   pipeOutput,
   journal,
+  requestedTerminalId,
+  onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
   actions,
@@ -107,6 +120,7 @@ export function TerminalWindowApp({
     attentionIds,
     destinationTerminals,
     limitOpen,
+    missingRequested,
     openTerminal,
     setActiveTab,
     setLimitOpen,
@@ -119,25 +133,13 @@ export function TerminalWindowApp({
     limit,
     readOnly,
     actions,
+    requestedTerminalId,
+    onSelectTerminal,
     onViewJournal,
     onLeaveJournal,
   });
-
-  if (!interactiveAvailable) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window" ref={rootRef}>
-        {activeTab === TERMINAL_JOURNAL_TAB ? (
-          <>
-            <TerminalJournalHostChrome hostChrome={hostChrome} projectLabel={projectLabel} />
-            {hostChrome ? null : <TerminalJournalHead projectLabel={projectLabel} />}
-            {journal}
-          </>
-        ) : (
-          <TerminalExecuteOnlyState onViewJournal={() => setActiveTab(TERMINAL_JOURNAL_TAB)} />
-        )}
-      </div>
-    );
-  }
+  const showJournal = activeTab === TERMINAL_JOURNAL_TAB;
+  const openJournal = () => setActiveTab(TERMINAL_JOURNAL_TAB);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window" ref={rootRef}>
@@ -148,7 +150,7 @@ export function TerminalWindowApp({
           idBase={tabsIdBase}
           limit={limit}
           onCloseTerminal={readOnly ? undefined : actions.onCloseTerminal}
-          onOpenTerminal={openTerminal}
+          onOpenTerminal={interactiveAvailable ? openTerminal : undefined}
           onSelect={setActiveTab}
           showOwner={readOnly}
           terminals={terminals}
@@ -162,19 +164,28 @@ export function TerminalWindowApp({
         id={terminalPanelDomId(tabsIdBase)}
         role="tabpanel"
       >
-        {activeTab === TERMINAL_JOURNAL_TAB ? (
-          <>
-            <TerminalJournalHostChrome hostChrome={hostChrome} projectLabel={projectLabel} />
+        <Activity mode={showJournal ? "visible" : "hidden"}>
+          <div className="flex min-h-0 flex-1 flex-col">
+            <TerminalJournalHostChrome
+              hostChrome={hostChrome && showJournal}
+              projectLabel={projectLabel}
+            />
             {hostChrome ? null : <TerminalJournalHead projectLabel={projectLabel} />}
             {journal}
-          </>
+          </div>
+        </Activity>
+        {showJournal ? null : missingRequested ? (
+          <TerminalNotFoundState onOpenTerminal={openTerminal} onViewJournal={openJournal} />
+        ) : !interactiveAvailable && active === null ? (
+          <TerminalExecuteOnlyState onViewJournal={openJournal} />
         ) : active === null ? (
           <TerminalEmptyState onOpenTerminal={openTerminal} />
         ) : (
           <TerminalWindowBody
-            actions={actions}
+            actions={{ ...actions, onOpenTerminal: openTerminal }}
             auditBlocked={auditBlockedIds?.has(active.id) ?? false}
             compact={compact}
+            detachedTtl={detachedTtl}
             engineLoader={engineLoader}
             exitRetentionMs={exitRetentionMs}
             hostChrome={hostChrome}
@@ -187,13 +198,15 @@ export function TerminalWindowApp({
             // different profile is a different terminal, and must not inherit
             // the previous one's in-flight confirmation.
             key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
-            onViewJournal={() => setActiveTab(TERMINAL_JOURNAL_TAB)}
+            onViewJournal={openJournal}
             pipeOutput={pipeOutput?.[active.id]}
             profile={activeProfile}
             readOnly={readOnly}
             recording={recordings?.[active.id] ?? null}
             socketFactory={socketFactory}
             terminal={active}
+            terminalCount={terminals.length}
+            limit={limit}
             viewerId={viewerId}
             viewerToken={viewerToken}
             workspaceId={workspaceId}

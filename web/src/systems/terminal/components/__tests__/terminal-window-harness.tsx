@@ -196,6 +196,7 @@ export function stubWindowActions(
     onOpenTerminal: vi.fn(),
     onCloseTerminal: vi.fn(),
     onStop: vi.fn(),
+    onWait: vi.fn(),
     onStopRecording: vi.fn(),
     onAnswerInputRequest: vi.fn(),
     onRejectInputRequest: vi.fn(),

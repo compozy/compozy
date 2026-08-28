@@ -168,6 +168,13 @@ export const cmdPaletteStoryCommands: CmdPaletteCommand[] = [
     action: { kind: "navigate", app: "tasks" },
   }),
   baseCommand({
+    id: "app.open.terminal",
+    title: "Open Terminal",
+    section: "Apps",
+    icon: "square-terminal",
+    action: { kind: "navigate", app: "terminal" },
+  }),
+  baseCommand({
     id: "settings.appearance",
     title: "Settings → Appearance",
     section: "Settings",

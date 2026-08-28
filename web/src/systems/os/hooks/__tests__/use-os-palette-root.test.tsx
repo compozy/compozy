@@ -18,6 +18,17 @@ import userEvent from "@testing-library/user-event";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  clearChooseSessionTerminalQuote,
+  holdChooseSessionTerminalQuote,
+  peekChooseSessionTerminalQuote,
+} from "@/systems/terminal/parts";
+import {
+  clearSessionTerminalQuote,
+  peekSessionTerminalQuote,
+  stageSessionTerminalQuote,
+} from "@/systems/session/lib/session-terminal-quote";
+
 import type { LayoutDesktop } from "../../lib/window-manager-types";
 import type { OsAppId, OsDesktopRuntimeStore, OsWindow } from "../../lib/os-types";
 import { OsCommandPalette } from "../../components/os-command-palette";
@@ -430,6 +441,13 @@ const PALETTE_REGISTRY: PaletteRegistry = (() => {
       execution: { retry_safe: true, single_flight: false },
     }),
     paletteCommand({
+      id: "app.open.terminal",
+      title: "Open Terminal",
+      section: "Apps",
+      action: { kind: "navigate", app: "terminal" },
+      execution: { retry_safe: true, single_flight: false },
+    }),
+    paletteCommand({
       id: "app.open.agents",
       title: "Open Agents",
       section: "Apps",
@@ -653,6 +671,7 @@ function resetPaletteHarness() {
   paletteMocks.windowCommands.commandsAvailable = true;
   paletteMocks.desktop = desktopFixture({ "window:tasks": windowFixture() }, "window:tasks");
   paletteMocks.commandAvailable = false;
+  clearChooseSessionTerminalQuote();
 }
 
 function renderRoot(open = true, onOpenChange = vi.fn()) {
@@ -860,6 +879,29 @@ describe("useOsPaletteRoot", () => {
     await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
   });
 
+  it("Should open Terminal through userOpen and not land a session", async () => {
+    paletteMocks.paletteIntent = { kind: "destination", windowId: "window:new-tab" };
+    paletteMocks.desktop = desktopFixture(
+      { "window:tasks": windowFixture({ id: "window:tasks", app: "tasks" }) },
+      "window:new-tab"
+    );
+    const { result } = renderRoot();
+    const command = PALETTE_REGISTRY.byId.get("app.open.terminal");
+    if (command === undefined) throw new Error("Expected the Terminal command fixture.");
+
+    await act(async () => {
+      result.current.runCommand(command);
+    });
+
+    expect(paletteMocks.paletteIntentCleared).toHaveBeenCalledOnce();
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "terminal",
+      stackTargetWindowId: "window:new-tab",
+    });
+    expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
+    await waitFor(() => expect(paletteMocks.closeWindow).toHaveBeenCalledWith("window:new-tab"));
+  });
+
   it("Should land on a session through the shared attention jump [BR-20]", async () => {
     const { result } = renderRoot();
 
@@ -880,6 +922,61 @@ describe("useOsPaletteRoot", () => {
     });
     // The root must not keep a second landing implementation of its own.
     expect(paletteMocks.coordinator.userOpen).not.toHaveBeenCalled();
+  });
+
+  it("Should drop a choose-held quote when the session picker is dismissed", async () => {
+    const held = stageSessionTerminalQuote({
+      sessionId: "session:held",
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["stale choose quote"],
+    });
+    clearSessionTerminalQuote("session:held");
+    holdChooseSessionTerminalQuote(held);
+
+    const first = renderRoot(true, vi.fn());
+    first.rerender({ open: false });
+    expect(peekChooseSessionTerminalQuote()).toBeNull();
+
+    const later = renderRoot(true, vi.fn());
+    await act(async () => {
+      later.result.current.openSession({
+        sessionId: "session:later",
+        title: "Later",
+        agentName: "codex",
+        workspaceId: "workspace:alpha",
+        route: { pathname: "/agents/codex/sessions/session%3Alater", search: {} },
+      });
+    });
+
+    expect(peekSessionTerminalQuote("session:later")).toBeNull();
+    expect(peekChooseSessionTerminalQuote()).toBeNull();
+  });
+
+  it("Should stage a choose-held quote exactly once onto the picked session", async () => {
+    const held = stageSessionTerminalQuote({
+      sessionId: "session:held",
+      terminalId: "term-4f21c9a03b7e",
+      fromLine: 1,
+      lines: ["chosen quote"],
+    });
+    clearSessionTerminalQuote("session:held");
+    holdChooseSessionTerminalQuote(held);
+
+    const { result } = renderRoot();
+    await act(async () => {
+      result.current.openSession({
+        sessionId: "session:one",
+        title: "One",
+        agentName: "codex",
+        workspaceId: "workspace:alpha",
+        route: { pathname: "/agents/codex/sessions/session%3Aone", search: {} },
+      });
+    });
+
+    expect(peekSessionTerminalQuote("session:one")?.text).toBe(held.text);
+    expect(peekChooseSessionTerminalQuote()).toBeNull();
+    clearSessionTerminalQuote("session:one");
   });
 
   it("Should open a concrete domain row on its identity route", async () => {
@@ -905,6 +1002,33 @@ describe("useOsPaletteRoot", () => {
       app: "tasks",
       route: { pathname: "/tasks/task-42", search: {} },
     });
+  });
+
+  it("Should open a terminal catalog row as that instance, not a session", async () => {
+    paletteMocks.commandAvailable = true;
+    paletteMocks.desktop = {
+      ...desktopFixture({ "window:tasks": windowFixture() }, "window:tasks"),
+      snapshot: commandSnapshot("workspace:alpha"),
+    };
+    const { result } = renderRoot(true);
+
+    await act(async () => {
+      result.current.openDomainRow({
+        app: "terminal",
+        key: "terminal:term-4f21c9a03b7e",
+        label: "dev server",
+        detail: "running · agent claude-code",
+        status: "running",
+        route: { pathname: "/terminal/term-4f21c9a03b7e", search: {} },
+      });
+    });
+
+    expect(paletteMocks.coordinator.userOpen).toHaveBeenCalledExactlyOnceWith({
+      app: "terminal",
+      instanceKey: "term-4f21c9a03b7e",
+      route: { pathname: "/terminal/term-4f21c9a03b7e", search: {} },
+    });
+    expect(paletteMocks.jumpToSession).not.toHaveBeenCalled();
   });
 
   it("Should report when the coordinator refuses a concrete domain target", async () => {
