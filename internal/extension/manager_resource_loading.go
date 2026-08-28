@@ -154,6 +154,7 @@ func (m *Manager) loadLoopResources(ext *managedExtension) ([]looppkg.ResourceSp
 			if err != nil {
 				return nil, err
 			}
+			spec.ExtensionOwner = strings.TrimSpace(ext.info.Name)
 			if dirName := filepath.Base(filepath.Dir(file)); dirName != spec.Name {
 				return nil, fmt.Errorf(
 					"loop resource %q directory name %q does not match loop name %q",

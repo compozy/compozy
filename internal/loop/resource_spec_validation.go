@@ -22,6 +22,7 @@ func validateResourceSpec(
 	normalized.FilePath = strings.TrimSpace(normalized.FilePath)
 	normalized.DefinitionChecksum = strings.TrimSpace(normalized.DefinitionChecksum)
 	normalized.InstalledFromExtension = strings.TrimSpace(normalized.InstalledFromExtension)
+	normalized.ExtensionOwner = strings.TrimSpace(normalized.ExtensionOwner)
 	normalized.Catalog = normalizeCatalogSpec(normalized.Catalog)
 	normalized.Start = normalizeStartSpecs(normalized.Start)
 

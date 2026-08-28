@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"sync"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	toolspkg "github.com/compozy/compozy/internal/tools"
@@ -12,9 +13,11 @@ import (
 type loopToolSchemaSource struct {
 	ctx      context.Context
 	registry toolspkg.Registry
+	once     sync.Once
+	schemas  map[toolspkg.ToolID]looppkg.ToolSchemaSnapshot
 }
 
-var _ looppkg.ToolSchemaSource = loopToolSchemaSource{}
+var _ looppkg.ToolSchemaSource = (*loopToolSchemaSource)(nil)
 
 func newLoopToolSchemaSource(ctx context.Context, registry toolspkg.Registry) looppkg.ToolSchemaSource {
 	if registry == nil {
@@ -23,10 +26,10 @@ func newLoopToolSchemaSource(ctx context.Context, registry toolspkg.Registry) lo
 	if ctx == nil {
 		return nil
 	}
-	return loopToolSchemaSource{ctx: ctx, registry: registry}
+	return &loopToolSchemaSource{ctx: ctx, registry: registry}
 }
 
-func (s loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapshot, bool) {
+func (s *loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapshot, bool) {
 	if s.registry == nil {
 		return looppkg.ToolSchemaSnapshot{}, false
 	}
@@ -34,18 +37,39 @@ func (s loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapsho
 	if err := id.Validate(); err != nil {
 		return looppkg.ToolSchemaSnapshot{}, false
 	}
-	view, err := s.registry.Get(s.ctx, toolspkg.Scope{Operator: true}, id)
-	if err != nil {
+	s.once.Do(s.load)
+	snapshot, ok := s.schemas[id]
+	if !ok {
 		return looppkg.ToolSchemaSnapshot{}, false
 	}
-	descriptor := view.Descriptor
 	return looppkg.ToolSchemaSnapshot{
-		ToolID:             descriptor.ID.String(),
-		InputSchema:        cloneLoopSchemaRaw(descriptor.InputSchema),
-		OutputSchema:       cloneLoopSchemaRaw(descriptor.OutputSchema),
-		InputSchemaDigest:  strings.TrimSpace(descriptor.InputSchemaDigest),
-		OutputSchemaDigest: strings.TrimSpace(descriptor.OutputSchemaDigest),
+		ToolID:             snapshot.ToolID,
+		InputSchema:        cloneLoopSchemaRaw(snapshot.InputSchema),
+		OutputSchema:       cloneLoopSchemaRaw(snapshot.OutputSchema),
+		InputSchemaDigest:  snapshot.InputSchemaDigest,
+		OutputSchemaDigest: snapshot.OutputSchemaDigest,
 	}, true
+}
+
+func (s *loopToolSchemaSource) load() {
+	if err := s.ctx.Err(); err != nil {
+		return
+	}
+	views, err := s.registry.List(s.ctx, toolspkg.Scope{Operator: true})
+	if err != nil {
+		return
+	}
+	s.schemas = make(map[toolspkg.ToolID]looppkg.ToolSchemaSnapshot, len(views))
+	for i := range views {
+		descriptor := views[i].Descriptor
+		s.schemas[descriptor.ID] = looppkg.ToolSchemaSnapshot{
+			ToolID:             descriptor.ID.String(),
+			InputSchema:        cloneLoopSchemaRaw(descriptor.InputSchema),
+			OutputSchema:       cloneLoopSchemaRaw(descriptor.OutputSchema),
+			InputSchemaDigest:  strings.TrimSpace(descriptor.InputSchemaDigest),
+			OutputSchemaDigest: strings.TrimSpace(descriptor.OutputSchemaDigest),
+		}
+	}
 }
 
 func newLoopCompilerWithSchemaSource(source looppkg.ToolSchemaSource) *looppkg.Compiler {

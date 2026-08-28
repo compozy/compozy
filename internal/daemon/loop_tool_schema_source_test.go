@@ -13,8 +13,10 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	extensionprotocol "github.com/compozy/compozy/internal/extensionprotocol"
 	looppkg "github.com/compozy/compozy/internal/loop"
+	looppkgdsl "github.com/compozy/compozy/internal/loop/dsl"
 	"github.com/compozy/compozy/internal/subprocess"
 	toolspkg "github.com/compozy/compozy/internal/tools"
+	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
 func TestLoopToolSchemaSource(t *testing.T) {
@@ -72,6 +74,36 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		}
 		if _, ok := source.Snapshot("ext__spec_cycle__missing"); ok {
 			t.Fatal("Snapshot(unknown id) ok = true, want false")
+		}
+	})
+
+	t.Run("Should project the registry once for all requested schemas", func(t *testing.T) {
+		t.Parallel()
+
+		first := loopToolSchemaDescriptor(t)
+		second := first
+		second.ID = toolspkg.ToolID("ext__spec_cycle__second")
+		listCalls := 0
+		getCalls := 0
+		source := newLoopToolSchemaSource(context.Background(), loopToolSchemaRegistry{
+			views: map[toolspkg.ToolID]toolspkg.ToolView{
+				first.ID:  {Descriptor: first},
+				second.ID: {Descriptor: second},
+			},
+			listCalls: &listCalls,
+			getCalls:  &getCalls,
+		})
+
+		for _, id := range []toolspkg.ToolID{first.ID, second.ID, first.ID} {
+			if _, ok := source.Snapshot(id.String()); !ok {
+				t.Fatalf("Snapshot(%q) ok = false, want true", id)
+			}
+		}
+		if got, want := listCalls, 1; got != want {
+			t.Fatalf("registry List calls = %d, want %d", got, want)
+		}
+		if got, want := getCalls, 0; got != want {
+			t.Fatalf("registry Get calls = %d, want %d", got, want)
 		}
 	})
 
@@ -135,6 +167,134 @@ func TestLoopToolSchemaSource(t *testing.T) {
 			t.Fatal("Compile(implement-tasks) missing implement collection template")
 		}
 	})
+
+	t.Run("Should call only tools owned by the extension that installed the Loop", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			owner       = "release-automation"
+			ownToolID   = toolspkg.ToolID("ext__release_automation__prepare")
+			otherToolID = toolspkg.ToolID("ext__artifact_store__write")
+		)
+		ownCalled := false
+		ownProvider, err := toolspkg.NewNativeProvider(
+			toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: owner},
+			toolspkg.NativeTool{
+				Descriptor: loopExtensionActionDescriptor(ownToolID, owner),
+				Call: func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+					ownCalled = true
+					return toolspkg.ToolResult{Structured: json.RawMessage(`{"status":"prepared"}`)}, nil
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewNativeProvider(own extension) error = %v", err)
+		}
+		otherCalled := false
+		otherProvider, err := toolspkg.NewNativeProvider(
+			toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: "artifact-store"},
+			toolspkg.NativeTool{
+				Descriptor: loopExtensionActionDescriptor(otherToolID, "artifact-store"),
+				Call: func(context.Context, toolspkg.Scope, toolspkg.CallRequest) (toolspkg.ToolResult, error) {
+					otherCalled = true
+					return toolspkg.ToolResult{Structured: json.RawMessage(`{"status":"written"}`)}, nil
+				},
+			},
+		)
+		if err != nil {
+			t.Fatalf("NewNativeProvider(foreign extension) error = %v", err)
+		}
+		cfg := testConfig(t, testHomePaths(t))
+		cfg.Permissions.Mode = compozyconfig.PermissionModeApproveAll
+		cfg.Tools.Policy.ExternalDefault = compozyconfig.ToolsExternalDefaultDisabled
+		policy, err := newNativeToolPolicyResolver(nativeToolPolicyResolverDeps{
+			Config:            &cfg,
+			ApprovalAvailable: true,
+		})
+		if err != nil {
+			t.Fatalf("newNativeToolPolicyResolver() error = %v", err)
+		}
+		registry, err := toolspkg.NewRegistry(
+			toolspkg.WithProviders(ownProvider, otherProvider),
+			toolspkg.WithPolicyInputResolver(policy, toolspkg.ToolsetCatalog{}),
+		)
+		if err != nil {
+			t.Fatalf("NewRegistry() error = %v", err)
+		}
+		actions, err := looppkg.NewActionRegistry(registry)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		scope := toolspkg.Scope{ActorKind: string(workspaceaccess.ActorDaemon)}
+		ctx := toolspkg.WithTrustedExtensionOwner(t.Context(), owner)
+		ownerGrant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: owner}
+		inputs, err := policy.Resolve(ctx, scope)
+		if err != nil {
+			t.Fatalf("Resolve(loop-owned policy) error = %v", err)
+		}
+		if !sourceGrantExists(inputs.AllowSources, ownerGrant) {
+			t.Fatalf("loop-owned allow sources = %#v, want %#v", inputs.AllowSources, ownerGrant)
+		}
+		if sourceGrantExists(inputs.TrustedSources, ownerGrant) {
+			t.Fatalf("loop-owned trusted sources = %#v, want no permission bypass", inputs.TrustedSources)
+		}
+
+		executor, err := actions.Resolve(ctx, scope, ownToolID.String())
+		if err != nil {
+			t.Fatalf("Resolve(own extension tool) error = %v", err)
+		}
+		_, err = executor.Execute(ctx, loopActionNode(ownToolID), looppkg.ActionExecutionInput{
+			ToolScope: scope,
+		})
+		if err != nil {
+			t.Fatalf("Execute(own extension tool) error = %v", err)
+		}
+		if !ownCalled {
+			t.Fatal("own extension tool called = false, want true")
+		}
+
+		_, err = actions.Resolve(ctx, scope, otherToolID.String())
+		if !errors.Is(err, looppkg.ErrActionUnknownKind) {
+			t.Fatalf("Resolve(foreign extension tool) error = %v, want ErrActionUnknownKind", err)
+		}
+		if otherCalled {
+			t.Fatal("foreign extension tool called = true, want false")
+		}
+
+		untrustedScope := toolspkg.Scope{ActorKind: string(workspaceaccess.ActorAgentSession)}
+		_, err = actions.Resolve(ctx, untrustedScope, ownToolID.String())
+		if !errors.Is(err, looppkg.ErrActionUnknownKind) {
+			t.Fatalf("Resolve(agent-forged owner) error = %v, want ErrActionUnknownKind", err)
+		}
+	})
+}
+
+func loopExtensionActionDescriptor(id toolspkg.ToolID, owner string) toolspkg.Descriptor {
+	return toolspkg.Descriptor{
+		ID:               id,
+		ToolPresentation: toolspkg.NewToolPresentation("Prepare release", "", ""),
+		Description:      "Prepare a release artifact.",
+		InputSchema:      json.RawMessage(`{"type":"object","additionalProperties":false}`),
+		OutputSchema: json.RawMessage(
+			`{"type":"object","required":["status"],"properties":{"status":{"type":"string"}}}`,
+		),
+		Backend: toolspkg.BackendRef{
+			Kind:       toolspkg.BackendNativeGo,
+			NativeName: "prepare",
+		},
+		Source:     toolspkg.SourceRef{Kind: toolspkg.SourceExtension, Owner: owner},
+		Visibility: toolspkg.VisibilitySession,
+		Risk:       toolspkg.RiskRead,
+		ReadOnly:   true,
+	}
+}
+
+func loopActionNode(id toolspkg.ToolID) looppkgdsl.Node {
+	return looppkgdsl.Node{
+		ID:    "prepare",
+		Class: looppkgdsl.NodeClassAction,
+		Kind:  id.String(),
+	}
 }
 
 type specCycleLoopSchemaRuntime struct {
@@ -272,10 +432,15 @@ func extensionToolPolicyAllowAll() toolspkg.PolicyInputs {
 }
 
 type loopToolSchemaRegistry struct {
-	views map[toolspkg.ToolID]toolspkg.ToolView
+	views     map[toolspkg.ToolID]toolspkg.ToolView
+	listCalls *int
+	getCalls  *int
 }
 
 func (r loopToolSchemaRegistry) List(context.Context, toolspkg.Scope) ([]toolspkg.ToolView, error) {
+	if r.listCalls != nil {
+		*r.listCalls++
+	}
 	views := make([]toolspkg.ToolView, 0, len(r.views))
 	for id := range r.views {
 		views = append(views, r.views[id])
@@ -296,6 +461,9 @@ func (r loopToolSchemaRegistry) Get(
 	_ toolspkg.Scope,
 	id toolspkg.ToolID,
 ) (toolspkg.ToolView, error) {
+	if r.getCalls != nil {
+		*r.getCalls++
+	}
 	if err := ctx.Err(); err != nil {
 		return toolspkg.ToolView{}, err
 	}

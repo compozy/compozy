@@ -391,7 +391,13 @@ func (r *daemonLoopDefinitionResolver) ResolveLoop(
 		if err != nil {
 			return nil, err
 		}
-		return r.compilerFactory(ctx).Compile(definition)
+		resolved, err := r.compilerFactory(ctx).Compile(definition)
+		if err != nil {
+			return nil, err
+		}
+		resolved.InstalledFromExtension = strings.TrimSpace(record.Spec.InstalledFromExtension)
+		resolved.ExtensionOwner = strings.TrimSpace(record.Spec.ExtensionOwner)
+		return resolved, nil
 	}
 	return nil, fmt.Errorf("%w: loop definition %q not found", looppkg.ErrDefinitionNotFound, trimmedName)
 }

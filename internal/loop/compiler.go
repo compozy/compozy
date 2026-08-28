@@ -61,8 +61,12 @@ func (e *LintFailedError) Error() string {
 
 // ResolvedDefinition is the publish-time artifact hydrated by runtime execution.
 type ResolvedDefinition struct {
-	Definition           dsl.Definition
-	DefinitionVersion    int
+	Definition        dsl.Definition
+	DefinitionVersion int
+	// InstalledFromExtension is daemon-owned resource provenance, never authored Loop YAML.
+	InstalledFromExtension string
+	// ExtensionOwner is the daemon-owned canonical manifest identity used for policy grants.
+	ExtensionOwner       string
 	Templates            map[string]*refs.Template
 	Conditions           map[string]*refs.Condition
 	ToolSchemas          map[string]ToolSchemaSnapshot

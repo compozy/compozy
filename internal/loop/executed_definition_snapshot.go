@@ -17,15 +17,17 @@ import (
 const executedDefinitionSnapshotFormatVersion = 1
 
 type executedDefinitionSnapshot struct {
-	FormatVersion        int                                     `json:"format_version"`
-	DefinitionVersion    int                                     `json:"definition_version"`
-	Definition           dsl.Definition                          `json:"definition"`
-	Defaults             ResolvedDefaults                        `json:"resolved_defaults"`
-	EffectiveConfig      EffectiveConfig                         `json:"effective_config"`
-	ToolSchemas          map[string]ToolSchemaSnapshot           `json:"tool_schemas"`
-	WatchEventsContracts map[hooks.HookEvent]WatchEventsContract `json:"watch_events_contracts"`
-	TemplateSources      map[string]string                       `json:"template_sources"`
-	ConditionSources     map[string]string                       `json:"condition_sources"`
+	FormatVersion          int                                     `json:"format_version"`
+	DefinitionVersion      int                                     `json:"definition_version"`
+	InstalledFromExtension string                                  `json:"installed_from_extension,omitempty"`
+	ExtensionOwner         string                                  `json:"extension_owner,omitempty"`
+	Definition             dsl.Definition                          `json:"definition"`
+	Defaults               ResolvedDefaults                        `json:"resolved_defaults"`
+	EffectiveConfig        EffectiveConfig                         `json:"effective_config"`
+	ToolSchemas            map[string]ToolSchemaSnapshot           `json:"tool_schemas"`
+	WatchEventsContracts   map[hooks.HookEvent]WatchEventsContract `json:"watch_events_contracts"`
+	TemplateSources        map[string]string                       `json:"template_sources"`
+	ConditionSources       map[string]string                       `json:"condition_sources"`
 }
 
 // BuildExecutedDefinitionSnapshot creates the only content-addressed artifact executable after Start.
@@ -50,15 +52,17 @@ func BuildExecutedDefinitionSnapshot(
 		contracts = referencedWatchEventsContracts(definition, SupportedWatchEvents())
 	}
 	envelope := executedDefinitionSnapshot{
-		FormatVersion:        executedDefinitionSnapshotFormatVersion,
-		DefinitionVersion:    version,
-		Definition:           definition,
-		Defaults:             resolved.Defaults,
-		EffectiveConfig:      cloneEffectiveConfig(effective),
-		ToolSchemas:          cloneToolSchemaSnapshots(resolved.ToolSchemas),
-		WatchEventsContracts: cloneWatchEventsContracts(contracts),
-		TemplateSources:      resolvedTemplateSources(resolved),
-		ConditionSources:     resolvedConditionSources(resolved),
+		FormatVersion:          executedDefinitionSnapshotFormatVersion,
+		DefinitionVersion:      version,
+		InstalledFromExtension: strings.TrimSpace(resolved.InstalledFromExtension),
+		ExtensionOwner:         strings.TrimSpace(resolved.ExtensionOwner),
+		Definition:             definition,
+		Defaults:               resolved.Defaults,
+		EffectiveConfig:        cloneEffectiveConfig(effective),
+		ToolSchemas:            cloneToolSchemaSnapshots(resolved.ToolSchemas),
+		WatchEventsContracts:   cloneWatchEventsContracts(contracts),
+		TemplateSources:        resolvedTemplateSources(resolved),
+		ConditionSources:       resolvedConditionSources(resolved),
 	}
 	if err := validateExecutedDefinitionSnapshot(&envelope); err != nil {
 		return nil, "", err

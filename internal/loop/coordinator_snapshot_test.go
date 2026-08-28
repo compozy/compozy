@@ -22,6 +22,8 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Compile() error = %v", err)
 		}
+		resolved.InstalledFromExtension = "acme/release-automation"
+		resolved.ExtensionOwner = "release-automation"
 		effective := EffectiveConfig{
 			HumanGateEnabled:  true,
 			ReattemptStrategy: ReattemptFullBody,
@@ -49,6 +51,12 @@ func TestCoordinatorRunnerShouldExecutePinnedDefinitionSnapshot(t *testing.T) {
 		}
 		if !reflect.DeepEqual(hydrated.EffectiveConfig, effective) {
 			t.Fatalf("hydrated effective config = %#v, want %#v", hydrated.EffectiveConfig, effective)
+		}
+		if got, want := hydrated.InstalledFromExtension, "acme/release-automation"; got != want {
+			t.Fatalf("hydrated installed extension = %q, want %q", got, want)
+		}
+		if got, want := hydrated.ExtensionOwner, "release-automation"; got != want {
+			t.Fatalf("hydrated extension owner = %q, want %q", got, want)
 		}
 		if hydrated.Templates["start[0].input_mapping.slug"] == nil {
 			t.Fatal("hydrated trigger template is nil")

@@ -18,6 +18,7 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
 	"github.com/compozy/compozy/internal/loop/gate"
 	"github.com/compozy/compozy/internal/task"
+	"github.com/compozy/compozy/internal/tools"
 )
 
 func taskRunWithResult(run task.Run, result json.RawMessage) task.Run {
@@ -223,6 +224,20 @@ func TestCoordinatorRunnerShouldResolveFanOutFromWorkspaceDefaults(t *testing.T)
 
 func TestCoordinatorActionExecutionInputShouldCarryPinnedPolicyAndSessionProvenance(t *testing.T) {
 	t.Parallel()
+
+	t.Run("Should carry the pinned extension owner only through trusted dispatch context", func(t *testing.T) {
+		t.Parallel()
+
+		resolved := resolvedCoordinatorDefinitionForTest(t, dsl.Definition{
+			Graph: dsl.Graph{},
+		})
+		resolved.InstalledFromExtension = "acme/release-automation"
+		resolved.ExtensionOwner = "release-automation"
+		ctx := actionContextWithExtensionOwner(t.Context(), resolved)
+		if got, want := tools.TrustedExtensionOwner(ctx), "release-automation"; got != want {
+			t.Fatalf("TrustedExtensionOwner() = %q, want %q", got, want)
+		}
+	})
 
 	t.Run("Should copy the Run context nudge ratio into every Goal action input", func(t *testing.T) {
 		t.Parallel()
