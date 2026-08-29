@@ -45,7 +45,7 @@ func parseTerminalAPIError(statusCode int, status string, body []byte) (bool, er
 	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&payload) != nil || decoder.Decode(&struct{}{}) != io.EOF ||
-		strings.TrimSpace(string(payload.Error.Code)) == "" ||
+		strings.TrimSpace(payload.Error.Code) == "" ||
 		strings.TrimSpace(payload.Error.Message) == "" {
 		return false, nil
 	}

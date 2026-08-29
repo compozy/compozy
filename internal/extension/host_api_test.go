@@ -45,6 +45,7 @@ import (
 	"github.com/compozy/compozy/internal/store/sessiondb"
 	"github.com/compozy/compozy/internal/subprocess"
 	taskpkg "github.com/compozy/compozy/internal/task"
+	terminalpkg "github.com/compozy/compozy/internal/terminal"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	transcriptpkg "github.com/compozy/compozy/internal/transcript"
@@ -6504,11 +6505,48 @@ func mustExtensionTaskActorContext(
 func mustLocalSandboxRegistry(t testing.TB) *sandbox.Registry {
 	t.Helper()
 
-	registry, err := sandboxlocal.NewRegistry()
+	registry, err := sandboxlocal.NewRegistry(
+		sandboxlocal.WithTerminalManager(mustHostAPITestTerminalManager(t)),
+	)
 	if err != nil {
 		t.Fatalf("local.NewRegistry() error = %v", err)
 	}
 	return registry
+}
+
+type hostAPITestTerminalJournal struct {
+	terminalpkg.Journal
+}
+
+func (hostAPITestTerminalJournal) RegisterTerminal(
+	terminalpkg.Info,
+	func(bool),
+	func(terminalpkg.Event),
+) {
+}
+func (hostAPITestTerminalJournal) CloseTerminal(context.Context, terminalpkg.Info) error { return nil }
+func (hostAPITestTerminalJournal) ObserveOutput(terminalpkg.Info, []byte)                {}
+func (hostAPITestTerminalJournal) Shutdown(context.Context) error                        { return nil }
+
+func mustHostAPITestTerminalManager(t testing.TB) *terminalpkg.Service {
+	t.Helper()
+	manager, err := terminalpkg.NewManager(
+		terminalpkg.WithJournal(hostAPITestTerminalJournal{}),
+	)
+	if err != nil {
+		t.Fatalf("terminal.NewManager() error = %v", err)
+	}
+	if err := manager.Start(testutil.Context(t)); err != nil {
+		t.Fatalf("terminal.Start() error = %v", err)
+	}
+	t.Cleanup(func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := manager.Shutdown(shutdownCtx); err != nil {
+			t.Errorf("terminal.Shutdown() error = %v", err)
+		}
+	})
+	return manager
 }
 
 func (e *hostAPITestTaskSessionExecutor) StartTaskSession(

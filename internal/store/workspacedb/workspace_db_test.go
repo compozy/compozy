@@ -225,7 +225,8 @@ func TestOpen(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewPool() error = %v", err)
 		}
-		if _, err := pool.Open(ctx, "workspace-a"); err != nil {
+		database, err := pool.Open(ctx, "workspace-a")
+		if err != nil {
 			t.Fatalf("Open() error = %v", err)
 		}
 		preparation, err := pool.PrepareWorkspaceRemoval(ctx, "workspace-a")
@@ -234,6 +235,13 @@ func TestOpen(t *testing.T) {
 		}
 		if err := preparation.BeforeDelete(ctx); err != nil {
 			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		stagedDatabase, err := pool.Open(ctx, "workspace-a")
+		if err != nil {
+			t.Fatalf("Open(staged existing) error = %v", err)
+		}
+		if stagedDatabase != database {
+			t.Fatal("Open(staged existing) did not reuse the admitted workspace handle")
 		}
 		canceled, cancel := context.WithCancel(ctx)
 		cancel()

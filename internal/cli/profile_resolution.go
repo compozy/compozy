@@ -97,17 +97,6 @@ func resolveCommandProfileWithArchived(
 	return resolveProfileForWorkspaceWithArchived(ctx, cmd, deps, profiles, workspace, hasWorkspace, allowArchived)
 }
 
-func resolveProfileForWorkspace(
-	ctx context.Context,
-	cmd *cobra.Command,
-	deps commandDeps,
-	profiles profileResolutionClient,
-	workspace workspaceResolution,
-	hasWorkspace bool,
-) (profileResolution, error) {
-	return resolveProfileForWorkspaceWithArchived(ctx, cmd, deps, profiles, workspace, hasWorkspace, false)
-}
-
 func resolveProfileForWorkspaceWithArchived(
 	ctx context.Context,
 	cmd *cobra.Command,

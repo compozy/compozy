@@ -90,7 +90,7 @@ func (p *workspaceRemovalPreparation) BeforeDelete(ctx context.Context) error {
 	if err := p.manager.sealWorkspace(ctx, p.workspaceID); err != nil {
 		return err
 	}
-	if err := p.manager.waitWorkspaceProducers(ctx, p.workspaceID); err != nil {
+	if err := p.manager.waitWorkspaceProducerStarts(ctx, p.workspaceID); err != nil {
 		p.manager.unsealWorkspace(p.workspaceID)
 		return err
 	}
@@ -121,6 +121,9 @@ func (p *workspaceRemovalPreparation) Commit(ctx context.Context) error {
 		return key.workspaceID == p.workspaceID
 	}); err != nil {
 		return fmt.Errorf("terminal: archive workspace terminals: %w", err)
+	}
+	if err := p.manager.waitWorkspaceProducers(ctx, p.workspaceID); err != nil {
+		return err
 	}
 	if err := p.journal.Commit(ctx); err != nil {
 		return fmt.Errorf("terminal: commit journal workspace removal: %w", err)

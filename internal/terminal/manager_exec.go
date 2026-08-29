@@ -31,7 +31,7 @@ type execRun struct {
 	registered       atomic.Bool
 	decision         chan struct{}
 	decideOnce       sync.Once
-	releaseProducer  func()
+	producer         *workspaceProducer
 	releaseCommandID func()
 }
 
@@ -52,13 +52,13 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		return nil, err
 	}
 	request.WS, request.Cwd = workspaceID, cwd
-	releaseProducer, err := m.beginWorkspaceProducer(workspaceID)
+	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if releaseProducer != nil {
-			releaseProducer()
+		if producer != nil {
+			producer.Release()
 		}
 	}()
 	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
@@ -72,18 +72,17 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 	if err != nil {
 		return nil, err
 	}
-	run.releaseProducer = releaseProducer
-	releaseProducer = nil
+	run.producer = producer
+	producer = nil
 	if request.Visible {
 		if err := m.publishExec(ctx, run, request); err != nil {
-			run.releaseProducer()
-			run.releaseProducer = func() {}
+			run.producer.Release()
+			run.producer = nil
 			return nil, cleanupExecRun(ctx, run.item, err)
 		}
 		run.settlePublication()
 	}
-	run.item.start()
-	go m.recordExec(run, request, argv)
+	m.startExecLifecycle(run, request, argv)
 	timer := time.NewTimer(yield)
 	defer timer.Stop()
 	select {
@@ -113,6 +112,14 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 		run.settlePublication()
 		return nil, cleanupExecRun(ctx, run.item, context.Cause(ctx))
 	}
+}
+
+func (m *Service) startExecLifecycle(run *execRun, request ExecRequest, argv []string) {
+	run.item.start()
+	if request.Visible {
+		run.producer.MarkRegistered()
+	}
+	go m.recordExec(run, request, argv)
 }
 
 func (m *Service) authorizeExec(ctx context.Context, request ExecRequest, argv []string) (ExecRequest, error) {
@@ -283,7 +290,7 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 }
 
 func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
-	defer run.releaseProducer()
+	defer run.producer.Release()
 	defer run.releaseCommandID()
 	<-run.item.done
 	<-run.decision

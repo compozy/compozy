@@ -3210,7 +3210,7 @@ func testGoalInput(t *testing.T) loop.ActionExecutionInput {
 		Generation:    1,
 		NodeID:        "converge",
 		ItemIndex:     0,
-		Actor:         actor,
+		Actor:         &actor,
 		CorrelationID: "task-run-1",
 		RuntimeSelection: &loop.ActionRuntimeSelection{
 			Defaults: loop.RuntimeDefaults{

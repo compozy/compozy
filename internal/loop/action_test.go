@@ -410,7 +410,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 				"inputs": map[string]any{"task_id": "task-1"},
 			},
 			ToolScope: tools.Scope{SessionID: "sess-1", AgentName: "agent-a"},
-			Actor:     mustDaemonActor(t),
+			Actor:     new(mustDaemonActor(t)),
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -460,7 +460,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 			AdmittedParams: dsl.NodeParams{
 				"id": "{{ .inputs.must_not_render }}",
 			},
-			Actor: mustDaemonActor(t),
+			Actor: new(mustDaemonActor(t)),
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)

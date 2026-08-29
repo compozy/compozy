@@ -173,7 +173,6 @@ func TestRunWithPaths(t *testing.T) {
 			},
 		}
 		for name, mutate := range mutations {
-			name, mutate := name, mutate
 			t.Run("Should reject terminal wire "+name+" without a version bump", func(t *testing.T) {
 				t.Parallel()
 
@@ -203,7 +202,6 @@ func TestRunWithPaths(t *testing.T) {
 			t.Fatalf("readTerminalWireManifest() error = %v", err)
 		}
 		for _, version := range []string{"v10", "v19", "v999999999999999999999999999999999999"} {
-			version := version
 			t.Run("Should accept "+version, func(t *testing.T) {
 				t.Parallel()
 

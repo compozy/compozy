@@ -186,7 +186,10 @@ func clientAgentCredentials(ctx context.Context) agentidentity.Credentials {
 	if ctx == nil {
 		return agentidentity.Credentials{}
 	}
-	credentials, _ := ctx.Value(clientAgentCredentialsContextKey{}).(agentidentity.Credentials)
+	credentials, ok := ctx.Value(clientAgentCredentialsContextKey{}).(agentidentity.Credentials)
+	if !ok {
+		return agentidentity.Credentials{}
+	}
 	return credentials
 }
 

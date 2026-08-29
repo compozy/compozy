@@ -445,7 +445,7 @@ func TestTerminalClientStreamShouldAdvanceOnlyWrittenSequence(t *testing.T) {
 			}()
 			writeTerminalServerTestFrame(t, server, terminalwire.Frame{
 				Op: terminalwire.ServerOpAttached,
-				Payload: fmt.Appendf(nil, `{"seq":%d,"truncated":%t}`,
+				Payload: fmt.Appendf(nil, `{"seq":"%d","truncated":%t}`,
 					testCase.attached, testCase.attached > testCase.initial),
 			})
 			writeTerminalServerTestFrame(t, server, terminalwire.Frame{

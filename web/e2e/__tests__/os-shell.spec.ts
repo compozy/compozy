@@ -687,9 +687,11 @@ test("E2E-008: palette stays global while RuntimeSelector owns scoped ⌘J", asy
   const palette = appPage.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
   const search = palette.getByPlaceholder("Search apps, sessions, and actions…");
-  await search.fill("tasks");
-  await paletteRow(palette, "app.open.tasks").click();
-  await expect(appWindow(appPage, "tasks")).toBeVisible();
+  await search.fill("terminal");
+  await paletteRow(palette, "app.open.terminal").click();
+  await expect(appWindow(appPage, "terminal")).toBeVisible();
+  await expect(palette).toHaveCount(0);
+  await expect(appPage.locator('[data-slot="dialog-overlay"]')).toHaveCount(0);
 
   await appPage.keyboard.press("ControlOrMeta+K");
   await search.fill("Palette target");

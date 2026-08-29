@@ -1717,9 +1717,10 @@ func (s *blockingCatalogReadRefreshService) Refresh(
 	s.refreshCalls++
 	call := s.refreshCalls
 	s.mu.Unlock()
-	if call == 1 {
+	switch call {
+	case 1:
 		s.startOnce.Do(func() { close(s.started) })
-	} else if call == 2 {
+	case 2:
 		close(s.secondStarted)
 	}
 	select {

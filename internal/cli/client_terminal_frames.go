@@ -34,12 +34,13 @@ func handleTerminalServerFrame(
 	frame terminalwire.Frame,
 	ackPending *int,
 	afterSeq *uint64,
+	attachedSeq *uint64,
 ) (bool, error) {
 	switch frame.Op {
 	case terminalwire.ServerOpOutput:
-		return false, consumeTerminalOutput(conn, writes, output, frame, ackPending, afterSeq)
+		return false, consumeTerminalOutput(conn, writes, output, frame, ackPending, afterSeq, attachedSeq)
 	case terminalwire.ServerOpAttached:
-		return false, consumeTerminalAttached(output, frame.Payload)
+		return false, consumeTerminalAttached(output, frame.Payload, afterSeq, attachedSeq)
 	case terminalwire.ServerOpRedactedInput:
 		return false, consumeTerminalRedactedInput(output, frame.Payload, afterSeq)
 	case terminalwire.ServerOpGap:
@@ -59,6 +60,7 @@ func consumeTerminalOutput(
 	frame terminalwire.Frame,
 	ackPending *int,
 	afterSeq *uint64,
+	attachedSeq *uint64,
 ) error {
 	written, err := writeTerminalStreamBytes(output, frame.Payload, "output")
 	if err != nil {
@@ -71,18 +73,34 @@ func consumeTerminalOutput(
 		}
 		*ackPending -= terminalwire.AckGrainBytes
 	}
-	*afterSeq = max(*afterSeq, frame.Seq+uint64(written))
+	if written < 0 {
+		return terminalPermanentError(errors.New("cli: terminal output writer returned a negative byte count"))
+	}
+	if *attachedSeq > 0 {
+		*afterSeq = max(*afterSeq, *attachedSeq)
+		*attachedSeq = 0
+	} else {
+		*afterSeq = max(*afterSeq, frame.Seq+uint64(written))
+	}
 	return nil
 }
 
-func consumeTerminalAttached(output io.Writer, encoded []byte) error {
+func consumeTerminalAttached(output io.Writer, encoded []byte, afterSeq, attachedSeq *uint64) error {
 	var payload struct {
 		Preamble string `json:"preamble"`
+		Seq      string `json:"seq"`
 	}
 	if err := json.Unmarshal(encoded, &payload); err != nil {
 		return terminalPermanentError(fmt.Errorf("cli: decode ATTACHED frame: %w", err))
 	}
-	_, err := writeTerminalStreamBytes(output, []byte(payload.Preamble), "preamble")
+	sequence, err := parseTerminalFrameSequence(payload.Seq, "ATTACHED seq")
+	if err != nil {
+		return err
+	}
+	if sequence > *afterSeq {
+		*attachedSeq = sequence
+	}
+	_, err = writeTerminalStreamBytes(output, []byte(payload.Preamble), "preamble")
 	return err
 }
 

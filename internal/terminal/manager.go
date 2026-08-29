@@ -56,38 +56,40 @@ type Service struct {
 	entropy         io.Reader
 	inputRequestTTL time.Duration
 
-	mu                 sync.RWMutex
-	terminals          map[terminalKey]*session
-	tombstones         map[terminalKey]tombstone
-	tombstoneOrder     []terminalKey
-	pendingByScope     map[terminalScope]int
-	pendingDaemon      int
-	workspaceProducers map[string]int
-	producerChanged    chan struct{}
-	sealedWorkspaces   map[string]struct{}
-	closing            bool
-	reaperStop         chan struct{}
-	reaperDone         chan struct{}
-	shutdownDone       chan struct{}
-	shutdownErr        error
-	inputs             *inputRegistry
-	tickets            *attachTicketRegistry
+	mu                  sync.RWMutex
+	terminals           map[terminalKey]*session
+	tombstones          map[terminalKey]tombstone
+	tombstoneOrder      []terminalKey
+	pendingByScope      map[terminalScope]int
+	pendingDaemon       int
+	workspaceProducers  map[string]int
+	registeredProducers map[string]int
+	producerChanged     chan struct{}
+	sealedWorkspaces    map[string]struct{}
+	closing             bool
+	reaperStop          chan struct{}
+	reaperDone          chan struct{}
+	shutdownDone        chan struct{}
+	shutdownErr         error
+	inputs              *inputRegistry
+	tickets             *attachTicketRegistry
 }
 
 var _ Manager = (*Service)(nil)
 
 func NewManager(options ...Option) (*Service, error) {
 	service := &Service{
-		terminals:          make(map[terminalKey]*session),
-		tombstones:         make(map[terminalKey]tombstone),
-		pendingByScope:     make(map[terminalScope]int),
-		workspaceProducers: make(map[string]int),
-		producerChanged:    make(chan struct{}),
-		sealedWorkspaces:   make(map[string]struct{}),
-		reaperDone:         make(chan struct{}),
-		shutdownDone:       make(chan struct{}),
-		inputs:             newInputRegistry(),
-		tickets:            newAttachTicketRegistry(),
+		terminals:           make(map[terminalKey]*session),
+		tombstones:          make(map[terminalKey]tombstone),
+		pendingByScope:      make(map[terminalScope]int),
+		workspaceProducers:  make(map[string]int),
+		registeredProducers: make(map[string]int),
+		producerChanged:     make(chan struct{}),
+		sealedWorkspaces:    make(map[string]struct{}),
+		reaperDone:          make(chan struct{}),
+		shutdownDone:        make(chan struct{}),
+		inputs:              newInputRegistry(),
+		tickets:             newAttachTicketRegistry(),
 	}
 	defaultServiceOptions(service)
 	for _, option := range options {

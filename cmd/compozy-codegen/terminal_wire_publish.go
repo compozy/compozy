@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"slices"
 )
 
 type generatedArtifact struct {
@@ -49,8 +50,7 @@ func publishGeneratedArtifactSet(
 
 func rollbackGeneratedArtifactSet(publishErr error, snapshots []generatedArtifactSnapshot) error {
 	result := publishErr
-	for index := len(snapshots) - 1; index >= 0; index-- {
-		snapshot := snapshots[index]
+	for _, snapshot := range slices.Backward(snapshots) {
 		if err := restoreGeneratedFile(
 			snapshot.path,
 			snapshot.content,

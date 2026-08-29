@@ -117,6 +117,8 @@ export {
   type TerminalStreamStatus,
 } from "./lib/terminal-protocol-client";
 export { terminalStoreLogic, type TerminalPaneState } from "./stores/terminal-store";
+export { useTerminalJournalUnlocked } from "./hooks/use-terminal-journal-unlocked";
+export { unlockTerminalJournal } from "./stores/terminal-journal-unlock-store";
 
 export {
   SessionTerminalBlock,

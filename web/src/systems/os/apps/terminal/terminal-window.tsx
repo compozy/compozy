@@ -64,7 +64,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     replay,
     selectedCommandId,
     setJournalChips,
-    setJournalUnlocked,
+    unlockJournal,
     setJournalVisible,
     setReplay,
     setSelectedCommandId,
@@ -253,7 +253,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
         });
       }}
       onViewJournal={() => {
-        setJournalUnlocked(true);
+        unlockJournal();
         setJournalVisible(true);
       }}
       profile={profile.destination}

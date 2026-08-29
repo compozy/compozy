@@ -173,9 +173,9 @@ async function selectTerminalOutput(
   await page.mouse.up();
 }
 
-async function takeTerminalControl(window: Locator): Promise<void> {
+async function takeTerminalControl(window: Locator): Promise<Locator> {
+  const log = window.locator('[role="log"]:visible').last();
   await expect(async () => {
-    const log = window.locator('[role="log"]:visible').last();
     if ((await log.getAttribute("data-readonly")) === "true") {
       const takeControl = window.getByTestId("terminal-take-control").last();
       await expect(takeControl).toBeVisible();
@@ -183,14 +183,13 @@ async function takeTerminalControl(window: Locator): Promise<void> {
     }
     await expect(log).not.toHaveAttribute("data-readonly", "true");
   }).toPass({ timeout: 20_000 });
+  return log;
 }
 
 async function ensureTerminalWindow(page: Page): Promise<Locator> {
   const terminalWindow = await ensureAppWindow(page, "Terminal", "terminal");
-  const id = await windowID(terminalWindow);
-  const stableTerminalWindow = page.getByTestId(`os-window-${id}`);
-  await focusWindowThroughPalette(page, stableTerminalWindow);
-  return stableTerminalWindow;
+  await focusWindowThroughPalette(page, terminalWindow);
+  return terminalWindow;
 }
 
 async function openAgentTerminal(
@@ -673,16 +672,18 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await expect(terminalWindow.getByTestId(`terminal-tab-${defaultTerminalId}`)).toHaveCount(0);
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveCount(0);
 
-    await terminalWindow.getByTestId("terminal-empty-open").click();
-    const profileBTab = terminalWindow.locator('[data-testid^="terminal-tab-term-"]').first();
+    const profileBWindow = appPage.getByTestId(`os-window-${await windowID(terminalWindow)}`);
+    await profileBWindow.getByTestId("terminal-empty-open").click();
+    const profileBTab = profileBWindow.locator('[data-testid^="terminal-tab-term-"]').first();
     await expect(profileBTab).toBeVisible({ timeout: 20_000 });
     const profileBTerminalId = (await profileBTab.getAttribute("data-testid"))?.replace(
       "terminal-tab-",
       ""
     );
     if (!profileBTerminalId) throw new Error("terminal-b did not expose its terminal id.");
-    await takeTerminalControl(terminalWindow);
-    await terminalWindow.getByRole("log").click();
+    terminalWindow = profileBWindow;
+    const profileBLog = await takeTerminalControl(terminalWindow);
+    await profileBLog.click();
     await appPage.keyboard.type("printf 'profile-terminal-b-row\\n'");
     await appPage.keyboard.press("Enter");
     await expect

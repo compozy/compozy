@@ -300,6 +300,7 @@ func runTerminalClientStreamWithInput(
 	serverReads := make(chan terminalServerRead, 1)
 	go readTerminalServer(streamCtx, conn, serverReads)
 	ackPending := 0
+	attachedSeq := uint64(0)
 	for {
 		select {
 		case inputErr := <-inputDone:
@@ -313,7 +314,7 @@ func runTerminalClientStreamWithInput(
 				return afterSeq, fmt.Errorf("cli: read terminal stream: %w", read.err)
 			}
 			done, err := handleTerminalServerFrame(
-				conn, &writes, output, read.frame, &ackPending, &afterSeq,
+				conn, &writes, output, read.frame, &ackPending, &afterSeq, &attachedSeq,
 			)
 			if err != nil {
 				return afterSeq, err

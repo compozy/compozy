@@ -34,6 +34,9 @@ func (s *Service) PrepareWorkspaceRemoval(
 	if s == nil {
 		return nil, errors.New("terminal journal: service is required")
 	}
+	if err := s.pinWorkspaceDatabaseForRemoval(ctx, workspaceID); err != nil {
+		return nil, err
+	}
 	databasePreparation, err := s.databases.PrepareWorkspaceRemoval(ctx, workspaceID)
 	return s.newWorkspaceRemovalPreparation(workspaceID, databasePreparation, err)
 }
@@ -47,8 +50,30 @@ func (s *Service) PrepareWorkspaceRemovalAt(
 	if s == nil {
 		return nil, errors.New("terminal journal: service is required")
 	}
+	if err := s.pinWorkspaceDatabaseForRemoval(ctx, workspaceID); err != nil {
+		return nil, err
+	}
 	databasePreparation, err := s.databases.PrepareWorkspaceRemovalAt(ctx, workspaceID, rootDir)
 	return s.newWorkspaceRemovalPreparation(workspaceID, databasePreparation, err)
+}
+
+func (s *Service) pinWorkspaceDatabaseForRemoval(ctx context.Context, workspaceID string) error {
+	s.mu.Lock()
+	hasLane := false
+	for _, lane := range s.lanes {
+		if lane.info.WS == workspaceID {
+			hasLane = true
+			break
+		}
+	}
+	s.mu.Unlock()
+	if !hasLane {
+		return nil
+	}
+	if _, err := s.databases.Open(ctx, workspaceID); err != nil {
+		return fmt.Errorf("terminal journal: pin workspace database for removal: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) newWorkspaceRemovalPreparation(

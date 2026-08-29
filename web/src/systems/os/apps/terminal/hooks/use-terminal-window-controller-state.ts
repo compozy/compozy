@@ -23,9 +23,11 @@ import {
   useTerminalInputAnswer,
   useTerminalRecordings,
   applyRecordingStopSuccess,
+  unlockTerminalJournal,
   type TerminalInputRequest,
   type TerminalRecordingMap,
   type TerminalViewerIdentity,
+  useTerminalJournalUnlocked,
 } from "@/systems/terminal";
 import { useActiveWorkspace } from "@/systems/workspace";
 
@@ -51,7 +53,6 @@ export function useTerminalWindowControllerState(windowId: string) {
   const [replay, setReplay] = useState<TerminalReplaySelection | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
   const [journalVisible, setJournalVisible] = useState(false);
-  const [journalUnlocked, setJournalUnlocked] = useState(false);
   const { coordinator, manager } = useOsShell();
   const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
@@ -64,15 +65,10 @@ export function useTerminalWindowControllerState(windowId: string) {
   const viewer: TerminalViewerIdentity | null =
     viewerId && viewerToken ? { id: viewerId, attachmentToken: viewerToken } : null;
   const workspaceId = workspace.runtimeWorkspaceId ?? "";
+  const journalUnlocked = useTerminalJournalUnlocked(workspaceId);
   const catalogScope = terminalScope(workspaceId, profile.destination, profile.aggregate);
   const destinationScope = terminalScope(workspaceId, profile.destination);
   const journalScope = catalogScope;
-  const journalScopeIdentity = `${workspaceId}:${catalogScope.key.profileKey}`;
-  const [journalScopeSeen, setJournalScopeSeen] = useState(journalScopeIdentity);
-  if (journalScopeSeen !== journalScopeIdentity) {
-    setJournalScopeSeen(journalScopeIdentity);
-    setJournalUnlocked(false);
-  }
   const catalog = useQuery({
     ...terminalCatalogQuery(catalogScope),
     enabled: workspaceId !== "",
@@ -241,7 +237,7 @@ export function useTerminalWindowControllerState(windowId: string) {
     replay,
     selectedCommandId,
     setJournalChips,
-    setJournalUnlocked,
+    unlockJournal: () => unlockTerminalJournal(workspaceId),
     setJournalVisible,
     setReplay,
     setSelectedCommandId,

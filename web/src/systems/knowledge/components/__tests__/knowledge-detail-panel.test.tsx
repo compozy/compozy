@@ -231,7 +231,7 @@ describe("KnowledgeDetailPanel", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("knowledge-delete-dialog")).toHaveAttribute("data-closed");
+      expect(screen.queryByTestId("knowledge-delete-dialog")).not.toBeInTheDocument();
     });
 
     await user.click(screen.getByTestId("delete-memory-btn"));

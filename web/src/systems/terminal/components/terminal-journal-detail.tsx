@@ -78,6 +78,7 @@ export function TerminalJournalDetail({
       }
     >
       <div
+        aria-label="Command record details"
         className="flex min-h-0 flex-1 flex-col overflow-y-auto focus-visible:outline-none"
         data-testid="terminal-journal-detail"
         onKeyDown={event => {
@@ -86,6 +87,7 @@ export function TerminalJournalDetail({
           onClose();
         }}
         ref={focusOnMount}
+        role="region"
         tabIndex={-1}
       >
         <div className="flex flex-col gap-2 px-4 py-3.5">

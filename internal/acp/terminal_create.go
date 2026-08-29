@@ -80,6 +80,11 @@ func (m *terminalManager) create(
 }
 
 func (m *terminalManager) actor(ownership terminalOwnership) terminalpkg.Actor {
+	if ownership.systemOwned {
+		return terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindSystem, ID: localToolHostActorID, ProfileID: m.scope.ProfileID,
+		}
+	}
 	sessionID := strings.TrimSpace(ownership.ownerSessionID)
 	if sessionID == "" {
 		sessionID = strings.TrimSpace(m.scope.SessionID)

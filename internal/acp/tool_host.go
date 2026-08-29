@@ -185,7 +185,7 @@ func (h *localToolHost) CreateTerminal(
 	ctx context.Context,
 	req acpsdk.CreateTerminalRequest,
 ) (acpsdk.CreateTerminalResponse, error) {
-	return h.createTerminal(ctx, req, terminalOwnership{})
+	return h.createTerminal(ctx, req, terminalOwnership{systemOwned: true})
 }
 
 func (h *localToolHost) createTerminal(

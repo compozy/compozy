@@ -30,11 +30,11 @@ func (m *Service) Open(ctx context.Context, request OpenRequest) (Handle, error)
 		return nil, err
 	}
 	request.WS, request.Cwd = workspaceID, cwd
-	releaseProducer, err := m.beginWorkspaceProducer(workspaceID)
+	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	defer releaseProducer()
+	defer producer.Release()
 	return m.open(ctx, request, cwd, workspaceID)
 }
 

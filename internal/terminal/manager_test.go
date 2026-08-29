@@ -134,8 +134,8 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		if err := preparation.BeforeDelete(t.Context()); err != nil {
 			t.Fatalf("BeforeDelete() error = %v", err)
 		}
-		if release, err := manager.beginWorkspaceProducer("workspace-a"); err == nil {
-			release()
+		if producer, err := manager.beginWorkspaceProducer("workspace-a"); err == nil {
+			producer.Release()
 			t.Fatal("beginWorkspaceProducer() succeeded while workspace removal was staged")
 		} else if !errors.Is(err, ErrServiceUnavailable) {
 			t.Fatalf("beginWorkspaceProducer(staged) error = %v, want ErrServiceUnavailable", err)
@@ -143,11 +143,43 @@ func TestManagerAdmissionAndScope(t *testing.T) {
 		if err := preparation.Rollback(t.Context()); err != nil {
 			t.Fatalf("Rollback() error = %v", err)
 		}
-		release, err := manager.beginWorkspaceProducer("workspace-a")
+		producer, err := manager.beginWorkspaceProducer("workspace-a")
 		if err != nil {
 			t.Fatalf("beginWorkspaceProducer(after rollback) error = %v", err)
 		}
-		release()
+		producer.Release()
+	})
+
+	t.Run("Should archive a running visible exec without waiting on its own finalizer", func(t *testing.T) {
+		t.Parallel()
+		journal := &fakeRecordingJournal{}
+		manager, _, _ := newTestManager(t, DefaultSettings(), WithJournal(journal))
+		result, err := manager.Exec(t.Context(), ExecRequest{
+			WS: "workspace-a", Command: "long-running", Visible: true, YieldMs: 250,
+			Actor: Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"},
+		})
+		if err != nil || result == nil || !result.StillRunning || result.TerminalID == nil {
+			t.Fatalf("Exec() = %#v error = %v, want running visible terminal", result, err)
+		}
+		removeCtx, cancel := context.WithTimeout(t.Context(), time.Second)
+		defer cancel()
+		if err := manager.ArchiveWorkspace(removeCtx, "workspace-a"); err != nil {
+			t.Fatalf("ArchiveWorkspace() error = %v", err)
+		}
+		if _, err := manager.Get(
+			t.Context(),
+			"workspace-a",
+			"profile-a",
+			*result.TerminalID,
+		); !errors.Is(err, ErrExpired) {
+			t.Fatalf("Get(archived visible exec) error = %v, want ErrExpired", err)
+		}
+		journal.mu.Lock()
+		defer journal.mu.Unlock()
+		if len(journal.rows) != 1 || journal.rows[0].TerminalID == nil ||
+			*journal.rows[0].TerminalID != *result.TerminalID {
+			t.Fatalf("journal rows = %#v, want the archived visible exec", journal.rows)
+		}
 	})
 
 	t.Run("Should reject an incomplete actor without inventing a terminal-not-found outcome", func(t *testing.T) {

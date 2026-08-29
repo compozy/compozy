@@ -93,7 +93,7 @@ func marshalTerminalExecutionError(args []string, payload contract.TerminalError
 		return []byte(renderToonObject(
 			"error",
 			[]string{cliCodeKey, clientMessageKey},
-			[]string{string(payload.Error.Code), payload.Error.Message},
+			[]string{payload.Error.Code, payload.Error.Message},
 		)), true
 	default:
 		return nil, false

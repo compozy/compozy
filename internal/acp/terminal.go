@@ -22,6 +22,7 @@ const (
 const (
 	defaultTerminalOutputLimit = 64 * 1024
 	networkCommandName         = "network"
+	localToolHostActorID       = "local-tool-host"
 )
 
 type terminalManager struct {
@@ -44,6 +45,7 @@ type managedTerminal struct {
 
 type terminalOwnership struct {
 	networkOwned    bool
+	systemOwned     bool
 	ownerSessionID  string
 	ownerTurnID     string
 	ownerRunID      string

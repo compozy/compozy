@@ -3,18 +3,12 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { useMergedRefs } from "@base-ui/utils/useMergedRefs";
 import { XIcon } from "lucide-react";
-import { AnimatePresence, m } from "motion/react";
 import * as React from "react";
 import { tabbable } from "tabbable";
 
 import { cn } from "../lib/utils";
 import { Button } from "./button";
-import {
-  DialogMotionContext,
-  type DialogMotionContextValue,
-  useDialogMotion,
-} from "./hooks/use-dialog-motion";
-import { useDialogMotionTransition } from "./hooks/use-dialog-motion-transition";
+import { DialogContext, useDialogContext } from "./hooks/use-dialog-context";
 import { useInitialState } from "./use-initial-state";
 import { useOverlayContainer } from "./hooks/use-overlay-container";
 
@@ -31,7 +25,6 @@ function Dialog({
 }: DialogRootProps) {
   const overlayContainer = useOverlayContainer();
   const windowScoped = overlayContainer !== null;
-  const actionsRef = React.useRef<DialogPrimitive.Root.Actions | null>(null);
   const [uncontrolledOpen, setUncontrolledOpen] = useInitialState(defaultOpen);
   const isControlled = controlledOpen !== undefined;
   const open = isControlled ? Boolean(controlledOpen) : uncontrolledOpen;
@@ -41,12 +34,9 @@ function Dialog({
     onOpenChange?.(next, details);
   };
 
-  const value: DialogMotionContextValue = { actionsRef, open };
-
   return (
     <DialogPrimitive.Root
       data-slot="dialog"
-      actionsRef={actionsRef}
       open={open}
       defaultOpen={defaultOpen}
       modal={modal ?? (windowScoped ? false : true)}
@@ -54,7 +44,7 @@ function Dialog({
       onOpenChange={handleOpenChange}
       {...props}
     >
-      <DialogMotionContext value={value}>{children as React.ReactNode}</DialogMotionContext>
+      <DialogContext value={{ open }}>{children as React.ReactNode}</DialogContext>
     </DialogPrimitive.Root>
   );
 }
@@ -79,14 +69,10 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
 }
 
 function DialogOverlay({ className, style, ...props }: DialogPrimitive.Backdrop.Props) {
-  const transition = useDialogMotionTransition();
-  const overlayRender = (
-    <m.div initial={false} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={transition} />
-  );
+  useDialogContext();
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      render={overlayRender}
       className={cn("fixed inset-0 isolate z-50 bg-overlay-scrim", className)}
       style={{ backdropFilter: "blur(var(--overlay-blur))", ...style }}
       {...props}
@@ -162,10 +148,9 @@ function DialogContent({
   ref,
   ...props
 }: DialogContentProps) {
-  const { actionsRef, open } = useDialogMotion();
+  const { open } = useDialogContext();
   const overlayContainer = useOverlayContainer();
   const windowScoped = overlayContainer !== null;
-  const transition = useDialogMotionTransition();
   const popupRef = React.useRef<HTMLDivElement | null>(null);
   const mergedPopupRef = useMergedRefs(popupRef, ref);
   const resolvedInitialFocus =
@@ -176,67 +161,47 @@ function DialogContent({
       if (!popup) return true;
       return firstDialogTabbable(popup) ?? true;
     });
-  const popupRender = (
-    <m.div
-      initial={false}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.97 }}
-      transition={transition}
-    />
-  );
-
-  const handleExitComplete = () => {
-    actionsRef.current?.unmount();
-  };
-
-  return (
-    <AnimatePresence onExitComplete={handleExitComplete}>
-      {open ? (
-        <DialogPortal key="dialog-portal" keepMounted>
-          <DialogOverlay />
-          <DialogPrimitive.Popup
-            ref={mergedPopupRef}
-            data-slot="dialog-content"
-            data-frame={unframed ? "unframed" : "framed"}
-            initialFocus={resolvedInitialFocus}
-            render={popupRender}
-            className={cn(
-              DIALOG_CONTENT_BASE,
-              unframed ? DIALOG_CONTENT_UNFRAMED : DIALOG_CONTENT_FRAMED,
-              unframed && "overflow-hidden",
-              className
-            )}
-            style={{
-              // Host % ceilings only — never force maxWidth here: inline wins over
-              // preferred classes (sm:max-w-*, dialogShellClass) and stretches w-full
-              // panels to nearly the full OS window.
-              ...(windowScoped
-                ? {
-                    maxHeight: "calc(100% - 2rem)",
-                    overflowY: unframed ? undefined : "auto",
-                  }
-                : undefined),
-              ...style,
-            }}
-            {...props}
+  return open ? (
+    <DialogPortal>
+      <DialogOverlay />
+      <DialogPrimitive.Popup
+        ref={mergedPopupRef}
+        data-slot="dialog-content"
+        data-frame={unframed ? "unframed" : "framed"}
+        initialFocus={resolvedInitialFocus}
+        className={cn(
+          DIALOG_CONTENT_BASE,
+          unframed ? DIALOG_CONTENT_UNFRAMED : DIALOG_CONTENT_FRAMED,
+          unframed && "overflow-hidden",
+          className
+        )}
+        style={{
+          // Host % ceilings only — never force maxWidth here: inline wins over
+          // preferred classes (sm:max-w-*, dialogShellClass) and stretches w-full
+          // panels to nearly the full OS window.
+          ...(windowScoped
+            ? {
+                maxHeight: "calc(100% - 2rem)",
+                overflowY: unframed ? undefined : "auto",
+              }
+            : undefined),
+          ...style,
+        }}
+        {...props}
+      >
+        {children}
+        {showCloseButton ? (
+          <DialogPrimitive.Close
+            data-slot="dialog-close"
+            render={<Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />}
           >
-            {children}
-            {showCloseButton ? (
-              <DialogPrimitive.Close
-                data-slot="dialog-close"
-                render={
-                  <Button variant="ghost" className="absolute top-2 right-2" size="icon-sm" />
-                }
-              >
-                <XIcon />
-                <span className="sr-only">Close</span>
-              </DialogPrimitive.Close>
-            ) : null}
-          </DialogPrimitive.Popup>
-        </DialogPortal>
-      ) : null}
-    </AnimatePresence>
-  );
+            <XIcon />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        ) : null}
+      </DialogPrimitive.Popup>
+    </DialogPortal>
+  ) : null;
 }
 
 interface DialogHeaderProps extends React.ComponentProps<"div"> {

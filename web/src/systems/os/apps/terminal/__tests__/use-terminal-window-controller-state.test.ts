@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { decideTerminalCloseHost } from "../lib/terminal-window-close";
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
+import { terminalJournalUnlockLogic } from "@/systems/terminal/stores/terminal-journal-unlock-store";
 
 const LAST = { id: "term-last" };
 const NEXT = { id: "term-next" };
@@ -64,5 +65,14 @@ describe("useTerminalWindowControllerState journal and recording host gates", ()
     expect(terminalJournalQueryEnabled("", false)).toBe(false);
     expect(terminalJournalQueryEnabled("ws-atlas", false)).toBe(false);
     expect(terminalJournalQueryEnabled("ws-atlas", true)).toBe(true);
+  });
+
+  it("Should preserve first-open state across window remounts without crossing workspaces", () => {
+    const store = terminalJournalUnlockLogic.createStore();
+
+    store.trigger.journalOpened({ workspaceId: "ws-atlas" });
+
+    expect(store.getSnapshot().context.unlockedWorkspaces).toEqual({ "ws-atlas": true });
+    expect(store.getSnapshot().context.unlockedWorkspaces["ws-other"]).toBeUndefined();
   });
 });

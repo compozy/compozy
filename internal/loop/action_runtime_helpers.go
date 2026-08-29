@@ -128,8 +128,9 @@ func normalizeActionToolScope(in ActionExecutionInput) tools.Scope {
 	if scope.WorkspaceID == "" {
 		scope.WorkspaceID = string(in.WorkspaceID)
 	}
-	if scope.ActorKind == "" && in.Actor.Actor.Kind != "" {
-		scope.ActorKind = string(in.Actor.Actor.Kind.Normalize())
+	actor := in.ActorOrZero()
+	if scope.ActorKind == "" && actor.Actor.Kind != "" {
+		scope.ActorKind = string(actor.Actor.Kind.Normalize())
 	}
 	return scope
 }

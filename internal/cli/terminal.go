@@ -43,20 +43,6 @@ func newTerminalCommand(deps commandDeps) *cobra.Command {
 	return command
 }
 
-func terminalClientFromDeps(deps commandDeps) (TerminalClient, error) {
-	client, err := clientFromDeps(deps)
-	if err != nil {
-		return nil, err
-	}
-	terminalClient, ok := client.(TerminalClient)
-	if !ok {
-		return nil, newTerminalTransportError(
-			terminalTransportCodeUnavailable, "terminal client is unavailable", nil,
-		)
-	}
-	return terminalClient, nil
-}
-
 func terminalClientAndWorkspace(
 	cmd *cobra.Command,
 	deps commandDeps,

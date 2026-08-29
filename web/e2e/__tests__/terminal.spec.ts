@@ -244,16 +244,17 @@ async function terminalScreen(runtime: BrowserRuntime, workspaceId: string, term
   );
 }
 
-async function takeTerminalControl(window: Locator): Promise<void> {
-  await expect(async () => {
-    const log = window.locator('[role="log"]:visible').last();
-    if ((await log.getAttribute("data-readonly")) === "true") {
-      const takeControl = window.getByTestId("terminal-take-control").last();
-      await expect(takeControl).toBeVisible();
-      await takeControl.click();
-    }
-    await expect(log).not.toHaveAttribute("data-readonly", "true");
-  }).toPass({ timeout: 20_000 });
+async function takeTerminalControl(window: Locator): Promise<Locator> {
+  const log = window.locator('[role="log"]:visible').last();
+  await expect(log).toBeVisible();
+  await expect(log).toHaveAttribute("data-readonly", /^(true|false)$/);
+  if ((await log.getAttribute("data-readonly")) === "true") {
+    const takeControl = window.getByTestId("terminal-take-control").last();
+    await expect(takeControl).toBeVisible();
+    await takeControl.click();
+  }
+  await expect(log).toHaveAttribute("data-readonly", "false");
+  return log;
 }
 
 function focusedTerminalWindow(page: Page): Locator {
@@ -342,13 +343,15 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   );
   await launcherWindow.getByTestId("terminal-empty-open").click();
   expect((await createResponsePromise).status()).toBe(201);
-  const terminalWindowID = await windowID(focusedTerminalWindow(appPage));
-  const window = appPage.getByTestId(`os-window-${terminalWindowID}`);
-  await expect(window.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(1);
-  await takeTerminalControl(window);
+  const firstActiveWindow = focusedTerminalWindow(appPage);
+  await expect(firstActiveWindow.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(1);
+  await focusWindowThroughPalette(appPage, firstActiveWindow);
+  let terminalWindowID = await windowID(firstActiveWindow);
+  let window = appPage.getByTestId(`os-window-${terminalWindowID}`);
+  const firstLog = await takeTerminalControl(window);
   const firstTab = window.locator('[data-testid^="terminal-tab-term-"]').first();
   const firstID = terminalIDFromTab(await firstTab.getAttribute("data-testid"));
-  await window.locator('[role="log"]:visible').last().click();
+  await firstLog.click();
   await appPage.keyboard.type("printf 'first-screen-intact\\n'");
   await appPage.keyboard.press("Enter");
   await expect
@@ -356,12 +359,16 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
     .toContain("first-screen-intact");
 
   await window.getByTestId("terminal-open").click();
-  await expect(window.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
+  const secondActiveWindow = focusedTerminalWindow(appPage);
+  await expect(secondActiveWindow.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
+  await focusWindowThroughPalette(appPage, secondActiveWindow);
+  terminalWindowID = await windowID(secondActiveWindow);
+  window = appPage.getByTestId(`os-window-${terminalWindowID}`);
   const secondTab = window.locator('[data-testid^="terminal-tab-term-"]').nth(1);
   const secondID = terminalIDFromTab(await secondTab.getAttribute("data-testid"));
   await window.getByTestId(`terminal-tab-select-${secondID}`).click();
-  await takeTerminalControl(window);
-  await window.locator('[role="log"]:visible').last().click();
+  const secondLog = await takeTerminalControl(window);
+  await secondLog.click();
   await appPage.keyboard.type("printf 'second-screen-intact\\n'");
   await appPage.keyboard.press("Enter");
   await expect
@@ -408,9 +415,17 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   await expect(restored).toBeHidden();
   const reopened = await openAppWindow(appPage, "Terminal", "terminal");
   await expect(reopened.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
-  expect((await terminalScreen(runtime, workspace.id, firstID)).content).toContain(
-    "first-screen-intact"
-  );
+  const firstQuote = await runTerminalCLI<{ quote: string }>(runtime.paths, [
+    "quote",
+    firstID,
+    "--workspace",
+    workspace.id,
+    "--lines",
+    "1-200",
+    "-o",
+    "json",
+  ]);
+  expect(firstQuote.quote).toContain("first-screen-intact");
 });
 
 test("E2E-007: journal filters update the real browser query", async ({ appPage, runtime }) => {

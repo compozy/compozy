@@ -205,6 +205,42 @@ func TestService(t *testing.T) {
 		}
 	})
 
+	t.Run("Should flush a registered lane after workspace removal is staged", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		service, workspaceID := newJournalTestService(ctx, t)
+		terminalID := terminalpkg.ID("term-staged-flush")
+		actor := terminalpkg.Actor{
+			Kind: terminalpkg.ActorKindHuman, ID: "operator", ProfileID: "profile-a",
+		}
+		info := terminalpkg.Info{
+			ID: terminalID, WS: workspaceID, ProfileID: "profile-a", Cwd: "/workspace", Controller: &actor,
+		}
+		service.RegisterTerminal(info, nil, nil)
+		preparation, err := service.PrepareWorkspaceRemoval(ctx, workspaceID)
+		if err != nil {
+			t.Fatalf("PrepareWorkspaceRemoval() error = %v", err)
+		}
+		if err := preparation.BeforeDelete(ctx); err != nil {
+			t.Fatalf("BeforeDelete() error = %v", err)
+		}
+		row := terminalpkg.CommandRow{
+			ID: "cmd-staged-flush", TerminalID: &terminalID, ProfileID: info.ProfileID,
+			Actor: actor, Command: "sleep 600", Cwd: info.Cwd, StartedAt: time.UnixMilli(1000),
+			ExitCause: "signaled", DetectedBy: "exact", Approval: "human",
+		}
+		if err := service.RecordQueued(ctx, info, row); err != nil {
+			t.Fatalf("RecordQueued() error = %v", err)
+		}
+		if err := service.CloseTerminal(ctx, info); err != nil {
+			t.Fatalf("CloseTerminal() error = %v", err)
+		}
+		if err := preparation.Commit(ctx); err != nil {
+			t.Fatalf("Commit() error = %v", err)
+		}
+	})
+
 	t.Run("Should preserve signaled and unknown exit causes without fabricating a code", func(t *testing.T) {
 		t.Parallel()
 

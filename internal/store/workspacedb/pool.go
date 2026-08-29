@@ -71,13 +71,13 @@ func (p *Pool) Open(ctx context.Context, workspaceID string) (*DB, error) {
 		p.mu.Unlock()
 		return nil, errWorkspacePoolClosed
 	}
-	if _, removing := p.removing[workspaceID]; removing {
-		p.mu.Unlock()
-		return nil, fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
-	}
 	if existing := p.entries[workspaceID]; existing != nil {
 		p.mu.Unlock()
 		return existing, nil
+	}
+	if _, removing := p.removing[workspaceID]; removing {
+		p.mu.Unlock()
+		return nil, fmt.Errorf("store: workspace database %q removal is pending", workspaceID)
 	}
 	if opening := p.opening[workspaceID]; opening != nil {
 		p.mu.Unlock()

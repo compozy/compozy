@@ -38,11 +38,11 @@ func (m *Service) OpenPipe(ctx context.Context, request PipeRequest) (Handle, er
 		return nil, err
 	}
 	request.WS, request.Cwd = workspaceID, cwd
-	releaseProducer, err := m.beginWorkspaceProducer(workspaceID)
+	producer, err := m.beginWorkspaceProducer(workspaceID)
 	if err != nil {
 		return nil, err
 	}
-	defer releaseProducer()
+	defer producer.Release()
 	if err := m.admit(ctx, workspaceID, request.Actor); err != nil {
 		return nil, err
 	}

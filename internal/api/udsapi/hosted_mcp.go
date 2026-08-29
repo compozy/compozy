@@ -204,7 +204,7 @@ func (h *Handlers) releaseHostedMCP(c *gin.Context) {
 }
 
 func respondHostedMCPError(c *gin.Context, err error) {
-	if _, ok := errors.AsType[*terminalpkg.Error](err); ok {
+	if terminalErr, ok := errors.AsType[*terminalpkg.Error](err); ok && terminalErr != nil {
 		status, _, _ := core.TerminalErrorStatus(err)
 		c.JSON(status, core.TerminalErrorResponseForError(err, status, false))
 		return
@@ -281,8 +281,8 @@ func hostedMCPStatus(err error) int {
 }
 
 func isHostedMCPTerminalError(err error) bool {
-	_, ok := errors.AsType[*terminalpkg.Error](err)
-	return ok
+	terminalErr, ok := errors.AsType[*terminalpkg.Error](err)
+	return ok && terminalErr != nil
 }
 
 func isHostedMCPToolError(err error) bool {

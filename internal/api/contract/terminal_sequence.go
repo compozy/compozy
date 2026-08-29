@@ -18,7 +18,7 @@ func TerminalSequenceFromUint64(sequence uint64) TerminalSequence {
 // Uint64 validates and converts a terminal sequence received from a public boundary.
 func (sequence TerminalSequence) Uint64() (uint64, error) {
 	value := string(sequence)
-	if len(value) == 0 || len(value) > int(terminalpkg.DecimalUint64MaxLength) {
+	if value == "" || len(value) > int(terminalpkg.DecimalUint64MaxLength) {
 		return 0, fmt.Errorf("terminal: sequence %q is not a decimal uint64", value)
 	}
 	parsed, err := strconv.ParseUint(value, 10, 64)

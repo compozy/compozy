@@ -73,7 +73,10 @@ export function useDesktopOverlays() {
       if (open) return overlay;
       // An intent-opened palette may shadow an earlier local overlay; closing
       // it must not reveal that stale surface underneath.
-      if (overlay === "palette") return null;
+      if (overlay === "palette") {
+        if (paletteIntent !== null) return null;
+        return current === "palette" ? null : current;
+      }
       return current === overlay ? null : current;
     });
   };
