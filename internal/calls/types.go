@@ -270,6 +270,7 @@ type Delivery struct {
 	Body               string
 	Kind               DeliveryKind
 	WakeEventID        string
+	CreatedAt          time.Time
 	Metadata           DeliveryMetadata
 }
 

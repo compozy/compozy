@@ -46,7 +46,7 @@ func (n *daemonNativeTools) sessionRuntimeSet(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := core.SessionPayloadFromInfo(updated)
+	payload := core.SessionPayloadForAgentFromInfo(updated)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
@@ -71,7 +71,7 @@ func (n *daemonNativeTools) sessionRuntimeClear(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := core.SessionPayloadFromInfo(updated)
+	payload := core.SessionPayloadForAgentFromInfo(updated)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 

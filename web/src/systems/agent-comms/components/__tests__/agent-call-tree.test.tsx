@@ -211,6 +211,21 @@ describe("AgentCallTree — windowing", () => {
     expect(mounted).toBeLessThan(60);
   });
 
+  it("Should preserve keyboard expansion while a large tree is collapsed", async () => {
+    stubLayout();
+    const user = userEvent.setup();
+    renderTree(buildLargeTreeFixture(150));
+    const group = screen.getByTestId("agent-call-tree-group");
+
+    group.focus();
+    await user.keyboard("{ArrowLeft}");
+    expect(group).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByTestId("tree")).toHaveAttribute("data-virtualized", "true");
+
+    await user.keyboard("{ArrowRight}");
+    expect(group).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("Should mount an initial window before the viewport reports its size", () => {
     renderTree(buildLargeTreeFixture(150));
 
@@ -267,14 +282,18 @@ describe("AgentCallTree — windowing", () => {
 });
 
 /**
- * Invariant: the default Activity row keeps to five facts and never prints
- * child lifecycle. Owning layer: `AgentCallTree` / `AgentCallTreeRow`.
+ * Invariant: the default Activity row shows daemon-owned child lifecycle when
+ * available. Owning layer: `AgentCallTree` / `AgentCallTreeRow`.
  * Canonical suite: this file.
  */
-describe("AgentCallTree — five facts", () => {
-  it("Should keep child lifecycle off the default tree", () => {
-    renderTree();
-    expect(screen.queryByTestId("agent-call-tree-child-state")).not.toBeInTheDocument();
+describe("AgentCallTree — child lifecycle", () => {
+  it("Should render the projected lifecycle beside its child call", () => {
+    const childSessionId = activityTreeCallsFixture[0]!.child_session_id!;
+    renderTree(undefined, { childStates: new Map([[childSessionId, "parked"]]) });
+    expect(screen.getByTestId("agent-call-tree-child-state")).toHaveAttribute(
+      "data-child-state",
+      "parked"
+    );
   });
 
   it("Should print issue counts on invalid-result rows", () => {

@@ -64,6 +64,6 @@ func (n *daemonNativeTools) setSessionArchived(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := core.SessionPayloadFromInfo(info)
+	payload := core.SessionPayloadForAgentFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }

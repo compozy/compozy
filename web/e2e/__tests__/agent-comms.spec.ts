@@ -548,10 +548,7 @@ test.describe("E2E-017 in-context messages", () => {
       { agent: BLOCKED_CHILD },
       "hold for a decision"
     );
-    const record = await waitForCallState(runtime, workspace.id, accepted.call_id, [
-      "queued",
-      "running",
-    ]);
+    const record = await waitForCallState(runtime, workspace.id, accepted.call_id, ["running"]);
 
     // `waiting-for-auth` is the public projection of `pending_permission_count > 0`
     // (`session/badge.go`), which is the exact condition `AcceptMessage` refuses
@@ -610,7 +607,7 @@ test.describe("E2E-018 liveness and stale actions", () => {
       { agent: REVIEWER },
       "settle during stale action"
     );
-    await waitForCallState(runtime, workspace.id, accepted.call_id, ["queued", "running"]);
+    await waitForCallState(runtime, workspace.id, accepted.call_id, ["running"]);
 
     const calls = await openAgents(appPage, runtime.url(`/agents/calls/${accepted.call_id}`));
     await expect(calls.callCancel).toBeVisible();
@@ -619,7 +616,7 @@ test.describe("E2E-018 liveness and stale actions", () => {
     // boundary. The call can then settle out of band while the exact action the
     // operator already made remains in flight, without pinning stale reads or
     // racing a control that correctly disappears on a live update.
-    const cancelRequest = /\/api\/workspaces\/[^/]+\/calls\/call-[^/?]+\/cancel$/;
+    const cancelRequest = "**/api/workspaces/*/calls/*/cancel*";
     let releaseCancel!: () => void;
     let markCancelReached!: () => void;
     const cancelReached = new Promise<void>(resolve => {
@@ -733,7 +730,7 @@ test.describe("E2E-019 session Calls panel and the wake row", () => {
     // `RenderCompletionWake` writes both the id and a result preview into the
     // turn, and the row renders the daemon's sentence verbatim.
     await expect(wake).toContainText(accepted.call_id);
-    await expect(wake).toContainText("Result preview:");
+    await expect(wake).toContainText("Result:");
   });
 });
 
@@ -834,7 +831,8 @@ test.describe("E2E-020 attention", () => {
 // --- E2E-021 ----------------------------------------------------------------
 
 test.describe("E2E-021 empty states", () => {
-  // A workspace that has never delegated, and a roster with nothing in it.
+  // A workspace that has never delegated. Global built-ins keep the unfiltered
+  // roster useful even when the workspace defines no custom agents.
   test.use({ runtimeOptions: { seed: { mockAgents: [] } } });
 
   test("Should teach the feature instead of showing an empty frame", async ({
@@ -849,9 +847,12 @@ test.describe("E2E-021 empty states", () => {
 
     await openAgents(appPage, runtime.url("/agents"));
     const agents = appWindow(appPage, "agents");
-    await expect(agents.getByTestId("agent-fleet-empty")).toBeVisible();
-    // The empty roster points at the way out.
-    await expect(agents.getByTestId("agent-fleet-empty-create")).toBeVisible();
+    await expect(agents.getByTestId("agent-fleet-row-link-general")).toBeVisible();
+
+    // Empty still has an honest, reachable state: a filter with no matches.
+    await agents.getByTestId("agent-fleet-search").fill("no-agent-can-match-this-name");
+    await expect(agents.getByTestId("agent-fleet-filtered-empty")).toBeVisible();
+    await expect(agents.getByTestId("agent-fleet-clear-filters")).toBeVisible();
   });
 });
 

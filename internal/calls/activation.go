@@ -151,34 +151,48 @@ func (s *Service) DispatchQueued(ctx context.Context, limit int) (int, error) {
 	if s.invoker == nil {
 		return 0, errors.New("calls: session invoker is required")
 	}
-	runIDs, err := s.store.ListQueuedActivationRunIDs(ctx, limit)
-	if err != nil {
-		return 0, err
+	if limit <= 0 {
+		limit = callRecoveryBatchLimit
 	}
 	dispatched := 0
-	for _, runID := range runIDs {
-		record, activation, prompt, permissions, err := s.store.LoadActivation(ctx, runID)
+	for dispatched < limit {
+		runIDs, err := s.store.ListQueuedActivationRunIDs(ctx, limit-dispatched)
 		if err != nil {
 			return dispatched, err
 		}
-		actor := activationDaemonActor(record.WorkspaceID)
-		claim, err := s.claimer.ClaimNextRun(ctx, task.ClaimCriteria{
-			RunID: runID, RunKind: task.RunKindCallActivation,
-			Scope: task.Scope(record.Scope), WorkspaceID: record.WorkspaceID,
-		}, actor)
-		if errors.Is(err, task.ErrNoClaimableRun) {
-			continue
+		if len(runIDs) == 0 {
+			break
 		}
-		if err != nil {
-			return dispatched, fmt.Errorf("calls: claim queued activation %q: %w", runID, err)
+		claimed := false
+		for _, runID := range runIDs {
+			record, activation, prompt, permissions, err := s.store.LoadActivation(ctx, runID)
+			if err != nil {
+				return dispatched, err
+			}
+			actor := activationDaemonActor(record.WorkspaceID)
+			claim, err := s.claimer.ClaimNextRun(ctx, task.ClaimCriteria{
+				RunID: runID, RunKind: task.RunKindCallActivation,
+				Scope: task.Scope(record.Scope), WorkspaceID: record.WorkspaceID,
+			}, actor)
+			if errors.Is(err, task.ErrNoClaimableRun) {
+				continue
+			}
+			if err != nil {
+				return dispatched, fmt.Errorf("calls: claim queued activation %q: %w", runID, err)
+			}
+			_, err = s.invokeClaimedActivation(ctx, &record, Admission{
+				Record: &record, Prompt: prompt, Narrow: permissions, Activation: &activation,
+			}, claim)
+			if err != nil {
+				return dispatched, err
+			}
+			dispatched++
+			claimed = true
+			break
 		}
-		_, err = s.invokeClaimedActivation(ctx, &record, Admission{
-			Record: &record, Prompt: prompt, Narrow: permissions, Activation: &activation,
-		}, claim)
-		if err != nil {
-			return dispatched, err
+		if !claimed {
+			break
 		}
-		dispatched++
 	}
 	return dispatched, nil
 }

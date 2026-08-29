@@ -78,19 +78,9 @@ func (n *daemonNativeTools) sessionList(
 		}
 		return toolspkg.ToolResult{}, err
 	}
-	payload := core.SessionPayloadsFromInfos(page.Sessions)
-	if input.IncludeHealth {
-		pageReader, ok := n.deps.Sessions.(core.SessionHealthPageReader)
-		if !ok {
-			return toolspkg.ToolResult{}, nativeUnavailableError(
-				req.ToolID,
-				"session health page capability is unavailable",
-			)
-		}
-		payload, err = core.SessionPayloadsWithPageHealth(ctx, page.Sessions, pageReader)
-		if err != nil {
-			return toolspkg.ToolResult{}, err
-		}
+	payload, err := n.nativeSessionListPayload(ctx, req.ToolID, page.Sessions, input.IncludeHealth)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
 	}
 	response := contract.SessionCatalogResponse{
 		Sessions: payload,
@@ -102,4 +92,35 @@ func (n *daemonNativeTools) sessionList(
 		},
 	}
 	return structuredResult(response, fmt.Sprintf("%d of %d sessions", len(payload), page.Total))
+}
+
+func (n *daemonNativeTools) nativeSessionListPayload(
+	ctx context.Context,
+	toolID toolspkg.ToolID,
+	infos []*session.Info,
+	includeHealth bool,
+) ([]contract.SessionPayload, error) {
+	payload := core.SessionPayloadsForAgentFromInfos(infos)
+	if !includeHealth {
+		return payload, nil
+	}
+	pageReader, ok := n.deps.Sessions.(core.SessionHealthPageReader)
+	if !ok {
+		return nil, nativeUnavailableError(toolID, "session health page capability is unavailable")
+	}
+	healthPayload, err := core.SessionPayloadsWithPageHealth(ctx, infos, pageReader)
+	if err != nil {
+		return nil, err
+	}
+	if len(healthPayload) != len(payload) {
+		return nil, errors.New("daemon: session health projection changed page cardinality")
+	}
+	for index := range payload {
+		if payload[index].ID != healthPayload[index].ID {
+			return nil, errors.New("daemon: session health projection changed page order")
+		}
+		payload[index].Badge = healthPayload[index].Badge
+		payload[index].Health = healthPayload[index].Health
+	}
+	return payload, nil
 }

@@ -330,7 +330,7 @@ func (h *BaseHandlers) AttachSession(c *gin.Context) {
 		h.respondError(c, StatusForSessionError(err), err)
 		return
 	}
-	payload := sessionPayloadFromInfoAt(info, attach.AttachedAt)
+	payload := sessionPayloadFromInfoAt(info, attach.AttachedAt, false)
 	c.JSON(http.StatusOK, contract.SessionAttachResponse{
 		Session: payload,
 		Attach: contract.SessionAttachPayload{

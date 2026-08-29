@@ -228,7 +228,7 @@ func (s *Service) DrainDeliveries(ctx context.Context, recipientSessionID string
 		outcome, deliverErr := s.invoker.DeliverAtBoundary(ctx, Delivery{
 			CallID: item.SubjectID, RecipientSessionID: item.RecipientSessionID,
 			Body: content.body, Kind: item.Kind, WakeEventID: item.WakeEventID,
-			Metadata: content.metadata,
+			CreatedAt: item.CreatedAt, Metadata: content.metadata,
 		})
 		if deliverErr != nil {
 			errs = append(errs, s.failDelivery(ctx, item, "delivery_error", deliverErr))

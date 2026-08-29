@@ -5,11 +5,13 @@ import { AgentCallTreeRootRow } from "./agent-call-tree-root-row";
 import { AgentCallTreeRow } from "./agent-call-tree-row";
 import type { CallTreeGroupCounts } from "../lib/agent-comms-tree-counts";
 import type { CallTreeNode } from "../lib/agent-comms-tree-nodes";
+import type { ChildState } from "../types";
 
 export interface AgentCallTreeItemProps {
   item: ItemInstance<CallTreeNode>;
   rootLabels?: ReadonlyMap<string, string>;
   countsByRoot?: ReadonlyMap<string, CallTreeGroupCounts>;
+  childStates?: ReadonlyMap<string, ChildState>;
   selectedCallId: string | null;
   onStopSubtree?: (rootSessionId: string, profileName: string) => void;
   pendingStopRootSessionId: string | null;
@@ -19,6 +21,7 @@ export function AgentCallTreeItem({
   item,
   rootLabels,
   countsByRoot,
+  childStates,
   selectedCallId,
   onStopSubtree,
   pendingStopRootSessionId,
@@ -61,6 +64,11 @@ export function AgentCallTreeItem({
           row={node.row}
           depth={node.row.depth}
           selected={selectedCallId === callId}
+          childState={
+            node.row.call.child_session_id
+              ? childStates?.get(node.row.call.child_session_id)
+              : undefined
+          }
         />
       </TreeItemLabel>
     </TreeItem>

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -261,6 +262,43 @@ func TestServiceCreateAdmissionAndActivation(t *testing.T) {
 				"Create() = %#v stored=%#v spawns=%d, want one durable queued call",
 				record,
 				database.calls[record.CallID],
+				len(invoker.spawns),
+			)
+		}
+	})
+
+	// Invariant: one raced activation cannot starve a later claimable call.
+	t.Run("Should continue past an activation whose exact claim raced", func(t *testing.T) {
+		t.Parallel()
+		service, database, claimer, invoker := newCallServiceHarness(
+			t,
+			config.DefaultCallsConfig(),
+			validAgentTarget(),
+		)
+		first, err := service.Create(context.Background(), validCreateInput("first", nil, nil))
+		if err != nil {
+			t.Fatalf("Create(first) error = %v", err)
+		}
+		secondInput := validCreateInput("second", nil, nil)
+		secondInput.IdempotencyKey = "second"
+		second, err := service.Create(context.Background(), secondInput)
+		if err != nil {
+			t.Fatalf("Create(second) error = %v", err)
+		}
+		runIDs := []string{first.ActivationRunID, second.ActivationRunID}
+		slices.Sort(runIDs)
+		claimer.claimErrors = map[string]error{
+			runIDs[0]: errors.Join(task.ErrNoClaimableRun, errors.New("claim raced")),
+		}
+		dispatched, err := service.DispatchQueued(t.Context(), 2)
+		if err != nil || dispatched != 1 {
+			t.Fatalf("DispatchQueued() = %d, %v, want one later activation", dispatched, err)
+		}
+		if database.calls[first.CallID].State == database.calls[second.CallID].State || len(invoker.spawns) != 1 {
+			t.Fatalf(
+				"call states = %s/%s spawns=%d, want one queued and one running",
+				database.calls[first.CallID].State,
+				database.calls[second.CallID].State,
 				len(invoker.spawns),
 			)
 		}
@@ -689,6 +727,59 @@ func TestServiceCreateBatchAndSessionTargets(t *testing.T) {
 		record = activateCreatedCall(t, service, &record)
 		if record.State != StateRunning || len(invoker.revives) != 1 || invoker.revives[0] != parked.ChildSessionID {
 			t.Fatalf("parked follow-up = %#v, revives=%#v", record, invoker.revives)
+		}
+	})
+
+	// Invariant: one parked child processes at most one revived call at a time.
+	t.Run("Should serialize queued follow-ups for the same parked child", func(t *testing.T) {
+		t.Parallel()
+		parked := validAgentTarget()
+		parked.AgentName = ""
+		parked.ChildSessionID = "child-serialized"
+		parked.State = TargetStateParked
+		service, database, _, invoker := newCallServiceHarness(
+			t,
+			config.DefaultCallsConfig(),
+			parked,
+		)
+		inputs := make([]CreateInput, 3)
+		for index := range inputs {
+			inputs[index] = validCreateInput(fmt.Sprintf("follow up %d", index), nil, nil)
+			inputs[index].Target = Target{SessionID: parked.ChildSessionID}
+			inputs[index].IdempotencyKey = fmt.Sprintf("follow-up-%d", index)
+		}
+		outcomes, err := service.CreateBatch(t.Context(), inputs)
+		if err != nil {
+			t.Fatalf("CreateBatch() error = %v", err)
+		}
+		for index := range outcomes {
+			if outcomes[index].Error != nil || outcomes[index].Call == nil {
+				t.Fatalf("CreateBatch() outcome %d = %#v", index, outcomes[index])
+			}
+		}
+
+		dispatched, err := service.DispatchQueued(t.Context(), 100)
+		if err != nil {
+			t.Fatalf("DispatchQueued() error = %v", err)
+		}
+		running := 0
+		queued := 0
+		for callID := range database.calls {
+			switch database.calls[callID].State {
+			case StateRunning:
+				running++
+			case StateQueued:
+				queued++
+			}
+		}
+		if dispatched != 1 || running != 1 || queued != 2 || len(invoker.revives) != 1 {
+			t.Fatalf(
+				"DispatchQueued() = %d, running=%d queued=%d revives=%d, want 1/1/2/1",
+				dispatched,
+				running,
+				queued,
+				len(invoker.revives),
+			)
 		}
 	})
 

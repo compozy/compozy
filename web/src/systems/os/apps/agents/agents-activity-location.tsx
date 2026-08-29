@@ -146,6 +146,7 @@ export function AgentsActivityLocation({
           ) : null}
 
           <AgentCallTree
+            childStates={page.childStates}
             countsByRoot={page.countsByRoot}
             data-testid="agents-activity-tree"
             onSelectCall={page.openCall}

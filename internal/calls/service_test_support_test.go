@@ -526,15 +526,43 @@ func (s *memoryCallStore) ListQueuedActivationRunIDs(_ context.Context, limit in
 	defer s.mu.Unlock()
 	runIDs := make([]string, 0)
 	for callID := range s.calls {
-		if s.calls[callID].State == StateQueued && s.calls[callID].ActivationRunID != "" {
-			runIDs = append(runIDs, s.calls[callID].ActivationRunID)
+		record := s.calls[callID]
+		if record.State != StateQueued || record.ActivationRunID == "" {
+			continue
 		}
+		activation := s.activationForRunID(record.ActivationRunID)
+		if activation != nil && activation.Kind == ActivationKindRevive && s.hasRunningCallForChild(
+			activation.TargetSessionID,
+		) {
+			continue
+		}
+		runIDs = append(runIDs, record.ActivationRunID)
 	}
 	sort.Strings(runIDs)
 	if limit > 0 && len(runIDs) > limit {
 		runIDs = runIDs[:limit]
 	}
 	return runIDs, nil
+}
+
+func (s *memoryCallStore) activationForRunID(runID string) *ActivationSpec {
+	for index := range s.admissions {
+		activation := s.admissions[index].Activation
+		if activation != nil && activation.RunID == runID {
+			return activation
+		}
+	}
+	return nil
+}
+
+func (s *memoryCallStore) hasRunningCallForChild(childSessionID string) bool {
+	for callID := range s.calls {
+		record := s.calls[callID]
+		if record.State == StateRunning && record.ChildSessionID == childSessionID {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *memoryCallStore) LoadActivation(
@@ -611,11 +639,12 @@ func (d staticCallDirectory) ResolveCallTarget(
 }
 
 type fakeActivationClaimer struct {
-	mu       sync.Mutex
-	criteria []task.ClaimCriteria
-	releases []task.LeaseRelease
-	claimErr error
-	store    *memoryCallStore
+	mu          sync.Mutex
+	criteria    []task.ClaimCriteria
+	releases    []task.LeaseRelease
+	claimErr    error
+	claimErrors map[string]error
+	store       *memoryCallStore
 }
 
 func (c *fakeActivationClaimer) ClaimNextRun(
@@ -628,6 +657,9 @@ func (c *fakeActivationClaimer) ClaimNextRun(
 	c.mu.Unlock()
 	if c.claimErr != nil {
 		return nil, c.claimErr
+	}
+	if err := c.claimErrors[criteria.RunID]; err != nil {
+		return nil, err
 	}
 	if c.store != nil {
 		c.store.mu.Lock()

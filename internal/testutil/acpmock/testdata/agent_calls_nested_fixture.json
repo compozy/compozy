@@ -19,6 +19,10 @@
                             },
                             "expect_output_contains": "\"depth\":2"
                         },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 5000 }
+                        },
                         { "kind": "call_return", "raw_input": { "result": { "level": 1 } } }
                     ]
                 }
@@ -41,6 +45,10 @@
                                 "prompt": "nested level three"
                             },
                             "expect_output_contains": "\"depth\":3"
+                        },
+                        {
+                            "kind": "driver_control",
+                            "driver_control": { "action": "delay", "delay_ms": 2000 }
                         },
                         { "kind": "call_return", "raw_input": { "result": { "level": 2 } } }
                     ]

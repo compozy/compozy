@@ -1,11 +1,5 @@
-/**
- * Whether each delegation child is parked, still working, or gone.
- *
- * The wire has no `child_state` today, and inventing parked/gone from session
- * stop reasons is a client guess. Until the daemon projects those states, this
- * hook returns an empty map so Activity pills stay absent rather than lying.
- */
-import type { AgentCommsScope, ChildState } from "@/systems/agent-comms";
+import { childStatesForRoot, type AgentCommsScope, type ChildState } from "@/systems/agent-comms";
+import { useSessions } from "@/systems/session";
 
 /** One rendered tree, and the children its rows named. */
 export interface ActivityRootChildren {
@@ -13,12 +7,20 @@ export interface ActivityRootChildren {
   childSessionIds: readonly string[];
 }
 
-const NO_CHILD_STATES: ReadonlyMap<string, ChildState> = new Map();
-
 export function useActivityChildStates(
-  _scope: AgentCommsScope,
-  _roots: readonly ActivityRootChildren[],
-  _live: boolean
+  scope: AgentCommsScope,
+  roots: readonly ActivityRootChildren[],
+  live: boolean
 ): ReadonlyMap<string, ChildState> {
-  return NO_CHILD_STATES;
+  const childSessionIds = roots.reduce<string[]>((ids, root) => {
+    for (const id of root.childSessionIds) {
+      if (id !== "") ids.push(id);
+    }
+    return ids;
+  }, []);
+  const catalog = useSessions(scope.workspaceId, {
+    enabled: live && scope.workspaceId.trim() !== "" && childSessionIds.length > 0,
+    loadAll: true,
+  });
+  return childStatesForRoot(childSessionIds, catalog.data);
 }

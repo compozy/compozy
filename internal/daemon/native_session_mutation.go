@@ -102,7 +102,7 @@ func (n *daemonNativeTools) sessionCreate(
 	if err != nil {
 		return toolspkg.ToolResult{}, errors.Join(err, n.rollbackNativeSessionWorktree(ctx, worktreeTarget))
 	}
-	payload := core.SessionPayloadFromInfo(info)
+	payload := core.SessionPayloadForAgentFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
@@ -295,7 +295,7 @@ func (n *daemonNativeTools) sessionRewind(
 		return toolspkg.ToolResult{}, err
 	}
 	payload := contract.SessionConversationRewindResponse{
-		Session: core.SessionPayloadFromInfo(result.Session.Info()),
+		Session: core.SessionPayloadForAgentFromInfo(result.Session.Info()),
 		Rewind: contract.SessionConversationRewindPayload{
 			TranscriptEpoch: result.TranscriptEpoch, TargetMessageID: result.TargetMessageID,
 			ArchivedFrom: result.ArchivedFrom, ArchivedThrough: result.ArchivedThrough,

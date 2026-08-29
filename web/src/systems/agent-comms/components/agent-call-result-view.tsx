@@ -83,14 +83,14 @@ function resultFoot({
   fullPayload: unknown;
 }) {
   return (
-    <span className="flex w-full items-center gap-2">
-      <span className="font-mono text-form text-muted">
+    <span className="flex w-full min-w-0 flex-wrap items-center gap-2">
+      <span className="min-w-0 break-all font-mono text-form text-muted">
         {bytes}
         {digest ? ` · contract ${digest}` : ""}
       </span>
-      <span className="flex-1" />
       {onFetchFullPayload && fullPayload === undefined ? (
         <Button
+          className="ml-auto shrink-0"
           data-testid="agent-call-result-fetch"
           size="xs"
           variant="outline"

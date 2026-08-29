@@ -26,6 +26,11 @@ func (g *CallRepo) ListQueuedActivationRunIDs(ctx context.Context, limit int) (i
 		JOIN profiles p ON p.id = c.profile_id
 		WHERE tr.run_kind = 'call_activation' AND tr.status = 'queued'
 		AND c.state = 'queued' AND p.state = 'active'
+		AND (a.activation_kind <> 'revive' OR NOT EXISTS (
+			SELECT 1 FROM calls active_call
+			WHERE active_call.child_session_id = a.target_session_id
+			AND active_call.state = 'running'
+		))
 		ORDER BY tr.queued_at, tr.id LIMIT ?`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("store: list queued call activations: %w", err)

@@ -24,16 +24,25 @@ const (
 
 // SessionPayloadFromInfo converts a session info snapshot into the shared session payload.
 func SessionPayloadFromInfo(info *session.Info) contract.SessionPayload {
-	return sessionPayloadFromInfoAt(info, time.Now().UTC())
+	return sessionPayloadFromInfoAt(info, time.Now().UTC(), false)
 }
 
-func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.SessionPayload {
+// SessionPayloadForAgentFromInfo retains capability atoms for authorized native agent tools.
+func SessionPayloadForAgentFromInfo(info *session.Info) contract.SessionPayload {
+	return sessionPayloadFromInfoAt(info, time.Now().UTC(), true)
+}
+
+func sessionPayloadFromInfoAt(info *session.Info, now time.Time, includePermissionAtoms bool) contract.SessionPayload {
 	payload := contract.SessionPayload{}
 	if info == nil {
 		return payload
 	}
 
 	ref := workref.NewPath(info.WorkspaceID, info.Workspace)
+	lineage := contract.SessionLineagePayloadForOperatorFromStore(info.Lineage)
+	if includePermissionAtoms {
+		lineage = contract.SessionLineagePayloadFromStore(info.Lineage)
+	}
 	payload = contract.SessionPayload{
 		ID:        info.ID,
 		ProfileID: strings.TrimSpace(info.ProfileID),
@@ -55,6 +64,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		ResolvedNetworkParticipation: participation.CloneSpec(info.NetworkParticipation),
 		Type:                         info.Type,
 		State:                        info.State,
+		ChildState:                   sessionChildState(info),
 		Badge:                        session.BadgeForInfo(info),
 		Attachable:                   session.AttachableForInfo(info, now),
 		AttachedTo:                   strings.TrimSpace(info.AttachedTo),
@@ -67,7 +77,7 @@ func sessionPayloadFromInfoAt(info *session.Info, now time.Time) contract.Sessio
 		StopDetail:                   info.StopDetail,
 		Failure:                      SessionFailurePayloadFromStore(info.Failure),
 		AvailableCommands:            availableCommandPayloads(info.AdvertisedCommands),
-		Lineage:                      contract.SessionLineagePayloadFromStore(info.Lineage),
+		Lineage:                      lineage,
 		CreatedAt:                    info.CreatedAt,
 		UpdatedAt:                    info.UpdatedAt,
 	}
@@ -134,10 +144,26 @@ func SessionPayloadFromStoreInfo(info *store.SessionInfo) contract.SessionPayloa
 		LastSeenAt:               cloneTimePtr(attention.LastSeenAt),
 		AttentionChangedAt:       cloneTimePtr(attention.AttentionChangedAt),
 		ArchivedAt:               cloneTimePtr(info.ArchivedAtValue()),
+		ParkedAt:                 cloneTimePtr(info.ParkedAtValue()),
+		IdleExpiresAt:            cloneTimePtr(info.IdleExpiresAtValue()),
+		DrainingAt:               cloneTimePtr(info.DrainingAtValue()),
 		CreatedAt:                info.CreatedAt,
 		UpdatedAt:                info.UpdatedAt,
 	}
 	return SessionPayloadFromInfo(converted)
+}
+
+func sessionChildState(info *session.Info) contract.SessionChildState {
+	if info == nil || info.Lineage == nil || strings.TrimSpace(info.Lineage.ParentSessionID) == "" {
+		return ""
+	}
+	if info.ParkedAt != nil {
+		return contract.SessionChildStateParked
+	}
+	if info.State == session.StateStopped {
+		return contract.SessionChildStateGone
+	}
+	return contract.SessionChildStateRunning
 }
 
 // PendingInteractionPayloadsFromStore converts canonical records into sanitized wire payloads.
@@ -333,12 +359,21 @@ func SessionSandboxPayloadFromMeta(meta *store.SessionSandboxMeta) *contract.Ses
 
 // SessionPayloadsFromInfos converts a session list into response payloads.
 func SessionPayloadsFromInfos(infos []*session.Info) []contract.SessionPayload {
+	return sessionPayloadsFromInfos(infos, false)
+}
+
+// SessionPayloadsForAgentFromInfos retains capability atoms for authorized native agent tools.
+func SessionPayloadsForAgentFromInfos(infos []*session.Info) []contract.SessionPayload {
+	return sessionPayloadsFromInfos(infos, true)
+}
+
+func sessionPayloadsFromInfos(infos []*session.Info, includePermissionAtoms bool) []contract.SessionPayload {
 	payload := make([]contract.SessionPayload, 0, len(infos))
 	for _, info := range infos {
 		if info == nil {
 			continue
 		}
-		payload = append(payload, SessionPayloadFromInfo(info))
+		payload = append(payload, sessionPayloadFromInfoAt(info, time.Now().UTC(), includePermissionAtoms))
 	}
 	return payload
 }

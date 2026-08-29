@@ -57,6 +57,9 @@ export const sessionCatalogStreamsLogic = createStoreLogic<
   },
 });
 
+/** One shell-owned connection status observed by every non-owning surface. */
+export const sessionCatalogStreamsStore = sessionCatalogStreamsLogic.createStore();
+
 function enqueueConnection(
   connect: SessionCatalogStreamConnector,
   enqueue: SessionCatalogStreamsEnqueue,

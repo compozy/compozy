@@ -12,7 +12,70 @@ import (
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
+	toolspkg "github.com/compozy/compozy/internal/tools"
 )
+
+// Invariant: daemon-authored turns are durable without binding a provider runtime.
+func TestRecordSyntheticTurnPersistsWithoutProviderRuntime(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should append one idempotent transcript turn without starting ACP", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t,
+			WithAgentResolver(runtimeFreeSessionAgentResolver{}),
+			WithToolUniverse([]toolspkg.ToolID{"compozy__agent_call"}),
+		)
+		created, err := h.manager.CreateAccepted(testutil.Context(t), CreateAcceptedOpts{
+			RuntimeFree: true,
+			Session: CreateOpts{
+				DesiredSessionID: "sess-runtime-free-synthetic",
+				Global:           true,
+				AgentName:        "general",
+				DisableSandbox:   true,
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateAccepted(runtime-free) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), created.ID); err != nil {
+				t.Errorf("Stop(runtime-free) error = %v", err)
+			}
+		})
+
+		record := SyntheticTurnRecord{
+			Identity: "wake_operator", Message: "Completed the delegated task.",
+			MessageID: "msg_wake_operator", CreatedAt: time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC),
+			Metadata: acp.PromptSyntheticMeta{
+				CallID: "call_operator", CallState: "completed",
+				DeliveryKind: "attention", Reason: "call_completion", WakeEventID: "wake_operator",
+			},
+		}
+		for range 2 {
+			if err := h.manager.RecordSyntheticTurn(testutil.Context(t), created.ID, record); err != nil {
+				t.Fatalf("RecordSyntheticTurn() error = %v", err)
+			}
+		}
+		if got := len(h.driver.startCalls); got != 0 {
+			t.Fatalf("driver start calls = %d, want 0", got)
+		}
+		if got := len(h.driver.promptCalls); got != 0 {
+			t.Fatalf("driver prompt calls = %d, want 0", got)
+		}
+		live, ok := h.manager.Get(created.ID)
+		if !ok {
+			t.Fatalf("Get(%q) did not find runtime-free session", created.ID)
+		}
+		stored, err := live.recorderHandle().Query(testutil.Context(t), store.EventQuery{})
+		if err != nil {
+			t.Fatalf("Query() error = %v", err)
+		}
+		if got := countEventType(stored, acp.EventTypeSyntheticReentry); got != 1 {
+			t.Fatalf("synthetic event count = %d, want one idempotent turn", got)
+		}
+	})
+}
 
 func TestPromptSyntheticPersistsDedicatedEventAndMetadata(t *testing.T) {
 	t.Parallel()

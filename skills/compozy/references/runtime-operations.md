@@ -430,6 +430,10 @@ never interrupts an active prompt and is suppressed for a dead caller or a self-
 calls use `compozy call await`. A finished child is parked, not gone — call it again by session id to
 revive it with its context. Read references/agent-comms.md for the contract.
 
+Governed child rows expose daemon-owned `child_state` as `running`, `parked`, or `gone`; clients
+must not infer it from stop reasons. Operator session projections redact concrete permission atoms,
+while authorized native-agent session tools retain them for capability-aware decisions.
+
 Idle-TTL cleanup checks the child runtime before classifying the stop: a child whose prompt has
 already settled with `done` or `end_turn` is reaped as completed, while a prompt still in flight is
 reaped as a timeout. Both paths retain the `spawn_reaper:ttl_expired` stop origin. Stopping a parent

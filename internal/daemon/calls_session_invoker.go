@@ -149,10 +149,7 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 			return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: inspect operator call recipient: %w", err)
 		}
 		if operatorCaller {
-			return callspkg.DeliveryOutcome{
-				State:  callspkg.DeliveryStateAttention,
-				Reason: "operator_attention",
-			}, nil
+			return i.deliverToOperatorCaller(ctx, delivery)
 		}
 	}
 	woken := false
@@ -173,12 +170,7 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 	if identity == "" {
 		identity = delivery.CallID + ":" + string(delivery.Kind)
 	}
-	metadata := acp.PromptSyntheticMeta{
-		CallID: delivery.Metadata.CallID, CallState: delivery.Metadata.CallState,
-		ResultBytes: delivery.Metadata.ResultBytes, ContractDigest: delivery.Metadata.ContractDigest,
-		MessageID: delivery.Metadata.MessageID, DeliveryKind: delivery.Metadata.DeliveryKind,
-		Reason: delivery.Metadata.Reason, WakeEventID: delivery.Metadata.WakeEventID,
-	}.Normalize()
+	metadata := deliveryPromptMetadataForOutcome(delivery, woken)
 	result, err := i.send(ctx, delivery.RecipientSessionID, delivery.Body, identity, &metadata)
 	if err != nil {
 		return callspkg.DeliveryOutcome{}, err
@@ -211,6 +203,62 @@ func (i *daemonCallSessionInvoker) DeliverAtBoundary(
 		state = callspkg.DeliveryStateWoken
 	}
 	return callspkg.DeliveryOutcome{State: state, Reason: result.Delivery}, nil
+}
+
+func (i *daemonCallSessionInvoker) deliverToOperatorCaller(
+	ctx context.Context,
+	delivery callspkg.Delivery,
+) (callspkg.DeliveryOutcome, error) {
+	recorder, ok := i.sessions.(interface {
+		RecordSyntheticTurn(context.Context, string, session.SyntheticTurnRecord) error
+	})
+	if !ok {
+		return callspkg.DeliveryOutcome{}, errors.New(
+			"daemon: session manager cannot record an operator call turn",
+		)
+	}
+	metadata := deliveryPromptMetadata(delivery)
+	metadata.DeliveryKind = string(callspkg.DeliveryStateAttention)
+	identity := strings.TrimSpace(delivery.WakeEventID)
+	if identity == "" {
+		identity = delivery.CallID + ":" + string(delivery.Kind)
+	}
+	if err := recorder.RecordSyntheticTurn(ctx, delivery.RecipientSessionID, session.SyntheticTurnRecord{
+		Identity: identity, Message: delivery.Body,
+		MessageID: "msg_" + identity, Metadata: metadata,
+		CreatedAt: delivery.CreatedAt,
+	}); err != nil {
+		return callspkg.DeliveryOutcome{}, fmt.Errorf("daemon: record operator call turn: %w", err)
+	}
+	return callspkg.DeliveryOutcome{
+		State:  callspkg.DeliveryStateAttention,
+		Reason: "operator_attention",
+	}, nil
+}
+
+func deliveryPromptMetadata(delivery callspkg.Delivery) acp.PromptSyntheticMeta {
+	return acp.PromptSyntheticMeta{
+		CallID: delivery.Metadata.CallID, CallState: delivery.Metadata.CallState,
+		ResultBytes: delivery.Metadata.ResultBytes, ContractDigest: delivery.Metadata.ContractDigest,
+		MessageID: delivery.Metadata.MessageID, DeliveryKind: delivery.Metadata.DeliveryKind,
+		Reason: delivery.Metadata.Reason, WakeEventID: delivery.Metadata.WakeEventID,
+	}.Normalize()
+}
+
+func deliveryPromptMetadataForOutcome(
+	delivery callspkg.Delivery,
+	woken bool,
+) acp.PromptSyntheticMeta {
+	metadata := deliveryPromptMetadata(delivery)
+	if delivery.Kind != callspkg.DeliveryKindMessage {
+		return metadata
+	}
+	if woken {
+		metadata.DeliveryKind = string(callspkg.MessageDeliveryWoke)
+		return metadata
+	}
+	metadata.DeliveryKind = string(callspkg.MessageDeliveryDeliveredIntoTurn)
+	return metadata
 }
 
 func (i *daemonCallSessionInvoker) send(

@@ -114,10 +114,7 @@ const CALL_DELIVERY_BY_VALUE = {
 
 export const CALL_DELIVERIES = Object.values(CALL_DELIVERY_BY_VALUE);
 
-/**
- * View vocabulary only. The daemon does not project `child_state` on a call,
- * so consumers must leave the map empty rather than guessing from stop reasons.
- */
+/** Daemon-owned delegated-child lifecycle projected through the session catalog. */
 export const CHILD_STATES = ["running", "parked", "gone"] as const;
 
 export type ChildState = (typeof CHILD_STATES)[number];

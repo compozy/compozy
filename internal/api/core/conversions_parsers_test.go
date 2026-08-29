@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,78 @@ func testEventSummaryWithContent(summary store.EventSummary, content json.RawMes
 
 func TestSessionPayloadFromInfo(t *testing.T) {
 	t.Parallel()
+
+	// Invariant: the session catalog, not the browser, owns delegated-child lifecycle.
+	t.Run("Should project running parked and gone child lifecycle from durable session facts", func(t *testing.T) {
+		t.Parallel()
+
+		parkedAt := time.Date(2026, 8, 28, 12, 0, 0, 0, time.UTC)
+		lineage := &store.SessionLineage{ParentSessionID: "sess-parent", RootSessionID: "sess-parent"}
+		tests := []struct {
+			name string
+			info session.Info
+			want contract.SessionChildState
+		}{
+			{
+				name: "running",
+				info: session.Info{State: session.StateActive, Lineage: lineage},
+				want: contract.SessionChildStateRunning,
+			},
+			{
+				name: "parked",
+				info: session.Info{State: session.StateStopped, Lineage: lineage, ParkedAt: &parkedAt},
+				want: contract.SessionChildStateParked,
+			},
+			{
+				name: "gone",
+				info: session.Info{State: session.StateStopped, Lineage: lineage},
+				want: contract.SessionChildStateGone,
+			},
+			{name: "root", info: session.Info{State: session.StateActive}, want: ""},
+		}
+		for _, test := range tests {
+			t.Run("Should project "+test.name, func(t *testing.T) {
+				t.Parallel()
+				if got := core.SessionPayloadFromInfo(&test.info).ChildState; got != test.want {
+					t.Fatalf("ChildState = %q, want %q", got, test.want)
+				}
+			})
+		}
+
+		stored := store.SessionInfo{
+			ID: "sess-parked", State: string(session.StateStopped),
+			Lineage: lineage, Lifecycle: &store.SessionLifecycleTimes{ParkedAt: &parkedAt},
+		}
+		if got := core.SessionPayloadFromStoreInfo(&stored).ChildState; got != contract.SessionChildStateParked {
+			t.Fatalf("stored ChildState = %q, want parked", got)
+		}
+	})
+
+	// Invariant: operator session payloads cannot expose internal capability atoms,
+	// while authorized native-agent projections retain the same durable policy.
+	t.Run("Should redact lineage permissions only from the operator projection", func(t *testing.T) {
+		t.Parallel()
+
+		info := &session.Info{Lineage: &store.SessionLineage{
+			ParentSessionID: "sess-parent",
+			PermissionPolicy: store.SessionPermissionPolicy{
+				Tools: []string{"compozy__mcp_auth_status"},
+			},
+		}}
+		operatorPayload := core.SessionPayloadFromInfo(info)
+		encoded, err := json.Marshal(operatorPayload)
+		if err != nil {
+			t.Fatalf("Marshal(operator payload) error = %v", err)
+		}
+		if strings.Contains(string(encoded), "mcp_auth") {
+			t.Fatalf("operator payload leaked internal capability atoms: %s", encoded)
+		}
+		agentPayload := core.SessionPayloadForAgentFromInfo(info)
+		if agentPayload.Lineage == nil ||
+			!slices.Equal(agentPayload.Lineage.PermissionPolicy.Tools, []string{"compozy__mcp_auth_status"}) {
+			t.Fatalf("agent payload policy = %#v, want concrete capability", agentPayload.Lineage)
+		}
+	})
 
 	t.Run("Should map session info into a sanitized session payload", func(t *testing.T) {
 		t.Parallel()
@@ -213,8 +286,16 @@ func TestSessionPayloadFromInfo(t *testing.T) {
 			payload.Lineage.SpawnDepth != 1 ||
 			payload.Lineage.SpawnRole != "worker" ||
 			payload.Lineage.SpawnBudget.MaxChildren != 2 ||
-			payload.Lineage.PermissionPolicy.Tools[0] != "edit" {
+			len(payload.Lineage.PermissionPolicy.Tools) != 0 {
 			t.Fatalf("payload.Lineage = %#v", payload.Lineage)
+		}
+		agentPayload := core.SessionPayloadForAgentFromInfo(&session.Info{
+			Lineage: &store.SessionLineage{PermissionPolicy: store.SessionPermissionPolicy{Tools: []string{"edit"}}},
+		})
+		if agentPayload.Lineage == nil ||
+			len(agentPayload.Lineage.PermissionPolicy.Tools) != 1 ||
+			agentPayload.Lineage.PermissionPolicy.Tools[0] != "edit" {
+			t.Fatalf("agent payload lineage = %#v, want concrete tool policy", agentPayload.Lineage)
 		}
 		if payload.Activity == nil || payload.Activity.TurnID != "turn-1" {
 			t.Fatalf("activity = %#v", payload.Activity)

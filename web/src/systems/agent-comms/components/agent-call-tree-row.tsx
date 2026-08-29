@@ -8,10 +8,15 @@
  */
 import { OwnerAvatar, Time, cn } from "@compozy/ui";
 
-import { AgentCallStatePill, AgentCallVerdictChip } from "./agent-call-state-pill";
+import {
+  AgentCallStatePill,
+  AgentCallVerdictChip,
+  AgentChildStatePill,
+} from "./agent-call-state-pill";
 import { toCallVerdict } from "../lib/call-state";
 import type { CallTreeRow } from "../lib/agent-comms-tree";
 import { formatAgentCallBytes } from "../lib/format-bytes";
+import type { ChildState } from "../types";
 
 /** Visual indent follows the daemon depth and stops at the designed third step. */
 const MAX_TREE_INDENT = 3;
@@ -39,6 +44,7 @@ export interface AgentCallTreeRowProps {
   /** Indent is the daemon's own delegation depth, not a count of loaded parents. */
   depth: number;
   selected?: boolean;
+  childState?: ChildState;
   "data-testid"?: string;
 }
 
@@ -46,6 +52,7 @@ export function AgentCallTreeRow({
   row,
   depth,
   selected = false,
+  childState,
   "data-testid": testId,
 }: AgentCallTreeRowProps) {
   const { call } = row;
@@ -68,6 +75,9 @@ export function AgentCallTreeRow({
       <span className="truncate text-fg">{agentName}</span>
       <AgentCallStatePill state={row.state} fallbackLabel={call.state} />
       <AgentCallVerdictChip verdict={toCallVerdict(call.verdict)} />
+      {childState ? (
+        <AgentChildStatePill state={childState} data-testid="agent-call-tree-child-state" />
+      ) : null}
       <span className="flex-1" />
       <span className="max-w-48 shrink-0 truncate font-mono text-form text-muted" title={stat}>
         {stat}

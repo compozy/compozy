@@ -6,8 +6,8 @@ import (
 	"github.com/compozy/compozy/internal/store"
 )
 
-// SessionLineagePayloadFromStore converts durable session lineage metadata into
-// the safe public payload used across daemon read surfaces.
+// SessionLineagePayloadFromStore converts durable lineage for an authorized
+// agent surface that needs the concrete permission atoms.
 func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLineagePayload {
 	if lineage == nil {
 		return nil
@@ -37,6 +37,20 @@ func SessionLineagePayloadFromStore(lineage *store.SessionLineage) *SessionLinea
 		},
 	}
 	return NormalizeSessionLineagePayload(payload)
+}
+
+// SessionLineagePayloadForOperatorFromStore omits internal capability atoms
+// from operator-facing HTTP, UDS, support, and browser artifact surfaces.
+func SessionLineagePayloadForOperatorFromStore(lineage *store.SessionLineage) *SessionLineagePayload {
+	payload := SessionLineagePayloadFromStore(lineage)
+	if payload == nil {
+		return nil
+	}
+	payload.PermissionPolicy = SpawnPermissionPolicyPayload{
+		Tools: []string{}, Skills: []string{}, MCPServers: []string{},
+		WorkspacePaths: []string{}, NetworkChannels: []string{}, SandboxProfiles: []string{},
+	}
+	return payload
 }
 
 func cloneContractTimePtr(source *time.Time) *time.Time {

@@ -7,6 +7,7 @@ import { resetProfileViews, setProfileView } from "@/systems/profiles";
 
 import { sessionKeys } from "../../lib/query-keys";
 import {
+  useSessionCatalogStreamStatus,
   useSessionCatalogStreams,
   type SessionCatalogEventSource,
 } from "../use-session-catalog-streams";
@@ -126,6 +127,31 @@ describe("useSessionCatalogStreams", () => {
     unmount();
     expect(sources[0]?.closed).toBe(true);
     expect([...sources[0]!.listeners.values()].every(listeners => listeners.size === 0)).toBe(true);
+  });
+
+  // Invariant: non-owning surfaces observe the shell's one connection status.
+  it("Should publish stale connection state to a separate status reader", () => {
+    const queryClient = new QueryClient();
+    const sources: FakeCatalogEventSource[] = [];
+    const factory = (url: string) => {
+      const source = new FakeCatalogEventSource(url);
+      sources.push(source);
+      return source;
+    };
+    const { result, unmount } = renderHook(
+      () => {
+        useSessionCatalogStreams({ eventSourceFactory: factory });
+        return useSessionCatalogStreamStatus();
+      },
+      { wrapper: wrapper(queryClient) }
+    );
+
+    act(() => sources[0]?.emit("open"));
+    expect(result.current).toBe("live");
+    act(() => sources[0]?.emit("error"));
+    expect(result.current).toBe("stale");
+
+    unmount();
   });
 
   it("Should reopen under the new profile and stop the old socket on a switch", () => {

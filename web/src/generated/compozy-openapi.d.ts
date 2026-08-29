@@ -59353,6 +59353,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -59903,6 +59904,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -60619,6 +60621,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -102231,6 +102234,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -124626,6 +124630,7 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                child_state?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -125135,6 +125140,7 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                child_state?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -125651,6 +125657,7 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                child_state?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -129224,6 +129231,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -129702,6 +129710,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -130277,6 +130286,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -130741,6 +130751,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -131973,6 +131984,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -137283,6 +137295,7 @@ export interface operations {
                   name: string;
                 }[];
                 badge: string;
+                child_state?: string;
                 /** Format: date-time */
                 created_at: string;
                 failure?: {
@@ -137882,6 +137895,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -138380,6 +138394,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -138831,6 +138846,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -141763,6 +141779,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {
@@ -142544,6 +142561,7 @@ export interface operations {
                 name: string;
               }[];
               badge: string;
+              child_state?: string;
               /** Format: date-time */
               created_at: string;
               failure?: {

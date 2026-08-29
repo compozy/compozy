@@ -306,8 +306,7 @@ export function buildCallTree(calls: readonly CallPayload[]): CallCommsTree {
 /**
  * Copy daemon-projected child states onto the children a tree named.
  *
- * The wire has no `child_state` today. Until it does, callers pass `undefined`
- * and this returns an empty map — never a parked/gone guess from stop reasons.
+ * Unknown and missing values stay absent — never a parked/gone guess from stop reasons.
  */
 export interface ChildStateCatalogRow {
   id: string;

@@ -188,7 +188,12 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 			},
 		}
 		outcome, err := invoker.DeliverAtBoundary(context.Background(), callspkg.Delivery{
-			CallID: "call_operator", RecipientSessionID: "ses_operator", Kind: callspkg.DeliveryKindCompletion,
+			CallID: "call_operator", RecipientSessionID: "ses_operator",
+			Kind: callspkg.DeliveryKindCompletion, Body: "Completed the delegated task.",
+			WakeEventID: "wake_operator", Metadata: callspkg.DeliveryMetadata{
+				CallID: "call_operator", CallState: string(callspkg.StateCompleted),
+				Reason: "call_completion", WakeEventID: "wake_operator",
+			},
 		})
 		if err != nil {
 			t.Fatalf("DeliverAtBoundary(operator) error = %v", err)
@@ -202,6 +207,19 @@ func TestDaemonCallDeliveryTracksDurableQueueState(t *testing.T) {
 				manager.statusCalls,
 				manager.resumeCalls,
 				manager.sendCalls,
+			)
+		}
+		if len(manager.syntheticTurns) != 1 {
+			t.Fatalf("operator synthetic turns = %d, want one", len(manager.syntheticTurns))
+		}
+		turn := manager.syntheticTurns[0]
+		if turn.Identity != "wake_operator" || turn.Message != "Completed the delegated task." {
+			t.Fatalf("operator synthetic turn = %#v, want durable completion payload", turn)
+		}
+		if turn.Metadata.DeliveryKind != string(callspkg.DeliveryStateAttention) {
+			t.Fatalf(
+				"operator synthetic delivery kind = %q, want attention",
+				turn.Metadata.DeliveryKind,
 			)
 		}
 	})
@@ -476,6 +494,7 @@ type callSessionManagerStub struct {
 	transcriptPage transcript.Page
 	transcriptErr  error
 	spawnOpts      session.SpawnOpts
+	syntheticTurns []session.SyntheticTurnRecord
 }
 
 func (s *callSessionManagerStub) Status(context.Context, string) (*session.Info, error) {
@@ -534,6 +553,15 @@ func (s *callSessionManagerStub) QueuedInputDeliveryStatus(
 }
 
 func (s *callSessionManagerStub) StopWithCause(context.Context, string, session.StopCause, string) error {
+	return nil
+}
+
+func (s *callSessionManagerStub) RecordSyntheticTurn(
+	_ context.Context,
+	_ string,
+	record session.SyntheticTurnRecord,
+) error {
+	s.syntheticTurns = append(s.syntheticTurns, record)
 	return nil
 }
 

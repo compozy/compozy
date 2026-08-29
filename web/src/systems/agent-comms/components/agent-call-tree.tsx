@@ -22,6 +22,7 @@ import { useAgentCallTree } from "../hooks/use-agent-call-tree";
 import { CALL_TREE_VIRTUALIZATION_THRESHOLD } from "../lib/agent-call-tree-constants";
 import type { CallTreeGroupCounts } from "../lib/agent-comms-tree-counts";
 import type { CallCommsTree } from "../lib/agent-comms-tree";
+import type { ChildState } from "../types";
 
 export type { CallTreeGroupCounts };
 
@@ -31,6 +32,8 @@ export interface AgentCallTreeProps {
   rootLabels?: ReadonlyMap<string, string>;
   /** Counts per tree — derived from a complete loaded population, or absent. */
   countsByRoot?: ReadonlyMap<string, CallTreeGroupCounts>;
+  /** Daemon-projected lifecycle keyed by delegated child session ID. */
+  childStates?: ReadonlyMap<string, ChildState>;
   selectedCallId?: string | null;
   onSelectCall: (callId: string) => void;
   /** Absent when the operator cannot drain trees. */
@@ -43,6 +46,7 @@ export function AgentCallTree({
   tree,
   rootLabels,
   countsByRoot,
+  childStates,
   selectedCallId = null,
   onSelectCall,
   onStopSubtree,
@@ -51,10 +55,12 @@ export function AgentCallTree({
 }: AgentCallTreeProps) {
   const { instance, viewportRef, scroller } = useAgentCallTree(tree, selectedCallId, onSelectCall);
   const rows = instance.getItems().filter(item => item.getItemData().kind !== "root");
-  const virtualized = rows.length > CALL_TREE_VIRTUALIZATION_THRESHOLD;
+  const totalRows = tree.rowsByCallId.size + tree.groups.length;
+  const virtualized = totalRows > CALL_TREE_VIRTUALIZATION_THRESHOLD;
   const itemProps = {
     ...(rootLabels === undefined ? {} : { rootLabels }),
     ...(countsByRoot === undefined ? {} : { countsByRoot }),
+    ...(childStates === undefined ? {} : { childStates }),
     selectedCallId,
     ...(onStopSubtree === undefined ? {} : { onStopSubtree }),
     pendingStopRootSessionId,

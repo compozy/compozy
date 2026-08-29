@@ -19,6 +19,15 @@ const (
 	SessionAttachMaxTTLSeconds = 24 * 60 * 60
 )
 
+// SessionChildState is the daemon-owned lifecycle of a delegated child session.
+type SessionChildState string
+
+const (
+	SessionChildStateRunning SessionChildState = "running"
+	SessionChildStateParked  SessionChildState = "parked"
+	SessionChildStateGone    SessionChildState = "gone"
+)
+
 // CreateSessionRequest is the shared session creation request payload.
 type CreateSessionRequest struct {
 	AgentName     string                     `json:"agent_name,omitempty"`
@@ -76,6 +85,7 @@ type SessionPayload struct {
 	ResolvedNetworkParticipation *participation.Spec         `json:"resolved_network_participation,omitempty"`
 	Type                         session.Type                `json:"type,omitempty"`
 	State                        session.State               `json:"state"`
+	ChildState                   SessionChildState           `json:"child_state,omitempty"`
 	Badge                        session.Badge               `json:"badge"`
 	Attachable                   bool                        `json:"attachable"`
 	AttachedTo                   string                      `json:"attached_to,omitempty"`

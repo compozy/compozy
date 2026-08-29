@@ -37,7 +37,7 @@ func (n *daemonNativeTools) sessionStatus(
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	payload := core.SessionPayloadFromInfo(info)
+	payload := core.SessionPayloadForAgentFromInfo(info)
 	return structuredResult(map[string]any{nativeToolsSessionKey: payload}, payload.ID)
 }
 
@@ -334,7 +334,7 @@ func (n *daemonNativeTools) sessionDescribe(
 		eventPayload = append(eventPayload, core.SessionEventPayloadFromEvent(event, info))
 	}
 	return structuredResult(map[string]any{
-		nativeToolsSessionKey: core.SessionPayloadFromInfo(info),
+		nativeToolsSessionKey: core.SessionPayloadForAgentFromInfo(info),
 		nativeToolsEventsKey:  eventPayload,
 		nativeToolsHistoryKey: sessionHistoryPayload(history, info),
 	}, info.ID)

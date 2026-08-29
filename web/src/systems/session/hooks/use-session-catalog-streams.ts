@@ -1,4 +1,4 @@
-import { useStore, useSelector } from "@xstate/store-react";
+import { useSelector } from "@xstate/store-react";
 import { useEffect, useRef } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 
@@ -13,7 +13,7 @@ import type {
   SessionCatalogEventPayload,
 } from "../types";
 import {
-  sessionCatalogStreamsLogic,
+  sessionCatalogStreamsStore,
   type SessionCatalogStreamStatus,
 } from "./session-catalog-streams-store";
 
@@ -48,8 +48,7 @@ export type { SessionCatalogStreamStatus } from "./session-catalog-streams-store
  * cannot accidentally tear down the shell's connection by unmounting.
  */
 export function useSessionCatalogStreamStatus(): SessionCatalogStreamStatus {
-  const store = useStore(sessionCatalogStreamsLogic);
-  return useSelector(store, snapshot => snapshot.context.status);
+  return useSelector(sessionCatalogStreamsStore, snapshot => snapshot.context.status);
 }
 
 export function sessionCatalogStreamURL(scope: ProfileScopeParams): string {
@@ -205,8 +204,7 @@ export function useSessionCatalogStreams({
     enabled &&
     typeof window !== "undefined" &&
     (eventSourceFactory !== undefined || typeof EventSource !== "undefined");
-  const store = useStore(sessionCatalogStreamsLogic);
-  const status = useSelector(store, snapshot => snapshot.context.status);
+  const status = useSelector(sessionCatalogStreamsStore, snapshot => snapshot.context.status);
   // The URL carries the profile scope, so it doubles as the reconnect identity:
   // a switch changes the string, which bumps the store's generation, fences every
   // frame still in flight from the old socket, and closes it before the new one
@@ -215,11 +213,11 @@ export function useSessionCatalogStreams({
 
   useEffect(() => {
     if (!canConnect) {
-      store.trigger.connectionDisabled();
+      sessionCatalogStreamsStore.trigger.connectionDisabled();
       return undefined;
     }
 
-    store.trigger.connectionRequested({
+    sessionCatalogStreamsStore.trigger.connectionRequested({
       connect: onStatusChange => {
         return openSessionCatalogStream(
           queryClient,
@@ -234,8 +232,8 @@ export function useSessionCatalogStreams({
         );
       },
     });
-    return () => store.trigger.connectionDisabled();
-  }, [canConnect, eventSourceFactory, queryClient, store, streamUrl]);
+    return () => sessionCatalogStreamsStore.trigger.connectionDisabled();
+  }, [canConnect, eventSourceFactory, queryClient, streamUrl]);
 
   return status;
 }
