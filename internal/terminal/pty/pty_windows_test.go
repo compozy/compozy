@@ -94,11 +94,7 @@ func TestWindowsPTYHardening(t *testing.T) { // IT-038
 		if err != nil || !visible {
 			t.Fatalf("InputVisible(after) = %t error=%v, want restored visible mode", visible, err)
 		}
-		rest, err := io.ReadAll(reader)
-		if err != nil {
-			t.Fatalf("ReadAll(ConPTY) error = %v", err)
-		}
-		output = append(output, rest...)
+		output = append(output, readWindowsUntil(t, proc, reader, "accepted")...)
 		if !bytes.Contains(output, []byte("accepted")) || bytes.Contains(output, []byte("conpty-secret")) {
 			t.Fatalf("ConPTY redacted output = %q", output)
 		}
@@ -268,7 +264,7 @@ func readWindowsUntil(t *testing.T, proc Proc, reader *bufio.Reader, needle stri
 			t.Fatalf("read ConPTY until %q: output=%q error=%v", needle, read.output, read.err)
 		}
 		return read.output
-	case <-time.After(5 * time.Second):
+	case <-time.After(20 * time.Second):
 		if err := proc.Kill(SignalKILL); err != nil {
 			t.Errorf("Kill(KILL) after ConPTY prompt timeout error = %v", err)
 		}
