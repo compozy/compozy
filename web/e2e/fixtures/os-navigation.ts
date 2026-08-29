@@ -29,7 +29,7 @@ export async function openAppWindow(page: Page, title: string, app: string): Pro
       ? page.locator('[data-slot="os-menubar-settings"]')
       : page
           .locator('[data-slot="os-dock"]:visible, [data-slot="os-dock-tabbar"]:visible')
-          .getByRole("button", { exact: true, name: title });
+          .getByRole("button", { name: title });
   if (app === "settings") {
     await expect(page.locator('[data-slot="os-menubar-command"]')).toHaveAttribute(
       "title",
@@ -75,6 +75,20 @@ export async function windowID(win: Locator): Promise<string> {
     throw new Error("window surface must expose its opaque ID");
   }
   return testID.slice(prefix.length);
+}
+
+/** Focus an obscured window through the user-facing palette's exact tab identity. */
+export async function focusWindowThroughPalette(page: Page, win: Locator): Promise<void> {
+  const frame = windowFrame(win);
+  if ((await frame.getAttribute("data-focused")) !== null) return;
+  const id = await windowID(win);
+  const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
+  await page.keyboard.press("ControlOrMeta+K");
+  const palette = page.getByTestId("os-command-palette");
+  await expect(palette).toBeVisible();
+  await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
+  await palette.getByTestId(`os-palette-tab-${id}`).click();
+  await expect(frame).toHaveAttribute("data-focused", "");
 }
 
 /** Switch the active workspace and prove the menubar committed the selection. */

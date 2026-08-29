@@ -1,6 +1,7 @@
 // Suite: session-create workspace binding
 // Invariant: opening a session uses the daemon runtime workspace, including the hidden home row
-// while Global scope is active, and seeds the environment from a resolved worktree selection.
+// while Global scope is active, seeds the environment from a resolved worktree selection, and keeps
+// any composer prompt outside the launch draft.
 // Owning layer: the session-create hook that translates shell scope into store commands.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
@@ -335,9 +336,22 @@ describe("session create workspace binding", () => {
     expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
     expect(store.getSnapshot().context).toMatchObject({
       open: true,
-      draft: { firstMessage: "" },
+      pendingPrompt: null,
     });
-    expect(store.getSnapshot().context.draft.firstMessage).not.toContain("<terminal_context");
+    expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
+  });
+
+  it("Should stage a plain prompt outside the launch draft", () => {
+    const store = createSessionCreateStore();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <SessionCreateProvider store={store}>{children}</SessionCreateProvider>
+    );
+    const actions = renderHook(() => useSessionCreateActions(), { wrapper });
+
+    act(() => actions.result.current.openWithPrompt("Plan the release"));
+
+    expect(store.getSnapshot().context.pendingPrompt).toBe("Plan the release");
+    expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
   });
 
   it("Should hold a quote object without putting it in the first-message field", () => {
@@ -355,7 +369,8 @@ describe("session create workspace binding", () => {
     act(() => actions.result.current.openWithTerminalQuote(quote));
 
     expect(peekPendingTerminalQuote()?.text).toBe(quote.text);
-    expect(store.getSnapshot().context.draft.firstMessage).toBe("");
+    expect(store.getSnapshot().context.pendingPrompt).toBeNull();
+    expect(store.getSnapshot().context.draft).not.toHaveProperty("firstMessage");
   });
 
   it("Should ignore Start gestures that would clear or hold quote while create is submitting", () => {

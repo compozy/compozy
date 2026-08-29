@@ -69,6 +69,7 @@ test("operator can navigate the settings shell and complete a restart-aware gene
     .poll(async () => normalizeTexts(await settingsUI.shell.sectionItems.allTextContents()))
     .toEqual([
       "General",
+      "Terminal",
       "Defaults",
       "Appearance",
       "Layouts",

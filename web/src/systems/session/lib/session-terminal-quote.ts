@@ -135,8 +135,8 @@ export function consumeChooseSessionTerminalQuote(sessionId: string): TerminalQu
 /**
  * Claims the create-held quote into an in-flight attempt.
  *
- * Call this when submit becomes inevitable — the same moment `firstMessage`
- * is captured. Success must stage this value, never a later global slot.
+ * Call this when submit becomes inevitable — the same moment the pending
+ * prompt is captured. Success must stage this value, never a later global slot.
  */
 export function claimPendingTerminalQuoteForCreate(): TerminalQuote | null {
   return takePendingTerminalQuote();

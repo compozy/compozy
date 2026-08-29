@@ -297,10 +297,21 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 			)
 		}
 		_, err = service.Call(t.Context(), HostedCallRequest{
-			BindID: bind.BindID, ToolName: "compozy__alpha",
+			BindID: bind.BindID, ToolName: tools.ToolIDTerminalOpen.String(),
 		}, peer)
 		if !errors.Is(err, ErrHostedRunRequired) {
-			t.Fatalf("Call(before BindRun) error = %v, want ErrHostedRunRequired", err)
+			t.Fatalf("Call(terminal before BindRun) error = %v, want ErrHostedRunRequired", err)
+		}
+		_, err = service.Call(t.Context(), HostedCallRequest{
+			BindID: bind.BindID, ToolName: "compozy__alpha",
+		}, peer)
+		if err != nil {
+			t.Fatalf("Call(session tool before BindRun) error = %v", err)
+		}
+		preRunScope, preRunCall := registry.lastCall(t)
+		if preRunScope.RunID != "" || preRunScope.Generation != 0 ||
+			preRunCall.RunID != "" || preRunCall.Generation != 0 {
+			t.Fatalf("session call identity = scope:%#v call:%#v, want no active run", preRunScope, preRunCall)
 		}
 		if err = service.BindRun(t.Context(), "sess-1", "run-1", 17); err != nil {
 			t.Fatalf("BindRun() error = %v", err)
@@ -330,9 +341,9 @@ func TestHostedServiceProjectionAndCallUseRegistryScope(t *testing.T) {
 			t.Fatalf("registry call ApprovalToken = %q, want empty", call.ApprovalToken)
 		}
 		directCalls, bootstrapCalls := registry.callCounts()
-		if directCalls != 0 || bootstrapCalls != 1 {
+		if directCalls != 0 || bootstrapCalls != 2 {
 			t.Fatalf(
-				"registry call counts = direct:%d bootstrap:%d, want direct:0 bootstrap:1",
+				"registry call counts = direct:%d bootstrap:%d, want direct:0 bootstrap:2",
 				directCalls,
 				bootstrapCalls,
 			)

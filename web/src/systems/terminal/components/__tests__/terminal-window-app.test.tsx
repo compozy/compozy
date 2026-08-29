@@ -417,21 +417,18 @@ describe("TerminalWindowApp — S1 states", () => {
     ).toBeInTheDocument();
   });
 
-  it("Should keep a watcher's question on screen without offering a write row", async () => {
-    renderWindow({ inputRequests: [PASSWORD_REQUEST], terminals: [PSQL_TERMINAL] });
+  it("Should let a destination-profile watcher answer through an atomic handoff", async () => {
+    const request = { ...PASSWORD_REQUEST, requested_at: new Date().toISOString() };
+    renderWindow({ inputRequests: [request], terminals: [PSQL_TERMINAL] });
 
     await waitFor(() =>
-      expect(
-        screen.getByTestId(`terminal-input-request-${PASSWORD_REQUEST.id}`)
-      ).toBeInTheDocument()
+      expect(screen.getByTestId(`terminal-input-request-${request.id}`)).toBeInTheDocument()
     );
-    expect(screen.getByText(PASSWORD_REQUEST.reason)).toBeInTheDocument();
-    expect(
-      screen.queryByTestId(`terminal-input-request-field-${PASSWORD_REQUEST.id}`)
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(`terminal-input-request-send-${PASSWORD_REQUEST.id}`)
-    ).not.toBeInTheDocument();
+    expect(screen.getByText(request.reason)).toBeInTheDocument();
+    expect(screen.getByTestId(`terminal-input-request-field-${request.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`terminal-input-request-send-${request.id}`)).toHaveTextContent(
+      "Take control & send"
+    );
   });
 
   it("Should keep the question on an aggregate read without offering a write row", async () => {

@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 import { sessionWindow } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime } from "../fixtures/runtime";
+import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionWindowSelectors } from "../fixtures/selectors";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
 import { createWorktreeRepo, type WorktreeRepoFixture } from "../fixtures/worktree-repo";

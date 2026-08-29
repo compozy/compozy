@@ -18,8 +18,10 @@ import type {
 
 export interface TerminalInputRequestCardProps {
   request: TerminalInputRequest;
-  /** False for a watcher or all-profiles read: the write row is absent. */
+  /** Whether the current viewer already owns the write lease. */
   canAnswerDirectly: boolean;
+  /** False only for aggregate/read-only surfaces that cannot mutate this profile. */
+  canAnswer?: boolean;
   /** Names the terminal when several are asking at once. */
   showOrigin?: boolean;
   terminalTitle?: string;
@@ -109,13 +111,13 @@ function RequestPin({
  * an error report could carry it off; here it exists only in the live DOM node
  * until the form is submitted and reset.
  *
- * A watcher, all-profiles read, or expired pin sees the question and no write
- * row — take control lives on the header, not on this pin, and a lapsed
- * request cannot send.
+ * A watcher in the destination profile can answer through the backend's atomic
+ * handoff; aggregate reads and expired pins see no write row.
  */
 export function TerminalInputRequestCard({
   request,
   canAnswerDirectly,
+  canAnswer = true,
   showOrigin = false,
   terminalTitle,
   onAnswer,
@@ -130,7 +132,7 @@ export function TerminalInputRequestCard({
     return () => window.clearInterval(timer);
   }, [now]);
   const expiry = terminalInputExpiry(request.requested_at, now ?? liveNow);
-  const canWrite = canAnswerDirectly && !expiry.expired;
+  const canWrite = canAnswer && !expiry.expired;
   return (
     <RequestPin
       expired={expiry.expired}
@@ -172,7 +174,7 @@ export function TerminalInputRequestCard({
             type="submit"
             variant="neutral"
           >
-            Send
+            {canAnswerDirectly ? "Send" : "Take control & send"}
           </Button>
           <Button
             data-testid={`terminal-input-request-decline-${request.id}`}

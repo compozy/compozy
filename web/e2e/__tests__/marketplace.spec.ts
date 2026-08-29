@@ -339,7 +339,8 @@ test.describe("Marketplace acquisition", () => {
       `/api/extensions/${kitExtensionName}/enablement`
     );
     await marketplaceWin.getByTestId("extension-enabled-switch").click();
-    expect((await kitDisableResponse).status()).toBe(200);
+    const kitDisable = await kitDisableResponse;
+    expect(kitDisable.status(), await kitDisable.text()).toBe(200);
     await expect(marketplace.extensionKitInventoryItem.first()).toContainText("shipped", {
       timeout: 20_000,
     });
@@ -1934,7 +1935,7 @@ test.describe("Extension marketplace runtime", () => {
         response.url().endsWith(sessionAPIPath(workspace.id, denied.session.id, "/approve"))
     );
     await deniedWin.getByTestId("permission-reject-menu-trigger").click();
-    await deniedWin.getByTestId("permission-reject-always").click();
+    await appPage.getByTestId("permission-reject-always").click();
     expect((await rejectResponsePromise).ok()).toBe(true);
     await expect(deniedUI.permissionPrompt).toBeHidden();
     const rejectedNotice = deniedWin.getByTestId("permission-rejected-notice");
@@ -2364,10 +2365,10 @@ test.describe("Extension marketplace runtime", () => {
       }
     }
     await page.keyboard.press("Enter");
-    await expect(win.getByTestId("permission-reject-menu")).toBeVisible();
-    await expect(win.getByTestId("permission-reject-always")).toBeFocused();
+    await expect(page.getByTestId("permission-reject-menu")).toBeVisible();
+    await expect(page.getByTestId("permission-reject-always")).toBeFocused();
     await page.keyboard.press("Escape");
-    await expect(win.getByTestId("permission-reject-menu")).toBeHidden();
+    await expect(page.getByTestId("permission-reject-menu")).toBeHidden();
     await expect(win.getByTestId("permission-reject-menu-trigger")).toBeFocused();
   }
 

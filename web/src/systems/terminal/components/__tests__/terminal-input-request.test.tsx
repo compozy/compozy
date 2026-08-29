@@ -18,8 +18,8 @@ import { TerminalInputRequestCard, TerminalInputResolvedRow } from "../terminal-
  * Canonical suite for the input-request surface (UT-114).
  *
  * Invariant: the pin names the requester the daemon published, a redacted
- * answer never reaches the DOM as readable text, a watcher has no write row,
- * expired requests omit the write row, and each of the four frozen outcomes renders
+ * answer never reaches the DOM as readable text, a watcher can request an atomic
+ * handoff, expired requests omit the write row, and each of the four frozen outcomes renders
  * its own copy including "by you" when a human resolved it.
  */
 
@@ -121,10 +121,11 @@ describe("TerminalInputRequestCard", () => {
     expect(onAnswer).toHaveBeenCalledWith("y");
   });
 
-  it("Should hide the write row from a watcher", () => {
+  it("Should offer an atomic handoff to a watcher in the destination profile", () => {
     render(
       <TerminalInputRequestCard
         canAnswerDirectly={false}
+        now={ONE_MINUTE_IN}
         onAnswer={vi.fn()}
         onReject={vi.fn()}
         request={PASSWORD_REQUEST}
@@ -133,14 +134,11 @@ describe("TerminalInputRequestCard", () => {
 
     expect(screen.getByText("claude-code needs a password")).toBeInTheDocument();
     expect(
-      screen.queryByTestId(`terminal-input-request-field-${PASSWORD_REQUEST.id}`)
-    ).not.toBeInTheDocument();
+      screen.getByTestId(`terminal-input-request-field-${PASSWORD_REQUEST.id}`)
+    ).toHaveAttribute("type", "password");
     expect(
-      screen.queryByTestId(`terminal-input-request-send-${PASSWORD_REQUEST.id}`)
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(`terminal-input-request-decline-${PASSWORD_REQUEST.id}`)
-    ).not.toBeInTheDocument();
+      screen.getByTestId(`terminal-input-request-send-${PASSWORD_REQUEST.id}`)
+    ).toHaveTextContent("Take control & send");
   });
 
   it("Should let the controller decline without answering", async () => {

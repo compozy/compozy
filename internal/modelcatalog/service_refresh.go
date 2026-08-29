@@ -420,9 +420,15 @@ func sourceHasFreshStatus(
 		if status.SourceID != source.ID() {
 			continue
 		}
-		return status.RefreshState == RefreshStateSucceeded &&
-			!status.NextRefresh.IsZero() &&
-			status.NextRefresh.After(now)
+		if status.NextRefresh.IsZero() || !status.NextRefresh.After(now) {
+			return false
+		}
+		switch status.RefreshState {
+		case RefreshStateSucceeded, RefreshStateFailed, RefreshStateDisabled:
+			return true
+		default:
+			return false
+		}
 	}
 	return false
 }

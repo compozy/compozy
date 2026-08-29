@@ -2786,7 +2786,7 @@ test("E2E-043 (logical E2E-011): CLI close removes an attention tab without losi
   await expect(restored).toHaveCount(1);
   await expect(restored.getByTestId("permission-dock")).toBeVisible();
   await restored.getByTestId("permission-reject-menu-trigger").click();
-  await restored.getByTestId("permission-reject-always").click();
+  await appPage.getByTestId("permission-reject-always").click();
   await expect(restored.getByTestId("permission-dock")).toBeHidden();
   await expect(
     appPage.getByRole("button", { name: "Sessions" }).locator('[data-slot="os-dock-badge"]')

@@ -67,8 +67,8 @@ type SessionCreateStoreEvents = {
   dialogOpened: {
     agentName: string;
     workspaceId: string;
-    /** Optional first message supplied by the surface that opened creation. */
-    firstMessage?: string;
+    /** Optional composer prompt supplied by the surface that opened creation. */
+    pendingPrompt?: string;
     /** Preselects where the session will run; omitted opens at the workspace root. */
     environment?: SessionEnvironmentTarget;
   };
@@ -125,14 +125,13 @@ export const sessionCreateStoreLogic = createStoreLogic<
         open: true,
         restoreFocusOnClose: true,
         pendingSubmit: null,
-        pendingPrompt: null,
+        pendingPrompt: event.pendingPrompt ?? null,
         // A preselected environment lives in Advanced, so opening there is the
         // only way the operator can see what was chosen for them.
         mode: event.environment ? "advanced" : "simple",
         draft: {
           ...applySessionAgentSelection(context.draft, agentName, event.workspaceId),
           ...(event.environment ? { environment: event.environment } : {}),
-          ...(event.firstMessage !== undefined ? { firstMessage: event.firstMessage } : {}),
         },
         operation: { status: "idle" },
         submitError: null,

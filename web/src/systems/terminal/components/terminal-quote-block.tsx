@@ -108,7 +108,7 @@ export function TerminalSelectionActions({
     return (
       <div
         aria-label="Selection actions"
-        className="min-w-36 rounded-lg bg-canvas-soft p-1 shadow-hairline"
+        className="relative z-10 min-w-36 flex-none rounded-lg bg-canvas-soft p-1 shadow-hairline"
         data-testid="terminal-selection-actions"
         role="group"
       >
@@ -124,7 +124,7 @@ export function TerminalSelectionActions({
   return (
     <div
       aria-label="Selection actions — no active session"
-      className="min-w-36 rounded-lg bg-canvas-soft p-1 shadow-hairline"
+      className="relative z-10 min-w-36 flex-none rounded-lg bg-canvas-soft p-1 shadow-hairline"
       data-testid="terminal-selection-actions-no-session"
       role="group"
     >

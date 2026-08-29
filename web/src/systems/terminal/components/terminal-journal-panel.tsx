@@ -183,7 +183,7 @@ export function TerminalJournalPanel({
                 </TableBody>
               </Table>
             </div>
-            {selected ? (
+            {selected && !replay ? (
               <TerminalJournalDetail
                 entry={selected}
                 inline={inline}

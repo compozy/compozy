@@ -2758,9 +2758,9 @@ func TestHostAPIHandlerRegisterPromptDeliveryReplaysStoredPromptEvents(t *testin
 	env := newHostAPITestEnv(t)
 	env.grant("delivery-replayer", []string{"sessions/prompt"}, []string{"session.write"})
 	turnEnded := make(chan string, 1)
-	env.sessions.SetTurnEndNotifier(func(sessionID string) {
+	env.sessions.SetTurnEndNotifier(func(_ context.Context, identity session.PromptRunIdentity) {
 		select {
-		case turnEnded <- sessionID:
+		case turnEnded <- identity.SessionID:
 		default:
 		}
 	})

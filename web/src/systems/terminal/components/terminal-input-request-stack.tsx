@@ -9,6 +9,7 @@ export interface TerminalInputRequestStackProps {
   /** Terminal id → title, used only when origin must name the source. */
   titles?: ReadonlyMap<string, string>;
   canAnswerDirectly: boolean;
+  canAnswer?: boolean;
   onAnswer: (request: TerminalInputRequest, input: string) => void;
   onReject: (request: TerminalInputRequest) => void;
   now?: number;
@@ -25,6 +26,7 @@ export function TerminalInputRequestStack({
   resolved = [],
   titles,
   canAnswerDirectly,
+  canAnswer = true,
   onAnswer,
   onReject,
   now,
@@ -34,6 +36,7 @@ export function TerminalInputRequestStack({
     <div className="flex flex-col" data-testid="terminal-input-request-stack">
       {pending.map(request => (
         <TerminalInputRequestCard
+          canAnswer={canAnswer}
           canAnswerDirectly={canAnswerDirectly}
           key={request.id}
           now={now}

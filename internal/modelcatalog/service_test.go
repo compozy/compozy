@@ -1576,6 +1576,57 @@ func TestCatalogServiceRefresh(t *testing.T) {
 		}
 	})
 
+	t.Run("Should defer an automatic retry until a failed source TTL expires", func(t *testing.T) {
+		t.Parallel()
+
+		source := &fakeSource{
+			id:        "provider_live:codex",
+			kind:      SourceKindProviderLive,
+			priority:  PriorityProviderLive,
+			providers: []string{"codex"},
+			ttl:       time.Hour,
+			err:       errors.New("codex unavailable"),
+		}
+		service := newTestService(t, newMemoryStore(), []Source{source})
+
+		_, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "codex",
+			SourceID:   source.ID(),
+			Now:        testTime(0),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("initial Refresh() error = %v, want ErrAllSourcesFailed", err)
+		}
+
+		statuses, err := service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "codex",
+			SourceID:   source.ID(),
+			Now:        testTime(30),
+		})
+		if err != nil {
+			t.Fatalf("Refresh(before retry deadline) error = %v", err)
+		}
+		status := requireStatus(t, statuses, source.ID())
+		if status.RefreshState != RefreshStateFailed || !status.NextRefresh.Equal(testTime(60)) {
+			t.Fatalf("cached failed status = %#v, want failed through %s", status, testTime(60))
+		}
+		if got := source.calls; got != 1 {
+			t.Fatalf("source calls before retry deadline = %d, want 1", got)
+		}
+
+		_, err = service.Refresh(testutil.Context(t), RefreshOptions{
+			ProviderID: "codex",
+			SourceID:   source.ID(),
+			Now:        testTime(60),
+		})
+		if !errors.Is(err, ErrAllSourcesFailed) {
+			t.Fatalf("Refresh(at retry deadline) error = %v, want ErrAllSourcesFailed", err)
+		}
+		if got := source.calls; got != 2 {
+			t.Fatalf("source calls at retry deadline = %d, want 2", got)
+		}
+	})
+
 	t.Run("Should refresh only sources that own the requested provider", func(t *testing.T) {
 		t.Parallel()
 

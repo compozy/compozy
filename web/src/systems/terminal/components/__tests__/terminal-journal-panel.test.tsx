@@ -199,7 +199,7 @@ describe("TerminalJournalPanel", () => {
     expect(screen.getByTestId("terminal-journal-filters-add")).toBeInTheDocument();
   });
 
-  it("Should keep the table mounted when the host passes a replay", () => {
+  it("Should keep the table mounted and the detail closed when the host passes a replay", () => {
     renderPanel({
       replay: <div data-testid="host-replay">replay</div>,
       selectedCommandId: "cmd-5f0a1e",
@@ -208,7 +208,7 @@ describe("TerminalJournalPanel", () => {
     expect(screen.getByTestId("terminal-journal-replay")).toBeInTheDocument();
     expect(screen.getByTestId("host-replay")).toBeInTheDocument();
     expect(screen.getByTestId("terminal-journal-row-cmd-5f0a1e")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-journal-detail")).toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-journal-detail")).not.toBeInTheDocument();
   });
 
   it("Should restore the selected record when the host clears replay and keeps the id", () => {

@@ -151,8 +151,13 @@ function TerminalInteractiveWindowBody({
         onViewJournal={onViewJournal}
         pane={pane}
         requestRegion={
-          <div aria-live="polite" role="status">
+          <div
+            aria-live="polite"
+            className="relative z-10 max-h-1/2 flex-none overflow-y-auto"
+            role="status"
+          >
             <TerminalInputRequestStack
+              canAnswer={!readOnly}
               canAnswerDirectly={lease.canType && !readOnly}
               onAnswer={(request, input) => actions.onAnswerInputRequest(request, input)}
               onReject={request => actions.onRejectInputRequest(request)}

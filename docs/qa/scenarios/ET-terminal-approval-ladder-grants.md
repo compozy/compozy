@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-supervise-agent-terminal
 expected: Every agent command shows its exact command and working directory before running, commands that cannot be classified always ask, the fixed irreversible set can never be made automatic, typing is granted per terminal and never by policy, and every grant is listed and revocable where the other tool grants live.
 entry_points: Pending approvals in the session; terminal exec approval prompt; typing-grant prompt; tool approval grants section; permissions settings allowlist; compozy terminal exec
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-rebase-20260828-201516-678087-lab/qa-artifacts/qa/logs/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps: ET-terminal-agent-handoff-input; ET-native-tool-approval-grants
 ---
 

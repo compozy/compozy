@@ -47,7 +47,7 @@ export function useSessionCreateActions() {
     });
   };
 
-  const openCreateDialog = (firstMessage?: string) => {
+  const openCreateDialog = (pendingPrompt?: string) => {
     if (runtimeWorkspaceId === null) {
       toast.error("Select an active workspace before starting a session.");
       return;
@@ -59,7 +59,7 @@ export function useSessionCreateActions() {
     store.trigger.dialogOpened({
       agentName: "",
       workspaceId: runtimeWorkspaceId,
-      ...(firstMessage !== undefined ? { firstMessage } : {}),
+      ...(pendingPrompt !== undefined ? { pendingPrompt } : {}),
       ...(scopedWorktree.worktreeId
         ? { environment: { kind: "worktree" as const, worktreeId: scopedWorktree.worktreeId } }
         : {}),
@@ -71,7 +71,7 @@ export function useSessionCreateActions() {
     const quote = parseTerminalQuote(firstMessage);
     if (quote) {
       holdPendingTerminalQuote(quote);
-      openCreateDialog("");
+      openCreateDialog();
       return;
     }
     clearPendingTerminalQuote();
@@ -81,7 +81,7 @@ export function useSessionCreateActions() {
   const openWithTerminalQuote = (quote: TerminalQuote) => {
     if (isSessionCreateSubmitting(store)) return;
     holdPendingTerminalQuote(quote);
-    openCreateDialog("");
+    openCreateDialog();
   };
 
   /**

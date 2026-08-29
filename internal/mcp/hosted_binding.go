@@ -135,7 +135,7 @@ func (s *HostedService) Call(ctx context.Context, req HostedCallRequest, peer Pe
 	if err := toolID.Validate(); err != nil {
 		return HostedCallResponse{}, err
 	}
-	if strings.TrimSpace(record.runID) == "" || record.generation <= 0 {
+	if tools.IsTerminalTool(toolID) && (strings.TrimSpace(record.runID) == "" || record.generation <= 0) {
 		return HostedCallResponse{}, ErrHostedRunRequired
 	}
 	input := cloneRaw(req.Input)

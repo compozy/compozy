@@ -17,12 +17,14 @@ import {
 } from "../fixtures/hosted-mcp";
 import {
   ensureAppWindow,
+  focusWindowThroughPalette,
   openAppWindow,
   sessionWindow,
-  windowFrame,
+  windowID,
 } from "../fixtures/os-navigation";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { profilesOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
+import { closeTerminalWatchers, connectTerminalWatcher } from "../fixtures/terminal-watcher";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted, ensureProjectWorkspace } from "../fixtures/workspace";
 
@@ -114,11 +116,7 @@ async function startAgentHarness(appPage: Page, runtime: BrowserRuntime): Promis
 
 async function approveOnce(harness: AgentHarness, appPage: Page): Promise<void> {
   await expect(harness.sessionUI.permissionPrompt).toBeVisible({ timeout: 30_000 });
-  const frame = windowFrame(harness.sessionWin);
-  if ((await frame.getAttribute("data-focused")) === null) {
-    await appPage.getByRole("button", { name: "Sessions", exact: true }).click();
-  }
-  await expect(frame).toHaveAttribute("data-focused", "");
+  await focusWindowThroughPalette(appPage, harness.sessionWin);
   await harness.sessionUI.permissionAllowOnce.click();
   await expect(harness.sessionUI.permissionPrompt).toBeHidden();
 }
@@ -189,15 +187,10 @@ async function takeTerminalControl(window: Locator): Promise<void> {
 
 async function ensureTerminalWindow(page: Page): Promise<Locator> {
   const terminalWindow = await ensureAppWindow(page, "Terminal", "terminal");
-  const frame = windowFrame(terminalWindow);
-  if ((await frame.getAttribute("data-focused")) === null) {
-    await expect(page.getByText("Layout reconnecting", { exact: true })).toBeHidden({
-      timeout: 20_000,
-    });
-    await page.getByRole("button", { name: "Terminal", exact: true }).click();
-    await expect(frame).toHaveAttribute("data-focused", "");
-  }
-  return terminalWindow;
+  const id = await windowID(terminalWindow);
+  const stableTerminalWindow = page.getByTestId(`os-window-${id}`);
+  await focusWindowThroughPalette(page, stableTerminalWindow);
+  return stableTerminalWindow;
 }
 
 async function openAgentTerminal(
@@ -267,9 +260,10 @@ test("E2E-010: agent-reported output stays labeled and absent from the Terminal 
   const reported = sessionWin.getByTestId("session-agent-reported-block-reported-terminal-1");
   await expect(reported).toBeVisible({ timeout: 20_000 });
   await expect(reported.getByText("reported by agent")).toBeVisible();
-  await expect(
-    reported.getByRole("log", { name: "Command output reported by the agent" })
-  ).toHaveAttribute("data-readonly", "true");
+  await expect(reported.getByRole("log", { name: /reported by the agent/i })).toHaveAttribute(
+    "data-readonly",
+    "true"
+  );
   await expect(reported.getByRole("button")).toHaveCount(0);
   await expect(reported).toContainText("12 tests passed");
 
@@ -379,7 +373,9 @@ test("E2E-004: watcher takeover and release update two browser contexts", async 
 
     await firstWindow.getByTestId("terminal-take-control").click();
     await expect(firstWindow.getByTestId("terminal-lease-label")).toHaveText("You're in control");
-    await expect(secondWindow.getByTestId("terminal-lease-label")).toContainText("operator");
+    await expect(secondWindow.getByTestId("terminal-lease-label")).toHaveText(
+      /^web-.+ is in control$/u
+    );
     await firstWindow.getByRole("log").click();
     await appPage.keyboard.type("printf 'human-control-flowed\\n'");
     await appPage.keyboard.press("Enter");
@@ -454,6 +450,7 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
     await expect(card).toBeVisible({ timeout: 20_000 });
     await expect(card).toContainText("Password:");
     const field = card.locator('input[type="password"]');
+    await expect(field).toBeVisible();
     const secret = "s3cret-value";
     await field.fill(secret);
     expect(await field.evaluate(node => node.outerHTML)).not.toContain(secret);
@@ -567,17 +564,23 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
       .toContain("quote-beta");
 
     const quoteScreen = await terminalScreen(runtime, harness.workspace.id, terminalId);
-    await selectTerminalOutput(appPage, terminalWindow, quoteScreen.content);
-    const actions = terminalWindow.getByTestId("terminal-selection-actions");
-    await expect(actions).toBeVisible();
-    await actions.getByRole("button", { name: "Send to conversation" }).click();
+    await connectTerminalWatcher(appPage, runtime, harness.workspace.id, terminalId);
+    try {
+      await selectTerminalOutput(appPage, terminalWindow, quoteScreen.content);
+      const actions = terminalWindow.getByTestId("terminal-selection-actions");
+      await expect(actions).toBeVisible();
+      await actions.getByRole("button", { name: "Send to conversation" }).click();
+    } finally {
+      await closeTerminalWatchers(appPage);
+    }
     await expect(harness.sessionWin).toBeVisible();
-    await expect(harness.sessionUI.composerTextarea).toContainText(
-      new RegExp(`<terminal_context terminal="${terminalId}"`, "u")
-    );
-    await expect(harness.sessionUI.composerTextarea).toContainText(/quote-alpha/u);
-    await expect(harness.sessionUI.composerTextarea).toContainText(/quote-beta/u);
-    await harness.sessionUI.composerTextarea.press("Enter");
+    const quoteBlock = harness.sessionWin.getByTestId("terminal-quote-block");
+    await expect(quoteBlock).toBeVisible();
+    await expect(quoteBlock).toContainText(terminalId);
+    await expect(quoteBlock).toContainText(/quote-alpha/u);
+    await expect(quoteBlock).toContainText(/quote-beta/u);
+    await expect(harness.sessionUI.composerTextarea).toHaveText("");
+    await harness.sessionUI.composerSendButton.click();
     await expect(harness.sessionWin).toContainText("I received the sourced terminal excerpt.", {
       timeout: 20_000,
     });
