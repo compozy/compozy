@@ -19,6 +19,8 @@ import (
 	"github.com/compozy/compozy/internal/workspaceaccess"
 )
 
+type loopToolSchemaContextKey struct{}
+
 func TestLoopToolSchemaSource(t *testing.T) {
 	t.Parallel()
 
@@ -110,17 +112,44 @@ func TestLoopToolSchemaSource(t *testing.T) {
 	t.Run("Should pass caller context to registry lookups", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		cancel()
+		const marker = "schema-projection"
+		var captured any
+		ctx := context.WithValue(t.Context(), loopToolSchemaContextKey{}, marker)
 		descriptor := loopToolSchemaDescriptor(t)
 		source := newLoopToolSchemaSource(ctx, loopToolSchemaRegistry{
 			views: map[toolspkg.ToolID]toolspkg.ToolView{
 				descriptor.ID: {Descriptor: descriptor},
 			},
+			listContextValue: &captured,
+		})
+
+		if _, ok := source.Snapshot(descriptor.ID.String()); !ok {
+			t.Fatalf("Snapshot(%q) ok = false, want true", descriptor.ID)
+		}
+		if captured != marker {
+			t.Fatalf("registry List context marker = %#v, want %q", captured, marker)
+		}
+	})
+
+	t.Run("Should stop before registry lookup when caller context is canceled", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		descriptor := loopToolSchemaDescriptor(t)
+		listCalls := 0
+		source := newLoopToolSchemaSource(ctx, loopToolSchemaRegistry{
+			views: map[toolspkg.ToolID]toolspkg.ToolView{
+				descriptor.ID: {Descriptor: descriptor},
+			},
+			listCalls: &listCalls,
 		})
 
 		if _, ok := source.Snapshot(descriptor.ID.String()); ok {
 			t.Fatalf("Snapshot(%q) ok = true, want false after canceled context", descriptor.ID)
+		}
+		if listCalls != 0 {
+			t.Fatalf("registry List calls = %d, want 0", listCalls)
 		}
 	})
 
@@ -432,14 +461,18 @@ func extensionToolPolicyAllowAll() toolspkg.PolicyInputs {
 }
 
 type loopToolSchemaRegistry struct {
-	views     map[toolspkg.ToolID]toolspkg.ToolView
-	listCalls *int
-	getCalls  *int
+	views            map[toolspkg.ToolID]toolspkg.ToolView
+	listCalls        *int
+	getCalls         *int
+	listContextValue *any
 }
 
-func (r loopToolSchemaRegistry) List(context.Context, toolspkg.Scope) ([]toolspkg.ToolView, error) {
+func (r loopToolSchemaRegistry) List(ctx context.Context, _ toolspkg.Scope) ([]toolspkg.ToolView, error) {
 	if r.listCalls != nil {
 		*r.listCalls++
+	}
+	if r.listContextValue != nil {
+		*r.listContextValue = ctx.Value(loopToolSchemaContextKey{})
 	}
 	views := make([]toolspkg.ToolView, 0, len(r.views))
 	for id := range r.views {

@@ -37,7 +37,7 @@ To add a Loop action, publish a tool with the `tool.provider` capability. Tag it
 `loop.gate` in a toolset if you want it grouped for authors. Because actions run through the one
 `RuntimeRegistry.Call` path, they inherit policy, approval, redaction, and observability for free.
 
-A Loop shipped by an extension receives an exact source grant for tools owned by that same extension.
+A Loop action shipped by an extension receives an exact source grant for tools owned by that same extension.
 The owner comes from installed resource metadata and is pinned in the Run snapshot; it cannot be set
 in authored Loop YAML. Availability, permission, risk, approval, schema, and drift checks still apply.
 Tools from every other extension remain under normal policy, so do not enable all external sources

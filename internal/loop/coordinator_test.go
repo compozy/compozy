@@ -225,16 +225,59 @@ func TestCoordinatorRunnerShouldResolveFanOutFromWorkspaceDefaults(t *testing.T)
 func TestCoordinatorActionExecutionInputShouldCarryPinnedPolicyAndSessionProvenance(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should carry the pinned extension owner only through trusted dispatch context", func(t *testing.T) {
+	t.Run("Should carry the pinned extension owner through action execution", func(t *testing.T) {
 		t.Parallel()
 
+		const owner = "release-automation"
+		node := dsl.Node{ID: "goal", Class: dsl.NodeClassAction, Kind: string(dsl.ActionGoal)}
+		loopRun := Run{
+			ID: "looprun-extension-owner", WorkspaceID: "ws-extension-owner", Inputs: map[string]any{},
+			Origin: &RunOrigin{Kind: RunOriginCatalog},
+		}
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		capture := &recordingActionExecutor{}
+		actions, err := NewActionRegistry(
+			&internalActionRegistryFake{},
+			WithActionGoalExecutor(capture),
+		)
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
 		resolved := resolvedCoordinatorDefinitionForTest(t, dsl.Definition{
-			Graph: dsl.Graph{},
+			Graph: dsl.Graph{Nodes: []dsl.Node{node}},
 		})
-		resolved.InstalledFromExtension = "acme/release-automation"
-		resolved.ExtensionOwner = "release-automation"
-		ctx := actionContextWithExtensionOwner(t.Context(), resolved)
-		if got, want := tools.TrustedExtensionOwner(ctx), "release-automation"; got != want {
+		resolved.ExtensionOwner = owner
+		runner := newCoordinatorRunnerForTestWithResolvedDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{
+					Generation: 1,
+					NodeID:     string(node.ID),
+					Status:     generationOutputRunning,
+					TaskRunID:  "run-extension-owner",
+				},
+			}}},
+			resolved,
+			WithCoordinatorActionRegistry(actions),
+		)
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: string(node.ID), Attempt: 1, GoalSegmentEpoch: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		workerRun := task.Run{
+			ID: "run-extension-owner", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+
+		if _, err := runner.ExecuteActionRun(t.Context(), workerRun, task.ActorContext{}); err != nil {
+			t.Fatalf("ExecuteActionRun() error = %v", err)
+		}
+		if got, want := tools.TrustedExtensionOwner(capture.ctx), owner; got != want {
 			t.Fatalf("TrustedExtensionOwner() = %q, want %q", got, want)
 		}
 	})
@@ -5169,13 +5212,33 @@ func newCoordinatorRunnerForTestWithDefinition(
 	opts ...CoordinatorRunnerOption,
 ) *CoordinatorRunner {
 	t.Helper()
+	return newCoordinatorRunnerForTestWithResolvedDefinition(
+		t,
+		loopRun,
+		coordinatorRun,
+		runs,
+		outputs,
+		resolvedCoordinatorDefinitionForTest(t, def),
+		opts...,
+	)
+}
+
+func newCoordinatorRunnerForTestWithResolvedDefinition(
+	t *testing.T,
+	loopRun Run,
+	coordinatorRun task.Run,
+	runs map[string]task.Run,
+	outputs GenerationOutputReader,
+	resolved *ResolvedDefinition,
+	opts ...CoordinatorRunnerOption,
+) *CoordinatorRunner {
+	t.Helper()
 	if runs == nil {
 		runs = map[string]task.Run{coordinatorRun.ID: coordinatorRun}
 	}
-	resolved := resolvedCoordinatorDefinitionForTest(t, def)
 	definitionDefaults := LoopDefaults{
-		Delivery: definitionConfigLayer(def),
-		Watch:    definitionConfigLayer(def),
+		Delivery: definitionConfigLayer(resolved.Definition),
+		Watch:    definitionConfigLayer(resolved.Definition),
 	}
 	effective, err := ResolveEffectiveConfig(resolved, definitionDefaults, nil, LoopConfig{})
 	if err != nil {
@@ -5583,6 +5646,7 @@ type coordinatorRunnerTaskRunReader struct {
 }
 
 type recordingActionExecutor struct {
+	ctx     context.Context
 	input   ActionExecutionInput
 	execute func(dsl.Node, ActionExecutionInput) error
 }
@@ -5604,10 +5668,11 @@ func (s *coordinatorLoopStarter) Start(
 }
 
 func (e *recordingActionExecutor) Execute(
-	_ context.Context,
+	ctx context.Context,
 	node dsl.Node,
 	input ActionExecutionInput,
 ) (ActionRawResult, error) {
+	e.ctx = ctx
 	e.input = input
 	if e.execute != nil {
 		if err := e.execute(node, input); err != nil {
