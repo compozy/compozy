@@ -3,7 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { appWindow, openCommandPalette, switchWorkspace } from "../fixtures/os-navigation";
+import type { Locator, Page } from "@playwright/test";
+
+import { appWindow, commandPalette, switchWorkspace } from "../fixtures/os-navigation";
 import { marketplaceOperatorSelectors, profilesOperatorSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { runBrowserRuntimeCLIJSON } from "../fixtures/scenario-contracts";
@@ -299,10 +301,10 @@ test.describe("Profile-aware extension management", () => {
     }>(query);
     expect(before.commands.map(command => command.id)).toContain(commandID);
 
-    let palette = await openCommandPalette(appPage);
-    await palette.getByRole("combobox").fill("Open Growth Dashboard");
+    let palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
     await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
     await appPage.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
 
     await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
       body: JSON.stringify({ enabled: false, profile: "growth" }),
@@ -315,10 +317,10 @@ test.describe("Profile-aware extension management", () => {
     expect(disabled.catalog_revision).not.toBe(before.catalog_revision);
     expect(disabled.commands.map(command => command.id)).not.toContain(commandID);
 
-    palette = await openCommandPalette(appPage);
-    await palette.getByRole("combobox").fill("Open Growth Dashboard");
+    palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
     await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toHaveCount(0);
     await appPage.keyboard.press("Escape");
+    await expect(palette).toHaveCount(0);
 
     await runtime.requestJSON(`/api/extensions/${extensionName}/enablement`, {
       body: JSON.stringify({ enabled: true, profile: "growth" }),
@@ -331,8 +333,7 @@ test.describe("Profile-aware extension management", () => {
     expect(restored.catalog_revision).not.toBe(disabled.catalog_revision);
     expect(restored.commands.map(command => command.id)).toContain(commandID);
 
-    palette = await openCommandPalette(appPage);
-    await palette.getByRole("combobox").fill("Open Growth Dashboard");
+    palette = await openAndFillCommandPalette(appPage, "Open Growth Dashboard");
     await expect(palette.getByTestId(`os-palette-command-${commandID}`)).toBeVisible();
   });
 
@@ -405,3 +406,15 @@ test.describe("Profile-aware extension management", () => {
     });
   }
 });
+
+async function openAndFillCommandPalette(page: Page, query: string): Promise<Locator> {
+  const palette = commandPalette(page);
+  const trigger = page.getByRole("button", { name: "Command palette", exact: true });
+  await expect(palette).toHaveCount(0);
+  await trigger.click();
+  await expect(palette).toBeVisible();
+  const input = palette.getByRole("combobox");
+  await input.fill(query);
+  await expect(input).toHaveValue(query);
+  return palette;
+}

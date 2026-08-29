@@ -248,8 +248,8 @@ test("Herdr E2E-018: Terminal preset previews, applies, reverts, and re-applies 
     await preset.getByRole("button", { name: "Preview" }).click();
     await expect(preset).toContainText("window.tab.jump");
     await expect(preset).toContainText("desktop.switch");
-    await expect(preset).toContainText("⌘1–8");
-    await expect(preset).toContainText("⌘1–9");
+    await expect(preset).toContainText(/[⌘⌃]1–8/u);
+    await expect(preset).toContainText(/[⌘⌃]1–9/u);
     await expect(preset).toContainText("Control+Alt can alias AltGr");
 
     const firstApplyResponse = appPage.waitForResponse(

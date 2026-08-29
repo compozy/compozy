@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -91,7 +92,7 @@ func newAppOpenCommand(deps commandDeps) *cobra.Command {
 					nil,
 				)
 			}
-			running, err := appRecordRunning(homePaths, deps)
+			running, err := appRecordRunning(cmd.Context(), homePaths, deps)
 			if err != nil {
 				return err
 			}
@@ -179,12 +180,16 @@ func appTargetURL(raw string) (string, string, error) {
 	return "compozyos://open" + raw, raw, nil
 }
 
-func appRecordRunning(homePaths compozyconfig.HomePaths, deps commandDeps) (bool, error) {
-	record, found, err := readAppStateRecord(homePaths)
-	if err != nil || !found || record.PID <= 0 {
+func appRecordRunning(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	deps commandDeps,
+) (bool, error) {
+	_, found, err := readAppStateRecord(homePaths)
+	if err != nil || !found {
 		return false, err
 	}
-	return deps.processAlive(record.PID) && deps.processMatchesStartTime(record.PID, record.StartedAt), nil
+	return appControlRunning(ctx, homePaths, deps)
 }
 
 func appStatusBundle(report AppStatusReport) outputBundle {

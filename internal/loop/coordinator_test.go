@@ -704,6 +704,74 @@ func TestCoordinatorActionExecutionInputShouldCarryPinnedPolicyAndSessionProvena
 			t.Fatalf("stored output_ref = %q, want %q", got, outputRef)
 		}
 	})
+
+	t.Run("Should materialize typed child loop config from generation output", func(t *testing.T) {
+		t.Parallel()
+
+		loopRun := Run{
+			ID: "looprun-child-config", WorkspaceID: "ws-child-config", LoopName: "parent",
+			Status: StatusRunning, Generation: 1, Inputs: map[string]any{}, Origin: &RunOrigin{Kind: RunOriginCatalog},
+		}
+		node := dsl.Node{
+			ID: "child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{
+				"loop": "child",
+				"config_overrides": map[string]any{
+					"budget_tokens": "{{ .nodes.routing.output.remaining_tokens }}",
+					"runtime_rules": "{{ .nodes.routing.output.runtime_rules }}",
+				},
+			},
+		}
+		definition := dsl.Definition{Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				{ID: "routing", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform)},
+				node,
+			},
+			Edges: []dsl.Edge{{From: "routing", To: "child"}},
+		}}
+		starter := &coordinatorLoopStarter{run: &Run{ID: "looprun-child"}}
+		actions, err := NewActionRegistry(&internalActionRegistryFake{}, WithActionLoopStarter(starter))
+		if err != nil {
+			t.Fatalf("NewActionRegistry() error = %v", err)
+		}
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			controlCoordinatorRun(loopRun, 1),
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{
+					Generation: 1,
+					NodeID:     "routing",
+					Status:     generationOutputSucceeded,
+					OutputRef:  `{"remaining_tokens":250000,"runtime_rules":[{"match":{"id":"frontend"},"runtime":{"model":"gpt-5.4"}}]}`,
+				},
+				{Generation: 1, NodeID: "child", Status: generationOutputRunning, TaskRunID: "run-child"},
+			}}},
+			definition,
+			WithCoordinatorActionRegistry(actions),
+		)
+		metadata, err := json.Marshal(coordinatorActionRunMetadata{
+			Generation: 1, NodeID: "child", Attempt: 1,
+		})
+		if err != nil {
+			t.Fatalf("json.Marshal(action metadata) error = %v", err)
+		}
+		taskRun := task.Run{
+			ID: "run-child", RunKind: task.RunKindWorker, LoopRunID: string(loopRun.ID),
+			Status: task.TaskRunStatusClaimed, Metadata: metadata,
+		}
+		if _, err := runner.ExecuteActionRun(t.Context(), taskRun, task.ActorContext{}); err != nil {
+			t.Fatalf("ExecuteActionRun() error = %v", err)
+		}
+		if starter.inputs.BudgetTokens == nil || *starter.inputs.BudgetTokens != 250000 {
+			t.Fatalf("budget tokens = %#v, want 250000", starter.inputs.BudgetTokens)
+		}
+		if len(starter.inputs.RuntimeRules) != 1 || starter.inputs.RuntimeRules[0].Match.ID != "frontend" ||
+			starter.inputs.RuntimeRules[0].Runtime.Model != "gpt-5.4" {
+			t.Fatalf("runtime rules = %#v, want typed generation output", starter.inputs.RuntimeRules)
+		}
+	})
 }
 
 func TestCoordinatorActionMetadataShouldDistinguishContinuationFailures(t *testing.T) {
@@ -5502,6 +5570,22 @@ type coordinatorRunnerTaskRunReader struct {
 type recordingActionExecutor struct {
 	input   ActionExecutionInput
 	execute func(dsl.Node, ActionExecutionInput) error
+}
+
+type coordinatorLoopStarter struct {
+	run    *Run
+	inputs LoopConfig
+}
+
+func (s *coordinatorLoopStarter) Start(
+	_ context.Context,
+	_ WorkspaceID,
+	_ string,
+	inputs Inputs,
+	_ task.ActorContext,
+) (*Run, error) {
+	s.inputs = inputs.ConfigOverrides
+	return s.run, nil
 }
 
 func (e *recordingActionExecutor) Execute(

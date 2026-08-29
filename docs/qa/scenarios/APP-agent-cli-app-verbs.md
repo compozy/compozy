@@ -6,13 +6,13 @@ persona: Ada
 journey: J-desktop-agent-headless
 expected: The full lifecycle — status before install, open or focus, retry, schema-v2 transitional state, navigation, `compozy update` handoff, redacted diagnostics, consent-gated bundle export, and stopped state — is deterministic structured output with named errors.
 entry_points: compozy app status|open|retry|diagnose -o json; compozy update [--check|--cancel] -o json; app.sock control socket
-qa_status: pass
+qa_status: blocked-verify
 bug_ids: BUG-20260810-app-control-timeout; BUG-20260810-healthy-retry-corrupts-state
 fix_status: fixed
 retest_status: pass
 fix_commits: 0805f649; f081a1e
-evidence: docs/qa/reports/2026-08-17-electron-shell.md
-last_report: docs/qa/reports/2026-08-17-electron-shell.md
+evidence: docs/qa/reports/2026-08-27-pr-494-desktop-liveness.md
+last_report: docs/qa/reports/2026-08-27-pr-494-desktop-liveness.md
 overlaps: APP-update-recovery-state
 ---
 
@@ -38,3 +38,7 @@ packaged status/open/update matrix and shipping OS coverage remain blocked for a
 
 QA impact 2026-08-16: app state moved to schema v2 and the runtime/app operation moved to
 `compozy update`. Reset for the Task 07 headless walk.
+
+QA impact 2026-08-27: desktop liveness now comes from an authenticated `app.sock` response instead
+of PID start-time comparison. Reset to verify `running:true` while the live control channel responds,
+`open /settings` uses that channel, and a stopped or unresponsive app reports `running:false`.

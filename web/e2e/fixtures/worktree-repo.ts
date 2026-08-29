@@ -86,6 +86,10 @@ export async function createWorktreeRepo(): Promise<WorktreeRepoFixture> {
   await run("mkdir", ["-p", rootDir]);
   await mkdir(nonGitDir, { recursive: true });
   await git(rootDir, "init", "--initial-branch=main");
+  // The daemon executes later Git mutations without the helper's process env,
+  // so keep a deterministic identity in the isolated repository itself.
+  await git(rootDir, "config", "user.name", "CompozyOS E2E");
+  await git(rootDir, "config", "user.email", "e2e@compozy.test");
   await writeFile(path.join(rootDir, "README.md"), "# worktree e2e fixture\n", "utf8");
   await git(rootDir, "add", "README.md");
   // A repo with zero commits is refused by the daemon, so seed one.

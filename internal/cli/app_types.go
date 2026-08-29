@@ -138,8 +138,10 @@ func resolveAppStatus(
 			report.Update.RuntimeState = appIdleState
 		}
 	}
-	report.Running = record.PID > 0 && deps.processAlive(record.PID) &&
-		deps.processMatchesStartTime(record.PID, record.StartedAt)
+	report.Running, err = appControlRunning(ctx, homePaths, deps)
+	if err != nil {
+		return AppStatusReport{}, err
+	}
 	if !report.Running {
 		report.PID = 0
 	}

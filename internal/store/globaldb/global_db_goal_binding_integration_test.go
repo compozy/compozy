@@ -950,6 +950,76 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should terminalize a canceled run-agent after binding creation failed", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-run-agent-cancel-failed-binding"
+			loopRunID   = "run-agent-cancel-failed-binding"
+			taskID      = "task-run-agent-cancel-failed-binding"
+			taskRunID   = "taskrun-run-agent-cancel-failed-binding"
+			handle      = "action:run-agent-cancel-failed-binding"
+			sessionID   = "session-run-agent-cancel-failed-binding"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 20, 20, 55, 0, 0, time.UTC)
+		key := goal.BindingKey{WorkspaceID: workspaceID, LoopRunID: loopRunID, Handle: handle}
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		seedRunAgentCellForTest(t, globalDB, runAgentCellFixture{
+			WorkspaceID: workspaceID,
+			LoopRunID:   loopRunID,
+			TaskID:      taskID,
+			TaskRunID:   taskRunID,
+			Handle:      handle,
+			Generation:  1,
+			Attempt:     1,
+			Epoch:       0,
+		})
+		if _, err := globalDB.PrepareSessionBindingAttempt(ctx, goal.PrepareBindingAttemptRequest{
+			Key:                key,
+			BindingEpoch:       1,
+			BindingAttemptID:   "attempt-run-agent-cancel-failed-binding",
+			SessionID:          sessionID,
+			CreationProfileRef: "profile-run-agent-cancel-failed-binding",
+			PolicySpecDigest:   "policy-run-agent-cancel-failed-binding",
+			CreationDigest:     "creation-run-agent-cancel-failed-binding",
+			CreatedAt:          now,
+		}); err != nil {
+			t.Fatalf("PrepareSessionBindingAttempt() error = %v", err)
+		}
+
+		result, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: workspaceID,
+			RunID:       loopRunID,
+			Kind:        looppkg.RunCancelKill,
+			Reason:      "operator killed run",
+			Actor:       operatorActorContextForTest("operator:kill-failed-binding"),
+			RequestedAt: now.Add(time.Second),
+		})
+		if err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+		if !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
+			t.Fatalf("RequestRunCancellation() = %#v, want terminal canceled run", result)
+		}
+		storedRun, err := globalDB.GetTaskRun(ctx, taskRunID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if storedRun.Status != taskpkg.TaskRunStatusCanceled {
+			t.Fatalf("task run status = %q, want %q", storedRun.Status, taskpkg.TaskRunStatusCanceled)
+		}
+		binding, err := globalDB.GetSessionBindingAttempt(ctx, key, 1)
+		if err != nil {
+			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
+		}
+		if binding.State != goal.BindingStateFailed ||
+			binding.FailureCode != goalBindingFailureStopCreationUnsettled {
+			t.Fatalf("binding = %#v, want failed unsettled Stop creation", binding)
+		}
+	})
+
 	t.Run("Should close the exact run-agent binding when its node lane is canceled", func(t *testing.T) {
 		t.Parallel()
 

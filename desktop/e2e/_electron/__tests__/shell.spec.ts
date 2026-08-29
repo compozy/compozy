@@ -787,9 +787,11 @@ test("E2E-010: external navigation opens only safe web URLs and never leaves the
     window.location.href = "https://example.com/top-level";
   });
   await expect
+    .poll(() => product.url())
+    .toMatch(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/u);
+  await expect
     .poll(() => desktop.app.evaluate(() => Reflect.get(globalThis, "__compozyExternalURLs")))
     .toEqual(["https://example.com/safe", "https://example.com/top-level"]);
-  expect(product.url()).toMatch(/^https?:\/\/(?:127\.0\.0\.1|localhost|\[::1\]):\d+/u);
 });
 
 test("E2E-011: the daemon-served shell preserves the browser Settings journey and Chromium effects", async ({

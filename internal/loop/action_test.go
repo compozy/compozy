@@ -1,15 +1,19 @@
 package loop_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	speedpkg "github.com/compozy/compozy/internal/speed"
@@ -987,11 +991,8 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			start.inputs.ParentLoopRunID != "parent-1" || start.inputs.Values["ticket"] != "T-1" {
 			t.Fatalf("start inputs = %#v, want parent + rendered inputs", start.inputs)
 		}
-		if len(start.inputs.ConfigOverrides.RuntimeRules) != 0 {
-			t.Fatalf(
-				"child config runtime rules = %#v, want no parent propagation",
-				start.inputs.ConfigOverrides.RuntimeRules,
-			)
+		if !reflect.DeepEqual(start.inputs.ConfigOverrides, loop.LoopConfig{}) {
+			t.Fatalf("child config overrides = %#v, want zero value", start.inputs.ConfigOverrides)
 		}
 		if start.inputs.InheritedEnvironment == nil ||
 			*start.inputs.InheritedEnvironment != (dsl.EnvironmentSpec{
@@ -1019,6 +1020,194 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 		); start.inputs.ProfileID != "profile-marketing" ||
 			start.inputs.Values["ticket"] != "T-2" {
 			t.Fatalf("detach start inputs = %#v, want profile and rendered ticket", start.inputs)
+		}
+	})
+
+	t.Run("Should pass materialized config overrides to child loop", func(t *testing.T) {
+		t.Parallel()
+
+		starter := &fakeActionLoopStarter{returnRun: &loop.Run{ID: "child-config"}}
+		actions := newActionRegistryForTest(t, &fakeActionToolRegistry{}, loop.WithActionLoopStarter(starter))
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunLoop))
+		if err != nil {
+			t.Fatalf("Resolve(run-loop) error = %v", err)
+		}
+		node := dsl.Node{
+			ID:    "child",
+			Class: dsl.NodeClassAction,
+			Kind:  string(dsl.ActionRunLoop),
+			Params: dsl.NodeParams{
+				"loop": "implement-tasks",
+				"config_overrides": map[string]any{
+					"iteration_cap":       4,
+					"budget_tokens":       "{{ .nodes.routing.output.remaining_tokens }}",
+					"budget_wall_sec":     7200,
+					"budget_on_exceeded":  "halt",
+					"reattempt_strategy":  "halt",
+					"enabled_checks_json": map[string]any{"quality": map[string]any{"enabled": true}},
+					"environment": map[string]any{
+						"mode":         "worktree",
+						"worktree_ref": "delivery-feature",
+					},
+					"runtime_rules": "{{ .nodes.routing.output.runtime_rules }}",
+				},
+			},
+		}
+		namespace := map[string]any{
+			"nodes": map[string]any{
+				"routing": map[string]any{
+					"output": map[string]any{
+						"remaining_tokens": 250000,
+						"runtime_rules": []any{map[string]any{
+							"match": map[string]any{"id": "frontend-shell"},
+							"runtime": map[string]any{
+								"provider":  "cursor",
+								"model":     "grok-4.6",
+								"reasoning": "high",
+							},
+						}},
+					},
+				},
+			},
+		}
+
+		tests := []struct {
+			name string
+			mode dsl.RunLoopMode
+		}{
+			{name: "Should pass overrides to awaited child", mode: dsl.RunLoopAwait},
+			{name: "Should pass overrides to detached child", mode: dsl.RunLoopDetach},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				node.Params["mode"] = string(test.mode)
+				if _, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{
+					WorkspaceID: "ws-1",
+					LoopRunID:   "parent-1",
+					Namespace:   namespace,
+					Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "parent-feature"},
+				}); err != nil {
+					t.Fatalf("Execute(%s) error = %v", test.mode, err)
+				}
+
+				config := starter.mustLastStart(t).inputs.ConfigOverrides
+				if config.IterationCap == nil || *config.IterationCap != 4 {
+					t.Fatalf("iteration cap = %#v, want 4", config.IterationCap)
+				}
+				if config.BudgetTokens == nil || *config.BudgetTokens != 250000 {
+					t.Fatalf("budget tokens = %#v, want 250000", config.BudgetTokens)
+				}
+				if config.BudgetWallSec == nil || *config.BudgetWallSec != 7200 {
+					t.Fatalf("budget wall seconds = %#v, want 7200", config.BudgetWallSec)
+				}
+				if config.BudgetOnExceeded == nil || *config.BudgetOnExceeded != dsl.BudgetExceededHalt {
+					t.Fatalf("budget outcome = %#v, want halt", config.BudgetOnExceeded)
+				}
+				if config.ReattemptStrategy == nil || *config.ReattemptStrategy != loop.ReattemptHalt {
+					t.Fatalf("reattempt strategy = %#v, want halt", config.ReattemptStrategy)
+				}
+				if config.Environment == nil || *config.Environment != (dsl.EnvironmentSpec{
+					Mode: dsl.EnvironmentWorktree, WorktreeRef: "delivery-feature",
+				}) {
+					t.Fatalf("config environment = %#v, want delivery worktree", config.Environment)
+				}
+				if len(config.RuntimeRules) != 1 || config.RuntimeRules[0].Match.ID != "frontend-shell" ||
+					config.RuntimeRules[0].Runtime.Provider != "cursor" ||
+					config.RuntimeRules[0].Runtime.Model != "grok-4.6" ||
+					config.RuntimeRules[0].Runtime.Reasoning != "high" {
+					t.Fatalf("runtime rules = %#v, want materialized cursor rule", config.RuntimeRules)
+				}
+				var checks map[string]map[string]bool
+				if err := json.Unmarshal(config.EnabledChecks, &checks); err != nil {
+					t.Fatalf("enabled checks JSON error = %v", err)
+				}
+				if !checks["quality"]["enabled"] {
+					t.Fatalf("enabled checks = %#v, want quality enabled", checks)
+				}
+			})
+		}
+	})
+
+	t.Run("Should reject invalid child config overrides before start", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			overrides map[string]any
+			namespace map[string]any
+			wantError string
+		}{
+			{name: "Should reject unknown fields", overrides: map[string]any{"iteration_caps": 4}},
+			{
+				name:      "Should reject operator-owned lifecycle policy",
+				overrides: map[string]any{"lifecycle": map[string]any{}},
+				wantError: `unknown field "lifecycle"`,
+			},
+			{
+				name:      "Should reject operator-owned request expiry",
+				overrides: map[string]any{"request_expire_after": "30m"},
+				wantError: `unknown field "request_expire_after"`,
+			},
+			{
+				name: "Should reject unknown nested runtime fields",
+				overrides: map[string]any{
+					"runtime_rules": []any{map[string]any{
+						"match":   map[string]any{"id": "frontend-shell"},
+						"runtime": map[string]any{"provider": "cursor", "models": "grok-4.6"},
+					}},
+				},
+				wantError: `unknown field "models"`,
+			},
+			{
+				name: "Should reject wrong materialized field types",
+				overrides: map[string]any{
+					"iteration_cap": "{{ .nodes.routing.output.iteration_cap }}",
+				},
+				namespace: map[string]any{
+					"nodes": map[string]any{
+						"routing": map[string]any{
+							"output": map[string]any{"iteration_cap": "four"},
+						},
+					},
+				},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				starter := &fakeActionLoopStarter{returnRun: &loop.Run{ID: "must-not-start"}}
+				actions := newActionRegistryForTest(
+					t,
+					&fakeActionToolRegistry{},
+					loop.WithActionLoopStarter(starter),
+				)
+				executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunLoop))
+				if err != nil {
+					t.Fatalf("Resolve(run-loop) error = %v", err)
+				}
+				_, err = executor.Execute(t.Context(), dsl.Node{
+					ID:    "child",
+					Class: dsl.NodeClassAction,
+					Kind:  string(dsl.ActionRunLoop),
+					Params: dsl.NodeParams{
+						"loop":             "implement-tasks",
+						"config_overrides": test.overrides,
+					},
+				}, loop.ActionExecutionInput{WorkspaceID: "ws-1", Namespace: test.namespace})
+				if err == nil {
+					t.Fatal("Execute() error = nil, want invalid config_overrides")
+				}
+				if !strings.Contains(err.Error(), "run-loop config_overrides") {
+					t.Fatalf("Execute() error = %v, want run-loop config_overrides", err)
+				}
+				if test.wantError != "" && !strings.Contains(err.Error(), test.wantError) {
+					t.Fatalf("Execute() error = %v, want %q", err, test.wantError)
+				}
+				if got := starter.startCount(); got != 0 {
+					t.Fatalf("Start() calls = %d, want 0", got)
+				}
+			})
 		}
 	})
 
@@ -1071,6 +1260,117 @@ func TestReservedActionExecutorsShouldRunAgentLoopAndTransform(t *testing.T) {
 			t.Fatalf("transform literal = %#v, want unrendered literal", got["literal"])
 		}
 	})
+}
+
+func TestRunLoopActionShouldMatchPublicConfigOverrideFields(t *testing.T) {
+	t.Parallel()
+
+	jsonFields := func(valueType reflect.Type) map[string]struct{} {
+		fields := make(map[string]struct{}, valueType.NumField())
+		for field := range valueType.Fields() {
+			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			if name != "" && name != "-" {
+				fields[name] = struct{}{}
+			}
+		}
+		return fields
+	}
+
+	publicFields := jsonFields(reflect.TypeFor[contract.LoopConfig]())
+	publicSamples := map[string]any{
+		"human_gate_enabled": true,
+		"reattempt_strategy": "halt",
+		"enabled_checks_json": map[string]any{
+			"quality": map[string]any{"enabled": true},
+		},
+		"iteration_cap":      4,
+		"budget_tokens":      250000,
+		"budget_wall_sec":    7200,
+		"budget_on_exceeded": "halt",
+		"no_progress_window": 3,
+		"fan_out_width":      4,
+		"gate_max_revisions": 2,
+		"runtime_defaults": map[string]any{
+			"worker": map[string]any{"provider": "codex", "model": "gpt-5.6-sol"},
+		},
+		"runtime_rules": []any{map[string]any{
+			"match":   map[string]any{"id": "frontend-shell"},
+			"runtime": map[string]any{"provider": "cursor", "model": "grok-4.6"},
+		}},
+		"environment": map[string]any{"mode": "root"},
+	}
+	candidates := jsonFields(reflect.TypeFor[loop.LoopConfig]())
+	for name := range publicFields {
+		candidates[name] = struct{}{}
+	}
+	for name := range publicSamples {
+		candidates[name] = struct{}{}
+	}
+	candidateNames := slices.Collect(maps.Keys(candidates))
+	slices.Sort(candidateNames)
+
+	for _, name := range candidateNames {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, wantAllowed := publicFields[name]
+			sample, hasSample := publicSamples[name]
+			if hasSample != wantAllowed {
+				t.Fatalf(
+					"config override %q sample present = %t, want %t from public LoopConfig",
+					name,
+					hasSample,
+					wantAllowed,
+				)
+			}
+			if !wantAllowed {
+				sample = nil
+			}
+			payload := map[string]any{name: sample}
+			if wantAllowed {
+				data, err := json.Marshal(payload)
+				if err != nil {
+					t.Fatalf("json.Marshal(%q sample) error = %v", name, err)
+				}
+				decoder := json.NewDecoder(bytes.NewReader(data))
+				decoder.DisallowUnknownFields()
+				if err := decoder.Decode(&contract.LoopConfig{}); err != nil {
+					t.Fatalf("public LoopConfig rejected %q sample: %v", name, err)
+				}
+			}
+
+			starter := &fakeActionLoopStarter{returnRun: &loop.Run{ID: "child-1"}}
+			actions := newActionRegistryForTest(
+				t,
+				&fakeActionToolRegistry{},
+				loop.WithActionLoopStarter(starter),
+			)
+			executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionRunLoop))
+			if err != nil {
+				t.Fatalf("Resolve(run-loop) error = %v", err)
+			}
+			_, err = executor.Execute(t.Context(), dsl.Node{
+				ID:    "child",
+				Class: dsl.NodeClassAction,
+				Kind:  string(dsl.ActionRunLoop),
+				Params: dsl.NodeParams{
+					"loop":             "implement-tasks",
+					"config_overrides": payload,
+				},
+			}, loop.ActionExecutionInput{WorkspaceID: "ws-1"})
+
+			gotAllowed := err == nil
+			if gotAllowed != wantAllowed {
+				t.Fatalf(
+					"config override %q allowed = %t, want %t from public LoopConfig (error = %v)",
+					name,
+					gotAllowed,
+					wantAllowed,
+					err,
+				)
+			}
+		})
+	}
 }
 
 type actionTestRuntimeCatalog struct{}
@@ -1395,6 +1695,13 @@ func (s *fakeActionLoopStarter) mustLastStart(t *testing.T) fakeLoopStart {
 		t.Fatal("Start calls = 0, want at least 1")
 	}
 	return s.starts[len(s.starts)-1]
+}
+
+func (s *fakeActionLoopStarter) startCount() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	return len(s.starts)
 }
 
 func TestActionTimeoutShouldCompleteQuickly(t *testing.T) {

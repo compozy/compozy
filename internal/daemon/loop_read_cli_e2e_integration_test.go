@@ -35,6 +35,7 @@ const (
 
 func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	t.Parallel()
+
 	acpmock.RequireDriver(t)
 	workspaceRoot := t.TempDir()
 	seedLoopNodeLifecycleDefinitions(t, workspaceRoot)
@@ -561,7 +562,9 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	t.Run("Should return the exact timeline branch conflict over real SQL IT-022", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
 		first := runLoopWithHumanGate(t, ctx, harness)
+		t.Cleanup(func() { cancelLoopReadRun(t, ctx, harness, first.ID) })
 		second := runLoopWithHumanGate(t, ctx, harness)
+		t.Cleanup(func() { cancelLoopReadRun(t, ctx, harness, second.ID) })
 		waitForLoopRunStatus(t, ctx, harness, first.ID, compozycontract.LoopRunStatusNeedsApproval)
 		waitForLoopRunStatus(t, ctx, harness, second.ID, compozycontract.LoopRunStatusNeedsApproval)
 
@@ -584,6 +587,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	t.Run("Should reflect a real node verb in the roster and reject its stale replay IT-027", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
 		quarantinedRun := runLoopViaHTTP(t, ctx, harness, loopReadQuarantineLoopName)
+		t.Cleanup(func() { killLoopReadRun(t, ctx, harness, quarantinedRun.ID) })
 		waitForLoopRosterNodeState(
 			t,
 			ctx,
@@ -689,6 +693,48 @@ func loopReadJourneyContext(t testing.TB) context.Context {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	t.Cleanup(cancel)
 	return ctx
+}
+
+func cancelLoopReadRun(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) {
+	t.Helper()
+	if _, stderr, err := harness.CLI.Run(
+		ctx,
+		"loop",
+		"cancel",
+		"--run-id",
+		runID,
+		"--workspace",
+		harness.WorkspaceRoot,
+	); err != nil {
+		t.Fatalf("cancel Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
+	}
+	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
+}
+
+func killLoopReadRun(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	runID string,
+) {
+	t.Helper()
+	if _, stderr, err := harness.CLI.Run(
+		ctx,
+		"loop",
+		"kill",
+		"--run-id",
+		runID,
+		"--workspace",
+		harness.WorkspaceRoot,
+	); err != nil {
+		t.Fatalf("kill Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
+	}
+	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
 }
 
 func assertLoopReadCLIError(

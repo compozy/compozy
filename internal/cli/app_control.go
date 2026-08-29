@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	compozyconfig "github.com/compozy/compozy/internal/config"
 )
 
 const (
@@ -34,6 +36,27 @@ type appControlResponse struct {
 	ID            int                     `json:"id"`
 	Result        json.RawMessage         `json:"result,omitempty"`
 	Error         *appCommandErrorPayload `json:"error,omitempty"`
+}
+
+func appControlRunning(
+	ctx context.Context,
+	homePaths compozyconfig.HomePaths,
+	deps commandDeps,
+) (bool, error) {
+	_, err := deps.callAppControl(
+		ctx,
+		filepath.Join(homePaths.HomeDir, "app.sock"),
+		appDiagnoseMethod,
+		map[string]any{},
+	)
+	if err == nil {
+		return true, nil
+	}
+	appErr, ok := errors.AsType[*appCommandError](err)
+	if ok && (appErr.code == appNotRunningCode || appErr.code == appControlUnavailableCode) {
+		return false, nil
+	}
+	return false, fmt.Errorf("app: probe control channel: %w", err)
 }
 
 func callAppControl(ctx context.Context, socketPath string, method string, params any) (any, error) {
