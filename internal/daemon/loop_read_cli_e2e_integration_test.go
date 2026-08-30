@@ -1190,7 +1190,7 @@ graph:
       retry: { max_attempts: 2, backoff: { base: 10ms, max: 10ms } }
       params:
         agent: lifecycle-retry-agent
-        prompt: "retry lifecycle"
+        prompt: "usage lifecycle"
         output_schema:
           type: object
           required: [summary, value]

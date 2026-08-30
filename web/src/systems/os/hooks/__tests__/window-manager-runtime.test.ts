@@ -520,6 +520,7 @@ describe("WindowManagerRuntime", () => {
     const second = runtime.navigateWindow("app:agents", opsRoute);
 
     const routeWhileQueued = runtime.getState().windows["app:agents"]?.route;
+    expect(runtime.getState().windows["app:agents"]?.instanceKey).toBeNull();
     await flushCommandQueue();
     resolveFirst({
       snapshot: snapshotWithAgentsRoute(releaseRoute, 8),
@@ -554,6 +555,51 @@ describe("WindowManagerRuntime", () => {
     expect(runtime.getState().windows["app:agents"]?.route).toEqual(opsRoute);
     runtime.stop();
   });
+
+  it.each([
+    { label: "named", instanceKey: "reviewer", projectedInstanceKey: "reviewer" },
+    { label: "empty", instanceKey: "", projectedInstanceKey: null },
+  ])(
+    "Should project a pending $label retarget as one semantic route and instance identity",
+    async ({ instanceKey, projectedInstanceKey }) => {
+      const initialRoute = { pathname: "/agents", search: {} };
+      const retargetRoute = { pathname: "/agents/reviewer", search: {} };
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(
+        windowManagerKeys.snapshot("workspace:test", "marketing"),
+        snapshotWithAgentsRoute(initialRoute)
+      );
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockReturnValue(
+        new Promise<Awaited<ReturnType<typeof executeWindowManagerCommand>>>(() => {})
+      );
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: "app:agents",
+        focusOrder: ["app:agents"],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.retargetWindow("app:agents", instanceKey, retargetRoute);
+      await vi.waitFor(() => expect(executeWindowManagerCommand).toHaveBeenCalledOnce());
+
+      expect(runtime.getState().windows["app:agents"]).toMatchObject({
+        instanceKey: projectedInstanceKey,
+        route: retargetRoute,
+      });
+      runtime.stop();
+    }
+  );
 
   it("Should restore the authoritative route when navigation is rejected", async () => {
     const initialRoute = { pathname: "/agents", search: { q: "release" } };

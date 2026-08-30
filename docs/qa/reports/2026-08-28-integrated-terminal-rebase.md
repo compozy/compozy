@@ -170,6 +170,15 @@ and are passing again.
 
 ## Runtime Errors Observed
 
+- Exact-head CI run `33314396335` exposed two independent failures. Packaged Desktop E2E-013
+  created one terminal but rendered two Terminal windows for it. A pending retarget projected its
+  route without its new semantic instance, so concurrent route reconciliation opened a duplicate.
+  Route intents now carry the destination instance for retargets; the runtime suite passes 32/32 and
+  the complete packaged Desktop scenario passes three consecutive runs. Runtime E2E-004 reused the
+  lifecycle retry fixture: its first attempt intentionally slept 3 seconds against a 2-second node
+  limit, and runner load let the immediate retry cross that same limit. The read suite now uses the
+  fixture's immediate successful turn while the canonical lifecycle suite retains the timeout/retry
+  contract. The focused runtime journey passes three executions under `-race`.
 - Exact-head CI run `33310132690` passed every non-Web-E2E check and completed 269 Web scenarios
   with 3 skips before exposing three test-infrastructure defects. The shared palette helper kept an
   active-window locator after the palette removed that active marker, so E2E-005 and E2E-020 timed
@@ -237,7 +246,9 @@ None identified yet.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** latest focused CI-failure rerun passed 9/9; `make gate` and exact-head CI pending
+- **Exit gate (full automated suite):** latest focused Web rerun passed 9/9, window-manager runtime
+  passed 32/32, packaged Desktop E2E-013 passed 3/3, and runtime E2E-004 passed three executions under
+  `-race`; `make gate` passes the current remediation tree and replacement exact-head CI is pending
 - **Issues by user impact:** Blocks-Completion 0 open · Data-Loss 0 · Trust-Damage 0 · Friction 0 open · Cosmetic 0
 - **Coverage:** 5 / 5 journeys walked; 9 / 9 tracked rows passed; strict targeted QA audit passed
 - **Teardown:** `/Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/teardown.json` reports `clean: true` with no survivors.

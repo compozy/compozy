@@ -178,7 +178,9 @@ export abstract class WindowManagerTabRuntime extends WindowManagerRuntimeCore {
     const outcome = this.dispatch(retargetWindowCommand(id, instanceKey, route));
     if (!outcome.accepted) return outcome;
     const intentId = randomWindowManagerId("wm-route");
-    windowManagerStore.trigger.routeIntentSet({ intent: { id: intentId, windowId: id, route } });
+    windowManagerStore.trigger.routeIntentSet({
+      intent: { id: intentId, windowId: id, route, instanceKey: instanceKey || null },
+    });
     this.publish();
     return {
       accepted: true,
