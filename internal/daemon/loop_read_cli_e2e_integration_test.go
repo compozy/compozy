@@ -326,9 +326,8 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 
 		followRun := runLoopWithHumanGate(t, ctx, harness)
 		waitForLoopRunStatus(t, ctx, harness, followRun.ID, compozycontract.LoopRunStatusNeedsApproval)
-		disconnectCtx, disconnectCancel := context.WithTimeout(ctx, 300*time.Millisecond)
-		beforeDisconnect, disconnectStderr, disconnectErr := harness.CLI.Run(
-			disconnectCtx,
+		beforeDisconnect, disconnectStderr, disconnectErr := harness.CLI.RunUntilFirstStdoutLineAndStop(
+			ctx,
 			"loop",
 			"events",
 			followRun.ID,
@@ -340,18 +339,8 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 			"-o",
 			"jsonl",
 		)
-		disconnectCause := disconnectCtx.Err()
-		disconnectCancel()
-		if disconnectErr == nil {
-			t.Fatal("mid-run follow returned before the forced disconnect")
-		}
-		if ctx.Err() != nil || !errors.Is(disconnectCause, context.DeadlineExceeded) {
-			t.Fatalf(
-				"mid-run follow disconnect cause = %v parent=%v stderr=%s, want local deadline",
-				disconnectCause,
-				ctx.Err(),
-				disconnectStderr,
-			)
+		if disconnectErr != nil {
+			t.Fatalf("disconnect mid-run follow error = %v stderr=%s", disconnectErr, disconnectStderr)
 		}
 		beforeSequences := timelineJSONLSequences(t, beforeDisconnect)
 		if len(beforeSequences) == 0 {

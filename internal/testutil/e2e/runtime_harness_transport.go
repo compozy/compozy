@@ -1,6 +1,7 @@
 package e2e
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -45,6 +46,47 @@ func (c *CLIClient) RunInDirWithEnv(
 	args ...string,
 ) (string, string, error) {
 	return c.runInDir(ctx, workdir, overrides, nil, args...)
+}
+
+// RunUntilFirstStdoutLineAndStop returns after one complete line and joins the stopped process.
+func (c *CLIClient) RunUntilFirstStdoutLineAndStop(
+	ctx context.Context,
+	args ...string,
+) (string, string, error) {
+	commandCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// #nosec G204 -- test helper intentionally shells out to the current compozy test binary.
+	cmd := execabs.CommandContext(commandCtx, c.binaryPath, args...)
+	cmd.Env = append([]string(nil), c.env...)
+	cmd.Dir = c.workdir
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", "", fmt.Errorf("open CLI stdout pipe: %w", err)
+	}
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	if err := cmd.Start(); err != nil {
+		return "", stderr.String(), fmt.Errorf("start CLI: %w", err)
+	}
+
+	line, readErr := bufio.NewReader(stdout).ReadString('\n')
+	cancel()
+	waitErr := cmd.Wait()
+	if readErr != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return line, stderr.String(), fmt.Errorf("read first CLI stdout line: %w", ctxErr)
+		}
+		readErr = fmt.Errorf("read first CLI stdout line: %w", readErr)
+		if waitErr != nil {
+			return line, stderr.String(), errors.Join(readErr, fmt.Errorf("wait for CLI: %w", waitErr))
+		}
+		return line, stderr.String(), readErr
+	}
+	if waitErr != nil && !errors.Is(commandCtx.Err(), context.Canceled) {
+		return line, stderr.String(), fmt.Errorf("stop CLI after first stdout line: %w", waitErr)
+	}
+	return line, stderr.String(), nil
 }
 
 func (c *CLIClient) runInDir(

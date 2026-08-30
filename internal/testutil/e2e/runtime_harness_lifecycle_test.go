@@ -463,6 +463,30 @@ func TestCLIClientRunInDirResolvesRelativePathsAgainstBaseWorkdir(t *testing.T) 
 	})
 }
 
+func TestCLIClientRunUntilFirstStdoutLineAndStop(t *testing.T) {
+	t.Run("Should stop after the first complete stdout line", func(t *testing.T) {
+		t.Parallel()
+
+		client := &CLIClient{
+			binaryPath: writeCLIScript(t, "#!/bin/sh\nprintf 'first\\n'\nexec sleep 30\n"),
+			workdir:    t.TempDir(),
+		}
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		stdout, stderr, err := client.RunUntilFirstStdoutLineAndStop(ctx, "ignored")
+		if err != nil {
+			t.Fatalf("RunUntilFirstStdoutLineAndStop() error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+		if ctx.Err() != nil {
+			t.Fatalf("RunUntilFirstStdoutLineAndStop() exhausted its safety deadline: %v", ctx.Err())
+		}
+		if stdout != "first\n" {
+			t.Fatalf("RunUntilFirstStdoutLineAndStop() stdout = %q, want first line", stdout)
+		}
+	})
+}
+
 func TestRuntimeHelpersCoverRequestAndTimingUtilities(t *testing.T) {
 	t.Parallel()
 
