@@ -1186,11 +1186,11 @@ graph:
     - id: prepare
       class: action
       kind: run-agent
-      timeout: 2s
+      timeout: 30s
       retry: { max_attempts: 2, backoff: { base: 10ms, max: 10ms } }
       params:
         agent: lifecycle-retry-agent
-        prompt: "usage lifecycle"
+        prompt: "read healthy lifecycle"
         output_schema:
           type: object
           required: [summary, value]

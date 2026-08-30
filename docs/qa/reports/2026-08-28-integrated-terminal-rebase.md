@@ -170,6 +170,14 @@ and are passing again.
 
 ## Runtime Errors Observed
 
+- Exact-head CI run `33316873043` passed Desktop E2E after the semantic retarget repair, then exposed
+  a separate E2E-001 test race. The journey observed the `prepare` node running through HTTP, but the
+  immediate lifecycle fixture completed before the following `loop why` process started, so the CLI
+  correctly reported the later approval state instead of the transient healthy state the test expected.
+  The fixture now gives this read-contract scenario a deliberate five-second running window under a
+  separate 30-second node limit; no transcript assertion was removed or relaxed. E2E-001 passed three
+  consecutive executions under `-race`, the complete read journey passed 9/9, the ACP mock suite passed
+  117/117, and the canonical timeout/retry lifecycle suite remained green at 5/5.
 - Exact-head CI run `33314396335` exposed two independent failures. Packaged Desktop E2E-013
   created one terminal but rendered two Terminal windows for it. A pending retarget projected its
   route without its new semantic instance, so concurrent route reconciliation opened a duplicate.
@@ -247,8 +255,10 @@ None identified yet.
 ## Final Status
 
 - **Exit gate (full automated suite):** latest focused Web rerun passed 9/9, window-manager runtime
-  passed 32/32, packaged Desktop E2E-013 passed 3/3, and runtime E2E-004 passed three executions under
-  `-race`; `make gate` passes the current remediation tree and replacement exact-head CI is pending
+  passed 32/32, packaged Desktop E2E-013 passed 3/3, runtime E2E-004 passed three executions under
+  `-race`, and the E2E-001 healthy-state synchronization passes the complete read and lifecycle suites;
+  `make gate` passes at fingerprint `a34a72ea46a97332ea4a3751c7008b320b25602e` and replacement exact-head
+  CI is pending
 - **Issues by user impact:** Blocks-Completion 0 open · Data-Loss 0 · Trust-Damage 0 · Friction 0 open · Cosmetic 0
 - **Coverage:** 5 / 5 journeys walked; 9 / 9 tracked rows passed; strict targeted QA audit passed
 - **Teardown:** `/Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/teardown.json` reports `clean: true` with no survivors.
