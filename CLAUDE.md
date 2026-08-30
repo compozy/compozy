@@ -6,7 +6,7 @@ CompozyOS is an agent operating system: a Go single-binary daemon that manages A
 
 ## Greenfield Alpha — Zero Legacy Tolerance
 
-No production users. Never sacrifice quality for backward compatibility; never write migration/compat/defensive code for old state — **delete obsolete code instead**. Hard cuts, not bridges: a rename updates code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` in one change — no aliases, dual fields, or schema fallbacks. Every breaking-change spec MUST list its delete targets.
+No production deployments to preserve (pre-1.0 beta). Never sacrifice quality for backward compatibility; never write migration/compat/defensive code for old state — **delete obsolete code instead**. Hard cuts, not bridges: a rename updates code, storage, APIs, CLI, extensions, specs, RFCs, and `.compozy/tasks/*` in one change — no aliases, dual fields, or schema fallbacks. Every breaking-change spec MUST list its delete targets.
 
 ## Critical Rules
 

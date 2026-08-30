@@ -4,7 +4,7 @@ description: Authoritative pre-release QA plan for Compozy. Defines philosophy, 
 type: qa-master-plan
 status: planning-complete · ready-for-execution
 authoring_run: 2026-05-02
-applies_to: Compozy at HEAD; no production users; greenfield zero-legacy posture
+applies_to: Compozy at HEAD; no production deployments to preserve; greenfield zero-legacy posture
 language_policy: artifacts-en · conversation-brpt
 ---
 

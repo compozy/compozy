@@ -25,7 +25,7 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 
 ## SD-002 — Remove Legacy Alpha Compatibility Code
 
-**Posture.** Compozy is greenfield alpha with zero production users. Compat shims, nil-receiver legacy stubs, legacy-meta no-ops, and dual code paths for "old behavior" are forbidden. **Delete the old thing.** This is a stronger, perpetual application of the CLAUDE.md "Greenfield Alpha — Zero Legacy Tolerance" rule.
+**Posture.** Compozy is a greenfield pre-1.0 beta with no production deployments to preserve. Compat shims, nil-receiver legacy stubs, legacy-meta no-ops, and dual code paths for "old behavior" are forbidden. **Delete the old thing.** This is a stronger, perpetual application of the CLAUDE.md "Greenfield Alpha — Zero Legacy Tolerance" rule.
 
 **Required behavior:**
 
