@@ -71,13 +71,28 @@ func copyTerminalInput(
 				return err
 			}
 		case <-state.timeout:
-			if err := state.expire(conn, writes); err != nil {
+			if err := state.expireOrForwardQueuedRead(conn, writes, reads); err != nil {
 				return err
 			}
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
+}
+
+func (s *terminalDetachState) expireOrForwardQueuedRead(
+	conn *websocket.Conn,
+	writes *sync.Mutex,
+	reads <-chan terminalInputRead,
+) error {
+	select {
+	case read, ok := <-reads:
+		if ok {
+			return s.forwardRead(conn, writes, read)
+		}
+	default:
+	}
+	return s.expire(conn, writes)
 }
 
 func (s *terminalDetachState) forwardRead(

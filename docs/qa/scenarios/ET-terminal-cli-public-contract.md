@@ -25,3 +25,7 @@ Walk:
 3. Open the catalog SSE and per-terminal WebSocket over HTTP and UDS; verify initial state, live update, replay cursor, terminal attach, and close behavior on both transports.
 4. Exercise the documented flag, selector, terminal-state, and capability failures and compare exact codes.
 5. Attach in watch and control modes; verify the watch banner, detach chord, single-key passthrough, and exited-terminal refusal without expecting JSON from the interactive stream.
+
+2026-08-30 CI repair re-walk: passed. Current-tree E2E-001 proved attached Bash command output,
+listing, and durable journal identity; E2E-011 proved watch, control, single SIGQUIT, the double-key
+detach chord, and exited-terminal refusal. The CLI detach timing regression also passed under `-race`.

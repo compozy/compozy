@@ -79,6 +79,33 @@ Primary evidence:
 - Pinned active journal lanes to their admitted workspace database before removal staging and allowed only
   that existing handle to finish final rows while new database admission remains sealed.
 
+## CI Repair Follow-up — 2026-08-30
+
+Exact-head CI run `33281491797` passed every verification lane except the combined runtime/Web E2E
+job. That job completed 268 browser scenarios with 3 skips and exposed four failures:
+
+- Bash prompt machinery replaced the operator's authenticated command marker with
+  `__compozy_precmd`, so E2E-001 and E2E-020 could display the command but omit its journal row.
+- At the detach timeout edge, a queued second `Ctrl-\\` could lose a `select` race to the timer and
+  reach the shell as another SIGQUIT instead of completing the detach chord in E2E-011.
+- A successful remote window-manager snapshot cleared an already-clear load error and published the
+  full 12-window projection a second time; the redundant render produced one 52 ms peer-convergence
+  task in E2E-023.
+
+The current repair tree arms Bash command capture only between prompts, gives an already-read detach
+byte priority over timeout expiry, and skips unchanged load-error publications while retaining the
+manual projection required before the runtime subscription starts. Focused verification passed all
+eight matching browser scenarios, including the four exact failures. Five additional performance-envelope
+repetitions all reported 0 ms worst drag and peer-convergence tasks; restore from the snapshot response
+ranged from 63.5 ms to 86.1 ms, versus the failed CI run's 52 ms peer task.
+The canonical PTY and CLI regressions pass under `-race`, and the window-manager runtime suite passes
+29/29 through the repository-root Turbo graph.
+
+QA tracker impact: `ET-terminal-cli-public-contract`, `ET-terminal-journal-recording`, and
+`ET-terminal-profile-segmentation` were re-walked against the current tree and remain passing. The
+window-manager change only removes a duplicate render publication; it changes no gesture, layout,
+route, or persistence contract, so it does not reset the broader gesture scenario.
+
 ## Paper Cuts
 
 - The isolated operator shell reports `No such theme: rose-pine` and fish waits ten seconds for a Primary Device Attribute query before each first prompt. Commands still execute correctly, but terminal startup is noisy and slower than necessary.
@@ -128,7 +155,7 @@ None identified yet.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** full Web E2E rerun in progress; `make gate` pending
+- **Exit gate (full automated suite):** focused CI-failure rerun passed; `make gate` and exact-head CI pending
 - **Issues by user impact:** Blocks-Completion 0 open · Data-Loss 0 · Trust-Damage 0 · Friction 0 open · Cosmetic 0
 - **Coverage:** 5 / 5 journeys walked; 9 / 9 tracked rows passed; strict targeted QA audit passed
 - **Teardown:** `/Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/teardown.json` reports `clean: true` with no survivors.

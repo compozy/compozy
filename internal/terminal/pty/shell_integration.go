@@ -129,6 +129,7 @@ func prepareFishIntegration(setup *shellSetup, root, nonce string) error {
 func bashMarkerScript(nonce string) string {
 	return `__compozy_nonce=` + shellQuote(nonce) + `
 __compozy_active=0
+__compozy_ready=0
 __compozy_pct() {
   local value="$1" out="" char hex i
   for ((i=0; i<${#value}; i++)); do
@@ -138,8 +139,9 @@ __compozy_pct() {
   printf '%s' "$out"
 }
 __compozy_preexec() {
-  [[ "$__compozy_guard" == 1 ]] && return
+  [[ "$__compozy_guard" == 1 || "$__compozy_ready" != 1 ]] && return
   __compozy_guard=1
+  __compozy_ready=0
   local command="$BASH_COMMAND"
   printf '\033]7113;v1;%s;S;cmd=%s;cwd=%s\033\\' "$__compozy_nonce" \
     "$(__compozy_pct "$command")" "$(__compozy_pct "$PWD")"
@@ -150,6 +152,7 @@ __compozy_precmd() {
   local status=$?
   if [[ "$__compozy_active" == 1 ]]; then printf '\033]7113;v1;%s;F;exit=%d\033\\' "$__compozy_nonce" "$status"; fi
   __compozy_active=0
+  __compozy_ready=1
 }
 trap '__compozy_preexec' DEBUG
 PROMPT_COMMAND="__compozy_precmd${PROMPT_COMMAND:+;$PROMPT_COMMAND}"

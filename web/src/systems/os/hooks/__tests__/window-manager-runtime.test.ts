@@ -248,6 +248,27 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should not republish an unchanged load error", () => {
+    const runtime = new WindowManagerRuntime(new QueryClient());
+    runtime.start();
+    const onProjection = vi.fn();
+    const unsubscribe = runtime.subscribe(onProjection);
+
+    runtime.setLoadError(null);
+    expect(onProjection).not.toHaveBeenCalled();
+
+    const loadError = new Error("window manager unavailable");
+    runtime.setLoadError(loadError);
+    runtime.setLoadError(loadError);
+    expect(onProjection).toHaveBeenCalledOnce();
+
+    runtime.setLoadError(null);
+    runtime.setLoadError(null);
+    expect(onProjection).toHaveBeenCalledTimes(2);
+    unsubscribe();
+    runtime.stop();
+  });
+
   it("Should keep gesture samples off the runtime projection channel", () => {
     const runtime = new WindowManagerRuntime(new QueryClient());
     runtime.start();

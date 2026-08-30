@@ -36,3 +36,7 @@ Walk:
 aggregate lists/journals, exact owner labels, selector refusals, archive cleanup with retained history,
 and workspace deletion. Two production faults found by the walk were fixed and independently retested;
 the strict evidence audit passed. The lab ended with `teardown.json` reporting `clean: true`.
+
+2026-08-30 CI repair re-walk: passed. Current-tree E2E-020 switched from default to profile B and
+All profiles, then rendered both authenticated command rows with their exact owner labels. The focused
+eight-scenario browser run passed without a missing journal row or stale scope.

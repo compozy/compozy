@@ -295,42 +295,62 @@ func TestTerminalRawInputShouldRestoreTheLocalTerminal(t *testing.T) {
 	}
 }
 
-func TestTerminalClientInputShouldPassSingleDetachByteAfterTimeout(t *testing.T) {
+func TestTerminalClientInputDetachTiming(t *testing.T) {
 	t.Parallel()
-	client, server := newTerminalClientTestPair(t)
-	reader, writer := io.Pipe()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	done := make(chan error, 1)
-	var writes sync.Mutex
-	go func() {
-		done <- copyTerminalInput(ctx, client, &writes, terminalInputReads(ctx, reader), true)
-	}()
-	started := time.Now()
-	if _, err := writer.Write([]byte{terminalDetachByte}); err != nil {
-		t.Fatalf("write input pipe: %v", err)
-	}
-	frame := readTerminalClientTestFrame(t, server)
-	if frame.Op != terminalwire.ClientOpInput || !bytes.Equal(frame.Payload, []byte{terminalDetachByte}) {
-		t.Fatalf("single chord frame = %#v", frame)
-	}
-	if elapsed := time.Since(started); elapsed < terminalDetachTimeout-(25*time.Millisecond) {
-		t.Fatalf("single chord sent after %s, want about %s", elapsed, terminalDetachTimeout)
-	}
-	if err := writer.Close(); err != nil {
-		t.Fatalf("close input pipe: %v", err)
-	}
-	if frame := readTerminalClientTestFrame(t, server); frame.Op != terminalwire.ClientOpDetach {
-		t.Fatalf("EOF opcode = %d, want DETACH", frame.Op)
-	}
-	select {
-	case err := <-done:
-		if !errors.Is(err, errTerminalDetached) {
-			t.Fatalf("copyTerminalInput() error = %v", err)
+	t.Run("Should pass one detach byte through after the chord timeout", func(t *testing.T) {
+		t.Parallel()
+		client, server := newTerminalClientTestPair(t)
+		reader, writer := io.Pipe()
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		done := make(chan error, 1)
+		var writes sync.Mutex
+		go func() {
+			done <- copyTerminalInput(ctx, client, &writes, terminalInputReads(ctx, reader), true)
+		}()
+		started := time.Now()
+		if _, err := writer.Write([]byte{terminalDetachByte}); err != nil {
+			t.Fatalf("write input pipe: %v", err)
 		}
-	case <-time.After(time.Second):
-		t.Fatal("input copier did not finish after EOF")
-	}
+		frame := readTerminalClientTestFrame(t, server)
+		if frame.Op != terminalwire.ClientOpInput || !bytes.Equal(frame.Payload, []byte{terminalDetachByte}) {
+			t.Fatalf("single chord frame = %#v", frame)
+		}
+		if elapsed := time.Since(started); elapsed < terminalDetachTimeout-(25*time.Millisecond) {
+			t.Fatalf("single chord sent after %s, want about %s", elapsed, terminalDetachTimeout)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatalf("close input pipe: %v", err)
+		}
+		if frame := readTerminalClientTestFrame(t, server); frame.Op != terminalwire.ClientOpDetach {
+			t.Fatalf("EOF opcode = %d, want DETACH", frame.Op)
+		}
+		select {
+		case err := <-done:
+			if !errors.Is(err, errTerminalDetached) {
+				t.Fatalf("copyTerminalInput() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("input copier did not finish after EOF")
+		}
+	})
+
+	t.Run("Should prefer a queued second detach byte when the timeout fires", func(t *testing.T) {
+		t.Parallel()
+		client, server := newTerminalClientTestPair(t)
+		reads := make(chan terminalInputRead, 1)
+		reads <- terminalInputRead{data: []byte{terminalDetachByte}}
+		state := terminalDetachState{pending: true, forwardInput: true}
+		var writes sync.Mutex
+
+		err := state.expireOrForwardQueuedRead(client, &writes, reads)
+		if !errors.Is(err, errTerminalDetached) {
+			t.Fatalf("expireOrForwardQueuedRead() error = %v, want detach", err)
+		}
+		if frame := readTerminalClientTestFrame(t, server); frame.Op != terminalwire.ClientOpDetach {
+			t.Fatalf("queued chord opcode = %d, want DETACH", frame.Op)
+		}
+	})
 }
 
 func TestTerminalClientStreamShouldAckOnlyWrittenOutput(t *testing.T) {

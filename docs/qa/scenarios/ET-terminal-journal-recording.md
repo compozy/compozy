@@ -25,3 +25,7 @@ Walk:
 3. Verify an empty filtered result does not claim the project has no history.
 4. Replay a recording and return to its journal row; compare the CLI and browser record.
 5. Select a bounded terminal range and send it to the active session composer; verify the `<terminal_context>` source terminal, line range, and untrusted marker survive sending.
+
+2026-08-30 CI repair re-walk: passed. Current-tree E2E-001 and E2E-020 proved that Bash prompt
+integration persists the operator's real command rather than its own prompt hook, both through the CLI
+journal and the profile-scoped Web journal. The PTY marker regression passed under `-race`.

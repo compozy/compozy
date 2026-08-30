@@ -253,6 +253,7 @@ export abstract class WindowManagerRuntimeCore {
   }
 
   setLoadError(error: Error | null): void {
+    if (this.loadError === error) return;
     this.loadError = error;
     this.publish();
   }
@@ -329,6 +330,7 @@ export abstract class WindowManagerRuntimeCore {
       this.setLoadError(result.error);
       return false;
     }
+    this.loadError = null;
     this.queryClient.setQueryData<WindowManagerSnapshot>(
       windowManagerKeys.snapshot(binding.workspaceId, binding.profileId),
       current =>
@@ -336,7 +338,7 @@ export abstract class WindowManagerRuntimeCore {
           ? result.snapshot
           : reconcileWindowManagerSnapshot(current, result.snapshot)
     );
-    this.setLoadError(null);
+    if (this.unsubscribeQuery === null) this.publish();
     return true;
   }
 

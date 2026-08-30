@@ -609,6 +609,12 @@ func TestShellIntegrationContract(t *testing.T) {
 		if count := strings.Count(string(output), marker); count != 1 {
 			t.Fatalf("human command marker count = %d, want 1; output=%q", count, output)
 		}
+		if strings.Contains(string(output), ";S;cmd=__compozy_precmd;") {
+			t.Fatalf("prompt lifecycle leaked into command markers: output=%q", output)
+		}
+		if !strings.Contains(string(output), ";F;exit=0") {
+			t.Fatalf("human command did not emit its finish marker: output=%q", output)
+		}
 	})
 }
 
