@@ -252,6 +252,9 @@ func (m *Manager) enqueueAdmittedBusyPrompt(
 	if err != nil {
 		return SendPromptResult{}, err
 	}
+	// Pair the durable enqueue with the turn-end selector kick. Whichever side
+	// observes the session idle after the enqueue owns dispatch.
+	m.startNextQueuedInputPrompt(session.ID)
 	result.Replayed = !created
 	return result, nil
 }

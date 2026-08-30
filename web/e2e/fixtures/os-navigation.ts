@@ -79,16 +79,18 @@ export async function windowID(win: Locator): Promise<string> {
 
 /** Focus an obscured window through the user-facing palette's exact tab identity. */
 export async function focusWindowThroughPalette(page: Page, win: Locator): Promise<void> {
-  const frame = windowFrame(win);
-  if ((await frame.getAttribute("data-focused")) !== null) return;
-  const id = await windowID(win);
-  const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
+  if ((await windowFrame(win).getAttribute("data-focused")) !== null) return;
   await page.keyboard.press("ControlOrMeta+K");
   const palette = page.getByTestId("os-command-palette");
   await expect(palette).toBeVisible();
+  // Opening the palette can reconcile and rematerialize a window. Resolve its
+  // opaque identity only after that transition so the tab row and locator share
+  // the same authority snapshot.
+  const id = await windowID(win);
+  const label = (await win.getByRole("heading", { level: 1 }).innerText()).trim();
   await palette.getByPlaceholder("Search apps, sessions, and actions…").fill(label);
   await palette.getByTestId(`os-palette-tab-${id}`).click();
-  await expect(frame).toHaveAttribute("data-focused", "");
+  await expect(windowFrame(win)).toHaveAttribute("data-focused", "");
 }
 
 /** Switch the active workspace and prove the menubar committed the selection. */

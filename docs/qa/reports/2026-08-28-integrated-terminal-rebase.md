@@ -170,6 +170,20 @@ and are passing again.
 
 ## Runtime Errors Observed
 
+- Exact-head CI run `33305085833` exposed `BUG-20260830-busy-input-turn-end-stranded`: the Skills
+  browser journey submitted a second prompt while the first turn was settling, persisted the authored
+  message, and stopped without a second provider acknowledgement. A deterministic manager regression
+  reproduced the empty turn-end queue check completing before durable enqueue. The enqueue path now
+  re-runs the shared selector; anonymous and identity-bearing variants passed 10/10 under `-race`, and
+  the public browser journey delivered both acknowledgements on retest. This bounded retest used the
+  real daemon with the suite's ACP fixture provider; RT-019 therefore retains its separate
+  `blocked-verify` verdict for the complete live-provider CH-016 charter.
+- The same CI run exposed three stale E2E synchronization assumptions. E2E-001 now verifies logical
+  scrollback through public `terminal quote` instead of a physically wrapped screen substring;
+  E2E-002 follows the authority-backed Terminal locator across rematerialization and freezes an opaque
+  window id only for the atomic close assertion; E2E-011 waits for process `close`, after stdout and
+  stderr drain, before declaring the detach notice absent. E2E-001 and E2E-011 passed together, and
+  E2E-002 passed three consecutive focused runs.
 - The first canonical Web E2E run exposed three transient extension writes as `SQLITE_BUSY`; the extension registry now uses `BEGIN IMMEDIATE` with bounded retry and its canonical contention test passes under `-race`.
 - The first run also exposed stale browser assumptions after PR #498: Frimousse exposes a named searchbox, session creation completes asynchronously, and a Terminal launcher can retarget to a different opaque window. The tests now follow those public contracts without forced clicks or increased timeouts.
 - The post-PR #494 focused run exposed `BUG-20260829-terminal-journal-unlock-remount`: the journal could stay on its loading state after the OS rematerialized the Terminal window during an all-profiles switch. The aggregate request was absent from browser network evidence. The working-tree fix passed E2E-020 ten times in series.

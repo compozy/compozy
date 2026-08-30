@@ -193,7 +193,7 @@ function startInteractiveCLI(paths: RuntimePaths, args: string[]): InteractiveCL
         cleanup();
         resolve(captured);
       };
-      const exited = (code: number | null) => {
+      const closed = (code: number | null) => {
         cleanup();
         reject(
           new Error(`Interactive CLI exited ${String(code)} before ${String(needle)}:\n${captured}`)
@@ -203,11 +203,13 @@ function startInteractiveCLI(paths: RuntimePaths, args: string[]): InteractiveCL
         clearTimeout(timeout);
         child.stdout.off("data", inspect);
         child.stderr.off("data", inspect);
-        child.off("exit", exited);
+        child.off("close", closed);
       };
       child.stdout.on("data", inspect);
       child.stderr.on("data", inspect);
-      child.on("exit", exited);
+      // `exit` may precede the final stdout/stderr chunks. `close` is the first
+      // lifecycle event that proves both streams have drained.
+      child.on("close", closed);
     });
   };
 
@@ -309,9 +311,17 @@ test("E2E-001: CLI golden path opens, runs, lists, and journals a terminal", asy
   const opened = listed.terminals.find(terminal => terminal.title === "e2e-golden");
   expect(opened).toMatchObject({ state: "running", mode: "pty" });
   if (!opened) throw new Error("Attached terminal was absent from the list.");
-  expect((await terminalScreen(runtime, workspace.id, opened.id)).content).toContain(
-    "terminal-golden-path"
-  );
+  const history = await runTerminalCLI<{ quote: string }>(runtime.paths, [
+    "quote",
+    opened.id,
+    "--workspace",
+    workspace.id,
+    "--lines",
+    "1-200",
+    "-o",
+    "json",
+  ]);
+  expect(history.quote).toContain("terminal-golden-path");
   await expect
     .poll(async () => {
       const journal = await runTerminalCLI<TerminalJournalEnvelope>(runtime.paths, [
@@ -353,8 +363,7 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   const firstActiveWindow = focusedTerminalWindow(appPage);
   await expect(firstActiveWindow.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(1);
   await focusWindowThroughPalette(appPage, firstActiveWindow);
-  let terminalWindowID = await windowID(firstActiveWindow);
-  let window = appPage.getByTestId(`os-window-${terminalWindowID}`);
+  let window = firstActiveWindow;
   const firstLog = await takeTerminalControl(window);
   const firstTab = window.locator('[data-testid^="terminal-tab-term-"]').first();
   const firstID = terminalIDFromTab(await firstTab.getAttribute("data-testid"));
@@ -369,8 +378,7 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   const secondActiveWindow = focusedTerminalWindow(appPage);
   await expect(secondActiveWindow.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
   await focusWindowThroughPalette(appPage, secondActiveWindow);
-  terminalWindowID = await windowID(secondActiveWindow);
-  window = appPage.getByTestId(`os-window-${terminalWindowID}`);
+  window = secondActiveWindow;
   const secondTab = window.locator('[data-testid^="terminal-tab-term-"]').nth(1);
   const secondID = terminalIDFromTab(await secondTab.getAttribute("data-testid"));
   await window.getByTestId(`terminal-tab-select-${secondID}`).click();
@@ -390,7 +398,7 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   }
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  const restored = appPage.getByTestId(`os-window-${terminalWindowID}`);
+  const restored = focusedTerminalWindow(appPage);
   await expect(restored.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
   expect(
     await restored
@@ -418,8 +426,9 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   );
 
   await focusWindowThroughPalette(appPage, restored);
-  await restored.getByRole("button", { name: "Close window" }).click();
-  await expect(restored).toBeHidden();
+  const closingWindow = appPage.getByTestId(`os-window-${await windowID(restored)}`);
+  await closingWindow.getByRole("button", { name: "Close window" }).click();
+  await expect(closingWindow).toBeHidden();
   const reopened = await openAppWindow(appPage, "Terminal", "terminal");
   await expect(reopened.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
   const firstQuote = await runTerminalCLI<{ quote: string }>(runtime.paths, [

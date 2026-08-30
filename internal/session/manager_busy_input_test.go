@@ -315,6 +315,113 @@ func TestManagerBusyInputQueue(t *testing.T) {
 		}
 	})
 
+	t.Run("Should dispatch queued input when the active turn settles before durable enqueue", func(t *testing.T) {
+		t.Parallel()
+
+		for _, test := range []struct {
+			name     string
+			admitted bool
+		}{
+			{name: "Should dispatch an anonymous queued prompt", admitted: false},
+			{name: "Should dispatch an identity-bearing queued prompt", admitted: true},
+		} {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+
+				queueStore := openManagerInputQueueStore(t)
+				raceStore := newQueuePersistenceRaceStore(queueStore, test.admitted)
+				h := newHarness(
+					t,
+					WithSessionInputQueueStore(raceStore),
+					WithSessionBusyInputConfig(compozyconfig.SessionBusyInputConfig{
+						DefaultMode:  string(BusyInputModeQueue),
+						QueueCap:     3,
+						MaxTextBytes: 4096,
+					}),
+				)
+				registerManagerInputQueueWorkspace(t, queueStore, h)
+				sess := createSession(t, h)
+				registerManagerInputQueueSession(t, queueStore, h, sess)
+
+				activeEntered := make(chan struct{})
+				releaseActive := make(chan struct{})
+				queuedEntered := make(chan struct{})
+				var releaseActiveOnce sync.Once
+				t.Cleanup(func() {
+					releaseActiveOnce.Do(func() { close(releaseActive) })
+					raceStore.releaseQueuePersistence()
+					if err := h.manager.Stop(testutil.Context(t), sess.ID); err != nil {
+						t.Errorf("Stop() error = %v", err)
+					}
+				})
+				h.driver.promptHook = func(_ *fakeProcess, req acp.PromptRequest) (<-chan acp.AgentEvent, error) {
+					events := make(chan acp.AgentEvent)
+					go func() {
+						defer close(events)
+						switch req.Message {
+						case "active prompt":
+							close(activeEntered)
+							<-releaseActive
+						case "queued at turn end":
+							close(queuedEntered)
+						}
+						emitDonePromptEvents(events, sess.ID, req.TurnID)
+					}()
+					return events, nil
+				}
+
+				active, err := h.manager.SendPrompt(t.Context(), sess.ID, SendPromptOpts{
+					Message: "active prompt",
+				})
+				if err != nil {
+					t.Fatalf("SendPrompt(active) error = %v", err)
+				}
+				waitForBusyInputRaceSignal(t, activeEntered, "active prompt dispatch")
+
+				type queuedResult struct {
+					result SendPromptResult
+					err    error
+				}
+				resultC := make(chan queuedResult, 1)
+				go func() {
+					opts := SendPromptOpts{Message: "queued at turn end", Mode: BusyInputModeQueue}
+					if test.admitted {
+						opts.MessageID = "message-turn-end-race"
+						opts.IdempotencyKey = "idempotency-turn-end-race"
+					}
+					result, sendErr := h.manager.SendPrompt(t.Context(), sess.ID, opts)
+					resultC <- queuedResult{result: result, err: sendErr}
+				}()
+
+				waitForBusyInputRaceSignal(t, raceStore.enqueueEntered, "queue persistence block")
+				releaseActiveOnce.Do(func() { close(releaseActive) })
+				collectEvents(t, active.Events)
+				waitForBusyInputRaceSignal(t, raceStore.emptyPeekObserved, "empty turn-end queue check")
+				raceStore.releaseQueuePersistence()
+
+				var queued queuedResult
+				select {
+				case queued = <-resultC:
+				case <-time.After(5 * time.Second):
+					t.Fatal("queued prompt submission did not return")
+				}
+				if queued.err != nil {
+					t.Fatalf("SendPrompt(queue) error = %v", queued.err)
+				}
+				if queued.result.Status != store.SessionPromptResultStatusQueued {
+					t.Fatalf("SendPrompt(queue) status = %q, want queued", queued.result.Status)
+				}
+				waitForBusyInputRaceSignal(t, queuedEntered, "queued prompt dispatch")
+				if calls := managerPromptCalls(h); len(calls) != 2 {
+					t.Fatalf("prompt calls = %d, want active and queued dispatch", len(calls))
+				}
+				waitForCondition(t, "queued prompt completion", func() bool {
+					return !sess.IsPrompting()
+				})
+			})
+		}
+	})
+
 	t.Run("Should preserve admitted skill invocations through busy modes until dispatch", func(t *testing.T) {
 		t.Parallel()
 
@@ -3048,6 +3155,93 @@ func equalIntPointers(left *int, right *int) bool {
 		return left == right
 	}
 	return *left == *right
+}
+
+type queuePersistenceRaceStore struct {
+	*globaldb.GlobalDB
+	blockAdmitted      bool
+	enqueueEntered     chan struct{}
+	emptyPeekObserved  chan struct{}
+	releasePersistence chan struct{}
+	enqueueEnteredOnce sync.Once
+	emptyPeekOnce      sync.Once
+	releaseOnce        sync.Once
+}
+
+func newQueuePersistenceRaceStore(
+	database *globaldb.GlobalDB,
+	blockAdmitted bool,
+) *queuePersistenceRaceStore {
+	return &queuePersistenceRaceStore{
+		GlobalDB:           database,
+		blockAdmitted:      blockAdmitted,
+		enqueueEntered:     make(chan struct{}),
+		emptyPeekObserved:  make(chan struct{}),
+		releasePersistence: make(chan struct{}),
+	}
+}
+
+func (s *queuePersistenceRaceStore) EnqueueSessionInput(
+	ctx context.Context,
+	req store.SessionInputQueueInsert,
+) (store.SessionInputQueueEntry, int, error) {
+	if !s.blockAdmitted {
+		if err := s.waitForQueuePersistenceRelease(ctx); err != nil {
+			return store.SessionInputQueueEntry{}, 0, err
+		}
+	}
+	return s.GlobalDB.EnqueueSessionInput(ctx, req)
+}
+
+func (s *queuePersistenceRaceStore) EnqueueAdmittedSessionInput(
+	ctx context.Context,
+	request store.SessionPromptAdmissionRequest,
+	queueInput store.SessionInputQueueInsert,
+) (store.SessionPromptAdmission, store.SessionInputQueueEntry, int, bool, error) {
+	if s.blockAdmitted {
+		if err := s.waitForQueuePersistenceRelease(ctx); err != nil {
+			return store.SessionPromptAdmission{}, store.SessionInputQueueEntry{}, 0, false, err
+		}
+	}
+	return s.GlobalDB.EnqueueAdmittedSessionInput(ctx, request, queueInput)
+}
+
+func (s *queuePersistenceRaceStore) PeekNextSessionInput(
+	ctx context.Context,
+	sessionID string,
+) (store.SessionInputQueueEntry, bool, error) {
+	entry, found, err := s.GlobalDB.PeekNextSessionInput(ctx, sessionID)
+	select {
+	case <-s.enqueueEntered:
+		if err == nil && !found {
+			s.emptyPeekOnce.Do(func() { close(s.emptyPeekObserved) })
+		}
+	default:
+	}
+	return entry, found, err
+}
+
+func (s *queuePersistenceRaceStore) waitForQueuePersistenceRelease(ctx context.Context) error {
+	s.enqueueEnteredOnce.Do(func() { close(s.enqueueEntered) })
+	select {
+	case <-s.releasePersistence:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (s *queuePersistenceRaceStore) releaseQueuePersistence() {
+	s.releaseOnce.Do(func() { close(s.releasePersistence) })
+}
+
+func waitForBusyInputRaceSignal(t *testing.T, signal <-chan struct{}, name string) {
+	t.Helper()
+	select {
+	case <-signal:
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+	}
 }
 
 func openManagerInputQueueStore(t *testing.T) *globaldb.GlobalDB {
