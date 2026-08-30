@@ -11,12 +11,19 @@ bug_ids: BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-confi
 fix_status: fixed
 retest_status: pass
 fix_commits: b745ebcbcfe6
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps:
 ---
 
 Flagged by integrated-terminal task 06. Task 10 owns the real-user walk, evidence, and verdict.
+
+2026-08-30 CI repair flag: a visible agent-owned exec could publish its exit before its exact
+journal row became queryable. Reset for E2E-003 after terminal finalization is reordered.
+
+2026-08-30 CI repair re-walk: passed 5/5. E2E-003 observed the exited visible terminal and then
+queried the same terminal's `approved_once` row on every isolated run; the owning manager package
+also passed completely under `-race`.
 
 Walk:
 

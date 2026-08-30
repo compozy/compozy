@@ -377,6 +377,58 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should share one in-flight semantic open instead of creating a duplicate window", async () => {
+    const queryClient = new QueryClient();
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: SNAPSHOT,
+      applied: true,
+      changes: EMPTY_CHANGES,
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: null,
+      focusOrder: [],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const deepLink = runtime.openOrFocus({
+      app: "network",
+      route: { pathname: "/network", search: {} },
+    });
+    const dock = runtime.openOrFocus({ app: "network" });
+
+    expect(dock.windowId).toBe(deepLink.windowId);
+    await expect(Promise.all([deepLink.completion, dock.completion])).resolves.toEqual([
+      true,
+      true,
+    ]);
+    expect(executeWindowManagerCommand).toHaveBeenCalledOnce();
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      SNAPSHOT.revision,
+      expect.objectContaining({
+        commandId: "window.open",
+        payload: expect.objectContaining({
+          window: expect.objectContaining({ app: "network" }),
+        }),
+      })
+    );
+    runtime.stop();
+  });
+
   it("Should dispatch frame resizes as wire rects for windows and islands", async () => {
     const queryClient = new QueryClient();
     queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);

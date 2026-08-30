@@ -427,6 +427,7 @@ type fakeRecordingJournal struct {
 	artifactErr     error
 	commandIDs      atomic.Uint64
 	commandIDHook   func(context.Context, string) (string, error)
+	recordHook      func(context.Context, Info, CommandRow) error
 	recordingIDs    atomic.Uint64
 	recordingIDHook func(context.Context, string) (string, error)
 	recordingErr    error
@@ -589,6 +590,11 @@ func (j *fakeRecordingJournal) ReserveRecordingID(ctx context.Context, workspace
 func (*fakeRecordingJournal) ReleaseRecordingID(string, string) {}
 
 func (j *fakeRecordingJournal) RecordQueued(ctx context.Context, info Info, row CommandRow) error {
+	if j.recordHook != nil {
+		if err := j.recordHook(ctx, info, row); err != nil {
+			return err
+		}
+	}
 	return j.Record(ctx, info.WS, row)
 }
 

@@ -68,6 +68,7 @@ type session struct {
 	captureBytes        int64
 	captureTruncated    bool
 	captureOutput       bool
+	beforeExitPublish   func(context.Context, Info) error
 	done                chan struct{}
 	closeOnce           sync.Once
 }
@@ -380,6 +381,7 @@ func (s *session) finalize(exit Exit) {
 			s.manager.logger.Warn("terminal: stop recording on exit", "terminal_id", info.ID, "error", recordingErr)
 		}
 		journalCtx, cancelJournal := boundedCleanupContext(s.ctx, defaultJournalShutdownTimeout)
+		s.persistCommandBeforeExit(journalCtx, info)
 		if err := s.manager.closeJournalTerminal(journalCtx, s); err != nil {
 			s.finalizationMu.Lock()
 			s.journalClosePending = true

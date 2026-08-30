@@ -140,6 +140,30 @@ times under `-race`. The two public browser journeys then passed together in fiv
 each (10/10 total). `TA-web-task-run-detail-redesign` and `ET-terminal-cli-public-contract` were
 flagged before the walk and are passing again.
 
+### Exact-head Web completion follow-up
+
+Exact-head CI run `33300053156` passed every lane except Web E2E, which completed 269 scenarios
+with 3 skips and exposed three remaining completion races:
+
+- Deep-link reconciliation and a Dock click both decided to open Network before either observed the
+  first command result. Transport serialization preserved revisions but still created two windows.
+- A visible agent exec exposed its terminal exit before the exact command row was durable, so an
+  immediate journal read could miss the `approved_once` record.
+- The Linux Playwright PTY adapter ignored asynchronous stdin write failures, so E2E-011 could time
+  out without distinguishing a lost harness write from a terminal detach regression.
+
+The window-manager runtime now shares one pending semantic open per workspace, profile, client, app,
+and instance while retaining explicit new-instance behavior. Visible exec finalization persists its
+exact row through the registered journal lane before publishing the terminal exit. The PTY adapter
+awaits every stdin write and surfaces delivery errors.
+
+The canonical runtime projection suite passed 30/30, the full terminal manager package passed under
+`-race`, and Web typecheck passed. The three public browser scenarios passed together once and then
+5/5 each in isolated repetitions (15/15): one Network window with Settings handoff, E2E-003 approval
+through journal, and E2E-011 watch/control/SIGQUIT/detach. `ET-web-window-routing-lifecycle`, `NB-003`,
+`ET-terminal-journal-recording`, and `ET-terminal-cli-public-contract` were flagged before the walk
+and are passing again.
+
 ## Paper Cuts
 
 - The isolated operator shell reports `No such theme: rose-pine` and fish waits ten seconds for a Primary Device Attribute query before each first prompt. Commands still execute correctly, but terminal startup is noisy and slower than necessary.

@@ -21,6 +21,7 @@ import { orderedDesktops } from "../lib/desktop-order";
 import { buildOsDesktopRuntimeView, normalizedRectToWire } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { randomWindowManagerId } from "./window-manager-runtime-helpers";
+import { WindowManagerSemanticOpenCoordinator } from "./window-manager-semantic-open";
 import { WindowManagerSnapRuntime } from "./window-manager-snap-commands";
 import { openWindowCommand } from "./window-manager-tab-commands";
 
@@ -29,9 +30,16 @@ function rejectedCommandOutcome(): WindowManagerCommandOutcome {
 }
 
 export class WindowManagerRuntime extends WindowManagerSnapRuntime implements OsDesktopRuntime {
+  private readonly semanticOpens: WindowManagerSemanticOpenCoordinator;
   constructor(queryClient: QueryClient) {
     super(queryClient);
     this.initializeView();
+    this.semanticOpens = new WindowManagerSemanticOpenCoordinator({
+      bindingKey: () => JSON.stringify(this.binding) ?? "unbound",
+      getState: () => this.view,
+      navigate: (id, route, mode) => this.navigateWindow(id, route, mode),
+      open: target => this.openOrFocusAttempt(target, true),
+    });
   }
 
   createDesktop(): void {
@@ -156,7 +164,7 @@ export class WindowManagerRuntime extends WindowManagerSnapRuntime implements Os
   }
 
   openOrFocus = (target: OsOpenTarget): WindowManagerOpenOutcome =>
-    this.openOrFocusAttempt(target, true);
+    this.semanticOpens.openOrFocus(target);
 
   /**
    * Focus-first launch (ADR-010): resolve the live instance semantically by

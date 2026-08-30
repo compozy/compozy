@@ -115,11 +115,17 @@ func (m *Service) Exec(ctx context.Context, request ExecRequest) (*ExecResult, e
 }
 
 func (m *Service) startExecLifecycle(run *execRun, request ExecRequest, argv []string) {
-	run.item.start()
 	if request.Visible {
 		run.producer.MarkRegistered()
+		run.item.beforeExitPublish = func(ctx context.Context, info Info) error {
+			err := m.recordExecRow(ctx, run, request, argv, info)
+			run.journaled <- err
+			return err
+		}
+	} else {
+		go m.recordExecAfterExit(run, request, argv)
 	}
-	go m.recordExec(run, request, argv)
+	run.item.start()
 }
 
 func (m *Service) authorizeExec(ctx context.Context, request ExecRequest, argv []string) (ExecRequest, error) {
@@ -289,14 +295,23 @@ func (m *Service) publishExec(ctx context.Context, run *execRun, request ExecReq
 	return nil
 }
 
-func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
-	defer run.producer.Release()
-	defer run.releaseCommandID()
+func (m *Service) recordExecAfterExit(run *execRun, request ExecRequest, argv []string) {
 	<-run.item.done
 	<-run.decision
 	ctx, cancel := boundedCleanupContext(run.item.ctx, defaultJournalShutdownTimeout)
 	defer cancel()
-	info := run.item.Info()
+	run.journaled <- m.recordExecRow(ctx, run, request, argv, run.item.Info())
+}
+
+func (m *Service) recordExecRow(
+	ctx context.Context,
+	run *execRun,
+	request ExecRequest,
+	argv []string,
+	info Info,
+) error {
+	defer run.producer.Release()
+	defer run.releaseCommandID()
 	duration := m.now().Sub(run.startedAt).Milliseconds()
 	digest := argvDigest(argv)
 	approval := terminalApprovalLabel(request.Approval)
@@ -315,7 +330,7 @@ func (m *Service) recordExec(run *execRun, request ExecRequest, argv []string) {
 		id := info.ID
 		row.TerminalID = &id
 	}
-	run.journaled <- m.journal.RecordQueued(ctx, info, row)
+	return m.journal.RecordQueued(ctx, info, row)
 }
 
 func terminalApprovalLabel(value string) string {

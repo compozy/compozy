@@ -2309,6 +2309,77 @@ func TestManagerExecShapesAndOutputContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should persist a visible exec before publishing its exit [IT-008]", func(t *testing.T) {
+		t.Parallel()
+		recordStarted := make(chan struct{})
+		releaseRecord := make(chan struct{})
+		journal := &fakeRecordingJournal{
+			recordHook: func(ctx context.Context, _ Info, _ CommandRow) error {
+				close(recordStarted)
+				select {
+				case <-releaseRecord:
+					return nil
+				case <-ctx.Done():
+					return context.Cause(ctx)
+				}
+			},
+		}
+		bus := NewNotifier(nil)
+		closed := make(chan Event, 1)
+		bus.Observe(func(_ context.Context, event Event) {
+			if event.Kind == EventKindClosed {
+				closed <- event
+			}
+		})
+		manager, starter, _ := newTestManager(
+			t,
+			DefaultSettings(),
+			WithJournal(journal),
+			WithNotifier(bus),
+		)
+		resultCh := make(chan *ExecResult, 1)
+		errCh := make(chan error, 1)
+		go func() {
+			result, err := manager.Exec(t.Context(), ExecRequest{
+				WS: "workspace-a", Command: "interactive", YieldMs: 250, Visible: true,
+				Actor: actor, Capabilities: Capabilities{Interactive: true},
+			})
+			resultCh <- result
+			errCh <- err
+		}()
+		proc := receiveStartedProc(t, starter)
+		result := <-resultCh
+		if err := <-errCh; err != nil {
+			t.Fatalf("Exec(visible) error = %v", err)
+		}
+		if !result.StillRunning || result.TerminalID == nil {
+			t.Fatalf("Exec(visible) = %#v", result)
+		}
+		code := 0
+		proc.complete(terminalExit("exited", &code, nil))
+		select {
+		case <-recordStarted:
+		case <-time.After(time.Second):
+			t.Fatal("visible exec journal write did not start")
+		}
+		select {
+		case event := <-closed:
+			t.Fatalf("terminal exit published before journal persistence: %#v", event)
+		default:
+		}
+		close(releaseRecord)
+		event := receiveTerminalEvent(t, closed)
+		if event.TerminalID != *result.TerminalID {
+			t.Fatalf("closed terminal = %q, want %q", event.TerminalID, *result.TerminalID)
+		}
+		journal.mu.Lock()
+		defer journal.mu.Unlock()
+		if len(journal.rows) != 1 || journal.rows[0].TerminalID == nil ||
+			*journal.rows[0].TerminalID != *result.TerminalID {
+			t.Fatalf("journal rows at exit = %#v", journal.rows)
+		}
+	})
+
 	t.Run(
 		"Should clean up a promoted exec when terminal capacity changed before publication [IT-027]",
 		func(t *testing.T) {

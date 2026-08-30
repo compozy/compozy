@@ -5,6 +5,20 @@ import (
 	"fmt"
 )
 
+func (s *session) persistCommandBeforeExit(ctx context.Context, info Info) {
+	if s.beforeExitPublish == nil {
+		return
+	}
+	if err := s.beforeExitPublish(ctx, info); err != nil {
+		s.audit.SetBlocked(true)
+		s.manager.logger.Error(
+			"terminal: persist command before publishing exit",
+			"terminal_id", info.ID,
+			"error", err,
+		)
+	}
+}
+
 func (s *session) awaitRemoval(ctx context.Context) error {
 	select {
 	case <-ctx.Done():

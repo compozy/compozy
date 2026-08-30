@@ -98,7 +98,7 @@ interface InteractiveCLI {
   output: () => string;
   waitForExit: () => Promise<number>;
   waitForOutput: (needle: string | RegExp) => Promise<string>;
-  write: (input: string | Uint8Array) => void;
+  write: (input: string | Uint8Array) => Promise<void>;
 }
 
 function assertLaunchRuntime(
@@ -224,9 +224,16 @@ function startInteractiveCLI(paths: RuntimePaths, args: string[]): InteractiveCL
         child.once("exit", code => resolve(code ?? 1));
       }),
     waitForOutput,
-    write: input => {
-      child.stdin.write(input);
-    },
+    write: async input =>
+      await new Promise<void>((resolve, reject) => {
+        child.stdin.write(input, error => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      }),
   };
 }
 
@@ -286,9 +293,9 @@ test("E2E-001: CLI golden path opens, runs, lists, and journals a terminal", asy
     "e2e-golden",
   ]);
   await attached.waitForOutput(/opened .* — attached\. Detach: Ctrl-\\ Ctrl-\\/u);
-  attached.write("printf 'terminal-golden-path\\n'\n");
+  await attached.write("printf 'terminal-golden-path\\n'\n");
   await attached.waitForOutput("terminal-golden-path");
-  attached.write("\u001c\u001c");
+  await attached.write("\u001c\u001c");
   await attached.waitForOutput("[detached — terminal keeps running]");
   expect(await attached.waitForExit()).toBe(0);
 
@@ -665,8 +672,8 @@ test("E2E-011: CLI attach supports watch, control, detach, and single SIGQUIT", 
     workspace.id,
   ]);
   await watching.waitForOutput(`[watching ${opened.terminal.id} — controller: human operator.`);
-  watching.write("ignored-in-watch-mode");
-  watching.write("\u001c\u001c");
+  await watching.write("ignored-in-watch-mode");
+  await watching.write("\u001c\u001c");
   await watching.waitForOutput("[detached — terminal keeps running]");
   expect(await watching.waitForExit()).toBe(0);
   expect((await terminalScreen(runtime, workspace.id, opened.terminal.id)).content).not.toContain(
@@ -682,11 +689,11 @@ test("E2E-011: CLI attach supports watch, control, detach, and single SIGQUIT", 
     "--control",
   ]);
   await controlling.waitForOutput("[control taken from human operator — you type now]");
-  controlling.write("printf 'controlled-input-received\\n'\n");
+  await controlling.write("printf 'controlled-input-received\\n'\n");
   await controlling.waitForOutput("controlled-input-received");
-  controlling.write("\u001c");
+  await controlling.write("\u001c");
   await controlling.waitForOutput("single-sigquit-received");
-  controlling.write("\u001c\u001c");
+  await controlling.write("\u001c\u001c");
   await controlling.waitForOutput("[detached — terminal keeps running]");
   expect(await controlling.waitForExit()).toBe(0);
   expect((await terminalScreen(runtime, workspace.id, opened.terminal.id)).content).toContain(

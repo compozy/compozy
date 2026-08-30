@@ -11,12 +11,20 @@ bug_ids: BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-attac
 fix_status: fixed
 retest_status: pass
 fix_commits: b745ebcbcfe6
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps: ET-profile-selection-precedence
 ---
 
 Flagged by integrated-terminal task 06. Task 10 owns the real-user walk, evidence, and verdict.
+
+2026-08-30 CI repair flag: the Linux PTY harness discarded asynchronous stdin delivery errors,
+leaving E2E-011 unable to distinguish a failed write from a detach regression. Reset for a fresh
+watch, control, single-SIGQUIT, and double-key detach walk with acknowledged writes.
+
+2026-08-30 acknowledged-write re-walk: passed 5/5. E2E-011 confirmed watch-mode input rejection,
+control takeover, single `Ctrl-\` passthrough, double-key detach, clean CLI exit, and retained remote
+output while every PTY harness write reported delivery.
 
 Walk:
 
