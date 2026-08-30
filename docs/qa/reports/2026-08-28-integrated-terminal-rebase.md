@@ -170,6 +170,16 @@ and are passing again.
 
 ## Runtime Errors Observed
 
+- Exact-head CI run `33310132690` passed every non-Web-E2E check and completed 269 Web scenarios
+  with 3 skips before exposing three test-infrastructure defects. The shared palette helper kept an
+  active-window locator after the palette removed that active marker, so E2E-005 and E2E-020 timed
+  out while their product state remained visible. The helper now captures the title before opening
+  the palette, then resolves the rematerialized surface through stable app/instance identity; apps
+  without an instance key use their visible app surface. E2E-011's shell fixture exited when its
+  blocking read was interrupted by the first SIGQUIT, so the CLI correctly omitted the
+  still-running detach notice. The fixture now resumes reading after the signal. All three scenarios
+  passed together in three consecutive serial repetitions (9/9); no product contract or user-visible
+  behavior changed.
 - Exact-head CI run `33305085833` exposed `BUG-20260830-busy-input-turn-end-stranded`: the Skills
   browser journey submitted a second prompt while the first turn was settling, persisted the authored
   message, and stopped without a second provider acknowledgement. A deterministic manager regression
@@ -227,7 +237,7 @@ None identified yet.
 
 ## Final Status
 
-- **Exit gate (full automated suite):** focused CI-failure rerun passed; `make gate` and exact-head CI pending
+- **Exit gate (full automated suite):** latest focused CI-failure rerun passed 9/9; `make gate` and exact-head CI pending
 - **Issues by user impact:** Blocks-Completion 0 open · Data-Loss 0 · Trust-Damage 0 · Friction 0 open · Cosmetic 0
 - **Coverage:** 5 / 5 journeys walked; 9 / 9 tracked rows passed; strict targeted QA audit passed
 - **Teardown:** `/Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/teardown.json` reports `clean: true` with no survivors.
