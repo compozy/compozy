@@ -351,6 +351,37 @@ func TestTerminalClientInputDetachTiming(t *testing.T) {
 			t.Fatalf("queued chord opcode = %d, want DETACH", frame.Op)
 		}
 	})
+
+	t.Run("Should recognize a human detach chord across moderate reader delay", func(t *testing.T) {
+		t.Parallel()
+		client, server := newTerminalClientTestPair(t)
+		reader, writer := io.Pipe()
+		ctx, cancel := context.WithCancel(t.Context())
+		t.Cleanup(cancel)
+		done := make(chan error, 1)
+		var writes sync.Mutex
+		go func() {
+			done <- copyTerminalInput(ctx, client, &writes, terminalInputReads(ctx, reader), true)
+		}()
+		if _, err := writer.Write([]byte{terminalDetachByte}); err != nil {
+			t.Fatalf("write first detach byte: %v", err)
+		}
+		time.Sleep(250 * time.Millisecond)
+		if _, err := writer.Write([]byte{terminalDetachByte}); err != nil {
+			t.Fatalf("write second detach byte: %v", err)
+		}
+		if frame := readTerminalClientTestFrame(t, server); frame.Op != terminalwire.ClientOpDetach {
+			t.Fatalf("delayed chord opcode = %d, want DETACH", frame.Op)
+		}
+		select {
+		case err := <-done:
+			if !errors.Is(err, errTerminalDetached) {
+				t.Fatalf("copyTerminalInput() error = %v", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("input copier did not finish after delayed detach chord")
+		}
+	})
 }
 
 func TestTerminalClientStreamShouldAckOnlyWrittenOutput(t *testing.T) {

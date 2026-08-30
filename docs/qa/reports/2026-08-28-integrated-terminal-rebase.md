@@ -106,6 +106,19 @@ QA tracker impact: `ET-terminal-cli-public-contract`, `ET-terminal-journal-recor
 window-manager change only removes a duplicate render publication; it changes no gesture, layout,
 route, or persistence contract, so it does not reset the broader gesture scenario.
 
+### Delayed-reader follow-up
+
+Exact-head CI run `33286027721` passed every verification and external check, plus 271 of 272 Web
+scenarios with 3 skips. E2E-001, E2E-020, and E2E-023 confirmed the prior Bash journal and projection
+repairs. E2E-011 alone failed because a saturated runner delayed delivery of the second `Ctrl-\`
+beyond the 150 ms chord window, so the byte reached the shell instead of detaching.
+
+The CLI now allows 500 ms for the two-byte human chord while preserving the single-key SIGQUIT path.
+The canonical delayed-reader regression separates the bytes by 250 ms and passed five times under
+`-race`. E2E-011 passed 10/10 focused repetitions and a fresh post-flag public-interface walk. The
+`ET-terminal-cli-public-contract` scenario is passing again; the current gate and replacement exact-head
+CI remain pending.
+
 ## Paper Cuts
 
 - The isolated operator shell reports `No such theme: rose-pine` and fish waits ten seconds for a Primary Device Attribute query before each first prompt. Commands still execute correctly, but terminal startup is noisy and slower than necessary.

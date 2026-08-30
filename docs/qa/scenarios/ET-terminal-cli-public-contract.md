@@ -29,3 +29,9 @@ Walk:
 2026-08-30 CI repair re-walk: passed. Current-tree E2E-001 proved attached Bash command output,
 listing, and durable journal identity; E2E-011 proved watch, control, single SIGQUIT, the double-key
 detach chord, and exited-terminal refusal. The CLI detach timing regression also passed under `-race`.
+
+2026-08-30 delayed-reader repair re-walk: passed. Exact-head CI run `33286027721` proved that the
+150 ms chord window could expire before a saturated reader delivered the second byte. The current
+tree expands the human chord window to 500 ms without changing single-key passthrough. E2E-011 passed
+10/10 focused repetitions and one fresh post-flag public-interface walk; the delayed-reader regression
+passed five times under `-race`.
