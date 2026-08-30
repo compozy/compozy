@@ -99,6 +99,84 @@ func TestRegistryInstallPersistsExtension(t *testing.T) {
 	}
 }
 
+// Invariant: a transient global-store writer cannot make extension installation fail.
+// Owner: extension registry persistence.
+// Canonical suite: extension registry tests.
+func TestRegistryInstallRetriesBusyPersistence(t *testing.T) {
+	t.Run("Should persist after a competing writer releases the database", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t)
+		env := newRegistryTestEnv(t)
+		env.db.SetMaxOpenConns(1)
+		env.db.SetMaxIdleConns(1)
+		if _, err := env.db.ExecContext(ctx, `PRAGMA busy_timeout = 1`); err != nil {
+			t.Fatalf("set registry busy timeout: %v", err)
+		}
+
+		var sequence int
+		var databaseName string
+		var databasePath string
+		if err := env.db.QueryRowContext(ctx, `PRAGMA database_list`).Scan(
+			&sequence,
+			&databaseName,
+			&databasePath,
+		); err != nil {
+			t.Fatalf("read registry database path: %v", err)
+		}
+		locker, err := store.OpenSQLiteDatabase(ctx, databasePath, nil)
+		if err != nil {
+			t.Fatalf("OpenSQLiteDatabase(locker) error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := locker.Close(); err != nil {
+				t.Errorf("locker.Close() error = %v", err)
+			}
+		})
+		lockConn, err := locker.Conn(ctx)
+		if err != nil {
+			t.Fatalf("locker.Conn() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := lockConn.Close(); err != nil {
+				t.Errorf("lockConn.Close() error = %v", err)
+			}
+		})
+		if _, err := lockConn.ExecContext(ctx, `BEGIN IMMEDIATE`); err != nil {
+			t.Fatalf("BEGIN IMMEDIATE locker error = %v", err)
+		}
+
+		releaseDone := make(chan error, 1)
+		timer := time.AfterFunc(100*time.Millisecond, func() {
+			_, commitErr := lockConn.ExecContext(ctx, `COMMIT`)
+			releaseDone <- commitErr
+		})
+		t.Cleanup(func() {
+			if timer.Stop() {
+				if _, err := lockConn.ExecContext(ctx, `COMMIT`); err != nil {
+					t.Errorf("manual lock release error = %v", err)
+				}
+				return
+			}
+			if err := <-releaseDone; err != nil {
+				t.Errorf("timed lock release error = %v", err)
+			}
+		})
+
+		dir, manifest, checksum := createRegistryTestExtension(
+			t,
+			"busy-persist-registry",
+			registryManifestOptions{},
+		)
+		if err := env.registry.Install(manifest, dir, checksum); err != nil {
+			t.Fatalf("Install() error = %v", err)
+		}
+		if _, err := env.registry.Get(manifest.Name); err != nil {
+			t.Fatalf("Get() error = %v", err)
+		}
+	})
+}
+
 // Invariant: delayed cleanup from an older extension lifecycle cannot disable
 // a replacement lifecycle for the same registry name.
 // Owner: extension registry persistence.

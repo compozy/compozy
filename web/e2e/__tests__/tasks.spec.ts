@@ -192,9 +192,21 @@ test("operator can execute the shipped Tasks flow through the shared daemon-serv
   const activeRunLink = tasksUI.dashboardActiveRunLink(seeded.runningRun.id);
   await expect(activeRunLink).toBeVisible();
   await expect(activeRunLink).toHaveAttribute("href", activeRunPath);
+  const layoutReady = appPage
+    .waitForEvent("websocket", {
+      predicate: socket => socket.url().includes("/window-manager/stream"),
+    })
+    .then(
+      socket =>
+        new Promise<void>((resolve, reject) => {
+          socket.once("framereceived", () => resolve());
+          socket.once("socketerror", error => reject(error));
+        })
+    );
   await appPage.goto(runtime.url(activeRunPath), {
     waitUntil: "domcontentloaded",
   });
+  await layoutReady;
   await expect(tasksUI.runDetailContent).toBeVisible();
   await expect.poll(() => new URL(appPage.url()).pathname).toBe(activeRunPath);
   await expect(tasksUI.runSessionDrilldown).toBeVisible();
