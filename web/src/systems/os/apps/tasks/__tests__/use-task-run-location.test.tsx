@@ -42,6 +42,7 @@ beforeEach(() => {
     handleForceFailRun: vi.fn(),
     isLive: true,
     run: { run: { id: "run_001", status: "running", task_id: "task_001" } },
+    session: { agent_name: "builder", session_id: "sess_001" },
     task: { task: { latest_event_seq: 12, max_attempts: 1 } },
   });
   hooks.useTaskRuns.mockReturnValue({ data: [], error: null, isLoading: false });
@@ -90,5 +91,34 @@ describe("useTaskRunLocation", () => {
       "task_001",
       expect.objectContaining({ enabled: false })
     );
+  });
+
+  it("Should open the canonical session route when the run owns its agent identity", () => {
+    const { result } = renderHook(() => useTaskRunLocation("task_001", "run_001"));
+
+    result.current.openSession("sess_001");
+
+    expect(hooks.navigate).toHaveBeenCalledWith({
+      to: "/agents/$name/sessions/$id",
+      params: { name: "builder", id: "sess_001" },
+    });
+  });
+
+  it("Should retain the session permalink fallback when agent identity is unavailable", () => {
+    hooks.useTaskRunPage.mockReturnValue({
+      handleForceFailRun: vi.fn(),
+      isLive: true,
+      run: { run: { id: "run_001", status: "running", task_id: "task_001" } },
+      session: { session_id: "sess_001" },
+      task: { task: { latest_event_seq: 12, max_attempts: 1 } },
+    });
+    const { result } = renderHook(() => useTaskRunLocation("task_001", "run_001"));
+
+    result.current.openSession("sess_001");
+
+    expect(hooks.navigate).toHaveBeenCalledWith({
+      to: "/session/$id",
+      params: { id: "sess_001" },
+    });
   });
 });

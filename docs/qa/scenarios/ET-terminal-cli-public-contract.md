@@ -35,3 +35,9 @@ detach chord, and exited-terminal refusal. The CLI detach timing regression also
 tree expands the human chord window to 500 ms without changing single-key passthrough. E2E-011 passed
 10/10 focused repetitions and one fresh post-flag public-interface walk; the delayed-reader regression
 passed five times under `-race`.
+
+2026-08-30 raw-mode finalization re-walk: passed. Exact-head CI run `33296083331` proved the detach
+chord could complete while the CLI restored its local terminal mode before the final terminal-state
+query finished; a delayed `Ctrl-\\` then reached the local line discipline as SIGQUIT. Attached open
+and attach now keep raw input active through the detach notice. E2E-011 passed 5/5 focused repetitions,
+and the CLI timing and raw-mode suites passed three times under `-race`.

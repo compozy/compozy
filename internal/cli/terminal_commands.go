@@ -38,15 +38,18 @@ func newTerminalOpenCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if err := withTerminalRawInput(cmd.InOrStdin(), func() error {
-				return client.AttachTerminal(cmd.Context(), workspaceID, string(terminal.ID), TerminalAttachOptions{
+				if err := client.AttachTerminal(cmd.Context(), workspaceID, string(terminal.ID), TerminalAttachOptions{
 					Mode: terminalStreamModeWrite, Flow: terminalStreamFlowAck, Cols: cols, Rows: rows,
-				}, cmd.InOrStdin(), cmd.OutOrStdout())
+				}, cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
+					return err
+				}
+				return writeTerminalDetachNotice(
+					cmd.Context(), cmd.OutOrStdout(), client, workspaceID, string(terminal.ID),
+				)
 			}); err != nil {
 				return err
 			}
-			return writeTerminalDetachNotice(
-				cmd.Context(), cmd.OutOrStdout(), client, workspaceID, string(terminal.ID),
-			)
+			return nil
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)
@@ -150,14 +153,19 @@ func newTerminalAttachCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			if err := withTerminalRawInput(cmd.InOrStdin(), func() error {
-				return client.AttachTerminal(cmd.Context(), workspaceID, args[0], TerminalAttachOptions{
+				if err := client.AttachTerminal(cmd.Context(), workspaceID, args[0], TerminalAttachOptions{
 					Mode: mode, Flow: flow, AfterSeq: afterSeq, Cols: cols, Rows: rows,
 					Takeover: takeover, Force: force,
-				}, cmd.InOrStdin(), cmd.OutOrStdout())
+				}, cmd.InOrStdin(), cmd.OutOrStdout()); err != nil {
+					return err
+				}
+				return writeTerminalDetachNotice(
+					cmd.Context(), cmd.OutOrStdout(), client, workspaceID, args[0],
+				)
 			}); err != nil {
 				return err
 			}
-			return writeTerminalDetachNotice(cmd.Context(), cmd.OutOrStdout(), client, workspaceID, args[0])
+			return nil
 		},
 	}
 	addTerminalWorkspaceFlag(command, &workspace)

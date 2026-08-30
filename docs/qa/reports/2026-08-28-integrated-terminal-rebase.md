@@ -119,6 +119,27 @@ The canonical delayed-reader regression separates the bytes by 250 ms and passed
 `ET-terminal-cli-public-contract` scenario is passing again; the current gate and replacement exact-head
 CI remain pending.
 
+### Parallel-lane exact-head follow-up
+
+Exact-head CI run `33296083331` validated the new parallel E2E layout: runtime, Desktop, Windows,
+Go, frontend, build, and lint lanes passed, and Web completed inside its dedicated budget with 270
+passes, 3 skips, and 2 failures. The Web artifacts isolated two completion races:
+
+- Tasks loaded the target session permalink data, but issued no new window-manager command and left
+  the run window focused. The run-detail response already owned both the session id and agent name,
+  so the controller now opens that canonical session route directly and reserves the async ID-only
+  permalink for incomplete projections.
+- The terminal detach chord completed and restored the local terminal mode while the CLI was still
+  fetching the final state for its detach notice. A delayed `Ctrl-\\` then reached the Linux line
+  discipline as local SIGQUIT. Attached open and attach now retain raw mode until that final query
+  and notice complete.
+
+The existing controller suite proves canonical-route selection and the permalink fallback. Its three
+tests pass through the repository-root Turbo graph. The CLI timing and raw-mode cases passed three
+times under `-race`. The two public browser journeys then passed together in five consecutive runs
+each (10/10 total). `TA-web-task-run-detail-redesign` and `ET-terminal-cli-public-contract` were
+flagged before the walk and are passing again.
+
 ## Paper Cuts
 
 - The isolated operator shell reports `No such theme: rose-pine` and fish waits ten seconds for a Primary Device Attribute query before each first prompt. Commands still execute correctly, but terminal startup is noisy and slower than necessary.

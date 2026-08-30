@@ -64,6 +64,15 @@ export function useTaskRunLocation(taskId: string, runId: string) {
   };
 
   const openSession = (sessionId: string) => {
+    const agentName =
+      page.session?.session_id === sessionId ? page.session.agent_name?.trim() : undefined;
+    if (agentName) {
+      void navigate({
+        to: "/agents/$name/sessions/$id",
+        params: { name: agentName, id: sessionId },
+      });
+      return;
+    }
     void navigate({ to: "/session/$id", params: { id: sessionId } });
   };
 
