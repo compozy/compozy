@@ -533,7 +533,6 @@ jobs:
         uses: ./.github/actions/setup-go
         with:
           go-version: ${{ env.GO_VERSION }}
-          install-gotestsum: "true"
 
       - name: Set up Bun (runtime build dependencies)
         uses: ./.github/actions/setup-bun
