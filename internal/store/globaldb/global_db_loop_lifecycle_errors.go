@@ -8,17 +8,15 @@ import (
 )
 
 const (
-	nodeLifecycleStateActive          = "active"
-	nodeLifecycleStatePaused          = "paused"
-	nodeLifecycleStateQuarantined     = "quarantined"
-	nodeLifecycleStateAttention       = "attention"
-	nodeLifecycleStateCancelRequested = "cancel_requested"
-	loopLifecycleStateIterationCap    = "iteration_cap_reached"
-	nodeLifecycleTransitionPause      = "pause"
-	nodeLifecycleTransitionResume     = "resume"
-	nodeLifecycleTransitionCancel     = "cancel"
-	nodeLifecycleTransitionKill       = "kill"
-	nodeLifecycleTransitionRequeue    = "requeue"
+	nodeLifecycleStateActive       = "active"
+	nodeLifecycleStatePaused       = "paused"
+	nodeLifecycleStateQuarantined  = "quarantined"
+	nodeLifecycleStateAttention    = "attention"
+	loopLifecycleStateIterationCap = "iteration_cap_reached"
+	nodeLifecycleTransitionPause   = "pause"
+	nodeLifecycleTransitionResume  = "resume"
+	nodeLifecycleTransitionCancel  = "cancel"
+	nodeLifecycleTransitionRequeue = "requeue"
 )
 
 func loopLifecycleReasonError(
@@ -68,24 +66,18 @@ func nodeLifecycleAllowedTransitions(actualState string) []string {
 		return []string{
 			nodeLifecycleTransitionResume,
 			nodeLifecycleTransitionCancel,
-			nodeLifecycleTransitionKill,
 		}
 	case nodeLifecycleStateQuarantined:
 		return []string{
 			nodeLifecycleTransitionRequeue,
 			nodeLifecycleTransitionCancel,
-			nodeLifecycleTransitionKill,
 		}
-	case nodeLifecycleStateCancelRequested,
-		string(looppkg.CancelStateRequested),
-		string(looppkg.CancelStateDelivering),
-		string(looppkg.CancelStateDraining):
-		return []string{nodeLifecycleTransitionKill}
+	case string(looppkg.CancelStateCanceled):
+		return []string{}
 	case nodeLifecycleStateActive, nodeLifecycleStateAttention:
 		return []string{
 			nodeLifecycleTransitionPause,
 			nodeLifecycleTransitionCancel,
-			nodeLifecycleTransitionKill,
 		}
 	default:
 		return []string{}

@@ -7,15 +7,20 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
 	goalpkg "github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/session"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
 	goalSessionOutboxBatchSize    = 50
 	goalSessionOutboxPollInterval = 100 * time.Millisecond
+	loopSessionCleanupConcurrency = 64
+	loopSessionCleanupStopTimeout = 5 * time.Second
 )
 
 type goalSessionOutboxStore interface {
@@ -23,13 +28,13 @@ type goalSessionOutboxStore interface {
 	AcknowledgeGoalSessionOutbox(context.Context, string, time.Time) error
 }
 
-type goalSessionCleanupStore interface {
-	ClaimGoalSessionCleanup(context.Context, int) ([]goalpkg.SessionCleanupObligation, error)
-	AcknowledgeGoalSessionCleanup(context.Context, string, time.Time) error
+type loopSessionCleanupStore interface {
+	ClaimLoopSessionCleanup(context.Context, int) ([]looppkg.SessionCleanupObligation, error)
+	AcknowledgeLoopSessionCleanup(context.Context, string, time.Time) error
 }
 
-type goalSessionCleanupStopper interface {
-	Stop(context.Context, string) error
+type loopSessionCleanupStopper interface {
+	StopWithCause(context.Context, string, session.StopCause, string) error
 }
 
 type goalSessionEventAppender interface {
@@ -39,8 +44,8 @@ type goalSessionEventAppender interface {
 type goalSessionOutboxRelay struct {
 	store        goalSessionOutboxStore
 	appender     goalSessionEventAppender
-	cleanupStore goalSessionCleanupStore
-	stopper      goalSessionCleanupStopper
+	cleanupStore loopSessionCleanupStore
+	stopper      loopSessionCleanupStopper
 	logger       *slog.Logger
 	now          func() time.Time
 	batchSize    int
@@ -120,32 +125,55 @@ func (r *goalSessionOutboxRelay) deliverPendingCleanups(ctx context.Context) err
 	if r.cleanupStore == nil || r.stopper == nil {
 		return nil
 	}
-	obligations, err := r.cleanupStore.ClaimGoalSessionCleanup(ctx, r.claimBatchSize())
+	obligations, err := r.cleanupStore.ClaimLoopSessionCleanup(ctx, r.claimBatchSize())
 	if err != nil {
-		return fmt.Errorf("daemon: claim Goal session cleanup: %w", err)
+		return fmt.Errorf("daemon: claim Loop session cleanup: %w", err)
 	}
 	var deliveryErrs []error
+	var deliveryErrsMu sync.Mutex
+	var group errgroup.Group
+	group.SetLimit(loopSessionCleanupConcurrency)
 	for _, obligation := range obligations {
-		if err := r.stopper.Stop(ctx, obligation.SessionID); err != nil &&
-			!errors.Is(err, session.ErrSessionNotFound) && !errors.Is(err, session.ErrSessionNotActive) {
-			wrapped := fmt.Errorf("stop Goal run-owned session %q: %w", obligation.SessionID, err)
-			r.logCleanupFailure(ctx, obligation, "stop", wrapped)
-			deliveryErrs = append(deliveryErrs, wrapped)
-			continue
-		}
-		completedAt := r.currentTime()
-		if completedAt.Before(obligation.CreatedAt) {
-			completedAt = obligation.CreatedAt
-		}
-		if err := r.cleanupStore.AcknowledgeGoalSessionCleanup(
-			ctx,
-			obligation.CleanupID,
-			completedAt,
-		); err != nil {
-			wrapped := fmt.Errorf("acknowledge Goal session cleanup %q: %w", obligation.CleanupID, err)
-			r.logCleanupFailure(ctx, obligation, "acknowledge", wrapped)
-			deliveryErrs = append(deliveryErrs, wrapped)
-		}
+		group.Go(func() error {
+			stopCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), loopSessionCleanupStopTimeout)
+			defer cancel()
+			err := r.stopper.StopWithCause(
+				stopCtx,
+				obligation.SessionID,
+				session.CauseUserRequested,
+				"Loop session cleanup: "+string(obligation.Cause),
+			)
+			if err != nil && !errors.Is(err, session.ErrSessionNotFound) &&
+				!errors.Is(err, session.ErrSessionNotActive) {
+				wrapped := fmt.Errorf("stop Loop run-owned session %q: %w", obligation.SessionID, err)
+				r.logCleanupFailure(ctx, obligation, "stop", wrapped)
+				deliveryErrsMu.Lock()
+				deliveryErrs = append(deliveryErrs, wrapped)
+				deliveryErrsMu.Unlock()
+				return nil
+			}
+			completedAt := r.currentTime()
+			if completedAt.Before(obligation.CreatedAt) {
+				completedAt = obligation.CreatedAt
+			}
+			ackCtx, ackCancel := context.WithTimeout(context.WithoutCancel(ctx), loopSessionCleanupStopTimeout)
+			defer ackCancel()
+			if err := r.cleanupStore.AcknowledgeLoopSessionCleanup(
+				ackCtx,
+				obligation.CleanupID,
+				completedAt,
+			); err != nil {
+				wrapped := fmt.Errorf("acknowledge Loop session cleanup %q: %w", obligation.CleanupID, err)
+				r.logCleanupFailure(ctx, obligation, "acknowledge", wrapped)
+				deliveryErrsMu.Lock()
+				deliveryErrs = append(deliveryErrs, wrapped)
+				deliveryErrsMu.Unlock()
+			}
+			return nil
+		})
+	}
+	if err := group.Wait(); err != nil {
+		deliveryErrs = append(deliveryErrs, err)
 	}
 	return errors.Join(deliveryErrs...)
 }
@@ -159,22 +187,23 @@ func (r *goalSessionOutboxRelay) claimBatchSize() int {
 
 func (r *goalSessionOutboxRelay) logCleanupFailure(
 	ctx context.Context,
-	obligation goalpkg.SessionCleanupObligation,
+	obligation looppkg.SessionCleanupObligation,
 	phase string,
 	err error,
 ) {
 	age := max(r.currentTime().Sub(obligation.CreatedAt), 0)
 	r.runtimeLogger().WarnContext(
 		ctx,
-		"daemon: Goal session cleanup delivery failed",
+		"daemon: Loop session cleanup delivery failed",
 		"lane", "session-cleanup",
 		"phase", phase,
 		"cleanup_id", obligation.CleanupID,
 		"workspace_id", obligation.WorkspaceID,
 		"loop_run_id", obligation.LoopRunID,
 		"session_id", obligation.SessionID,
-		"binding_handle", obligation.Handle,
-		"binding_epoch", obligation.BindingEpoch,
+		"source_kind", obligation.SourceKind,
+		"source_id", obligation.SourceID,
+		"source_epoch", obligation.SourceEpoch,
 		"cause", obligation.Cause,
 		"age", age,
 		"error", err,

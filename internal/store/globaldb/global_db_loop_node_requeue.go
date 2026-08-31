@@ -87,7 +87,7 @@ func prepareNodeRequeue(
 			looppkg.ReasonCodeInvalidStatusTransition,
 			fmt.Errorf("%w: loop run %q reached its iteration cap", looppkg.ErrInvalidTransition, mutation.RunID),
 			loopLifecycleStateIterationCap,
-			[]string{nodeLifecycleTransitionCancel, nodeLifecycleTransitionKill},
+			[]string{nodeLifecycleTransitionCancel},
 			nil,
 		)
 	}

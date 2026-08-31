@@ -445,12 +445,11 @@ export function applyLoopEventFrame(
       }
       break;
     }
-    // A node that resumes, gets canceled/killed, quarantines, or requeues is no
+    // A node that resumes, gets canceled, quarantines, or requeues is no
     // longer waiting on a backoff — drop the stale schedule so the run page stops
     // counting down to an attempt that will never run.
     case "node_resumed":
     case "node_canceled":
-    case "node_killed":
     case "node_quarantined":
     case "node_requeued":
     case "node_succeeded": {

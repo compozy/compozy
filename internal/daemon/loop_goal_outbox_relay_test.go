@@ -5,8 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
+	"maps"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -90,10 +93,11 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		t.Parallel()
 
 		createdAt := time.Date(2026, 7, 11, 8, 0, 0, 0, time.UTC)
-		cleanupStore := &goalSessionCleanupStoreStub{obligation: goalpkg.SessionCleanupObligation{
+		cleanupStore := &goalSessionCleanupStoreStub{obligation: looppkg.SessionCleanupObligation{
 			ID: 1, CleanupID: "goal-session-cleanup:run-1:goal-handle:2",
-			WorkspaceID: "workspace-1", LoopRunID: "run-1", Handle: "goal-handle",
-			BindingEpoch: 2, SessionID: "session-run-owned", Cause: goalpkg.SessionCleanupCauseReseed,
+			WorkspaceID: "workspace-1", LoopRunID: "run-1",
+			SourceKind: looppkg.SessionCleanupSourceGoalBinding, SourceID: "goal-handle", SourceEpoch: 2,
+			SessionID: "session-run-owned", Cause: looppkg.SessionCleanupCauseReseed,
 			CreatedAt: createdAt,
 		}}
 		stopper := &goalSessionCleanupStopperStub{errs: []error{errors.New("provider stop failed"), nil}}
@@ -120,7 +124,8 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 			t.Fatalf("Unmarshal(cleanup failure log) error = %v", err)
 		}
 		if failureLog["lane"] != "session-cleanup" || failureLog["phase"] != "stop" ||
-			failureLog["binding_handle"] != "goal-handle" || failureLog["binding_epoch"] != float64(2) ||
+			failureLog["source_kind"] != "goal-binding" || failureLog["source_id"] != "goal-handle" ||
+			failureLog["source_epoch"] != float64(2) ||
 			failureLog["cleanup_id"] != cleanupStore.obligation.CleanupID {
 			t.Fatalf("cleanup failure log = %#v", failureLog)
 		}
@@ -135,17 +140,21 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 				cleanupStore.completed,
 			)
 		}
+		if stopper.cause != session.CauseUserRequested {
+			t.Fatalf("cleanup stop cause = %v, want user requested", stopper.cause)
+		}
 	})
 
 	t.Run("Should deliver cleanup even when projection delivery is poisoned", func(t *testing.T) {
 		t.Parallel()
 
 		createdAt := time.Date(2026, 7, 11, 8, 10, 0, 0, time.UTC)
-		cleanupStore := &goalSessionCleanupStoreStub{obligation: goalpkg.SessionCleanupObligation{
+		cleanupStore := &goalSessionCleanupStoreStub{obligation: looppkg.SessionCleanupObligation{
 			ID: 2, CleanupID: "goal-session-cleanup:run-2:goal-handle:1",
-			WorkspaceID: "workspace-1", LoopRunID: "run-2", Handle: "goal-handle",
-			BindingEpoch: 1, SessionID: "session-cleanup-despite-projection",
-			Cause: goalpkg.SessionCleanupCauseTerminal, CreatedAt: createdAt,
+			WorkspaceID: "workspace-1", LoopRunID: "run-2",
+			SourceKind: looppkg.SessionCleanupSourceGoalBinding, SourceID: "goal-handle", SourceEpoch: 1,
+			SessionID: "session-cleanup-despite-projection",
+			Cause:     looppkg.SessionCleanupCauseTerminal, CreatedAt: createdAt,
 		}}
 		relay := &goalSessionOutboxRelay{
 			store: &goalSessionOutboxStoreStub{event: goalpkg.SessionOutboxEvent{
@@ -175,13 +184,13 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		t.Parallel()
 
 		createdAt := time.Date(2026, 7, 11, 8, 20, 0, 0, time.UTC)
-		cleanupStore := &goalSessionCleanupBatchStoreStub{obligations: []goalpkg.SessionCleanupObligation{
+		cleanupStore := &goalSessionCleanupBatchStoreStub{obligations: []looppkg.SessionCleanupObligation{
 			{ID: 3, CleanupID: "cleanup-failing", WorkspaceID: "workspace-1", LoopRunID: "run-3",
-				Handle: "goal-a", BindingEpoch: 1, SessionID: "session-failing",
-				Cause: goalpkg.SessionCleanupCauseStop, CreatedAt: createdAt},
+				SourceKind: looppkg.SessionCleanupSourceGoalBinding, SourceID: "goal-a", SourceEpoch: 1,
+				SessionID: "session-failing", Cause: looppkg.SessionCleanupCauseStop, CreatedAt: createdAt},
 			{ID: 4, CleanupID: "cleanup-success", WorkspaceID: "workspace-1", LoopRunID: "run-4",
-				Handle: "goal-b", BindingEpoch: 1, SessionID: "session-success",
-				Cause: goalpkg.SessionCleanupCauseStop, CreatedAt: createdAt},
+				SourceKind: looppkg.SessionCleanupSourceGoalBinding, SourceID: "goal-b", SourceEpoch: 1,
+				SessionID: "session-success", Cause: looppkg.SessionCleanupCauseStop, CreatedAt: createdAt},
 		}}
 		stopper := &goalSessionCleanupStopperBySessionStub{
 			errs: map[string]error{"session-failing": errors.New("permanent Stop failure")},
@@ -197,6 +206,86 @@ func TestGoalSessionOutboxRelay(t *testing.T) {
 		}
 		if cleanupStore.completed["cleanup-failing"] || !cleanupStore.completed["cleanup-success"] {
 			t.Fatalf("cleanup batch completion = %#v", cleanupStore.completed)
+		}
+	})
+
+	t.Run("Should acknowledge missing and inactive sessions as already stopped", func(t *testing.T) {
+		t.Parallel()
+
+		createdAt := time.Date(2026, 8, 31, 16, 0, 0, 0, time.UTC)
+		cleanupStore := &goalSessionCleanupBatchStoreStub{obligations: []looppkg.SessionCleanupObligation{
+			{
+				ID: 5, CleanupID: "cleanup-missing", WorkspaceID: "workspace-1", LoopRunID: "run-5",
+				SourceKind: looppkg.SessionCleanupSourceTaskRun, SourceID: "task-run-5",
+				SessionID: "session-missing", Cause: looppkg.SessionCleanupCauseOperatorCancel, CreatedAt: createdAt,
+			},
+			{
+				ID: 6, CleanupID: "cleanup-inactive", WorkspaceID: "workspace-1", LoopRunID: "run-5",
+				SourceKind: looppkg.SessionCleanupSourceTaskRun, SourceID: "task-run-6",
+				SessionID: "session-inactive", Cause: looppkg.SessionCleanupCauseOperatorCancel, CreatedAt: createdAt,
+			},
+		}}
+		stopper := &goalSessionCleanupStopperBySessionStub{errs: map[string]error{
+			"session-missing":  session.ErrSessionNotFound,
+			"session-inactive": session.ErrSessionNotActive,
+		}}
+		relay := &goalSessionOutboxRelay{
+			store: &goalSessionOutboxStoreStub{delivered: true}, appender: &goalSessionEventAppenderStub{},
+			cleanupStore: cleanupStore, stopper: stopper, now: func() time.Time { return createdAt.Add(time.Second) },
+		}
+
+		if err := relay.DeliverPending(testutil.Context(t)); err != nil {
+			t.Fatalf("DeliverPending(already stopped) error = %v", err)
+		}
+		if !cleanupStore.isCompleted("cleanup-missing") || !cleanupStore.isCompleted("cleanup-inactive") {
+			t.Fatalf("already stopped cleanup completion = %#v", cleanupStore.completedSnapshot())
+		}
+	})
+
+	t.Run("Should bound concurrent cleanup delivery", func(t *testing.T) {
+		t.Parallel()
+
+		createdAt := time.Date(2026, 8, 31, 16, 10, 0, 0, time.UTC)
+		obligations := make([]looppkg.SessionCleanupObligation, loopSessionCleanupConcurrency+1)
+		for index := range obligations {
+			obligations[index] = looppkg.SessionCleanupObligation{
+				ID: int64(index + 10), CleanupID: fmt.Sprintf("cleanup-bounded-%d", index),
+				WorkspaceID: "workspace-1", LoopRunID: "run-bounded",
+				SourceKind: looppkg.SessionCleanupSourceTaskRun, SourceID: fmt.Sprintf("task-run-%d", index),
+				SessionID: fmt.Sprintf("session-%d", index), Cause: looppkg.SessionCleanupCauseOperatorCancel,
+				CreatedAt: createdAt,
+			}
+		}
+		cleanupStore := &goalSessionCleanupBatchStoreStub{obligations: obligations}
+		stopper := &boundedCleanupStopperStub{
+			started: make(chan struct{}, len(obligations)), release: make(chan struct{}),
+		}
+		relay := &goalSessionOutboxRelay{
+			store: &goalSessionOutboxStoreStub{delivered: true}, appender: &goalSessionEventAppenderStub{},
+			cleanupStore: cleanupStore, stopper: stopper, batchSize: len(obligations),
+			now: func() time.Time { return createdAt.Add(time.Second) },
+		}
+		done := make(chan error, 1)
+		ctx := testutil.Context(t)
+		go func() { done <- relay.DeliverPending(ctx) }()
+		for range loopSessionCleanupConcurrency {
+			select {
+			case <-stopper.started:
+			case <-time.After(time.Second):
+				t.Fatal("cleanup relay did not fill its concurrency bound")
+			}
+		}
+		select {
+		case <-stopper.started:
+			t.Fatal("cleanup relay exceeded its concurrency bound")
+		case <-time.After(50 * time.Millisecond):
+		}
+		close(stopper.release)
+		if err := <-done; err != nil {
+			t.Fatalf("DeliverPending(bounded) error = %v", err)
+		}
+		if stopper.maximum() != loopSessionCleanupConcurrency {
+			t.Fatalf("maximum cleanup concurrency = %d, want %d", stopper.maximum(), loopSessionCleanupConcurrency)
 		}
 	})
 }
@@ -244,15 +333,18 @@ type goalSessionEventAppenderStub struct {
 }
 
 type goalSessionCleanupBatchStoreStub struct {
-	obligations []goalpkg.SessionCleanupObligation
+	mu          sync.Mutex
+	obligations []looppkg.SessionCleanupObligation
 	completed   map[string]bool
 }
 
-func (s *goalSessionCleanupBatchStoreStub) ClaimGoalSessionCleanup(
+func (s *goalSessionCleanupBatchStoreStub) ClaimLoopSessionCleanup(
 	context.Context,
 	int,
-) ([]goalpkg.SessionCleanupObligation, error) {
-	pending := make([]goalpkg.SessionCleanupObligation, 0, len(s.obligations))
+) ([]looppkg.SessionCleanupObligation, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	pending := make([]looppkg.SessionCleanupObligation, 0, len(s.obligations))
 	for _, obligation := range s.obligations {
 		if s.completed == nil || !s.completed[obligation.CleanupID] {
 			pending = append(pending, obligation)
@@ -261,11 +353,13 @@ func (s *goalSessionCleanupBatchStoreStub) ClaimGoalSessionCleanup(
 	return pending, nil
 }
 
-func (s *goalSessionCleanupBatchStoreStub) AcknowledgeGoalSessionCleanup(
+func (s *goalSessionCleanupBatchStoreStub) AcknowledgeLoopSessionCleanup(
 	_ context.Context,
 	cleanupID string,
 	_ time.Time,
 ) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	if s.completed == nil {
 		s.completed = make(map[string]bool)
 	}
@@ -273,23 +367,35 @@ func (s *goalSessionCleanupBatchStoreStub) AcknowledgeGoalSessionCleanup(
 	return nil
 }
 
+func (s *goalSessionCleanupBatchStoreStub) isCompleted(cleanupID string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.completed[cleanupID]
+}
+
+func (s *goalSessionCleanupBatchStoreStub) completedSnapshot() map[string]bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return maps.Clone(s.completed)
+}
+
 type goalSessionCleanupStoreStub struct {
-	obligation goalpkg.SessionCleanupObligation
+	obligation looppkg.SessionCleanupObligation
 	ackCalls   int
 	completed  bool
 }
 
-func (s *goalSessionCleanupStoreStub) ClaimGoalSessionCleanup(
+func (s *goalSessionCleanupStoreStub) ClaimLoopSessionCleanup(
 	context.Context,
 	int,
-) ([]goalpkg.SessionCleanupObligation, error) {
+) ([]looppkg.SessionCleanupObligation, error) {
 	if s.completed {
-		return []goalpkg.SessionCleanupObligation{}, nil
+		return []looppkg.SessionCleanupObligation{}, nil
 	}
-	return []goalpkg.SessionCleanupObligation{s.obligation}, nil
+	return []looppkg.SessionCleanupObligation{s.obligation}, nil
 }
 
-func (s *goalSessionCleanupStoreStub) AcknowledgeGoalSessionCleanup(
+func (s *goalSessionCleanupStoreStub) AcknowledgeLoopSessionCleanup(
 	_ context.Context,
 	cleanupID string,
 	_ time.Time,
@@ -305,18 +411,62 @@ func (s *goalSessionCleanupStoreStub) AcknowledgeGoalSessionCleanup(
 type goalSessionCleanupStopperStub struct {
 	errs  []error
 	calls int
+	cause session.StopCause
 }
 
 type goalSessionCleanupStopperBySessionStub struct {
 	errs map[string]error
 }
 
-func (s *goalSessionCleanupStopperBySessionStub) Stop(_ context.Context, sessionID string) error {
+type boundedCleanupStopperStub struct {
+	mu      sync.Mutex
+	active  int
+	maxSeen int
+	started chan struct{}
+	release chan struct{}
+}
+
+func (s *boundedCleanupStopperStub) StopWithCause(
+	context.Context,
+	string,
+	session.StopCause,
+	string,
+) error {
+	s.mu.Lock()
+	s.active++
+	s.maxSeen = max(s.maxSeen, s.active)
+	s.mu.Unlock()
+	s.started <- struct{}{}
+	<-s.release
+	s.mu.Lock()
+	s.active--
+	s.mu.Unlock()
+	return nil
+}
+
+func (s *boundedCleanupStopperStub) maximum() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.maxSeen
+}
+
+func (s *goalSessionCleanupStopperBySessionStub) StopWithCause(
+	_ context.Context,
+	sessionID string,
+	_ session.StopCause,
+	_ string,
+) error {
 	return s.errs[sessionID]
 }
 
-func (s *goalSessionCleanupStopperStub) Stop(context.Context, string) error {
+func (s *goalSessionCleanupStopperStub) StopWithCause(
+	_ context.Context,
+	_ string,
+	cause session.StopCause,
+	_ string,
+) error {
 	s.calls++
+	s.cause = cause
 	if len(s.errs) == 0 {
 		return nil
 	}

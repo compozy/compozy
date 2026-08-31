@@ -1,4 +1,4 @@
-import { Info, TriangleAlert } from "lucide-react";
+import { Info } from "lucide-react";
 
 import { ConfirmDialog } from "@compozy/ui";
 
@@ -8,7 +8,7 @@ import { loopRunStateStrip, loopRunVerbConfirmCopy } from "../../lib/loop-node-v
 import { LoopControlAnswerAlert } from "./loop-control-answer-alert";
 
 /** The run-level verbs that require a confirmation before they commit. */
-export type LoopRunConfirmVerb = "cancel" | "kill";
+export type LoopRunConfirmVerb = "cancel";
 
 interface LoopRunControlDialogProps {
   /** The verb awaiting confirmation; null closes the dialog. */
@@ -30,13 +30,12 @@ interface LoopRunControlDialogProps {
 }
 
 /**
- * The run cancel / kill confirmation (PRD UI/UX: "every destructive or
+ * The run cancellation confirmation (PRD UI/UX: "every destructive or
  * state-changing action confirms with the current state it acts on").
  *
- * Both verbs land on the `canceled` terminal; the difference is what happens to
- * in-flight work, so the body says exactly that rather than leaving the operator
- * to infer it. The note strip restates the run's identity and *current* status,
- * so a stale screen cannot lead to a confident wrong click.
+ * Cancellation lands on the `canceled` terminal and stops active work. The note
+ * strip restates the run's identity and *current* status, so a stale screen
+ * cannot lead to a confident wrong click.
  */
 export function LoopRunControlDialog({
   verb,
@@ -54,12 +53,10 @@ export function LoopRunControlDialog({
 }: LoopRunControlDialogProps) {
   if (!verb) return null;
   const copy = loopRunVerbConfirmCopy(verb, runId, status);
-  const isKill = verb === "kill";
-  const FootGlyph = isKill ? TriangleAlert : Info;
   return (
     <ConfirmDialog
       cancelLabel={copy.cancelLabel}
-      confirmButtonProps={isKill ? { variant: "destructive-solid" } : undefined}
+      confirmButtonProps={{ variant: "destructive-solid" }}
       confirmLabel={copy.confirmLabel}
       contentProps={{
         "data-testid": "loop-run-control-dialog",
@@ -70,7 +67,7 @@ export function LoopRunControlDialog({
       eyebrow={copy.eyebrow}
       footNote={
         <>
-          <FootGlyph aria-hidden="true" />
+          <Info aria-hidden="true" />
           <span>{copy.micro}</span>
         </>
       }

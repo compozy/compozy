@@ -51,7 +51,6 @@ var timelineTiers = map[RunEventKind]TimelineTier{
 	RunEventNodePaused:           TimelineNotable,
 	RunEventNodeResumed:          TimelineNotable,
 	RunEventNodeCanceled:         TimelineNotable,
-	RunEventNodeKilled:           TimelineNotable,
 	RunEventNodeQuarantined:      TimelineNotable,
 	RunEventNodeRequeued:         TimelineNotable,
 	RunEventNodeWaitStarted:      TimelineActivity,
@@ -331,7 +330,7 @@ func timelineTitle(kind RunEventKind, payload timelinePayload) (string, error) {
 func timelineNodeTitle(kind RunEventKind, payload timelinePayload) (string, bool) {
 	switch kind {
 	case RunEventNodeRunning, RunEventNodeSucceeded, RunEventNodeFailed, RunEventNodePaused,
-		RunEventNodeResumed, RunEventNodeCanceled, RunEventNodeKilled, RunEventNodeQuarantined,
+		RunEventNodeResumed, RunEventNodeCanceled, RunEventNodeQuarantined,
 		RunEventNodeRequeued:
 		state := strings.TrimPrefix(string(kind), "node_")
 		if payload.NodeID != "" {

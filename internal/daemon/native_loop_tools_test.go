@@ -409,8 +409,8 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				wantReason:   toolspkg.ReasonLoopInvalidStatusTransition,
 			},
 			{
-				name:         "Should preserve terminal run rejection for Kill",
-				toolID:       toolspkg.ToolIDLoopKill,
+				name:         "Should preserve terminal run rejection for Cancel",
+				toolID:       toolspkg.ToolIDLoopCancel,
 				input:        json.RawMessage(`{"run_id":"looprun-terminal"}`),
 				domainReason: looppkg.ReasonCodeTerminalRun,
 				wantReason:   toolspkg.ReasonLoopTerminalRun,
@@ -442,7 +442,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 					Workspaces: nativeNetworkTestWorkspaceService(t),
 					Loops: func() core.LoopService {
 						return &nativeLoopServiceStub{
-							killLoopRunFn: func(context.Context, string, string) (contract.LoopMutationResponse, error) {
+							cancelLoopRunFn: func(context.Context, string, string) (contract.LoopMutationResponse, error) {
 								return contract.LoopMutationResponse{}, domainErr
 							},
 							pauseLoopRunFn: func(context.Context, string, string) error {
@@ -492,7 +492,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			Err:  looppkg.ErrTransitionConflict,
 			Meta: map[string]string{
 				looppkg.ReasonMetaActualState:        "quarantined",
-				looppkg.ReasonMetaAllowedTransitions: "requeue,cancel,kill",
+				looppkg.ReasonMetaAllowedTransitions: "requeue,cancel",
 				looppkg.ReasonMetaWinnerActorID:      "operator:alice",
 			},
 		}
@@ -531,12 +531,6 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				if workspaceID != "ws-alpha" || runID != "run-1" {
 					t.Fatalf("CancelLoopRun target = %s/%s", workspaceID, runID)
 				}
-				return contract.LoopMutationResponse{
-					OK: true, RunID: runID, Status: string(contract.LoopRunStatusCanceled), Provenance: provenance,
-				}, nil
-			},
-			killLoopRunFn: func(_ context.Context, _ string, runID string) (contract.LoopMutationResponse, error) {
-				calls = append(calls, "run.kill")
 				return contract.LoopMutationResponse{
 					OK: true, RunID: runID, Status: string(contract.LoopRunStatusCanceled), Provenance: provenance,
 				}, nil
@@ -590,7 +584,6 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 				return nativeLoopNodeMutationResponse(runID, nodeID, provenance), nil
 			},
 			cancelLoopNodeFn: nativeLoopNodeMutationRecorder(t, &calls, "node.cancel", provenance),
-			killLoopNodeFn:   nativeLoopNodeMutationRecorder(t, &calls, "node.kill", provenance),
 			requeueLoopNodeFn: nativeLoopNodeMutationRecorder(
 				t, &calls, "node.requeue", provenance,
 			),
@@ -607,7 +600,6 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			inventory bool
 		}{
 			{id: toolspkg.ToolIDLoopCancel, input: `{"run_id":"run-1"}`},
-			{id: toolspkg.ToolIDLoopKill, input: `{"run_id":"run-1"}`},
 			{id: toolspkg.ToolIDLoopNodes, input: `{"state":"waiting","limit":5}`, inventory: true},
 			{
 				id:    toolspkg.ToolIDLoopNodePause,
@@ -619,10 +611,6 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 			},
 			{
 				id:    toolspkg.ToolIDLoopNodeCancel,
-				input: `{"run_id":"run-1","node_id":"approval","reason":"inspect"}`,
-			},
-			{
-				id:    toolspkg.ToolIDLoopNodeKill,
 				input: `{"run_id":"run-1","node_id":"approval","reason":"inspect"}`,
 			},
 			{
@@ -656,8 +644,7 @@ func TestDaemonNativeLoopTools(t *testing.T) {
 		}
 
 		wantCalls := []string{
-			"run.cancel", "run.kill", "nodes.list", "node.pause", "node.resume",
-			"node.cancel", "node.kill", "node.requeue",
+			"run.cancel", "nodes.list", "node.pause", "node.resume", "node.cancel", "node.requeue",
 		}
 		if !slices.Equal(calls, wantCalls) {
 			t.Fatalf("lifecycle calls = %#v, want %#v", calls, wantCalls)
@@ -1589,7 +1576,6 @@ type nativeLoopServiceStub struct {
 	resolveActiveGoalOriginAliasFn func(context.Context, looppkg.WorkspaceID, string) (string, bool, error)
 	recordGoalReportFn             func(context.Context, goalpkg.RecordToolReportRequest) (goalpkg.ReportIntent, error)
 	cancelLoopRunFn                func(context.Context, string, string) (contract.LoopMutationResponse, error)
-	killLoopRunFn                  func(context.Context, string, string) (contract.LoopMutationResponse, error)
 	pauseLoopRunFn                 func(context.Context, string, string) error
 	resumeLoopRunFn                func(context.Context, string, string) error
 	approveLoopRunFn               func(context.Context, string, string, contract.ApproveLoopRunRequest, taskpkg.ActorContext) error
@@ -1598,7 +1584,6 @@ type nativeLoopServiceStub struct {
 	pauseLoopNodeFn                func(context.Context, string, string, string, contract.LoopNodePauseRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	resumeLoopNodeFn               func(context.Context, string, string, string, contract.LoopNodeResumeRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	cancelLoopNodeFn               func(context.Context, string, string, string, contract.LoopNodeMutationRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
-	killLoopNodeFn                 func(context.Context, string, string, string, contract.LoopNodeMutationRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	requeueLoopNodeFn              func(context.Context, string, string, string, contract.LoopNodeMutationRequest, taskpkg.ActorContext) (contract.LoopMutationResponse, error)
 	amendLoopNodeFn                func(context.Context, string, string, string, contract.LoopNodeAmendRequest, taskpkg.ActorContext) (contract.LoopNodeAmendResponse, error)
 }
@@ -1916,18 +1901,6 @@ func (s *nativeLoopServiceStub) CancelLoopRun(
 	return contract.LoopMutationResponse{}, errors.New("unexpected CancelLoopRun call")
 }
 
-func (s *nativeLoopServiceStub) KillLoopRun(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	_ taskpkg.ActorContext,
-) (contract.LoopMutationResponse, error) {
-	if s.killLoopRunFn != nil {
-		return s.killLoopRunFn(ctx, workspaceID, runID)
-	}
-	return contract.LoopMutationResponse{}, errors.New("unexpected KillLoopRun call")
-}
-
 func (s *nativeLoopServiceStub) ListLoopNodes(
 	ctx context.Context,
 	workspaceID string,
@@ -1979,20 +1952,6 @@ func (s *nativeLoopServiceStub) CancelLoopNode(
 		return s.cancelLoopNodeFn(ctx, workspaceID, runID, nodeID, req, actor)
 	}
 	return contract.LoopMutationResponse{}, errors.New("unexpected CancelLoopNode call")
-}
-
-func (s *nativeLoopServiceStub) KillLoopNode(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	nodeID string,
-	req contract.LoopNodeMutationRequest,
-	actor taskpkg.ActorContext,
-) (contract.LoopMutationResponse, error) {
-	if s.killLoopNodeFn != nil {
-		return s.killLoopNodeFn(ctx, workspaceID, runID, nodeID, req, actor)
-	}
-	return contract.LoopMutationResponse{}, errors.New("unexpected KillLoopNode call")
 }
 
 func (s *nativeLoopServiceStub) RequeueLoopNode(

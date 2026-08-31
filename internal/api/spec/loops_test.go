@@ -265,13 +265,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 				parameters: []string{"workspace_id", "run_id"},
 			},
 			{
-				name:       "kill run",
-				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/kill",
-				method:     "POST",
-				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
-				parameters: []string{"workspace_id", "run_id"},
-			},
-			{
 				name:       "pause node",
 				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/pause",
 				method:     "POST",
@@ -288,13 +281,6 @@ func TestLoopOpenAPIContract(t *testing.T) {
 			{
 				name:       "cancel node",
 				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/cancel",
-				method:     "POST",
-				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
-				parameters: []string{"workspace_id", "run_id", "node_id"},
-			},
-			{
-				name:       "kill node",
-				path:       "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/kill",
 				method:     "POST",
 				statuses:   []int{200, 400, 404, 409, 422, 503, 500},
 				parameters: []string{"workspace_id", "run_id", "node_id"},

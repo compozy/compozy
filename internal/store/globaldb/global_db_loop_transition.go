@@ -55,7 +55,7 @@ func compareAndSwapLoopRunStatusWithEffects(
 		return err
 	}
 	if to.Terminal() {
-		terminalCause, err := terminalCauseForLoopStatus(to, cause)
+		terminalCause, err := terminalCauseForLoopStatus(to)
 		if err != nil {
 			return err
 		}

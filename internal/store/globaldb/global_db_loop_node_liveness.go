@@ -100,7 +100,7 @@ func loadLiveLivenessCell(
 	if err != nil {
 		return nodeLivenessCell{}, false, err
 	}
-	if loopRun.WorkspaceID != observation.WorkspaceID || loopRun.Status.Terminal() || loopRun.CancelRequested {
+	if loopRun.WorkspaceID != observation.WorkspaceID || loopRun.Status.Terminal() {
 		return nodeLivenessCell{}, false, nil
 	}
 	var status string

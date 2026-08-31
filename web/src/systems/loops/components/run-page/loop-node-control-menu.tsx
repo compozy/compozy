@@ -32,7 +32,7 @@ interface LoopNodeControlMenuProps {
  * Verbs that end work sit below a separator so they are never the reflex click.
  * Danger styling remains owned by `LOOP_NODE_VERB_PRESENTATION`.
  */
-const STOPPING_VERBS = new Set<LoopNodeVerb>(["cancel", "kill"]);
+const STOPPING_VERBS = new Set<LoopNodeVerb>(["cancel"]);
 
 /**
  * The per-node verb menu (VC-R3). The item set is whatever

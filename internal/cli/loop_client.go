@@ -100,12 +100,6 @@ type loopCommandClient interface {
 		runID string,
 		credentials agentidentity.Credentials,
 	) (contract.LoopMutationResponse, error)
-	KillLoopRun(
-		ctx context.Context,
-		workspaceID string,
-		runID string,
-		credentials agentidentity.Credentials,
-	) (contract.LoopMutationResponse, error)
 	ListLoopNodes(
 		ctx context.Context,
 		workspaceID string,
@@ -128,14 +122,6 @@ type loopCommandClient interface {
 		credentials agentidentity.Credentials,
 	) (contract.LoopMutationResponse, error)
 	CancelLoopNode(
-		ctx context.Context,
-		workspaceID string,
-		runID string,
-		nodeID string,
-		request contract.LoopNodeMutationRequest,
-		credentials agentidentity.Credentials,
-	) (contract.LoopMutationResponse, error)
-	KillLoopNode(
 		ctx context.Context,
 		workspaceID string,
 		runID string,

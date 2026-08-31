@@ -22,7 +22,7 @@ func protectCanceledLoopFromStaleCoordinator(
 	if err != nil {
 		return false, err
 	}
-	if !run.CancelRequested || completion.Plan.CancellationDrain {
+	if run.Status != looppkg.StatusCanceled {
 		return false, nil
 	}
 	plan := taskpkg.CoordinatorCompletionPlan{
@@ -30,8 +30,7 @@ func protectCanceledLoopFromStaleCoordinator(
 			LoopRunID:  string(run.ID),
 			Generation: max(1, run.Generation),
 		},
-		Yield:             true,
-		CancellationDrain: true,
+		Yield: true,
 	}
 	if !run.Status.Terminal() {
 		plan.GenerationInFlight = true

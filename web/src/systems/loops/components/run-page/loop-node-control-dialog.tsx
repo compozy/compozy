@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Ban, Hourglass, Info, TriangleAlert } from "lucide-react";
+import { Ban, Hourglass, Info } from "lucide-react";
 
 import { ConfirmDialog, Label, RadioCard, Textarea } from "@compozy/ui";
 
@@ -99,7 +99,6 @@ function LoopNodeControlDialogForm({
   const isPause = request.verb === "pause";
   const isRequeue = request.verb === "requeue";
   const isWaitResume = request.verb === "resume-wait";
-  const isKill = request.verb === "kill";
   const offersReason = isPause || isRequeue;
   const waitExpect = request.node.waits.find(isOpenWait)?.expect;
   const waitCheck = isWaitResume ? checkLoopWaitPayload(payload, waitExpect) : null;
@@ -110,13 +109,12 @@ function LoopNodeControlDialogForm({
     request.verb === "resume-immediate"
       ? LOOP_NODE_RESUME_MODES[request.verb]
       : undefined;
-  const FootGlyph = isKill ? TriangleAlert : Info;
   const confirmDisabled = Boolean(isPending) || waitInvalid;
   return (
     <ConfirmDialog
       cancelLabel={copy.cancelLabel}
       confirmButtonProps={
-        isKill
+        copy.tone === "danger"
           ? { disabled: confirmDisabled, variant: "destructive-solid" }
           : { disabled: confirmDisabled }
       }
@@ -127,7 +125,7 @@ function LoopNodeControlDialogForm({
       eyebrow={copy.eyebrow}
       footNote={
         <>
-          <FootGlyph aria-hidden="true" />
+          <Info aria-hidden="true" />
           <span>{copy.micro}</span>
         </>
       }

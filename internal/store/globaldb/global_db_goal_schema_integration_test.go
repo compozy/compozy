@@ -251,7 +251,7 @@ func assertGoalDurableStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"loop_goal_judge_attempts",
 		"loop_session_bindings",
 		"loop_goal_session_outbox",
-		"loop_goal_session_cleanup",
+		"loop_session_cleanup",
 		"loop_goal_binding_retry_witnesses",
 	)
 	assertTableColumns(t, globalDB.db, "loop_goal_turns", []string{
@@ -324,8 +324,8 @@ func assertGoalDurableStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"id", "event_id", "workspace_id", "origin_session_id", "loop_run_id", "bound_session_id",
 		"cause", "created_at", "delivered_at",
 	})
-	assertTableColumns(t, globalDB.db, "loop_goal_session_cleanup", []string{
-		"id", "cleanup_id", "workspace_id", "loop_run_id", "handle", "binding_epoch",
+	assertTableColumns(t, globalDB.db, "loop_session_cleanup", []string{
+		"id", "cleanup_id", "workspace_id", "loop_run_id", "source_kind", "source_id", "source_epoch",
 		"session_id", "cause", "created_at", "completed_at",
 	})
 	assertTableColumns(t, globalDB.db, "loop_goal_binding_retry_witnesses", []string{
@@ -360,13 +360,13 @@ func assertGoalDurableStateSchema(t *testing.T, globalDB *GlobalDB) {
 	assertIndexesPresent(t, globalDB.db, "session_input_queue",
 		"idx_session_input_queue_goal_owner", "uq_session_input_queue_goal_prompt")
 	assertIndexesPresent(t, globalDB.db, "loop_goal_session_outbox", "idx_loop_goal_session_outbox_pending")
-	assertIndexesPresent(t, globalDB.db, "loop_goal_session_cleanup", "idx_loop_goal_session_cleanup_pending")
+	assertIndexesPresent(t, globalDB.db, "loop_session_cleanup", "idx_loop_session_cleanup_pending")
 	assertIndexSQLContains(t, globalDB.db, "uq_loop_session_bindings_active", "WHERE state='active'")
 	assertIndexSQLContains(t, globalDB.db, "uq_loop_runs_active_session_goal", "origin_kind='session'")
 	assertIndexSQLContains(t, globalDB.db, "uq_loop_runs_active_session_goal", "needs-approval")
 	assertIndexSQLContains(t, globalDB.db, "uq_session_input_queue_goal_prompt", "WHERE prompt_id IS NOT NULL")
 	assertIndexSQLContains(t, globalDB.db, "idx_loop_goal_session_outbox_pending", "WHERE delivered_at IS NULL")
-	assertIndexSQLContains(t, globalDB.db, "idx_loop_goal_session_cleanup_pending", "WHERE completed_at IS NULL")
+	assertIndexSQLContains(t, globalDB.db, "idx_loop_session_cleanup_pending", "WHERE completed_at IS NULL")
 
 	assertTableSQLContains(t, globalDB.db, "loop_goal_turns", "UNIQUE (loop_run_id, seq)")
 	assertTableSQLContains(t, globalDB.db, "loop_goal_turns", "goal_stop_reason_invalid")

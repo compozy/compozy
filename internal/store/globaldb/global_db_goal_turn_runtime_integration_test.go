@@ -36,8 +36,13 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			BindingHandle:        "goal:runtime",
 			BindingEpoch:         1,
 			Message:              "Advance the durable Goal",
-			Runtime:              looppkg.RuntimeSpec{Provider: "cursor", Model: "grok-4.5", Reasoning: "high", Speed: "fast"},
-			PreparedAt:           now,
+			Runtime: looppkg.RuntimeSpec{
+				Provider:  "cursor",
+				Model:     "grok-4.5",
+				Reasoning: "high",
+				Speed:     "fast",
+			},
+			PreparedAt: now,
 		}
 		first, err := globalDB.PrepareGoalPrompt(ctx, firstRequest)
 		if err != nil {
@@ -565,13 +570,13 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSessionBindingAttempt(terminal) error = %v", err)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(terminal) error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup(terminal) error = %v", err)
 		}
 		if binding.State != goal.BindingStateClosed || len(cleanups) != 1 ||
 			cleanups[0].SessionID != "session-goal-runtime" ||
-			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			cleanups[0].Cause != looppkg.SessionCleanupCauseTerminal {
 			t.Fatalf("terminal binding/cleanup = %#v/%#v", binding, cleanups)
 		}
 		assertGoalRuntimeTurn(t, globalDB, key, promptID, "completed", "end_turn")
@@ -655,7 +660,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 		if _, err := globalDB.CompleteTurn(ctx, completeReq); err != nil {
 			t.Fatalf("CompleteTurn(idempotent) error = %v", err)
 		}
-		cleanups, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err = globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil || len(cleanups) != 1 {
 			t.Fatalf("terminal cleanup replay = %#v, %v", cleanups, err)
 		}
@@ -734,9 +739,9 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 				if err != nil {
 					t.Fatalf("CompleteTurn(blocked) error = %v", err)
 				}
-				cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+				cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 				if err != nil {
-					t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+					t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 				}
 				if settled.Status != "blocked" || settled.Phase != "terminal" || len(cleanups) != tc.wantCleanup {
 					t.Fatalf("blocked settlement/cleanup = %#v/%#v", settled, cleanups)
@@ -1329,8 +1334,7 @@ func TestGoalTurnRuntimeLifecycleIntegration(t *testing.T) {
 			}
 			canceledAt := now.Add(time.Second)
 			mutation := looppkg.CancellationMutation{
-				WorkspaceID: key.WorkspaceID, RunID: key.LoopRunID,
-				Kind: looppkg.RunCancelCancel, Reason: "operator canceled run",
+				WorkspaceID: key.WorkspaceID, RunID: key.LoopRunID, Reason: "operator canceled run",
 				Actor: actor, RequestedAt: canceledAt,
 			}
 			result, err := globalDB.RequestRunCancellation(ctx, mutation)

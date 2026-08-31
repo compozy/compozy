@@ -1782,7 +1782,7 @@ func assertPostCutHistoricalGlobalSchemaFixture(t *testing.T, globalDB *GlobalDB
 		"loop_gate_decisions",
 		"loop_run_events",
 		"loop_goal_session_outbox",
-		"loop_goal_session_cleanup",
+		"loop_session_cleanup",
 		"loop_goal_judge_attempts",
 		"loop_goal_turns",
 		"loop_goal_checkpoints",

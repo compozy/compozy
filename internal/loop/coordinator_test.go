@@ -2372,7 +2372,7 @@ func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testin
 			if err != nil {
 				t.Fatalf("GetLoopRunByID(parent) error = %v", err)
 			}
-			if storedParent.Status != StatusRunning || storedParent.CancelRequested {
+			if storedParent.Status != StatusRunning {
 				t.Fatalf("child terminal mutated persisted parent = %#v", storedParent)
 			}
 		})
@@ -2505,7 +2505,7 @@ func TestCoordinatorRunnerShouldRejectMalformedAwaitedChildIdentity(t *testing.T
 	})
 }
 
-// Invariant: a terminal parent plan carries only owned terminate/cancel children; abandon is
+// Invariant: a terminal parent plan carries only owned terminate children; abandon is
 // intentionally absent, and an omitted policy defaults to terminate. The coordinator suite
 // owns authored parent-close selection.
 func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing.T) {
@@ -2518,10 +2518,6 @@ func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing
 			NodeLifecycleState: &dsl.NodeLifecycleState{},
 		},
 		{
-			ID: "cancel_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseCancel},
-		},
-		{
 			ID: "abandon_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
 			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseAbandon},
 		},
@@ -2529,7 +2525,6 @@ func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing
 	plan := task.CoordinatorCompletionPlan{
 		Snapshot: task.GenerationSnapshot{Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{
 			{NodeID: "default_child", ChildLoopRunID: "child-default"},
-			{NodeID: "cancel_child", ChildLoopRunID: "child-cancel"},
 			{NodeID: "abandon_child", ChildLoopRunID: "child-abandon"},
 		}}},
 		Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
@@ -2537,8 +2532,8 @@ func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing
 	if err := attachCoordinatorParentCloseIntents(parent, resolved, &plan); err != nil {
 		t.Fatalf("attachCoordinatorParentCloseIntents() error = %v", err)
 	}
-	if len(plan.ParentCloses) != 2 {
-		t.Fatalf("parent close intents = %#v, want terminate and cancel only", plan.ParentCloses)
+	if len(plan.ParentCloses) != 1 {
+		t.Fatalf("parent close intents = %#v, want terminate only", plan.ParentCloses)
 	}
 	policies := map[string]string{}
 	for _, spec := range plan.ParentCloses {
@@ -2547,8 +2542,7 @@ func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing
 		}
 		policies[spec.ChildLoopRunID] = spec.Policy
 	}
-	if policies["child-default"] != string(dsl.ParentCloseTerminate) ||
-		policies["child-cancel"] != string(dsl.ParentCloseCancel) {
+	if policies["child-default"] != string(dsl.ParentCloseTerminate) {
 		t.Fatalf("parent close policies = %#v", policies)
 	}
 	if _, found := policies["child-abandon"]; found {

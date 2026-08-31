@@ -117,6 +117,7 @@ func (g *LoopRepo) collectPauseCancellationSessions(
 		WorkspaceID: mutation.WorkspaceID,
 		RunID:       mutation.RunID,
 		NodeID:      mutation.NodeID,
+		RequestedAt: mutation.RequestedAt,
 	})
 	if err != nil {
 		return err
@@ -224,15 +225,6 @@ func nodePauseRun(
 			fmt.Errorf("%w: loop run %q cannot change node pause state", looppkg.ErrInvalidTransition, runID),
 			string(run.Status),
 			[]string{},
-			runLifecycleWinner(run),
-		)
-	}
-	if run.CancelRequested {
-		return looppkg.Run{}, loopLifecycleReasonError(
-			looppkg.ReasonCodeAlreadyDecided,
-			fmt.Errorf("%w: loop run %q cancellation is already pending", looppkg.ErrTransitionConflict, runID),
-			nodeLifecycleStateCancelRequested,
-			nodeLifecycleAllowedTransitions(nodeLifecycleStateCancelRequested),
 			runLifecycleWinner(run),
 		)
 	}

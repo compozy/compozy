@@ -83,7 +83,7 @@ const WAITING = node({
 
 const MENU_CASES: { caption: string; node: LoopNodeLifecycle; testId: string }[] = [
   {
-    caption: "running — pause/cancel/kill; no resume, no requeue",
+    caption: "running — pause/cancel; no resume, no requeue",
     node: RUNNING,
     testId: "task_04",
   },
@@ -183,12 +183,12 @@ export const PauseConfirm: Story = {
   ),
 };
 
-/** Kill is the destructive escape and says exactly what it skips. */
-export const KillConfirm: Story = {
+/** Cancel closes the lane immediately and stops active work automatically. */
+export const CancelConfirm: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas">
-      <DialogCase subject={RUNNING} verb="kill" />
+      <DialogCase subject={RUNNING} verb="cancel" />
     </div>
   ),
 };
@@ -220,9 +220,8 @@ export const DeterministicAnswer: Story = {
     <div className="min-h-dvh bg-canvas">
       <LoopNodeControlDialog
         answer={{
-          allowedTransitions: ["pause", "cancel", "kill"],
-          detail:
-            "task_03 isn't paused — it's running. From here you can pause, cancel or kill it.",
+          allowedTransitions: ["pause", "cancel"],
+          detail: "task_03 isn't paused — it's running. From here you can pause or cancel it.",
           micro: "node_not_paused · state running",
           title: "Nothing to resume",
           tone: "info",
@@ -255,7 +254,7 @@ export const ResumeModes: Story = {
   },
 };
 
-/** The running menu, open — pause/cancel/kill, with no resume and no requeue. */
+/** The running menu, open — pause/cancel, with no resume and no requeue. */
 export const RunningMenuOpen: Story = {
   args: {},
   render: () => (
@@ -295,14 +294,14 @@ export const WaitingMenuOpen: Story = {
   },
 };
 
-/** Run cancel stays a first-class button; run kill lives in the single ⋯ overflow. */
-export const RunCancelVsKill: Story = {
+/** Run cancellation stays a first-class destructive button. */
+export const RunCancel: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas p-6">
-      <Eyebrow className="text-accent">Run controls — cancel vs kill</Eyebrow>
+      <Eyebrow className="text-accent">Run controls</Eyebrow>
       <p className="mt-1 mb-4 text-small-body text-muted">
-        Cancel winds the run down; kill is the destructive escape and never sits beside it.
+        Cancel closes the run immediately and stops active sessions automatically.
       </p>
       <div className="flex items-center gap-2 rounded-lg border border-line bg-canvas-soft px-4 py-3">
         <LoopRunControls
@@ -311,7 +310,7 @@ export const RunCancelVsKill: Story = {
           onResume={() => {}}
           status="running"
         />
-        <LoopRunOverflowMenu loopName="review-and-fix" onKill={() => {}} />
+        <LoopRunOverflowMenu loopName="review-and-fix" />
       </div>
     </div>
   ),
@@ -321,8 +320,8 @@ export const RunCancelVsKill: Story = {
   },
 };
 
-/** The production run kill confirm, restating the run state it acts on. */
-export const RunKillConfirm: Story = {
+/** The production run cancel confirm, restating the run state it acts on. */
+export const RunCancelConfirm: Story = {
   args: {},
   render: () => (
     <div className="min-h-dvh bg-canvas">
@@ -332,7 +331,7 @@ export const RunKillConfirm: Story = {
         onOpenChange={() => {}}
         runId="r-7c4e19"
         status="running"
-        verb="kill"
+        verb="cancel"
       />
     </div>
   ),
@@ -405,23 +404,6 @@ export const RerunDialog: Story = {
         onOpenChange={() => {}}
         open
         rerunSet={ROLLOUT_RERUN_SET}
-      />
-    </div>
-  ),
-};
-
-/** The production run cancel confirm — the ordinary, cooperative ending. */
-export const RunCancelConfirm: Story = {
-  args: {},
-  render: () => (
-    <div className="min-h-dvh bg-canvas">
-      <LoopRunControlDialog
-        generation={2}
-        onConfirm={() => {}}
-        onOpenChange={() => {}}
-        runId="r-7c4e19"
-        status="running"
-        verb="cancel"
       />
     </div>
   ),

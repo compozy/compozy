@@ -69,7 +69,7 @@ func TestOpenLocalGlobalDatabaseMigrationErrors(t *testing.T) {
 		}
 		if _, err := db.DB().ExecContext(
 			ctx,
-			`INSERT INTO goose_db_version_global (version_id, is_applied) VALUES (99, 1)`,
+			`INSERT INTO goose_db_version_global (version_id, is_applied) VALUES (100, 1)`,
 		); err != nil {
 			t.Fatalf("insert ahead migration version error = %v", err)
 		}
@@ -221,7 +221,7 @@ func seedAheadCLIDatabase(t *testing.T, path string) {
 	}
 	if _, err := db.DB().ExecContext(
 		ctx,
-		`INSERT INTO goose_db_version_global (version_id, is_applied) VALUES (99, 1)`,
+		`INSERT INTO goose_db_version_global (version_id, is_applied) VALUES (100, 1)`,
 	); err != nil {
 		t.Fatalf("insert ahead migration version error = %v", err)
 	}

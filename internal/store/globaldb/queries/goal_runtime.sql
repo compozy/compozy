@@ -61,48 +61,54 @@ WHERE loop_run_id = sqlc.arg(loop_run_id) AND verdict_outcome IS NOT NULL
 ORDER BY seq DESC
 LIMIT 1;
 
--- name: ClaimGoalSessionCleanup :many
+-- name: ClaimLoopSessionCleanup :many
 SELECT cleanup.id, cleanup.cleanup_id, cleanup.workspace_id, cleanup.loop_run_id,
-       cleanup.handle, cleanup.binding_epoch, cleanup.session_id, cleanup.cause,
+       cleanup.source_kind, cleanup.source_id, cleanup.source_epoch, cleanup.session_id, cleanup.cause,
        cleanup.created_at, cleanup.completed_at
-FROM loop_goal_session_cleanup AS cleanup
-JOIN loop_session_bindings AS binding
-  ON binding.loop_run_id = cleanup.loop_run_id
- AND binding.handle = cleanup.handle
- AND binding.binding_epoch = cleanup.binding_epoch
+FROM loop_session_cleanup AS cleanup
+LEFT JOIN loop_session_bindings AS binding
+  ON cleanup.source_kind = 'goal-binding'
+ AND binding.loop_run_id = cleanup.loop_run_id
+ AND binding.handle = cleanup.source_id
+ AND binding.binding_epoch = cleanup.source_epoch
 WHERE cleanup.completed_at IS NULL
-  AND NOT (binding.state = 'failed' AND binding.failure_code = sqlc.arg(unsettled_failure_code))
+  AND (
+    cleanup.source_kind = 'task-run'
+    OR NOT (binding.state = 'failed' AND binding.failure_code = sqlc.arg(unsettled_failure_code))
+  )
 ORDER BY cleanup.id ASC
 LIMIT sqlc.arg(claim_limit);
 
--- name: ReconcileGoalSessionCleanup :exec
+-- name: ReconcileLoopSessionCleanup :exec
 UPDATE loop_session_bindings
 SET failure_code = sqlc.arg(settled_failure_code)
 WHERE state = 'failed' AND failure_code = sqlc.arg(unsettled_failure_code)
   AND EXISTS (
-      SELECT 1 FROM loop_goal_session_cleanup AS cleanup
+      SELECT 1 FROM loop_session_cleanup AS cleanup
       WHERE cleanup.loop_run_id = loop_session_bindings.loop_run_id
-        AND cleanup.handle = loop_session_bindings.handle
-        AND cleanup.binding_epoch = loop_session_bindings.binding_epoch
+        AND cleanup.source_kind = 'goal-binding'
+        AND cleanup.source_id = loop_session_bindings.handle
+        AND cleanup.source_epoch = loop_session_bindings.binding_epoch
         AND cleanup.completed_at IS NULL
   );
 
--- name: AcknowledgeGoalSessionCleanup :execrows
-UPDATE loop_goal_session_cleanup
+-- name: AcknowledgeLoopSessionCleanup :execrows
+UPDATE loop_session_cleanup
 SET completed_at = CAST(sqlc.arg(completed_at) AS TEXT)
 WHERE cleanup_id = sqlc.arg(cleanup_id) AND completed_at IS NULL;
 
--- name: EnqueueGoalSessionCleanup :exec
-INSERT INTO loop_goal_session_cleanup (
-    cleanup_id, workspace_id, loop_run_id, handle, binding_epoch, session_id, cause, created_at
+-- name: EnqueueLoopSessionCleanup :exec
+INSERT INTO loop_session_cleanup (
+    cleanup_id, workspace_id, loop_run_id, source_kind, source_id, source_epoch, session_id, cause, created_at
 ) VALUES (
-    sqlc.arg(cleanup_id), sqlc.arg(workspace_id), sqlc.arg(loop_run_id), sqlc.arg(handle),
-    sqlc.arg(binding_epoch), sqlc.arg(session_id), sqlc.arg(cause), CAST(sqlc.arg(created_at) AS TEXT)
+    sqlc.arg(cleanup_id), sqlc.arg(workspace_id), sqlc.arg(loop_run_id), sqlc.arg(source_kind),
+    sqlc.arg(source_id), sqlc.arg(source_epoch), sqlc.arg(session_id), sqlc.arg(cause),
+    CAST(sqlc.arg(created_at) AS TEXT)
 )
 ON CONFLICT(cleanup_id) DO NOTHING;
 
--- name: GetGoalSessionCleanup :one
-SELECT id, cleanup_id, workspace_id, loop_run_id, handle, binding_epoch,
+-- name: GetLoopSessionCleanup :one
+SELECT id, cleanup_id, workspace_id, loop_run_id, source_kind, source_id, source_epoch,
        session_id, cause, created_at, completed_at
-FROM loop_goal_session_cleanup
+FROM loop_session_cleanup
 WHERE cleanup_id = sqlc.arg(cleanup_id);

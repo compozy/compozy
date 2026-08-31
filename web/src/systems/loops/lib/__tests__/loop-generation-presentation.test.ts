@@ -127,7 +127,7 @@ describe("buildGenerationHistory", () => {
   });
 
   it("Should call a round interrupted when the run ended holding an unsettled step", () => {
-    // A crash or a kill leaves a round mid-flight. Dressing that as settled is
+    // A crash or a forced cancellation leaves a round mid-flight. Dressing that as settled is
     // the most misleading thing this view could do (US-013.EC-1).
     //
     // The settled sibling is the point: it carries a real `ended_at`, so a view

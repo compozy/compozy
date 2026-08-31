@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: docs/qa/evidence/2026-08-10-loop-convergence/run-detail-goal-diagnostics.png; docs/qa/evidence/2026-08-10-loop-convergence/run-detail-inspect.png; docs/qa/evidence/2026-08-10-loop-convergence/raw-loop-definition.png; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-01
 last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
-overlaps: LP-009;LP-014;LP-016;LP-044;LP-action-failure-detail
+overlaps: LP-forced-cancel-owned-sessions; LP-009; LP-014; LP-044; LP-action-failure-detail
 ---
 
 story: As an end user I open a running loop and understand where it stands, what it is doing right now, what already happened, and what comes next — without operator vocabulary — and As a person running agent work I still reach every mechanical fact through Inspect.

@@ -286,15 +286,14 @@ describe("applyLoopEventFrame", () => {
     expect(state.gateVerdicts).toEqual({});
   });
 
-  // WT-001: every one of the 15 lifecycle kinds is a story beat an operator must
+  // WT-001: every lifecycle kind is a story beat an operator must
   // be able to read back after a reconnect, so all of them retain.
-  it("Should retain every one of the 15 new lifecycle kinds as a structural frame", () => {
+  it("Should retain every lifecycle kind as a structural frame", () => {
     const kinds: LoopRunEventKind[] = [
       "node_retry_scheduled",
       "node_paused",
       "node_resumed",
       "node_canceled",
-      "node_killed",
       "node_quarantined",
       "node_requeued",
       "node_wait_started",
@@ -306,7 +305,7 @@ describe("applyLoopEventFrame", () => {
       "duplicate_suppressed",
       "target_breaker_transition",
     ];
-    expect(kinds).toHaveLength(15);
+    expect(kinds).toHaveLength(14);
     let state = emptyLoopRunLiveState();
     kinds.forEach((kind, index) => {
       state = applyLoopEventFrame(state, frame(kind, { node_id: "fix_batch" }, index + 1));

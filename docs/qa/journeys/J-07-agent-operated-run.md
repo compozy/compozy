@@ -47,7 +47,7 @@ journey:
       expected_observable: "The agent cannot approve its OWN gate; an operator or a different agent can"
     - step: 5
       verb: "List and control live Loop nodes"
-      expected_observable: "The agent uses compozy__loop_nodes plus pause/resume/cancel/kill/requeue and run cancel/kill with stable response shapes, deterministic invalid-state reasons, winner provenance, and workspace isolation"
+      expected_observable: "The agent uses compozy__loop_nodes plus pause/resume/cancel/requeue and forced run Cancel with stable response shapes, deterministic invalid-state reasons, winner provenance, workspace isolation, and no Kill tools"
     - step: 6
       verb: "Inspect durable waits and keyed watch-event admission across restart"
       expected_observable: "Waiting inventory survives restart, resumes exactly once, and duplicate events return a loud deterministic suppression result without creating another run"
@@ -72,11 +72,11 @@ design_reference:
   truthful_ui_checks:
     - "The structured status value equals one of the 12 states and is never coerced (canceled/exhausted/stalled/needs-approval never returned as done/failed) — ADR-013 inv5."
     - "approve capability gate: an agent cannot approve its own gate; hash-form-only token redaction in tool output (N-005)."
-    - "Every public lifecycle action has a matching structured verb, including run cancel/kill, node pause/resume/cancel/kill/requeue, and workspace node inventory; the retired stop verb is absent."
+    - "Every public lifecycle action has a matching structured verb, including run Cancel, node pause/resume/cancel/requeue, and workspace node inventory; the retired Stop and Kill tools are absent."
 
 e2e_backbone:
   runtime:
-    - "E2E-runtime-3: CLI↔HTTP↔UDS parity across run/dry-run/configure/pause/resume/cancel/kill/approve/list/inspect/status/runs/nodes/edit/delete."
+    - "E2E-runtime-3: CLI↔HTTP↔UDS parity across run/dry-run/configure/pause/resume/cancel/approve/list/inspect/status/runs/nodes/edit/delete, with Kill absent."
     - "E2E-runtime-5: start a loop from every surface (incl. agent native tool) and reach an identical terminal outcome (ADR-007)."
     - "E2E-runtime-8: an agent cannot approve its own gate; operator/another agent can (N-005)."
   integration:

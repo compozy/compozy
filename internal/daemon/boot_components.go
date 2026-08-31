@@ -36,7 +36,6 @@ func (d *Daemon) bootComponents(ctx context.Context, state *bootState, cleanup *
 		func() error { return d.bootServers(ctx, state, cleanup) },
 		func() error { return d.bootFinalize(ctx, state) },
 		func() error { return d.bootTaskRoles(ctx, state) },
-		func() error { return reconcileBootLoopCancellations(ctx, state) },
 		func() error { return startBootLoopCoordinators(ctx, state) },
 		func() error { return d.bootScheduler(ctx, state, cleanup) },
 	}

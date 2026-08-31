@@ -1048,17 +1048,6 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 				response.NodeID = ""
 				return response, nil
 			},
-			killLoopRunFn: func(
-				_ context.Context, workspaceID string, runID string, _ agentidentity.Credentials,
-			) (contract.LoopMutationResponse, error) {
-				if workspaceID != "ws-alpha" || runID != "looprun-1" {
-					t.Fatalf("KillLoopRun target = %s/%s", workspaceID, runID)
-				}
-				calls[loopKillKey]++
-				response := mutation
-				response.NodeID = ""
-				return response, nil
-			},
 			pauseLoopNodeFn: func(
 				_ context.Context, workspaceID string, runID string, nodeID string,
 				request contract.LoopNodePauseRequest, _ agentidentity.Credentials,
@@ -1083,7 +1072,6 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 				return mutation, nil
 			},
 			cancelLoopNodeFn:  loopNodeMutationStubForTest(t, calls, loopCancelKey, mutation),
-			killLoopNodeFn:    loopNodeMutationStubForTest(t, calls, loopKillKey, mutation),
 			requeueLoopNodeFn: loopNodeMutationStubForTest(t, calls, loopRequeueKey, mutation),
 			listLoopNodesFn: func(
 				_ context.Context, workspaceID string, query LoopNodeListQuery,
@@ -1112,11 +1100,9 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 
 		for _, args := range [][]string{
 			{"loop", "cancel", "--workspace", "alpha", "--run-id", "looprun-1", "-o", "json"},
-			{"loop", "kill", "--workspace", "alpha", "--run-id", "looprun-1", "-o", "json"},
 			{"loop", "node", "pause", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--mode", "cancel", "--reason", "repair", "-o", "json"},
 			{"loop", "node", "resume", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--mode", "immediate", "--item", "2", "--payload", `{"approved":true}`, "-o", "json"},
 			{"loop", "node", "cancel", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--reason", "repair", "-o", "json"},
-			{"loop", "node", "kill", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--reason", "repair", "-o", "json"},
 			{"loop", "node", "requeue", "--workspace", "alpha", "--run-id", "looprun-1", "--node", "worker", "--reason", "repair", "-o", "json"},
 		} {
 			stdout, _, err := executeRootCommand(t, deps, args...)
@@ -1157,18 +1143,20 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 				t.Fatalf("loop nodes JSONL row %d = %q, item=%#v, error=%v", index, line, item, err)
 			}
 		}
-		if calls[loopCancelKey] != 2 || calls[loopKillKey] != 2 || calls[loopPauseKey] != 1 ||
+		if calls[loopCancelKey] != 2 || calls[loopPauseKey] != 1 ||
 			calls[loopResumeKey] != 1 || calls[loopRequeueKey] != 1 || calls[loopNodesKey] != 2 {
 			t.Fatalf("Loop lifecycle calls = %#v", calls)
 		}
 	})
 
-	t.Run("Should reject the deleted Loop stop command", func(t *testing.T) {
+	t.Run("Should reject deleted Loop lifecycle commands", func(t *testing.T) {
 		t.Parallel()
 
-		_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), "loop", "stop")
-		if err == nil || !strings.Contains(err.Error(), "unknown command") {
-			t.Fatalf("executeRootCommand(loop stop) error = %v, want unknown command", err)
+		for _, args := range [][]string{{"loop", "stop"}, {"loop", "kill"}, {"loop", "node", "kill"}} {
+			_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), args...)
+			if err == nil || !strings.Contains(err.Error(), "unknown command") {
+				t.Fatalf("executeRootCommand(%v) error = %v, want unknown command", args, err)
+			}
 		}
 	})
 

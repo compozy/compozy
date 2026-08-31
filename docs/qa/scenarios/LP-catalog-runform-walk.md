@@ -13,7 +13,7 @@ retest_status: pass
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa/evidence/task13/06-loop-catalog.png; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa/evidence/task13/08-catalog-run-form.png; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa/evidence/task13/09-run-form-required-input.png; /Users/pedronauck/dev/qa-labs/compozy-loop-node-lifecycle-20260803-191237-281307-lab/qa-artifacts/qa/evidence/task13/14-loop-detail-hard-navigation.png
 last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
-overlaps: LP-operator-lifecycle-ui;LP-editor-authoring-walk;LP-cancel-vs-kill;LP-loop-run-deep-link
+overlaps: LP-forced-cancel-owned-sessions; LP-operator-lifecycle-ui; LP-editor-authoring-walk; LP-loop-run-deep-link
 ---
 
 story: As an operator I find the loop I need, start it with the inputs it asks for, and read what it promises and how it has been ending — without leaving the three pages that make up arriving and using a loop.

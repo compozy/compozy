@@ -163,20 +163,11 @@ const NODE_VERB_COPY: Record<
   cancel: node => ({
     eyebrow: "Cancel node",
     title: `Cancel ${node.nodeId}?`,
-    body: "The lane winds down cooperatively: in-flight work drains, its cancel reactions run, and finished work is kept.",
+    body: "The lane closes immediately. Active work is stopped automatically, and finished work is kept.",
     confirmLabel: "Cancel lane",
     cancelLabel: "Keep it",
-    tone: "warning",
-    micro: "node_canceled · drains first",
-  }),
-  kill: node => ({
-    eyebrow: "Kill node",
-    title: `Kill ${node.nodeId}?`,
-    body: "The lane stops immediately — no drain, no cleanup reactions. Its work so far is kept but the lane ends as canceled.",
-    confirmLabel: "Kill lane",
-    cancelLabel: "Keep it",
     tone: "danger",
-    micro: "node_killed · no on_* reactions",
+    micro: "node_canceled · stops immediately",
   }),
   requeue: node => {
     const episodes = node.quarantineEntry?.episodes.length;
@@ -206,31 +197,22 @@ export function loopNodeVerbConfirmCopy(
 }
 
 const RUN_VERB_COPY: Record<
-  Extract<LoopRunVerb, "cancel" | "kill">,
+  Extract<LoopRunVerb, "cancel">,
   (runId: string, status: string) => LoopVerbConfirmCopy
 > = {
   cancel: (runId, status) => ({
     eyebrow: "Cancel run",
     title: `Cancel run ${runId}?`,
-    body: "The run winds down cleanly: in-flight lanes drain, their cleanup reactions run, and finished work is kept.",
+    body: "The run closes immediately. Active sessions are stopped automatically, and finished work is kept.",
     confirmLabel: "Cancel run",
     cancelLabel: "Keep running",
-    tone: "warning",
-    micro: `status_changed · ${status} → canceled · cause operator_cancel`,
-  }),
-  kill: (runId, status) => ({
-    eyebrow: "Kill run",
-    title: `Kill run ${runId}?`,
-    body: "The run stops immediately: in-flight work is interrupted mid-step and its reactions are skipped. Finished work is still kept. Use kill when a run is misbehaving and can't be trusted to wind down.",
-    confirmLabel: "Kill run",
-    cancelLabel: "Keep running",
     tone: "danger",
-    micro: `status_changed · ${status} → canceled · cause operator_kill`,
+    micro: `status_changed · ${status} → canceled · cause operator_cancel`,
   }),
 };
 
 export function loopRunVerbConfirmCopy(
-  verb: "cancel" | "kill",
+  verb: "cancel",
   runId: string,
   status: string
 ): LoopVerbConfirmCopy {

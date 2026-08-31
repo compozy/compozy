@@ -237,7 +237,6 @@ export {
   usePatchLoop,
   usePauseLoopRun,
   usePutLoopConfig,
-  useKillLoopRun,
   useResumeLoopRun,
   useRunLoop,
   useValidateLoop,
@@ -247,7 +246,6 @@ export {
 // files inside `systems/loops/` import their own modules directly.
 export {
   useCancelLoopNode,
-  useKillLoopNode,
   usePauseLoopNode,
   useRequeueLoopNode,
   useResumeLoopNode,

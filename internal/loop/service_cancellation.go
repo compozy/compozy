@@ -2,14 +2,14 @@ package loop
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/task"
+	"golang.org/x/sync/errgroup"
 )
 
-// CancelRun requests cooperative cancellation and terminalizes after prompt delivery drains.
+// CancelRun commits terminal truth before stopping every owned session.
 func (s *service) CancelRun(
 	ctx context.Context,
 	ws WorkspaceID,
@@ -17,21 +17,10 @@ func (s *service) CancelRun(
 	reason string,
 	actor task.ActorContext,
 ) error {
-	return s.cancelRun(ctx, ws, runID, RunCancelCancel, reason, actor)
+	return s.cancelRun(ctx, ws, runID, reason, actor)
 }
 
-// KillRun commits terminal truth before stopping every bound session immediately.
-func (s *service) KillRun(
-	ctx context.Context,
-	ws WorkspaceID,
-	runID RunID,
-	reason string,
-	actor task.ActorContext,
-) error {
-	return s.cancelRun(ctx, ws, runID, RunCancelKill, reason, actor)
-}
-
-// CancelNode requests cooperative cancellation for one authored node across its live cells.
+// CancelNode fences and terminalizes one authored node across its live cells.
 func (s *service) CancelNode(
 	ctx context.Context,
 	ws WorkspaceID,
@@ -41,27 +30,13 @@ func (s *service) CancelNode(
 	reason string,
 	actor task.ActorContext,
 ) error {
-	return s.cancelNode(ctx, ws, runID, nodeID, itemIndex, RunCancelCancel, reason, actor)
-}
-
-// KillNode fences one node and then immediately stops its bound sessions.
-func (s *service) KillNode(
-	ctx context.Context,
-	ws WorkspaceID,
-	runID RunID,
-	nodeID NodeID,
-	itemIndex *int,
-	reason string,
-	actor task.ActorContext,
-) error {
-	return s.cancelNode(ctx, ws, runID, nodeID, itemIndex, RunCancelKill, reason, actor)
+	return s.cancelNode(ctx, ws, runID, nodeID, itemIndex, reason, actor)
 }
 
 func (s *service) cancelRun(
 	ctx context.Context,
 	ws WorkspaceID,
 	runID RunID,
-	kind RunCancelKind,
 	reason string,
 	actor task.ActorContext,
 ) error {
@@ -69,7 +44,7 @@ func (s *service) cancelRun(
 	if err != nil {
 		return err
 	}
-	store, mutation, err := s.prepareCancellation(ctx, ws, runID, "", kind, reason, actor)
+	store, mutation, err := s.prepareCancellation(ctx, ws, runID, "", reason, actor)
 	if err != nil {
 		return err
 	}
@@ -84,19 +59,11 @@ func (s *service) cancelRun(
 	if !result.Applied {
 		return nil
 	}
-	cause := TransitionCauseOperatorCancel
-	if kind == RunCancelKill {
-		cause = TransitionCauseOperatorKill
-	}
-	s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, cause)
+	s.revokeGoalPromptLeases(ctx, result.RevokedPromptLeases, TransitionCauseOperatorCancel)
 	parentCloseErr := s.applyParentCloseActions(ctx, mutation, parentCloseActions)
 	if result.Terminal {
-		return errors.Join(parentCloseErr, s.finishCommittedRunCancellation(ctx, mutation, &result))
+		s.finishCommittedRunCancellation(ctx, mutation, &result)
 	}
-	if kind == RunCancelKill {
-		return parentCloseErr
-	}
-	s.deferCancellationDelivery(ctx, store, mutation, &result)
 	return parentCloseErr
 }
 
@@ -106,7 +73,6 @@ func (s *service) cancelNode(
 	runID RunID,
 	nodeID NodeID,
 	itemIndex *int,
-	kind RunCancelKind,
 	reason string,
 	actor task.ActorContext,
 ) error {
@@ -115,35 +81,22 @@ func (s *service) cancelNode(
 		return err
 	}
 	parentCloseActions = parentCloseActionsForNode(parentCloseActions, nodeID, itemIndex)
-	store, mutation, err := s.prepareCancellation(ctx, ws, runID, nodeID, kind, reason, actor)
+	store, mutation, err := s.prepareCancellation(ctx, ws, runID, nodeID, reason, actor)
 	if err != nil {
 		return err
 	}
 	mutation.ItemIndex = cloneIntPointer(itemIndex)
-	if kind == RunCancelCancel {
-		mutation.Effects, err = s.renderNodeCanceledEffects(ctx, ws, runID, nodeID, itemIndex)
-		if err != nil {
-			return err
-		}
+	mutation.Effects, err = s.renderNodeCanceledEffects(ctx, ws, runID, nodeID, itemIndex)
+	if err != nil {
+		return err
 	}
 	result, err := store.RequestNodeCancellation(ctx, mutation)
 	if err != nil || result.Terminal || !result.Applied {
 		return err
 	}
 	parentCloseErr := s.applyParentCloseActions(ctx, mutation, parentCloseActions)
-	if itemIndex != nil {
-		s.activateCancellationResult(ctx, &result)
-		return errors.Join(parentCloseErr,
-			s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason))
-	}
-	if kind == RunCancelKill {
-		s.activateCancellationResult(ctx, &result)
-		return errors.Join(
-			parentCloseErr,
-			s.deliverSessionCancellation(ctx, result.SessionIDs, kind, mutation.Reason),
-		)
-	}
-	s.deferCancellationDelivery(ctx, store, mutation, &result)
+	s.activateCancellationResult(ctx, &result)
+	s.stopCancellationSessions(ctx, mutation, result.SessionIDs)
 	return parentCloseErr
 }
 
@@ -188,7 +141,6 @@ func (s *service) prepareCancellation(
 	ws WorkspaceID,
 	runID RunID,
 	nodeID NodeID,
-	kind RunCancelKind,
 	reason string,
 	actor task.ActorContext,
 ) (CancellationStore, CancellationMutation, error) {
@@ -203,7 +155,7 @@ func (s *service) prepareCancellation(
 		)
 	}
 	mutation := CancellationMutation{
-		WorkspaceID: ws, RunID: runID, NodeID: nodeID, Kind: kind,
+		WorkspaceID: ws, RunID: runID, NodeID: nodeID,
 		Reason: strings.TrimSpace(reason), Actor: actor, RequestedAt: s.now().UTC(),
 	}
 	if err := mutation.Validate(nodeID != ""); err != nil {
@@ -241,7 +193,6 @@ func (s *service) renderCanceledEffects(
 func (s *service) deliverSessionCancellation(
 	ctx context.Context,
 	sessionIDs []string,
-	kind RunCancelKind,
 	reason string,
 ) error {
 	if len(sessionIDs) == 0 {
@@ -250,43 +201,54 @@ func (s *service) deliverSessionCancellation(
 	if s.cancellationSessions == nil {
 		return fmt.Errorf("%w: Loop cancellation session controller is unavailable", ErrActionDependencyMissing)
 	}
-	deliveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), actionCancelMaxWait)
-	defer cancel()
-	var deliveryErr error
+	deliveryCtx := context.WithoutCancel(ctx)
+	var group errgroup.Group
+	group.SetLimit(s.cancellationLimit)
 	for _, sessionID := range sessionIDs {
-		var err error
-		if kind == RunCancelKill {
-			err = s.cancellationSessions.KillLoopSession(deliveryCtx, sessionID, reason)
-		} else {
-			err = s.cancellationSessions.CancelLoopSession(deliveryCtx, sessionID, reason)
-		}
-		if err != nil {
-			deliveryErr = errors.Join(deliveryErr, fmt.Errorf("cancel Loop session %q: %w", sessionID, err))
-		}
+		group.Go(func() error {
+			stopCtx, cancel := context.WithTimeout(deliveryCtx, actionCancelMaxWait)
+			defer cancel()
+			if err := s.cancellationSessions.StopLoopSession(stopCtx, sessionID, reason); err != nil {
+				return fmt.Errorf("stop Loop session %q: %w", sessionID, err)
+			}
+			return nil
+		})
 	}
-	return deliveryErr
+	return group.Wait()
 }
 
 func (s *service) finishCommittedRunCancellation(
 	ctx context.Context,
 	mutation CancellationMutation,
 	result *CancellationResult,
-) error {
+) {
 	if result == nil {
-		return nil
+		return
 	}
 	if !result.Terminal || result.Run.Status != StatusCanceled {
-		return nil
+		return
 	}
-	cause := TransitionCauseOperatorCancel
-	if mutation.Kind == RunCancelKill {
-		cause = TransitionCauseOperatorKill
+	s.dispatchCoordinatorTerminal(ctx, result.Run, TransitionCauseOperatorCancel, mutation.RequestedAt)
+	s.stopCancellationSessions(ctx, mutation, result.SessionIDs)
+}
+
+func (s *service) stopCancellationSessions(
+	ctx context.Context,
+	mutation CancellationMutation,
+	sessionIDs []string,
+) {
+	if err := s.deliverSessionCancellation(ctx, sessionIDs, mutation.Reason); err != nil {
+		s.logger.WarnContext(
+			ctx,
+			"loop cancellation session stop deferred",
+			"workspace_id", mutation.WorkspaceID,
+			"run_id", mutation.RunID,
+			"node_id", mutation.NodeID,
+			"actor_kind", mutation.Actor.Actor.Kind,
+			"actor_id", mutation.Actor.Actor.Ref,
+			"error", err,
+		)
 	}
-	s.dispatchCoordinatorTerminal(ctx, result.Run, cause, mutation.RequestedAt)
-	if mutation.Kind != RunCancelKill {
-		return nil
-	}
-	return s.deliverSessionCancellation(ctx, result.SessionIDs, mutation.Kind, mutation.Reason)
 }
 
 func (s *service) activateCancellationResult(ctx context.Context, result *CancellationResult) {

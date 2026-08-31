@@ -24,7 +24,6 @@ const (
 	loopRunEventNodeWaitResumed         = string(looppkg.RunEventNodeWaitResumed)
 	loopRunEventDuplicateSuppressed     = string(looppkg.RunEventDuplicateSuppressed)
 	loopRunEventNodeCanceled            = string(looppkg.RunEventNodeCanceled)
-	loopRunEventNodeKilled              = string(looppkg.RunEventNodeKilled)
 	loopRunEventNodeAttentionFlagged    = string(looppkg.RunEventNodeAttentionFlagged)
 	loopRunEventNodeAttentionCleared    = string(looppkg.RunEventNodeAttentionCleared)
 	loopRunEventTargetBreakerTransition = string(looppkg.RunEventTargetBreaker)
@@ -277,7 +276,6 @@ func loopRunEventKindValid(kind string) bool {
 		loopRunEventNodeWaitResumed,
 		loopRunEventDuplicateSuppressed,
 		loopRunEventNodeCanceled,
-		loopRunEventNodeKilled,
 		loopRunEventNodeAttentionFlagged,
 		loopRunEventNodeAttentionCleared,
 		loopRunEventTargetBreakerTransition,

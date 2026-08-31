@@ -18,7 +18,7 @@ func (g *LoopRepo) reserveCancellationCoordinator(
 		ctx,
 		exec,
 		run,
-		cancellationWakeOrigin(mutation),
+		cancellationWakeOrigin(),
 		mutation.RequestedAt.UTC(),
 		cancellationWakeIdempotencyKey(mutation),
 	)
@@ -28,10 +28,10 @@ func (g *LoopRepo) reserveCancellationCoordinator(
 	return &coordinator, nil
 }
 
-func cancellationWakeOrigin(mutation looppkg.CancellationMutation) taskpkg.Origin {
+func cancellationWakeOrigin() taskpkg.Origin {
 	return taskpkg.Origin{
 		Kind: taskpkg.OriginKindDaemon,
-		Ref:  "loop.cancellation:" + mutation.Kind.String(),
+		Ref:  "loop.cancellation:cancel",
 	}
 }
 
@@ -44,7 +44,7 @@ func cancellationWakeIdempotencyKey(mutation looppkg.CancellationMutation) strin
 		"loop.cancel.%s.%s.%s.%d",
 		mutation.RunID,
 		target,
-		mutation.Kind.String(),
+		"cancel",
 		mutation.RequestedAt.UTC().UnixNano(),
 	)
 }

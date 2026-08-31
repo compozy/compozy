@@ -17,20 +17,16 @@ const (
 	ToolIDLoopRuns ToolID = "compozy__loop_runs"
 	// ToolIDLoopTurns lists one Loop run's total-order Goal turn audit.
 	ToolIDLoopTurns ToolID = "compozy__loop_turns"
-	// ToolIDLoopCancel requests cooperative cancellation for one Loop run.
+	// ToolIDLoopCancel immediately terminalizes one Loop run and stops its owned sessions.
 	ToolIDLoopCancel ToolID = "compozy__loop_cancel"
-	// ToolIDLoopKill immediately terminalizes one Loop run.
-	ToolIDLoopKill ToolID = "compozy__loop_kill"
 	// ToolIDLoopNodes lists workspace-scoped Loop node state.
 	ToolIDLoopNodes ToolID = "compozy__loop_nodes"
 	// ToolIDLoopNodePause parks one authored Loop node.
 	ToolIDLoopNodePause ToolID = "compozy__loop_node_pause"
 	// ToolIDLoopNodeResume releases one authored Loop node or manual wait.
 	ToolIDLoopNodeResume ToolID = "compozy__loop_node_resume"
-	// ToolIDLoopNodeCancel requests cooperative node cancellation.
+	// ToolIDLoopNodeCancel immediately fences one Loop node and stops its owned sessions.
 	ToolIDLoopNodeCancel ToolID = "compozy__loop_node_cancel"
-	// ToolIDLoopNodeKill immediately fences one Loop node.
-	ToolIDLoopNodeKill ToolID = "compozy__loop_node_kill"
 	// ToolIDLoopNodeRequeue clears one Loop node quarantine.
 	ToolIDLoopNodeRequeue ToolID = "compozy__loop_node_requeue"
 	// ToolIDLoopPause pauses one running Loop at a generation boundary.

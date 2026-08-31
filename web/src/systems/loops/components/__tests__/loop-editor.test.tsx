@@ -584,7 +584,7 @@ describe("LoopEditor", () => {
       expires: { after: "24h", route: "release_notes" },
     });
     expect(publishedNode(captured, "release_notes")).toMatchObject({
-      on_parent_close: "cancel",
+      on_parent_close: "terminate",
     });
     expect(captured.definition?.contract).toMatchObject({
       on_failed: [{ tool: "compozy__network_send", with: { channel: "ops" } }],

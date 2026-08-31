@@ -457,13 +457,13 @@ func TestErrorPayloadForError(t *testing.T) {
 			Err:  looppkg.ErrTransitionConflict,
 			Meta: map[string]string{
 				looppkg.ReasonMetaActualState:        "quarantined",
-				looppkg.ReasonMetaAllowedTransitions: "requeue,cancel,kill",
+				looppkg.ReasonMetaAllowedTransitions: "requeue,cancel",
 				looppkg.ReasonMetaWinnerActorID:      "operator:alice",
 			},
 		})
 		if payload.Code != string(looppkg.ReasonCodeAlreadyDecided) ||
 			payload.Details[looppkg.ReasonMetaActualState] != "quarantined" ||
-			payload.Details[looppkg.ReasonMetaAllowedTransitions] != "requeue,cancel,kill" ||
+			payload.Details[looppkg.ReasonMetaAllowedTransitions] != "requeue,cancel" ||
 			payload.Details[looppkg.ReasonMetaWinnerActorID] != "operator:alice" {
 			t.Fatalf("Loop lifecycle error payload = %#v", payload)
 		}

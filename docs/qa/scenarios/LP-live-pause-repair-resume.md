@@ -12,8 +12,11 @@ fix_status: fixed
 retest_status: pass
 fix_commits: Task 13 checkpoint
 evidence: looprun-97e; looprun-980; looprun-2e361; looprun-45fa; internal/store/globaldb/global_db_task_claim_test.go
-last_report: docs/qa/reports/2026-08-03-loop-node-lifecycle.md
-overlaps: LP-quarantine-diagnose-requeue; LP-cancel-vs-kill
+last_report: docs/qa/reports/2026-08-31-issue-500-forced-loop-cancel.md
+overlaps: LP-forced-cancel-owned-sessions; LP-quarantine-diagnose-requeue
 ---
 
 acceptance-walk: Pause one live node at a safe boundary while a sibling continues, verify provenance and clock exclusion, then exercise plain, reset-attempts, and immediate resume variants on separate runs. Compare Web controls with structured CLI and HTTP state after refresh and confirm each accepted resume continues once with the requested attempt policy.
+
+QA canary 2026-08-31: re-walk Pause and Resume beside the forced Cancel hard cut to catch shared
+lifecycle-control regressions.

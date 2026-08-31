@@ -656,7 +656,7 @@ func TestLoopDefinitionDocumentPreservesLifecycleAuthoring(t *testing.T) {
 						OnCancel:     []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_canceled"}}},
 						OnQuarantine: []dsl.EffectSpec{{Emit: &dsl.EmitSpec{Kind: "deploy_quarantined"}}},
 					},
-					OnParentClose: dsl.ParentCloseCancel,
+					OnParentClose: dsl.ParentCloseTerminate,
 				},
 			}, {
 				ID:      "recover",

@@ -90,7 +90,7 @@ func prepareDeadNodeResume(
 	if loopRun.WorkspaceID != request.WorkspaceID {
 		return deadNodeResumePreparation{}, fmt.Errorf("%w: %s", looppkg.ErrRunNotFound, request.RunID)
 	}
-	if loopRun.Status != looppkg.StatusRunning || loopRun.CancelRequested {
+	if loopRun.Status != looppkg.StatusRunning {
 		return deadNodeResumePreparation{loopRun: loopRun, noop: true}, nil
 	}
 	taskRun, err := (&TaskRepo{}).getTaskRunWithExecutor(ctx, exec, request.TaskRunID)

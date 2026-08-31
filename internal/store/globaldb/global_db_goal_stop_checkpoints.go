@@ -177,7 +177,7 @@ func closeCanceledGoalBindings(
 			},
 			binding.BindingEpoch,
 			binding.SessionID,
-			goal.SessionCleanupCauseStop,
+			looppkg.SessionCleanupCauseStop,
 			request.CanceledAt,
 		); err != nil {
 			return err
@@ -220,7 +220,7 @@ func failCanceledCreatingGoalBindings(
 			return err
 		}
 		if err := enqueueGoalSessionCleanupWithExecutor(
-			ctx, exec, binding, goal.SessionCleanupCauseStop, terminalAt,
+			ctx, exec, binding, looppkg.SessionCleanupCauseStop, terminalAt,
 		); err != nil {
 			return err
 		}

@@ -69,9 +69,8 @@ export function LoopRunControls({
       {verbs.includes("cancel") ? (
         <Button
           type="button"
-          variant="outline"
+          variant="destructive"
           size="sm"
-          className="text-danger hover:border-danger/40 hover:text-danger"
           data-testid="loop-run-cancel"
           disabled={pendingVerb === "cancel"}
           onClick={onCancel}

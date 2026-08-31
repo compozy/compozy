@@ -30,8 +30,8 @@ describe("loopNodeVerbs", () => {
     expect: undefined,
   });
 
-  it("Should offer pause/cancel/kill on a running node and never resume or requeue", () => {
-    expect(loopNodeVerbs(node(), "running")).toEqual(["pause", "cancel", "kill"]);
+  it("Should offer pause/cancel on a running node and never resume or requeue", () => {
+    expect(loopNodeVerbs(node(), "running")).toEqual(["pause", "cancel"]);
   });
 
   it("Should offer the three resume modes on a paused node and no requeue", () => {
@@ -40,13 +40,12 @@ describe("loopNodeVerbs", () => {
       "resume-reset-attempts",
       "resume-immediate",
       "cancel",
-      "kill",
     ]);
   });
 
   it("Should offer requeue only on a quarantined node, and never resume", () => {
     const verbs = loopNodeVerbs(node({ quarantined: true, state: "quarantined" }), "running");
-    expect(verbs).toEqual(["open-quarantine", "requeue", "cancel", "kill"]);
+    expect(verbs).toEqual(["open-quarantine", "requeue", "cancel"]);
     expect(verbs).not.toContain("resume");
   });
 
@@ -54,13 +53,11 @@ describe("loopNodeVerbs", () => {
     expect(loopNodeVerbs(node({ state: "waiting", waits: [wait("waiting")] }), "running")).toEqual([
       "resume-wait",
       "cancel",
-      "kill",
     ]);
     // A resumed cell no longer holds the node, so the wait verb disappears.
     expect(loopNodeVerbs(node({ waits: [wait("resumed")] }), "running")).toEqual([
       "pause",
       "cancel",
-      "kill",
     ]);
   });
 
@@ -73,10 +70,7 @@ describe("loopNodeVerbs", () => {
     expect(loopNodeWaitResumeItemIndex(lifecycle)).toBe(7);
   });
 
-  it("Should narrow to kill while canceling and offer nothing once canceled", () => {
-    expect(loopNodeVerbs(node({ cancelState: "draining", state: "canceling" }), "running")).toEqual(
-      ["kill"]
-    );
+  it("Should offer nothing once cancellation commits", () => {
     expect(loopNodeVerbs(node({ cancelState: "canceled", state: "canceled" }), "running")).toEqual(
       []
     );

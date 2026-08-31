@@ -241,7 +241,7 @@ const CANCELED_RUNS: LoopRun[] = [
   },
   {
     ...loopRunFixtures[1],
-    id: "looprun_killed",
+    id: "looprun_canceled_2",
     status: "canceled",
     loop_name: "review-and-fix",
   },

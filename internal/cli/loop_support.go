@@ -221,8 +221,6 @@ func executeLoopRunAction(
 	switch strings.TrimSpace(verb) {
 	case loopCancelKey:
 		return client.CancelLoopRun(ctx, workspaceID, runID, credentials)
-	case loopKillKey:
-		return client.KillLoopRun(ctx, workspaceID, runID, credentials)
 	case loopPauseKey:
 		if err := client.PauseLoopRun(ctx, workspaceID, runID, credentials); err != nil {
 			return contract.LoopMutationResponse{}, err

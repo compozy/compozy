@@ -1,6 +1,6 @@
 # J-loop-terminal-recovery — Settle a finished Loop run and repair what it left behind
 
-An autonomous operator ends a Loop run — naturally, by cancel, by kill, or by crashing the daemon
+An autonomous operator ends a Loop run — naturally, by forced Cancel, or by crashing the daemon
 mid-flight — and needs the runtime to leave no claimable execution record behind. The daemon repairs
 what a crash or a retention prune left live, once at boot before task recovery begins and again on a
 configured interval, and every repaired record carries a structured reason a reader can act on.
@@ -9,7 +9,7 @@ configured interval, and every repaired record carries a structured reason a rea
 flowchart TD
     A[Entry: compozy loop run reaches a terminal outcome] --> B{How did the run end?}
     B -->|completed or failed| C[Coordinator settles its own execution records]
-    B -->|cancel or kill| C
+    B -->|forced Cancel| C
     B -->|daemon crash mid-run| D[Records survive the crash still marked live]
     B -->|run pruned by retention| E[Records survive with no owning run]
     D --> F[Boot barrier: repair runs before task recovery admits claims]
@@ -44,7 +44,7 @@ journey:
       origin: direct
   actions:
     - step: 1
-      verb: "End a Loop run by completion, cancel, and kill"
+      verb: "End a Loop run by completion and forced Cancel"
       expected_observable: "Each terminal path leaves no claimable task run, and the run's own status reports the terminal outcome"
     - step: 2
       verb: "Seed crash-orphaned and retention-orphaned ownership shapes, then boot the daemon"

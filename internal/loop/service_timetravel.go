@@ -235,8 +235,7 @@ func (s *service) forkChildRun(
 	child.DefinitionSnapshot = append(json.RawMessage(nil), snapshot...)
 	child.Inputs = values
 	child.TokensUsed = 0
-	child.PauseRequested, child.CancelRequested = false, false
-	child.CancelKind = ParseRunCancelKind("")
+	child.PauseRequested = false
 	child.ControlActor = task.ActorIdentity{}
 	child.ControlRequestedAt = time.Time{}
 	child.ActiveGateID = ""

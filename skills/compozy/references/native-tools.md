@@ -339,9 +339,9 @@ Autonomy tools are bound to the caller session. `compozy__task_run_claim_next` c
 
 ## Loop Tools
 
-Toolset `compozy__loops` has 31 tools: Goal get/control/report; Loop
-list/inspect/validate/create/run/status/runs/turns/cancel/kill/pause/resume/configure/approve/delete;
-node list/pause/resume/cancel/kill/requeue; request list/get/respond/amend; and diff/rerun/fork.
+Toolset `compozy__loops` has 29 tools: Goal get/control/report; Loop
+list/inspect/validate/create/run/status/runs/turns/cancel/pause/resume/configure/approve/delete;
+node list/pause/resume/cancel/requeue; request list/get/respond/amend; and diff/rerun/fork.
 
 No `compozy__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
 binding semantics.

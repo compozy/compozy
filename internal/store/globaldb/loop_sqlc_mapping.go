@@ -93,7 +93,6 @@ func loopRunFromGenerated(row *sqlcgen.LoopRun) (looppkg.Run, error) {
 		completedAtRaw: completedAt,
 		activeHumanRaw: row.ActiveHumanCriteriaJson, startMetadataRaw: row.StartMetadataJson,
 		parentID: row.ParentLoopRunID, pauseRequested: int(row.PauseRequested),
-		cancelRequested: int(row.CancelRequested), cancelKind: row.CancelKind,
 		controlActorKind: row.ControlActorKind, controlActorID: row.ControlActorID,
 		controlRequested: controlRequested, inputsRaw: row.InputsJson,
 		startedByKind: row.StartedByKind, startedByRef: row.StartedByRef,

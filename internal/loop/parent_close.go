@@ -142,10 +142,6 @@ func (s *service) applyParentCloseActions(
 		var err error
 		switch action.Policy {
 		case dsl.ParentCloseTerminate:
-			err = s.KillRun(
-				ctx, parentMutation.WorkspaceID, action.ChildRunID, reason, parentMutation.Actor,
-			)
-		case dsl.ParentCloseCancel:
 			err = s.CancelRun(
 				ctx, parentMutation.WorkspaceID, action.ChildRunID, reason, parentMutation.Actor,
 			)

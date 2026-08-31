@@ -331,7 +331,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if err != nil {
 			t.Fatalf("GetSessionBindingAttempt() error = %v", err)
 		}
-		enqueue := func(cause goal.SessionCleanupCause, createdAt time.Time, target goal.SessionBinding) error {
+		enqueue := func(cause looppkg.SessionCleanupCause, createdAt time.Time, target goal.SessionBinding) error {
 			return globalDB.withTaskImmediateTransaction(
 				ctx,
 				"enqueue replayed Goal cleanup",
@@ -340,18 +340,18 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				},
 			)
 		}
-		if err := enqueue(goal.SessionCleanupCauseStop, now.Add(time.Minute), binding); err != nil {
+		if err := enqueue(looppkg.SessionCleanupCauseStop, now.Add(time.Minute), binding); err != nil {
 			t.Fatalf("enqueue(stop) error = %v", err)
 		}
-		if err := enqueue(goal.SessionCleanupCauseTerminal, now.Add(2*time.Minute), binding); err != nil {
+		if err := enqueue(looppkg.SessionCleanupCauseTerminal, now.Add(2*time.Minute), binding); err != nil {
 			t.Fatalf("enqueue(terminal replay) error = %v", err)
 		}
 
-		pending, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		pending, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
-		if len(pending) != 1 || pending[0].Cause != goal.SessionCleanupCauseStop ||
+		if len(pending) != 1 || pending[0].Cause != looppkg.SessionCleanupCauseStop ||
 			!pending[0].CreatedAt.Equal(now.Add(time.Minute)) {
 			t.Fatalf("cleanup replay = %#v, want first-writer metadata", pending)
 		}
@@ -359,7 +359,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		changed := binding
 		changed.SessionID = "session-goal-cleanup-conflict"
 		if err := enqueue(
-			goal.SessionCleanupCauseTerminal,
+			looppkg.SessionCleanupCauseTerminal,
 			now.Add(3*time.Minute),
 			changed,
 		); !errors.Is(
@@ -440,12 +440,12 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if binding.State != goal.BindingStateClosed {
 			t.Fatalf("binding state = %q, want %q", binding.State, goal.BindingStateClosed)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
 		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
-			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			cleanups[0].Cause != looppkg.SessionCleanupCauseTerminal {
 			t.Fatalf("run-agent cleanups = %#v, want one terminal session cleanup", cleanups)
 		}
 	})
@@ -537,9 +537,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if binding.State != goal.BindingStateActive {
 			t.Fatalf("borrowed binding state = %q, want %q", binding.State, goal.BindingStateActive)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
 		if len(cleanups) != 0 {
 			t.Fatalf("borrowed binding cleanups = %#v, want none", cleanups)
@@ -662,9 +662,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if binding.State != goal.BindingStateActive {
 			t.Fatalf("binding state after retry = %q, want %q", binding.State, goal.BindingStateActive)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(after retry) error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup(after retry) error = %v", err)
 		}
 		if len(cleanups) != 0 {
 			t.Fatalf("run-agent retry cleanups = %#v, want none", cleanups)
@@ -731,12 +731,12 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if binding.State != goal.BindingStateClosed {
 			t.Fatalf("binding state after final failure = %q, want %q", binding.State, goal.BindingStateClosed)
 		}
-		cleanups, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err = globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(after final failure) error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup(after final failure) error = %v", err)
 		}
 		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
-			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			cleanups[0].Cause != looppkg.SessionCleanupCauseTerminal {
 			t.Fatalf("run-agent final failure cleanups = %#v, want one terminal session cleanup", cleanups)
 		}
 	})
@@ -862,9 +862,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if currentBinding.State != goal.BindingStateClosed {
 			t.Fatalf("current generation binding state = %q, want %q", currentBinding.State, goal.BindingStateClosed)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
 		if len(cleanups) != 1 || cleanups[0].SessionID != currentSessionID {
 			t.Fatalf("generation cleanups = %#v, want current session only", cleanups)
@@ -940,12 +940,12 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if binding.State != goal.BindingStateClosed {
 			t.Fatalf("binding state after Loop terminal boundary = %q, want %q", binding.State, goal.BindingStateClosed)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
 		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
-			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			cleanups[0].Cause != looppkg.SessionCleanupCauseTerminal {
 			t.Fatalf("run-agent Loop terminal cleanups = %#v, want one terminal session cleanup", cleanups)
 		}
 	})
@@ -992,9 +992,8 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		result, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
 			WorkspaceID: workspaceID,
 			RunID:       loopRunID,
-			Kind:        looppkg.RunCancelKill,
-			Reason:      "operator killed run",
-			Actor:       operatorActorContextForTest("operator:kill-failed-binding"),
+			Reason:      "operator canceled run",
+			Actor:       operatorActorContextForTest("operator:cancel-failed-binding"),
 			RequestedAt: now.Add(time.Second),
 		})
 		if err != nil {
@@ -1071,7 +1070,6 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			RunID:       loopRunID,
 			NodeID:      "execute",
 			ItemIndex:   &itemIndex,
-			Kind:        looppkg.RunCancelCancel,
 			Reason:      "operator canceled lane",
 			Actor:       operatorActorContextForTest("operator:lane-cancel"),
 			RequestedAt: now.Add(time.Second),
@@ -1094,12 +1092,12 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if binding.State != goal.BindingStateClosed {
 			t.Fatalf("binding state after node lane cancellation = %q, want %q", binding.State, goal.BindingStateClosed)
 		}
-		cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
 		if len(cleanups) != 1 || cleanups[0].SessionID != sessionID ||
-			cleanups[0].Cause != goal.SessionCleanupCauseTerminal {
+			cleanups[0].Cause != looppkg.SessionCleanupCauseTerminal {
 			t.Fatalf("run-agent lane cancellation cleanups = %#v, want one terminal session cleanup", cleanups)
 		}
 	})
@@ -1196,12 +1194,12 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				stale.FailureCode != goalBindingFailureControlRevokedInFlight {
 				t.Fatalf("stale binding = %#v, want failed control-revoked", stale)
 			}
-			cleanups, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 			if err != nil {
-				t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+				t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 			}
 			if len(cleanups) != 1 || cleanups[0].SessionID != "session-action-stale" ||
-				cleanups[0].Cause != goal.SessionCleanupCauseControlRevoked {
+				cleanups[0].Cause != looppkg.SessionCleanupCauseControlRevoked {
 				t.Fatalf("stale action cleanups = %#v, want one control-revoked session", cleanups)
 			}
 		},
@@ -1237,7 +1235,6 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		if _, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
 			WorkspaceID: "ws-goal-cleanup-reopen",
 			RunID:       "run-goal-cleanup-reopen",
-			Kind:        looppkg.RunCancelCancel,
 			Reason:      "operator canceled run",
 			Actor:       operatorActorContextForTest("operator-cancel-reopen"),
 			RequestedAt: now.Add(time.Minute),
@@ -1257,12 +1254,12 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				t.Errorf("Close(reopened) error = %v", err)
 			}
 		})
-		if err := reopened.ReconcileGoalSessionCleanup(ctx); err != nil {
-			t.Fatalf("ReconcileGoalSessionCleanup() error = %v", err)
+		if err := reopened.ReconcileLoopSessionCleanup(ctx); err != nil {
+			t.Fatalf("ReconcileLoopSessionCleanup() error = %v", err)
 		}
-		pending, err := reopened.ClaimGoalSessionCleanup(ctx, 10)
+		pending, err := reopened.ClaimLoopSessionCleanup(ctx, 10)
 		if err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 		}
 		if len(pending) != 1 || pending[0].SessionID != "session-cleanup-reopen" {
 			t.Fatalf("reconciled cleanup = %#v", pending)
@@ -1299,20 +1296,20 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("CloseSessionBinding(run-owned) error = %v", err)
 			}
-			pending, err := globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			pending, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
 			if err != nil {
-				t.Fatalf("ClaimGoalSessionCleanup() error = %v", err)
+				t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
 			}
 			if len(pending) != 1 || pending[0].SessionID != "session-run-owned-cleanup" ||
-				pending[0].Cause != goal.SessionCleanupCauseTerminal {
+				pending[0].Cause != looppkg.SessionCleanupCauseTerminal {
 				t.Fatalf("run-owned cleanup = %#v", pending)
 			}
-			if err := globalDB.AcknowledgeGoalSessionCleanup(
+			if err := globalDB.AcknowledgeLoopSessionCleanup(
 				ctx,
 				pending[0].CleanupID,
 				now.Add(2*time.Minute),
 			); err != nil {
-				t.Fatalf("AcknowledgeGoalSessionCleanup() error = %v", err)
+				t.Fatalf("AcknowledgeLoopSessionCleanup() error = %v", err)
 			}
 
 			insertGoalSchemaLoopRun(t, globalDB, "run-goal-borrowed-cleanup", "ws-goal-cleanup", "catalog", nil)
@@ -1347,9 +1344,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("CloseSessionBinding(borrowed) error = %v", err)
 			}
-			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			pending, err = globalDB.ClaimLoopSessionCleanup(ctx, 10)
 			if err != nil {
-				t.Fatalf("ClaimGoalSessionCleanup(after borrowed) error = %v", err)
+				t.Fatalf("ClaimLoopSessionCleanup(after borrowed) error = %v", err)
 			}
 			if len(pending) != 0 {
 				t.Fatalf("borrowed cleanup = %#v, want none", pending)
@@ -1378,7 +1375,6 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			if _, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
 				WorkspaceID: "ws-goal-cleanup",
 				RunID:       "run-goal-creating-stop",
-				Kind:        looppkg.RunCancelCancel,
 				Reason:      "operator canceled run",
 				Actor:       operatorActorContextForTest("operator-cancel-creating"),
 				RequestedAt: now,
@@ -1408,9 +1404,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 					activatedAt,
 				)
 			}
-			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			pending, err = globalDB.ClaimLoopSessionCleanup(ctx, 10)
 			if err != nil {
-				t.Fatalf("ClaimGoalSessionCleanup(unsettled create) error = %v", err)
+				t.Fatalf("ClaimLoopSessionCleanup(unsettled create) error = %v", err)
 			}
 			if len(pending) != 0 {
 				t.Fatalf("unsettled creation cleanup = %#v, want hidden", pending)
@@ -1426,9 +1422,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				finalized.FailureCode != goalBindingFailureControlRevokedInFlight {
 				t.Fatalf("FinalizeSessionBindingCreation(stopped) = %#v/%t, %v", finalized, stopped, err)
 			}
-			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
+			pending, err = globalDB.ClaimLoopSessionCleanup(ctx, 10)
 			if err != nil {
-				t.Fatalf("ClaimGoalSessionCleanup(settled create) error = %v", err)
+				t.Fatalf("ClaimLoopSessionCleanup(settled create) error = %v", err)
 			}
 			if len(pending) != 1 || pending[0].SessionID != "session-creating-stop" {
 				t.Fatalf("settled creation cleanup = %#v", pending)

@@ -402,8 +402,8 @@ describe("LoopRunControls", () => {
     expect(screen.queryByTestId("loop-run-controls")).not.toBeInTheDocument();
   });
 
-  // WT-004 (run half): kill is reachable only from the overflow, and a pause
-  // that has been requested but not yet landed offers no second pause.
+  // WT-004 (run half): cancellation is the only destructive run control, and a
+  // pause that has been requested but not yet landed offers no second pause.
   it("Should replace Pause with a disabled Pausing once a pause is requested", () => {
     render(
       <LoopRunControls
@@ -416,15 +416,14 @@ describe("LoopRunControls", () => {
     );
     expect(screen.queryByTestId("loop-run-pause")).not.toBeInTheDocument();
     expect(screen.getByTestId("loop-run-pausing")).toBeDisabled();
-    // Kill is the destructive escape and never sits in this row.
-    expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
+    expect(screen.getByTestId("loop-run-cancel")).toHaveTextContent("Cancel run");
   });
 });
 
-// WT-004 (run confirmation): cancel and kill are destructive and irreversible
-// for the run, so neither may commit without restating the state it acts on.
+// WT-004 (run confirmation): cancellation is destructive and irreversible for
+// the run, so it may not commit without restating the state it acts on.
 describe("LoopRunControlDialog", () => {
-  it("Should restate the run's current identity and status before killing", () => {
+  it("Should restate the run's current identity and status before canceling", () => {
     const onConfirm = vi.fn();
     render(
       <LoopRunControlDialog
@@ -433,22 +432,22 @@ describe("LoopRunControlDialog", () => {
         onOpenChange={vi.fn()}
         runId="r-7c4e19"
         status="running"
-        verb="kill"
+        verb="cancel"
       />
     );
     const dialog = screen.getByTestId("loop-run-control-dialog");
-    expect(dialog).toHaveTextContent("Kill run r-7c4e19?");
+    expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
     // The strip is the guard against acting on a stale screen.
     expect(dialog).toHaveTextContent("r-7c4e19 is running · generation 2");
     expect(dialog).not.toHaveTextContent("in flight");
     expect(dialog).not.toHaveTextContent("waiting on you");
-    expect(dialog).toHaveTextContent("interrupted mid-step");
-    expect(dialog).toHaveTextContent("cause operator_kill");
-    fireEvent.click(screen.getByRole("button", { name: "Kill run" }));
-    expect(onConfirm).toHaveBeenCalledWith("kill");
+    expect(dialog).toHaveTextContent("Active sessions are stopped automatically");
+    expect(dialog).toHaveTextContent("cause operator_cancel");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel run" }));
+    expect(onConfirm).toHaveBeenCalledWith("cancel");
   });
 
-  it("Should describe cancel as a cooperative wind-down, not an immediate stop", () => {
+  it("Should describe cancel as an immediate stop with automatic session cleanup", () => {
     render(
       <LoopRunControlDialog
         generation={4}
@@ -462,7 +461,7 @@ describe("LoopRunControlDialog", () => {
     const dialog = screen.getByTestId("loop-run-control-dialog");
     expect(dialog).toHaveTextContent("Cancel run r-7c4e19?");
     expect(dialog).toHaveTextContent("r-7c4e19 is watching · generation 4");
-    expect(dialog).toHaveTextContent("in-flight lanes drain");
+    expect(dialog).toHaveTextContent("Active sessions are stopped automatically");
     expect(dialog).toHaveTextContent("cause operator_cancel");
   });
 
@@ -517,21 +516,10 @@ describe("LoopRunControlDialog", () => {
   });
 });
 
-// WT-004 (run kill): kill reaches the operator only through the surface's single
-// ⋯ overflow, and only while the run is live.
-describe("LoopRunOverflowMenu kill", () => {
-  it("Should offer Kill inside the overflow and report the click", async () => {
-    const user = userEvent.setup();
-    const onKill = vi.fn();
-    render(<LoopRunOverflowMenu loopName="review-and-fix" onKill={onKill} />);
-    const trigger = screen.getByTestId("loop-run-more");
-    fireEvent.pointerDown(trigger, { button: 0, pointerType: "mouse" });
-    await user.click(trigger);
-    await user.click(await screen.findByTestId("loop-run-kill"));
-    expect(onKill).toHaveBeenCalledTimes(1);
-  });
-
-  it("Should omit Kill entirely when the run can no longer be killed", async () => {
+// WT-004: the overflow keeps navigation only; cancellation is owned by the
+// first-class destructive run control.
+describe("LoopRunOverflowMenu", () => {
+  it("Should keep navigation actions only", async () => {
     const user = userEvent.setup();
     render(<LoopRunOverflowMenu loopName="review-and-fix" />);
     const trigger = screen.getByTestId("loop-run-more");
@@ -539,7 +527,7 @@ describe("LoopRunOverflowMenu kill", () => {
     await user.click(trigger);
     expect(await screen.findByTestId("loop-run-view-definition")).toBeInTheDocument();
     expect(screen.queryByTestId("loop-run-inspect")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("loop-run-kill")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("menuitem")).toHaveLength(2);
   });
 });
 

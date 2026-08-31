@@ -7,7 +7,6 @@ const specAPILoopNodesPath = "/api/workspaces/{workspace_id}/loop-nodes"
 func loopNodeLifecycleOperations() []OperationSpec {
 	return []OperationSpec{
 		loopRunLifecycleMutation("cancelLoopRun", "Cancel one Loop run", "/cancel"),
-		loopRunLifecycleMutation("killLoopRun", "Kill one Loop run", "/kill"),
 		loopNodeMutationOperation(
 			"pauseLoopNode",
 			"Pause one Loop node",
@@ -24,12 +23,6 @@ func loopNodeLifecycleOperations() []OperationSpec {
 			"cancelLoopNode",
 			"Cancel one Loop node",
 			"/cancel",
-			contract.LoopNodeMutationRequest{},
-		),
-		loopNodeMutationOperation(
-			"killLoopNode",
-			"Kill one Loop node",
-			"/kill",
 			contract.LoopNodeMutationRequest{},
 		),
 		loopNodeMutationOperation(

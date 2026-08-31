@@ -130,23 +130,6 @@ export async function cancelLoopNode(
   return requireResponseData(data, response, `Failed to cancel node "${nodeId}"`);
 }
 
-export async function killLoopNode(
-  { workspaceId, runId, nodeId }: NodePath,
-  body: LoopNodeMutationRequest = {},
-  signal?: AbortSignal
-): Promise<LoopNodeMutationResult> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/kill",
-    {
-      params: { path: { workspace_id: workspaceId, run_id: runId, node_id: nodeId } },
-      body,
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) throw nodeControlError("kill", nodeId, response, error);
-  return requireResponseData(data, response, `Failed to kill node "${nodeId}"`);
-}
-
 export async function requeueLoopNode(
   { workspaceId, runId, nodeId }: NodePath,
   body: LoopNodeMutationRequest = {},

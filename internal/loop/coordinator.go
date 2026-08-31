@@ -313,18 +313,6 @@ func (r *CoordinatorRunner) buildExistingGenerationPlan(
 	if len(outputs) == 0 {
 		return task.CoordinatorCompletionPlan{}, false, nil
 	}
-	cancellation, err := r.prepareCoordinatorCancellation(ctx, run, outputs)
-	if err != nil {
-		return task.CoordinatorCompletionPlan{}, false, err
-	}
-	if cancellation.waitingDelivery {
-		return cancellationWaitCoordinatorPlan(run, cancellation.outputs), true, nil
-	}
-	if run.CancelRequested {
-		plan, err := runCancellationCoordinatorPlan(run, cancellation)
-		return plan, true, err
-	}
-	outputs = cancellation.outputs
 	if plan, pending, planErr := r.buildPendingRequeuePlan(
 		ctx,
 		taskRun,
@@ -348,6 +336,5 @@ func (r *CoordinatorRunner) buildExistingGenerationPlan(
 	if err != nil {
 		return task.CoordinatorCompletionPlan{}, false, err
 	}
-	plan, err = appendCoordinatorCancellationState(plan, cancellation)
-	return plan, true, err
+	return plan, true, nil
 }

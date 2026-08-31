@@ -11,7 +11,7 @@ flowchart TD
     C --> D{What happens while the node is live?}
     D -->|classified failure| E{Recovery precedence}
     D -->|pause or managed-session death| F[Park or resume one fenced continuation]
-    D -->|cancel or kill| G[Commit truthful canceled cause]
+    D -->|cancel| G[Commit canceled(operator_cancel), fence new work, and stop owned sessions]
     E -->|retry eligible| H[Durable backoff and same-generation retry]
     E -->|error route| I[Skip success-only work and run fallback]
     E -->|unhandled or repeated| J[Create repair context or quarantine the lane]
@@ -53,7 +53,7 @@ journey:
       expected_observable: "The catalog, run form, structured response, and run detail identify the same run"
     - step: 3
       verb: "Trigger a classified failure or interrupt one live node"
-      expected_observable: "The runtime takes one retry, route, repair, pause, resume, cancel, or kill authority with durable provenance"
+      expected_observable: "The runtime takes one retry, route, repair, pause, resume, or forced Cancel authority with durable provenance"
     - step: 4
       verb: "Diagnose and repair the affected lane"
       expected_observable: "Healthy siblings continue while the operator can inspect and requeue or resume only the actionable node; the continuation preserves the exact generation, node id, and item index while advancing attempt and epoch"
