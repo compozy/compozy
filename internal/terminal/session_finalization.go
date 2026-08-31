@@ -32,7 +32,9 @@ func (s *session) awaitRemoval(ctx context.Context) error {
 	if !pending {
 		return nil
 	}
-	if err := s.manager.closeJournalTerminal(ctx, s); err != nil {
+	retryCtx, cancel := context.WithTimeout(ctx, defaultJournalShutdownTimeout)
+	defer cancel()
+	if err := s.manager.closeJournalTerminal(retryCtx, s); err != nil {
 		return fmt.Errorf("terminal: retry journal close for %q: %w", s.info.ID, err)
 	}
 	s.finalizationMu.Lock()

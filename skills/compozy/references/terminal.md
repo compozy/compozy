@@ -47,7 +47,9 @@ first call. Never reconstruct inputs from this reference.
 Use `exec` for one command. Set its visible mode only when an activation trigger applies. Use `open`
 for a persistent interactive shell. Use `read` for bounded screen or scrollback data and `wait` for a
 bounded output or lifecycle condition. Use `list` to discover the current workspace and profile
-catalog instead of retaining terminal IDs from another scope.
+catalog instead of retaining terminal IDs from another scope. `close` is idempotent: closing an
+already-ended terminal succeeds and reports the recorded exit, while `signal` and `write` on an
+ended terminal still fail with `terminal_exited`.
 
 ## Approval And Control
 

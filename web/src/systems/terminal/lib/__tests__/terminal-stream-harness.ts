@@ -188,6 +188,8 @@ export interface TerminalFetchStub {
  */
 export function stubTerminalFetch(handlers: {
   ticket?: () => unknown;
+  /** Full control of the mint response, for refusal tests. Wins over `ticket`. */
+  ticketResponse?: () => { body: unknown; status: number };
   screen?: () => TerminalScreenFixture;
   deferScreen?: boolean;
 }): TerminalFetchStub {
@@ -205,6 +207,10 @@ export function stubTerminalFetch(handlers: {
     const url = typeof input === "string" ? input : input.toString();
     calls.push(url);
     if (url.includes("/attach-ticket")) {
+      if (handlers.ticketResponse) {
+        const response = handlers.ticketResponse();
+        return jsonResponse(response.body, response.status);
+      }
       const body = handlers.ticket?.() ?? {
         ticket: `tkt-${calls.length}`,
         expires_at: "2026-08-25T12:00:30Z",

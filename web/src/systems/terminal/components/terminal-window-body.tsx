@@ -97,6 +97,7 @@ function TerminalInteractiveWindowBody({
   });
   const { connection } = controller;
   const { lease, pane, attachment, handleRef } = connection;
+  const newTerminal = readOnly ? undefined : (actions.onOpenTerminalTab ?? actions.onOpenTerminal);
   const goneCode = pane?.errorCode;
   if (goneCode === "terminal_expired" || goneCode === "terminal_not_found") {
     return (
@@ -105,6 +106,8 @@ function TerminalInteractiveWindowBody({
           hostChrome={hostChrome}
           lease={lease}
           limit={limit}
+          onNewTerminal={newTerminal}
+          onViewJournal={onViewJournal}
           recording={recording}
           terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
           terminalCount={terminalCount}
@@ -128,13 +131,17 @@ function TerminalInteractiveWindowBody({
   return (
     <>
       <TerminalHeader
+        closePending={actions.closePending}
         hostChrome={hostChrome}
         lease={lease}
         limit={limit}
+        onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
+        onNewTerminal={newTerminal}
         onReleaseControl={controller.releaseControl}
         onStop={controller.stop}
         onStopRecording={controller.stopRecording}
         onTakeControl={controller.takeControl}
+        onViewJournal={onViewJournal}
         recording={recording}
         terminal={{ ...terminal, viewers: pane?.viewers ?? terminal.viewers }}
         terminalCount={terminalCount}
@@ -198,6 +205,7 @@ function TerminalPipeWindowBody({
   readOnly = false,
   pipeOutput,
   actions,
+  onViewJournal,
   hostChrome = false,
   terminalCount,
   limit,
@@ -207,6 +215,7 @@ function TerminalPipeWindowBody({
     ...terminalPipeOutputQuery(scope, terminal.id),
     enabled: pipeOutput === undefined,
   });
+  const newTerminal = readOnly ? undefined : (actions.onOpenTerminalTab ?? actions.onOpenTerminal);
   const lease = terminalLeaseView({
     lease: terminal.lease,
     controller: terminal.controller,
@@ -218,13 +227,16 @@ function TerminalPipeWindowBody({
   return (
     <>
       <TerminalHeader
+        closePending={actions.closePending}
         hostChrome={hostChrome}
         lease={lease}
         limit={limit}
         onClose={readOnly ? undefined : () => actions.onCloseTerminal(terminal.id)}
+        onNewTerminal={newTerminal}
         onSignal={
           readOnly || terminal.state !== "running" ? undefined : () => actions.onStop(terminal.id)
         }
+        onViewJournal={onViewJournal}
         onWait={readOnly ? undefined : () => actions.onWait(terminal.id)}
         terminal={terminal}
         terminalCount={terminalCount}

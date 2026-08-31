@@ -81,22 +81,26 @@ func prepareZshIntegration(setup *shellSetup, root, nonce string) error {
 	if originalRoot == "" {
 		originalRoot = home
 	}
-	path := filepath.Join(root, ".zshrc")
-	script := "if [[ -f " + shellQuote(filepath.Join(originalRoot, ".zshrc")) + " ]]; then source " +
-		shellQuote(filepath.Join(originalRoot, ".zshrc")) + "; fi\n" + zshMarkerScript(nonce)
-	if err := os.WriteFile(path, []byte(script), 0o600); err != nil {
+	envScript := zshSourceIfExists(filepath.Join(originalRoot, ".zshenv"))
+	if err := os.WriteFile(filepath.Join(root, ".zshenv"), []byte(envScript), 0o600); err != nil {
+		return fmt.Errorf("terminal pty: write zsh env integration: %w", err)
+	}
+	rcScript := zshSourceIfExists(filepath.Join(originalRoot, ".zshrc")) + zshMarkerScript(nonce)
+	if err := os.WriteFile(filepath.Join(root, ".zshrc"), []byte(rcScript), 0o600); err != nil {
 		return fmt.Errorf("terminal pty: write zsh integration: %w", err)
 	}
 	setup.env["ZDOTDIR"] = root
 	return nil
 }
 
+func zshSourceIfExists(path string) string {
+	return "if [[ -f " + shellQuote(path) + " ]]; then source " + shellQuote(path) + "; fi\n"
+}
+
+// Fish markers ride the vendor_conf.d mechanism through XDG_DATA_DIRS so the
+// user's XDG_CONFIG_HOME (themes, conf.d, functions, fish_variables) stays
+// exactly as configured.
 func prepareFishIntegration(setup *shellSetup, root, nonce string) error {
-	home, err := shellHome(setup.env)
-	if err != nil {
-		return fmt.Errorf("terminal pty: resolve fish home: %w", err)
-	}
-	fishRoot := filepath.Join(root, "fish")
 	vendorRoot := filepath.Join(root, "fish", "vendor_conf.d")
 	if err := os.MkdirAll(vendorRoot, 0o700); err != nil {
 		return fmt.Errorf("terminal pty: create fish integration directory: %w", err)
@@ -105,25 +109,19 @@ func prepareFishIntegration(setup *shellSetup, root, nonce string) error {
 	if err := os.WriteFile(vendorPath, []byte(fishMarkerScript(nonce)), 0o600); err != nil {
 		return fmt.Errorf("terminal pty: write fish vendor integration: %w", err)
 	}
-	configPath := filepath.Join(fishRoot, "config.fish")
-	userConfigRoot := strings.TrimSpace(setup.env["XDG_CONFIG_HOME"])
-	if userConfigRoot == "" {
-		userConfigRoot = filepath.Join(home, ".config")
-	}
-	userConfig := filepath.Join(userConfigRoot, "fish", "config.fish")
-	config := "if test -f " + fishQuote(
-		userConfig,
-	) + "\n  source " + fishQuote(
-		userConfig,
-	) + "\nend\nsource " + fishQuote(
-		vendorPath,
-	) + "\n"
-	if err := os.WriteFile(configPath, []byte(config), 0o600); err != nil {
-		return fmt.Errorf("terminal pty: write fish integration config: %w", err)
-	}
-	setup.env["XDG_CONFIG_HOME"] = root
-	setup.env["XDG_DATA_DIRS"] = root + string(os.PathListSeparator) + setup.env["XDG_DATA_DIRS"]
+	setup.env["XDG_DATA_DIRS"] = root + string(os.PathListSeparator) + resolveDataDirs(setup.env)
 	return nil
+}
+
+func resolveDataDirs(env map[string]string) string {
+	if dirs := strings.TrimSpace(env["XDG_DATA_DIRS"]); dirs != "" {
+		return dirs
+	}
+	if dirs := strings.TrimSpace(os.Getenv("XDG_DATA_DIRS")); dirs != "" {
+		return dirs
+	}
+	// XDG Base Directory spec default; setting the variable must not hide it.
+	return "/usr/local/share:/usr/share"
 }
 
 func bashMarkerScript(nonce string) string {

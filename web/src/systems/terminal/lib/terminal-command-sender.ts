@@ -29,6 +29,8 @@ export interface TerminalCommandSenderPort {
 export class TerminalCommandSender {
   /** The size this viewer last voted for, carried into the next upgrade. */
   private proposedSize: { cols: number; rows: number } | null = null;
+  /** The vote the daemon has actually received — sent, or carried in a query. */
+  private sentSize: { cols: number; rows: number } | null = null;
   private detached = false;
 
   constructor(private readonly port: TerminalCommandSenderPort) {}
@@ -68,20 +70,36 @@ export class TerminalCommandSender {
   }
 
   /**
-   * Votes on a size. The daemon decides; nothing here resizes the emulator, and
-   * the vote is remembered so a reconnect can carry it in the upgrade query.
+   * Remembers this viewer's preferred size without touching the wire, so a
+   * later upgrade query can carry it. The daemon decides; nothing here resizes
+   * the emulator.
    */
-  proposeDimensions(cols: number, rows: number): void {
+  recordProposal(cols: number, rows: number): void {
     const clamped = clampTerminalDimensions(cols, rows);
-    if (!clamped) return;
-    if (this.proposedSize?.cols === clamped.cols && this.proposedSize?.rows === clamped.rows) {
-      return;
-    }
-    this.proposedSize = clamped;
-    this.send(
-      encodeTerminalResize(clamped.cols, clamped.rows),
+    if (clamped) this.proposedSize = clamped;
+  }
+
+  /**
+   * Delivers the recorded vote when the daemon has not received it yet.
+   *
+   * A vote made while the socket was still opening must not be lost: recording
+   * it first and flushing on open is what keeps the first fit from being stuck
+   * at the daemon's default until the next remount.
+   */
+  flushProposal(): void {
+    const size = this.proposedSize;
+    if (!size) return;
+    if (this.sentSize?.cols === size.cols && this.sentSize.rows === size.rows) return;
+    const sent = this.send(
+      encodeTerminalResize(size.cols, size.rows),
       "The terminal could not report its size."
     );
+    if (sent) this.sentSize = size;
+  }
+
+  /** The upgrade query carried this vote; the daemon already has it. */
+  markProposalCarried(size: { cols: number; rows: number } | null): void {
+    this.sentSize = size;
   }
 
   signal(signal: TerminalSignal): void {

@@ -318,8 +318,9 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const terminalId = execution.terminal_id;
 
     await ensureProjectWorkspace(appPage, runtime);
+    // The dock adopts the agent's running terminal directly.
     let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
-    await expect(terminalWindow.getByTestId(`terminal-tab-${terminalId}`)).toBeVisible();
+    await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible();
     await expect
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
       .toContain("agent-live-1");
@@ -335,7 +336,7 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const row = journal.entries.find(entry => entry.terminal_id === terminalId);
     expect(row).toMatchObject({ approval: "approved_once" });
     if (!row) throw new Error("Approved terminal exec was absent from the journal.");
-    await terminalWindow.getByTestId("terminal-tab-journal").click();
+    await terminalWindow.getByTestId("terminal-journal-toggle").click();
     await expect(
       terminalWindow.getByTestId(`terminal-journal-row-${row.command_id}`)
     ).toBeVisible();
@@ -650,12 +651,13 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await approveOnce(harness, appPage);
 
     await ensureProjectWorkspace(appPage, runtime);
+    // Adoption lands on the input terminal — the only running one — so the
+    // pending question is pinned right under its grid; the dock badge is the
+    // cross-window attention surface.
     let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
     const terminalLauncher = appPage.locator('[data-slot="os-dock-item"][data-app="terminal"]');
-    await expect(terminalWindow.getByTestId(`terminal-tab-${inputTerminalId}`)).toBeVisible();
-    await expect(
-      terminalWindow.getByTestId(`terminal-tab-attention-${inputTerminalId}`)
-    ).toBeVisible();
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible();
+    await expect(terminalWindow.getByTestId("terminal-input-request-stack")).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
 
     const profiles = profilesOperatorSelectors(appPage);
@@ -669,15 +671,21 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     expect((await createdProfile).ok()).toBe(true);
     await expect(profiles.switcher).toContainText("terminal-b");
     terminalWindow = await ensureTerminalWindow(appPage);
-    await expect(terminalWindow.getByTestId(`terminal-tab-${defaultTerminalId}`)).toHaveCount(0);
+    // The other profile's terminals are hidden, not closed: the routed one is
+    // simply not here under terminal-b.
+    await expect(terminalWindow.getByTestId(`terminal-pane-${defaultTerminalId}`)).toHaveCount(0);
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toHaveCount(0);
+    await expect(terminalWindow.getByTestId("terminal-not-found")).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveCount(0);
 
     const profileBWindow = appPage.getByTestId(`os-window-${await windowID(terminalWindow)}`);
-    await profileBWindow.getByTestId("terminal-empty-open").click();
-    const profileBTab = profileBWindow.locator('[data-testid^="terminal-tab-term-"]').first();
-    await expect(profileBTab).toBeVisible({ timeout: 20_000 });
-    const profileBTerminalId = (await profileBTab.getAttribute("data-testid"))?.replace(
-      "terminal-tab-",
+    await profileBWindow.getByRole("button", { name: "Open a new terminal" }).click();
+    const profileBPane = profileBWindow
+      .locator('[data-testid^="terminal-pane-term-"]:visible')
+      .first();
+    await expect(profileBPane).toBeVisible({ timeout: 20_000 });
+    const profileBTerminalId = (await profileBPane.getAttribute("data-testid"))?.replace(
+      "terminal-pane-",
       ""
     );
     if (!profileBTerminalId) throw new Error("terminal-b did not expose its terminal id.");
@@ -693,7 +701,7 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
             .content
       )
       .toContain("profile-terminal-b-row");
-    await terminalWindow.getByTestId("terminal-tab-journal").click();
+    await terminalWindow.getByTestId("terminal-journal-toggle").click();
     await expect(terminalWindow.getByTestId("terminal-journal")).toContainText(
       "profile-terminal-b-row"
     );
@@ -705,10 +713,9 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcherOption("default").click();
     await expect(profiles.switcher).toContainText("default");
     terminalWindow = await ensureTerminalWindow(appPage);
-    await expect(terminalWindow.getByTestId(`terminal-tab-${inputTerminalId}`)).toBeVisible();
-    await expect(
-      terminalWindow.getByTestId(`terminal-tab-attention-${inputTerminalId}`)
-    ).toBeVisible();
+    // Back on default, this window is still routed at terminal-b's terminal —
+    // hidden here — while the pending question shows on the dock badge.
+    await expect(terminalWindow.getByTestId("terminal-not-found")).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
     expect(
       (await terminalScreen(runtime, harness.workspace.id, defaultTerminalId)).content
@@ -718,8 +725,8 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcherAll.click();
     await expect(profiles.switcher).toContainText("All profiles");
     terminalWindow = await ensureTerminalWindow(appPage);
-    await expect(terminalWindow.getByTestId("terminal-tab-journal")).toBeVisible();
-    await terminalWindow.getByTestId("terminal-tab-journal").click();
+    await expect(terminalWindow.getByTestId("terminal-journal-toggle")).toBeVisible();
+    await terminalWindow.getByTestId("terminal-journal-toggle").click();
     const aggregateJournal = terminalWindow.getByTestId("terminal-journal");
     await expect(aggregateJournal).toContainText("profile-default-row");
     await expect(aggregateJournal).toContainText("profile-terminal-b-row");
@@ -729,8 +736,12 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
 
     await profiles.switcher.click();
     await profiles.switcherOption("default").click();
+    // The deep link is the way to a specific terminal; it retargets the window.
+    await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(inputTerminalId)}`), {
+      waitUntil: "domcontentloaded",
+    });
     terminalWindow = await ensureTerminalWindow(appPage);
-    await terminalWindow.getByTestId(`terminal-tab-select-${inputTerminalId}`).click();
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible();
     const inputCard = terminalWindow.locator('[data-testid^="terminal-input-request-"]').first();
     await expect(inputCard).toBeVisible();
     await inputCard.getByRole("button", { name: "Decline" }).click();

@@ -20,7 +20,7 @@ import type { TerminalInfo } from "../types";
 
 export interface TerminalLimitDialogProps {
   open: boolean;
-  /** Every terminal open in this project under this profile. */
+  /** The running terminals that occupy this project's slots under this profile. */
   terminals: readonly TerminalInfo[];
   /** The cap, from `[terminal].max_per_workspace`. */
   limit: number;
@@ -33,10 +33,9 @@ export interface TerminalLimitDialogProps {
  * The project is at its terminal cap.
  *
  * The daemon refuses the create, so the honest answer is the way out rather
- * than a greyed-out plus: the terminals you could close are the body of the
- * dialog, and a finished one is preselected because closing it costs nothing.
- * The cause names the config key that decides the cap, so raising it is a
- * findable action instead of a mystery.
+ * than a greyed-out plus: the running terminals you could close are the body
+ * of the dialog. The cause names the config key that decides the cap, so
+ * raising it is a findable action instead of a mystery.
  */
 export function TerminalLimitDialog({
   open,
@@ -51,8 +50,7 @@ export function TerminalLimitDialog({
   // one and hitting the cap again would otherwise reopen this dialog pointing
   // at something that no longer exists, with its only real action disabled.
   const stillListed = terminals.some(terminal => terminal.id === picked);
-  const fallback = terminals.find(terminal => terminal.state === "exited") ?? terminals[0];
-  const selected = (stillListed ? terminals.find(t => t.id === picked) : fallback) ?? null;
+  const selected = (stillListed ? terminals.find(t => t.id === picked) : terminals[0]) ?? null;
   const selectedId = selected?.id ?? null;
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -87,9 +85,6 @@ export function TerminalLimitDialog({
                 <ItemContent>
                   <ItemTitle className="min-w-0 truncate font-normal text-muted">
                     {terminal.title}
-                    {terminal.state === "exited" ? (
-                      <span className="text-subtle"> · finished</span>
-                    ) : null}
                   </ItemTitle>
                 </ItemContent>
                 <ItemActions>

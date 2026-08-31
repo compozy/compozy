@@ -116,7 +116,7 @@ func (m *Service) Release(ctx context.Context, workspaceID, profileID string, id
 	if err != nil {
 		return err
 	}
-	if _, err := item.close(ctx, SignalHUP, "released", actor); err != nil && !errors.Is(err, ErrExited) {
+	if _, err := item.close(ctx, SignalHUP, "released", actor); err != nil {
 		return err
 	}
 	m.removeWithTombstone(key, item, m.tombstoneExpiry(item))

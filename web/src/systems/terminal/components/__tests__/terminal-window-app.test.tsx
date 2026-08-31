@@ -30,16 +30,16 @@ import {
 } from "./terminal-window-harness";
 
 /**
- * Canonical suite for the terminal window (UT-083, UT-118).
+ * Canonical suite for the terminal window (UT-083, UT-118, UT-122).
  *
- * Invariant: every S1 state renders with its distinguishing behaviour, and the
- * two contention behaviours hold — displacing another person confirms by name
- * before any write, an unchanged browser identity keeps one writable attachment,
- * and every tab stays visible at min 96px through the per-workspace cap.
- * A pending question stays on screen for a watcher or aggregate read, with the
- * write row absent; Send is offered only with a writable lease on a destination
- * profile; resolved rows from the host projection, including "by you", stay on
- * the same stack.
+ * Invariant: one terminal per OS window — every S1 state renders with its
+ * distinguishing behaviour, the id-less route resolves itself (adopt the newest
+ * unwindowed running terminal, else create once, cap surfaced instead of a dead
+ * create), and the two contention behaviours hold — displacing another person
+ * confirms by name before any write, and an unchanged browser identity keeps
+ * one writable attachment. A pending question stays on screen for a watcher or
+ * aggregate read, with the write row absent; resolved rows from the host
+ * projection, including "by you", stay on the same stack.
  */
 
 const TERMINAL_LIMIT = 8;
@@ -176,7 +176,7 @@ describe("TerminalWindowApp — S1 states", () => {
     const actions = stubWindowActions();
     renderWindow({ actions, terminals: TERMINAL_FIXTURES_AT_CAP });
 
-    await userEvent.click(screen.getByTestId("terminal-open"));
+    await userEvent.click(screen.getByTestId("terminal-new"));
 
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
     const dialog = await screen.findByTestId("terminal-limit-dialog");
@@ -185,20 +185,16 @@ describe("TerminalWindowApp — S1 states", () => {
       `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT} terminals are open`
     );
     expect(dialog).toHaveTextContent("terminal.max_per_workspace 8");
-    // Every terminal you could close is listed — the list is the choice.
+    // Every running terminal you could close is listed — the list is the choice.
     for (const terminal of TERMINAL_FIXTURES_AT_CAP) {
       expect(screen.getByTestId(`terminal-limit-row-${terminal.id}`)).toBeInTheDocument();
     }
-    // A finished terminal is preselected: closing it costs nothing.
-    const finished = TERMINAL_FIXTURES_AT_CAP.find(terminal => terminal.state === "exited");
-    if (!finished) throw new Error("fixture must include a finished terminal");
-    expect(screen.getByTestId(`terminal-limit-row-${finished.id}`)).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    expect(
+      screen.getByTestId(`terminal-limit-row-${TERMINAL_FIXTURES_AT_CAP[0].id}`)
+    ).toHaveAttribute("aria-pressed", "true");
 
     await userEvent.click(screen.getByTestId("terminal-limit-close"));
-    expect(actions.onCloseTerminal).toHaveBeenCalledWith(finished.id);
+    expect(actions.onCloseTerminal).toHaveBeenCalledWith(TERMINAL_FIXTURES_AT_CAP[0].id);
   });
 
   it("Should say what the connection is doing, and never fake output for it", async () => {
@@ -320,7 +316,7 @@ describe("TerminalWindowApp — S1 states", () => {
     const { rerender } = renderWindow({ actions, terminals: TERMINAL_FIXTURES_AT_CAP });
     const removed = TERMINAL_FIXTURES_AT_CAP[0];
 
-    await userEvent.click(screen.getByTestId("terminal-open"));
+    await userEvent.click(screen.getByTestId("terminal-new"));
     await userEvent.click(await screen.findByTestId(`terminal-limit-row-${removed.id}`));
     await userEvent.click(screen.getByTestId("terminal-limit-close"));
 
@@ -341,7 +337,7 @@ describe("TerminalWindowApp — S1 states", () => {
         workspaceId="ws-atlas"
       />
     );
-    await userEvent.click(screen.getByTestId("terminal-open"));
+    await userEvent.click(screen.getByTestId("terminal-new"));
 
     // Reopening falls back to a terminal that still exists, so the way out of
     // the cap is still a way out.
@@ -349,27 +345,23 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(close).toBeEnabled();
     await userEvent.click(close);
     expect(actions.onCloseTerminal).toHaveBeenCalledTimes(2);
-    expect(actions.onCloseTerminal).toHaveBeenLastCalledWith(
-      remaining.find(t => t.state === "exited")?.id ?? remaining[0].id
-    );
+    expect(actions.onCloseTerminal).toHaveBeenLastCalledWith(remaining[0].id);
   });
 
   it("Should state an execute-only platform instead of offering a screen", async () => {
     renderWindow({ interactiveAvailable: false, terminals: [] });
 
     expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
-    expect(screen.queryByTestId("terminal-open")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("terminal-new")).not.toBeInTheDocument();
     expect(screen.getByTestId("terminal-execute-only")).not.toHaveTextContent("On this platform");
 
     await userEvent.click(screen.getByRole("button", { name: "View journal" }));
-    expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByTestId("terminal-execute-only")).not.toBeInTheDocument();
-    expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("journal-slot")).toBeVisible();
 
-    await userEvent.click(screen.getByTestId("terminal-tab-journal"));
+    await userEvent.click(screen.getByTestId("terminal-journal-back"));
     expect(screen.getByTestId("terminal-execute-only")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "false");
+    expect(screen.getByTestId("journal-slot")).not.toBeVisible();
   });
 
   it("Should publish identity into the OS head instead of drawing a second row", async () => {
@@ -387,9 +379,9 @@ describe("TerminalWindowApp — S1 states", () => {
     await waitFor(() =>
       expect(screen.getByTestId(`terminal-pane-${SSH_STAGING_TERMINAL.id}`)).toBeInTheDocument()
     );
-    expect(screen.getByTestId(`terminal-tab-${SSH_STAGING_TERMINAL.id}`)).toHaveTextContent(
-      "exit 0"
-    );
+    const bar = screen.getByTestId("terminal-exit-bar");
+    expect(bar).toHaveTextContent("Succeeded");
+    expect(bar).toHaveTextContent("exit 0");
   });
 
   it("Should pause commands while the journal cannot record, without stopping output", async () => {
@@ -405,16 +397,6 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(notice).toHaveTextContent("New commands are paused.");
     // Watching continues: the grid is still mounted behind the stream warning.
     expect(screen.getByTestId(`terminal-pane-${DEV_SERVER_TERMINAL.id}`)).toBeInTheDocument();
-  });
-
-  it("Should mark the tab of a terminal that is waiting on an answer", async () => {
-    renderWindow({ inputRequests: [PASSWORD_REQUEST] });
-
-    await waitForTerminalRenderer(DEV_SERVER_TERMINAL.id);
-
-    expect(
-      screen.getByTestId(`terminal-tab-attention-${PASSWORD_REQUEST.terminal_id}`)
-    ).toBeInTheDocument();
   });
 
   it("Should let a destination-profile watcher answer through an atomic handoff", async () => {
@@ -533,14 +515,19 @@ describe("TerminalWindowApp — S1 states", () => {
     expect(screen.getByRole("button", { name: "Stop recording" })).toBeEnabled();
   });
 
-  it("Should open the journal from its pinned tab", async () => {
+  it("Should open the journal from the head and return from its back affordance", async () => {
     const onViewJournal = vi.fn();
-    renderWindow({ onViewJournal });
+    const onLeaveJournal = vi.fn();
+    renderWindow({ onLeaveJournal, onViewJournal });
 
-    await userEvent.click(screen.getByTestId("terminal-tab-journal"));
+    await userEvent.click(screen.getByTestId("terminal-journal-toggle"));
 
-    expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+    expect(screen.getByTestId("journal-slot")).toBeVisible();
     expect(onViewJournal).toHaveBeenCalledOnce();
+
+    await userEvent.click(screen.getByTestId("terminal-journal-back"));
+    expect(screen.getByTestId("journal-slot")).not.toBeVisible();
+    expect(onLeaveJournal).toHaveBeenCalledOnce();
   });
 });
 
@@ -656,9 +643,8 @@ describe("TerminalWindowApp — contention", () => {
     expect(gone).not.toHaveTextContent("Reconnect");
     expect(gone).not.toHaveTextContent("It may have been closed");
     expect(screen.queryByTestId("terminal-notice-terminal_not_found")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "View journal" }));
-    expect(screen.getByTestId("terminal-tab-journal")).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
+    await userEvent.click(within(gone).getByRole("button", { name: "View journal" }));
+    expect(screen.getByTestId("journal-slot")).toBeVisible();
   });
 
   it("Should state a reclaimed terminal from the stream with its idle period", async () => {
@@ -682,7 +668,7 @@ describe("TerminalWindowApp — contention", () => {
     expect(
       within(expired).getByRole("button", { name: "Open a new terminal" })
     ).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-open")).toBeInTheDocument();
+    expect(screen.getByTestId("terminal-new")).toBeInTheDocument();
   });
 
   it.each([
@@ -713,7 +699,7 @@ describe("TerminalWindowApp — contention", () => {
     expect(await screen.findByTestId("terminal-limit-dialog")).toBeInTheDocument();
   });
 
-  it("Should keep chrome and say the routed terminal is gone", () => {
+  it("Should say the routed terminal is gone with its history still reachable", () => {
     renderWindow({
       requestedTerminalId: "term-missing",
       terminals: TERMINAL_FIXTURES,
@@ -721,23 +707,8 @@ describe("TerminalWindowApp — contention", () => {
 
     const gone = screen.getByTestId("terminal-not-found");
     expect(gone).toHaveTextContent("terminal_not_found");
-    expect(screen.getByTestId("terminal-tabs")).toBeInTheDocument();
-    expect(screen.getByTestId("terminal-open")).toBeInTheDocument();
     expect(within(gone).getByRole("button", { name: "View journal" })).toBeInTheDocument();
     expect(within(gone).getByRole("button", { name: "Open a new terminal" })).toBeInTheDocument();
-  });
-
-  it("Should retarget the host when a PTY tab is selected", async () => {
-    const onSelectTerminal = vi.fn();
-    const next = TERMINAL_FIXTURES[1];
-    renderWindow({
-      onSelectTerminal,
-      requestedTerminalId: DEV_SERVER_TERMINAL.id,
-      terminals: TERMINAL_FIXTURES,
-    });
-
-    await userEvent.click(screen.getByTestId(`terminal-tab-select-${next.id}`));
-    expect(onSelectTerminal).toHaveBeenCalledExactlyOnceWith(next.id);
   });
 
   it("Should show the daemon's own words for a refusal it has no copy for", async () => {
@@ -790,7 +761,7 @@ describe("TerminalWindowApp — contention", () => {
     });
 
     expect(screen.queryByTestId("terminal-cap-count")).not.toBeInTheDocument();
-    await userEvent.click(screen.getByTestId("terminal-open"));
+    await userEvent.click(screen.getByTestId("terminal-new"));
     expect(actions.onOpenTerminal).toHaveBeenCalledOnce();
     expect(screen.queryByTestId("terminal-limit-dialog")).not.toBeInTheDocument();
   });
@@ -811,9 +782,8 @@ describe("TerminalWindowApp — contention", () => {
     expect(screen.getByTestId("terminal-cap-count")).toHaveTextContent(
       `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT}`
     );
-    expect(screen.getByTestId(`terminal-tab-select-${personal.id}`)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByTestId("terminal-open"));
+    await userEvent.click(screen.getByTestId("terminal-new"));
     expect(actions.onOpenTerminal).not.toHaveBeenCalled();
     const dialog = await screen.findByTestId("terminal-limit-dialog");
     expect(dialog).toHaveTextContent(
@@ -825,55 +795,128 @@ describe("TerminalWindowApp — contention", () => {
     }
   });
 
-  it("Should keep every tab visible at the cap and name the limit in the identity trail", async () => {
-    renderWindow({ terminals: TERMINAL_FIXTURES_AT_CAP });
-
-    expect(screen.queryByTestId("terminal-tab-overflow")).not.toBeInTheDocument();
-    expect(screen.getAllByRole("tab")).toHaveLength(TERMINAL_FIXTURES_AT_CAP.length + 1);
-    expect(screen.getByTestId("terminal-cap-count")).toHaveTextContent(
-      `${TERMINAL_FIXTURES_AT_CAP.length} of ${TERMINAL_LIMIT}`
-    );
-    for (const terminal of TERMINAL_FIXTURES_AT_CAP) {
-      expect(screen.getByTestId(`terminal-tab-select-${terminal.id}`)).toBeInTheDocument();
-    }
-
-    const last = TERMINAL_FIXTURES_AT_CAP[TERMINAL_FIXTURES_AT_CAP.length - 1];
-    await userEvent.click(screen.getByTestId(`terminal-tab-select-${last.id}`));
-    expect(screen.getByTestId(`terminal-tab-select-${last.id}`)).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-  });
-
-  it("Should keep the journal mounted when switching away from it", async () => {
+  it("Should keep the journal mounted while the terminal is the surface again", async () => {
     renderWindow();
 
-    await userEvent.click(screen.getByTestId("terminal-tab-journal"));
+    await userEvent.click(screen.getByTestId("terminal-journal-toggle"));
     expect(screen.getByTestId("journal-slot")).toBeVisible();
 
-    await userEvent.click(screen.getByTestId(`terminal-tab-select-${DEV_SERVER_TERMINAL.id}`));
+    await userEvent.click(screen.getByTestId("terminal-journal-back"));
     expect(screen.getByTestId("journal-slot")).toBeInTheDocument();
     expect(screen.getByTestId("journal-slot")).not.toBeVisible();
   });
+});
 
-  it("Should move selection and focus together across the tab strip", async () => {
-    renderWindow();
-    const first = TERMINAL_FIXTURES[0];
-    const second = TERMINAL_FIXTURES[1];
+describe("TerminalWindowApp — id-less route resolver and close", () => {
+  it("Should adopt the newest running terminal no other window shows", async () => {
+    const actions = stubWindowActions();
+    const onSelectTerminal = vi.fn();
+    renderWindow({
+      actions,
+      onSelectTerminal,
+      requestedTerminalId: null,
+      terminals: TERMINAL_FIXTURES,
+      windowedTerminalIds: new Set([DEV_SERVER_TERMINAL.id]),
+    });
 
-    const tab = screen.getByTestId(`terminal-tab-select-${first.id}`);
-    tab.focus();
-    await userEvent.keyboard("{ArrowRight}");
+    // PSQL is the latest running fixture without a window; SSH has exited.
+    await waitFor(() => expect(onSelectTerminal).toHaveBeenCalledExactlyOnceWith(PSQL_TERMINAL.id));
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+  });
 
-    // Focus travels with the selection: the tab left behind becomes
-    // unreachable by Tab the moment it stops being selected.
-    await waitFor(() =>
-      expect(screen.getByTestId(`terminal-tab-select-${second.id}`)).toHaveFocus()
+  it("Should open a fresh terminal when every running one already has a window", async () => {
+    const actions = stubWindowActions();
+    const onSelectTerminal = vi.fn();
+    const { rerender, actions: renderedActions } = renderWindow({
+      actions,
+      onSelectTerminal,
+      requestedTerminalId: null,
+      terminals: [DEV_SERVER_TERMINAL, SSH_STAGING_TERMINAL],
+      windowedTerminalIds: new Set([DEV_SERVER_TERMINAL.id]),
+    });
+
+    await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
+    expect(onSelectTerminal).not.toHaveBeenCalled();
+
+    // A re-render on the same arrival must not open a second terminal.
+    rerender(
+      <TerminalWindowApp
+        actions={renderedActions}
+        engineLoader={stubEngineLoader}
+        inputRequests={[]}
+        interactiveAvailable
+        journal={<div data-testid="journal-slot">journal</div>}
+        limit={TERMINAL_LIMIT}
+        onSelectTerminal={onSelectTerminal}
+        profile={TERMINAL_FIXTURE_PROFILE}
+        requestedTerminalId={null}
+        socketFactory={silentSocketFactory}
+        terminals={[DEV_SERVER_TERMINAL, SSH_STAGING_TERMINAL]}
+        viewerId={TERMINAL_FIXTURE_VIEWER}
+        windowedTerminalIds={new Set([DEV_SERVER_TERMINAL.id])}
+        workspaceId="ws-atlas"
+      />
     );
-    expect(screen.getByTestId(`terminal-tab-select-${second.id}`)).toHaveAttribute(
-      "aria-selected",
-      "true"
-    );
-    expect(screen.getByTestId(`terminal-tab-select-${first.id}`)).toHaveAttribute("tabindex", "-1");
+    expect(actions.onOpenTerminal).toHaveBeenCalledOnce();
+  });
+
+  it("Should create instead of adopting when the arrival asked for a fresh terminal", async () => {
+    const actions = stubWindowActions();
+    const onSelectTerminal = vi.fn();
+    renderWindow({
+      actions,
+      createIntent: true,
+      onSelectTerminal,
+      requestedTerminalId: null,
+      terminals: TERMINAL_FIXTURES,
+      windowedTerminalIds: new Set<string>(),
+    });
+
+    await waitFor(() => expect(actions.onOpenTerminal).toHaveBeenCalledOnce());
+    expect(onSelectTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should surface the cap instead of creating when the id-less route lands full", async () => {
+    const actions = stubWindowActions();
+    renderWindow({
+      actions,
+      requestedTerminalId: null,
+      terminals: TERMINAL_FIXTURES_AT_CAP,
+      windowedTerminalIds: new Set(TERMINAL_FIXTURES_AT_CAP.map(terminal => terminal.id)),
+    });
+
+    expect(await screen.findByTestId("terminal-limit-dialog")).toBeInTheDocument();
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should neither adopt nor create on an aggregate profile read", async () => {
+    const actions = stubWindowActions();
+    const onSelectTerminal = vi.fn();
+    renderWindow({
+      actions,
+      onSelectTerminal,
+      readOnly: true,
+      requestedTerminalId: null,
+      terminals: [],
+    });
+
+    expect(screen.getByTestId("terminal-empty")).toBeInTheDocument();
+    expect(onSelectTerminal).not.toHaveBeenCalled();
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+  });
+
+  it("Should close the terminal from the head overflow, disabled while pending", async () => {
+    const actions = stubWindowActions();
+    renderWindow({ actions, terminals: [DEV_SERVER_TERMINAL] });
+
+    await userEvent.click(screen.getByTestId("terminal-overflow"));
+    await userEvent.click(await screen.findByTestId("terminal-close"));
+    expect(actions.onCloseTerminal).toHaveBeenCalledExactlyOnceWith(DEV_SERVER_TERMINAL.id);
+
+    const pending = stubWindowActions({ closePending: true });
+    renderWindow({ actions: pending, terminals: [DEV_SERVER_TERMINAL] });
+    const overflows = screen.getAllByTestId("terminal-overflow");
+    await userEvent.click(overflows[overflows.length - 1]);
+    expect(await screen.findByTestId("terminal-close")).toHaveAttribute("aria-disabled", "true");
   });
 });

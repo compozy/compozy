@@ -118,8 +118,9 @@ export function TerminalPane({
 
   const status = pane?.status ?? "connecting";
   const awaitingFirstFrame = status === "connecting" || status === "idle";
+  // An exited terminal is not "reconnecting" — its exit bar owns the story.
   const showConnecting =
-    status === "connecting" || status === "reconnecting" || status === "resyncing";
+    !hasExit && (status === "connecting" || status === "reconnecting" || status === "resyncing");
   const viewers = pane?.viewers ?? terminal.viewers;
   const settledCols = pane?.status === "connected" ? pane.cols : null;
   const settledRows = pane?.status === "connected" ? pane.rows : null;
@@ -154,9 +155,13 @@ export function TerminalPane({
           screenReaderMode
         />
         {showConnecting ? (
+          // The emulator canvas forms its own stacking context, so the line
+          // needs an explicit layer to actually paint above the cells.
           <div
             className={
-              awaitingFirstFrame ? "absolute inset-0 bg-terminal-bg" : "absolute inset-x-0 top-0"
+              awaitingFirstFrame
+                ? "absolute inset-0 z-10 bg-terminal-bg"
+                : "pointer-events-none absolute inset-x-0 top-0 z-10"
             }
           >
             <TerminalConnectingLine status={status} />

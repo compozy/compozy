@@ -6,16 +6,17 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: One stuck viewer never freezes or shrinks the terminal for anyone else; a dropped viewer resumes without duplicated or invented output, states any gap plainly, and a stale replay cursor restarts from a full snapshot instead of a silent partial history.
 entry_points: Web dock Terminal app in several tabs; terminal attach-ticket then stream upgrade; catalog stream with Last-Event-ID; compozy terminal attach; compozy terminal get
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260826-terminal-cli-raw-mode
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-rebase-20260828-201516-678087-lab/qa-artifacts/qa/logs/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps: ET-terminal-browser-lifecycle; ET-terminal-limits-capabilities
 ---
 
+reset 2026-08-31: the stream client now settles as closed on exit or a gone terminal instead of reconnecting forever, and the reconnect line layers above the grid; the prior verdict predates that behavior.
 Planned by integrated-terminal task 09 for the transport and flow-control guarantees, which
 `ET-terminal-cli-public-contract` exercises only at the level of "the stream connects". This file owns
 the multi-viewer and degraded-connection behaviour. Task 10 owns the walk, evidence, and verdict.

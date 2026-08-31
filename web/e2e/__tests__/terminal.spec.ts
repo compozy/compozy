@@ -239,10 +239,15 @@ function startInteractiveCLI(paths: RuntimePaths, args: string[]): InteractiveCL
   };
 }
 
-function terminalIDFromTab(testId: string | null): string {
-  const prefix = "terminal-tab-term-";
-  if (!testId?.startsWith(prefix)) throw new Error(`Unexpected terminal tab id: ${testId}`);
-  return testId.slice("terminal-tab-".length);
+async function visibleTerminalPaneID(window: Locator): Promise<string> {
+  const pane = window.locator('[data-testid^="terminal-pane-term-"]:visible').first();
+  await pane.waitFor({ state: "visible" });
+  const testId = await pane.getAttribute("data-testid");
+  const prefix = "terminal-pane-";
+  if (!testId?.startsWith(`${prefix}term-`)) {
+    throw new Error(`Unexpected terminal pane id: ${testId}`);
+  }
+  return testId.slice(prefix.length);
 }
 
 async function terminalScreen(runtime: BrowserRuntime, workspaceId: string, terminalId: string) {
@@ -344,29 +349,27 @@ test("E2E-001: CLI golden path opens, runs, lists, and journals a terminal", asy
     });
 });
 
-test("E2E-002: browser keeps two terminal tabs across reload and window reattach", async ({
+test("E2E-002: browser keeps two terminal windows across reload and reattaches after close", async ({
   appPage,
   runtime,
 }) => {
   assertLaunchRuntime(runtime);
   const workspace = await runtimeWorkspace(runtime);
   await ensureProjectWorkspace(appPage, runtime);
-  const launcherWindow = await openAppWindow(appPage, "Terminal", "terminal");
-  await expect(launcherWindow.getByTestId("terminal-empty")).toBeVisible();
+  // Opening the Terminal app lands in a working terminal directly: the id-less
+  // route creates one, with no launcher or empty state in between.
   const createResponsePromise = appPage.waitForResponse(
     response =>
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === `/api/workspaces/${workspace.id}/terminals`
   );
-  await launcherWindow.getByTestId("terminal-empty-open").click();
+  await openAppWindow(appPage, "Terminal", "terminal");
   expect((await createResponsePromise).status()).toBe(201);
   const firstActiveWindow = focusedTerminalWindow(appPage);
-  await expect(firstActiveWindow.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(1);
+  const firstID = await visibleTerminalPaneID(firstActiveWindow);
   await focusWindowThroughPalette(appPage, firstActiveWindow);
   let window = firstActiveWindow;
   const firstLog = await takeTerminalControl(window);
-  const firstTab = window.locator('[data-testid^="terminal-tab-term-"]').first();
-  const firstID = terminalIDFromTab(await firstTab.getAttribute("data-testid"));
   await firstLog.click();
   await appPage.keyboard.type("printf 'first-screen-intact\\n'");
   await appPage.keyboard.press("Enter");
@@ -374,14 +377,21 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
     .poll(async () => (await terminalScreen(runtime, workspace.id, firstID)).content)
     .toContain("first-screen-intact");
 
-  await window.getByTestId("terminal-open").click();
+  // Another terminal joins this frame as an OS window tab — the deck is the
+  // only tab strip anywhere.
+  const secondCreatePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === `/api/workspaces/${workspace.id}/terminals`
+  );
+  await window.getByTestId("terminal-new").click();
+  expect((await secondCreatePromise).status()).toBe(201);
+  const frame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
+  await expect(frame.locator('[data-testid^="os-window-tab-"]')).toHaveCount(2);
   const secondActiveWindow = focusedTerminalWindow(appPage);
-  await expect(secondActiveWindow.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
-  await focusWindowThroughPalette(appPage, secondActiveWindow);
+  const secondID = await visibleTerminalPaneID(secondActiveWindow);
+  expect(secondID).not.toBe(firstID);
   window = secondActiveWindow;
-  const secondTab = window.locator('[data-testid^="terminal-tab-term-"]').nth(1);
-  const secondID = terminalIDFromTab(await secondTab.getAttribute("data-testid"));
-  await window.getByTestId(`terminal-tab-select-${secondID}`).click();
   const secondLog = await takeTerminalControl(window);
   await secondLog.click();
   await appPage.keyboard.type("printf 'second-screen-intact\\n'");
@@ -389,22 +399,16 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
   await expect
     .poll(async () => (await terminalScreen(runtime, workspace.id, secondID)).content)
     .toContain("second-screen-intact");
-  const tabIds = await window
-    .locator('[data-testid^="terminal-tab-term-"]')
-    .evaluateAll(nodes => nodes.map(node => node.getAttribute("data-testid")));
-  await focusWindowThroughPalette(appPage, window);
   for (let index = 0; index < 8; index += 1) {
-    await window.getByTestId(`terminal-tab-select-${index % 2 === 0 ? firstID : secondID}`).click();
+    await frame
+      .locator('[data-testid^="os-window-tab-"] [role="tab"]')
+      .nth(index % 2)
+      .click();
   }
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
-  const restored = focusedTerminalWindow(appPage);
-  await expect(restored.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
-  expect(
-    await restored
-      .locator('[data-testid^="terminal-tab-term-"]')
-      .evaluateAll(nodes => nodes.map(node => node.getAttribute("data-testid")))
-  ).toEqual(tabIds);
+  const restoredFrame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
+  await expect(restoredFrame.locator('[data-testid^="os-window-tab-"]')).toHaveCount(2);
   expect((await terminalScreen(runtime, workspace.id, firstID)).content).toContain(
     "first-screen-intact"
   );
@@ -425,12 +429,29 @@ test("E2E-002: browser keeps two terminal tabs across reload and window reattach
     ])
   );
 
+  // Closing the window is a window gesture: both sessions keep running.
+  const restored = focusedTerminalWindow(appPage);
   await focusWindowThroughPalette(appPage, restored);
   const closingWindow = appPage.getByTestId(`os-window-${await windowID(restored)}`);
   await closingWindow.getByRole("button", { name: "Close window" }).click();
   await expect(closingWindow).toBeHidden();
+  const survivors = await runTerminalCLI<TerminalListEnvelope>(runtime.paths, [
+    "list",
+    "--workspace",
+    workspace.id,
+    "-o",
+    "json",
+  ]);
+  expect(
+    survivors.terminals.filter(
+      terminal => [firstID, secondID].includes(terminal.id) && terminal.state === "running"
+    )
+  ).toHaveLength(2);
+
+  // Reopening from the dock adopts the newest running session instead of
+  // opening a launcher: the screen is the same one, still intact.
   const reopened = await openAppWindow(appPage, "Terminal", "terminal");
-  await expect(reopened.locator('[data-testid^="terminal-tab-term-"]')).toHaveCount(2);
+  expect(await visibleTerminalPaneID(reopened)).toBe(secondID);
   const firstQuote = await runTerminalCLI<{ quote: string }>(runtime.paths, [
     "quote",
     firstID,
@@ -494,7 +515,8 @@ test("E2E-007: journal filters update the real browser query", async ({ appPage,
   await ensureProjectWorkspace(appPage, runtime);
   await openAppWindow(appPage, "Terminal", "terminal");
   const window = focusedTerminalWindow(appPage);
-  await window.getByTestId(`terminal-tab-select-${terminalID}`).click();
+  // The dock adopts the newest running detached terminal — the CLI-opened one.
+  await expect(window.getByTestId(`terminal-pane-${terminalID}`)).toBeVisible();
   await takeTerminalControl(window);
   await runTerminalCLI(runtime.paths, [
     "record",
@@ -552,7 +574,7 @@ test("E2E-007: journal filters update the real browser query", async ({ appPage,
     "json",
   ]);
 
-  await window.getByTestId("terminal-tab-journal").click();
+  await window.getByTestId("terminal-journal-toggle").click();
   await expect(window.getByTestId("terminal-journal")).toBeVisible();
   await window.getByTestId("terminal-journal-filters-add").click();
   await appPage.getByRole("option", { name: "Who" }).click();
@@ -608,7 +630,10 @@ test("E2E-009: the workspace cap names the terminal that can be closed", async (
 
   await ensureProjectWorkspace(appPage, runtime);
   const window = await openAppWindow(appPage, "Terminal", "terminal");
-  await window.getByTestId("terminal-open").click();
+  // The dock adopts one of the running terminals; asking for a fresh one at
+  // the cap surfaces the way out instead of a dead create.
+  await visibleTerminalPaneID(window);
+  await window.getByTestId("terminal-new").click();
   const dialog = appPage.getByTestId("terminal-limit-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText(terminals[0]!.id);
@@ -616,7 +641,8 @@ test("E2E-009: the workspace cap names the terminal that can be closed", async (
   await expect(dialog).toContainText("8 of 8 terminals are open");
   await expect(dialog).toContainText("terminal.max_per_workspace 8");
   await appPage.keyboard.press("Escape");
-  await window.getByRole("button", { name: "Close window" }).click();
+  const capFrame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
+  await capFrame.getByRole("button", { name: "Close window" }).click();
 
   try {
     for (let index = 0; index < 16; index += 1) {
@@ -755,7 +781,7 @@ test("E2E-012: a sandbox project hides interactive controls but still executes",
   const window = await openAppWindow(appPage, "Terminal", "terminal");
   await expect(window.getByTestId("terminal-execute-only")).toBeVisible();
   await expect(window.getByTestId("terminal-empty-open")).toHaveCount(0);
-  await expect(window.getByTestId("terminal-open")).toHaveCount(0);
+  await expect(window.getByTestId("terminal-new")).toHaveCount(0);
 
   const execution = await runTerminalCLI<{ exit_code: number; output: string }>(runtime.paths, [
     "exec",
@@ -802,7 +828,7 @@ test("E2E-014: alternate-screen TUI reflows, matches a watcher, and restores pri
   await ensureProjectWorkspace(appPage, runtime);
   await openAppWindow(appPage, "Terminal", "terminal");
   const firstWindow = focusedTerminalWindow(appPage);
-  await firstWindow.getByTestId(`terminal-tab-select-${opened.terminal.id}`).click();
+  await expect(firstWindow.getByTestId(`terminal-pane-${opened.terminal.id}`)).toBeVisible();
   await expect
     .poll(async () => (await terminalScreen(runtime, workspace.id, opened.terminal.id)).content)
     .toContain("terminal tui");
@@ -1062,20 +1088,30 @@ test("E2E-016: CLI returns structured selector, timeout, and missing-terminal fa
     "-o",
     "json",
   ]);
-  for (const args of [
-    ["kill", opened.terminal.id],
-    ["signal", opened.terminal.id, "--signal", "INT"],
-  ]) {
-    const failure = await runTerminalCLIFailure(runtime.paths, [
-      ...args,
-      "--workspace",
-      workspace.id,
-      "-o",
-      "json",
-    ]);
-    expect(failure.code).toBe(CLI_EXIT_DATA_ERROR);
-    expect(structuredTerminalErrorCode(failure.payload)).toBe("terminal_exited");
-  }
+  // Close is idempotent: killing an already-ended terminal reports its
+  // recorded exit instead of a conflict. Signaling a dead process stays a
+  // structured failure — there is nothing left to deliver the signal to.
+  const killedAgain = await runTerminalCLI<{ exit: { cause: string } }>(runtime.paths, [
+    "kill",
+    opened.terminal.id,
+    "--workspace",
+    workspace.id,
+    "-o",
+    "json",
+  ]);
+  expect(killedAgain.exit.cause).toMatch(/exited|signaled/u);
+  const signalFailure = await runTerminalCLIFailure(runtime.paths, [
+    "signal",
+    opened.terminal.id,
+    "--signal",
+    "INT",
+    "--workspace",
+    workspace.id,
+    "-o",
+    "json",
+  ]);
+  expect(signalFailure.code).toBe(CLI_EXIT_DATA_ERROR);
+  expect(structuredTerminalErrorCode(signalFailure.payload)).toBe("terminal_exited");
 });
 
 async function terminalSocketCSPProbe(page: Page) {
@@ -1139,7 +1175,7 @@ test("E2E-019: the Terminal controller chunk loads only after its launcher opens
   await expect(terminalWindow.getByTestId("terminal-window")).toBeVisible();
 });
 
-test("E2E-018: keyboard activation reaches the Terminal empty-state action", async ({
+test("E2E-018: keyboard activation opens a working terminal from the dock", async ({
   appPage,
   runtime,
 }) => {
@@ -1154,18 +1190,13 @@ test("E2E-018: keyboard activation reaches the Terminal empty-state action", asy
     '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
   );
   await expect(terminalWindow).toBeVisible();
-  const open = terminalWindow.getByRole("button", { name: "Open a terminal" });
-  await open.focus();
-  await expect(open).toBeFocused();
-  await appPage.keyboard.press("Enter");
+  // One activation is the whole flow: the window resolves straight into a
+  // terminal, with no launcher step in between.
+  await visibleTerminalPaneID(terminalWindow);
 
-  const terminalTab = terminalWindow.locator('[data-testid^="terminal-tab-select-term-"]');
-  await expect(terminalTab).toBeVisible();
-  await terminalTab.focus();
-  await appPage.keyboard.press("ArrowRight");
-  await expect(terminalWindow.getByTestId("terminal-tab-journal")).toBeFocused();
-  await appPage.keyboard.press("ArrowLeft");
-  await expect(terminalTab).toBeFocused();
+  const journalToggle = terminalWindow.getByTestId("terminal-journal-toggle");
+  await journalToggle.focus();
+  await expect(journalToggle).toBeFocused();
 
   await expect(terminalWindow.getByTestId("terminal-lease-label")).toHaveText("You're in control");
   const release = terminalWindow.getByTestId("terminal-release-control");

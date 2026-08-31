@@ -23,6 +23,7 @@ import type {
 import type { TerminalSignal } from "../types";
 import { decodeTerminalServerFrame, TERMINAL_SERVER_OP } from "./terminal-wire";
 import { TerminalCommandSender } from "./terminal-command-sender";
+import { terminalStreamFatalCode } from "./terminal-stream-fatal";
 import { defaultSchedule, terminalBackoffDelay } from "./terminal-backoff";
 import { dispatchTerminalControlFrame } from "./terminal-control-frames";
 import { TerminalCreditWindow } from "./terminal-credit-window";
@@ -58,6 +59,13 @@ export class TerminalProtocolClient {
    */
   private connectionEpoch = 0;
   private stopped = false;
+  /**
+   * The terminal itself is over — an EXIT frame arrived, or the daemon refused
+   * a connection pass because the terminal is gone. Unlike a dropped socket,
+   * this is not recoverable by reconnecting: the stream settles as `closed`
+   * and the exit surface owns the story from here.
+   */
+  private ended = false;
   private attempt = 0;
   /**
    * The last byte this viewer has actually *seen*.
@@ -70,7 +78,9 @@ export class TerminalProtocolClient {
    */
   private committedSeq = 0n;
   private readonly sender = new TerminalCommandSender({
-    socket: () => this.socket,
+    // A socket that has not opened yet cannot carry a frame; handing it out
+    // would record sends that never happened.
+    socket: () => (this.socketOpen ? this.socket : null),
     reportError: (cause: unknown, fallback: string) => this.reportClientError(cause, fallback),
   });
   private readonly credit = new TerminalCreditWindow(frame =>
@@ -197,7 +207,10 @@ export class TerminalProtocolClient {
   }
 
   proposeDimensions(cols: number, rows: number): void {
-    this.sender.proposeDimensions(cols, rows);
+    this.sender.recordProposal(cols, rows);
+    // Watchers never vote on the wire: the daemon sizes by its writers, and an
+    // observer's RESIZE would only be refused (ADR-009/ADR-015).
+    if (this.options.mode === "write") this.sender.flushProposal();
   }
 
   sendSignal(signal: TerminalSignal): void {
@@ -258,6 +271,9 @@ export class TerminalProtocolClient {
     // Remembered so the attach frame can be read correctly: whether a replay is
     // coming at all depends on whether this attempt asked to resume.
     this.resumedFrom = this.committedSeq;
+    // Read once: a vote recorded while the mint is in flight is not in this
+    // query, so it must not be marked as carried below.
+    const carriedProposal = this.sender.proposed;
     try {
       socket = await openTerminalStream({
         workspaceId: this.options.workspaceId,
@@ -267,12 +283,25 @@ export class TerminalProtocolClient {
         viewer: this.options.viewer,
         flow: this.flow,
         afterSeq: this.committedSeq > 0n ? this.committedSeq : undefined,
-        proposed: this.sender.proposed,
+        proposed: carriedProposal,
         ...(this.options.socketFactory ? { socketFactory: this.options.socketFactory } : {}),
         signal: this.abort.signal,
       });
     } catch (cause) {
       if (this.stopped) return;
+      const fatalCode = terminalStreamFatalCode(cause);
+      if (fatalCode !== null) {
+        this.ended = true;
+        // An exited terminal already has its exit surface; the other refusals
+        // have no catalog row to speak for them, so the daemon's sentence does.
+        if (fatalCode !== "terminal_exited" && cause instanceof Error) {
+          this.options.handlers?.onStreamError?.({
+            error: { code: fatalCode, message: cause.message },
+          });
+        }
+        this.setStatus("closed");
+        return;
+      }
       this.reportClientError(cause, "Failed to open a connection pass.");
       this.scheduleReconnect();
       return;
@@ -284,10 +313,13 @@ export class TerminalProtocolClient {
     this.socket = socket;
     this.socketOpen = false;
     this.connectionEpoch += 1;
+    this.sender.markProposalCarried(carriedProposal);
     socket.onopen = () => {
       if (this.socket !== socket) return;
       this.socketOpen = true;
       this.flushLeaseRequest();
+      // Any size measured while this connection was opening goes out now.
+      if (this.options.mode === "write") this.sender.flushProposal();
     };
     socket.onmessage = event => this.handleMessage(event);
     socket.onerror = () => this.setStatus("reconnecting");
@@ -302,6 +334,10 @@ export class TerminalProtocolClient {
       // the write lease it just handed back, before the watcher attachment that
       // replaces it has even been created.
       if (this.sender.detachSent) return;
+      if (this.ended) {
+        this.setStatus("closed");
+        return;
+      }
       this.scheduleReconnect();
     };
   }
@@ -378,6 +414,7 @@ export class TerminalProtocolClient {
         onResized: frame => this.applyResized(frame),
         onGap: frame => void this.resynchronize(frame),
         onExit: frame => {
+          this.ended = true;
           this.setInputEnabled(false);
           handlers?.onExit?.(frame);
         },
@@ -459,6 +496,10 @@ export class TerminalProtocolClient {
   }
 
   private scheduleReconnect(): void {
+    if (this.ended) {
+      this.setStatus("closed");
+      return;
+    }
     if (this.stopped || this.cancelReconnect) return;
     this.setStatus("reconnecting");
     const delay = terminalBackoffDelay(this.attempt, this.options.random);

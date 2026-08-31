@@ -188,8 +188,6 @@ export { TerminalPane } from "./components/terminal-pane";
 export { TerminalPipeLogPane } from "./components/terminal-pipe-log-pane";
 export { TerminalQuoteBlock, TerminalSelectionActions } from "./components/terminal-quote-block";
 export { TerminalRecordingPlayer } from "./components/terminal-recording-player";
-export { TERMINAL_JOURNAL_TAB, type TerminalTabId } from "./components/terminal-tab-id";
-export { TerminalTabs } from "./components/terminal-tabs";
 export {
   useTerminalCatalogStream,
   type TerminalCatalogEventSourceFactory,

@@ -13,7 +13,15 @@ import type { TerminalInputRequest } from "../types";
  */
 export interface TerminalWindowActions {
   onOpenTerminal?: () => void;
+  /**
+   * Opens another terminal beside this one — a new OS window joining this
+   * frame as a tab. Without it the head's New falls back to `onOpenTerminal`,
+   * which retargets the current window.
+   */
+  onOpenTerminalTab?: () => void;
   onCloseTerminal: (terminalId: string) => void;
+  /** True while a close is already on its way to the daemon. */
+  closePending?: boolean;
   onStop: (terminalId: string) => void;
   onWait: (terminalId: string) => void;
   onStopRecording?: (terminalId: string) => void;

@@ -142,6 +142,10 @@ export function useTerminalAttachment(options: UseTerminalAttachmentOptions): Te
             // daemon's own sentence is the only thing a reader can act on.
             message: error.message ?? null,
           }),
+        // Client-side failures (mint refused, undecodable frame) get the same
+        // truthful surface as daemon refusals instead of an unexplained spinner.
+        onClientError: error =>
+          store.trigger.streamErrored({ terminalId, code: "client_error", message: error.message }),
       },
     });
     clientRef.current = client;

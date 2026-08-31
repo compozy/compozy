@@ -540,9 +540,14 @@ func TestShellIntegrationContract(t *testing.T) {
 			},
 			{
 				name: "fish", shell: "/opt/homebrew/bin/fish",
-				env: map[string]string{"HOME": t.TempDir(), "XDG_CONFIG_HOME": t.TempDir()},
+				env: map[string]string{
+					"HOME":            t.TempDir(),
+					"XDG_CONFIG_HOME": t.TempDir(),
+					"XDG_DATA_DIRS":   "/prior/share",
+				},
 				shimPath: func(setup shellSetup) string {
-					return filepath.Join(setup.env["XDG_CONFIG_HOME"], "fish", "vendor_conf.d", "compozy-terminal.fish")
+					root, _, _ := strings.Cut(setup.env["XDG_DATA_DIRS"], string(os.PathListSeparator))
+					return filepath.Join(root, "fish", "vendor_conf.d", "compozy-terminal.fish")
 				},
 			},
 		}
@@ -577,6 +582,55 @@ func TestShellIntegrationContract(t *testing.T) {
 				}
 				if _, err := os.Stat(root); !errors.Is(err, os.ErrNotExist) {
 					t.Fatalf("shim root remains after cleanup: %v", err)
+				}
+			})
+		}
+	})
+
+	t.Run("Should preserve caller and daemon data dirs for fish vendor markers [UT-120]", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			specDirs   string
+			daemonDirs string
+			wantBase   string
+		}{
+			{
+				name:       "spec env wins",
+				specDirs:   "/prior/a:/prior/b",
+				daemonDirs: "/daemon/share",
+				wantBase:   "/prior/a:/prior/b",
+			},
+			{name: "daemon env fallback", specDirs: "", daemonDirs: "/daemon/share", wantBase: "/daemon/share"},
+			{name: "xdg spec default", specDirs: "", daemonDirs: "", wantBase: "/usr/local/share:/usr/share"},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Setenv("XDG_DATA_DIRS", test.daemonDirs)
+				env := map[string]string{"HOME": t.TempDir()}
+				if test.specDirs != "" {
+					env["XDG_DATA_DIRS"] = test.specDirs
+				}
+				setup, err := prepareShellIntegration(ProcSpec{
+					Argv: []string{"/usr/bin/fish"}, Env: env, MarkerNonce: "nonce-dirs", ShellIntegration: true,
+				})
+				if err != nil {
+					t.Fatalf("prepareShellIntegration(fish) error = %v", err)
+				}
+				defer func() {
+					if err := setup.cleanup(); err != nil {
+						t.Errorf("cleanup() error = %v", err)
+					}
+				}()
+				if key := "XDG_CONFIG_HOME"; setup.env[key] != env[key] {
+					t.Fatalf("fish config home overridden: %q", setup.env[key])
+				}
+				root, rest, found := strings.Cut(setup.env["XDG_DATA_DIRS"], string(os.PathListSeparator))
+				if !found || rest != test.wantBase {
+					t.Fatalf("data dirs = %q, want shim root + %q", setup.env["XDG_DATA_DIRS"], test.wantBase)
+				}
+				vendor := filepath.Join(root, "fish", "vendor_conf.d", "compozy-terminal.fish")
+				if _, err := os.Stat(vendor); err != nil {
+					t.Fatalf("vendor marker missing: %v", err)
 				}
 			})
 		}
@@ -620,8 +674,11 @@ func TestShellIntegrationContract(t *testing.T) {
 
 func shellShimRoot(shell string, setup shellSetup, shimPath string) string {
 	switch shell {
-	case "zsh", "fish":
-		return setup.env[map[string]string{"zsh": "ZDOTDIR", "fish": "XDG_CONFIG_HOME"}[shell]]
+	case "zsh":
+		return setup.env["ZDOTDIR"]
+	case "fish":
+		root, _, _ := strings.Cut(setup.env["XDG_DATA_DIRS"], string(os.PathListSeparator))
+		return root
 	default:
 		return filepath.Dir(shimPath)
 	}
@@ -663,22 +720,27 @@ func assertUserRCFirst(t *testing.T, shell string, setup shellSetup, shim string
 			source > marker {
 			t.Fatalf("%s user rc is not sourced before integration: %q", shell, shim)
 		}
-	case "fish":
-		configPath := filepath.Join(setup.env["XDG_CONFIG_HOME"], "fish", "config.fish")
-		config, err := os.ReadFile(configPath)
+		envShim, err := os.ReadFile(filepath.Join(setup.env["ZDOTDIR"], ".zshenv"))
 		if err != nil {
-			t.Fatalf("ReadFile(%s) error = %v", configPath, err)
+			t.Fatalf("ReadFile(zsh .zshenv shim) error = %v", err)
 		}
-		userConfig := filepath.Join(env["XDG_CONFIG_HOME"], "fish", "config.fish")
-		if user, vendor := bytes.Index(
-			config,
-			[]byte(userConfig),
-		), bytes.Index(
-			config,
-			[]byte("compozy-terminal.fish"),
-		); user < 0 ||
-			user > vendor {
-			t.Fatalf("fish user config is not sourced before integration: %q", config)
+		if !strings.Contains(string(envShim), filepath.Join(env["ZDOTDIR"], ".zshenv")) {
+			t.Fatalf("zsh shim does not source the user .zshenv: %q", envShim)
+		}
+	case "fish":
+		if setup.env["XDG_CONFIG_HOME"] != env["XDG_CONFIG_HOME"] {
+			t.Fatalf(
+				"fish config home overridden: %q, want untouched %q",
+				setup.env["XDG_CONFIG_HOME"], env["XDG_CONFIG_HOME"],
+			)
+		}
+		root := shellShimRoot(shell, setup, "")
+		if _, err := os.Stat(filepath.Join(root, "fish", "config.fish")); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("fish shim writes a config.fish that shadows the user config: %v", err)
+		}
+		suffix := string(os.PathListSeparator) + env["XDG_DATA_DIRS"]
+		if !strings.HasSuffix(setup.env["XDG_DATA_DIRS"], suffix) {
+			t.Fatalf("fish data dirs dropped the prior value: %q", setup.env["XDG_DATA_DIRS"])
 		}
 	}
 }

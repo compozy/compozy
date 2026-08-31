@@ -6,16 +6,17 @@ persona: Ada
 journey: J-switch-profile-terminal-scope
 expected: A terminal belongs to the profile that opened it; profile switches re-scope the list, dock badge, stream, and journal; aggregate reads label every owner; archiving closes owned terminals but preserves history; workspace deletion removes both.
 entry_points: Web profile switcher; Terminal app; --profile; --all-profiles; HTTP and UDS profile selectors
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-20260826-terminal-attach-profile-scope; BUG-20260829-terminal-journal-unlock-remount; BUG-20260829-workspace-delete-visible-terminal-deadlock
 fix_status: fixed
-retest_status: pass
+retest_status:
 fix_commits:
 evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/profile-segmentation-walk.md; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/qa-audit-report.md
 last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
 overlaps: ET-terminal-profile-selectors; ET-profile-aggregate-owner-labels; ET-profile-stream-isolation
 ---
 
+reset 2026-08-31: the window-native rework changed how a re-scoped window presents the other profile's terminals (honest not-found instead of a refilled tab strip); the prior verdict predates that surface.
 Flagged by integrated-terminal task 06. Task 10 owns the real-user walk, evidence, and verdict.
 
 Reconciled by task 09: the owner journey moved from the general `J-scope-work-by-profile` to the

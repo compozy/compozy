@@ -16,7 +16,9 @@ export interface TerminalWindowHostActionInput {
   activateSession: (sessionId: string) => void;
   hasActiveSession: boolean;
   openTerminal: (() => void) | undefined;
+  openTerminalTab: () => void;
   close: (terminalId: string) => void;
+  closePending: boolean;
   stop: (terminalId: string) => void;
   wait: (terminalId: string) => void;
   stopRecording: (terminalId: string) => void;
@@ -47,7 +49,9 @@ export function useTerminalWindowHostActions(
   });
   return {
     onOpenTerminal: input.openTerminal,
+    onOpenTerminalTab: input.openTerminalTab,
     onCloseTerminal: input.close,
+    closePending: input.closePending,
     onStop: input.stop,
     onWait: input.wait,
     onStopRecording: input.stopRecording,

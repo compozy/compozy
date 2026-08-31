@@ -1,15 +1,13 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 
-import { TERMINAL_JOURNAL_TAB, type TerminalTabId } from "../components/terminal-tab-id";
 import type { TerminalWindowActions } from "../components/terminal-window-actions";
-import type { TerminalInfo, TerminalInputRequest } from "../types";
+import type { TerminalInfo } from "../types";
 import { useTerminalScopeCleanup } from "./use-terminal-scope-cleanup";
 import { useTerminalStore } from "./use-terminal-store";
 
-/** No terminal is selected, because the project has none yet. */
-export const TERMINAL_NO_TERMINALS = "";
+const EMPTY_WINDOWED: ReadonlySet<string> = new Set();
 
 function hasTerminal(terminals: readonly TerminalInfo[], id: string): boolean {
   return terminals.some(terminal => terminal.id === id);
@@ -19,64 +17,72 @@ export interface UseTerminalWindowAppStateOptions {
   workspaceId: string;
   profile: string;
   terminals: readonly TerminalInfo[];
-  inputRequests: readonly TerminalInputRequest[];
   /** The per-project cap, from `[terminal].max_per_workspace`. Absent until loaded. */
   limit?: number;
   readOnly: boolean;
+  /** False where the platform cannot host an interactive terminal at all. */
+  interactiveAvailable: boolean;
   actions: TerminalWindowActions;
   /**
    * The PTY the route named. `undefined` is an isolated window with no host
-   * route. `null` is `/terminal` with no id. A string is `/terminal/:id`.
+   * route. `null` is `/terminal` with no id — the resolver's territory.
    */
   requestedTerminalId?: string | null;
+  /** Terminal ids already on screen in another OS window. Never adopted. */
+  windowedTerminalIds?: ReadonlySet<string>;
+  /** The route arrived asking for a fresh terminal; the resolver never adopts. */
+  createIntent?: boolean;
   /** Retargets the host route to this PTY. Absent in isolated windows. */
   onSelectTerminal?: (terminalId: string) => void;
   /** Reveals the journal. The host unlocks its fetch on first open. */
   onViewJournal?: (() => void) | undefined;
-  /** The journal tab is no longer the surface being read. */
+  /** The journal overlay is no longer the surface being read. */
   onLeaveJournal?: (() => void) | undefined;
 }
 
 export interface TerminalWindowAppState {
   active: TerminalInfo | null;
   activeProfile: string;
-  /** A unique symbol member widens across inference, so the shape is explicit. */
-  activeTab: TerminalTabId;
-  attentionIds: ReadonlySet<string>;
+  journalOpen: boolean;
+  openJournal: () => void;
+  closeJournal: () => void;
+  /** Terminals that count toward the cap: running, under this profile. */
   destinationTerminals: TerminalInfo[];
   limitOpen: boolean;
   /** The route named a PTY that is not in this catalog. */
   missingRequested: boolean;
+  /** The id-less route is still deciding which terminal this window shows. */
+  resolving: boolean;
   openTerminal: (() => void) | undefined;
-  setActiveTab: (tab: TerminalTabId) => void;
   setLimitOpen: (open: boolean) => void;
-  tabsIdBase: string;
 }
 
 /**
- * The window's interaction state: which tab is looked at, whether the limit
- * dialog is open, and the scope those facts belong to.
+ * One OS window, one terminal.
  *
- * When the host names a PTY, that route is the only selection truth. The
- * journal is a local overlay on top of it — it is not a second PTY id.
+ * The route is the only selection truth: `/terminal/:id` names the PTY this
+ * window shows, and the journal is a local overlay on top of it. The id-less
+ * `/terminal` route resolves itself — it adopts the most recent running
+ * terminal no other window is showing, or opens a fresh one — so launching the
+ * app always lands in a working terminal rather than a picker.
  */
 export function useTerminalWindowAppState({
   workspaceId,
   profile,
   terminals,
-  inputRequests,
   limit,
   readOnly,
+  interactiveAvailable,
   actions,
   requestedTerminalId,
+  windowedTerminalIds = EMPTY_WINDOWED,
+  createIntent = false,
   onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
 }: UseTerminalWindowAppStateOptions): TerminalWindowAppState {
-  const [selectedTab, setSelectedTab] = useState<TerminalTabId | null>(null);
   const [journalOpen, setJournalOpen] = useState(false);
   const [limitOpen, setLimitOpen] = useState(false);
-  const tabsIdBase = useId();
   // Interaction state belongs to one `(workspace, profile)`: a dialog opened
   // for one project must not survive into another. Compared during render so
   // there is never a frame where the stale dialog shows over the new scope.
@@ -85,45 +91,20 @@ export function useTerminalWindowAppState({
   if (previousScope !== scope) {
     setPreviousScope(scope);
     setLimitOpen(false);
-    setSelectedTab(null);
     setJournalOpen(false);
   }
-  const attentionIds = new Set(inputRequests.map(request => request.terminal_id));
   const routeOwned = requestedTerminalId !== undefined;
   const missingRequested =
     routeOwned &&
     requestedTerminalId !== null &&
     !hasTerminal(terminals, requestedTerminalId) &&
     !journalOpen;
-  const activeTab = resolveActiveTab({
-    journalOpen,
-    missingRequested,
-    requestedTerminalId,
-    routeOwned,
-    selectedTab,
-    terminals,
-  });
-  const active = terminals.find(terminal => terminal.id === activeTab) ?? null;
-  const setActiveTab = (tab: TerminalTabId) => {
-    if (tab === TERMINAL_JOURNAL_TAB) {
-      if (journalOpen && terminals.length === 0) {
-        setJournalOpen(false);
-        onLeaveJournal?.();
-        return;
-      }
-      setJournalOpen(true);
-      onViewJournal?.();
-      return;
-    }
-    setJournalOpen(false);
-    onLeaveJournal?.();
-    if (onSelectTerminal) {
-      onSelectTerminal(tab);
-      return;
-    }
-    setSelectedTab(tab);
-  };
-  const destinationTerminals = terminals.filter(terminal => terminal.profile_name === profile);
+  const active = resolveActiveTerminal({ requestedTerminalId, routeOwned, terminals });
+  // Exited terminals stay readable through retention but no longer occupy a
+  // slot; only running ones count toward the cap.
+  const destinationTerminals = terminals.filter(
+    terminal => terminal.profile_name === profile && terminal.state === "running"
+  );
   const atLimit = limit !== undefined && destinationTerminals.length >= limit;
   const store = useTerminalStore();
   const activeProfile = active?.profile_name ?? profile;
@@ -141,51 +122,87 @@ export function useTerminalWindowAppState({
         }
       : undefined;
 
+  const resolving = routeOwned && requestedTerminalId === null && !readOnly;
+  // One resolution per arrival at the id-less route in a scope: re-renders and
+  // StrictMode's doubled effect land on the same key and are ignored, while
+  // navigating away and back produces a new arrival.
+  const resolutionKey = `${scope}::${requestedTerminalId ?? "auto"}`;
+  const lastResolutionKeyRef = useRef<string | null>(null);
+  const resolveDestination = useEffectEvent(() => {
+    const adoptable = createIntent
+      ? null
+      : latestUnwindowedRunning(terminals, profile, windowedTerminalIds);
+    if (adoptable && onSelectTerminal) {
+      onSelectTerminal(adoptable.id);
+      return;
+    }
+    // Execute-only platforms cannot host a PTY; the state surface says so.
+    if (!interactiveAvailable) return;
+    openTerminal?.();
+  });
+  useEffect(() => {
+    // Adopting or creating a terminal because the window landed on `/terminal`
+    // is a synchronization with the daemon, keyed to that arrival — exactly
+    // what an effect is for.
+    const previousKey = lastResolutionKeyRef.current;
+    lastResolutionKeyRef.current = resolutionKey;
+    if (!resolving || previousKey === resolutionKey) return;
+    resolveDestination();
+  }, [resolving, resolutionKey]);
+
   return {
     active,
     activeProfile,
-    activeTab,
-    attentionIds,
+    journalOpen,
+    openJournal: () => {
+      setJournalOpen(true);
+      onViewJournal?.();
+    },
+    closeJournal: () => {
+      setJournalOpen(false);
+      onLeaveJournal?.();
+    },
     destinationTerminals,
     limitOpen,
     missingRequested,
+    resolving,
     openTerminal,
-    setActiveTab,
     setLimitOpen,
-    tabsIdBase,
   };
 }
 
-function resolveActiveTab({
-  journalOpen,
-  missingRequested,
+function resolveActiveTerminal({
   requestedTerminalId,
   routeOwned,
-  selectedTab,
   terminals,
 }: {
-  journalOpen: boolean;
-  missingRequested: boolean;
   requestedTerminalId: string | null | undefined;
   routeOwned: boolean;
-  selectedTab: TerminalTabId | null;
   terminals: readonly TerminalInfo[];
-}): TerminalTabId {
-  if (journalOpen) return TERMINAL_JOURNAL_TAB;
-  if (missingRequested && requestedTerminalId) return requestedTerminalId;
+}): TerminalInfo | null {
   if (routeOwned) {
-    if (typeof requestedTerminalId === "string" && hasTerminal(terminals, requestedTerminalId)) {
-      return requestedTerminalId;
+    if (typeof requestedTerminalId !== "string") return null;
+    return terminals.find(terminal => terminal.id === requestedTerminalId) ?? null;
+  }
+  // An isolated window has no route; it shows what it was given.
+  return terminals[0] ?? null;
+}
+
+/** The catalog arrives oldest-first, so the last match is the most recent. */
+function latestUnwindowedRunning(
+  terminals: readonly TerminalInfo[],
+  profile: string,
+  windowedTerminalIds: ReadonlySet<string>
+): TerminalInfo | null {
+  for (let index = terminals.length - 1; index >= 0; index -= 1) {
+    const terminal = terminals[index];
+    if (
+      terminal.state === "running" &&
+      terminal.profile_name === profile &&
+      !windowedTerminalIds.has(terminal.id)
+    ) {
+      return terminal;
     }
-    const first = terminals[0];
-    return first ? first.id : TERMINAL_NO_TERMINALS;
   }
-  if (
-    selectedTab !== null &&
-    (selectedTab === TERMINAL_JOURNAL_TAB || hasTerminal(terminals, selectedTab))
-  ) {
-    return selectedTab;
-  }
-  const first = terminals[0];
-  return first ? first.id : TERMINAL_NO_TERMINALS;
+  return null;
 }

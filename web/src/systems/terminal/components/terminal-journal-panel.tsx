@@ -1,9 +1,10 @@
 "use client";
 
-import { ScrollText } from "lucide-react";
+import { ArrowLeft, ScrollText } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import {
+  Button,
   DETAIL_INSPECTOR_INLINE_BREAKPOINT,
   Table,
   TableBody,
@@ -27,12 +28,31 @@ import { TerminalJournalToolbar } from "./terminal-journal-toolbar";
  * The pinned tab says where you are; this row says what you are reading and
  * for which project, once, before the table takes over.
  */
-export function TerminalJournalHead({ projectLabel }: { projectLabel?: string }) {
+export function TerminalJournalHead({
+  projectLabel,
+  onBack,
+}: {
+  projectLabel?: string;
+  /** Returns to the terminal underneath the overlay. */
+  onBack?: () => void;
+}) {
   return (
     <header
       className="flex min-h-11 flex-none items-center gap-2.5 border-line border-b bg-canvas px-3"
       data-testid="terminal-journal-head"
     >
+      {onBack ? (
+        <Button
+          aria-label="Back to terminal"
+          data-testid="terminal-journal-back"
+          onClick={onBack}
+          size="icon-sm"
+          type="button"
+          variant="ghost"
+        >
+          <ArrowLeft aria-hidden="true" className="size-3.5" />
+        </Button>
+      ) : null}
       <ScrollText aria-hidden="true" className="size-3.5 text-muted" />
       <span className="truncate font-semibold text-fg-strong text-ws-name tracking-tight">
         Journal

@@ -41,9 +41,14 @@ function buildClient(
     autoParse?: boolean;
     screen?: () => TerminalScreenFixture;
     deferScreen?: boolean;
+    ticketResponse?: () => { body: unknown; status: number };
   } = {}
 ) {
-  const stub = stubTerminalFetch({ screen: options.screen, deferScreen: options.deferScreen });
+  const stub = stubTerminalFetch({
+    screen: options.screen,
+    deferScreen: options.deferScreen,
+    ...(options.ticketResponse ? { ticketResponse: options.ticketResponse } : {}),
+  });
   restoreFetch = stub.restore;
   const sockets = createFakeSocketFactory();
   const sink = createFakeSink({ autoParse: options.autoParse });
@@ -524,6 +529,54 @@ describe("TerminalProtocolClient", () => {
     client.stop();
   });
 
+  it("Should deliver a size vote made before the socket opened", async () => {
+    const { client, sockets } = buildClient({});
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    const socket = sockets.last();
+
+    // The emulator finished its first fit while the upgrade was still opening.
+    client.proposeDimensions(220, 50);
+    expect(sentOpcodes(socket)).not.toContain(TERMINAL_CLIENT_OP.resize);
+
+    socket.open();
+    socket.deliver(attachedFrame());
+    expect(sentOpcodes(socket)).toContain(TERMINAL_CLIENT_OP.resize);
+  });
+
+  it("Should not repeat a vote the upgrade query already carried", async () => {
+    const { client, sockets } = buildClient({});
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    sockets.last().open();
+    sockets.last().deliver(attachedFrame());
+    client.proposeDimensions(220, 50);
+    expect(sentOpcodes(sockets.last())).toContain(TERMINAL_CLIENT_OP.resize);
+
+    sockets.last().drop();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(2));
+    const reconnected = sockets.last();
+    expect(reconnected.path).toContain("cols=220");
+    expect(reconnected.path).toContain("rows=50");
+
+    reconnected.open();
+    reconnected.deliver(attachedFrame({ cols: 220, rows: 50 }));
+    expect(sentOpcodes(reconnected)).not.toContain(TERMINAL_CLIENT_OP.resize);
+  });
+
+  it("Should keep watcher size votes off the wire", async () => {
+    const { client, sockets } = buildClient({ mode: "read" });
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    const socket = sockets.last();
+    socket.open();
+    socket.deliver(attachedFrame({ lease: "available" }));
+
+    client.proposeDimensions(220, 50);
+
+    expect(sentOpcodes(socket)).not.toContain(TERMINAL_CLIENT_OP.resize);
+  });
+
   it("Should surface a stream refusal instead of retrying it as content", async () => {
     const { client, sockets, streamErrors } = buildClient({ mode: "read" });
     client.start();
@@ -564,6 +617,64 @@ describe("TerminalProtocolClient", () => {
     expect(exits).toEqual([{ cause: "exited", exit_code: 0, signal: null, seq: 8192n }]);
     expect(inputEnabled.at(-1)).toBe(false);
     client.stop();
+  });
+
+  it("Should settle as closed instead of reconnecting after the program exits", async () => {
+    const { client, sockets, statuses, exits, calls } = buildClient();
+    client.start();
+    await vi.waitFor(() => expect(sockets.sockets).toHaveLength(1));
+    const socket = sockets.last();
+    socket.open();
+    socket.deliver(attachedFrame());
+    socket.deliver(
+      serverControlFrame(TERMINAL_SERVER_OP.exit, {
+        cause: "signaled",
+        exit_code: null,
+        signal: "HUP",
+        seq: "16",
+      })
+    );
+    await vi.waitFor(() => expect(exits).toHaveLength(1));
+
+    socket.drop();
+    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
+    // Give any wrongly scheduled reconnect its chance to fire.
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(sockets.sockets).toHaveLength(1);
+    expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
+  });
+
+  it("Should stop retrying when the daemon says the terminal is gone", async () => {
+    const { client, sockets, statuses, streamErrors, calls } = buildClient({
+      ticketResponse: () => ({
+        status: 409,
+        body: { error: { code: "terminal_exited", message: "terminal has exited" } },
+      }),
+    });
+    client.start();
+    await vi.waitFor(() => expect(statuses.at(-1)).toBe("closed"));
+    await new Promise(resolve => setTimeout(resolve, 5));
+
+    expect(sockets.sockets).toHaveLength(0);
+    expect(calls.filter(url => url.includes("/attach-ticket"))).toHaveLength(1);
+    // The exit surface owns an exited terminal; no extra refusal is invented.
+    expect(streamErrors).toHaveLength(0);
+  });
+
+  it("Should surface expiry as a stream refusal and settle closed", async () => {
+    const { client, statuses, streamErrors } = buildClient({
+      ticketResponse: () => ({
+        status: 404,
+        body: { error: { code: "terminal_expired", message: "terminal has expired" } },
+      }),
+    });
+    client.start();
+    await vi.waitFor(() => expect(streamErrors).toHaveLength(1));
+
+    expect(streamErrors[0]).toEqual({
+      error: { code: "terminal_expired", message: "terminal has expired" },
+    });
+    expect(statuses.at(-1)).toBe("closed");
   });
 
   it("Should reconnect after a binary frame cannot be decoded", async () => {

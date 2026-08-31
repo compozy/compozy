@@ -1,4 +1,4 @@
-import { CircleStop, Ellipsis, FileText, ScrollText, TerminalSquare } from "lucide-react";
+import { CircleStop, Ellipsis, FileText, Plus, ScrollText, TerminalSquare } from "lucide-react";
 
 import {
   Button,
@@ -39,6 +39,12 @@ export interface TerminalHeaderProps {
   onSignal?: () => void;
   onWait?: () => void;
   onStopRecording?: () => void;
+  /** Opens another terminal. A window-level verb, not a lease action. */
+  onNewTerminal?: () => void;
+  /** Reveals the journal overlay. */
+  onViewJournal?: () => void;
+  /** True while a close is already on its way to the daemon. */
+  closePending?: boolean;
   /**
    * When true, identity and ≤2 actions publish into the OS window head
    * instead of drawing a second identity row under the deck.
@@ -50,9 +56,12 @@ export interface TerminalHeaderProps {
 export function TerminalJournalHostChrome({
   hostChrome,
   projectLabel,
+  onBack,
 }: {
   hostChrome: boolean;
   projectLabel?: string;
+  /** Returns to the terminal underneath the overlay. */
+  onBack?: () => void;
 }) {
   useTopbarSlot(
     hostChrome
@@ -62,6 +71,7 @@ export function TerminalJournalHostChrome({
           status: projectLabel ? (
             <span className="truncate text-badge text-subtle">{projectLabel}</span>
           ) : undefined,
+          ...(onBack ? { onBack } : {}),
         }
       : null
   );
@@ -99,24 +109,31 @@ export function TerminalHeader({
   onSignal,
   onWait,
   onStopRecording,
+  onNewTerminal,
+  onViewJournal,
+  closePending = false,
   hostChrome = false,
 }: TerminalHeaderProps) {
   const isPipe = terminal.mode === "pipe";
   const capCount = terminalCapCount(terminalCount, limit);
   const identityCount = capCount ?? <MonoId size="sm" value={terminal.id} />;
   const actions = (
-    <TerminalHeaderActions
-      isPipe={isPipe}
-      lease={lease}
-      onClose={onClose}
-      onReleaseControl={onReleaseControl}
-      onSignal={onSignal}
-      onStop={onStop}
-      onStopRecording={onStopRecording}
-      onWait={onWait}
-      recording={recording}
-      onTakeControl={onTakeControl}
-    />
+    <>
+      <TerminalHeaderActions
+        closePending={closePending}
+        isPipe={isPipe}
+        lease={lease}
+        onClose={onClose}
+        onReleaseControl={onReleaseControl}
+        onSignal={onSignal}
+        onStop={onStop}
+        onStopRecording={onStopRecording}
+        onWait={onWait}
+        recording={recording}
+        onTakeControl={onTakeControl}
+      />
+      <TerminalWindowVerbs onNewTerminal={onNewTerminal} onViewJournal={onViewJournal} />
+    </>
   );
   const status = (
     <>
@@ -183,6 +200,7 @@ function TerminalHeaderActions({
   isPipe,
   lease,
   recording,
+  closePending,
   onTakeControl,
   onReleaseControl,
   onStop,
@@ -191,8 +209,16 @@ function TerminalHeaderActions({
   onWait,
   onStopRecording,
 }: TerminalHeaderActionsProps) {
-  if (isPipe)
-    return <TerminalPipeHeaderActions onClose={onClose} onSignal={onSignal} onWait={onWait} />;
+  if (isPipe) {
+    return (
+      <TerminalPipeHeaderActions
+        closePending={closePending}
+        onClose={onClose}
+        onSignal={onSignal}
+        onWait={onWait}
+      />
+    );
+  }
   const takeControl =
     lease.canTakeControl && onTakeControl ? (
       <Button data-testid="terminal-take-control" onClick={onTakeControl} size="sm" type="button">
@@ -243,13 +269,97 @@ function TerminalHeaderActions({
         <TooltipContent side="bottom">Stop</TooltipContent>
       </Tooltip>
     ) : null;
-  if (!takeControl && !releaseControl && !quietAction) return null;
+  // Ending the session is deliberate, so it lives one step away — never as a
+  // third verb beside the lease pair.
+  const overflow = onClose ? (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        render={
+          <Button
+            aria-label="More actions"
+            data-testid="terminal-overflow"
+            size="icon-sm"
+            type="button"
+            variant="ghost"
+          />
+        }
+      >
+        <Ellipsis aria-hidden="true" className="size-3.5" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem
+          data-testid="terminal-close"
+          disabled={closePending}
+          onClick={onClose}
+          variant="destructive"
+        >
+          Close terminal
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ) : null;
+  if (!takeControl && !releaseControl && !quietAction && !overflow) return null;
   return (
     <>
       <TerminalHeaderRule />
       {takeControl}
       {releaseControl}
       {quietAction}
+      {overflow}
+    </>
+  );
+}
+
+/**
+ * Window-level verbs: another terminal, and the journal. They belong to the
+ * window rather than to this terminal's lease, so they trail everything else.
+ */
+function TerminalWindowVerbs({
+  onNewTerminal,
+  onViewJournal,
+}: Pick<TerminalHeaderProps, "onNewTerminal" | "onViewJournal">) {
+  if (!onNewTerminal && !onViewJournal) return null;
+  return (
+    <>
+      <TerminalHeaderRule />
+      {onNewTerminal ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="New terminal"
+                data-testid="terminal-new"
+                onClick={onNewTerminal}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <Plus aria-hidden="true" className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">New terminal</TooltipContent>
+        </Tooltip>
+      ) : null}
+      {onViewJournal ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                aria-label="Journal"
+                data-testid="terminal-journal-toggle"
+                onClick={onViewJournal}
+                size="icon-sm"
+                type="button"
+                variant="ghost"
+              />
+            }
+          >
+            <ScrollText aria-hidden="true" className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Journal</TooltipContent>
+        </Tooltip>
+      ) : null}
     </>
   );
 }
@@ -258,14 +368,22 @@ function TerminalPipeHeaderActions({
   onClose,
   onSignal,
   onWait,
-}: Pick<TerminalHeaderActionsProps, "onClose" | "onSignal" | "onWait">) {
+  closePending,
+}: Pick<TerminalHeaderActionsProps, "onClose" | "onSignal" | "onWait" | "closePending">) {
   const wait = onWait ? (
     <Button data-testid="terminal-wait" onClick={onWait} size="sm" type="button" variant="ghost">
       Wait
     </Button>
   ) : null;
   const close = onClose ? (
-    <Button data-testid="terminal-close" onClick={onClose} size="sm" type="button" variant="ghost">
+    <Button
+      data-testid="terminal-close"
+      disabled={closePending}
+      onClick={onClose}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
       Close
     </Button>
   ) : null;
@@ -310,6 +428,7 @@ type TerminalHeaderActionsProps = Pick<
   TerminalHeaderProps,
   | "lease"
   | "recording"
+  | "closePending"
   | "onTakeControl"
   | "onReleaseControl"
   | "onStop"

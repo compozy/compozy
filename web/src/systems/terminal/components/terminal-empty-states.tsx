@@ -16,8 +16,8 @@ function TerminalEmptyFrame({ children }: { children: ReactNode }) {
 /**
  * A project with no terminals.
  *
- * Onboarding is the empty state: one action, no tour, and it is the only accent
- * on the surface — an empty terminal has nothing to take control of.
+ * Reached only where opening one is not this window's call — aggregate reads
+ * and isolated hosts — so it stays a quiet line, not a framed launchpad.
  */
 export function TerminalEmptyState({ onOpenTerminal }: TerminalEmptyStateProps) {
   return (
@@ -36,7 +36,6 @@ export function TerminalEmptyState({ onOpenTerminal }: TerminalEmptyStateProps) 
           ) : undefined
         }
         data-testid="terminal-empty"
-        framed
         icon={TerminalSquare}
         title="No terminals yet"
       />

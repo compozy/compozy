@@ -161,7 +161,7 @@ export const AtLimit: Story = {
   name: "VC-05 · At the project limit",
   render: () => stagedWindow({ terminals: TERMINAL_FIXTURES_AT_CAP }),
   play: async ({ canvas, userEvent }) => {
-    await userEvent.click(await canvas.findByTestId("terminal-open"));
+    await userEvent.click(await canvas.findByTestId("terminal-new"));
   },
   tags: ["play-fn"],
 };
@@ -398,7 +398,7 @@ export const SwitchedProfile: Story = {
     docs: {
       description: {
         story:
-          "Non-normative: the boards predate profile segmentation and contain no profile state, so there is nothing to compare against. The contract is `_uiux.md` US-033.AC-2 plus the `DESIGN.md` grammar. Switching profile empties the tab strip of the previous profile's terminals — they are hidden, not closed, and switching back shows them still running.",
+          "Non-normative: the boards predate profile segmentation and contain no profile state, so there is nothing to compare against. The contract is `_uiux.md` US-033.AC-2 plus the `DESIGN.md` grammar. Switching profile hides the previous profile's terminals from this window's catalog — they are hidden, not closed, and switching back shows them still running.",
       },
     },
   },
@@ -427,7 +427,7 @@ export const PipeMode: Story = {
     }),
 };
 
-/** A terminal waiting on an answer marks its tab. */
+/** A terminal waiting on an answer pins the question under its grid. */
 export const AwaitingAnswer: Story = {
   name: "Question waiting",
   render: () => stagedWindow({ terminals: [PSQL_TERMINAL], inputRequests: [PASSWORD_REQUEST] }),

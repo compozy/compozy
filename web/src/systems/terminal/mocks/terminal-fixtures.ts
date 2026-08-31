@@ -108,12 +108,12 @@ export const TERMINAL_FIXTURES: readonly TerminalInfo[] = [
   SSH_STAGING_TERMINAL,
 ];
 
-/** The eight-terminal cap, so overflow can be exercised at its real boundary. */
+/** Eight running terminals — the cap counts only what still occupies a slot. */
 export const TERMINAL_FIXTURES_AT_CAP: readonly TerminalInfo[] = [
   DEV_SERVER_TERMINAL,
   PSQL_TERMINAL,
   MAKE_GATE_TERMINAL,
-  SSH_STAGING_TERMINAL,
+  baseTerminal({ id: "term-b3f2a8d1c705", title: "ssh staging" }),
   baseTerminal({ id: "term-77c1d0e94ab3", title: "tail api log" }),
   baseTerminal({ id: "term-2c8de1b704f9", title: "worker" }),
   baseTerminal({ id: "term-4aa01f22e6c3", title: "e2e suite" }),

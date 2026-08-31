@@ -33,8 +33,6 @@ import { useActiveWorkspace } from "@/systems/workspace";
 
 import { useDesktop } from "../../../hooks/use-desktop";
 import { useOsShell } from "../../../hooks/use-os-shell";
-import { matchTerminalInstance } from "../../../lib/app-catalog";
-import { decideTerminalCloseHost } from "../lib/terminal-window-close";
 import { terminalJournalQueryEnabled } from "../lib/terminal-window-journal";
 
 const DEFAULT_ROUTE = "/terminal";
@@ -45,6 +43,24 @@ interface TerminalReplaySelection {
   title: string;
 }
 
+interface TerminalWindowRouteState {
+  windows: Record<
+    string,
+    { app: string; instanceKey: string | null; route: { search: Record<string, unknown> } }
+  >;
+}
+
+/** Terminal ids other OS windows already show, as a stable selector value. */
+function windowedTerminalKeys(state: TerminalWindowRouteState, currentWindowId: string): string {
+  const keys: string[] = [];
+  for (const [id, window] of Object.entries(state.windows)) {
+    if (id !== currentWindowId && window.app === "terminal" && window.instanceKey) {
+      keys.push(window.instanceKey);
+    }
+  }
+  return keys.sort().join("\n");
+}
+
 export function useTerminalWindowControllerState(windowId: string) {
   // Chips are the interaction state; the query reads their projection, so a
   // chip still being typed filters nothing until it carries a value.
@@ -52,7 +68,6 @@ export function useTerminalWindowControllerState(windowId: string) {
   const journalFilters = terminalJournalFiltersFromChips(journalChips);
   const [replay, setReplay] = useState<TerminalReplaySelection | null>(null);
   const [selectedCommandId, setSelectedCommandId] = useState<string | null>(null);
-  const [journalVisible, setJournalVisible] = useState(false);
   const { coordinator, manager } = useOsShell();
   const queryClient = useQueryClient();
   const workspace = useActiveWorkspace();
@@ -60,6 +75,12 @@ export function useTerminalWindowControllerState(windowId: string) {
   const profiles = useProfiles();
   const settings = useSettingsGeneral();
   const pathname = useDesktop(state => state.windows[windowId]?.route.pathname ?? DEFAULT_ROUTE);
+  // The `new` search key is the deliberate-creation mark: a window opened by
+  // the head's New must open a fresh terminal, never adopt a windowless one.
+  const createRequested = useDesktop(
+    state => state.windows[windowId]?.route.search.new !== undefined
+  );
+  const windowedKeys = useDesktop(state => windowedTerminalKeys(state, windowId));
   const viewerId = useDesktop(state => state.client?.clientId ?? null);
   const viewerToken = useDesktop(state => state.clientAttachmentToken);
   const viewer: TerminalViewerIdentity | null =
@@ -142,35 +163,9 @@ export function useTerminalWindowControllerState(windowId: string) {
   const close = useMutation({
     mutationFn: (terminalId: string) =>
       closeTerminal(workspaceId, terminalId, terminalSelector(terminalId), "HUP"),
-    onSuccess: async (_exit, closedId) => {
-      await invalidateTerminalReads();
-      const remaining = (catalog.data ?? []).filter(terminal => terminal.id !== closedId);
-      const decision = decideTerminalCloseHost({
-        closedId,
-        routedId: matchTerminalInstance(pathname),
-        remaining,
-        journalVisible,
-      });
-      if (decision.kind === "noop") return;
-      if (decision.kind === "retarget") {
-        await coordinator.userRetarget(windowId, {
-          app: "terminal",
-          instanceKey: decision.terminalId,
-          route: { pathname: `/terminal/${encodeURIComponent(decision.terminalId)}`, search: {} },
-        });
-        return;
-      }
-      if (decision.kind === "keep") {
-        // Drop the dead terminal from the route so the journal stays the surface.
-        const navigated = manager.navigateWindow(windowId, {
-          pathname: DEFAULT_ROUTE,
-          search: {},
-        });
-        await navigated.completion;
-        return;
-      }
-      await coordinator.userClose(windowId);
-    },
+    // The window stays put: the exit bar reads the outcome, and closing the OS
+    // window is the person's own gesture. Nothing retargets or closes for them.
+    onSuccess: invalidateTerminalReads,
     onError: error =>
       toast.error(error instanceof Error ? error.message : "Failed to close terminal"),
   });
@@ -224,6 +219,8 @@ export function useTerminalWindowControllerState(windowId: string) {
     close,
     coordinator,
     create,
+    createRequested,
+    windowedTerminalIds: new Set(windowedKeys === "" ? [] : windowedKeys.split("\n")),
     inputRequests,
     resolvedInputRequests,
     journal,
@@ -238,7 +235,6 @@ export function useTerminalWindowControllerState(windowId: string) {
     selectedCommandId,
     setJournalChips,
     unlockJournal: () => unlockTerminalJournal(workspaceId),
-    setJournalVisible,
     setReplay,
     setSelectedCommandId,
     settings,

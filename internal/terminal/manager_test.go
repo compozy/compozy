@@ -1001,6 +1001,31 @@ func TestSessionAttachReplayAndResizeContract(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the session running when the last viewer detaches [UT-121]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		proc := starter.latest()
+		human := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		writer, err := handle.Attach(context.Background(), AttachOptions{Mode: "write", Flow: "ack", Actor: human})
+		if err != nil {
+			t.Fatalf("Attach(writer) error = %v", err)
+		}
+		assertAttachedFrame(t, receiveSubscriptionFrame(t, writer), 0, false)
+		if err := writer.Close(); err != nil {
+			t.Fatalf("writer Close() error = %v", err)
+		}
+		select {
+		case <-proc.done:
+			t.Fatal("detaching the last viewer signaled the PTY")
+		default:
+		}
+		info := handle.Info()
+		if info.State != "running" || info.Exit != nil {
+			t.Fatalf("post-detach info = state %q exit %#v, want running with no exit", info.State, info.Exit)
+		}
+	})
+
 	t.Run("Should continue exactly or send a complete truncated resync [IT-004]", func(t *testing.T) {
 		t.Parallel()
 		settings := DefaultSettings()
@@ -1253,6 +1278,26 @@ func TestManagerRetentionAndReaper(t *testing.T) {
 		manager.mu.RUnlock()
 		if count != maxTombstones {
 			t.Fatalf("tombstones = %d, want %d", count, maxTombstones)
+		}
+	})
+
+	t.Run("Should return the recorded exit without error when closing an exited terminal [UT-119]", func(t *testing.T) {
+		t.Parallel()
+		manager, starter, _ := newTestManager(t, DefaultSettings())
+		handle := openTestTerminal(t, manager, "workspace-a", "profile-a")
+		id := handle.Info().ID
+		actor := Actor{Kind: ActorKindHuman, ID: "operator", ProfileID: "profile-a"}
+		code := 0
+		starter.latest().complete(terminalExit("exited", &code, nil))
+		waitDone(t, manager, "workspace-a", "profile-a", id)
+		for _, attempt := range []string{"first", "second"} {
+			exit, err := manager.Close(context.Background(), "workspace-a", id, actor, SignalHUP)
+			if err != nil {
+				t.Fatalf("Close(exited, %s) error = %v, want nil", attempt, err)
+			}
+			if exit == nil || exit.Cause != "exited" || exit.Code == nil || *exit.Code != 0 {
+				t.Fatalf("Close(exited, %s) exit = %#v, want recorded exit 0", attempt, exit)
+			}
 		}
 	})
 

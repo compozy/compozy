@@ -432,10 +432,12 @@ func (s *session) close(ctx context.Context, signal Signal, reason string, actor
 	if s.exit != nil {
 		exit := cloneExit(s.exit)
 		s.mu.Unlock()
+		// Close is idempotent: an already-exited terminal reports its recorded
+		// exit; only a failed journal repair surfaces as an error.
 		if err := s.awaitRemoval(ctx); err != nil {
 			return exit, err
 		}
-		return exit, &Error{Code: ErrorCodeExited, Message: errorMessageExited, Err: ErrExited}
+		return exit, nil
 	}
 	if s.closeReason == "" {
 		s.closeReason = reason

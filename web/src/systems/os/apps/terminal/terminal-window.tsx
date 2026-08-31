@@ -51,6 +51,8 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     close,
     coordinator,
     create,
+    createRequested,
+    windowedTerminalIds,
     inputRequests,
     resolvedInputRequests,
     journal,
@@ -65,7 +67,6 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     selectedCommandId,
     setJournalChips,
     unlockJournal,
-    setJournalVisible,
     setReplay,
     setSelectedCommandId,
     settings,
@@ -88,7 +89,19 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     },
     hasActiveSession: activeSessionWindowId !== null && activeSessionId !== null,
     openTerminal,
+    // Another terminal beside this one: a fresh window joins this frame as a
+    // tab. `new` marks deliberate creation, so the resolver there opens a
+    // fresh terminal instead of adopting a windowless running one.
+    openTerminalTab: () => {
+      void coordinator.userOpen({
+        app: "terminal",
+        forceNewInstance: true,
+        stackTargetWindowId: windowId,
+        route: { pathname: "/terminal", search: { new: "1" } },
+      });
+    },
     close: terminalId => close.mutate(terminalId),
+    closePending: close.isPending,
     stop: terminalId => stop.mutate(terminalId),
     wait: terminalId => wait.mutate(terminalId),
     stopRecording: terminalId => stopRecording.mutate(terminalId),
@@ -235,6 +248,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
     <TerminalWindowApp
       hostChrome
       actions={actions}
+      createIntent={createRequested}
       detachedTtl={terminalSettings?.detached_ttl}
       exitRetentionMs={parsePositiveDurationMilliseconds(terminalSettings?.exit_retention)}
       inputRequestTitles={new Map(terminals.map(terminal => [terminal.id, terminal.title]))}
@@ -244,7 +258,6 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       journal={journalContent}
       limit={terminalSettings?.max_per_workspace}
       recordings={recordings}
-      onLeaveJournal={() => setJournalVisible(false)}
       onSelectTerminal={terminalId => {
         void coordinator.userRetarget(windowId, {
           app: "terminal",
@@ -252,10 +265,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
           route: { pathname: `/terminal/${encodeURIComponent(terminalId)}`, search: {} },
         });
       }}
-      onViewJournal={() => {
-        unlockJournal();
-        setJournalVisible(true);
-      }}
+      onViewJournal={unlockJournal}
       profile={profile.destination}
       projectLabel={workspace.runtimeWorkspace?.name}
       readOnly={profile.aggregate}
@@ -263,6 +273,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       terminals={terminals}
       viewerId={viewerId}
       viewerToken={viewerToken}
+      windowedTerminalIds={windowedTerminalIds}
       workspaceId={workspaceId}
     />
   );

@@ -2,7 +2,6 @@ package terminal
 
 import (
 	"context"
-	"errors"
 	"slices"
 	"time"
 )
@@ -63,7 +62,7 @@ func (m *Service) reap(ctx context.Context) {
 				continue
 			}
 			actor := Actor{Kind: ActorKindSystem, ID: "terminal-reaper", ProfileID: target.key.profileID}
-			if _, err := target.item.close(ctx, SignalHUP, "expired", actor); err != nil && !errors.Is(err, ErrExited) {
+			if _, err := target.item.close(ctx, SignalHUP, "expired", actor); err != nil {
 				target.item.cancelDetachedReap()
 				m.logger.Warn("terminal: reap detached terminal", "terminal_id", target.key.id, "error", err)
 				continue

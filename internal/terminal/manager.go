@@ -283,7 +283,7 @@ func (m *Service) closeAndArchiveTerminals(
 	var closeErrors []error
 	for _, target := range targets {
 		actor := Actor{Kind: ActorKindSystem, ID: actorID, ProfileID: target.key.profileID}
-		if _, err := target.item.close(ctx, SignalHUP, reason, actor); err != nil && !errors.Is(err, ErrExited) {
+		if _, err := target.item.close(ctx, SignalHUP, reason, actor); err != nil {
 			closeErrors = append(closeErrors, err)
 			continue
 		}

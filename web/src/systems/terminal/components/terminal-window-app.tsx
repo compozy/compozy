@@ -1,14 +1,11 @@
 "use client";
 
 import { Activity } from "react";
-import type { TerminalEngineLoader } from "@compozy/ui";
+import { BlockLoading, type TerminalEngineLoader } from "@compozy/ui";
 
 import type { TerminalAttachmentSocketFactory } from "../hooks/use-terminal-attachment";
 import { useCompactTerminalWindow } from "../hooks/use-compact-terminal-window";
-import {
-  TERMINAL_NO_TERMINALS,
-  useTerminalWindowAppState,
-} from "../hooks/use-terminal-window-app-state";
+import { useTerminalWindowAppState } from "../hooks/use-terminal-window-app-state";
 import { terminalInstanceKey } from "../lib/terminal-scope-key";
 import type { TerminalInfo, TerminalInputRequest, TerminalResolvedInputRequest } from "../types";
 import {
@@ -19,8 +16,6 @@ import {
 import { TerminalJournalHostChrome, type TerminalRecordingState } from "./terminal-header";
 import { TerminalJournalHead } from "./terminal-journal-panel";
 import { TerminalLimitDialog } from "./terminal-limit-dialog";
-import { TERMINAL_JOURNAL_TAB, terminalPanelDomId, terminalTabDomId } from "./terminal-tab-id";
-import { TerminalTabs } from "./terminal-tabs";
 import type { TerminalWindowActions } from "./terminal-window-actions";
 import { TerminalWindowBody } from "./terminal-window-body";
 
@@ -58,11 +53,15 @@ export interface TerminalWindowAppProps {
   journal: React.ReactNode;
   /** The PTY the host route named. Isolated windows omit this. */
   requestedTerminalId?: string | null;
+  /** Terminal ids other OS windows already show; the resolver never adopts them. */
+  windowedTerminalIds?: ReadonlySet<string>;
+  /** The route arrived asking for a fresh terminal; the resolver never adopts. */
+  createIntent?: boolean;
   /** Retargets the host to `/terminal/:id`. Isolated windows omit this. */
   onSelectTerminal?: (terminalId: string) => void;
   /** Reveals the journal. The host unlocks its fetch on first open. */
   onViewJournal?: () => void;
-  /** The journal tab is no longer the surface being read. */
+  /** The journal overlay is no longer the surface being read. */
   onLeaveJournal?: () => void;
   actions: TerminalWindowActions;
   socketFactory?: TerminalAttachmentSocketFactory;
@@ -76,12 +75,11 @@ export interface TerminalWindowAppProps {
 }
 
 /**
- * The Terminal app's window body.
+ * The Terminal app's window body: one terminal per OS window.
  *
- * Composes the tab strip, the identity head and one pane, and owns the scope:
- * which `(workspace, profile)` these terminals belong to, and which buffers may
- * still exist. The journal stays mounted across tab changes so its scroll and
- * selection survive. Execute-only still hosts the journal tab and empty chrome.
+ * The OS window deck is the only tab strip; this component owns the terminal
+ * the route names, the journal overlay on top of it, and the edge states. The
+ * journal stays mounted while hidden so its scroll and selection survive.
  */
 export function TerminalWindowApp({
   workspaceId,
@@ -102,6 +100,8 @@ export function TerminalWindowApp({
   pipeOutput,
   journal,
   requestedTerminalId,
+  windowedTerminalIds,
+  createIntent,
   onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
@@ -114,103 +114,89 @@ export function TerminalWindowApp({
   const {
     active,
     activeProfile,
-    activeTab,
-    attentionIds,
+    journalOpen,
+    openJournal,
+    closeJournal,
     destinationTerminals,
     limitOpen,
     missingRequested,
+    resolving,
     openTerminal,
-    setActiveTab,
     setLimitOpen,
-    tabsIdBase,
   } = useTerminalWindowAppState({
     workspaceId,
     profile,
     terminals,
-    inputRequests,
     limit,
     readOnly,
+    interactiveAvailable,
     actions,
     requestedTerminalId,
+    windowedTerminalIds,
+    createIntent,
     onSelectTerminal,
     onViewJournal,
     onLeaveJournal,
   });
-  const showJournal = activeTab === TERMINAL_JOURNAL_TAB;
-  const openJournal = () => setActiveTab(TERMINAL_JOURNAL_TAB);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid="terminal-window" ref={rootRef}>
-      {compact ? null : (
-        <TerminalTabs
-          activeTab={activeTab}
-          attentionIds={attentionIds}
-          destinationCount={destinationTerminals.length}
-          idBase={tabsIdBase}
+    <div
+      className="flex min-h-0 flex-1 flex-col bg-terminal-bg"
+      data-testid="terminal-window"
+      ref={rootRef}
+    >
+      <Activity mode={journalOpen ? "visible" : "hidden"}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <TerminalJournalHostChrome
+            hostChrome={hostChrome && journalOpen}
+            onBack={closeJournal}
+            projectLabel={projectLabel}
+          />
+          {hostChrome ? null : (
+            <TerminalJournalHead onBack={closeJournal} projectLabel={projectLabel} />
+          )}
+          {journal}
+        </div>
+      </Activity>
+      {journalOpen ? null : missingRequested ? (
+        <TerminalNotFoundState onOpenTerminal={openTerminal} onViewJournal={openJournal} />
+      ) : !interactiveAvailable && active === null ? (
+        <TerminalExecuteOnlyState onViewJournal={openJournal} />
+      ) : active === null && resolving ? (
+        <BlockLoading className="flex-1" label="Opening a terminal" surface="bare" />
+      ) : active === null ? (
+        <TerminalEmptyState onOpenTerminal={openTerminal} />
+      ) : (
+        <TerminalWindowBody
+          actions={{ ...actions, onOpenTerminal: openTerminal }}
+          compact={compact}
+          detachedTtl={detachedTtl}
+          engineLoader={engineLoader}
+          exitRetentionMs={exitRetentionMs}
+          hostChrome={hostChrome}
+          inputRequestTitles={inputRequestTitles}
+          inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
+          resolvedInputRequests={resolvedInputRequests.filter(
+            request => request.terminal_id === active.id
+          )}
+          // Keyed by the full scoped identity: the same terminal id under a
+          // different profile is a different terminal, and must not inherit
+          // the previous one's in-flight confirmation.
+          key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
+          onViewJournal={openJournal}
+          pipeOutput={pipeOutput?.[active.id]}
+          profile={activeProfile}
+          readOnly={readOnly}
+          recording={recordings?.[active.id] ?? null}
+          socketFactory={socketFactory}
+          terminal={active}
+          terminalCount={destinationTerminals.length}
           limit={limit}
-          onCloseTerminal={readOnly ? undefined : actions.onCloseTerminal}
-          onOpenTerminal={interactiveAvailable ? openTerminal : undefined}
-          onSelect={setActiveTab}
-          showOwner={readOnly}
-          terminals={terminals}
+          viewerId={viewerId}
+          viewerToken={viewerToken}
+          workspaceId={workspaceId}
         />
       )}
-      <div
-        aria-labelledby={
-          activeTab === TERMINAL_NO_TERMINALS ? undefined : terminalTabDomId(tabsIdBase, activeTab)
-        }
-        className="flex min-h-0 flex-1 flex-col bg-terminal-bg"
-        id={terminalPanelDomId(tabsIdBase)}
-        role="tabpanel"
-      >
-        <Activity mode={showJournal ? "visible" : "hidden"}>
-          <div className="flex min-h-0 flex-1 flex-col">
-            <TerminalJournalHostChrome
-              hostChrome={hostChrome && showJournal}
-              projectLabel={projectLabel}
-            />
-            {hostChrome ? null : <TerminalJournalHead projectLabel={projectLabel} />}
-            {journal}
-          </div>
-        </Activity>
-        {showJournal ? null : missingRequested ? (
-          <TerminalNotFoundState onOpenTerminal={openTerminal} onViewJournal={openJournal} />
-        ) : !interactiveAvailable && active === null ? (
-          <TerminalExecuteOnlyState onViewJournal={openJournal} />
-        ) : active === null ? (
-          <TerminalEmptyState onOpenTerminal={openTerminal} />
-        ) : (
-          <TerminalWindowBody
-            actions={{ ...actions, onOpenTerminal: openTerminal }}
-            compact={compact}
-            detachedTtl={detachedTtl}
-            engineLoader={engineLoader}
-            exitRetentionMs={exitRetentionMs}
-            hostChrome={hostChrome}
-            inputRequestTitles={inputRequestTitles}
-            inputRequests={inputRequests.filter(request => request.terminal_id === active.id)}
-            resolvedInputRequests={resolvedInputRequests.filter(
-              request => request.terminal_id === active.id
-            )}
-            // Keyed by the full scoped identity: the same terminal id under a
-            // different profile is a different terminal, and must not inherit
-            // the previous one's in-flight confirmation.
-            key={terminalInstanceKey(workspaceId, activeProfile, active.id)}
-            onViewJournal={openJournal}
-            pipeOutput={pipeOutput?.[active.id]}
-            profile={activeProfile}
-            readOnly={readOnly}
-            recording={recordings?.[active.id] ?? null}
-            socketFactory={socketFactory}
-            terminal={active}
-            terminalCount={destinationTerminals.length}
-            limit={limit}
-            viewerId={viewerId}
-            viewerToken={viewerToken}
-            workspaceId={workspaceId}
-          />
-        )}
-      </div>
       {!readOnly && limit !== undefined ? (
         <TerminalLimitDialog
           limit={limit}
