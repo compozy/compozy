@@ -157,7 +157,7 @@ export const implementTasksGraph = {
         agent: "{{ .inputs.orchestrator }}",
         runtime: "{{ .inputs.orchestrator_runtime }}",
         objective:
-          "Conduct the task graph with one bounded code_implementer worker per task and preserve each category runtime.",
+          "Conduct the task graph with one bounded {{ .inputs.implementer }} worker per task and preserve each category runtime.",
         judge: [{ id: "tasks_completed", type: "command", check: "test -d .compozy/tasks" }],
         max_turns: 12,
         output_schema: {

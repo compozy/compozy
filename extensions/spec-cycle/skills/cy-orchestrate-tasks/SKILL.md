@@ -12,6 +12,8 @@ This session is the **conductor** of the spec: it conducts, it does not play. Ev
 
 - `slug` — the directory name under `.compozy/tasks/<slug>/`, holding `_tasks.md` (the task graph)
   and `task_NN.md` files whose frontmatter carries `status`, `title`, and `type`.
+- `implementer` — the exact validated Agent identifier supplied in the Goal objective. The Loop
+  defaults it to `code_implementer`; the conductor never substitutes that default.
 - `backend_runtime`, `frontend_runtime`, and `default_runtime` — optional runtime objects supplied
   in the Goal objective. Each can carry `provider`, `model`, `reasoning`, and `speed`.
 
@@ -30,12 +32,13 @@ _Done when:_ the queue lists the id, `title`, and `status` of every queued task,
 Choose the worker runtime by exact frontmatter type: `backend` uses `backend_runtime`, `frontend`
 uses `frontend_runtime`, and every other value uses `default_runtime`. Merge the task's own
 frontmatter `runtime` over that category object field by field before building spawn flags. Create
-one bounded
-`spawned` session bound to this conductor. TTL and parent-stop are the containment contract;
+one bounded `spawned` session bound to this conductor. Bind the exact `implementer` value from the
+Goal once, then pass it as one quoted argument. TTL and parent-stop are the containment contract;
 `--ttl-seconds` is mandatory:
 
 ```bash
-compozy spawn --agent code_implementer \
+IMPLEMENTER="<exact implementer identifier from the Goal>"
+compozy spawn --agent "$IMPLEMENTER" \
   --name "orchestrate-<slug>-<task_id>" \
   --role worker \
   --ttl-seconds 3600 \
@@ -46,8 +49,9 @@ compozy spawn --agent code_implementer \
 
 Append `--provider`, `--model`, `--reasoning-effort`, and `--speed` only for non-empty fields in the
 selected runtime object; `reasoning` maps to `--reasoning-effort`. When every field is empty, omit
-all runtime flags so the child resolves from the `code_implementer` definition and workspace
-defaults. Capture `.session.id`.
+provider, model, and reasoning flags so the child resolves them through the selected Agent and
+workspace. Under current spawn behavior, omitted speed inherits the parent session. Capture
+`.session.id`.
 
 When the spawn response is lost or ambiguous, reconcile before acting — a blind respawn creates a
 second worker for one task:
@@ -61,8 +65,11 @@ compozy session list \
   -o json
 ```
 
-Reuse the id when exactly one session carries the expected name. Zero results after a confirmed
-spawn failure blocks the task. More than one match: stop every match and block the task.
+Reuse the id only when exactly one returned session has `name` equal to
+`orchestrate-<slug>-<task_id>` and `agent_name` equal to `$IMPLEMENTER`. Zero results after a
+confirmed spawn failure blocks the task. A mismatched `agent_name` is never adopted or followed by
+a blind respawn: stop the session only when its parent and exact name prove conductor ownership,
+then block the task. More than one exact match: stop every conductor-owned match and block the task.
 
 _Done when:_ exactly one worker session id is held for this task, or the task is marked blocked.
 

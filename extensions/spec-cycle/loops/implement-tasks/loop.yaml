@@ -247,10 +247,13 @@ graph:
           Activate the `cy-orchestrate-tasks` skill and follow it strictly for the spec
           `.compozy/tasks/{{ .inputs.slug }}`.
 
-          Conduct only. Read the task graph and spawn one bounded `code_implementer` worker session
-          per task, in dependency order. For each task: dispatch the briefing, wait for the turn to
-          end, re-read the task frontmatter as proof, and stop the worker before advancing.
-          Implementation belongs to the workers — leave every code edit to them.
+          Selected implementer Agent: `{{ .inputs.implementer }}`.
+          Conduct only. Read the task graph and spawn one bounded worker session using the selected
+          implementer Agent per task, in dependency order. `code_implementer` is only the input
+          default; never substitute it for a different selected Agent. For each task: dispatch the
+          briefing, wait for the turn to end, re-read the task frontmatter as proof, and stop the
+          worker before advancing. Implementation belongs to the workers — leave every code edit
+          to them.
 
           Pass these category runtime inputs to each spawned worker. Use the backend runtime only
           for exact task type `backend`, the frontend runtime only for exact task type `frontend`,
