@@ -272,7 +272,14 @@ test("E2E-029: editor grammar round-trips and reports a missing route default", 
   }
 
   await page.getByTestId("loop-editor-view-graph").click();
-  await route.click();
+  const graph = page.getByTestId("loop-editor-canvas");
+  await expect(graph).toBeVisible();
+  const graphRoute = graph.locator(
+    '[data-testid="loop-editor-node"][data-node-id="decision_route"]'
+  );
+  await expect(graphRoute).toBeVisible();
+  await graphRoute.click();
+  await expect(page.getByTestId("loop-route-default")).toBeVisible();
   await expect(page.getByTestId("loop-linter-error-count")).toHaveCount(0);
   await page.getByTestId("loop-route-default").selectOption("");
   await expect(page.getByTestId("loop-linter-error-count")).toBeVisible();

@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl/refs"
 )
@@ -10,15 +11,17 @@ func hydrateExecutedDefinitionSnapshot(
 	envelope *executedDefinitionSnapshot,
 ) (*ResolvedDefinition, error) {
 	resolved := &ResolvedDefinition{
-		Definition:           envelope.Definition,
-		DefinitionVersion:    envelope.DefinitionVersion,
-		Templates:            map[string]*refs.Template{},
-		Conditions:           map[string]*refs.Condition{},
-		ToolSchemas:          cloneToolSchemaSnapshots(envelope.ToolSchemas),
-		WatchEventsContracts: cloneWatchEventsContracts(envelope.WatchEventsContracts),
-		Defaults:             envelope.Defaults,
-		EffectiveConfig:      cloneEffectiveConfig(envelope.EffectiveConfig),
-		compiled:             true,
+		Definition:             envelope.Definition,
+		DefinitionVersion:      envelope.DefinitionVersion,
+		InstalledFromExtension: strings.TrimSpace(envelope.InstalledFromExtension),
+		ExtensionOwner:         strings.TrimSpace(envelope.ExtensionOwner),
+		Templates:              map[string]*refs.Template{},
+		Conditions:             map[string]*refs.Condition{},
+		ToolSchemas:            cloneToolSchemaSnapshots(envelope.ToolSchemas),
+		WatchEventsContracts:   cloneWatchEventsContracts(envelope.WatchEventsContracts),
+		Defaults:               envelope.Defaults,
+		EffectiveConfig:        cloneEffectiveConfig(envelope.EffectiveConfig),
+		compiled:               true,
 	}
 	definition := resolved.Definition
 	definition.Normalize()

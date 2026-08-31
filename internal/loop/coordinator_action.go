@@ -52,6 +52,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err != nil {
 		return task.RunResult{}, err
 	}
+	ctx = actionContextWithExtensionOwner(ctx, actionCtx.resolved)
 	outputs, err := r.readActionGenerationOutputs(ctx, &actionCtx)
 	if err != nil {
 		return task.RunResult{}, err
@@ -434,6 +435,13 @@ func actionNodeForRun(graph dsl.Graph, nodeID string) (dsl.Node, error) {
 		)
 	}
 	return node, nil
+}
+
+func actionContextWithExtensionOwner(ctx context.Context, resolved *ResolvedDefinition) context.Context {
+	if resolved == nil {
+		return ctx
+	}
+	return tools.WithTrustedExtensionOwner(ctx, resolved.ExtensionOwner)
 }
 
 func actionToolScope(run Run, actor task.ActorContext) tools.Scope {

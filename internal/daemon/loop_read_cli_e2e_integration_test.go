@@ -29,6 +29,7 @@ import (
 
 const (
 	loopReadApprovalLoopName   = "loop-read-approval"
+	loopReadUnblockerLoopName  = "loop-read-unblocker"
 	loopReadQuarantineLoopName = "loop-read-quarantine"
 	loopReadWaitingLoopName    = "loop-read-waiting"
 )
@@ -66,6 +67,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	defer setupCancel()
 	createLoopViaHTTP(t, setupCtx, harness, loopEventsDefinition())
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadApprovalLoopName)
+	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadUnblockerLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadQuarantineLoopName)
 	waitForLoopCatalogEntry(t, setupCtx, harness, loopReadWaitingLoopName)
 	run := runLoopViaHTTP(t, setupCtx, harness, "loop-events-probe")
@@ -1130,6 +1132,7 @@ func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 	root := filepath.Join(workspaceRoot, compozyconfig.DirName, compozyconfig.LoopsDirName)
 	definitions := map[string]string{
 		loopReadApprovalLoopName:   loopReadApprovalYAML(),
+		loopReadUnblockerLoopName:  loopReadUnblockerYAML(),
 		loopReadQuarantineLoopName: loopReadQuarantineYAML(),
 		loopReadWaitingLoopName:    loopReadWaitingYAML(),
 	}
@@ -1142,6 +1145,45 @@ func seedLoopReadDefinitions(t testing.TB, workspaceRoot string) {
 			t.Fatalf("WriteDefinition(%s) error = %v", name, err)
 		}
 	}
+}
+
+func loopReadUnblockerYAML() string {
+	return `apiVersion: compozy.loop/v1
+kind: Loop
+meta: { name: loop-read-unblocker, description: "E2E deterministic approval unblocker probe." }
+concurrency: allow
+contract:
+  goal: "Prepare, receive explicit approval, and finish."
+  definition_of_done: "The approved final transform succeeds."
+  stop_when: "nodes.finish.status == 'succeeded'"
+  verification: []
+  terminal_states: [done, failed, blocked, exhausted, stalled]
+  iteration_cap: 1
+  no_progress: { window: 2 }
+  budget: { tokens: 0, wall_clock_sec: 0, on_exceeded: halt }
+graph:
+  nodes:
+    - id: prepare
+      class: action
+      kind: transform
+      params:
+        map: { status: { value: prepared } }
+    - id: approval
+      class: control
+      kind: gate
+      verdict_policy: revise_until_clean
+      criteria:
+        - { id: operator, type: human }
+    - id: finish
+      class: action
+      kind: transform
+      params:
+        map: { status: { value: approved } }
+  edges:
+    - { from: prepare, to: approval }
+    - { from: approval, to: finish }
+start: [{ kind: http }, { kind: uds }]
+`
 }
 
 func loopReadApprovalYAML() string {
@@ -1271,7 +1313,7 @@ func runLoopWithHumanGate(
 	}
 	var response compozycontract.RunLoopResponse
 	path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
-		"/loops/" + url.PathEscape(loopReadApprovalLoopName) + "/run"
+		"/loops/" + url.PathEscape(loopReadUnblockerLoopName) + "/run"
 	if err := harness.HTTPJSON(ctx, http.MethodPost, path, request, &response); err != nil {
 		t.Fatalf("HTTP run human-gate loop error = %v", err)
 	}

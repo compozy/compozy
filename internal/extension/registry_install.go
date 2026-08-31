@@ -1,7 +1,7 @@
 package extensionpkg
 
 import (
-	"database/sql"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -225,62 +225,53 @@ func (r *Registry) persistInstalledInfo(
 	info ExtensionInfo,
 	sourceText string,
 	replaceExisting bool,
-) (resultErr error) {
+) error {
 	encoded, err := marshalInstalledInfoFields(info)
 	if err != nil {
 		return err
 	}
 
 	query := installedInfoPersistQuery(replaceExisting)
-
-	tx, err := r.db.BeginTx(registryContext(), nil)
-	if err != nil {
-		return fmt.Errorf("extension: begin persist %q: %w", info.Name, err)
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			resultErr = errors.Join(resultErr, fmt.Errorf("extension: roll back persist: %w", rollbackErr))
-		}
-	}()
-
-	var existed bool
-	if err := tx.QueryRowContext(
-		registryContext(),
-		`SELECT EXISTS(SELECT 1 FROM extensions WHERE name = ?)`,
-		info.Name,
-	).Scan(&existed); err != nil {
-		return fmt.Errorf("extension: check existing install %q: %w", info.Name, err)
-	}
-
-	_, err = tx.ExecContext(
-		registryContext(), query, info.Name, info.Version, sourceText, info.ManifestPath,
-		string(normalizeExtensionFormat(info.Format)), string(encoded.diagnostics),
-		store.FormatTimestamp(info.InstalledAt), string(encoded.capabilities), string(encoded.permissions),
-		info.Checksum, info.lifecycleToken,
-		nullableStringValue(info.RegistrySlug), nullableStringValue(info.RegistryName),
-		nullableStringValue(info.RemoteVersion), string(encoded.provenance),
-		strings.TrimSpace(info.NetworkRequirementDigest), nullableRegistryString(info.NetworkConfirmedBy),
-		nullableRegistryTime(info.NetworkConfirmedAt),
-	)
-	if err != nil {
-		if replaceExisting {
-			return fmt.Errorf("extension: persist %q: %w", info.Name, err)
-		}
-		return mapRegistryConstraintError(err, info.Name)
-	}
-	if !existed && !info.Enabled {
-		if _, err := tx.ExecContext(
-			registryContext(),
-			`INSERT INTO extension_profile_enablement (extension_name, profile_id, enabled) VALUES (?, ?, 0)`,
+	ctx := registryContext()
+	if err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		var existed bool
+		if err := tx.QueryRowContext(
+			ctx,
+			`SELECT EXISTS(SELECT 1 FROM extensions WHERE name = ?)`,
 			info.Name,
-			store.DefaultProfileID,
-		); err != nil {
-			return fmt.Errorf("extension: persist default-profile enablement for %q: %w", info.Name, err)
+		).Scan(&existed); err != nil {
+			return fmt.Errorf("extension: check existing install %q: %w", info.Name, err)
 		}
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("extension: commit persist %q: %w", info.Name, err)
+
+		_, execErr := tx.ExecContext(
+			ctx, query, info.Name, info.Version, sourceText, info.ManifestPath,
+			string(normalizeExtensionFormat(info.Format)), string(encoded.diagnostics),
+			store.FormatTimestamp(info.InstalledAt), string(encoded.capabilities), string(encoded.permissions),
+			info.Checksum, info.lifecycleToken,
+			nullableStringValue(info.RegistrySlug), nullableStringValue(info.RegistryName),
+			nullableStringValue(info.RemoteVersion), string(encoded.provenance),
+			strings.TrimSpace(info.NetworkRequirementDigest), nullableRegistryString(info.NetworkConfirmedBy),
+			nullableRegistryTime(info.NetworkConfirmedAt),
+		)
+		if execErr != nil {
+			if replaceExisting {
+				return fmt.Errorf("extension: persist %q: %w", info.Name, execErr)
+			}
+			return mapRegistryConstraintError(execErr, info.Name)
+		}
+		if !existed && !info.Enabled {
+			if _, err := tx.ExecContext(
+				ctx,
+				`INSERT INTO extension_profile_enablement (extension_name, profile_id, enabled) VALUES (?, ?, 0)`,
+				info.Name,
+				store.DefaultProfileID,
+			); err != nil {
+				return fmt.Errorf("extension: persist default-profile enablement for %q: %w", info.Name, err)
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	r.invalidateEnabledBundledNames()
 	return nil

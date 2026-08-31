@@ -64,6 +64,8 @@ type ResourceSpec struct {
 	FilePath               string              `json:"file_path,omitempty"`
 	DefinitionChecksum     string              `json:"definition_checksum,omitempty"`
 	InstalledFromExtension string              `json:"installed_from_extension,omitempty"`
+	// ExtensionOwner is daemon-owned canonical manifest identity, never authored Loop YAML.
+	ExtensionOwner string `json:"extension_owner,omitempty"`
 }
 
 // ResourceParseOptions carries source context for a YAML-to-resource projection.

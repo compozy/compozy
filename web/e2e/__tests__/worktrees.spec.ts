@@ -3,6 +3,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { sessionWindow } from "../fixtures/os-navigation";
+import { sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { expect, test } from "../fixtures/test";
 import { completeOnboardingIfPrompted } from "../fixtures/workspace";
@@ -508,10 +510,9 @@ test("operator picks a session environment under Workspace", async ({ appPage, r
   await expect(reopenedEnvironment).toContainText("Workspace root");
 });
 
-// E2E-009 (US-004 AC-2): sending the typed first message is what materializes a
-// newly chosen environment — the session is created inside it and the message is
-// then sent by that session, not carried into an empty composer.
-test("operator sends a first message that materializes and binds its environment", async ({
+// E2E-009 (US-004 AC-2): starting a session materializes its chosen environment;
+// the first message is then authored and sent by the durable, bound session.
+test("operator starts a bound environment and sends its first message", async ({
   appPage,
   runtime,
 }) => {
@@ -521,31 +522,38 @@ test("operator sends a first message that materializes and binds its environment
   await selectWorkspace(appPage, workspace.id);
   await openSessionCreate(appPage);
 
-  const firstMessage = appPage.getByTestId("session-create-composer");
-  await firstMessage.fill("Investigate the checkout latency regression");
   await appPage.getByTestId("session-create-mode-advanced").click();
   await appPage.getByTestId("session-create-environment").click();
   await appPage.getByRole("option", { name: "New worktree…" }).click();
 
-  // Choosing is not creating: an abandoned dialog must leave no checkout behind,
-  // and switching the target must not cost the operator what they typed.
+  // Choosing is not creating: an abandoned dialog must leave no checkout behind.
   await expect(appPage.locator('[data-slot="session-environment-phase"]')).toHaveCount(0);
   expect((await listWorktrees(runtime, workspace.id, true)).worktrees).toHaveLength(0);
-  await expect(firstMessage).toHaveValue("Investigate the checkout latency regression");
 
+  const createResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+  );
   await appPage.getByRole("button", { name: /start session/i }).click();
-
-  await expect(appPage.getByTestId("session-create-environment-status")).toBeVisible();
-  await expect(firstMessage).toHaveValue("Investigate the checkout latency regression");
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBe(true);
+  const createPayload = (await createResponse.json()) as { session?: { id?: string } };
+  const sessionId = createPayload.session?.id;
+  if (!sessionId) throw new Error("Created session response did not include an id.");
 
   const created = await pollForBoundSession(runtime, workspace.id);
+  expect(created.id).toBe(sessionId);
+  const sessionWin = sessionWindow(appPage, sessionId);
+  const sessionUI = sessionWindowSelectors(sessionWin, appPage);
   const chip = appPage.locator('[data-slot="session-environment-chip"]');
   await expect(chip).toBeVisible();
   await expect(chip).toHaveAttribute("data-locked", "");
   await expect(chip).toHaveAttribute("data-binding", "worktree");
 
-  // The session sends the message itself, so it lands in the durable transcript
-  // rather than sitting in a composer waiting for a second click.
+  await sessionUI.composerTextarea.fill("Investigate the checkout latency regression");
+  await sessionUI.composerTextarea.press("Enter");
+
+  // The bound session owns the first message and persists it in its transcript.
   await expect
     .poll(async () => {
       const transcript = await runtime.requestJSON<{
@@ -592,11 +600,27 @@ test("operator forks a live session into a worktree", async ({ appPage, runtime 
   await selectWorkspace(appPage, workspace.id);
 
   await openSessionCreate(appPage);
+  const createResponsePromise = appPage.waitForResponse(
+    response =>
+      response.request().method() === "POST" && new URL(response.url()).pathname === "/api/sessions"
+  );
   await appPage.getByRole("button", { name: /start session/i }).click();
+  const createResponse = await createResponsePromise;
+  expect(createResponse.ok()).toBe(true);
+  const createPayload = (await createResponse.json()) as { session?: { id?: string } };
+  const originSessionID = createPayload.session?.id;
+  if (!originSessionID) throw new Error("Created origin session response did not include an id.");
 
-  const sessionsBefore = await runtime.requestJSON<{
-    sessions: Array<{ id: string; worktree_id?: string }>;
-  }>(`/api/sessions?workspace_id=${workspace.id}`);
+  let sessionsBefore: { sessions: Array<{ id: string; worktree_id?: string }> } | undefined;
+  await expect
+    .poll(async () => {
+      sessionsBefore = await runtime.requestJSON<{
+        sessions: Array<{ id: string; worktree_id?: string }>;
+      }>(`/api/sessions?workspace_id=${workspace.id}`);
+      return sessionsBefore.sessions.map(session => session.id);
+    })
+    .toEqual([originSessionID]);
+  if (!sessionsBefore) throw new Error("Created origin session was missing from the catalog.");
   expect(sessionsBefore.sessions).toHaveLength(1);
   const originSession = sessionsBefore.sessions[0];
 

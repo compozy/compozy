@@ -256,6 +256,12 @@ Resource paths resolve inside the extension root; `{{config_dir}}` is that root 
 `{{env:NAME}}` reads the daemon process environment. Hooks, tools, command groups, MCP servers,
 dynamic resource publication, bridge metadata, and subprocess behavior require a supported code toolchain.
 
+When one extension ships both a Loop and tools, actions in that Loop may call only tools owned by
+the same extension without a global external-source grant. The daemon takes the owner from installed resource
+metadata, pins it in the Run snapshot, and still applies availability, permission, risk, approval,
+schema, and drift checks. Tools owned by another extension remain under normal policy. Do not enable
+`tools.policy.external_default` merely to let an extension-owned Loop call its own tools.
+
 Every static resource accepts an optional `profile` placement. Omit it for every profile; name a
 profile to publish only when that profile exists and the extension is enabled there. An absent named
 profile leaves the placement dormant.

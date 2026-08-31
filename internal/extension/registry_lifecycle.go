@@ -1,6 +1,7 @@
 package extensionpkg
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -47,7 +48,7 @@ func (r *Registry) IsEnabledForProfile(name string, profileID string) (bool, err
 }
 
 // SetEnabledForProfile persists only disabled exceptions; enabling removes the row.
-func (r *Registry) SetEnabledForProfile(name string, profileID string, enabled bool) (resultErr error) {
+func (r *Registry) SetEnabledForProfile(name string, profileID string, enabled bool) error {
 	if err := r.checkReady("update extension enabled state"); err != nil {
 		return err
 	}
@@ -68,63 +69,56 @@ func (r *Registry) SetEnabledForProfile(name string, profileID string, enabled b
 			return fmt.Errorf("extension: generate lifecycle token for %q: %w", trimmedName, err)
 		}
 	}
-	tx, err := r.db.BeginTx(registryContext(), nil)
-	if err != nil {
-		return fmt.Errorf("extension: begin enabled-state update for %q: %w", trimmedName, err)
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			resultErr = errors.Join(resultErr, fmt.Errorf("extension: roll back enabled-state update: %w", rollbackErr))
+	ctx := registryContext()
+	if err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		var exists bool
+		if err := tx.QueryRowContext(
+			ctx,
+			`SELECT EXISTS(SELECT 1 FROM extensions WHERE name = ?)
+			     OR EXISTS(SELECT 1 FROM extension_dev_links WHERE extension_name = ?)`,
+			trimmedName,
+			trimmedName,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("extension: check enabled-state target %q: %w", trimmedName, err)
 		}
-	}()
-
-	var exists bool
-	if err := tx.QueryRowContext(
-		registryContext(),
-		`SELECT EXISTS(SELECT 1 FROM extensions WHERE name = ?)
-		     OR EXISTS(SELECT 1 FROM extension_dev_links WHERE extension_name = ?)`,
-		trimmedName,
-		trimmedName,
-	).Scan(&exists); err != nil {
-		return fmt.Errorf("extension: check enabled-state target %q: %w", trimmedName, err)
-	}
-	if !exists {
-		return &ExtensionNotFoundError{Name: trimmedName}
-	}
-	if rotateLifecycle {
-		if _, err := tx.ExecContext(
-			registryContext(),
-			`UPDATE extensions SET lifecycle_token = ? WHERE name = ?`,
-			nextLifecycleToken,
-			trimmedName,
-		); err != nil {
-			return fmt.Errorf("extension: rotate lifecycle token for %q: %w", trimmedName, err)
+		if !exists {
+			return &ExtensionNotFoundError{Name: trimmedName}
 		}
-	}
+		if rotateLifecycle {
+			if _, err := tx.ExecContext(
+				ctx,
+				`UPDATE extensions SET lifecycle_token = ? WHERE name = ?`,
+				nextLifecycleToken,
+				trimmedName,
+			); err != nil {
+				return fmt.Errorf("extension: rotate lifecycle token for %q: %w", trimmedName, err)
+			}
+		}
 
-	if enabled {
-		_, err = tx.ExecContext(
-			registryContext(),
-			`DELETE FROM extension_profile_enablement WHERE extension_name = ? AND profile_id = ?`,
-			trimmedName,
-			profileID,
-		)
-	} else {
-		_, err = tx.ExecContext(
-			registryContext(),
-			`INSERT INTO extension_profile_enablement (extension_name, profile_id, enabled)
-			 VALUES (?, ?, 0)
-			 ON CONFLICT(extension_name, profile_id) DO UPDATE SET enabled = 0`,
-			trimmedName,
-			profileID,
-		)
-	}
-	if err != nil {
-		return fmt.Errorf("extension: update enabled state for %q: %w", trimmedName, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("extension: commit enabled-state update for %q: %w", trimmedName, err)
+		var updateErr error
+		if enabled {
+			_, updateErr = tx.ExecContext(
+				ctx,
+				`DELETE FROM extension_profile_enablement WHERE extension_name = ? AND profile_id = ?`,
+				trimmedName,
+				profileID,
+			)
+		} else {
+			_, updateErr = tx.ExecContext(
+				ctx,
+				`INSERT INTO extension_profile_enablement (extension_name, profile_id, enabled)
+				 VALUES (?, ?, 0)
+				 ON CONFLICT(extension_name, profile_id) DO UPDATE SET enabled = 0`,
+				trimmedName,
+				profileID,
+			)
+		}
+		if updateErr != nil {
+			return fmt.Errorf("extension: update enabled state for %q: %w", trimmedName, updateErr)
+		}
+		return nil
+	}); err != nil {
+		return err
 	}
 	r.invalidateEnabledBundledNames()
 	return nil
@@ -135,7 +129,7 @@ func (r *Registry) SetEnabledForProfile(name string, profileID string, enabled b
 func (r *Registry) DisableIfLifecycleToken(
 	name string,
 	expectedToken string,
-) (_ bool, resultErr error) {
+) (bool, error) {
 	if err := r.checkReady("conditionally disable extension"); err != nil {
 		return false, err
 	}
@@ -147,49 +141,44 @@ func (r *Registry) DisableIfLifecycleToken(
 	if err != nil {
 		return false, fmt.Errorf("extension: generate lifecycle token for %q: %w", trimmedName, err)
 	}
-	tx, err := r.db.BeginTx(registryContext(), nil)
-	if err != nil {
-		return false, fmt.Errorf("extension: begin conditional disable for %q: %w", trimmedName, err)
-	}
-	defer func() {
-		rollbackErr := tx.Rollback()
-		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			resultErr = errors.Join(
-				resultErr,
-				fmt.Errorf("extension: roll back conditional disable: %w", rollbackErr),
-			)
+	disabled := false
+	ctx := registryContext()
+	if err := store.ExecuteWrite(ctx, r.db, func(ctx context.Context, tx *store.WriteTx) error {
+		disabled = false
+		result, err := tx.ExecContext(
+			ctx,
+			`UPDATE extensions SET lifecycle_token = ? WHERE name = ? AND lifecycle_token = ?`,
+			nextToken,
+			trimmedName,
+			strings.TrimSpace(expectedToken),
+		)
+		if err != nil {
+			return fmt.Errorf("extension: conditionally fence %q: %w", trimmedName, err)
 		}
-	}()
-
-	result, err := tx.ExecContext(
-		registryContext(),
-		`UPDATE extensions SET lifecycle_token = ? WHERE name = ? AND lifecycle_token = ?`,
-		nextToken,
-		trimmedName,
-		strings.TrimSpace(expectedToken),
-	)
-	if err != nil {
-		return false, fmt.Errorf("extension: conditionally fence %q: %w", trimmedName, err)
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("extension: inspect conditional disable for %q: %w", trimmedName, err)
+		}
+		if rows == 0 {
+			return nil
+		}
+		if _, err := tx.ExecContext(
+			ctx,
+			`INSERT INTO extension_profile_enablement (extension_name, profile_id, enabled)
+			 VALUES (?, ?, 0)
+			 ON CONFLICT(extension_name, profile_id) DO UPDATE SET enabled = 0`,
+			trimmedName,
+			store.DefaultProfileID,
+		); err != nil {
+			return fmt.Errorf("extension: disable default profile for %q: %w", trimmedName, err)
+		}
+		disabled = true
+		return nil
+	}); err != nil {
+		return false, err
 	}
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, fmt.Errorf("extension: inspect conditional disable for %q: %w", trimmedName, err)
-	}
-	if rows == 0 {
+	if !disabled {
 		return false, nil
-	}
-	if _, err := tx.ExecContext(
-		registryContext(),
-		`INSERT INTO extension_profile_enablement (extension_name, profile_id, enabled)
-		 VALUES (?, ?, 0)
-		 ON CONFLICT(extension_name, profile_id) DO UPDATE SET enabled = 0`,
-		trimmedName,
-		store.DefaultProfileID,
-	); err != nil {
-		return false, fmt.Errorf("extension: disable default profile for %q: %w", trimmedName, err)
-	}
-	if err := tx.Commit(); err != nil {
-		return false, fmt.Errorf("extension: commit conditional disable for %q: %w", trimmedName, err)
 	}
 	r.invalidateEnabledBundledNames()
 	return true, nil

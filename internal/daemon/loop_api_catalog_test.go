@@ -29,6 +29,8 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		workspaceResolver := loopCatalogWorkspaceResolverForTest(t, "ws-catalog", workspaceRoot, now)
 		marketingSpec := loopCatalogSpecWithFile(t, t.TempDir(), "profile-loop", looppkg.SourceMarketplace)
 		marketingSpec.Description = "marketing profile"
+		marketingSpec.InstalledFromExtension = "acme/release-automation"
+		marketingSpec.ExtensionOwner = "release-automation"
 		engineeringSpec := loopCatalogSpecWithFile(t, t.TempDir(), "profile-loop", looppkg.SourceMarketplace)
 		engineeringSpec.Description = "engineering profile"
 		if err := os.WriteFile(
@@ -106,6 +108,12 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		}
 		if got, want := resolvedMarketing.Definition.Meta.Description, "marketing profile"; got != want {
 			t.Fatalf("resolved marketing description = %q, want %q", got, want)
+		}
+		if got, want := resolvedMarketing.InstalledFromExtension, "acme/release-automation"; got != want {
+			t.Fatalf("resolved marketing extension provenance = %q, want %q", got, want)
+		}
+		if got, want := resolvedMarketing.ExtensionOwner, "release-automation"; got != want {
+			t.Fatalf("resolved marketing extension owner = %q, want %q", got, want)
 		}
 		if got, want := resolvedEngineering.Definition.Meta.Description, "engineering profile"; got != want {
 			t.Fatalf("resolved engineering description = %q, want %q", got, want)

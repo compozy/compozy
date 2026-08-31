@@ -39,12 +39,14 @@ func TestLoopResourcesShouldLoadFromManifestResources(t *testing.T) {
 			t.Fatalf("normalized.Loops[0] = %q, want %q", got, want)
 		}
 
+		registrySlug := "acme/market-ext"
 		manager := &Manager{}
 		loops, err := manager.loadLoopResources(&managedExtension{
 			rootDir: root,
 			info: ExtensionInfo{
-				Name:   "market-ext",
-				Source: SourceMarketplace,
+				Name:         "market-ext",
+				Source:       SourceMarketplace,
+				RegistrySlug: &registrySlug,
 			},
 			manifest: &Manifest{
 				Resources: normalized,
@@ -62,8 +64,11 @@ func TestLoopResourcesShouldLoadFromManifestResources(t *testing.T) {
 		if got, want := loops[0].Source, looppkg.SourceMarketplace; got != want {
 			t.Fatalf("loops[0].Source = %q, want %q", got, want)
 		}
-		if got, want := loops[0].InstalledFromExtension, "market-ext"; got != want {
+		if got, want := loops[0].InstalledFromExtension, registrySlug; got != want {
 			t.Fatalf("loops[0].InstalledFromExtension = %q, want %q", got, want)
+		}
+		if got, want := loops[0].ExtensionOwner, "market-ext"; got != want {
+			t.Fatalf("loops[0].ExtensionOwner = %q, want %q", got, want)
 		}
 	})
 

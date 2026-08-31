@@ -6,12 +6,7 @@ import process from "node:process";
 import { promisify } from "node:util";
 
 import { networkOperatorSelectors } from "../fixtures/selectors";
-import {
-  appWindow,
-  ensureAppWindow,
-  openAppWindow,
-  switchWorkspace,
-} from "../fixtures/os-navigation";
+import { appWindow, openAppWindow, switchWorkspace } from "../fixtures/os-navigation";
 import {
   browserNetworkOperatorFlowScenario,
   seedBrowserNetworkOperatorFlow,
@@ -76,7 +71,8 @@ test.describe("network disabled state", () => {
 
     await appPage.goto(runtime.url("/network"), { waitUntil: "domcontentloaded" });
     await completeOnboardingIfPrompted(appPage);
-    const networkWin = await ensureAppWindow(appPage, "Network", "network");
+    const networkWin = appWindow(appPage, "network");
+    await expect(networkWin).toBeVisible();
     const ui = networkOperatorSelectors(networkWin);
     await expect(ui.disabledState).toBeVisible();
     await expect(networkWin.getByTestId("network-empty")).toContainText("Network is disabled.");

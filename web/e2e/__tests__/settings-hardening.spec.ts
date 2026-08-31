@@ -387,7 +387,9 @@ async function captureSettingsViewportMatrix(
     );
     expect(outerOverflow).toBeLessThanOrEqual(2);
     if (width === 1280) {
-      const sectionBody = settingsWin.getByTestId("settings-page-general-body");
+      const slug = pathname.split("/").at(-1);
+      if (!slug) throw new Error(`settings pathname has no section slug: ${pathname}`);
+      const sectionBody = settingsWin.getByTestId(`settings-page-${slug}-body`);
       await expect(sectionBody).toBeVisible();
       const maxScrollTop = await sectionBody.evaluate(element => {
         const maximum = element.scrollHeight - element.clientHeight;

@@ -2,7 +2,31 @@ package tools
 
 import (
 	"context"
+	"strings"
 )
+
+type trustedExtensionOwnerContextKey struct{}
+
+// WithTrustedExtensionOwner attaches daemon-established extension provenance to one dispatch context.
+func WithTrustedExtensionOwner(ctx context.Context, owner string) context.Context {
+	trimmed := strings.TrimSpace(owner)
+	if trimmed == "" {
+		return ctx
+	}
+	return context.WithValue(ctx, trustedExtensionOwnerContextKey{}, trimmed)
+}
+
+// TrustedExtensionOwner returns daemon-established extension provenance from a dispatch context.
+func TrustedExtensionOwner(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
+	owner, ok := ctx.Value(trustedExtensionOwnerContextKey{}).(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(owner)
+}
 
 // PolicyInputResolver resolves effective policy inputs for the current caller scope.
 type PolicyInputResolver interface {

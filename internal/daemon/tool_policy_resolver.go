@@ -100,6 +100,9 @@ func (r *nativeToolPolicyResolver) Resolve(ctx context.Context, scope toolspkg.S
 			return toolspkg.PolicyInputs{}, err
 		}
 	}
+	if err := applyLoopExtensionOwnerGrant(ctx, &inputs, resolvedScope); err != nil {
+		return toolspkg.PolicyInputs{}, err
+	}
 	if err := applySessionToolPolicy(&inputs, info); err != nil {
 		return toolspkg.PolicyInputs{}, err
 	}
@@ -178,6 +181,28 @@ func sourceGrantExists(grants []toolspkg.SourceGrant, target toolspkg.SourceGran
 		}
 	}
 	return false
+}
+
+func applyLoopExtensionOwnerGrant(
+	ctx context.Context,
+	inputs *toolspkg.PolicyInputs,
+	scope toolspkg.Scope,
+) error {
+	if workspaceaccess.ActorKind(scope.ActorKind) != workspaceaccess.ActorDaemon {
+		return nil
+	}
+	owner := toolspkg.TrustedExtensionOwner(ctx)
+	if owner == "" {
+		return nil
+	}
+	grant := toolspkg.SourceGrant{Kind: toolspkg.SourceExtension, Owner: owner}
+	if err := grant.Validate("loop_extension_owner"); err != nil {
+		return err
+	}
+	if !sourceGrantExists(inputs.AllowSources, grant) {
+		inputs.AllowSources = append(inputs.AllowSources, grant)
+	}
+	return nil
 }
 
 func (r *nativeToolPolicyResolver) sessionInfo(

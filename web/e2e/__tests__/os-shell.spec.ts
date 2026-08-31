@@ -3970,9 +3970,12 @@ test("operator sees one nested worktree tree across all three workspace-listing 
     // Surface 1 — the menubar workspace menu. Keyboard-only traversal opens
     // the side submenu and selects the nested entry.
     await appPage.locator('[data-slot="os-menubar-workspace"]').click();
-    await appPage.getByTestId(`os-workspace-option-${workspace.id}`).focus();
-    await appPage.keyboard.press("ArrowRight");
-    const menuRow = appPage.getByTestId(/^os-worktree-option-/).first();
+    const workspaceRow = appPage.getByTestId(`os-workspace-option-${workspace.id}`);
+    await expect(workspaceRow).toHaveAttribute("aria-haspopup", "menu");
+    await workspaceRow.press("ArrowRight");
+    const submenu = appPage.getByTestId(`os-worktree-submenu-${workspace.id}`);
+    await expect(submenu).toBeVisible();
+    const menuRow = submenu.getByTestId(/^os-worktree-option-/).first();
     await expect(menuRow).toBeVisible();
     await expect(menuRow).toContainText("payments-retry");
 
