@@ -75,6 +75,7 @@ const (
 	HostAPIMethodTasksCancel                 = extensionprotocol.HostAPIMethodTasksCancel
 	HostAPIMethodTasksRuns                   = extensionprotocol.HostAPIMethodTasksRuns
 	HostAPIMethodTasksRunsGet                = extensionprotocol.HostAPIMethodTasksRunsGet
+	HostAPIMethodTasksRunsResult             = extensionprotocol.HostAPIMethodTasksRunsResult
 	HostAPIMethodTasksRunsEnqueue            = extensionprotocol.HostAPIMethodTasksRunsEnqueue
 	HostAPIMethodTasksRunsStart              = extensionprotocol.HostAPIMethodTasksRunsStart
 	HostAPIMethodTasksRunsAttachSession      = extensionprotocol.HostAPIMethodTasksRunsAttachSession

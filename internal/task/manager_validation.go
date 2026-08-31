@@ -240,6 +240,10 @@ func normalizeCancelRun(req CancelRun) (CancelRun, error) {
 }
 
 func normalizeRunResult(result RunResult) (RunResult, error) {
+	return normalizeRunResultWithLimit(result, MaxResultBytes)
+}
+
+func normalizeRunResultWithLimit(result RunResult, maxResultBytes int) (RunResult, error) {
 	normalized := result
 	normalized.Value = normalizeRawJSON(normalized.Value)
 	if normalized.CoordinatorControl != nil {
@@ -248,7 +252,7 @@ func normalizeRunResult(result RunResult) (RunResult, error) {
 		control.Payload = normalizeRawJSON(control.Payload)
 		normalized.CoordinatorControl = &control
 	}
-	if err := normalized.Validate("run_result"); err != nil {
+	if err := normalized.ValidateWithValueLimit("run_result", maxResultBytes); err != nil {
 		return RunResult{}, err
 	}
 	normalized.Value = RedactClaimTokenJSON(normalized.Value)
@@ -257,7 +261,7 @@ func normalizeRunResult(result RunResult) (RunResult, error) {
 		control.Payload = RedactClaimTokenJSON(control.Payload)
 		normalized.CoordinatorControl = &control
 	}
-	if err := normalized.Validate("run_result"); err != nil {
+	if err := normalized.ValidateWithValueLimit("run_result", maxResultBytes); err != nil {
 		return RunResult{}, err
 	}
 	return normalized, nil

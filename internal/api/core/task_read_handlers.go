@@ -102,6 +102,69 @@ func (h *BaseHandlers) GetTaskRun(c *gin.Context) {
 	c.JSON(http.StatusOK, contract.TaskRunDetailResponse{Run: payload})
 }
 
+// ReadTaskRunResult returns one authorized exact-byte result page.
+func (h *BaseHandlers) ReadTaskRunResult(c *gin.Context) {
+	manager, ok := h.requireTaskManager(c)
+	if !ok {
+		return
+	}
+	runID, err := requiredPathID(c.Param("id"), "run id")
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	actor, err := h.taskActorContext(c, taskActionGetRun)
+	if err != nil {
+		h.respondError(c, StatusForTaskError(err), err)
+		return
+	}
+	offset, err := parseBytePageQueryInt(c, "offset")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	limit, err := parseBytePageQueryInt(c, "limit")
+	if err != nil {
+		h.respondError(c, http.StatusBadRequest, err)
+		return
+	}
+	page, err := manager.ReadTaskRunResult(c.Request.Context(), runID, offset, limit, actor)
+	if err != nil {
+		h.respondError(c, taskRunResultStatus(err), err)
+		return
+	}
+	c.JSON(http.StatusOK, taskRunResultPageResponse(page))
+}
+
+func taskRunResultStatus(err error) int {
+	switch {
+	case errors.Is(err, taskpkg.ErrValidation), errors.Is(err, taskpkg.ErrTaskRunResultInvalidRange):
+		return http.StatusBadRequest
+	case errors.Is(err, taskpkg.ErrTaskRunResultNotFound), errors.Is(err, taskpkg.ErrTaskRunNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, taskpkg.ErrTaskRunResultCorrupt):
+		return http.StatusBadGateway
+	default:
+		return StatusForTaskError(err)
+	}
+}
+
+func taskRunResultPageResponse(page taskpkg.RunResultPage) contract.TaskRunResultPageResponse {
+	payload := contract.TaskRunResultPageResponse{
+		RunID:      page.RunID,
+		ResultRef:  page.ResultRef,
+		Offset:     page.Offset,
+		Bytes:      page.Bytes,
+		TotalBytes: page.TotalBytes,
+		DataBase64: page.DataBase64,
+		EOF:        page.EOF,
+	}
+	if !page.EOF {
+		payload.NextOffset = new(page.NextOffset)
+	}
+	return payload
+}
+
 // TaskTimeline returns the task-native live timeline for one task.
 func (h *BaseHandlers) TaskTimeline(c *gin.Context) {
 	manager, ok := h.requireTaskManager(c)

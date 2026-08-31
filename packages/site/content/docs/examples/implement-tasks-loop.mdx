@@ -163,8 +163,9 @@ graph:
 
           Scope and tracking:
           - Read repository AGENTS.md/CLAUDE.md and surface-specific instructions before editing.
-          - Read .compozy/tasks/{{ .inputs.slug }}/_spec.md and _tasks.md when present and
-            treat them plus the task body below as the source of truth.
+          - Open and read {{ .item.path }} before implementation. Treat that file plus
+            .compozy/tasks/{{ .inputs.slug }}/_spec.md and _tasks.md, when present, as the
+            source of truth.
           - Keep scope tight to this task; record meaningful follow-up work instead of expanding
             scope silently.
           - Preserve unrelated worktree changes.
@@ -172,7 +173,7 @@ graph:
 
           Verification:
           - Run focused checks for each changed surface.
-          - Execute every explicit Validation, Test Plan, or Testing item from the task body.
+          - Execute every explicit Validation, Test Plan, or Testing item from the task file.
           - Report exact commands and outcomes in the structured output.
 
           Tracking and commits:
@@ -186,9 +187,6 @@ graph:
           {{ else -}}
           - Leave changes uncommitted for manual review. Do not push.
           {{ end }}
-          Task body:
-          {{ .item.body }}
-
           Closing directive:
           You have the full brief above — start work on {{ .item.title }} now instead of
           summarizing the plan back. Return `status`, `summary`, and `files_changed`. Use
@@ -404,12 +402,12 @@ review Loop it declares no webhook start, so a signed HTTP delivery cannot begin
   </WorkflowStep>
   <WorkflowStep title="Import the task files — `load_tasks`">
     An extension action parses `.compozy/tasks/<slug>/task_*.md` into ordered pending task
-    payloads, each carrying its id, title, path, body, and the tasks it depends on.
+    payloads, each carrying its id, title, path, body reference, and the tasks it depends on.
   </WorkflowStep>
   <WorkflowStep title="Implement one task at a time — `implement` to `select_category`">
     A fan-out routes each task by exact frontmatter type. `backend` and `frontend` select their named
-    runtime input; every other type selects `default_runtime`. Each isolated task session receives
-    the task body, workflow memory, verification expectations, and commit policy.
+    runtime input; every other type selects `default_runtime`. Each isolated task session opens the
+    referenced task file and receives workflow memory, verification expectations, and commit policy.
   </WorkflowStep>
   <WorkflowStep title="Conduct bounded workers — `orchestrate`">
     In orchestrated mode, one continuous Goal session follows `cy-orchestrate-tasks`. It starts a

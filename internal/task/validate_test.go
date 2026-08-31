@@ -784,7 +784,7 @@ func TestDomainValidationHelpers(t *testing.T) {
 			{
 				name: "raw token in result",
 				mutate: func(run *Run) {
-					run.Result = rawJSONPointer(json.RawMessage(`{"claim_token":"raw"}`))
+					run.SetResult(json.RawMessage(`{"claim_token":"raw"}`))
 				},
 			},
 		}
@@ -1020,15 +1020,16 @@ func validTask() Task {
 
 func validRun() Run {
 	now := time.Date(2026, 4, 14, 12, 30, 0, 0, time.UTC)
-	return Run{
+	run := Run{
 		ID:       "run-1",
 		TaskID:   "task-1",
 		Status:   TaskRunStatusQueued,
 		Attempt:  1,
 		Origin:   Origin{Kind: OriginKindCLI, Ref: "compozy task run enqueue"},
 		QueuedAt: now,
-		Result:   rawJSONPointer(json.RawMessage(`{"ok":true}`)),
 	}
+	run.SetResult(json.RawMessage(`{"ok":true}`))
+	return run
 }
 
 func validEvent() Event {

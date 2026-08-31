@@ -439,7 +439,7 @@ func classifyGenerationOutputFailure(output GenerationOutput, taskRun task.Run) 
 		evidence.Transport = true
 	case string(ReasonCodeUnknownActionKind), string(ReasonCodeActionDependencyMissing),
 		string(ReasonCodeInvalidOutput), string(ReasonCodeActionContractStale),
-		string(ReasonCodeActionMaterializationFailed):
+		string(ReasonCodeActionMaterializationFailed), string(ReasonCodeActionResultTooLarge):
 		evidence.Authoring = true
 	default:
 		evidence.PayloadFailure = &failure

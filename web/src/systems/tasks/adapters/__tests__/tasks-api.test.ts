@@ -42,6 +42,7 @@ import {
   markTaskRead,
   publishTask,
   recoverTaskRun,
+  readTaskRunResult,
   recoverTask,
   rejectTask,
   removeTaskDependency,
@@ -528,6 +529,22 @@ describe("task runs", () => {
 
     expect(result).toEqual(runDetailFixture);
     await expectFetchRequest({ path: "/api/task-runs/run_001" });
+  });
+
+  it("Should fetch an exact task-run result byte page", async () => {
+    const page = {
+      run_id: "run_001",
+      result_ref: "sha256:result",
+      offset: 16_384,
+      bytes: 4,
+      total_bytes: 16_388,
+      data_base64: "dGFpbA==",
+      eof: true,
+    };
+    mockJsonResponse(page);
+
+    await expect(readTaskRunResult("run_001", 16_384, 4)).resolves.toEqual(page);
+    await expectFetchRequest({ path: "/api/task-runs/run_001/result?offset=16384&limit=4" });
   });
 
   it("accepts a taskless network-wake run detail", async () => {

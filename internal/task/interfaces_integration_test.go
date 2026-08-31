@@ -73,6 +73,15 @@ func (fakeStore) DeleteTaskExecutionProfile(
 
 func (fakeStore) GetTask(context.Context, string) (taskpkg.Task, error) { return taskpkg.Task{}, nil }
 
+func (fakeStore) ReadTaskRunResultPage(
+	context.Context,
+	string,
+	int64,
+	int64,
+) (taskpkg.RunResultPage, error) {
+	return taskpkg.RunResultPage{}, taskpkg.ErrTaskRunResultNotFound
+}
+
 func (fakeStore) ListTasks(context.Context, taskpkg.Query) ([]taskpkg.Summary, error) {
 	return []taskpkg.Summary{{
 		ID:             "task-1",

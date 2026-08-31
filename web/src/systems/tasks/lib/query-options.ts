@@ -8,6 +8,7 @@ import {
   getTaskExecutionProfile,
   getTaskInbox,
   getTaskRun,
+  readTaskRunResult,
   getTaskRunReview,
   getTaskTimeline,
   getTaskTree,
@@ -147,6 +148,23 @@ export function taskRunDetailOptions(runId: string, enabled = true) {
     staleTime: LIVE_STALE_TIME,
     refetchInterval: query => taskRunDetailRefetchInterval(query.state.data),
     enabled: Boolean(runId) && enabled,
+  });
+}
+
+export function taskRunResultPageOptions(
+  workspaceId: string,
+  runId: string,
+  resultRef: string,
+  offset: number,
+  limit: number,
+  enabled = true
+) {
+  return queryOptions({
+    queryKey: tasksKeys.runResult(workspaceId, runId, resultRef, offset, limit),
+    queryFn: ({ signal }) => readTaskRunResult(runId, offset, limit, signal),
+    staleTime: Infinity,
+    gcTime: 2 * 60 * 1000,
+    enabled: Boolean(workspaceId && runId && resultRef) && enabled,
   });
 }
 

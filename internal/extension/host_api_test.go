@@ -3,6 +3,7 @@ package extensionpkg
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -4824,6 +4825,7 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		[]string{
 			"tasks",
 			"tasks/runs/get",
+			"tasks/runs/result",
 			"tasks/timeline",
 			"tasks/tree",
 			"tasks/dashboard",
@@ -5072,6 +5074,39 @@ func TestHostAPIHandlerTaskReadAndAggregateMethodsReturnParityPayloads(t *testin
 		return item.Task.ID == approvalTask.ID && item.ApprovalState == taskpkg.ApprovalStatePending
 	}) {
 		t.Fatal("tasks/inbox approvals lane missing approval task")
+	}
+
+	resultPayload := json.RawMessage(`{"message":"olá, mundo"}`)
+	if _, err := env.tasks.CompleteRun(
+		testutil.Context(t),
+		started.ID,
+		taskpkg.RunResult{Value: resultPayload},
+		actor,
+	); err != nil {
+		t.Fatalf("tasks.CompleteRun(read result) error = %v", err)
+	}
+	const resultOffset int64 = 14
+	const resultLimit int64 = 1
+	resultPageValue, err := env.callFromWorkspace(t, "ext-reader", "tasks/runs/result", map[string]any{
+		"id":     started.ID,
+		"offset": resultOffset,
+		"limit":  resultLimit,
+	})
+	if err != nil {
+		t.Fatalf("Handle(tasks/runs/result) error = %v", err)
+	}
+	var resultPage apicontract.TaskRunResultPageResponse
+	decodeResult(t, resultPageValue, &resultPage)
+	decodedPage, err := base64.StdEncoding.DecodeString(resultPage.DataBase64)
+	if err != nil {
+		t.Fatalf("DecodeString(tasks/runs/result) error = %v", err)
+	}
+	if got, want := string(decodedPage), string(resultPayload[resultOffset:resultOffset+resultLimit]); got != want {
+		t.Fatalf("tasks/runs/result bytes = %q, want %q", got, want)
+	}
+	if resultPage.Offset != resultOffset || resultPage.Bytes != resultLimit ||
+		resultPage.TotalBytes != int64(len(resultPayload)) {
+		t.Fatalf("tasks/runs/result page = %#v, want exact page descriptor", resultPage)
 	}
 }
 

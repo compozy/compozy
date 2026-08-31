@@ -20,18 +20,18 @@ func (c TerminalRunCommand) terminalMutation(current Run) (TerminalRunMutation, 
 	switch c.kind {
 	case TerminalRunCommandCompleted:
 		next.Status = TaskRunStatusCompleted
-		next.Result = rawJSONPointer(c.intent.Result)
+		next.SetResult(c.intent.Result)
 		next.Error = ""
 	case TerminalRunCommandFailed:
 		if c.intent.Failure == nil {
 			return TerminalRunMutation{}, fmt.Errorf("%w: terminal failure intent is required", ErrValidation)
 		}
 		next.Status = TaskRunStatusFailed
-		next.Result = nil
+		next.ClearResult()
 		next.Error = c.intent.Failure.Error
 	case TerminalRunCommandCanceled:
 		next.Status = TaskRunStatusCanceled
-		next.Result = nil
+		next.ClearResult()
 		next.Error = ""
 	default:
 		return TerminalRunMutation{}, fmt.Errorf(

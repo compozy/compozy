@@ -28,12 +28,12 @@ func (h *BaseHandlers) ReadToolArtifact(c *gin.Context) {
 		h.respondToolError(c, toolArtifactValidationError(err))
 		return
 	}
-	offset, err := parseToolArtifactQueryInt(c, "offset", 0)
+	offset, err := parseBytePageQueryInt(c, "offset")
 	if err != nil {
 		h.respondToolError(c, toolArtifactValidationError(err))
 		return
 	}
-	limit, err := parseToolArtifactQueryInt(c, "limit", 0)
+	limit, err := parseBytePageQueryInt(c, "limit")
 	if err != nil {
 		h.respondToolError(c, toolArtifactValidationError(err))
 		return
@@ -50,10 +50,10 @@ func (h *BaseHandlers) ReadToolArtifact(c *gin.Context) {
 	c.JSON(http.StatusOK, toolArtifactPageResponse(page))
 }
 
-func parseToolArtifactQueryInt(c *gin.Context, name string, fallback int64) (int64, error) {
+func parseBytePageQueryInt(c *gin.Context, name string) (int64, error) {
 	raw := strings.TrimSpace(c.Query(name))
 	if raw == "" {
-		return fallback, nil
+		return 0, nil
 	}
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {

@@ -98,6 +98,15 @@ export const tasksKeys = {
   runDetails: () => [...tasksKeys.all, "run-detail"] as const,
   runDetail: (runId: string) => [...tasksKeys.runDetails(), runId] as const,
 
+  runResults: () => [...tasksKeys.all, "run-result"] as const,
+  runResult: (
+    workspaceId: string,
+    runId: string,
+    resultRef: string,
+    offset: number,
+    limit: number
+  ) => [...tasksKeys.runResults(), workspaceId, runId, resultRef, offset, limit] as const,
+
   dashboardRoot: () => [...tasksKeys.all, "dashboard"] as const,
   dashboard: (filters: TaskDashboardFilter = {}) =>
     [

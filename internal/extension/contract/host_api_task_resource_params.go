@@ -59,6 +59,13 @@ type TaskRunGetParams struct {
 	ID string `json:"id"`
 }
 
+// TaskRunResultParams reads one exact byte page from a task-run result.
+type TaskRunResultParams struct {
+	ID     string `json:"id"`
+	Offset int64  `json:"offset,omitempty"`
+	Limit  int64  `json:"limit,omitempty"`
+}
+
 // TaskRunEnqueueParams enqueues one run for a task.
 type TaskRunEnqueueParams struct {
 	TaskID string `json:"task_id"`

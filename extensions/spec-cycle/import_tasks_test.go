@@ -15,7 +15,7 @@ import (
 func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Should import pending tasks in topological numeric order with hydrated bodies", func(t *testing.T) {
+	t.Run("Should import pending tasks in topological numeric order with body references", func(t *testing.T) {
 		t.Parallel()
 
 		tasksDir := t.TempDir()
@@ -46,10 +46,15 @@ func TestImportMarkdownTasksShouldLoadCompozyTaskManifest(t *testing.T) {
 		if third.ID != "task_03" || third.Number != 3 || third.Title != "Third task" {
 			t.Fatalf("third task = %#v, want task_03 metadata", third)
 		}
-		if !strings.Contains(third.Body, "Do three.") {
-			t.Fatalf("third body = %q, want hydrated markdown body", third.Body)
+		thirdContent, err := os.ReadFile(filepath.Join(tasksDir, "task_03.md"))
+		if err != nil {
+			t.Fatalf("ReadFile(task_03.md) error = %v", err)
 		}
-		if got, want := third.BodyRef, looppkg.OutputRefForPayload([]byte(third.Body)); got != want {
+		_, thirdBody, err := parseCompozyTaskFile(thirdContent)
+		if err != nil {
+			t.Fatalf("parseCompozyTaskFile(task_03.md) error = %v", err)
+		}
+		if got, want := third.BodyRef, looppkg.OutputRefForPayload([]byte(thirdBody)); got != want {
 			t.Fatalf("third body_ref = %q, want %q", got, want)
 		}
 		if got, want := strings.Join(third.Blocks, ","), "task_01,task_02"; got != want {
@@ -524,13 +529,27 @@ func TestImportTasksToolShouldReturnStructuredPayload(t *testing.T) {
 		want := fmt.Sprintf(
 			`{"tasks":[{"id":"task_01","number":1,"title":"First task",`+
 				`"type":"","complexity":"",`+
-				`"path":%q,"body":%q,"body_ref":%q,"blocks":[]}],"count":1}`,
+				`"path":%q,"body_ref":%q,"blocks":[]}],"count":1}`,
 			task.Path,
-			task.Body,
 			task.BodyRef,
 		)
 		if got := string(encoded); got != want {
 			t.Fatalf("importTasks() JSON = %s, want %s", got, want)
+		}
+		var envelope map[string]any
+		if err := json.Unmarshal(encoded, &envelope); err != nil {
+			t.Fatalf("Unmarshal(importTasks output) error = %v", err)
+		}
+		tasks, ok := envelope["tasks"].([]any)
+		if !ok || len(tasks) != 1 {
+			t.Fatalf("importTasks() tasks = %#v, want one serialized task", envelope["tasks"])
+		}
+		serializedTask, ok := tasks[0].(map[string]any)
+		if !ok {
+			t.Fatalf("importTasks() task = %#v, want object", tasks[0])
+		}
+		if _, exists := serializedTask["body"]; exists {
+			t.Fatalf("importTasks() task = %#v, body must not be serialized", serializedTask)
 		}
 	})
 

@@ -4364,6 +4364,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-runs/{id}/result": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one exact byte page from a task-run result */
+    get: operations["readTaskRunResult"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/task-runs/{id}/reviews": {
     parameters: {
       query?: never;
@@ -14414,6 +14431,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -16161,6 +16181,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -53006,6 +53029,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -53347,6 +53373,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -53667,6 +53696,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -54630,6 +54662,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -54771,6 +54806,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -55147,6 +55185,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -55522,6 +55563,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -55663,6 +55707,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -56161,6 +56208,9 @@ export interface operations {
                   resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   result?: unknown;
+                  /** Format: int64 */
+                  result_bytes?: number;
+                  result_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -73826,6 +73876,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -74282,6 +74335,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -74646,6 +74702,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -74964,6 +75023,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -75282,6 +75344,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -75874,6 +75939,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -75982,6 +76050,192 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  readTaskRunResult: {
+    parameters: {
+      query?: {
+        /** @description Zero-based byte offset */
+        offset?: number;
+        /** @description Page size in bytes; defaults to and is capped at 65536 */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: int64 */
+            bytes: number;
+            data_base64: string;
+            eof: boolean;
+            /** Format: int64 */
+            next_offset?: number | null;
+            /** Format: int64 */
+            offset: number;
+            result_ref?: string;
+            run_id: string;
+            /** Format: int64 */
+            total_bytes: number;
+          };
+        };
+      };
+      /** @description Invalid task-run result byte range */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run result not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run result is corrupt or unreadable */
+      502: {
         headers: {
           [name: string]: unknown;
         };
@@ -76739,6 +76993,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -78437,6 +78694,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -79846,6 +80106,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -82213,6 +82476,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -83446,6 +83712,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -87186,6 +87455,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -88990,6 +89262,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -89339,6 +89614,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -89723,6 +90001,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -90101,6 +90382,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -132511,6 +132795,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;

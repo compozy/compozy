@@ -2439,8 +2439,12 @@ func TestGlobalDBTaskEventAppendFailureShouldRollbackOwningState(t *testing.T) {
 		if got, want := stored.Status, taskpkg.TaskRunStatusClaimed; got != want {
 			t.Fatalf("stored.Status = %q, want rollback to %q", got, want)
 		}
-		if stored.Result != nil || !stored.EndedAt.IsZero() {
-			t.Fatalf("stored terminal fields = result %s ended_at %v, want rollback", stored.Result, stored.EndedAt)
+		if len(stored.ResultValue()) != 0 || !stored.EndedAt.IsZero() {
+			t.Fatalf(
+				"stored terminal fields = result %s ended_at %v, want rollback",
+				stored.ResultValue(),
+				stored.EndedAt,
+			)
 		}
 	})
 

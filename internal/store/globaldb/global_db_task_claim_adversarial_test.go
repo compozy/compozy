@@ -648,7 +648,7 @@ func assertLeaseRaceWinner(
 			t.Fatalf("release winner stored run = %#v, want queued and unowned", stored)
 		}
 	case "complete":
-		if stored.Status != taskpkg.TaskRunStatusCompleted || stored.Result == nil {
+		if stored.Status != taskpkg.TaskRunStatusCompleted || len(stored.ResultValue()) == 0 {
 			t.Fatalf("complete winner stored run = %#v, want completed with result", stored)
 		}
 	case "fail":

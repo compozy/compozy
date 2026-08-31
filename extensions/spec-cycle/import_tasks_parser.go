@@ -36,7 +36,6 @@ type markdownTaskPayload struct {
 	Complexity string           `json:"complexity"`
 	Runtime    *dsl.RuntimeSpec `json:"runtime,omitempty"`
 	Path       string           `json:"path"`
-	Body       string           `json:"body"`
 	BodyRef    string           `json:"body_ref"`
 	Blocks     []string         `json:"blocks"`
 }
@@ -126,7 +125,6 @@ func importMarkdownTasks(pattern string) (markdownTasksImportResult, error) {
 			Complexity: taskFile.Meta.Complexity,
 			Runtime:    taskFile.Meta.Runtime,
 			Path:       taskFile.Path,
-			Body:       taskFile.Body,
 			BodyRef:    looppkg.OutputRefForPayload([]byte(taskFile.Body)),
 			Blocks:     compozyTaskBlocksForTarget(blocksByTarget, taskFile.ID),
 		})

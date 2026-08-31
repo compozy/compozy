@@ -9930,6 +9930,15 @@ func (r *recordingRegistry) GetTaskRun(context.Context, string) (taskpkg.Run, er
 	return taskpkg.Run{}, taskpkg.ErrTaskRunNotFound
 }
 
+func (r *recordingRegistry) ReadTaskRunResultPage(
+	context.Context,
+	string,
+	int64,
+	int64,
+) (taskpkg.RunResultPage, error) {
+	return taskpkg.RunResultPage{}, taskpkg.ErrTaskRunResultNotFound
+}
+
 func (r *recordingRegistry) ListTaskRuns(context.Context, taskpkg.RunQuery) ([]taskpkg.Run, error) {
 	return nil, nil
 }

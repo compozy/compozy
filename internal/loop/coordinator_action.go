@@ -94,7 +94,7 @@ func (r *CoordinatorRunner) ExecuteActionRun(
 	if err := r.admitActionTarget(ctx, taskRun.ID, actionCtx.node, input); err != nil {
 		return task.RunResult{}, err
 	}
-	result, err := executeActionTaskRun(ctx, executor, actionCtx.node, input)
+	result, err := executeActionTaskRun(ctx, r.actionRegistry, executor, actionCtx.node, input)
 	return result, actionMaterializationFailure(err)
 }
 
@@ -159,6 +159,7 @@ func (r *CoordinatorRunner) resolvePinnedActionExecutor(
 
 func executeActionTaskRun(
 	ctx context.Context,
+	registry *ActionRegistry,
 	executor ActionExecutor,
 	node dsl.Node,
 	input ActionExecutionInput,
@@ -175,7 +176,7 @@ func executeActionTaskRun(
 			return actionControlTaskRunResult(raw)
 		}
 	}
-	output, err := executor.Harvest(ctx, raw, node)
+	output, err := registry.Harvest(ctx, executor, node, raw)
 	if err != nil {
 		return task.RunResult{}, err
 	}

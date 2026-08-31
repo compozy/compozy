@@ -32,7 +32,7 @@ var (
 				"items":{
 					"type":"object",
 					"additionalProperties":false,
-					"required":["id","number","title","type","complexity","path","body","body_ref","blocks"],
+					"required":["id","number","title","type","complexity","path","body_ref","blocks"],
 					"properties":{
 						"id":{"type":"string"},
 						"number":{"type":"integer"},
@@ -43,7 +43,6 @@ var (
 							"provider":{"type":"string"},"model":{"type":"string"},"reasoning":{"type":"string"}
 						}},
 						"path":{"type":"string"},
-						"body":{"type":"string"},
 						"body_ref":{"type":"string"},
 						"blocks":{"type":"array","items":{"type":"string"}}
 					}

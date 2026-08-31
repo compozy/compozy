@@ -114,6 +114,8 @@ type hostAPITaskRunsParams = extensioncontract.TaskRunsParams
 
 type hostAPITaskRunGetParams = extensioncontract.TaskRunGetParams
 
+type hostAPITaskRunResultParams = extensioncontract.TaskRunResultParams
+
 type hostAPITaskRunEnqueueParams = extensioncontract.TaskRunEnqueueParams
 
 type hostAPITaskRunStartParams = extensioncontract.TaskRunStartParams

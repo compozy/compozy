@@ -6,6 +6,8 @@ import (
 	"errors"
 
 	"strings"
+
+	taskpkg "github.com/compozy/compozy/internal/task"
 )
 
 func (h *HostAPIHandler) handleTasksRuns(ctx context.Context, raw json.RawMessage) (any, error) {
@@ -58,6 +60,29 @@ func (h *HostAPIHandler) handleTasksRunsGet(ctx context.Context, raw json.RawMes
 		return nil, err
 	}
 	return payload, nil
+}
+
+func (h *HostAPIHandler) handleTasksRunsResult(ctx context.Context, raw json.RawMessage) (any, error) {
+	var params hostAPITaskRunResultParams
+	if err := decodeHostAPIParamsStrict(raw, &params); err != nil {
+		return nil, err
+	}
+	runID := strings.TrimSpace(params.ID)
+	if runID == "" {
+		return nil, invalidParamsRPCError(errors.New("id is required"))
+	}
+	if params.Offset < 0 || params.Limit < 0 || params.Limit > taskpkg.MaxRunResultPageBytes {
+		return nil, invalidParamsRPCError(errors.New("offset or limit is outside supported bounds"))
+	}
+	manager, actor, err := h.taskManagerAndActor(ctx)
+	if err != nil {
+		return nil, err
+	}
+	page, err := manager.ReadTaskRunResult(ctx, runID, params.Offset, params.Limit, actor)
+	if err != nil {
+		return nil, mapTaskRPCError(runID, err)
+	}
+	return page, nil
 }
 
 func (h *HostAPIHandler) handleTasksRunsEnqueue(ctx context.Context, raw json.RawMessage) (any, error) {

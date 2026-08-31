@@ -52,6 +52,19 @@ func (s *StubTaskManager) ListTaskRuns(
 	return nil, nil
 }
 
+func (s *StubTaskManager) ReadTaskRunResult(
+	ctx context.Context,
+	runID string,
+	offset int64,
+	limit int64,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunResultPage, error) {
+	if s.ReadTaskRunResultFn != nil {
+		return s.ReadTaskRunResultFn(ctx, runID, offset, limit, actor)
+	}
+	return taskpkg.RunResultPage{}, taskpkg.ErrTaskRunResultNotFound
+}
+
 func (s *StubTaskManager) Timeline(
 	ctx context.Context,
 	taskID string,

@@ -256,6 +256,8 @@ const (
 	ToolIDTaskRecover ToolID = "compozy__task_recover"
 	// ToolIDTaskRunList lists task runs through the task service.
 	ToolIDTaskRunList ToolID = "compozy__task_run_list"
+	// ToolIDTaskRunResult pages one task-run result through the task service.
+	ToolIDTaskRunResult ToolID = "compozy__task_run_result"
 	// ToolIDTaskRunReviewRequest requests a review for one terminal task run.
 	ToolIDTaskRunReviewRequest ToolID = "compozy__task_run_review_request"
 	// ToolIDTaskRunReviewList lists task-run reviews through the task service.

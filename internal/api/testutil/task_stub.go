@@ -200,9 +200,16 @@ type StubTaskManager struct {
 		taskpkg.ExpiredLeaseRecovery,
 		taskpkg.ActorContext,
 	) ([]taskpkg.ExpiredLeaseRecoveryResult, error)
-	GetTaskFn         func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
-	InspectTaskFn     func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
-	InspectRunFn      func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
+	GetTaskFn           func(context.Context, string, taskpkg.ActorContext) (*taskpkg.View, error)
+	InspectTaskFn       func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
+	InspectRunFn        func(context.Context, string, taskpkg.ActorContext) (*taskpkg.InspectView, error)
+	ReadTaskRunResultFn func(
+		context.Context,
+		string,
+		int64,
+		int64,
+		taskpkg.ActorContext,
+	) (taskpkg.RunResultPage, error)
 	ListTaskRunsFn    func(context.Context, string, taskpkg.RunQuery, taskpkg.ActorContext) ([]taskpkg.Run, error)
 	ListTasksFn       func(context.Context, taskpkg.Query, taskpkg.ActorContext) ([]taskpkg.Summary, error)
 	ListTaskCatalogFn func(

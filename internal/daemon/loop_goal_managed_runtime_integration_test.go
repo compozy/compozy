@@ -28,9 +28,16 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 	})
 
 	t.Run(
-		"Should fail and release a Loop action lease when completion rejects an oversized result",
+		"Should complete and externalize a Loop action result above the envelope cap within budget",
 		func(t *testing.T) {
-			testLoopActionOversizedResultIntegration(t)
+			testLoopActionWithinBudgetResultIntegration(t)
+		},
+	)
+
+	t.Run(
+		"Should fail and release a Loop action lease with node guidance above the result budget",
+		func(t *testing.T) {
+			testLoopActionAboveBudgetResultIntegration(t)
 		},
 	)
 

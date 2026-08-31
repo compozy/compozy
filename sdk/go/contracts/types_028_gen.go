@@ -7,6 +7,36 @@ import (
 	"time"
 )
 
+type TaskRunStatus uint8
+
+type TaskRunSummaryPayload struct {
+	ID                           string                      `json:"id"`
+	TaskID                       string                      `json:"task_id"`
+	Status                       TaskRunStatus               `json:"status"`
+	Attempt                      int                         `json:"attempt"`
+	RecoveryCount                int                         `json:"recovery_count"`
+	PreviousRunID                string                      `json:"previous_run_id,omitempty"`
+	FailureKind                  string                      `json:"failure_kind,omitempty"`
+	MaxAttempts                  int                         `json:"max_attempts"`
+	SessionID                    string                      `json:"session_id,omitempty"`
+	WorktreeID                   string                      `json:"worktree_id,omitempty"`
+	ResolvedWorktreeMode         ResolvedWorktreeMode        `json:"resolved_worktree_mode"`
+	ResolvedWorktreeRef          string                      `json:"resolved_worktree_ref,omitempty"`
+	ClaimedBy                    *ActorIdentity              `json:"claimed_by,omitempty"`
+	ClaimTokenHash               string                      `json:"claim_token_hash,omitempty"`
+	LeaseUntil                   *time.Time                  `json:"lease_until,omitempty"`
+	HeartbeatAt                  *time.Time                  `json:"heartbeat_at,omitempty"`
+	ResolvedNetworkParticipation *Spec                       `json:"resolved_network_participation,omitempty"`
+	CoordinationChannel          *CoordinationChannelPayload `json:"coordination_channel,omitempty"`
+	DesignationGroupID           string                      `json:"designation_group_id,omitempty"`
+	Designation                  *RunDesignationSummary      `json:"designation,omitempty"`
+	QueuedAt                     time.Time                   `json:"queued_at"`
+	ClaimedAt                    *time.Time                  `json:"claimed_at,omitempty"`
+	StartedAt                    *time.Time                  `json:"started_at,omitempty"`
+	EndedAt                      *time.Time                  `json:"ended_at,omitempty"`
+	Error                        string                      `json:"error,omitempty"`
+}
+
 type TaskRunTotal struct {
 	Status     TaskRunStatus `json:"status"`
 	OriginKind OriginKind    `json:"origin_kind"`
@@ -266,12 +296,4 @@ type ToolContent struct {
 	Data     json.RawMessage            `json:"data,omitempty"`
 	MIMEType string                     `json:"mime_type,omitempty"`
 	Metadata map[string]json.RawMessage `json:"metadata,omitempty"`
-}
-
-type ToolID string
-
-type ToolLocation struct {
-	Path      string `json:"path,omitempty"`
-	StartLine int    `json:"start_line,omitempty"`
-	EndLine   int    `json:"end_line,omitempty"`
 }

@@ -60,6 +60,20 @@ type TaskRunPayload struct {
 	Error                        string                         `json:"error,omitempty"`
 	Metadata                     json.RawMessage                `json:"metadata,omitempty"`
 	Result                       json.RawMessage                `json:"result,omitempty"`
+	ResultRef                    string                         `json:"result_ref,omitempty"`
+	ResultBytes                  int64                          `json:"result_bytes,omitempty"`
+}
+
+// TaskRunResultPageResponse is one exact bounded byte page from a task-run result.
+type TaskRunResultPageResponse struct {
+	RunID      string `json:"run_id"`
+	ResultRef  string `json:"result_ref,omitempty"`
+	Offset     int64  `json:"offset"`
+	Bytes      int64  `json:"bytes"`
+	TotalBytes int64  `json:"total_bytes"`
+	DataBase64 string `json:"data_base64"`
+	NextOffset *int64 `json:"next_offset,omitempty"`
+	EOF        bool   `json:"eof"`
 }
 
 // TaskRunSummaryPayload is the shared run-chip payload reused by enriched task reads.

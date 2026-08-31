@@ -22,7 +22,7 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 	if err := g.checkReady(ctx, "complete task run lease"); err != nil {
 		return taskpkg.CompletedRunSettlement{}, err
 	}
-	normalized, err := completion.Normalize(g.now())
+	normalized, err := completion.NormalizeWithResultLimit(g.now(), taskpkg.MaxActionResultBytes)
 	if err != nil {
 		return taskpkg.CompletedRunSettlement{}, err
 	}
@@ -41,6 +41,9 @@ func (g *TaskRunRepo) CompleteRunLeaseSettlement(
 				"%w: network_wake runs must be completed through network settlement",
 				taskpkg.ErrValidation,
 			)
+		}
+		if err := normalized.ValidateForRun("lease_completion", current); err != nil {
+			return err
 		}
 		updated, err := g.completeRunLeaseWithExecutor(ctx, exec, normalized)
 		if err != nil {

@@ -66,7 +66,7 @@ func operatorRerunSet(
 		return nil, reasonError(
 			ReasonCodeRerunNodeUnsettled,
 			ErrRerunNodeUnsettled,
-			map[string]string{"node_id": string(nodeID)},
+			map[string]string{metadataNodeIDKey: string(nodeID)},
 		)
 	}
 	visited := make(map[operatorRerunCursor]struct{}, len(queue))

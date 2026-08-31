@@ -13,6 +13,7 @@ describe("tasksKeys", () => {
     expect(tasksKeys.timelineRoot()).toEqual(["tasks", "timeline"]);
     expect(tasksKeys.treeRoot()).toEqual(["tasks", "tree"]);
     expect(tasksKeys.runDetails()).toEqual(["tasks", "run-detail"]);
+    expect(tasksKeys.runResults()).toEqual(["tasks", "run-result"]);
     expect(tasksKeys.triageRoot()).toEqual(["tasks", "triage"]);
   });
 
@@ -112,6 +113,18 @@ describe("tasksKeys", () => {
     ]);
     expect(tasksKeys.tree("task_1")).toEqual(["tasks", "tree", "task_1"]);
     expect(tasksKeys.runDetail("run_1")).toEqual(["tasks", "run-detail", "run_1"]);
+    expect(tasksKeys.runResult("ws_1", "run_1", "sha256:a", 16_384, 16_384)).toEqual([
+      "tasks",
+      "run-result",
+      "ws_1",
+      "run_1",
+      "sha256:a",
+      16_384,
+      16_384,
+    ]);
+    expect(tasksKeys.runResult("ws_1", "run_1", "sha256:a", 0, 16_384)).not.toEqual(
+      tasksKeys.runResult("ws_2", "run_1", "sha256:a", 0, 16_384)
+    );
   });
 
   it("serializes dashboard and inbox filters stably", () => {

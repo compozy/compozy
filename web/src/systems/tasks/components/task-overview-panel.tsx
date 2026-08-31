@@ -5,6 +5,7 @@ import { Button, cn, DescriptionCard, Section } from "@compozy/ui";
 
 import type { TaskDetailView, TaskRun, TaskTimelineItem } from "../types";
 import { latestTaskRun } from "../lib/task-run-presentation";
+import { useTaskRunResult } from "../hooks/use-task-run-result";
 import { TaskActivityItem } from "./task-activity-item";
 import { TaskDependenciesSection } from "./task-dependencies-section";
 import { TaskNowStrip, type TaskNowStripHandlers } from "./task-now-strip";
@@ -25,9 +26,28 @@ export interface TaskOverviewPanelProps extends ComponentPropsWithoutRef<"div"> 
   activeRunElapsed?: string;
 }
 
-function CompletedTaskResult({ runs }: { runs: readonly TaskRun[] }) {
+function CompletedTaskResult({
+  runs,
+  workspaceId,
+}: {
+  runs: readonly TaskRun[];
+  workspaceId: string;
+}) {
   const lastCompleted = latestTaskRun(runs, "completed");
   if (!lastCompleted) return null;
+
+  return (
+    <CompletedRunResult key={lastCompleted.id} run={lastCompleted} workspaceId={workspaceId} />
+  );
+}
+
+function CompletedRunResult({ run, workspaceId }: { run: TaskRun; workspaceId: string }) {
+  const external = useTaskRunResult({
+    resultBytes: run.result_bytes ?? 0,
+    resultRef: run.result_ref ?? "",
+    runId: run.id,
+    workspaceId,
+  });
 
   return (
     <TaskResultSection
@@ -35,7 +55,10 @@ function CompletedTaskResult({ runs }: { runs: readonly TaskRun[] }) {
       emptyMessage="No result was recorded for the completed run."
       id={TASK_RESULT_ANCHOR_ID}
       jsonTestId="tasks-detail-result-json"
-      result={lastCompleted.result}
+      external={run.result_ref ? external : undefined}
+      result={run.result}
+      resultBytes={run.result_bytes}
+      resultRef={run.result_ref}
     />
   );
 }
@@ -79,7 +102,9 @@ export function TaskOverviewPanel({
         runs={runs}
       />
 
-      {record.status === "completed" ? <CompletedTaskResult runs={runs} /> : null}
+      {record.status === "completed" ? (
+        <CompletedTaskResult runs={runs} workspaceId={record.workspace_id ?? ""} />
+      ) : null}
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (

@@ -1003,6 +1003,47 @@ func TestTaskRunCommandsMapLifecycleRequests(t *testing.T) {
 			},
 		},
 		{
+			name: "Should read one exact task run result page",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var gotID string
+				var gotOffset int64
+				var gotLimit int64
+				nextOffset := int64(66)
+				deps := newWorkspaceTestDeps(t, &stubClient{
+					readTaskRunResultFn: func(
+						_ context.Context,
+						id string,
+						offset int64,
+						limit int64,
+					) (TaskRunResultPageRecord, error) {
+						gotID, gotOffset, gotLimit = id, offset, limit
+						return TaskRunResultPageRecord{
+							RunID: "run-1", ResultRef: "sha256:external", Offset: 2, Bytes: 64,
+							TotalBytes: 100, DataBase64: "cGFnZQ==", NextOffset: &nextOffset,
+						}, nil
+					},
+				})
+
+				stdout, _, err := executeRootCommand(
+					t,
+					deps,
+					"task", "run", "result", "run-1", "--offset", "2", "--limit", "64", "-o", "json",
+				)
+				if err != nil {
+					t.Fatalf("task run result error = %v", err)
+				}
+				var output TaskRunResultPageRecord
+				if err := json.Unmarshal([]byte(stdout), &output); err != nil {
+					t.Fatalf("json.Unmarshal(task run result) error = %v", err)
+				}
+				if gotID != "run-1" || gotOffset != 2 || gotLimit != 64 || output.ResultRef != "sha256:external" {
+					t.Fatalf("result input/output = %q/%d/%d %#v", gotID, gotOffset, gotLimit, output)
+				}
+			},
+		},
+		{
 			name: "Should parse task run enqueue request",
 			run: func(t *testing.T) {
 				t.Helper()

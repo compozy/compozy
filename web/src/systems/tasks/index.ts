@@ -85,6 +85,7 @@ export type {
   TaskRunReviewVerdictRequest,
   TaskRunReviewVerdictResult,
   TaskRunReviewsFilter,
+  TaskRunResultPage,
   TaskRunStatus,
   TaskRunsFilter,
   TaskScope,
@@ -149,6 +150,7 @@ export {
   publishTask,
   recoverTask,
   recoverTaskRun,
+  readTaskRunResult,
   rejectTask,
   removeTaskDependency,
   requestTaskRunReview,
@@ -173,6 +175,7 @@ export {
   taskReviewsOptions,
   taskRunDetailOptions,
   taskRunReviewDetailOptions,
+  taskRunResultPageOptions,
   taskRunReviewsOptions,
   taskRunsOptions,
   taskTimelineOptions,
@@ -345,6 +348,8 @@ export type { TaskProfileEditor } from "./hooks/use-profile-editor";
 export type { UseTaskOperatorLayerOptions } from "./hooks/use-task-operator-layer";
 export { useTaskRunPage } from "./hooks/use-task-run-page";
 export type { UseTaskRunPageOptions } from "./hooks/use-task-run-page";
+export { useTaskRunResult } from "./hooks/use-task-run-result";
+export type { TaskRunResultController } from "./hooks/use-task-run-result";
 export { useLiveElapsed } from "./hooks/use-live-elapsed";
 export { useTaskPauseDialog } from "./hooks/use-task-pause-dialog";
 export { useForceFailDialog } from "./hooks/use-force-fail-dialog";
@@ -432,7 +437,7 @@ export type {
   TaskLoopProvenanceProps, TaskLoopRowProps,
   TaskNowStripHandlers, TaskNowStripProps, TaskOverviewPanelProps, TaskPageActionHandlers,
   TaskPageActionsProps, TaskPageOverflowProps, TaskPauseDialogProps, TaskPropertiesRailProps,
-  TaskResultSectionProps, TaskRunActivitySectionProps, TaskRunForceFailDialogProps,
+  TaskResultPageController, TaskResultSectionProps, TaskRunActivitySectionProps, TaskRunForceFailDialogProps,
   TaskRunInspectDrawerProps, TaskRunPageActionsProps, TaskRunPageOverflowProps, TaskRunRailProps,
   TaskRunsPanelProps, TaskSetupSheetProps, TaskStateBandProps, TasksDashboardActiveRunsProps,
   TasksDashboardCardsProps, TasksDashboardQueueHealthProps, TasksDashboardStatusBreakdownProps,

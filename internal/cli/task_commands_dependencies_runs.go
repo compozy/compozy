@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -159,6 +158,7 @@ func newTaskRunCommand(deps commandDeps) *cobra.Command {
 	}
 	cmd.AddCommand(newTaskRunListCommand(deps))
 	cmd.AddCommand(newTaskRunShowCommand(deps))
+	cmd.AddCommand(newTaskRunResultCommand(deps))
 	cmd.AddCommand(newTaskRunEnqueueCommand(deps))
 	cmd.AddCommand(newTaskRunStartCommand(deps))
 	cmd.AddCommand(newTaskRunAttachSessionCommand(deps))

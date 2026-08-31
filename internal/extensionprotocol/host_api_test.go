@@ -79,6 +79,7 @@ func TestAllHostAPIMethodsReturnsCanonicalWireOrder(t *testing.T) {
 			HostAPIMethodTasksCancel,
 			HostAPIMethodTasksRuns,
 			HostAPIMethodTasksRunsGet,
+			HostAPIMethodTasksRunsResult,
 			HostAPIMethodTasksRunsEnqueue,
 			HostAPIMethodTasksRunsStart,
 			HostAPIMethodTasksRunsAttachSession,

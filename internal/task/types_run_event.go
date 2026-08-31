@@ -34,6 +34,18 @@ type RunWorktreeState struct {
 	ResolvedWorktreeRef  string       `json:"resolved_worktree_ref,omitempty"`
 }
 
+// RunResultDescriptor keeps optional external-result metadata off the hot Run value.
+type RunResultDescriptor struct {
+	ResultRef   string `json:"result_ref,omitempty"`
+	ResultBytes int64  `json:"result_bytes,omitempty"`
+}
+
+// RunResultState carries either the inline terminal result or its external descriptor.
+type RunResultState struct {
+	Result *json.RawMessage `json:"result,omitempty"`
+	RunResultDescriptor
+}
+
 // Run is the durable execution record for one task attempt.
 type Run struct {
 	ID             string         `json:"id"`
@@ -67,7 +79,7 @@ type Run struct {
 	EndedAt               time.Time         `json:"ended_at"`
 	TokensUsed            int64             `json:"tokens_used,omitempty"`
 	Error                 string            `json:"error,omitempty"`
-	Result                *json.RawMessage  `json:"result,omitempty"`
+	*RunResultState
 }
 
 // Event is the immutable audit record emitted for task-domain actions.

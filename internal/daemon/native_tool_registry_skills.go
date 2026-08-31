@@ -29,12 +29,19 @@ func (n *daemonNativeTools) toolList(
 	if err := decodeNativeInput(req, &input); err != nil {
 		return toolspkg.ToolResult{}, err
 	}
+	offset, limit, err := normalizeNativeToolListInput(req.ToolID, input)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
 	views, err := n.registry().List(ctx, scope)
 	if err != nil {
 		return toolspkg.ToolResult{}, err
 	}
-	views = limitToolViews(views, input.Limit)
-	return structuredResult(map[string]any{"tools": views}, fmt.Sprintf("%d tools", len(views)))
+	page := nativeToolListPageFromViews(views, offset, limit)
+	return structuredResult(
+		page,
+		fmt.Sprintf("%d of %d tools", page.Count, page.Total),
+	)
 }
 
 func (n *daemonNativeTools) toolSearch(

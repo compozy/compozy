@@ -104,6 +104,7 @@ type managerOptions struct {
 	workspaceActiveRunCap int
 	workAdmission         admission.Checker
 	workspaceAccess       workspaceaccess.Policy
+	actionResultMaxBytes  int64
 }
 
 // Service centralizes canonical task-domain creation, mutation, read, and
@@ -137,6 +138,7 @@ type Service struct {
 	workspaceActiveRunCap int
 	workAdmission         admission.Checker
 	workspaceAccess       workspaceaccess.Policy
+	actionResultMaxBytes  int
 	forceRateLimiter      *forceRunRateLimiter
 	wakeMu                sync.Mutex
 	wakeEventIDs          map[string]struct{}
@@ -292,6 +294,13 @@ func WithBlockRecurrenceLimit(limit int) Option {
 	}
 }
 
+// WithActionResultMaxBytes sets the outer byte bound for externalized Loop action results.
+func WithActionResultMaxBytes(maxBytes int64) Option {
+	return func(opts *managerOptions) {
+		opts.actionResultMaxBytes = maxBytes
+	}
+}
+
 // NewManager constructs one task-domain manager with the supplied dependencies.
 func NewManager(opts ...Option) (*Service, error) {
 	options := managerOptions{
@@ -306,6 +315,7 @@ func NewManager(opts ...Option) (*Service, error) {
 		newID:                store.NewID,
 		starvationAge:        DefaultTaskStarvationAge,
 		blockRecurrenceLimit: configdefaults.BlockRecurrenceLimit,
+		actionResultMaxBytes: MaxResultBytes,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -332,6 +342,15 @@ func NewManager(opts ...Option) (*Service, error) {
 	}
 	if options.workspaceActiveRunCap < 0 {
 		return nil, fmt.Errorf("task: workspace active run cap must be zero or positive")
+	}
+	if options.actionResultMaxBytes < 0 || options.actionResultMaxBytes > MaxActionResultBytes {
+		return nil, fmt.Errorf(
+			"task: action result max bytes must be between 0 and %d",
+			MaxActionResultBytes,
+		)
+	}
+	if options.actionResultMaxBytes == 0 {
+		options.actionResultMaxBytes = MaxActionResultBytes
 	}
 
 	return newService(options), nil

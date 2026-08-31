@@ -152,10 +152,11 @@ func validateRunPayloads(r Run) error {
 			ErrValidation,
 		)
 	}
-	if err := ValidateResultSize(rawJSONValue(r.Result), "task_run.result"); err != nil {
+	result := r.ResultValue()
+	if err := ValidateResultSize(result, "task_run.result"); err != nil {
 		return err
 	}
-	if hasRawClaimTokenField(rawJSONValue(r.Result)) {
+	if hasRawClaimTokenField(result) {
 		return fmt.Errorf(
 			"%w: task_run.result must not contain raw lease credentials",
 			ErrValidation,

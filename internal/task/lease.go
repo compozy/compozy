@@ -130,13 +130,14 @@ type LeaseRelease struct {
 
 // LeaseCompletion captures a token-fenced successful terminal transition.
 type LeaseCompletion struct {
-	RunID          string    `json:"run_id"`
-	ClaimToken     string    `json:"claim_token"`
-	Result         RunResult `json:"result"`
-	CreatedTaskIDs []string  `json:"created_task_ids,omitempty"`
-	TokensUsed     int64     `json:"tokens_used,omitempty"`
-	Now            time.Time `json:"now"`
-	Actor          ActorContext
+	RunID                string    `json:"run_id"`
+	ClaimToken           string    `json:"claim_token"`
+	Result               RunResult `json:"result"`
+	CreatedTaskIDs       []string  `json:"created_task_ids,omitempty"`
+	TokensUsed           int64     `json:"tokens_used,omitempty"`
+	Now                  time.Time `json:"now"`
+	Actor                ActorContext
+	actionResultMaxBytes int
 }
 
 // LeaseFailure captures a token-fenced failed terminal transition.
@@ -356,61 +357,6 @@ func (r SessionLeaseRelease) Validate(path string) error {
 		return fmt.Errorf("%w: %s is required", ErrValidation, nestedPath(path, "now"))
 	}
 	return nil
-}
-
-// Normalize returns a validated completion request with default time applied.
-func (c LeaseCompletion) Normalize(defaultNow time.Time) (LeaseCompletion, error) {
-	normalized := c
-	normalized.RunID = strings.TrimSpace(normalized.RunID)
-	normalized.ClaimToken = strings.TrimSpace(normalized.ClaimToken)
-	normalized.CreatedTaskIDs = normalizeCreatedTaskIDs(normalized.CreatedTaskIDs)
-	normalized.Now = normalizeLeaseNow(normalized.Now, defaultNow)
-	result, err := normalizeRunResult(normalized.Result)
-	if err != nil {
-		return LeaseCompletion{}, err
-	}
-	normalized.Result = result
-	if err := normalized.Validate("lease_completion"); err != nil {
-		return LeaseCompletion{}, err
-	}
-	return normalized, nil
-}
-
-// Validate reports whether the completion request is internally consistent.
-func (c LeaseCompletion) Validate(path string) error {
-	if err := validateLeaseRunToken(c.RunID, c.ClaimToken, path); err != nil {
-		return err
-	}
-	if err := validateAuditCollectionSize(
-		len(c.CreatedTaskIDs),
-		nestedPath(path, "created_task_ids"),
-	); err != nil {
-		return err
-	}
-	for idx, taskID := range c.CreatedTaskIDs {
-		if strings.TrimSpace(taskID) == "" {
-			return fmt.Errorf(
-				"%w: %s is required",
-				ErrValidation,
-				nestedPath(path, fmt.Sprintf("created_task_ids[%d]", idx)),
-			)
-		}
-		if err := ValidateReferenceSize(
-			taskID,
-			nestedPath(path, fmt.Sprintf("created_task_ids[%d]", idx)),
-		); err != nil {
-			return err
-		}
-	}
-	if c.TokensUsed < 0 {
-		return fmt.Errorf(
-			"%w: %s must be zero or positive: %d",
-			ErrValidation,
-			nestedPath(path, "tokens_used"),
-			c.TokensUsed,
-		)
-	}
-	return c.Result.Validate(nestedPath(path, "result"))
 }
 
 // Normalize returns a validated failure request with default time applied.

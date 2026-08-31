@@ -132,7 +132,8 @@ func nativeTaskToolError(id toolspkg.ToolID, err error) error {
 	case errors.Is(err, taskpkg.ErrValidation),
 		errors.Is(err, taskpkg.ErrInvalidScopeBinding),
 		errors.Is(err, taskpkg.ErrImmutableField),
-		errors.Is(err, taskpkg.ErrPayloadTooLarge):
+		errors.Is(err, taskpkg.ErrPayloadTooLarge),
+		errors.Is(err, taskpkg.ErrTaskRunResultInvalidRange):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeInvalidInput,
 			id,
@@ -142,7 +143,8 @@ func nativeTaskToolError(id toolspkg.ToolID, err error) error {
 		)
 	case errors.Is(err, taskpkg.ErrTaskNotFound),
 		errors.Is(err, taskpkg.ErrTaskBlockNotFound),
-		errors.Is(err, taskpkg.ErrTaskRunNotFound):
+		errors.Is(err, taskpkg.ErrTaskRunNotFound),
+		errors.Is(err, taskpkg.ErrTaskRunResultNotFound):
 		return toolspkg.NewToolError(
 			toolspkg.ErrorCodeNotFound,
 			id,

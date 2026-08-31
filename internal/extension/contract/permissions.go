@@ -68,6 +68,7 @@ var consentByHostAPIMethod = map[string]string{
 	"tasks/cancel":                   permissionTaskWrite,
 	"tasks/runs":                     permissionTaskRead,
 	"tasks/runs/get":                 permissionTaskRead,
+	"tasks/runs/result":              permissionTaskRead,
 	"tasks/runs/enqueue":             permissionTaskWrite,
 	"tasks/runs/start":               permissionTaskWrite,
 	"tasks/runs/attach_session":      permissionTaskWrite,
