@@ -6,13 +6,13 @@ persona: Dora
 journey: J-audit-terminal-work
 expected: Journal filters change the server query, approximate boundaries are labeled, filtered misses are distinct from an empty history, and a recording replays from its owning profile with its retention stated.
 entry_points: Terminal window head Journal toggle; terminal journal CLI; terminal recording download; terminal selection to active session composer
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260826-terminal-journal-workspace-id; BUG-20260826-terminal-config-set-unsupported
 fix_status: fixed
 retest_status:
 fix_commits: b745ebcbcfe6
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-20260826-074528-452132-lab/qa-artifacts/qa/test-e2e-runtime-after-fix.log; docs/qa/reports/2026-08-26-integrated-terminal.md; docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
-last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+evidence: web/e2e/__tests__/terminal.spec.ts E2E-007; docs/qa/reports/2026-08-31-terminal-stabilization.md
+last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
 overlaps:
 ---
 

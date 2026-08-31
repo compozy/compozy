@@ -32,6 +32,12 @@ export interface UseTerminalWindowAppStateOptions {
   windowedTerminalIds?: ReadonlySet<string>;
   /** The route arrived asking for a fresh terminal; the resolver never adopts. */
   createIntent?: boolean;
+  /**
+   * The catalog has been fetched for this mount. The resolver must decide on
+   * current truth — a cached list from before this window opened could miss a
+   * running terminal and open a duplicate instead of adopting it.
+   */
+  resolveReady?: boolean;
   /** Retargets the host route to this PTY. Absent in isolated windows. */
   onSelectTerminal?: (terminalId: string) => void;
   /** Reveals the journal. The host unlocks its fetch on first open. */
@@ -77,6 +83,7 @@ export function useTerminalWindowAppState({
   requestedTerminalId,
   windowedTerminalIds = EMPTY_WINDOWED,
   createIntent = false,
+  resolveReady = true,
   onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
@@ -144,11 +151,17 @@ export function useTerminalWindowAppState({
     // Adopting or creating a terminal because the window landed on `/terminal`
     // is a synchronization with the daemon, keyed to that arrival — exactly
     // what an effect is for.
+    if (!resolving) {
+      lastResolutionKeyRef.current = resolutionKey;
+      return;
+    }
+    // An arrival is consumed only once it can be answered from fresh truth.
+    if (!resolveReady) return;
     const previousKey = lastResolutionKeyRef.current;
     lastResolutionKeyRef.current = resolutionKey;
-    if (!resolving || previousKey === resolutionKey) return;
+    if (previousKey === resolutionKey) return;
     resolveDestination();
-  }, [resolving, resolutionKey]);
+  }, [resolving, resolveReady, resolutionKey]);
 
   return {
     active,

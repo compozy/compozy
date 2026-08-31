@@ -18,7 +18,6 @@ import {
   openAppWindow,
   switchWorkspace,
   windowFrame,
-  windowID,
 } from "../fixtures/os-navigation";
 import {
   seedBrowserSandboxProfiles,
@@ -387,7 +386,7 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
   await window.getByTestId("terminal-new").click();
   expect((await secondCreatePromise).status()).toBe(201);
   const frame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
-  await expect(frame.locator('[data-testid^="os-window-tab-"]')).toHaveCount(2);
+  await expect(frame.locator('[role="tab"]')).toHaveCount(2);
   const secondActiveWindow = focusedTerminalWindow(appPage);
   const secondID = await visibleTerminalPaneID(secondActiveWindow);
   expect(secondID).not.toBe(firstID);
@@ -408,13 +407,14 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
 
   await appPage.reload({ waitUntil: "domcontentloaded" });
   const restoredFrame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
-  await expect(restoredFrame.locator('[data-testid^="os-window-tab-"]')).toHaveCount(2);
-  expect((await terminalScreen(runtime, workspace.id, firstID)).content).toContain(
-    "first-screen-intact"
-  );
-  expect((await terminalScreen(runtime, workspace.id, secondID)).content).toContain(
-    "second-screen-intact"
-  );
+  await expect(restoredFrame.locator('[role="tab"]')).toHaveCount(2);
+  // Reattach re-votes the grid size, so the screens are read after convergence.
+  await expect
+    .poll(async () => (await terminalScreen(runtime, workspace.id, firstID)).content)
+    .toContain("first-screen-intact");
+  await expect
+    .poll(async () => (await terminalScreen(runtime, workspace.id, secondID)).content)
+    .toContain("second-screen-intact");
   const running = await runTerminalCLI<TerminalListEnvelope>(runtime.paths, [
     "list",
     "--workspace",
@@ -429,12 +429,12 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
     ])
   );
 
-  // Closing the window is a window gesture: both sessions keep running.
+  // Closing the window is a window gesture: both sessions keep running. In a
+  // stacked frame the traffic lights live on the deck row and close the group.
   const restored = focusedTerminalWindow(appPage);
   await focusWindowThroughPalette(appPage, restored);
-  const closingWindow = appPage.getByTestId(`os-window-${await windowID(restored)}`);
-  await closingWindow.getByRole("button", { name: "Close window" }).click();
-  await expect(closingWindow).toBeHidden();
+  await windowFrame(restored).getByRole("button", { name: "Close window" }).click();
+  await expect(restored).toBeHidden();
   const survivors = await runTerminalCLI<TerminalListEnvelope>(runtime.paths, [
     "list",
     "--workspace",

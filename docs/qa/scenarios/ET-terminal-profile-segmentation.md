@@ -6,13 +6,13 @@ persona: Ada
 journey: J-switch-profile-terminal-scope
 expected: A terminal belongs to the profile that opened it; profile switches re-scope the list, dock badge, stream, and journal; aggregate reads label every owner; archiving closes owned terminals but preserves history; workspace deletion removes both.
 entry_points: Web profile switcher; Terminal app; --profile; --all-profiles; HTTP and UDS profile selectors
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260826-terminal-attach-profile-scope; BUG-20260829-terminal-journal-unlock-remount; BUG-20260829-workspace-delete-visible-terminal-deadlock
 fix_status: fixed
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/profile-segmentation-walk.md; /Users/pedronauck/dev/qa-labs/compozy-integrated-terminal-profile-retest-20260829-172042-776889-lab/qa-artifacts/qa/qa-audit-report.md
-last_report: docs/qa/reports/2026-08-28-integrated-terminal-rebase.md
+evidence: web/e2e/__tests__/terminal-agent.spec.ts E2E-020; docs/qa/reports/2026-08-31-terminal-stabilization.md
+last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
 overlaps: ET-terminal-profile-selectors; ET-profile-aggregate-owner-labels; ET-profile-stream-isolation
 ---
 

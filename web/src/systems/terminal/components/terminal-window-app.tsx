@@ -57,6 +57,8 @@ export interface TerminalWindowAppProps {
   windowedTerminalIds?: ReadonlySet<string>;
   /** The route arrived asking for a fresh terminal; the resolver never adopts. */
   createIntent?: boolean;
+  /** The catalog is fetched for this mount; the resolver waits for it. */
+  resolveReady?: boolean;
   /** Retargets the host to `/terminal/:id`. Isolated windows omit this. */
   onSelectTerminal?: (terminalId: string) => void;
   /** Reveals the journal. The host unlocks its fetch on first open. */
@@ -102,6 +104,7 @@ export function TerminalWindowApp({
   requestedTerminalId,
   windowedTerminalIds,
   createIntent,
+  resolveReady,
   onSelectTerminal,
   onViewJournal,
   onLeaveJournal,
@@ -134,6 +137,7 @@ export function TerminalWindowApp({
     requestedTerminalId,
     windowedTerminalIds,
     createIntent,
+    resolveReady,
     onSelectTerminal,
     onViewJournal,
     onLeaveJournal,

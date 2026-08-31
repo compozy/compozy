@@ -6,13 +6,13 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: fish opens with the user's themes, functions, completions, and universal variables intact while journal markers still record commands; zsh sources the user's .zshenv and .zshrc; disabling shell_integration removes the shim entirely.
 entry_points: Web dock Terminal app; compozy terminal open --shell; [terminal] shell_integration
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: isolated CLI lab walk (fish THEME-OK, walkfn, marker journal rows; zsh clean + marker row); docs/qa/reports/2026-08-31-terminal-stabilization.md
+last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
 overlaps: ET-terminal-journal-recording
 ---
 

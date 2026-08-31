@@ -174,8 +174,9 @@ __compozy_preexec() {
   __compozy_active=1
 }
 __compozy_precmd() {
-  local status=$?
-  if (( __compozy_active )); then printf '\033]7113;v1;%s;F;exit=%d\033\\' "$__compozy_nonce" "$status"; fi
+  # zsh's status is a read-only special parameter; shadowing it aborts the hook.
+  local __compozy_exit=$?
+  if (( __compozy_active )); then printf '\033]7113;v1;%s;F;exit=%d\033\\' "$__compozy_nonce" "$__compozy_exit"; fi
   __compozy_active=0
 }
 add-zsh-hook preexec __compozy_preexec

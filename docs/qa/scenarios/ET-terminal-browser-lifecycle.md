@@ -6,13 +6,13 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: Clicking the Terminal dock item lands in a working terminal directly; New terminal opens a second one as an OS window tab; reloading preserves both; closing the window never ends a running terminal, and reopening adopts the newest running one; closing an already-ended terminal is a quiet no-op, never an error toast.
 entry_points: Web dock Terminal app; /terminal; /terminal/{terminal_id}
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: web/e2e/__tests__/terminal.spec.ts E2E-002 + E2E-018 (green vs branch daemon 2026-08-31); docs/qa/reports/2026-08-31-terminal-stabilization.md
+last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
 overlaps:
 ---
 

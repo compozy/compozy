@@ -20,7 +20,6 @@ import {
   focusWindowThroughPalette,
   openAppWindow,
   sessionWindow,
-  windowID,
 } from "../fixtures/os-navigation";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { profilesOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
@@ -270,9 +269,18 @@ test("E2E-010: agent-reported output stays labeled and absent from the Terminal 
     `/api/workspaces/${encodeURIComponent(workspace.id)}/terminals?profile=default`
   );
   expect(catalog.terminals).toEqual([]);
+  // The Terminal app resolves into a fresh terminal of its own; the reported
+  // pseudo-terminal never appears in the catalog it draws from.
   await ensureProjectWorkspace(appPage, runtime);
   const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
-  await expect(terminalWindow.getByTestId("terminal-empty")).toBeVisible();
+  await expect(
+    terminalWindow.locator('[data-testid^="terminal-pane-term-"]:visible')
+  ).toBeVisible();
+  const afterOpen = await runtime.requestJSON<{ terminals: Array<{ title: string }> }>(
+    `/api/workspaces/${encodeURIComponent(workspace.id)}/terminals?profile=default`
+  );
+  expect(afterOpen.terminals).toHaveLength(1);
+  expect(afterOpen.terminals[0]?.title).not.toContain("reported");
 });
 
 test("E2E-003: deliberate agent exec stays discoverable from approval through journal", async ({
@@ -318,9 +326,17 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const terminalId = execution.terminal_id;
 
     await ensureProjectWorkspace(appPage, runtime);
-    // The dock adopts the agent's running terminal directly.
-    let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
-    await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible();
+    // The deep link is the deterministic way to this exact terminal; ambient
+    // adoption is covered by E2E-002/018/020.
+    await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const terminalWindow = appPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
+    await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
       .toContain("agent-live-1");
@@ -356,7 +372,12 @@ test("E2E-004: watcher takeover and release update two browser contexts", async 
   try {
     const terminalId = await openAgentTerminal(harness, "agent-watch-control");
     await ensureProjectWorkspace(appPage, runtime);
-    const firstWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const firstWindow = appPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
     const firstGrid = firstWindow.getByRole("log", { name: "agent-watch-control" });
     await expect(firstGrid).toHaveAttribute("data-readonly", "true");
     await firstGrid.click();
@@ -368,7 +389,12 @@ test("E2E-004: watcher takeover and release update two browser contexts", async 
     const secondPage = await secondContext.newPage();
     await secondPage.goto(runtime.url("/"), { waitUntil: "domcontentloaded" });
     await ensureProjectWorkspace(secondPage, runtime);
-    const secondWindow = await openAppWindow(secondPage, "Terminal", "terminal");
+    await secondPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    const secondWindow = secondPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
     await expect(firstWindow.getByTestId("terminal-viewers")).toContainText("2");
 
     await firstWindow.getByTestId("terminal-take-control").click();
@@ -431,7 +457,15 @@ test("E2E-005: hidden input is delivered by length and can be rejected cleanly",
     await chmod(promptShell, 0o700);
     const terminalId = await openAgentTerminal(harness, "hidden-input", { shell: promptShell });
     await ensureProjectWorkspace(appPage, runtime);
-    let terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    let terminalWindow = appPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
+    await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
+      timeout: 20_000,
+    });
 
     const pending = harness.client.callTool({
       name: "compozy__terminal_request_input",
@@ -558,7 +592,20 @@ test("E2E-008: a two-line terminal selection becomes a sourced conversation quot
     const terminalId = await openAgentTerminal(harness, "quote-source", { shell: quoteShell });
     await stopHoldingTurn(harness, appPage);
     await ensureProjectWorkspace(appPage, runtime);
-    const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
+    // The deep link is the deterministic way to this exact terminal; ambient
+    // adoption is covered by E2E-002/003/004/018.
+    await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(terminalId)}`), {
+      waitUntil: "domcontentloaded",
+    });
+    // The deep link focuses the reconciled window itself; ensure would dock-
+    // click a focused window and minimize it.
+    const terminalWindow = appPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
+    await expect(terminalWindow).toBeVisible({ timeout: 20_000 });
+    await expect(terminalWindow.getByTestId(`terminal-pane-${terminalId}`)).toBeVisible({
+      timeout: 20_000,
+    });
     await expect
       .poll(async () => (await terminalScreen(runtime, harness.workspace.id, terminalId)).content)
       .toContain("quote-beta");
@@ -670,17 +717,11 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.createConfirm.click();
     expect((await createdProfile).ok()).toBe(true);
     await expect(profiles.switcher).toContainText("terminal-b");
+    // Profile-b has its own desktop and no terminals: the ensured window
+    // resolves straight into a fresh terminal owned by terminal-b — the other
+    // profile's terminals are hidden, not closed, and never adopted here.
     terminalWindow = await ensureTerminalWindow(appPage);
-    // The other profile's terminals are hidden, not closed: the routed one is
-    // simply not here under terminal-b.
-    await expect(terminalWindow.getByTestId(`terminal-pane-${defaultTerminalId}`)).toHaveCount(0);
-    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toHaveCount(0);
-    await expect(terminalWindow.getByTestId("terminal-not-found")).toBeVisible();
-    await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveCount(0);
-
-    const profileBWindow = appPage.getByTestId(`os-window-${await windowID(terminalWindow)}`);
-    await profileBWindow.getByRole("button", { name: "Open a new terminal" }).click();
-    const profileBPane = profileBWindow
+    const profileBPane = terminalWindow
       .locator('[data-testid^="terminal-pane-term-"]:visible')
       .first();
     await expect(profileBPane).toBeVisible({ timeout: 20_000 });
@@ -689,7 +730,8 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
       ""
     );
     if (!profileBTerminalId) throw new Error("terminal-b did not expose its terminal id.");
-    terminalWindow = profileBWindow;
+    expect([defaultTerminalId, inputTerminalId]).not.toContain(profileBTerminalId);
+    await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveCount(0);
     const profileBLog = await takeTerminalControl(terminalWindow);
     await profileBLog.click();
     await appPage.keyboard.type("printf 'profile-terminal-b-row\\n'");
@@ -712,10 +754,10 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
     await profiles.switcher.click();
     await profiles.switcherOption("default").click();
     await expect(profiles.switcher).toContainText("default");
+    // Back on default, its own desktop returns with the original window still
+    // showing the input terminal and its pending question.
     terminalWindow = await ensureTerminalWindow(appPage);
-    // Back on default, this window is still routed at terminal-b's terminal —
-    // hidden here — while the pending question shows on the dock badge.
-    await expect(terminalWindow.getByTestId("terminal-not-found")).toBeVisible();
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible();
     await expect(terminalLauncher.locator('[data-slot="os-dock-badge"]')).toHaveText("1");
     expect(
       (await terminalScreen(runtime, harness.workspace.id, defaultTerminalId)).content
@@ -736,12 +778,17 @@ test("E2E-020: profile switches isolate terminals and aggregate journal owners",
 
     await profiles.switcher.click();
     await profiles.switcherOption("default").click();
-    // The deep link is the way to a specific terminal; it retargets the window.
+    // The deep link is the way to a specific terminal; a dock activation then
+    // restores the window in case an earlier gesture left it minimized.
     await appPage.goto(runtime.url(`/terminal/${encodeURIComponent(inputTerminalId)}`), {
       waitUntil: "domcontentloaded",
     });
-    terminalWindow = await ensureTerminalWindow(appPage);
-    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible();
+    terminalWindow = appPage.locator(
+      '[data-slot="os-window-surface"][data-app="terminal"][data-stack-active]'
+    );
+    await expect(terminalWindow.getByTestId(`terminal-pane-${inputTerminalId}`)).toBeVisible({
+      timeout: 20_000,
+    });
     const inputCard = terminalWindow.locator('[data-testid^="terminal-input-request-"]').first();
     await expect(inputCard).toBeVisible();
     await inputCard.getByRole("button", { name: "Decline" }).click();

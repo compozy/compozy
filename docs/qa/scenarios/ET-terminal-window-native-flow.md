@@ -6,13 +6,13 @@ persona: Marina
 journey: J-operate-integrated-terminal
 expected: The Terminal window shows exactly one terminal with no in-app tab strip; more terminals arrive as OS window tabs or windows; Journal and New terminal live in the window head; the first paint uses the full window width without a tab switch.
 entry_points: Web dock Terminal app; window head New terminal and Journal; dock right-click Open in new window / Open as tab
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence:
-last_report:
+evidence: web/e2e/__tests__/terminal.spec.ts E2E-002/E2E-007/E2E-009/E2E-018 + terminal-window-app suite UT-122; docs/qa/reports/2026-08-31-terminal-stabilization.md
+last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
 overlaps: ET-terminal-browser-lifecycle
 ---
 

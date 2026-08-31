@@ -270,6 +270,7 @@ function TerminalWindowController({ windowId }: { windowId: string }) {
       projectLabel={workspace.runtimeWorkspace?.name}
       readOnly={profile.aggregate}
       requestedTerminalId={requestedId}
+      resolveReady={catalog.isFetchedAfterMount}
       terminals={terminals}
       viewerId={viewerId}
       viewerToken={viewerToken}

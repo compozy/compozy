@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"runtime"
@@ -668,6 +669,43 @@ func TestShellIntegrationContract(t *testing.T) {
 		}
 		if !strings.Contains(string(output), ";F;exit=0") {
 			t.Fatalf("human command did not emit its finish marker: output=%q", output)
+		}
+	})
+
+	t.Run("Should emit clean start and finish markers for one human zsh command [UT-123]", func(t *testing.T) {
+		zshPath, err := exec.LookPath("zsh")
+		if err != nil {
+			t.Skipf("zsh is not available: %v", err)
+		}
+		home := t.TempDir()
+		proc := startTestProc(t, ProcSpec{
+			Argv: []string{zshPath}, Env: map[string]string{"HOME": home}, MarkerNonce: "nonce-zsh",
+			ShellIntegration: true, Mode: ModePTY, Cols: 80, Rows: 24,
+		})
+		if _, err := proc.Write([]byte("echo compozy-zsh-command\nexit\n")); err != nil {
+			t.Fatalf("Write(command) error = %v", err)
+		}
+		output, readErr := io.ReadAll(proc.Reader())
+		if readErr != nil {
+			t.Fatalf("ReadAll() error = %v", readErr)
+		}
+		exit, waitErr := proc.Wait(context.Background())
+		if waitErr != nil || exit.Code == nil || *exit.Code != 0 {
+			t.Fatalf("Wait() = %#v error=%v", exit, waitErr)
+		}
+		if err := proc.Close(); err != nil {
+			t.Fatalf("Close() error = %v", err)
+		}
+		if count := strings.Count(string(output), ";S;cmd=echo%20compozy-zsh-command;"); count != 1 {
+			t.Fatalf("zsh command marker count = %d, want 1; output=%q", count, output)
+		}
+		// The finish marker only exists when the precmd hook survives — zsh's
+		// read-only `status` parameter must never be shadowed.
+		if !strings.Contains(string(output), ";F;exit=0") {
+			t.Fatalf("zsh command did not emit its finish marker: output=%q", output)
+		}
+		if strings.Contains(string(output), "read-only variable") {
+			t.Fatalf("zsh hooks errored on a read-only variable: output=%q", output)
 		}
 	})
 }

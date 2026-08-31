@@ -860,6 +860,44 @@ describe("TerminalWindowApp — id-less route resolver and close", () => {
     expect(actions.onOpenTerminal).toHaveBeenCalledOnce();
   });
 
+  it("Should wait for a fresh catalog before resolving the id-less route", async () => {
+    const actions = stubWindowActions();
+    const onSelectTerminal = vi.fn();
+    const { rerender, actions: renderedActions } = renderWindow({
+      actions,
+      onSelectTerminal,
+      requestedTerminalId: null,
+      resolveReady: false,
+      terminals: [],
+    });
+
+    // A cached, pre-mount catalog must not trigger a duplicate create.
+    await new Promise(resolve => setTimeout(resolve, 5));
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+
+    rerender(
+      <TerminalWindowApp
+        actions={renderedActions}
+        engineLoader={stubEngineLoader}
+        inputRequests={[]}
+        interactiveAvailable
+        journal={<div data-testid="journal-slot">journal</div>}
+        limit={TERMINAL_LIMIT}
+        onSelectTerminal={onSelectTerminal}
+        profile={TERMINAL_FIXTURE_PROFILE}
+        requestedTerminalId={null}
+        resolveReady
+        socketFactory={silentSocketFactory}
+        terminals={[PSQL_TERMINAL]}
+        viewerId={TERMINAL_FIXTURE_VIEWER}
+        workspaceId="ws-atlas"
+      />
+    );
+    // Once the catalog is fresh, the running terminal is adopted, not duplicated.
+    await waitFor(() => expect(onSelectTerminal).toHaveBeenCalledExactlyOnceWith(PSQL_TERMINAL.id));
+    expect(actions.onOpenTerminal).not.toHaveBeenCalled();
+  });
+
   it("Should create instead of adopting when the arrival asked for a fresh terminal", async () => {
     const actions = stubWindowActions();
     const onSelectTerminal = vi.fn();

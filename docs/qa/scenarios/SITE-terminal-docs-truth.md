@@ -6,13 +6,13 @@ persona: Lea
 journey: J-learn-terminal-from-docs
 expected: The Terminal section's six pages and the generated command-line reference describe the terminal the daemon actually runs — the tutorial works verbatim, the safety, journal, profile, and platform pages match observed behaviour, and no page promises a capability the runtime refuses.
 entry_points: compozy.com /docs/terminal; /docs/terminal/tutorial; /docs/terminal/agents-and-safety; /docs/terminal/journal-and-recordings; /docs/terminal/profile-segmentation; /docs/terminal/platform-support; /docs/cli/terminal
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: docs/qa/reports/2026-08-26-integrated-terminal.md
-last_report: docs/qa/reports/2026-08-26-integrated-terminal.md
+evidence: packages/site/content/docs/terminal audit (no stale flow claims) + _dx.md kill transcript updated; docs/qa/reports/2026-08-31-terminal-stabilization.md
+last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
 overlaps: ET-compozy-official-skill-discovery; ET-site-docs-search-context
 ---
 
