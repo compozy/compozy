@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
@@ -16,15 +17,20 @@ import (
 )
 
 type projectedSkillAgentCatalog struct {
-	globalEntry  AgentCatalogEntry
-	profile      map[string]AgentCatalogEntry
-	globalErr    error
-	workspaceErr error
+	globalEntry       AgentCatalogEntry
+	defaultEntry      *AgentCatalogEntry
+	profiles          map[string]AgentCatalogEntry
+	workspaceProfiles map[string]AgentCatalogEntry
+	globalErr         error
+	workspaceErr      error
 }
 
 func (c projectedSkillAgentCatalog) ListAgents(context.Context) ([]AgentCatalogEntry, error) {
 	if c.globalErr != nil {
 		return nil, c.globalErr
+	}
+	if c.defaultEntry != nil {
+		return []AgentCatalogEntry{*c.defaultEntry}, nil
 	}
 	return []AgentCatalogEntry{c.globalEntry}, nil
 }
@@ -36,11 +42,16 @@ func (c projectedSkillAgentCatalog) ListAgentsForWorkspace(
 	if c.workspaceErr != nil {
 		return nil, c.workspaceErr
 	}
-	entry, ok := c.profile[resolved.ProfileID]
-	if !ok {
-		return nil, nil
+	if entry, ok := c.workspaceProfiles[resolved.ID+"@pf:"+resolved.ProfileName]; ok {
+		return []AgentCatalogEntry{entry}, nil
 	}
-	return []AgentCatalogEntry{entry}, nil
+	if entry, ok := c.profiles[resolved.ProfileID]; ok {
+		return []AgentCatalogEntry{entry}, nil
+	}
+	if c.defaultEntry != nil {
+		return []AgentCatalogEntry{*c.defaultEntry}, nil
+	}
+	return []AgentCatalogEntry{c.globalEntry}, nil
 }
 
 func (c projectedSkillAgentCatalog) GetAgent(context.Context, string) (AgentCatalogEntry, error) {
@@ -50,36 +61,62 @@ func (c projectedSkillAgentCatalog) GetAgent(context.Context, string) (AgentCata
 func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 	t.Parallel()
 
-	globalAgent := projectedSkillAgent(t, "global")
-	defaultAgent := projectedSkillAgent(t, "default")
-	workAgent := projectedSkillAgent(t, "work")
-	catalog := projectedSkillAgentCatalog{
-		globalEntry: AgentCatalogEntry{Def: globalAgent},
-		profile: map[string]AgentCatalogEntry{
-			"profile-default": {Def: defaultAgent},
-			"profile-work":    {Def: workAgent},
-		},
-	}
+	globalAgent := projectedSkillAgent(t, "global winner", "global body")
+	defaultAgent := projectedSkillAgent(t, "default Profile winner", "default Profile body")
+	workAgent := projectedSkillAgent(t, "work Profile winner", "work Profile body")
+	workspaceProfileAgent := projectedSkillAgent(t, "Workspace and Profile winner", "Workspace and Profile body")
 	tests := []struct {
-		name        string
-		resolved    *workspacepkg.ResolvedWorkspace
-		description string
+		name     string
+		resolved *workspacepkg.ResolvedWorkspace
+		catalog  projectedSkillAgentCatalog
+		want     projectedSkillAgentFixture
 	}{
-		{name: "Should resolve a global Agent without a Workspace", description: "global"},
 		{
-			name: "Should preserve a non-default Profile without a Workspace",
+			name: "Should use the global Agent when it is the only candidate",
+			catalog: projectedSkillAgentCatalog{
+				globalEntry: globalAgent.entry,
+			},
+			want: globalAgent,
+		},
+		{
+			name: "Should let the default Profile Agent override the global Agent",
+			catalog: projectedSkillAgentCatalog{
+				globalEntry:  globalAgent.entry,
+				defaultEntry: &defaultAgent.entry,
+			},
+			want: defaultAgent,
+		},
+		{
+			name: "Should let a non-default Profile Agent override the default Profile Agent",
 			resolved: &workspacepkg.ResolvedWorkspace{
 				ProfileID: "profile-work", ProfileName: "work", ProfileRoot: t.TempDir(),
 			},
-			description: "work",
+			catalog: projectedSkillAgentCatalog{
+				globalEntry:  globalAgent.entry,
+				defaultEntry: &defaultAgent.entry,
+				profiles: map[string]AgentCatalogEntry{
+					"profile-work": workAgent.entry,
+				},
+			},
+			want: workAgent,
 		},
 		{
-			name: "Should preserve the Workspace and Profile projection",
+			name: "Should let a Workspace and Profile Agent override every lower layer",
 			resolved: &workspacepkg.ResolvedWorkspace{
 				ProfileID: "profile-work", ProfileName: "work",
 				Workspace: workspacepkg.Workspace{ID: "workspace-test", RootDir: t.TempDir()},
 			},
-			description: "work",
+			catalog: projectedSkillAgentCatalog{
+				globalEntry:  globalAgent.entry,
+				defaultEntry: &defaultAgent.entry,
+				profiles: map[string]AgentCatalogEntry{
+					"profile-work": workAgent.entry,
+				},
+				workspaceProfiles: map[string]AgentCatalogEntry{
+					"workspace-test@pf:work": workspaceProfileAgent.entry,
+				},
+			},
+			want: workspaceProfileAgent,
 		},
 	}
 	for _, tt := range tests {
@@ -87,7 +124,7 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 			t.Parallel()
 			handlers := &BaseHandlers{
 				SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),
-				AgentCatalog:   catalog,
+				AgentCatalog:   tt.catalog,
 			}
 			request := httptest.NewRequestWithContext(
 				t.Context(), "GET", "/api/skills?for_agent=extension-agent", http.NoBody,
@@ -98,9 +135,24 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 			if err != nil {
 				t.Fatalf("resolveScopedSkills() error = %v", err)
 			}
-			if len(got) != 1 || got[0].Meta.Name != "sentinel" ||
-				got[0].Meta.Description != tt.description || got[0].Source != skills.SourceAgentLocal {
-				t.Fatalf("resolveScopedSkills() = %#v, want %q Agent-local sentinel", got, tt.description)
+			if len(got) != 1 {
+				t.Fatalf("len(resolveScopedSkills()) = %d, want 1 (%#v)", len(got), got)
+			}
+			if got[0].Meta.Name != "sentinel" || got[0].Meta.Description != tt.want.description ||
+				got[0].Source != skills.SourceAgentLocal || got[0].FilePath != tt.want.skillPath {
+				t.Fatalf(
+					"resolveScopedSkills() = %#v, want %q from %q",
+					got,
+					tt.want.description,
+					tt.want.skillPath,
+				)
+			}
+			content, err := handlers.SkillsRegistry.LoadContent(t.Context(), got[0])
+			if err != nil {
+				t.Fatalf("SkillsRegistry.LoadContent() error = %v", err)
+			}
+			if got := strings.TrimSpace(content); got != tt.want.body {
+				t.Fatalf("SkillsRegistry.LoadContent() = %q, want %q", got, tt.want.body)
 			}
 		})
 	}
@@ -161,7 +213,14 @@ func TestProfileOnlySkillScopePreservesProfileIdentity(t *testing.T) {
 	})
 }
 
-func projectedSkillAgent(t *testing.T, description string) compozyconfig.AgentDef {
+type projectedSkillAgentFixture struct {
+	entry       AgentCatalogEntry
+	description string
+	body        string
+	skillPath   string
+}
+
+func projectedSkillAgent(t *testing.T, description string, body string) projectedSkillAgentFixture {
 	t.Helper()
 	agentDir := filepath.Join(t.TempDir(), "agents", "extension-agent")
 	if err := os.MkdirAll(filepath.Join(agentDir, "skills", "sentinel"), 0o755); err != nil {
@@ -171,13 +230,19 @@ func projectedSkillAgent(t *testing.T, description string) compozyconfig.AgentDe
 	if err := os.WriteFile(agentPath, []byte("---\nname: extension-agent\n---\nagent\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile(agent) error = %v", err)
 	}
-	skill := "---\nname: sentinel\ndescription: " + description + "\n---\nbody\n"
+	skillPath := filepath.Join(agentDir, "skills", "sentinel", "SKILL.md")
+	skill := "---\nname: sentinel\ndescription: " + description + "\n---\n" + body + "\n"
 	if err := os.WriteFile(
-		filepath.Join(agentDir, "skills", "sentinel", "SKILL.md"),
+		skillPath,
 		[]byte(skill),
 		0o644,
 	); err != nil {
 		t.Fatalf("WriteFile(skill) error = %v", err)
 	}
-	return compozyconfig.AgentDef{Name: "extension-agent", SourcePath: agentPath}
+	return projectedSkillAgentFixture{
+		entry:       AgentCatalogEntry{Def: compozyconfig.AgentDef{Name: "extension-agent", SourcePath: agentPath}},
+		description: description,
+		body:        body,
+		skillPath:   skillPath,
+	}
 }
