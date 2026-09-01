@@ -1,4 +1,4 @@
-## 0.3.0 - 2026-08-27
+## 0.3.0 - 2026-09-01
 
 ### ♻️ Refactoring
 
@@ -62,6 +62,8 @@
 - Expand profile identity customization (#484)
 - Absorb ecosystem skill folders and expose skills back (#488)
 - Merge spec-cycle task delivery loops (#491)
+- Rebuild ACP runtime catalogs (#498)
+- Support child Loop config overrides (#494)
 
 ### 🐛 Bug Fixes
 
@@ -154,6 +156,16 @@
 - Publish npm packages with trusted identity (#495)
 - Accept setup-node OIDC placeholder
 - Preserve web assets in release module
+- Remove npm token from release recovery
+- Allow extension loops to call owned tools (#503)
+- Honor selected orchestrated implementer (#502)
+- Externalize oversized loop action results (#510)
+- Force loop cancellation (#509)
+- Enable prompts for managed sessions (#517)
+- Preserve sparse fan-out roster rows (#518)
+- Scope Loop extension tools to worktrees (#519)
+- Preserve profile-scoped extension Agent skills (#516)
+- Prevent session cancel and clear races (#523)
 
 ### 🔧 Miscellaneous Tasks
 
