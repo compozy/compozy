@@ -9,12 +9,14 @@ entry_points: compozy.com /docs/terminal; /docs/terminal/tutorial; /docs/termina
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: packages/site/content/docs/terminal audit (no stale flow claims) + _dx.md kill transcript updated; docs/qa/reports/2026-08-31-terminal-stabilization.md
-last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa; docs/qa/reports/2026-09-01-terminal-rework.md
+last_report: docs/qa/reports/2026-09-01-terminal-rework.md
 overlaps: ET-compozy-official-skill-discovery; ET-site-docs-search-context
 ---
+
+Reset by ADR-019 (terminal docs replaced the agent-reported block section with plain-output and window-materialization truth) and re-walked on 2026-09-01 — see `last_report`.
 
 reset 2026-08-31: the window-native rework changed the documented flow (dock lands in a terminal; OS window tabs; idempotent close); docs must match before this can pass.
 Planned by integrated-terminal task 09 for the public documentation pages shipped by task 06 and

@@ -9,12 +9,14 @@ entry_points: Web dock Terminal app; window head New terminal and Journal; dock 
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: web/e2e/__tests__/terminal.spec.ts E2E-002/E2E-007/E2E-009/E2E-018 + terminal-window-app suite UT-122; docs/qa/reports/2026-08-31-terminal-stabilization.md
-last_report: docs/qa/reports/2026-08-31-terminal-stabilization.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-terminal-rework-20260901-150952-749450-lab/qa-artifacts/qa; docs/qa/reports/2026-09-01-terminal-rework.md
+last_report: docs/qa/reports/2026-09-01-terminal-rework.md
 overlaps: ET-terminal-browser-lifecycle
 ---
+
+Reset by ADR-019 (agent-opened interactive terminals auto-materialize managed Terminal windows) and re-walked on 2026-09-01 — see `last_report`.
 
 Added 2026-08-31 by the window-native UX rework (stabilization prompt
 `docs/prompts/20260831-1333_integrated-terminal-stabilization-ux-rework.md`).

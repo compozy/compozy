@@ -16,14 +16,19 @@
 The CompozyOS terminal is a deliberate, visible work surface. Use it when at least one trigger is
 true:
 
-- the operator asks to see, watch, or follow the work;
+- the operator asks you to open, use, or manage a terminal, or to see, watch, or follow the work;
 - the command is interactive or will request input;
 - a long-running process may need supervision or human takeover;
 - the task uses a full-screen program or demo.
 
+Every interactive terminal you open (`terminal_open`, or `terminal_exec` with `visible: true`)
+appears as a Terminal window on the operator's CompozyOS desktop without stealing their focus. The
+operator watches it live and can take over; the operator closing that window never kills the
+process, and a window they closed does not reopen for the same terminal.
+
 For routine internal commands, keep using the provider's normal command tool. Provider-internal
-commands render in session activity; they do not create a CompozyOS terminal, control lease, or
-terminal journal row.
+commands render in session activity as plain command output; they do not create a CompozyOS
+terminal, control lease, or terminal journal row.
 
 ## Native Toolset
 
@@ -45,11 +50,15 @@ Resolve `compozy__tool_info` for the exact descriptor, schema, risk, and availab
 first call. Never reconstruct inputs from this reference.
 
 Use `exec` for one command. Set its visible mode only when an activation trigger applies. Use `open`
-for a persistent interactive shell. Use `read` for bounded screen or scrollback data and `wait` for a
-bounded output or lifecycle condition. Use `list` to discover the current workspace and profile
-catalog instead of retaining terminal IDs from another scope. `close` is idempotent: closing an
-already-ended terminal succeeds and reports the recorded exit, while `signal` and `write` on an
-ended terminal still fail with `terminal_exited`.
+for a persistent interactive shell the operator can watch in its desktop window; drive it as a loop —
+`write` the input, then `wait` for exit, idle, or a match, then `read` the bounded result — instead
+of writing blind. Use `read` for bounded screen or scrollback data and `wait` for a bounded output
+or lifecycle condition. Use `list` to discover the current workspace and profile catalog instead of
+retaining terminal IDs from another scope, and check it before opening a new terminal. Read
+terminal IDs and lease state from tool responses instead of predicting them. Close only terminals
+your own run opened. `close` is idempotent: closing an already-ended terminal succeeds and reports
+the recorded exit, while `signal` and `write` on an ended terminal still fail with
+`terminal_exited`.
 
 ## Approval And Control
 
