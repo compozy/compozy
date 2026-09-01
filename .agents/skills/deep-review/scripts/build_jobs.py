@@ -39,10 +39,10 @@ from _common import (
     write_json,
 )
 
-DEFAULT_MAX_COHORT_FILES = 100
-MAX_COHORT_CHANGED_LINES = 6000
-DEFAULT_MAX_POLISH_FILES = 20
-MAX_POLISH_CHANGED_LINES = 1200
+DEFAULT_MAX_COHORT_FILES = 200
+MAX_COHORT_CHANGED_LINES = 15000
+DEFAULT_MAX_POLISH_FILES = 200
+MAX_POLISH_CHANGED_LINES = 15000
 
 REVIEWER_PLACEHOLDERS = {
     "cohort_name", "risk", "target", "file_list", "scope_instruction", "context",
@@ -361,7 +361,7 @@ def split_hunk(hunk: dict, limit: int) -> list[dict]:
 def polish_cohorts(
     cohorts: list[dict], selected: dict[str, dict], max_files: int, max_lines: int
 ) -> list[dict]:
-    """Create a second, smaller ownership partition for the polish lane."""
+    """Create a second broad ownership partition for the polish lane."""
     result: list[dict] = []
     for cohort in cohorts:
         units: list[tuple[str, list[dict]]] = []
