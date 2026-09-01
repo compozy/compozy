@@ -142,6 +142,17 @@ const taskRunListInputSchema = `{
 	"additionalProperties":false
 }`
 
+const taskRunResultInputSchema = `{
+	"type":"object",
+	"required":["run_id"],
+	"properties":{
+		"run_id":{"type":"string"},
+		"offset":{"type":"integer","minimum":0},
+		"limit":{"type":"integer","minimum":0,"maximum":65536}
+	},
+	"additionalProperties":false
+}`
+
 const taskRunReviewRequestInputSchema = `{
 	"type":"object",
 	"required":["task_id","run_id"],

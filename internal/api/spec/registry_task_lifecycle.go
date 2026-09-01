@@ -15,6 +15,7 @@ func registryTaskLifecycleOperations() []OperationSpec {
 		listTaskRunsOperationSpec(),
 		enqueueTaskRunOperationSpec(),
 		getTaskRunOperationSpec(),
+		readTaskRunResultOperationSpec(),
 		taskRunConversationStreamOperation(),
 	}
 }
@@ -260,6 +261,30 @@ func getTaskRunOperationSpec() OperationSpec {
 			{Status: 200, Description: "OK", Body: contract.TaskRunDetailResponse{}},
 			{Status: 404, Description: specTaskRunNotFoundDescription, Body: contract.ErrorPayload{}},
 			{Status: 422, Description: "Invalid task-run id", Body: contract.ErrorPayload{}},
+			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
+			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
+		},
+	}
+}
+
+func readTaskRunResultOperationSpec() OperationSpec {
+	return OperationSpec{
+		Method:      httpMethodGet,
+		Path:        specAPITaskRunsIDResultPath,
+		OperationID: "readTaskRunResult",
+		Summary:     "Read one exact byte page from a task-run result",
+		Tags:        []string{specTasksKey},
+		Transports:  []Transport{TransportHTTP, TransportUDS},
+		Parameters: []ParameterSpec{
+			pathParam("id", "Task run id"),
+			intQueryParam("offset", "Zero-based byte offset"),
+			intQueryParam("limit", "Page size in bytes; defaults to and is capped at 65536"),
+		},
+		Responses: []ResponseSpec{
+			{Status: 200, Description: "OK", Body: contract.TaskRunResultPageResponse{}},
+			{Status: 400, Description: "Invalid task-run result byte range", Body: contract.ErrorPayload{}},
+			{Status: 404, Description: "Task-run result not found", Body: contract.ErrorPayload{}},
+			{Status: 502, Description: "Task-run result is corrupt or unreadable", Body: contract.ErrorPayload{}},
 			{Status: 503, Description: specTaskServiceIsNotConfiguredDescription, Body: contract.ErrorPayload{}},
 			{Status: 500, Description: specInternalServerErrorDescription, Body: contract.ErrorPayload{}},
 		},

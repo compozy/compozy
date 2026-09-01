@@ -209,10 +209,3 @@ func limitSkills(skillList []*skills.Skill, limit int) []*skills.Skill {
 	}
 	return skillList[:limit]
 }
-
-func limitToolViews(views []toolspkg.ToolView, limit int) []toolspkg.ToolView {
-	if limit <= 0 || limit >= len(views) {
-		return views
-	}
-	return views[:limit]
-}

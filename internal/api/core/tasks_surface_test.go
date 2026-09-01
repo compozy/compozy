@@ -193,8 +193,14 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 			Attempt:            2,
 			Origin:             taskpkg.Origin{Kind: taskpkg.OriginKindHTTP, Ref: "tasks.start_run"},
 			DesignationGroupID: "designation-group",
-			Metadata:           json.RawMessage(`{"designation":{"index":0,"brief":"Coordinate the group"}}`),
-			QueuedAt:           now.Add(-10 * time.Minute),
+			RunResultState: &taskpkg.RunResultState{
+				RunResultDescriptor: taskpkg.RunResultDescriptor{
+					ResultRef:   "sha256:external-result",
+					ResultBytes: 70000,
+				},
+			},
+			Metadata: json.RawMessage(`{"designation":{"index":0,"brief":"Coordinate the group"}}`),
+			QueuedAt: now.Add(-10 * time.Minute),
 		},
 		Task: &taskpkg.Reference{
 			ID:             "task-1",
@@ -237,7 +243,10 @@ func TestExpandedTaskPayloadBuildersPreserveLiveAndAggregateFields(t *testing.T)
 		runDetailPayload.Run.DesignationGroupID != "designation-group" ||
 		runDetailPayload.Run.Designation == nil ||
 		runDetailPayload.Run.Designation.Index != 0 ||
-		runDetailPayload.Run.Designation.Brief != "Coordinate the group" {
+		runDetailPayload.Run.Designation.Brief != "Coordinate the group" ||
+		runDetailPayload.Run.ResultRef != "sha256:external-result" ||
+		runDetailPayload.Run.ResultBytes != 70000 ||
+		len(runDetailPayload.Run.Result) != 0 {
 		t.Fatalf("TaskRunDetailPayloadFromView() = %#v", runDetailPayload)
 	}
 	if nilSession := core.TaskRunSessionPayloadFromSession(nil); nilSession != nil {
@@ -1023,6 +1032,7 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	var inspectTaskActor taskpkg.ActorContext
 	var inspectRunActor taskpkg.ActorContext
 	var runDetailActor taskpkg.ActorContext
+	var runResultActor taskpkg.ActorContext
 	var timelineActor taskpkg.ActorContext
 	var timelineQuery taskpkg.TimelineQuery
 	var treeActor taskpkg.ActorContext
@@ -1038,6 +1048,22 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 	var streamQuery taskpkg.StreamQuery
 
 	tasks := &testutil.StubTaskManager{
+		ReadTaskRunResultFn: func(
+			_ context.Context,
+			runID string,
+			offset int64,
+			limit int64,
+			actor taskpkg.ActorContext,
+		) (taskpkg.RunResultPage, error) {
+			runResultActor = actor
+			if runID != "run-1" || offset != 2 || limit != 3 {
+				t.Fatalf("ReadTaskRunResult() input = %q/%d/%d, want run-1/2/3", runID, offset, limit)
+			}
+			return taskpkg.RunResultPage{
+				RunID: "run-1", ResultRef: "sha256:external-result", Offset: 2, Bytes: 3,
+				TotalBytes: 8, DataBase64: "Y2Rl", NextOffset: 5, EOF: false,
+			}, nil
+		},
 		InspectTaskFn: func(_ context.Context, id string, actor taskpkg.ActorContext) (*taskpkg.InspectView, error) {
 			inspectTaskActor = actor
 			return &taskpkg.InspectView{
@@ -1460,6 +1486,24 @@ func TestBaseHandlersExpandedTaskEndpoints(t *testing.T) {
 		}
 		if usage.lastQuery.WorkspaceID != "ws-alpha" || usage.lastQuery.RunID != "run-1" {
 			t.Fatalf("run detail usage query = %#v, want workspace/run fence", usage.lastQuery)
+		}
+
+		resultResp := performRequest(
+			t,
+			fixture.Engine,
+			http.MethodGet,
+			"/task-runs/run-1/result?offset=2&limit=3",
+			nil,
+		)
+		if resultResp.Code != http.StatusOK {
+			t.Fatalf("run result status = %d, want 200; body=%s", resultResp.Code, resultResp.Body.String())
+		}
+		var resultPayload contract.TaskRunResultPageResponse
+		testutil.DecodeJSONResponse(t, resultResp, &resultPayload)
+		if resultPayload.RunID != "run-1" || resultPayload.ResultRef != "sha256:external-result" ||
+			resultPayload.NextOffset == nil || *resultPayload.NextOffset != 5 || resultPayload.EOF ||
+			runResultActor.Origin.Ref != "tasks.get_run" {
+			t.Fatalf("run result payload/actor = %#v / %#v", resultPayload, runResultActor)
 		}
 
 		inspectTaskResp := performRequest(t, fixture.Engine, http.MethodGet, "/tasks/task-1/inspect", nil)

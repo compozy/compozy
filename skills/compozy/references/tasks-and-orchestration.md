@@ -26,6 +26,13 @@ Other filters cover scope/workspace, canonical status, priority, draft inclusion
 
 Use `compozy task run list <task-id> -o json`, HTTP/UDS `GET /api/tasks/{id}/runs`, or native `compozy__task_run_list` for run history. All three filter by status, attached session, resolved participation channel, and limit; filtering happens before the limit is applied.
 
+Run payloads carry either an inline `result` or an external `result_ref` plus exact `result_bytes`.
+Read either form with `compozy__task_run_result`, CLI `compozy task run result <run-id>`, HTTP/UDS
+`GET /api/task-runs/{id}/result`, or Host API `tasks/runs/result`. Page by byte offset from
+`next_offset` until `eof`; the default and maximum page is 64 KiB. Structured pages carry base64.
+Join bytes before decoding UTF-8 text because a character may cross a page boundary. Missing,
+no-result, and foreign-workspace reads share not-found behavior.
+
 The catalog returns lean `tasks`, exact fully filtered `facets.statuses/owners`, and counted `page` (`total`, normalized `limit`, `has_more`, `next_cursor`). Canonical status is derived before filtering. Pages default to 50, cap at 200, and sort by latest durable activity or by priority then activity. Opaque cursors bind normalized scope, workspace, filters, and sort, but not limit; use task get/inspect for dependency, pause/block, and other rich detail omitted from list rows.
 
 The full actor inbox has no CLI or native tool; use HTTP/UDS `GET /api/observe/tasks/inbox`. It filters by scope/workspace, owner kind/reference, lane (`my_work`, `approvals`, `failed_runs`, `blocked`, `archived`), canonical status, priority, unread state, title/identifier query, cursor, and limit.

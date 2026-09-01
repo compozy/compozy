@@ -12,10 +12,11 @@ import (
 
 // ToolCallActionExecutor adapts a ToolID action to RuntimeRegistry.Call.
 type ToolCallActionExecutor struct {
-	runtime     tools.Registry
-	toolID      tools.ToolID
-	eventReader ActionEventRangeReader
-	channel     ChannelResultHarvester
+	runtime        tools.Registry
+	toolID         tools.ToolID
+	eventReader    ActionEventRangeReader
+	channel        ChannelResultHarvester
+	maxResultBytes int64
 }
 
 // Execute calls RuntimeRegistry.Call with rendered action params.
@@ -62,6 +63,9 @@ func (e *ToolCallActionExecutor) Execute(
 	})
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("call action tool %q: %w", e.toolID, err)
+	}
+	if result.Truncated {
+		return ActionRawResult{}, actionResultTooLargeError(node, e.toolID, result, e.maxResultBytes)
 	}
 	raw := ActionRawResult{
 		ToolResult:      result,

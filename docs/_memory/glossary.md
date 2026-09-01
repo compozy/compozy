@@ -108,7 +108,7 @@ Each provide binds the extension to the CompozyOS → extension service methods 
 
 The single authored list of **Host API methods an extension may call**, declared as `permissions.requires` in the extension manifest.
 
-The list is validated against a closed 95-method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
+The list is validated against the closed Host API method set at build, validate, install, and daemon load. CompozyOS **derives** the operator-facing consent areas from it (`sessions:read`, `memory:write`, …) — consent areas are a display and policy projection, never an authored field.
 
 Enforcement is per call against the effective grant, which is the declared list narrowed by the install source tier. Published sources (`curated`, `github`, `git`) run under the marketplace ceiling; local-path installs and dev links carry no ceiling.
 

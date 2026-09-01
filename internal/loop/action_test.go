@@ -48,6 +48,50 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 		}
 	})
 
+	t.Run("Should reject an oversized reserved action result with node-aware guidance", func(t *testing.T) {
+		t.Parallel()
+
+		const maxResultBytes int64 = 64
+		registry := &fakeActionToolRegistry{getErr: errors.New("registry should not be called")}
+		actions := newActionRegistryForTest(
+			t,
+			registry,
+			loop.WithActionDefaultMaxResultBytes(maxResultBytes),
+		)
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, string(dsl.ActionTransform))
+		if err != nil {
+			t.Fatalf("Resolve(transform) error = %v", err)
+		}
+		node := dsl.Node{
+			ID: "summarize", Class: dsl.NodeClassAction, Kind: string(dsl.ActionTransform),
+			Params: dsl.NodeParams{"map": map[string]any{
+				"summary": map[string]any{"value": strings.Repeat("x", 128)},
+			}},
+		}
+		raw, err := executor.Execute(t.Context(), node, loop.ActionExecutionInput{})
+		if err != nil {
+			t.Fatalf("Execute(transform) error = %v", err)
+		}
+		_, err = actions.Harvest(t.Context(), executor, node, raw)
+		if !errors.Is(err, loop.ErrActionResultTooLarge) {
+			t.Fatalf("Harvest(transform) error = %v, want ErrActionResultTooLarge", err)
+		}
+		provider, ok := errors.AsType[loop.SafeActionFailureProvider](err)
+		if !ok {
+			t.Fatalf("Harvest(transform) error = %T, want SafeActionFailureProvider", err)
+		}
+		failure := provider.SafeActionFailure()
+		if failure.Code != string(loop.ReasonCodeActionResultTooLarge) ||
+			failure.Target != "summarize" ||
+			!strings.Contains(failure.Cause, `kind "transform"`) ||
+			!strings.Contains(failure.Cause, "64-byte result limit") {
+			t.Fatalf("failure = %#v, want bounded transform guidance", failure)
+		}
+		if registry.getCount() != 0 {
+			t.Fatalf("RuntimeRegistry.Get calls = %d, want 0", registry.getCount())
+		}
+	})
+
 	t.Run("Should resolve non reserved ToolID through RuntimeRegistry", func(t *testing.T) {
 		t.Parallel()
 
@@ -273,6 +317,58 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		}
 		if input["id"] != "{{ .inputs.must_not_render }}" {
 			t.Fatalf("reviewed call input = %#v, want admitted literal", input)
+		}
+	})
+
+	t.Run("Should reject a truncated tool result with node-aware budget guidance", func(t *testing.T) {
+		t.Parallel()
+
+		const maxResultBytes int64 = 262144
+		toolID := tools.ToolID("compozy__task_list")
+		registry := &fakeActionToolRegistry{
+			views: map[tools.ToolID]tools.ToolView{toolID: {
+				Descriptor: tools.Descriptor{ID: toolID, MaxResultBytes: maxResultBytes},
+			}},
+			callResult: tools.ToolResult{
+				Truncated: true,
+				Bytes:     512,
+				Metadata: map[string]json.RawMessage{
+					"truncated_from_bytes": json.RawMessage(`310124`),
+				},
+			},
+		}
+		actions := newActionRegistryForTest(
+			t,
+			registry,
+			loop.WithActionDefaultMaxResultBytes(maxResultBytes),
+		)
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		_, err = executor.Execute(t.Context(), dsl.Node{
+			ID: "load_tasks", Class: dsl.NodeClassAction, Kind: toolID.String(),
+		}, loop.ActionExecutionInput{WorkspaceID: "ws-1", Actor: mustDaemonActor(t)})
+		if !errors.Is(err, loop.ErrActionResultTooLarge) {
+			t.Fatalf("Execute() error = %v, want ErrActionResultTooLarge", err)
+		}
+		provider, ok := errors.AsType[loop.SafeActionFailureProvider](err)
+		if !ok {
+			t.Fatalf("Execute() error = %T, want SafeActionFailureProvider", err)
+		}
+		failure := provider.SafeActionFailure()
+		if failure.Code != string(loop.ReasonCodeActionResultTooLarge) || failure.Target != "load_tasks" {
+			t.Fatalf("failure = %#v, want action_result_too_large for load_tasks", failure)
+		}
+		if !strings.Contains(failure.Cause, toolID.String()) ||
+			!strings.Contains(failure.Cause, "310124 bytes") ||
+			!strings.Contains(failure.Cause, "262144-byte result limit") ||
+			!strings.Contains(failure.Recovery, "tools.default_max_result_bytes") {
+			t.Fatalf("failure = %#v, want bounded source, bytes, limit, and remediation", failure)
+		}
+		if got := len(registry.calls); got != 1 {
+			t.Fatalf("RuntimeRegistry.Call count = %d, want 1", got)
 		}
 	})
 

@@ -311,6 +311,7 @@ func expectedNativeEntries() map[string]toolmeta.Entry {
 		"compozy__task_run_fail":                  expectedNativeEntry("Reporting failure", " ", false, "✅", "auto"),
 		"compozy__task_run_heartbeat":             expectedNativeEntry("Renewing", " ", false, "✅", "auto"),
 		"compozy__task_run_list":                  expectedNativeEntry("Reading", " ", false, "✅", "auto"),
+		"compozy__task_run_result":                expectedNativeEntry("Reading", " ", false, "✅", "auto"),
 		"compozy__task_run_release":               expectedNativeEntry("Releasing", " ", false, "✅", "auto"),
 		"compozy__task_run_review_list":           expectedNativeEntry("Reading", " ", false, "✅", "auto"),
 		"compozy__task_run_review_request":        expectedNativeEntry("Requesting review", " ", false, "✅", "auto"),

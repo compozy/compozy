@@ -119,6 +119,7 @@ var HostAPITasksUpdateContract = HostAPIMethodContract[TaskUpdateParams, Task]{M
 var HostAPITasksCancelContract = HostAPIMethodContract[TaskCancelParams, Task]{Method: HostAPIMethodTasksCancel}
 var HostAPITasksRunsContract = HostAPIMethodContract[TaskRunsParams, []TaskRun]{Method: HostAPIMethodTasksRuns}
 var HostAPITasksRunsGetContract = HostAPIMethodContract[TaskRunGetParams, TaskRunDetail]{Method: HostAPIMethodTasksRunsGet}
+var HostAPITasksRunsResultContract = HostAPIMethodContract[TaskRunResultParams, TaskRunResultPage]{Method: HostAPIMethodTasksRunsResult}
 var HostAPITasksRunsEnqueueContract = HostAPIMethodContract[TaskRunEnqueueParams, TaskRun]{Method: HostAPIMethodTasksRunsEnqueue}
 var HostAPITasksRunsStartContract = HostAPIMethodContract[TaskRunStartParams, TaskRun]{Method: HostAPIMethodTasksRunsStart}
 var HostAPITasksRunsAttachSessionContract = HostAPIMethodContract[TaskRunAttachSessionParams, TaskRun]{Method: HostAPIMethodTasksRunsAttachSession}

@@ -189,7 +189,7 @@ func NewCoordinatorRunCompletedEvent(
 		completedRunPayload{
 			Status:         run.Status,
 			TaskStatus:     taskRecord.Status,
-			Result:         cloneRawJSON(rawJSONValue(run.Result)),
+			Result:         run.ResultValue(),
 			ClaimTokenHash: run.ClaimTokenHash,
 		},
 	)

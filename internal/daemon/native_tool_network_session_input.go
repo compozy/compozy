@@ -17,7 +17,8 @@ import (
 )
 
 type toolListInput struct {
-	Limit int `json:"limit,omitempty"`
+	Offset int `json:"offset,omitempty"`
+	Limit  int `json:"limit,omitempty"`
 }
 
 type toolSearchInput struct {

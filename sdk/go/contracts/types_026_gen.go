@@ -228,6 +228,8 @@ type TaskRun struct {
 	Error                        string                      `json:"error,omitempty"`
 	Metadata                     json.RawMessage             `json:"metadata,omitempty"`
 	Result                       json.RawMessage             `json:"result,omitempty"`
+	ResultRef                    string                      `json:"result_ref,omitempty"`
+	ResultBytes                  int64                       `json:"result_bytes,omitempty"`
 }
 
 type TaskRunAttachSessionParams struct {

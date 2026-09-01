@@ -4,11 +4,10 @@ import type { ComponentPropsWithoutRef } from "react";
 import { Button, cn, DescriptionCard, Section } from "@compozy/ui";
 
 import type { TaskDetailView, TaskRun, TaskTimelineItem } from "../types";
-import { latestTaskRun } from "../lib/task-run-presentation";
 import { TaskActivityItem } from "./task-activity-item";
 import { TaskDependenciesSection } from "./task-dependencies-section";
 import { TaskNowStrip, type TaskNowStripHandlers } from "./task-now-strip";
-import { TaskResultSection } from "./task-result-section";
+import { TaskResultSection, type TaskResultPageController } from "./task-result-section";
 import { TaskSubtasksSection } from "./task-subtasks-section";
 import { TASK_RESULT_ANCHOR_ID } from "./task-overview-constants";
 
@@ -23,19 +22,29 @@ export interface TaskOverviewPanelProps extends ComponentPropsWithoutRef<"div"> 
   nowPending?: Parameters<typeof TaskNowStrip>[0]["pending"];
   onViewAllActivity: () => void;
   activeRunElapsed?: string;
+  completedResult?: {
+    external?: TaskResultPageController;
+    run: TaskRun;
+  };
 }
 
-function CompletedTaskResult({ runs }: { runs: readonly TaskRun[] }) {
-  const lastCompleted = latestTaskRun(runs, "completed");
-  if (!lastCompleted) return null;
-
+function CompletedRunResult({
+  external,
+  run,
+}: {
+  external?: TaskResultPageController;
+  run: TaskRun;
+}) {
   return (
     <TaskResultSection
       data-testid="tasks-detail-result-section"
       emptyMessage="No result was recorded for the completed run."
       id={TASK_RESULT_ANCHOR_ID}
       jsonTestId="tasks-detail-result-json"
-      result={lastCompleted.result}
+      external={run.result_ref ? external : undefined}
+      result={run.result}
+      resultBytes={run.result_bytes}
+      resultRef={run.result_ref}
     />
   );
 }
@@ -56,6 +65,7 @@ export function TaskOverviewPanel({
   nowPending,
   onViewAllActivity,
   activeRunElapsed,
+  completedResult,
   className,
   ...props
 }: TaskOverviewPanelProps) {
@@ -79,7 +89,13 @@ export function TaskOverviewPanel({
         runs={runs}
       />
 
-      {record.status === "completed" ? <CompletedTaskResult runs={runs} /> : null}
+      {record.status === "completed" && completedResult ? (
+        <CompletedRunResult
+          external={completedResult.external}
+          key={completedResult.run.id}
+          run={completedResult.run}
+        />
+      ) : null}
 
       <Section data-testid="tasks-detail-description" label="Description">
         {description ? (

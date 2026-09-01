@@ -21,7 +21,9 @@ import {
   TaskRunRail,
   TaskRunReviewCard,
   TaskRunSubhead,
+  useTaskRunResult,
 } from "@/systems/tasks";
+import type { TaskRun } from "@/systems/tasks";
 
 export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: string }) {
   const liveDataEnabled = useCurrentWindowLiveDataEnabled();
@@ -118,17 +120,10 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
           <div className={TASK_DETAIL_GRID_CLASS}>
             <main className="flex min-w-0 flex-col gap-6" data-testid="tasks-run-detail-main">
               <TaskRunOutcome nextAttempt={nextAttempt} run={page.run} />
-              <TaskResultSection
-                data-testid="tasks-run-result"
-                emptyMessage={
-                  record.status === "completed"
-                    ? "No result recorded."
-                    : record.ended_at
-                      ? "No result recorded. The run ended before reaching a checkpoint."
-                      : "No result yet. It lands here the moment the run completes."
-                }
-                jsonTestId="tasks-run-result-json"
-                result={record.result}
+              <TaskRunResult
+                key={record.id}
+                run={record}
+                workspaceId={page.task?.task.workspace_id ?? ""}
               />
 
               {page.reviewsLoading || page.reviewsError || page.reviews.length > 0 ? (
@@ -198,5 +193,31 @@ export function TaskRunLocation({ taskId, runId }: { taskId: string; runId: stri
         </div>
       </div>
     </div>
+  );
+}
+
+function TaskRunResult({ run, workspaceId }: { run: TaskRun; workspaceId: string }) {
+  const external = useTaskRunResult({
+    resultBytes: run.result_bytes ?? 0,
+    resultRef: run.result_ref ?? "",
+    runId: run.id,
+    workspaceId,
+  });
+  return (
+    <TaskResultSection
+      data-testid="tasks-run-result"
+      emptyMessage={
+        run.status === "completed"
+          ? "No result recorded."
+          : run.ended_at
+            ? "No result recorded. The run ended before reaching a checkpoint."
+            : "No result yet. It lands here the moment the run completes."
+      }
+      external={run.result_ref ? external : undefined}
+      jsonTestId="tasks-run-result-json"
+      result={run.result}
+      resultBytes={run.result_bytes}
+      resultRef={run.result_ref}
+    />
   );
 }

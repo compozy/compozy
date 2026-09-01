@@ -56,7 +56,7 @@ export interface SettingsSkillSourcesModel {
   removeCustom: (path: string) => void;
   validateEntry: (entry: string) => SkillSourceEntryError | null;
   customize: (key: SkillSourceKey) => void;
-  useInherited: (key: SkillSourceKey) => void;
+  restoreInherited: (key: SkillSourceKey) => void;
   inheritPendingKey: SkillSourceKey | null;
   inheritError: string | null;
   save: () => void;
@@ -187,7 +187,7 @@ export function useSettingsSkillSources(
     });
   };
 
-  const useInherited = (key: SkillSourceKey) => {
+  const restoreInherited = (key: SkillSourceKey) => {
     if (envelope === null || readOnly || !workspaceScope || inheritMutation.isPending) return;
     void inheritMutation
       .mutateAsync({ body: { override: { [key]: null } }, filter })
@@ -240,7 +240,7 @@ export function useSettingsSkillSources(
       if (envelope === null || readOnly) return;
       setArmed(key, true);
     },
-    useInherited,
+    restoreInherited,
     inheritPendingKey: inheritMutation.isPending
       ? pendingInheritKey(inheritMutation.variables?.body.override)
       : null,

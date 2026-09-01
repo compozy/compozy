@@ -79,6 +79,7 @@ export type {
   TaskPauseDialogProps,
   TaskPropertiesRailProps,
   TaskResultSectionProps,
+  TaskResultPageController,
   TaskRunActivitySectionProps,
   TaskRunForceFailDialogProps,
   TaskRunInspectDrawerProps,

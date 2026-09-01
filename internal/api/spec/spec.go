@@ -80,6 +80,7 @@ const (
 	specAPISchedulerPausePath                                = "/api/scheduler/pause"
 	specAPISchedulerResumePath                               = "/api/scheduler/resume"
 	specAPITaskRunsIDReviewsPath                             = "/api/task-runs/{id}/reviews"
+	specAPITaskRunsIDResultPath                              = "/api/task-runs/{id}/result"
 	specAPITasksPath                                         = "/api/tasks"
 	specAPITasksIDPath                                       = "/api/tasks/{id}"
 	specAPITasksIDBlocksPath                                 = specAPITasksIDPath + "/blocks"

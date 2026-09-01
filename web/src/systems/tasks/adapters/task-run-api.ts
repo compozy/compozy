@@ -20,6 +20,7 @@ import type {
   TaskRun,
   TaskRunDetailView,
   TaskRunInspectView,
+  TaskRunResultPage,
 } from "../types";
 import { TasksApiError } from "./tasks-api-errors";
 
@@ -36,6 +37,28 @@ export async function getTaskRun(id: string, signal?: AbortSignal): Promise<Task
     );
   }
   return requireResponseData(data, response, `Failed to fetch task run "${id}"`).run;
+}
+
+export async function readTaskRunResult(
+  id: string,
+  offset: number,
+  limit: number,
+  signal?: AbortSignal
+): Promise<TaskRunResultPage> {
+  const { data, error, response } = await apiClient.GET("/api/task-runs/{id}/result", {
+    params: { path: { id }, query: { offset, limit } },
+    signal,
+  });
+  if (apiRequestFailed(response, error)) {
+    if (response.status === 404) {
+      throw new TasksApiError(`Task run result not found: ${id}`, 404);
+    }
+    throw new TasksApiError(
+      defaultApiErrorMessage(`Failed to fetch task run result "${id}"`, response, error),
+      response.status
+    );
+  }
+  return requireResponseData(data, response, `Failed to fetch task run result "${id}"`);
 }
 
 export async function inspectRun(id: string, signal?: AbortSignal): Promise<TaskRunInspectView> {

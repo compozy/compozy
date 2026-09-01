@@ -3,6 +3,7 @@ package globaldb
 import (
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -8170,7 +8171,7 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		resultPayload, err := json.Marshal(map[string]string{
 			"status": "done",
 			"tipo":   "backend",
-			"resumo": strings.Repeat("x", looppkg.LoopOutputInlineLimitBytes+1),
+			"resumo": strings.Repeat("界", taskpkg.MaxResultBytes+1),
 		})
 		if err != nil {
 			t.Fatalf("marshal result payload error = %v", err)
@@ -8190,6 +8191,46 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		}
 		if len(updated.ResultValue()) != 0 {
 			t.Fatalf("updated Result = %s, want empty inline result", updated.ResultValue())
+		}
+		if updated.ResultReference() != wantRef || updated.ResultByteCount() != int64(len(resultPayload)) {
+			t.Fatalf(
+				"updated result descriptor = %q/%d, want %q/%d",
+				updated.ResultReference(),
+				updated.ResultByteCount(),
+				wantRef,
+				len(resultPayload),
+			)
+		}
+		storedRun, err := globalDB.GetTaskRun(ctx, claim.Run.ID)
+		if err != nil {
+			t.Fatalf("GetTaskRun() error = %v", err)
+		}
+		if storedRun.ResultReference() != wantRef || storedRun.ResultByteCount() != int64(len(resultPayload)) {
+			t.Fatalf("stored result descriptor = %#v, want externalized payload", storedRun)
+		}
+		const pageOffset int64 = taskpkg.MaxRunResultPageBytes - 1
+		const pageLimit int64 = 7
+		page, err := globalDB.ReadTaskRunResultPage(ctx, claim.Run.ID, pageOffset, pageLimit)
+		if err != nil {
+			t.Fatalf("ReadTaskRunResultPage() error = %v", err)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+		if err != nil {
+			t.Fatalf("DecodeString(page) error = %v", err)
+		}
+		if got, want := string(decoded), string(resultPayload[pageOffset:pageOffset+pageLimit]); got != want {
+			t.Fatalf("page bytes = %q, want exact multibyte boundary bytes %q", got, want)
+		}
+		if page.ResultRef != wantRef || page.TotalBytes != int64(len(resultPayload)) || page.EOF {
+			t.Fatalf("page descriptor = %#v, want non-terminal exact external page", page)
+		}
+		if _, err := globalDB.ReadTaskRunResultPage(
+			ctx,
+			claim.Run.ID,
+			int64(len(resultPayload))+1,
+			pageLimit,
+		); !errors.Is(err, taskpkg.ErrTaskRunResultInvalidRange) {
+			t.Fatalf("ReadTaskRunResultPage(invalid offset) error = %v, want invalid range", err)
 		}
 
 		var resultJSON sql.NullString
@@ -8220,6 +8261,13 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 		if !outputRef.Valid || outputRef.String != wantRef {
 			t.Fatalf("output_ref = %#v, want %q", outputRef, wantRef)
 		}
+
+		databasePath := globalDB.path
+		if err := globalDB.Close(ctx); err != nil {
+			t.Fatalf("Close() before result reload error = %v", err)
+		}
+		globalDB = openGlobalDBForTest(t, databasePath)
+
 		owner := looppkg.GenerationOutputPayloadKey{
 			WorkspaceID: loopRun.WorkspaceID,
 			RunID:       loopRun.ID,
@@ -8271,6 +8319,20 @@ func TestGlobalDBCompleteRunLeaseShouldStoreLargeLoopOutputByRef(t *testing.T) {
 					)
 				}
 			})
+		}
+
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_output_blobs SET payload_json = '{"corrupt":true}' WHERE output_ref = ?`,
+			wantRef,
+		); err != nil {
+			t.Fatalf("corrupt loop output blob error = %v", err)
+		}
+		if _, err := globalDB.ReadTaskRunResultPage(ctx, claim.Run.ID, 0, pageLimit); !errors.Is(
+			err,
+			taskpkg.ErrTaskRunResultCorrupt,
+		) {
+			t.Fatalf("ReadTaskRunResultPage(corrupt) error = %v, want corrupt result", err)
 		}
 	})
 }

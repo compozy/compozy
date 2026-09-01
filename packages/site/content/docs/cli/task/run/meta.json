@@ -9,6 +9,7 @@
         "fail",
         "list",
         "recover",
+        "result",
         "show",
         "start"
     ]

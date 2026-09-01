@@ -102,7 +102,9 @@ projection. CompozyOS returns an availability diagnostic before provider startup
 missing, cannot launch, or is disabled by the provider. Unrestricted sessions may still start
 without hosted tools when their contract does not require them.
 
-`compozy__tool_list` returns only the currently callable projection. `compozy__tool_search` and
+`compozy__tool_list` returns the currently callable projection as compact pages of up to 100 entries.
+Follow `next_offset` while `has_more` is true; use
+`compozy__tool_info` to read one complete schema and backend descriptor. `compozy__tool_search` and
 `compozy__tool_info` are diagnostic: they can return known descriptors with callable or denied status so
 an agent can explain whether a tool is absent, unavailable, or policy-denied before falling back to
 CLI or HTTP.

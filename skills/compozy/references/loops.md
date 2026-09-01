@@ -464,6 +464,12 @@ settles the task and again before node success is published. A mismatch fails wi
 `invalid_output`; content-addressed storage preserves the exact structured value. The bound agent
 session may call `compozy__task_run_heartbeat`, but only the owning daemon may call the terminal
 complete or fail operations for that task.
+Loop action results up to 16 KiB stay inline; larger accepted values publish `result_ref` and
+`result_bytes`. Use `compozy__task_run_result` to page the exact bytes. The configured
+`tools.default_max_result_bytes` is the outer action bound, a literal tool action's smaller
+descriptor limit wins, and zero selects the 16 MiB platform ceiling. A result above the effective
+bound or already marked truncated fails as `action_result_too_large`; use its node, tool, byte count,
+limit, and remediation instead of retrying the same oversized output.
 Each managed `run-agent` cell owns a system session. A session-started Loop records the nearest
 origin session as informational parent lineage without borrowing it. Terminal cell settlement
 closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active

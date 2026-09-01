@@ -103,6 +103,13 @@ type Manager interface {
 	GetTask(ctx context.Context, id string, actor ActorContext) (*View, error)
 	InspectTask(ctx context.Context, taskID string, actor ActorContext) (*InspectView, error)
 	InspectRun(ctx context.Context, runID string, actor ActorContext) (*InspectView, error)
+	ReadTaskRunResult(
+		ctx context.Context,
+		runID string,
+		offset int64,
+		limit int64,
+		actor ActorContext,
+	) (RunResultPage, error)
 	ListTaskRuns(ctx context.Context, taskID string, query RunQuery, actor ActorContext) ([]Run, error)
 	ListTasks(ctx context.Context, query Query, actor ActorContext) ([]Summary, error)
 	ListTaskCatalog(ctx context.Context, query CatalogQuery, actor ActorContext) (CatalogPage, error)
@@ -177,6 +184,7 @@ type BlockStore interface {
 type RunStore interface {
 	UpdateTaskRunMetadata(ctx context.Context, mutation RunMetadataMutation) (Run, error)
 	GetTaskRun(ctx context.Context, id string) (Run, error)
+	ReadTaskRunResultPage(ctx context.Context, runID string, offset int64, limit int64) (RunResultPage, error)
 	ListTaskRuns(ctx context.Context, query RunQuery) ([]Run, error)
 	ListTaskRunsByStatus(ctx context.Context, statuses []RunStatus) ([]Run, error)
 	CountActiveSessionBindings(ctx context.Context, sessionID string) (int, error)

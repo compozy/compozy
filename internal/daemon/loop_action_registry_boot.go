@@ -24,6 +24,7 @@ func newBootLoopActionRegistry(
 		worktrees:           executionWorktreesForState(state),
 	}
 	actionOptions := []looppkg.ActionRegistryOption{
+		looppkg.WithActionDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 		looppkg.WithActionSessionBinder(actionBinder),
 		looppkg.WithActionLoopStarter(lazyLoopStarter{current: func() looppkg.ActionLoopStarter {
 			if state == nil {
@@ -46,7 +47,7 @@ func newBootLoopActionRegistry(
 			state.logger,
 			executionWorktreesForState(state),
 		)
-		actionOptions[0] = looppkg.WithActionSessionBinder(goalRuntime)
+		actionOptions[1] = looppkg.WithActionSessionBinder(goalRuntime)
 		goalOption, err := composeLoopGoalExecutor(
 			goalStore,
 			goalRuntime,

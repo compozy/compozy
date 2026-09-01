@@ -46,5 +46,7 @@ func TaskRunPayloadFromRun(run *taskpkg.Run) contract.TaskRunPayload {
 		Error:                        taskpkg.RedactClaimTokens(run.Error),
 		Metadata:                     taskpkg.RedactClaimTokenJSON(run.Metadata),
 		Result:                       taskpkg.RedactClaimTokenJSON(run.ResultValue()),
+		ResultRef:                    run.ResultReference(),
+		ResultBytes:                  run.ResultByteCount(),
 	}
 }

@@ -121,6 +121,6 @@ func requeueSessionRunLease(run Run) Run {
 	run.StartedAt = time.Time{}
 	run.EndedAt = time.Time{}
 	run.Error = ""
-	run.Result = nil
+	run.ClearResult()
 	return run
 }

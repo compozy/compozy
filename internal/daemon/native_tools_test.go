@@ -2201,14 +2201,11 @@ func TestDaemonNativeTools(t *testing.T) {
 			Tasks:   &nativeTaskManager{},
 		}, nativeApproveAllPolicyInputs())
 
-		listResult, err := registry.Call(
-			t.Context(),
+		listResult := collectNativeToolListPages(
+			t,
+			registry,
 			toolspkg.Scope{Operator: true},
-			toolspkg.CallRequest{ToolID: toolspkg.ToolIDToolList},
 		)
-		if err != nil {
-			t.Fatalf("Registry.Call(tool_list) error = %v", err)
-		}
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__task_child_create"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__resources_list"`))
 		requireNativeStructuredContains(t, listResult, []byte(`"compozy__mcp_status"`))
@@ -2217,6 +2214,18 @@ func TestDaemonNativeTools(t *testing.T) {
 		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__skill_install"`))
 		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__mcp_auth_login"`))
 		requireNativeStructuredExcludes(t, listResult, []byte(`"compozy__mcp_auth_logout"`))
+		requireNativeStructuredContains(t, listResult, []byte(`"input_schema_digest"`))
+		requireNativeStructuredExcludes(t, listResult, []byte(`"input_schema":`))
+		for _, input := range []json.RawMessage{
+			json.RawMessage(`{"limit":101}`),
+			json.RawMessage(`{"offset":-1}`),
+		} {
+			_, callErr := registry.Call(t.Context(), toolspkg.Scope{Operator: true}, toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDToolList,
+				Input:  input,
+			})
+			requireToolReason(t, callErr, toolspkg.ErrToolInvalidInput, toolspkg.ReasonSchemaInvalid)
+		}
 
 		searchResult, err := registry.Call(
 			t.Context(),
@@ -4746,6 +4755,15 @@ func TestDaemonNativeTools(t *testing.T) {
 				TaskID: "task-run",
 				Status: taskpkg.TaskRunStatusQueued,
 			}},
+			runResult: taskpkg.RunResultPage{
+				RunID:      "run-result",
+				ResultRef:  "sha256:result",
+				Offset:     2,
+				Bytes:      4,
+				TotalBytes: 9,
+				DataBase64: "c3VsdA==",
+				NextOffset: 6,
+			},
 		}
 		registry := newDaemonNativeRegistry(t, &daemonNativeToolsDeps{
 			Sessions: nativeNetworkTestSessionManager("ws-1"),
@@ -4911,6 +4929,37 @@ func TestDaemonNativeTools(t *testing.T) {
 				tasks.lastRunListTaskID,
 				tasks.lastRunQuery,
 			)
+		}
+
+		result, err := registry.Call(
+			t.Context(),
+			scope,
+			toolspkg.CallRequest{
+				ToolID: toolspkg.ToolIDTaskRunResult,
+				Input:  json.RawMessage(`{"run_id":"run-result","offset":2,"limit":4}`),
+			},
+		)
+		if err != nil {
+			t.Fatalf("Registry.Call(task_run_result) error = %v", err)
+		}
+		if tasks.runResultCalls != 1 ||
+			tasks.lastRunResultID != "run-result" ||
+			tasks.lastRunResultOffset != 2 ||
+			tasks.lastRunResultLimit != 4 ||
+			tasks.lastRunResultActor.Scope.WorkspaceID != "ws-1" ||
+			tasks.lastRunResultActor.Actor.Ref != "sess-actor" {
+			t.Fatalf(
+				"ReadTaskRunResult calls/request = %d/%q/%d/%d/%#v, want scoped byte page",
+				tasks.runResultCalls,
+				tasks.lastRunResultID,
+				tasks.lastRunResultOffset,
+				tasks.lastRunResultLimit,
+				tasks.lastRunResultActor,
+			)
+		}
+		if !bytes.Contains(result.Structured, []byte(`"data_base64":"c3VsdA=="`)) ||
+			!bytes.Contains(result.Structured, []byte(`"result_ref":"sha256:result"`)) {
+			t.Fatalf("Registry.Call(task_run_result) result = %s, want exact page", result.Structured)
 		}
 	})
 
@@ -11603,6 +11652,10 @@ func newDaemonNativeRegistryWithPolicyResolverAndWorkspaceAccess(
 		toolspkg.WithCallInputBinder(workspaceBinder),
 		toolspkg.WithCallInputAuthorizer(workspaceBinder),
 		toolspkg.WithDefaultMaxResultBytes(compozyconfig.DefaultToolsMaxResultBytes),
+		toolspkg.WithResultProcessor(toolspkg.NewResultProcessor(
+			compozyconfig.DefaultToolsMaxResultBytes,
+			openDaemonTestToolArtifactStore(t),
+		)),
 	)
 	if err != nil {
 		t.Fatalf("NewRegistry() error = %v", err)
@@ -12533,6 +12586,63 @@ func requireNativeStructuredExcludes(t *testing.T, result toolspkg.ToolResult, n
 	}
 }
 
+func collectNativeToolListPages(
+	t *testing.T,
+	registry toolspkg.Registry,
+	scope toolspkg.Scope,
+) toolspkg.ToolResult {
+	t.Helper()
+
+	var tools []json.RawMessage
+	for offset := 0; ; {
+		result, err := registry.Call(t.Context(), scope, toolspkg.CallRequest{
+			ToolID: toolspkg.ToolIDToolList,
+			Input: json.RawMessage(fmt.Sprintf(
+				`{"offset":%d,"limit":%d}`,
+				offset,
+				maxNativeToolListLimit,
+			)),
+		})
+		if err != nil {
+			t.Fatalf("Registry.Call(tool_list offset=%d) error = %v", offset, err)
+		}
+		if result.Truncated || len(result.Artifacts) != 0 ||
+			result.Bytes > compozyconfig.DefaultToolsMaxResultBytes {
+			t.Fatalf("Registry.Call(tool_list offset=%d) = %#v, want bounded inline page", offset, result)
+		}
+		var page struct {
+			Tools      []json.RawMessage `json:"tools"`
+			Offset     int               `json:"offset"`
+			Count      int               `json:"count"`
+			Total      int               `json:"total"`
+			NextOffset int               `json:"next_offset"`
+			HasMore    bool              `json:"has_more"`
+		}
+		if err := json.Unmarshal(result.Structured, &page); err != nil {
+			t.Fatalf("decode tool_list page offset=%d: %v", offset, err)
+		}
+		if page.Offset != offset || page.Count != len(page.Tools) || page.Total < len(tools)+page.Count {
+			t.Fatalf("tool_list page offset=%d = %#v, want consistent bounds", offset, page)
+		}
+		tools = append(tools, page.Tools...)
+		if !page.HasMore {
+			if len(tools) != page.Total || page.NextOffset != 0 {
+				t.Fatalf("terminal tool_list page = %#v, collected %d tools", page, len(tools))
+			}
+			break
+		}
+		if page.NextOffset <= offset {
+			t.Fatalf("tool_list next_offset = %d, want greater than %d", page.NextOffset, offset)
+		}
+		offset = page.NextOffset
+	}
+	structured, err := json.Marshal(map[string]any{"tools": tools})
+	if err != nil {
+		t.Fatalf("encode collected tool_list pages: %v", err)
+	}
+	return toolspkg.ToolResult{Structured: structured}
+}
+
 func nativeToolViewByID(views []toolspkg.ToolView, id toolspkg.ToolID) *toolspkg.ToolView {
 	for i := range views {
 		if views[i].Descriptor.ID == id {
@@ -13187,6 +13297,13 @@ type nativeTaskManager struct {
 	lastRunListTaskID       string
 	lastRunQuery            taskpkg.RunQuery
 	runs                    []taskpkg.Run
+	runResultCalls          int
+	lastRunResultID         string
+	lastRunResultOffset     int64
+	lastRunResultLimit      int64
+	lastRunResultActor      taskpkg.ActorContext
+	runResult               taskpkg.RunResultPage
+	runResultErr            error
 	claimNextCalls          int
 	lastClaimCriteria       taskpkg.ClaimCriteria
 	lastClaimActor          taskpkg.ActorContext
@@ -13454,6 +13571,21 @@ func (m *nativeTaskManager) ListTaskRuns(
 	m.lastRunListTaskID = taskID
 	m.lastRunQuery = query
 	return append([]taskpkg.Run(nil), m.runs...), nil
+}
+
+func (m *nativeTaskManager) ReadTaskRunResult(
+	_ context.Context,
+	runID string,
+	offset int64,
+	limit int64,
+	actor taskpkg.ActorContext,
+) (taskpkg.RunResultPage, error) {
+	m.runResultCalls++
+	m.lastRunResultID = runID
+	m.lastRunResultOffset = offset
+	m.lastRunResultLimit = limit
+	m.lastRunResultActor = actor
+	return m.runResult, m.runResultErr
 }
 
 func (m *nativeTaskManager) ListTasks(

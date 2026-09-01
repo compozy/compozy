@@ -234,6 +234,7 @@ var nativeEntries = map[string]Entry{
 	"compozy__task_run_fail":                  nativeEntry("Reporting failure", " ", false, "✅", "auto"),
 	"compozy__task_run_heartbeat":             nativeEntry("Renewing", " ", false, "✅", "auto"),
 	"compozy__task_run_list":                  nativeEntry("Reading", " ", false, "✅", "auto"),
+	"compozy__task_run_result":                nativeEntry("Reading", " ", false, "✅", "auto"),
 	"compozy__task_run_release":               nativeEntry("Releasing", " ", false, "✅", "auto"),
 	"compozy__task_run_review_list":           nativeEntry("Reading", " ", false, "✅", "auto"),
 	"compozy__task_run_review_request":        nativeEntry("Requesting review", " ", false, "✅", "auto"),

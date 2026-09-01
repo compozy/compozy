@@ -75,6 +75,7 @@ const (
 	HostAPIMethodTasksCancel                 HostAPIMethod = "tasks/cancel"
 	HostAPIMethodTasksRuns                   HostAPIMethod = "tasks/runs"
 	HostAPIMethodTasksRunsGet                HostAPIMethod = "tasks/runs/get"
+	HostAPIMethodTasksRunsResult             HostAPIMethod = "tasks/runs/result"
 	HostAPIMethodTasksRunsEnqueue            HostAPIMethod = "tasks/runs/enqueue"
 	HostAPIMethodTasksRunsStart              HostAPIMethod = "tasks/runs/start"
 	HostAPIMethodTasksRunsAttachSession      HostAPIMethod = "tasks/runs/attach_session"

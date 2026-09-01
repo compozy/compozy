@@ -5,6 +5,7 @@ import (
 
 	"net/http"
 	"net/url"
+	"strconv"
 
 	"strings"
 
@@ -169,6 +170,27 @@ func (c *daemonClient) GetTaskRun(ctx context.Context, id string) (TaskRunDetail
 		return TaskRunDetailRecord{}, err
 	}
 	return response.Run, nil
+}
+
+func (c *daemonClient) ReadTaskRunResult(
+	ctx context.Context,
+	id string,
+	offset int64,
+	limit int64,
+) (TaskRunResultPageRecord, error) {
+	var response contract.TaskRunResultPageResponse
+	path := "/api/task-runs/" + url.PathEscape(strings.TrimSpace(id)) + "/result"
+	values := url.Values{}
+	if offset != 0 {
+		values.Set("offset", strconv.FormatInt(offset, 10))
+	}
+	if limit != 0 {
+		values.Set("limit", strconv.FormatInt(limit, 10))
+	}
+	if err := c.doJSON(ctx, http.MethodGet, path, values, nil, &response); err != nil {
+		return TaskRunResultPageRecord{}, err
+	}
+	return response, nil
 }
 
 func (c *daemonClient) StartTaskRun(

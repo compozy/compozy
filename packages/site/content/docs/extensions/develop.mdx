@@ -409,7 +409,7 @@ Permissions: compozysdk.PermissionsConfig{
 ```
 
 CompozyOS derives the operator-facing consent areas from that list and enforces it per call. The full
-95-method catalog, the derived areas, and the ceiling applied per install source are in
+closed catalog, the derived areas, and the ceiling applied per install source are in
 [Extension Permissions](/docs/extensions/permissions).
 
 ### Paged collection results
@@ -431,6 +431,14 @@ metadata.
 
 The generated SDK contracts bind these result types, so code that expects an array fails at compile
 time instead of silently dropping pagination metadata.
+
+### Paged task-run results
+
+Declare `tasks/runs/result` when an extension needs the exact bytes behind a task-run `result_ref`.
+It belongs to `task:read` and accepts the workspace, run ID, byte offset, and page limit. The
+`TaskRunResultPage` response carries base64 bytes, exact byte counts, optional `next_offset`, and
+`eof`. Keep the same workspace and run while paging, and decode after joining bytes when the result
+is UTF-8 text.
 
 ### Ask the operator a question
 

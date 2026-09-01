@@ -37,7 +37,12 @@ func (r RunResult) StoredValue() (json.RawMessage, error) {
 
 // Validate reports whether the run result respects the shared result-size guardrail.
 func (r RunResult) Validate(path string) error {
-	if err := ValidateResultSize(r.Value, nestedPath(path, "value")); err != nil {
+	return r.ValidateWithValueLimit(path, MaxResultBytes)
+}
+
+// ValidateWithValueLimit validates an ordinary result value against an explicit byte limit.
+func (r RunResult) ValidateWithValueLimit(path string, maxValueBytes int) error {
+	if err := validateJSONSize(r.Value, maxValueBytes, nestedPath(path, "value")); err != nil {
 		return err
 	}
 	if hasRawClaimTokenField(r.Value) {

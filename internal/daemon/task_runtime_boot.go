@@ -348,6 +348,7 @@ func newTaskRuntimeManager(
 		taskpkg.WithWorkAdmissionChecker(workAdmission),
 		taskpkg.WithWorkspaceAccessPolicy(state.accessPolicy),
 		taskpkg.WithRuntimeViewReader(&taskRuntimeViewReader{state: state}),
+		taskpkg.WithActionResultMaxBytes(state.cfg.Tools.DefaultMaxResultBytes),
 	)
 	if timerArmer := newLoopRetryTimerArmer(ctx, store, state.logger, now); timerArmer != nil {
 		options = append(options, taskpkg.WithCoordinatorTimerArmer(timerArmer))

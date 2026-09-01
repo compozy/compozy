@@ -22160,6 +22160,13 @@
                               "type": "string"
                             },
                             "result": {},
+                            "result_bytes": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "result_ref": {
+                              "type": "string"
+                            },
                             "session_id": {
                               "type": "string"
                             },
@@ -26552,6 +26559,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -126406,6 +126420,13 @@
                                 "type": "string"
                               },
                               "result": {},
+                              "result_bytes": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "result_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -127288,6 +127309,13 @@
                                 "type": "string"
                               },
                               "result": {},
+                              "result_bytes": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "result_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -128101,6 +128129,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -130621,6 +130656,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -130996,6 +131038,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -131941,6 +131990,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -132882,6 +132938,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -133257,6 +133320,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -134515,6 +134585,13 @@
                                     "type": "string"
                                   },
                                   "result": {},
+                                  "result_bytes": {
+                                    "format": "int64",
+                                    "type": "integer"
+                                  },
+                                  "result_ref": {
+                                    "type": "string"
+                                  },
                                   "session_id": {
                                     "type": "string"
                                   },
@@ -181394,6 +181471,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -182632,6 +182716,13 @@
                               "type": "string"
                             },
                             "result": {},
+                            "result_bytes": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "result_ref": {
+                              "type": "string"
+                            },
                             "session_id": {
                               "type": "string"
                             },
@@ -183560,6 +183651,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -184358,6 +184456,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -185159,6 +185264,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -186729,6 +186841,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -187146,6 +187265,464 @@
           }
         },
         "summary": "Fail one task run",
+        "tags": [
+          "tasks"
+        ],
+        "x-compozy-transports": [
+          "http",
+          "uds"
+        ]
+      }
+    },
+    "/api/task-runs/{id}/result": {
+      "get": {
+        "operationId": "readTaskRunResult",
+        "parameters": [
+          {
+            "description": "Task run id",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Zero-based byte offset",
+            "in": "query",
+            "name": "offset",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Page size in bytes; defaults to and is capped at 65536",
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "bytes": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "data_base64": {
+                      "type": "string"
+                    },
+                    "eof": {
+                      "type": "boolean"
+                    },
+                    "next_offset": {
+                      "format": "int64",
+                      "nullable": true,
+                      "type": "integer"
+                    },
+                    "offset": {
+                      "format": "int64",
+                      "type": "integer"
+                    },
+                    "result_ref": {
+                      "type": "string"
+                    },
+                    "run_id": {
+                      "type": "string"
+                    },
+                    "total_bytes": {
+                      "format": "int64",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "bytes",
+                    "data_base64",
+                    "eof",
+                    "offset",
+                    "run_id",
+                    "total_bytes"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Invalid task-run result byte range"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task-run result not found"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Internal server error"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task-run result is corrupt or unreadable"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "details": {
+                      "additionalProperties": {
+                        "type": "string"
+                      },
+                      "type": "object"
+                    },
+                    "diagnostic": {
+                      "nullable": true,
+                      "properties": {
+                        "category": {
+                          "type": "string"
+                        },
+                        "code": {
+                          "type": "string"
+                        },
+                        "data_freshness": {
+                          "type": "string"
+                        },
+                        "doc_url": {
+                          "type": "string"
+                        },
+                        "evidence": {
+                          "additionalProperties": {},
+                          "type": "object"
+                        },
+                        "id": {
+                          "type": "string"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "severity": {
+                          "type": "string"
+                        },
+                        "suggested_command": {
+                          "type": "string"
+                        },
+                        "title": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "category",
+                        "code",
+                        "data_freshness",
+                        "id",
+                        "message",
+                        "severity",
+                        "title"
+                      ],
+                      "type": "object"
+                    },
+                    "error": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Task service is not configured"
+          }
+        },
+        "summary": "Read one exact byte page from a task-run result",
         "tags": [
           "tasks"
         ],
@@ -188887,6 +189464,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -193798,6 +194382,13 @@
                                 "type": "string"
                               },
                               "result": {},
+                              "result_bytes": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "result_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -197266,6 +197857,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -203466,6 +204064,13 @@
                                 "type": "string"
                               },
                               "result": {},
+                              "result_bytes": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "result_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -206805,6 +207410,13 @@
                                 "type": "string"
                               },
                               "result": {},
+                              "result_bytes": {
+                                "format": "int64",
+                                "type": "integer"
+                              },
+                              "result_ref": {
+                                "type": "string"
+                              },
                               "session_id": {
                                 "type": "string"
                               },
@@ -217240,6 +217852,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -221908,6 +222527,13 @@
                             "type": "string"
                           },
                           "result": {},
+                          "result_bytes": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "result_ref": {
+                            "type": "string"
+                          },
                           "session_id": {
                             "type": "string"
                           },
@@ -222835,6 +223461,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -223862,6 +224495,13 @@
                             "type": "string"
                           },
                           "result": {},
+                          "result_bytes": {
+                            "format": "int64",
+                            "type": "integer"
+                          },
+                          "result_ref": {
+                            "type": "string"
+                          },
                           "session_id": {
                             "type": "string"
                           },
@@ -224866,6 +225506,13 @@
                           "type": "string"
                         },
                         "result": {},
+                        "result_bytes": {
+                          "format": "int64",
+                          "type": "integer"
+                        },
+                        "result_ref": {
+                          "type": "string"
+                        },
                         "session_id": {
                           "type": "string"
                         },
@@ -334495,6 +335142,13 @@
                               "type": "string"
                             },
                             "result": {},
+                            "result_bytes": {
+                              "format": "int64",
+                              "type": "integer"
+                            },
+                            "result_ref": {
+                              "type": "string"
+                            },
                             "session_id": {
                               "type": "string"
                             },

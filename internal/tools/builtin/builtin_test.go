@@ -1783,6 +1783,8 @@ func nativeDescriptorExpectations() []nativeDescriptorExpectation {
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_run_list", risk: toolspkg.RiskRead,
 			readOnly: true, destructive: false, openWorld: false},
+		{id: "compozy__task_run_result", risk: toolspkg.RiskRead,
+			readOnly: true, destructive: false, openWorld: false},
 		{id: "compozy__task_run_release", risk: toolspkg.RiskMutating,
 			readOnly: false, destructive: false, openWorld: false},
 		{id: "compozy__task_run_review_list", risk: toolspkg.RiskRead,

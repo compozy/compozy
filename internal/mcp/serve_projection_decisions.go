@@ -89,6 +89,7 @@ var hostAPIProjectionDecisions = map[extensionprotocol.HostAPIMethod]projectionD
 	extensionprotocol.HostAPIMethodTasksCancel:              {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRuns:                {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsGet:             {Reason: projectionReasonTargetOnly},
+	extensionprotocol.HostAPIMethodTasksRunsResult:          {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsEnqueue:         {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsStart:           {Reason: projectionReasonTargetOnly},
 	extensionprotocol.HostAPIMethodTasksRunsAttachSession:   {Reason: projectionReasonTargetOnly},

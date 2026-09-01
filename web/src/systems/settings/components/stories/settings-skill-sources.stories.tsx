@@ -28,7 +28,7 @@ function model(overrides: Partial<SettingsSkillSourcesModel> = {}): SettingsSkil
     removeCustom: noop,
     validateEntry: () => null,
     customize: noop,
-    useInherited: noop,
+    restoreInherited: noop,
     inheritPendingKey: null,
     inheritError: null,
     save: noop,

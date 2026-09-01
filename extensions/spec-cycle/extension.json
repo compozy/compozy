@@ -49,7 +49,6 @@
                                     "type",
                                     "complexity",
                                     "path",
-                                    "body",
                                     "body_ref",
                                     "blocks"
                                 ],
@@ -69,7 +68,6 @@
                                         }
                                     },
                                     "path": { "type": "string" },
-                                    "body": { "type": "string" },
                                     "body_ref": { "type": "string" },
                                     "blocks": {
                                         "type": "array",
