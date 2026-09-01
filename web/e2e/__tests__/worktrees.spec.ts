@@ -3,8 +3,6 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
-import { sessionWindow } from "../fixtures/os-navigation";
-import { sessionWindowSelectors } from "../fixtures/selectors";
 import type { BrowserRuntime } from "../fixtures/runtime";
 import { sessionWindow } from "../fixtures/os-navigation";
 import { sessionWindowSelectors } from "../fixtures/selectors";
