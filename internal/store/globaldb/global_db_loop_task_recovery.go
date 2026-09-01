@@ -22,7 +22,7 @@ func (g *TaskRunRepo) recoverLoopTaskRunWithExecutor(
 	if err != nil {
 		return taskpkg.RetryRunResult{}, err
 	}
-	if loopRun.Status != looppkg.StatusRunning || loopRun.CancelRequested {
+	if loopRun.Status != looppkg.StatusRunning {
 		return taskpkg.RetryRunResult{}, fmt.Errorf(
 			"%w: Loop run %q is not running",
 			looppkg.ErrTransitionConflict,

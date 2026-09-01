@@ -16,7 +16,7 @@ structured output. Never guess a schema — resolve `compozy__tool_info` for the
 
 ## The Tool Set And CLI Verbs
 
-Toolset `compozy__loops` — 31 native tools. All 28 Loop tools have matching `compozy loop` verbs;
+Toolset `compozy__loops` — 29 native tools. All 26 Loop tools have matching `compozy loop` verbs;
 the three session-bound Goal tools use the session command/native control and report surfaces. The CLI also exposes
 operator-focused `edit`, `why`, `events`, and run-scoped `nodes` reads without new native tool IDs.
 
@@ -40,13 +40,11 @@ operator-focused `edit`, `why`, `events`, and run-scoped `nodes` reads without n
 | `compozy__loop_pause`        | mutating                        | `compozy loop pause`        | Request a generation-boundary pause.                                                   |
 | `compozy__loop_resume`       | mutating                        | `compozy loop resume`       | Resume a paused or pause-requested run.                                                |
 | `compozy__loop_approve`      | mutating · **capability-gated** | `compozy loop approve`      | Apply one human-gate decision.                                                         |
-| `compozy__loop_cancel`       | mutating                        | `compozy loop cancel`       | Request cooperative cancellation of one active run.                                    |
-| `compozy__loop_kill`         | destructive                     | `compozy loop kill`         | Immediately fence and cancel one active run.                                           |
+| `compozy__loop_cancel`       | destructive                     | `compozy loop cancel`       | Immediately cancel one active run and stop its owned sessions.                         |
 | `compozy__loop_nodes`        | read                            | `compozy loop nodes`        | List waiting, quarantined, attention, or retrying nodes.                               |
 | `compozy__loop_node_pause`   | mutating                        | `compozy loop node pause`   | Pause one authored node or addressed fan-out cell.                                     |
 | `compozy__loop_node_resume`  | mutating                        | `compozy loop node resume`  | Resume one paused node, cell, or manual wait.                                          |
-| `compozy__loop_node_cancel`  | mutating                        | `compozy loop node cancel`  | Request cooperative node or cell cancellation.                                         |
-| `compozy__loop_node_kill`    | destructive                     | `compozy loop node kill`    | Immediately fence one authored node or cell.                                           |
+| `compozy__loop_node_cancel`  | destructive                     | `compozy loop node cancel`  | Immediately cancel one authored node or addressed cell.                                |
 | `compozy__loop_node_requeue` | mutating                        | `compozy loop node requeue` | Requeue one quarantined node into a successor generation.                              |
 | `compozy__loop_delete`       | destructive                     | `compozy loop delete`       | Delete a writable definition plus its config and editor annotations.                   |
 | `compozy__goal_get`          | read · session-scoped           | `/goal status`              | Read the caller session's visible Goal, including terminal-until-clear.                |
@@ -147,7 +145,7 @@ parameters, `edit` admits a schema-valid replacement, `reject` follows the decla
 or fails with `quality_rejection`, and `respond` supplies a schema-valid result without execution.
 Use `decision` with `compozy__loop_respond`; `edit` and `respond` require `payload`.
 
-Node pause, resume, cancel, and kill accept `item_index` to address one fan-out cell. Use
+Node pause, resume, and cancel accept `item_index` to address one fan-out cell. Use
 `compozy__loop_node_amend` only for a settled output while its run, node, or cell is parked. It
 appends provenance without changing the recorded output. Effective reads use the newest amendment,
 and run status exposes bounded, redacted `amendments`; private output refs have no read tool.
@@ -296,7 +294,7 @@ exhausted budget up to success.
 - `blocked` — an external dependency blocked progress (missing dependency/credential/resource, a
   human-gate `reject`, or a `loop.gate.pre` denial).
 - `failed` — an unrecoverable node/gate error or a `loop.generation.pre` denial.
-- `canceled` — an operator cancel or kill, with cause `operator_cancel` or `operator_kill`.
+- `canceled` — an operator cancellation, with cause `operator_cancel`.
 - `exhausted` — the iteration cap or an authored `max_fan_out` bound tripped before the goal.
 - `stalled` — no progress: the no-progress window elapsed, the failure circuit breaker tripped, the
   blocker-ID signature repeated, or a watched source went silent.
@@ -340,11 +338,12 @@ once with a stable `delivery_id`. Templates can read `inputs` and
 Use `compozy__loop_nodes` or `compozy loop nodes --state waiting|quarantined|attention|retrying` to
 find workspace-scoped cells; narrow with Loop or run ID. Then use
 the exact run/node/item identity with node pause (`drain|cancel`), resume
-(`plain|reset_attempts|immediate`, optional manual-wait payload), cancel, kill, or requeue. Requeue is
-quarantine-only and creates a bounded successor generation. Cancel is cooperative; Kill fences
-immediately. A missing managed session is already stopped for cancellation delivery. Recovery
-reopens a canceled coordinator task only while its Loop remains nonterminal, then reserves one
-replacement coordinator run. Run cancel/kill both end `canceled` with distinct operator causes.
+(`plain|reset_attempts|immediate`, optional manual-wait payload), cancel, or requeue. Requeue is
+quarantine-only and creates a bounded successor generation. Cancel immediately fences new work,
+commits `canceled` with cause `operator_cancel`, then concurrently stops every session owned by the
+run or addressed node. A missing managed session is already stopped. Failed stops remain durable
+and retry after transient failures or daemon restart; origin-borrowed sessions are excluded. A
+canceled run cannot resume; use rerun to start a new generation.
 
 Silence raises attention and never auto-kills or auto-pauses. Confirmed process/transport death may
 resume from progress through the bounded death-streak authority; parked nodes are never
@@ -621,7 +620,7 @@ bounded before storage; reads are scoped to the run's workspace. The closed even
   `gate_verdict`, `runtime_applied`, `channel_msg`, `token_tick`, `needs_approval`,
   `goal_turn_started`, `goal_turn_completed`, `goal_status_changed`;
 - node lifecycle: `node_retry_scheduled`, `node_paused`, `node_resumed`, `node_canceled`,
-  `node_killed`, `node_quarantined`, `node_requeued`, `node_wait_started`, `node_wait_resumed`,
+  `node_quarantined`, `node_requeued`, `node_wait_started`, `node_wait_resumed`,
   `node_attention_flagged`, `node_attention_cleared`;
 - observation and safety: `effect_results`, `custom_event`, `duplicate_suppressed`,
   `target_breaker_transition`, `stale_schedule_dropped`, `late_arrival`, `predicate_diagnostic`.

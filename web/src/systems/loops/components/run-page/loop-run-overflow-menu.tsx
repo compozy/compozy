@@ -1,4 +1,4 @@
-import { CodeXml, Ellipsis, Workflow, Zap } from "lucide-react";
+import { CodeXml, Ellipsis, Workflow } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 
 import {
@@ -6,22 +6,14 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@compozy/ui";
 
 interface LoopRunOverflowMenuProps {
   loopName: string;
-  /**
-   * Kill lives here, not beside Cancel: it is the destructive escape, and the
-   * surface keeps exactly one ⋯ menu (DESIGN-LESSONS L12). Omitted entirely for
-   * a terminal run, where the daemon would reject it.
-   */
-  onKill?: () => void;
-  isKillPending?: boolean;
 }
 
-export function LoopRunOverflowMenu({ loopName, onKill, isKillPending }: LoopRunOverflowMenuProps) {
+export function LoopRunOverflowMenu({ loopName }: LoopRunOverflowMenuProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
@@ -46,20 +38,6 @@ export function LoopRunOverflowMenu({ loopName, onKill, isKillPending }: LoopRun
           <CodeXml aria-hidden="true" className="size-3.5" />
           View definition
         </DropdownMenuItem>
-        {onKill ? (
-          <>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              className="text-danger focus:text-danger"
-              data-testid="loop-run-kill"
-              disabled={isKillPending}
-              onClick={onKill}
-            >
-              <Zap aria-hidden="true" className="size-3.5" />
-              Kill run…
-            </DropdownMenuItem>
-          </>
-        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

@@ -334,7 +334,7 @@ condition fails closed with `predicate_evaluation_failed`; it never falls throug
 | `on_error`                                       | Exactly one of `route` or `allow_fail`; optional `effects` observe the decision. |
 | `on_retry`, `on_success`, `on_pause`             | Effects for those committed node transitions.                                    |
 | `on_timeout`, `on_cancel`, `on_quarantine`       | Effects for those committed node transitions.                                    |
-| `on_parent_close`                                | Awaited `run-loop` policy: `terminate`, `cancel`, or `abandon`.                  |
+| `on_parent_close`                                | Awaited `run-loop` policy: `terminate` or `abandon`.                             |
 
 Automatic retry is class-gated: only `transport` and `attempt_timeout` qualify. Mechanical actions
 inherit family defaults; `run-agent` and `run-loop` require explicit node-level `retry`, and `goal`

@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -749,6 +751,76 @@ func TestLoopSourceSyncerShouldProjectAndDeleteManagedRecords(t *testing.T) {
 		}
 		if got := len(records); got != 0 {
 			t.Fatalf("len(records second) = %d, want 0", got)
+		}
+	})
+}
+
+func TestLoopSourceSyncerShouldSerializeConvergence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should serialize concurrent Sync calls into ordered convergence passes", func(t *testing.T) {
+		t.Parallel()
+
+		db := openDaemonTestGlobalDB(t)
+		kernel, err := resources.NewKernel(db.DB())
+		if err != nil {
+			t.Fatalf("resources.NewKernel() error = %v", err)
+		}
+		codec, err := looppkg.NewResourceCodec()
+		if err != nil {
+			t.Fatalf("looppkg.NewResourceCodec() error = %v", err)
+		}
+		store, err := resources.NewStore[looppkg.ResourceSpec](kernel, codec)
+		if err != nil {
+			t.Fatalf("resources.NewStore() error = %v", err)
+		}
+
+		entered := make(chan int, 2)
+		release := make(chan struct{})
+		var releaseOnce sync.Once
+		defer releaseOnce.Do(func() { close(release) })
+		wantErr := errors.New("stop after provider")
+		var calls atomic.Int32
+		syncer := newLoopSourceSyncer(
+			store,
+			codec,
+			loopSyncActor(),
+			discardLogger(),
+			nil,
+			func(context.Context) ([]loopPublicationInput, error) {
+				entered <- int(calls.Add(1))
+				<-release
+				return nil, wantErr
+			},
+		)
+
+		firstDone := make(chan error, 1)
+		go func() {
+			firstDone <- syncer.Sync(context.Background())
+		}()
+		if call := <-entered; call != 1 {
+			t.Fatalf("first provider call = %d, want 1", call)
+		}
+
+		secondDone := make(chan error, 1)
+		go func() {
+			secondDone <- syncer.Sync(context.Background())
+		}()
+		select {
+		case call := <-entered:
+			t.Fatalf("provider call %d entered before the first convergence pass released", call)
+		case <-time.After(25 * time.Millisecond):
+		}
+
+		releaseOnce.Do(func() { close(release) })
+		if err := <-firstDone; !errors.Is(err, wantErr) {
+			t.Fatalf("first Sync() error = %v, want %v", err, wantErr)
+		}
+		if call := <-entered; call != 2 {
+			t.Fatalf("second provider call = %d, want 2", call)
+		}
+		if err := <-secondDone; !errors.Is(err, wantErr) {
+			t.Fatalf("second Sync() error = %v, want %v", err, wantErr)
 		}
 	})
 }

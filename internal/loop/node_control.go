@@ -5,25 +5,18 @@ import (
 	"time"
 )
 
-// CancelState is the durable graceful-cancellation state machine.
+// CancelState records terminal node cancellation provenance.
 type CancelState string
 
 const (
-	CancelStateNone       CancelState = ""
-	CancelStateRequested  CancelState = "requested"
-	CancelStateDelivering CancelState = "delivering"
-	CancelStateDraining   CancelState = "draining"
-	CancelStateCanceled   CancelState = "canceled"
+	CancelStateNone     CancelState = ""
+	CancelStateCanceled CancelState = "canceled"
 )
 
 // Valid reports whether value belongs to the closed cancel-state vocabulary.
 func (s CancelState) Valid() bool {
 	switch s {
-	case CancelStateNone,
-		CancelStateRequested,
-		CancelStateDelivering,
-		CancelStateDraining,
-		CancelStateCanceled:
+	case CancelStateNone, CancelStateCanceled:
 		return true
 	default:
 		return false

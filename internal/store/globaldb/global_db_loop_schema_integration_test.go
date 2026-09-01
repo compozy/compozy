@@ -235,8 +235,7 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 			"loop_admission_claims",
 			"loop_effect_outbox",
 		)
-		assertTableHasColumn(t, upgraded.db, "loop_runs", "cancel_requested")
-		assertTableHasColumn(t, upgraded.db, "loop_runs", "cancel_kind")
+		assertTableExcludesColumns(t, upgraded.db, "loop_runs", []string{"cancel_requested", "cancel_kind"})
 		assertTableHasColumn(t, upgraded.db, "loop_run_events", "delivery_key")
 		assertTableSQLContains(t, upgraded.db, "loop_run_events", "'route_taken'")
 		assertTableHasColumn(t, upgraded.db, "loop_node_controls", "gate_revisions_json")
@@ -252,8 +251,9 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		if _, err := upgraded.db.ExecContext(
 			verificationCtx,
-			`INSERT INTO dead_entities (workspace_id, kind, entity_id, reason, marked_at)
-			 VALUES (?, 'loop_target', 'delivery:target', 'breaker open', ?)`,
+			`INSERT INTO dead_entities (profile_id, workspace_id, kind, entity_id, reason, marked_at)
+			 VALUES (?, ?, 'loop_target', 'delivery:target', 'breaker open', ?)`,
+			store.DefaultProfileID,
 			workspaceID,
 			now,
 		); err != nil {
@@ -261,8 +261,9 @@ func TestOpenGlobalDBBootstrapsLoopSchemaIntegration(t *testing.T) {
 		}
 		if _, err := upgraded.db.ExecContext(
 			verificationCtx,
-			`INSERT INTO dead_entities (workspace_id, kind, entity_id, reason, marked_at)
-			 VALUES (?, 'invalid', 'bad-target', 'invalid', ?)`,
+			`INSERT INTO dead_entities (profile_id, workspace_id, kind, entity_id, reason, marked_at)
+			 VALUES (?, ?, 'invalid', 'bad-target', 'invalid', ?)`,
+			store.DefaultProfileID,
 			workspaceID,
 			now,
 		); err == nil {
@@ -849,17 +850,6 @@ func assertMigratedLoopLifecycleRows(t *testing.T, db *sql.DB, workspaceID strin
 		goalTurnsUsed.Int64 != 4 || goalTurnLimit.Int64 != 9 {
 		t.Fatalf("migrated generation output lost data or defaults")
 	}
-	var cancelRequested int
-	var cancelKind string
-	if err := db.QueryRowContext(
-		ctx,
-		`SELECT cancel_requested, cancel_kind FROM loop_runs WHERE id = 'run-v38'`,
-	).Scan(&cancelRequested, &cancelKind); err != nil {
-		t.Fatalf("query migrated cancel defaults error = %v", err)
-	}
-	if cancelRequested != 0 || cancelKind != "" {
-		t.Fatalf("migrated cancel defaults = %d/%q, want 0/empty", cancelRequested, cancelKind)
-	}
 	var deliveryKey sql.NullString
 	if err := db.QueryRowContext(
 		ctx,
@@ -920,15 +910,18 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 	)
 	assertTableColumns(t, globalDB.db, "loop_runs", []string{
 		"id",
+		"profile_id",
 		"workspace_id",
 		"loop_name",
 		"status",
+		"historical",
 		"completion_state",
 		"forked_from_run_id",
 		"forked_from_generation",
 		"generation",
 		"reattempt_strategy",
 		"last_progress_at",
+		"completed_at",
 		"budget_tokens",
 		"budget_wall_sec",
 		"budget_on_exceeded",
@@ -966,10 +959,13 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"network_source",
 		"best_generation",
 		"best_score",
-		"cancel_requested",
-		"cancel_kind",
 	})
-	assertTableExcludesColumns(t, globalDB.db, "loop_runs", []string{"consecutive_failures"})
+	assertTableExcludesColumns(
+		t,
+		globalDB.db,
+		"loop_runs",
+		[]string{"consecutive_failures", "cancel_requested", "cancel_kind"},
+	)
 	assertTableColumns(t, globalDB.db, "loop_generation_outputs", []string{
 		"loop_run_id",
 		"generation",
@@ -1272,7 +1268,6 @@ func assertLoopRunStateSchema(t *testing.T, globalDB *GlobalDB) {
 		"parent_generation >= 0 AND parent_generation < generation",
 	)
 	assertTableSQLContains(t, globalDB.db, "loop_runs", "best_generation IS NULL AND best_score IS NULL")
-	assertTableSQLContains(t, globalDB.db, "loop_runs", "cancel_kind IN ('', 'cancel', 'kill')")
 	assertTableSQLContains(t, globalDB.db, "loop_run_events", "'route_taken'")
 	assertTableSQLContains(t, globalDB.db, "dead_entities", "'loop_target'")
 	for _, table := range []string{"loop_node_controls", "loop_node_attempts", "loop_node_waits", "loop_effect_outbox"} {

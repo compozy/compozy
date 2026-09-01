@@ -239,30 +239,6 @@ export async function cancelLoopRun(
   return requireResponseData(data, response, `Failed to cancel loop run "${runId}"`);
 }
 
-/**
- * Kill stops a live run immediately: in-flight work is interrupted mid-step and
- * its reactions are skipped. Cancel winds the same run down cooperatively. Both
- * land on the `canceled` terminal, which is why they share a response shape.
- */
-export async function killLoopRun(
-  workspaceId: string,
-  runId: string,
-  signal?: AbortSignal
-): Promise<LoopRunMutationResult> {
-  const { data, error, response } = await apiClient.POST(
-    "/api/workspaces/{workspace_id}/loop-runs/{run_id}/kill",
-    {
-      params: { path: { workspace_id: workspaceId, run_id: runId } },
-      body: {},
-      signal,
-    }
-  );
-  if (apiRequestFailed(response, error)) {
-    throw loopRunControlError("kill", runId, response, error);
-  }
-  return requireResponseData(data, response, `Failed to kill loop run "${runId}"`);
-}
-
 export async function approveLoopRun(
   workspaceId: string,
   runId: string,

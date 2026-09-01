@@ -297,6 +297,16 @@ func (g *TaskRepo) prepareCoordinatorCompletionWithExecutor(
 			current.ID,
 		)
 	}
+	loopRun, err := getLoopRunByIDWithExecutor(ctx, exec, loop.RunID(loopRunID))
+	if err != nil {
+		return taskpkg.Run{}, "", err
+	}
+	if loopRun.Status == loop.StatusCanceled {
+		if err := requireCanceledCoordinatorCompletion(current, completion.ClaimToken); err != nil {
+			return taskpkg.Run{}, "", err
+		}
+		return current, loopRunID, nil
+	}
 	if err := requireCurrentRunLease(current, completion.ClaimToken, completion.Now); err != nil {
 		return taskpkg.Run{}, "", err
 	}

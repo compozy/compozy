@@ -23,7 +23,7 @@ func closeGoalBindingWithCleanup(
 	key goal.BindingKey,
 	bindingEpoch int64,
 	sessionID string,
-	cause goal.SessionCleanupCause,
+	cause looppkg.SessionCleanupCause,
 	closedAt time.Time,
 ) error {
 	binding, err := getSessionBindingAttemptWithExecutor(ctx, exec, key, bindingEpoch)
@@ -76,7 +76,7 @@ func closeTerminalGoalCheckpointBinding(
 		},
 		checkpoint.BindingEpoch,
 		checkpoint.SessionID,
-		goal.SessionCleanupCauseTerminal,
+		looppkg.SessionCleanupCauseTerminal,
 		at,
 	)
 }

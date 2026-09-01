@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -31,6 +32,7 @@ type loopPublicationInput struct {
 type loopDeclarationProvider func(context.Context) ([]loopPublicationInput, error)
 
 type loopSourceSyncer struct {
+	syncMu    sync.Mutex
 	store     resources.Store[looppkg.ResourceSpec]
 	codec     resources.KindCodec[looppkg.ResourceSpec]
 	actor     resources.MutationActor
@@ -152,6 +154,9 @@ func (s *loopSourceSyncer) Sync(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("daemon: loop sync context is required")
 	}
+	s.syncMu.Lock()
+	defer s.syncMu.Unlock()
+
 	desired, err := s.desiredLoops(ctx)
 	if err != nil {
 		return err

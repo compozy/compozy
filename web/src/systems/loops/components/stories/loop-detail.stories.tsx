@@ -37,7 +37,7 @@ type Story = StoryObj<typeof meta>;
 
 const loop = loopDetailByName.get("implement-tasks")!;
 const catalogEntry = loopCatalogFixtures.find(entry => entry.name === "implement-tasks")!;
-// Keeps the cooperative-cancel terminal in view: `canceled` is its own ending, not a failure.
+// Keeps the operator-canceled terminal in view: `canceled` is its own ending, not a failure.
 const deliveryRuns = loopRunFixtures.filter(run => run.loop_name === "implement-tasks");
 const canceledRun = deliveryRuns.find(run => run.status === "canceled")!;
 const recentRuns = [

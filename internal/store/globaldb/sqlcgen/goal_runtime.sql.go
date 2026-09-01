@@ -10,25 +10,6 @@ import (
 	"database/sql"
 )
 
-const acknowledgeGoalSessionCleanup = `-- name: AcknowledgeGoalSessionCleanup :execrows
-UPDATE loop_goal_session_cleanup
-SET completed_at = CAST(?1 AS TEXT)
-WHERE cleanup_id = ?2 AND completed_at IS NULL
-`
-
-type AcknowledgeGoalSessionCleanupParams struct {
-	CompletedAt string `json:"completed_at"`
-	CleanupID   string `json:"cleanup_id"`
-}
-
-func (q *Queries) AcknowledgeGoalSessionCleanup(ctx context.Context, arg AcknowledgeGoalSessionCleanupParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, acknowledgeGoalSessionCleanup, arg.CompletedAt, arg.CleanupID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const acknowledgeGoalSessionOutbox = `-- name: AcknowledgeGoalSessionOutbox :exec
 UPDATE loop_goal_session_outbox
 SET delivered_at = CAST(?1 AS TEXT)
@@ -45,58 +26,23 @@ func (q *Queries) AcknowledgeGoalSessionOutbox(ctx context.Context, arg Acknowle
 	return err
 }
 
-const claimGoalSessionCleanup = `-- name: ClaimGoalSessionCleanup :many
-SELECT cleanup.id, cleanup.cleanup_id, cleanup.workspace_id, cleanup.loop_run_id,
-       cleanup.handle, cleanup.binding_epoch, cleanup.session_id, cleanup.cause,
-       cleanup.created_at, cleanup.completed_at
-FROM loop_goal_session_cleanup AS cleanup
-JOIN loop_session_bindings AS binding
-  ON binding.loop_run_id = cleanup.loop_run_id
- AND binding.handle = cleanup.handle
- AND binding.binding_epoch = cleanup.binding_epoch
-WHERE cleanup.completed_at IS NULL
-  AND NOT (binding.state = 'failed' AND binding.failure_code = ?1)
-ORDER BY cleanup.id ASC
-LIMIT ?2
+const acknowledgeLoopSessionCleanup = `-- name: AcknowledgeLoopSessionCleanup :execrows
+UPDATE loop_session_cleanup
+SET completed_at = CAST(?1 AS TEXT)
+WHERE cleanup_id = ?2 AND completed_at IS NULL
 `
 
-type ClaimGoalSessionCleanupParams struct {
-	UnsettledFailureCode sql.NullString `json:"unsettled_failure_code"`
-	ClaimLimit           int64          `json:"claim_limit"`
+type AcknowledgeLoopSessionCleanupParams struct {
+	CompletedAt string `json:"completed_at"`
+	CleanupID   string `json:"cleanup_id"`
 }
 
-func (q *Queries) ClaimGoalSessionCleanup(ctx context.Context, arg ClaimGoalSessionCleanupParams) ([]LoopGoalSessionCleanup, error) {
-	rows, err := q.db.QueryContext(ctx, claimGoalSessionCleanup, arg.UnsettledFailureCode, arg.ClaimLimit)
+func (q *Queries) AcknowledgeLoopSessionCleanup(ctx context.Context, arg AcknowledgeLoopSessionCleanupParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, acknowledgeLoopSessionCleanup, arg.CompletedAt, arg.CleanupID)
 	if err != nil {
-		return nil, err
+		return 0, err
 	}
-	defer rows.Close()
-	items := []LoopGoalSessionCleanup{}
-	for rows.Next() {
-		var i LoopGoalSessionCleanup
-		if err := rows.Scan(
-			&i.ID,
-			&i.CleanupID,
-			&i.WorkspaceID,
-			&i.LoopRunID,
-			&i.Handle,
-			&i.BindingEpoch,
-			&i.SessionID,
-			&i.Cause,
-			&i.CreatedAt,
-			&i.CompletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+	return result.RowsAffected()
 }
 
 const claimGoalSessionOutbox = `-- name: ClaimGoalSessionOutbox :many
@@ -141,39 +87,63 @@ func (q *Queries) ClaimGoalSessionOutbox(ctx context.Context, claimLimit int64) 
 	return items, nil
 }
 
-const enqueueGoalSessionCleanup = `-- name: EnqueueGoalSessionCleanup :exec
-INSERT INTO loop_goal_session_cleanup (
-    cleanup_id, workspace_id, loop_run_id, handle, binding_epoch, session_id, cause, created_at
-) VALUES (
-    ?1, ?2, ?3, ?4,
-    ?5, ?6, ?7, CAST(?8 AS TEXT)
-)
-ON CONFLICT(cleanup_id) DO NOTHING
+const claimLoopSessionCleanup = `-- name: ClaimLoopSessionCleanup :many
+SELECT cleanup.id, cleanup.cleanup_id, cleanup.workspace_id, cleanup.loop_run_id,
+       cleanup.source_kind, cleanup.source_id, cleanup.source_epoch, cleanup.session_id, cleanup.cause,
+       cleanup.created_at, cleanup.completed_at
+FROM loop_session_cleanup AS cleanup
+LEFT JOIN loop_session_bindings AS binding
+  ON cleanup.source_kind = 'goal-binding'
+ AND binding.loop_run_id = cleanup.loop_run_id
+ AND binding.handle = cleanup.source_id
+ AND binding.binding_epoch = cleanup.source_epoch
+WHERE cleanup.completed_at IS NULL
+  AND (
+    cleanup.source_kind = 'task-run'
+    OR NOT (binding.state = 'failed' AND binding.failure_code = ?1)
+  )
+ORDER BY cleanup.id ASC
+LIMIT ?2
 `
 
-type EnqueueGoalSessionCleanupParams struct {
-	CleanupID    string `json:"cleanup_id"`
-	WorkspaceID  string `json:"workspace_id"`
-	LoopRunID    string `json:"loop_run_id"`
-	Handle       string `json:"handle"`
-	BindingEpoch int64  `json:"binding_epoch"`
-	SessionID    string `json:"session_id"`
-	Cause        string `json:"cause"`
-	CreatedAt    string `json:"created_at"`
+type ClaimLoopSessionCleanupParams struct {
+	UnsettledFailureCode sql.NullString `json:"unsettled_failure_code"`
+	ClaimLimit           int64          `json:"claim_limit"`
 }
 
-func (q *Queries) EnqueueGoalSessionCleanup(ctx context.Context, arg EnqueueGoalSessionCleanupParams) error {
-	_, err := q.db.ExecContext(ctx, enqueueGoalSessionCleanup,
-		arg.CleanupID,
-		arg.WorkspaceID,
-		arg.LoopRunID,
-		arg.Handle,
-		arg.BindingEpoch,
-		arg.SessionID,
-		arg.Cause,
-		arg.CreatedAt,
-	)
-	return err
+func (q *Queries) ClaimLoopSessionCleanup(ctx context.Context, arg ClaimLoopSessionCleanupParams) ([]LoopSessionCleanup, error) {
+	rows, err := q.db.QueryContext(ctx, claimLoopSessionCleanup, arg.UnsettledFailureCode, arg.ClaimLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []LoopSessionCleanup{}
+	for rows.Next() {
+		var i LoopSessionCleanup
+		if err := rows.Scan(
+			&i.ID,
+			&i.CleanupID,
+			&i.WorkspaceID,
+			&i.LoopRunID,
+			&i.SourceKind,
+			&i.SourceID,
+			&i.SourceEpoch,
+			&i.SessionID,
+			&i.Cause,
+			&i.CreatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const enqueueGoalSessionOutbox = `-- name: EnqueueGoalSessionOutbox :exec
@@ -210,6 +180,44 @@ func (q *Queries) EnqueueGoalSessionOutbox(ctx context.Context, arg EnqueueGoalS
 	return err
 }
 
+const enqueueLoopSessionCleanup = `-- name: EnqueueLoopSessionCleanup :exec
+INSERT INTO loop_session_cleanup (
+    cleanup_id, workspace_id, loop_run_id, source_kind, source_id, source_epoch, session_id, cause, created_at
+) VALUES (
+    ?1, ?2, ?3, ?4,
+    trim(?5), ?6, ?7, ?8,
+    CAST(?9 AS TEXT)
+)
+ON CONFLICT(cleanup_id) DO NOTHING
+`
+
+type EnqueueLoopSessionCleanupParams struct {
+	CleanupID   string `json:"cleanup_id"`
+	WorkspaceID string `json:"workspace_id"`
+	LoopRunID   string `json:"loop_run_id"`
+	SourceKind  string `json:"source_kind"`
+	SourceID    string `json:"source_id"`
+	SourceEpoch int64  `json:"source_epoch"`
+	SessionID   string `json:"session_id"`
+	Cause       string `json:"cause"`
+	CreatedAt   string `json:"created_at"`
+}
+
+func (q *Queries) EnqueueLoopSessionCleanup(ctx context.Context, arg EnqueueLoopSessionCleanupParams) error {
+	_, err := q.db.ExecContext(ctx, enqueueLoopSessionCleanup,
+		arg.CleanupID,
+		arg.WorkspaceID,
+		arg.LoopRunID,
+		arg.SourceKind,
+		arg.SourceID,
+		arg.SourceEpoch,
+		arg.SessionID,
+		arg.Cause,
+		arg.CreatedAt,
+	)
+	return err
+}
+
 const getGoalRunOrigin = `-- name: GetGoalRunOrigin :one
 SELECT origin_kind, origin_session_id
 FROM loop_runs
@@ -233,31 +241,6 @@ func (q *Queries) GetGoalRunOrigin(ctx context.Context, arg GetGoalRunOriginPara
 	return i, err
 }
 
-const getGoalSessionCleanup = `-- name: GetGoalSessionCleanup :one
-SELECT id, cleanup_id, workspace_id, loop_run_id, handle, binding_epoch,
-       session_id, cause, created_at, completed_at
-FROM loop_goal_session_cleanup
-WHERE cleanup_id = ?1
-`
-
-func (q *Queries) GetGoalSessionCleanup(ctx context.Context, cleanupID string) (LoopGoalSessionCleanup, error) {
-	row := q.db.QueryRowContext(ctx, getGoalSessionCleanup, cleanupID)
-	var i LoopGoalSessionCleanup
-	err := row.Scan(
-		&i.ID,
-		&i.CleanupID,
-		&i.WorkspaceID,
-		&i.LoopRunID,
-		&i.Handle,
-		&i.BindingEpoch,
-		&i.SessionID,
-		&i.Cause,
-		&i.CreatedAt,
-		&i.CompletedAt,
-	)
-	return i, err
-}
-
 const getGoalSessionOutboxByEventID = `-- name: GetGoalSessionOutboxByEventID :one
 SELECT id, event_id, workspace_id, origin_session_id, loop_run_id, bound_session_id,
        cause, created_at, delivered_at
@@ -278,6 +261,32 @@ func (q *Queries) GetGoalSessionOutboxByEventID(ctx context.Context, eventID str
 		&i.Cause,
 		&i.CreatedAt,
 		&i.DeliveredAt,
+	)
+	return i, err
+}
+
+const getLoopSessionCleanup = `-- name: GetLoopSessionCleanup :one
+SELECT id, cleanup_id, workspace_id, loop_run_id, source_kind, source_id, source_epoch,
+       session_id, cause, created_at, completed_at
+FROM loop_session_cleanup
+WHERE cleanup_id = ?1
+`
+
+func (q *Queries) GetLoopSessionCleanup(ctx context.Context, cleanupID string) (LoopSessionCleanup, error) {
+	row := q.db.QueryRowContext(ctx, getLoopSessionCleanup, cleanupID)
+	var i LoopSessionCleanup
+	err := row.Scan(
+		&i.ID,
+		&i.CleanupID,
+		&i.WorkspaceID,
+		&i.LoopRunID,
+		&i.SourceKind,
+		&i.SourceID,
+		&i.SourceEpoch,
+		&i.SessionID,
+		&i.Cause,
+		&i.CreatedAt,
+		&i.CompletedAt,
 	)
 	return i, err
 }
@@ -426,26 +435,27 @@ func (q *Queries) ReadLatestGoalSessionVerdict(ctx context.Context, loopRunID st
 	return i, err
 }
 
-const reconcileGoalSessionCleanup = `-- name: ReconcileGoalSessionCleanup :exec
+const reconcileLoopSessionCleanup = `-- name: ReconcileLoopSessionCleanup :exec
 UPDATE loop_session_bindings
 SET failure_code = ?1
 WHERE state = 'failed' AND failure_code = ?2
   AND EXISTS (
-      SELECT 1 FROM loop_goal_session_cleanup AS cleanup
+      SELECT 1 FROM loop_session_cleanup AS cleanup
       WHERE cleanup.loop_run_id = loop_session_bindings.loop_run_id
-        AND cleanup.handle = loop_session_bindings.handle
-        AND cleanup.binding_epoch = loop_session_bindings.binding_epoch
+        AND cleanup.source_kind = 'goal-binding'
+        AND cleanup.source_id = loop_session_bindings.handle
+        AND cleanup.source_epoch = loop_session_bindings.binding_epoch
         AND cleanup.completed_at IS NULL
   )
 `
 
-type ReconcileGoalSessionCleanupParams struct {
+type ReconcileLoopSessionCleanupParams struct {
 	SettledFailureCode   sql.NullString `json:"settled_failure_code"`
 	UnsettledFailureCode sql.NullString `json:"unsettled_failure_code"`
 }
 
-func (q *Queries) ReconcileGoalSessionCleanup(ctx context.Context, arg ReconcileGoalSessionCleanupParams) error {
-	_, err := q.db.ExecContext(ctx, reconcileGoalSessionCleanup, arg.SettledFailureCode, arg.UnsettledFailureCode)
+func (q *Queries) ReconcileLoopSessionCleanup(ctx context.Context, arg ReconcileLoopSessionCleanupParams) error {
+	_, err := q.db.ExecContext(ctx, reconcileLoopSessionCleanup, arg.SettledFailureCode, arg.UnsettledFailureCode)
 	return err
 }
 

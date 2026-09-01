@@ -145,12 +145,6 @@ type LoopService interface {
 		runID string,
 		actor taskpkg.ActorContext,
 	) (contract.LoopMutationResponse, error)
-	KillLoopRun(
-		ctx context.Context,
-		workspaceID string,
-		runID string,
-		actor taskpkg.ActorContext,
-	) (contract.LoopMutationResponse, error)
 	PauseLoopNode(
 		ctx context.Context,
 		workspaceID string,
@@ -168,14 +162,6 @@ type LoopService interface {
 		actor taskpkg.ActorContext,
 	) (contract.LoopMutationResponse, error)
 	CancelLoopNode(
-		ctx context.Context,
-		workspaceID string,
-		runID string,
-		nodeID string,
-		req contract.LoopNodeMutationRequest,
-		actor taskpkg.ActorContext,
-	) (contract.LoopMutationResponse, error)
-	KillLoopNode(
 		ctx context.Context,
 		workspaceID string,
 		runID string,

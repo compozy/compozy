@@ -34,7 +34,7 @@ export interface LoopOutcomeView {
   label: string;
   cause: string | null;
   at: string;
-  /** Who ended it, on a cancel or a kill. */
+  /** Who ended it, when the run was canceled or reached another terminal outcome. */
   actorLabel: string | null;
 }
 

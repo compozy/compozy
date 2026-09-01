@@ -42,6 +42,7 @@ type service struct {
 	coordinatorActivator  CoordinatorRunActivator
 	goalLeaseRevoker      GoalPromptLeaseRevoker
 	cancellationSessions  CancellationSessionController
+	cancellationLimit     int
 	responderPolicy       ResponderPolicy
 	participationResolver participation.Resolver
 	runtimeCatalog        WorkspaceRuntimeCatalog
@@ -68,12 +69,13 @@ func NewService(
 		return nil, fmt.Errorf("%w: Goal run policy resolver is required", ErrValidation)
 	}
 	svc := &service{
-		store:      loopStore,
-		resolver:   resolver,
-		goalPolicy: goalPolicy,
-		defaults:   DefaultLoopDefaults(),
-		logger:     slog.Default(),
-		now:        func() time.Time { return time.Now().UTC() },
+		store:             loopStore,
+		resolver:          resolver,
+		goalPolicy:        goalPolicy,
+		defaults:          DefaultLoopDefaults(),
+		logger:            slog.Default(),
+		cancellationLimit: 64,
+		now:               func() time.Time { return time.Now().UTC() },
 		newRunID: func() (RunID, error) {
 			id, err := storepkg.NewID("looprun")
 			return RunID(id), err
@@ -424,8 +426,7 @@ func allowedTransition(from Status, to Status, cause TransitionCause) bool {
 }
 
 func cancelTransition(to Status, cause TransitionCause) bool {
-	return to == StatusCanceled &&
-		(cause == TransitionCauseOperatorCancel || cause == TransitionCauseOperatorKill)
+	return to == StatusCanceled && cause == TransitionCauseOperatorCancel
 }
 
 // Terminal reports whether the status is terminal.

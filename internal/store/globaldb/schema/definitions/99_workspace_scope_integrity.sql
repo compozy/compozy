@@ -280,7 +280,7 @@ BEGIN
 	DELETE FROM loop_run_events WHERE workspace_id = OLD.id;
 	DELETE FROM loop_runs WHERE workspace_id = OLD.id;
 	DELETE FROM loop_goal_session_outbox WHERE workspace_id = OLD.id;
-	DELETE FROM loop_goal_session_cleanup WHERE workspace_id = OLD.id;
+	DELETE FROM loop_session_cleanup WHERE workspace_id = OLD.id;
 	DELETE FROM loop_admission_claims WHERE workspace_id = OLD.id;
 	DELETE FROM loop_node_lane_pauses WHERE workspace_id = OLD.id;
 	DELETE FROM loop_node_amendments WHERE workspace_id = OLD.id;

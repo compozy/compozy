@@ -282,16 +282,16 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		); err != nil {
 			t.Fatalf("CancelRun() error = %v", err)
 		}
-		cleanupStore, ok := fixture.goalStore.(goalSessionCleanupStore)
+		cleanupStore, ok := fixture.goalStore.(loopSessionCleanupStore)
 		if !ok {
-			t.Fatalf("goal store = %T, want goalSessionCleanupStore", fixture.goalStore)
+			t.Fatalf("goal store = %T, want loopSessionCleanupStore", fixture.goalStore)
 		}
 		outboxStore, ok := fixture.goalStore.(goalSessionOutboxStore)
 		if !ok {
 			t.Fatalf("goal store = %T, want goalSessionOutboxStore", fixture.goalStore)
 		}
-		if pending, err := cleanupStore.ClaimGoalSessionCleanup(testutil.Context(t), 10); err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(unsettled) error = %v", err)
+		if pending, err := cleanupStore.ClaimLoopSessionCleanup(testutil.Context(t), 10); err != nil {
+			t.Fatalf("ClaimLoopSessionCleanup(unsettled) error = %v", err)
 		} else if len(pending) != 0 {
 			t.Fatalf("unsettled cleanup = %#v, want hidden", pending)
 		}
@@ -315,8 +315,8 @@ func TestLoopGoalManagedRuntimeIntegration(t *testing.T) {
 		if _, active := fixture.manager.Get(request.DesiredSessionID); active {
 			t.Fatalf("late-created session %q remained active", request.DesiredSessionID)
 		}
-		if pending, err := cleanupStore.ClaimGoalSessionCleanup(testutil.Context(t), 10); err != nil {
-			t.Fatalf("ClaimGoalSessionCleanup(completed) error = %v", err)
+		if pending, err := cleanupStore.ClaimLoopSessionCleanup(testutil.Context(t), 10); err != nil {
+			t.Fatalf("ClaimLoopSessionCleanup(completed) error = %v", err)
 		} else if len(pending) != 0 {
 			t.Fatalf("completed cleanup = %#v, want none", pending)
 		}

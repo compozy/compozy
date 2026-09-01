@@ -34,18 +34,29 @@ type ParentClosePolicy string
 const (
 	// ParentCloseTerminate closes the child according to the parent's terminal outcome.
 	ParentCloseTerminate ParentClosePolicy = "terminate"
-	// ParentCloseCancel requests a graceful child cancellation.
-	ParentCloseCancel ParentClosePolicy = "cancel"
 	// ParentCloseAbandon leaves the child running independently.
 	ParentCloseAbandon ParentClosePolicy = "abandon"
+	parentCloseCancel  ParentClosePolicy = "cancel"
 )
 
 // IsKnownParentClosePolicy reports whether value is in the closed parent-close vocabulary.
 func IsKnownParentClosePolicy(value ParentClosePolicy) bool {
 	switch value {
-	case ParentCloseTerminate, ParentCloseCancel, ParentCloseAbandon:
+	case ParentCloseTerminate, ParentCloseAbandon:
 		return true
 	default:
 		return false
+	}
+}
+
+// NormalizeStoredParentClosePolicy maps durable predecessor values onto the authored vocabulary.
+func NormalizeStoredParentClosePolicy(value ParentClosePolicy) (ParentClosePolicy, bool) {
+	switch value {
+	case ParentCloseTerminate, ParentCloseAbandon:
+		return value, true
+	case parentCloseCancel:
+		return ParentCloseTerminate, true
+	default:
+		return "", false
 	}
 }

@@ -732,7 +732,7 @@ graph:
       class: action
       kind: run-loop
       params: { loop: child-loop, mode: await }
-      on_parent_close: cancel
+      on_parent_close: terminate
     - id: wait_for_ack
       class: control
       kind: wait
@@ -779,7 +779,7 @@ start: [{ kind: manual }]
 			"on_error:",
 			"on_retry:",
 			"on_canceled:",
-			"on_parent_close: cancel",
+			"on_parent_close: terminate",
 			"ahead_arrival: consume_on_entry",
 		} {
 			if !strings.Contains(string(serialized), fragment) {

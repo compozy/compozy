@@ -26,11 +26,12 @@ func goalSessionOutboxFromGenerated(row sqlcgen.LoopGoalSessionOutbox) goal.Sess
 	return event
 }
 
-func goalSessionCleanupFromGenerated(row sqlcgen.LoopGoalSessionCleanup) goal.SessionCleanupObligation {
-	obligation := goal.SessionCleanupObligation{
+func loopSessionCleanupFromGenerated(row sqlcgen.LoopSessionCleanup) loop.SessionCleanupObligation {
+	obligation := loop.SessionCleanupObligation{
 		ID: row.ID, CleanupID: row.CleanupID, WorkspaceID: loop.WorkspaceID(row.WorkspaceID),
-		LoopRunID: loop.RunID(row.LoopRunID), Handle: row.Handle, BindingEpoch: row.BindingEpoch,
-		SessionID: row.SessionID, Cause: goal.SessionCleanupCause(row.Cause), CreatedAt: row.CreatedAt.UTC(),
+		LoopRunID: loop.RunID(row.LoopRunID), SourceKind: loop.SessionCleanupSourceKind(row.SourceKind),
+		SourceID: row.SourceID, SourceEpoch: row.SourceEpoch, SessionID: row.SessionID,
+		Cause: loop.SessionCleanupCause(row.Cause), CreatedAt: row.CreatedAt.UTC(),
 	}
 	if row.CompletedAt.Valid {
 		value := row.CompletedAt.Time.UTC()

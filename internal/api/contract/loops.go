@@ -50,7 +50,6 @@ const (
 	LoopRunTransitionCauseStart              LoopRunTransitionCause = "start"
 	LoopRunTransitionCausePromote            LoopRunTransitionCause = "promote"
 	LoopRunTransitionCauseOperatorCancel     LoopRunTransitionCause = "operator_cancel"
-	LoopRunTransitionCauseOperatorKill       LoopRunTransitionCause = "operator_kill"
 	LoopRunTransitionCauseGoalReplace        LoopRunTransitionCause = "goal_replace"
 	LoopRunTransitionCauseGoalClear          LoopRunTransitionCause = "goal_clear"
 	LoopRunTransitionCausePauseBoundary      LoopRunTransitionCause = "pause_boundary"

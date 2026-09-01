@@ -23,7 +23,6 @@ import {
   TriangleAlert,
   VolumeOff,
   X,
-  Zap,
   ZapOff,
 } from "lucide-react";
 
@@ -47,7 +46,6 @@ export type LoopStoryIcon =
   | "circle-slash"
   | "retry"
   | "canceled"
-  | "killed"
   | "quarantined"
   | "requeued"
   | "waiting"
@@ -82,7 +80,6 @@ export const LOOP_STORY_ICONS: Record<LoopStoryIcon, LucideIcon> = {
   "circle-slash": CircleSlash,
   retry: RotateCcw,
   canceled: Ban,
-  killed: Zap,
   quarantined: ShieldAlert,
   requeued: Redo2,
   waiting: Hourglass,

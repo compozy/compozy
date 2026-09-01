@@ -69,7 +69,7 @@ CREATE TABLE loop_run_events (
 			kind         TEXT NOT NULL CHECK (kind IN (
 				'node_running','node_succeeded','node_failed','node_quarantined','node_requeued',
 				'node_paused','node_resumed','node_wait_started','node_wait_resumed',
-				'duplicate_suppressed','node_canceled','node_killed','node_attention_flagged',
+				'duplicate_suppressed','node_canceled','node_attention_flagged',
 				'node_attention_cleared','target_breaker_transition','gate_verdict',
 				'generation_started','channel_msg','token_tick','needs_approval','status_changed',
 				'goal_turn_started','goal_turn_completed','goal_status_changed','runtime_applied',
@@ -115,8 +115,6 @@ CREATE TABLE loop_runs (
 						'explicit_request', 'task_profile', 'workspace_coordination',
 						'loop_definition', 'automation_job', 'built_in_local'
 					)), best_generation INTEGER, best_score REAL,
-					cancel_requested INTEGER NOT NULL DEFAULT 0,
-					cancel_kind TEXT NOT NULL DEFAULT '' CHECK (cancel_kind IN ('', 'cancel', 'kill')),
 					CHECK (
 						(best_generation IS NULL AND best_score IS NULL)
 						OR (best_generation IS NOT NULL AND best_score IS NOT NULL
@@ -213,8 +211,8 @@ CREATE INDEX idx_loop_effect_outbox_pending
 CREATE INDEX idx_loop_admission_claims_expiry
 	ON loop_admission_claims(expires_at);
 
-CREATE INDEX idx_loop_goal_session_cleanup_pending
-			ON loop_goal_session_cleanup(id) WHERE completed_at IS NULL;
+CREATE INDEX idx_loop_session_cleanup_pending
+			ON loop_session_cleanup(id) WHERE completed_at IS NULL;
 
 CREATE INDEX idx_loop_goal_session_outbox_pending
 			ON loop_goal_session_outbox(id) WHERE delivered_at IS NULL;

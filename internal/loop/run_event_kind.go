@@ -2,6 +2,8 @@ package loop
 
 type RunEventKind string
 
+const runEventNodeKilled RunEventKind = "node_killed"
+
 const (
 	RunEventNodeRunning          RunEventKind = "node_running"
 	RunEventNodeSucceeded        RunEventKind = "node_succeeded"
@@ -22,7 +24,6 @@ const (
 	RunEventNodePaused           RunEventKind = "node_paused"
 	RunEventNodeResumed          RunEventKind = "node_resumed"
 	RunEventNodeCanceled         RunEventKind = "node_canceled"
-	RunEventNodeKilled           RunEventKind = "node_killed"
 	RunEventNodeQuarantined      RunEventKind = "node_quarantined"
 	RunEventNodeRequeued         RunEventKind = "node_requeued"
 	RunEventNodeWaitStarted      RunEventKind = "node_wait_started"
@@ -52,7 +53,7 @@ func RunEventKindValues() []string {
 		string(RunEventGoalTurnStarted), string(RunEventGoalTurnCompleted), string(RunEventGoalStatusChanged),
 		string(RunEventRuntimeApplied), string(RunEventPredicateDiagnostic), string(RunEventRouteTaken),
 		string(RunEventNodeRetryScheduled), string(RunEventNodePaused), string(RunEventNodeResumed),
-		string(RunEventNodeCanceled), string(RunEventNodeKilled), string(RunEventNodeQuarantined),
+		string(RunEventNodeCanceled), string(RunEventNodeQuarantined),
 		string(RunEventNodeRequeued), string(RunEventNodeWaitStarted), string(RunEventNodeWaitResumed),
 		string(RunEventNodeAttentionFlagged), string(RunEventNodeAttentionCleared), string(RunEventEffectResults),
 		string(RunEventCustomEvent), string(RunEventDuplicateSuppressed), string(RunEventTargetBreaker),
@@ -60,4 +61,12 @@ func RunEventKindValues() []string {
 		string(RunEventRequestAnswered), string(RunEventRequestExpired), string(RunEventRequestCanceled),
 		string(RunEventNodeAmended), string(RunEventBranchPruned), string(RunEventRunForked),
 	}
+}
+
+func projectedRunEventKind(value string) RunEventKind {
+	kind := RunEventKind(value)
+	if kind == runEventNodeKilled {
+		return RunEventNodeCanceled
+	}
+	return kind
 }

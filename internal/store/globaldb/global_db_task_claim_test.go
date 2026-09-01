@@ -5036,6 +5036,99 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 		testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t)
 	})
 
+	t.Run("Should supersede an in-flight generation after run cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 38, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-inflight-canceled", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-inflight-canceled",
+			now,
+		)
+		if _, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Reason:      "operator canceled in-flight generation",
+			Actor:       operatorActorContextForTest("operator:cancel-inflight"),
+			RequestedAt: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+
+		nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.stale.0"
+		nodeRunID := "run.loop." + string(loopRun.ID) + ".g1.node.stale.0"
+		completion := taskpkg.CoordinatorCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+					TaskID: nodeTaskID, Title: "Stale Loop delivery node",
+					Metadata: json.RawMessage(`{"node_id":"stale"}`),
+				}},
+				NodeRuns: []taskpkg.EnqueueSpec{{
+					TaskID: nodeTaskID, RunID: nodeRunID, RunKind: taskpkg.RunKindWorker,
+					LoopRunID: string(loopRun.ID), IdempotencyKey: "coordinator-inflight-canceled-stale",
+				}},
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+						NodeID: "stale", Status: "pending",
+					}}},
+				},
+				GenerationInFlight: true,
+			},
+			Now: now.Add(2 * time.Second),
+		}
+		wrongTokenCompletion := completion
+		wrongTokenCompletion.ClaimToken += "-wrong"
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			wrongTokenCompletion,
+			looppkg.NewStoreFinalizer(),
+		); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+			t.Fatalf(
+				"CompleteCoordinatorAndEnqueueNext(wrong token) error = %v, want %v",
+				err,
+				taskpkg.ErrInvalidClaimToken,
+			)
+		}
+
+		result, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			completion,
+			looppkg.NewStoreFinalizer(),
+		)
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		if got, want := coordinatorResultStatus(t, &result), string(looppkg.StatusCanceled); got != want {
+			t.Fatalf("loop status = %q, want %q", got, want)
+		}
+		if !result.PlanSuperseded {
+			t.Fatal("plan superseded = false, want canceled run to fence stale plan")
+		}
+		if len(result.EnqueuedRuns) != 0 {
+			t.Fatalf("enqueued runs = %d, want no stale enqueue", len(result.EnqueuedRuns))
+		}
+		if _, err := globalDB.GetTaskRun(ctx, nodeRunID); !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+			t.Fatalf("GetTaskRun(stale node) error = %v, want %v", err, taskpkg.ErrTaskRunNotFound)
+		}
+	})
+
 	cases := []struct {
 		name      string
 		mutateRun func(*looppkg.Run)
@@ -5065,32 +5158,6 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 			},
 			before: func(context.Context, *testing.T, *GlobalDB, looppkg.Run) {},
 			now:    func(now time.Time) time.Time { return now.Add(2 * time.Second) },
-		},
-		{
-			name: "cancel",
-			before: func(ctx context.Context, t *testing.T, db *GlobalDB, run looppkg.Run) {
-				t.Helper()
-				if _, err := db.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
-					loop_run_id, generation, node_id, item_index, status, attempt, epoch
-				) VALUES (?, 1, 'slow', 0, 'running', 1, 1)`, run.ID); err != nil {
-					t.Fatalf("seed cancel-race output error = %v", err)
-				}
-				result, err := db.RequestRunCancellation(ctx, looppkg.CancellationMutation{
-					WorkspaceID: run.WorkspaceID,
-					RunID:       run.ID,
-					Kind:        looppkg.RunCancelCancel,
-					Reason:      "operator request",
-					Actor:       operatorActorContextForTest("operator:cancel-race"),
-					RequestedAt: time.Date(2026, 7, 4, 15, 37, 0, 500_000_000, time.UTC),
-				})
-				if err != nil {
-					t.Fatalf("RequestRunCancellation() error = %v", err)
-				}
-				if !result.Applied || result.Terminal {
-					t.Fatalf("RequestRunCancellation() = %#v, want live request", result)
-				}
-			},
-			now: func(now time.Time) time.Time { return now.Add(time.Second) },
 		},
 	}
 
@@ -5167,8 +5234,8 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 			if len(result.EnqueuedRuns) != 0 {
 				t.Fatalf("enqueued runs = %d, want 0 while boundary is deferred", len(result.EnqueuedRuns))
 			}
-			if got, want := result.PlanSuperseded, tc.name == "cancel"; got != want {
-				t.Fatalf("plan superseded = %t, want %t", got, want)
+			if result.PlanSuperseded {
+				t.Fatal("plan superseded = true, want deferred boundary")
 			}
 			storedLoop, err := globalDB.GetLoopRunByID(ctx, loopRun.ID)
 			if err != nil {
@@ -5179,9 +5246,6 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 			}
 			if tc.name == "pause" && !storedLoop.PauseRequested {
 				t.Fatal("pause_requested = false, want it preserved until quiesced boundary")
-			}
-			if tc.name == "cancel" && !storedLoop.CancelRequested {
-				t.Fatal("cancel_requested = false, want stale plan fenced by committed cancellation")
 			}
 			if _, err := globalDB.GetTaskRun(ctx, nodeRunID); !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
 				t.Fatalf("GetTaskRun(node) error = %v, want %v", err, taskpkg.ErrTaskRunNotFound)
@@ -5195,29 +5259,6 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 				string(loopRun.ID),
 				"ready",
 			).Scan(&status, &taskRunID)
-			if tc.name == "cancel" {
-				if !errors.Is(queryErr, sql.ErrNoRows) {
-					t.Fatalf("query stale ready output error = %v, want sql.ErrNoRows", queryErr)
-				}
-				queued, err := globalDB.ListTaskRunsByStatus(
-					ctx,
-					[]taskpkg.RunStatus{taskpkg.TaskRunStatusQueued},
-				)
-				if err != nil {
-					t.Fatalf("ListTaskRunsByStatus(cancel wake) error = %v", err)
-				}
-				var cancelWakes int
-				for _, run := range queued {
-					if run.RunKind.Normalize() == taskpkg.RunKindCoordinator &&
-						strings.TrimSpace(run.LoopRunID) == string(loopRun.ID) {
-						cancelWakes++
-					}
-				}
-				if cancelWakes != 1 {
-					t.Fatalf("queued cancellation wakes = %d, want 1", cancelWakes)
-				}
-				return
-			}
 			if queryErr != nil {
 				t.Fatalf("query generation output error = %v", queryErr)
 			}
@@ -6395,7 +6436,7 @@ func testGlobalDBCompleteCoordinatorShouldApplyParentClose(t *testing.T) {
 		t.Fatalf("CreateLoopRunForStart(parent) error = %v", err)
 	}
 	children := make(map[string]looppkg.Run)
-	for _, suffix := range []string{"terminate", "cancel", "abandon"} {
+	for _, suffix := range []string{"terminate", "abandon"} {
 		seed := testLoopRun("looprun-parent-close-"+suffix, now, looppkg.StatusRunning)
 		seed.ParentLoopRunID = parentRun.ID
 		child, createErr := globalDB.CreateLoopRunForStart(ctx, seed, dsl.ConcurrencyAllow)
@@ -6413,16 +6454,12 @@ func testGlobalDBCompleteCoordinatorShouldApplyParentClose(t *testing.T) {
 			ParentCloses: []taskpkg.CoordinatorParentCloseSpec{
 				{ParentLoopRunID: string(parentRun.ID), ChildLoopRunID: string(children["terminate"].ID),
 					Policy: string(dsl.ParentCloseTerminate), ParentStatus: string(looppkg.StatusFailed)},
-				{ParentLoopRunID: string(parentRun.ID), ChildLoopRunID: string(children["cancel"].ID),
-					Policy: string(dsl.ParentCloseCancel), ParentStatus: string(looppkg.StatusFailed)},
 			},
 			Snapshot: taskpkg.GenerationSnapshot{
 				LoopRunID: string(parentRun.ID), Generation: 1,
 				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{
 					{Generation: 1, NodeID: "default_child", Status: "awaiting_child",
 						ChildLoopRunID: string(children["terminate"].ID)},
-					{Generation: 1, NodeID: "cancel_child", Status: "awaiting_child",
-						ChildLoopRunID: string(children["cancel"].ID)},
 					{Generation: 1, NodeID: "abandon_child", Status: "awaiting_child",
 						ChildLoopRunID: string(children["abandon"].ID)},
 				}},
@@ -6444,14 +6481,13 @@ func testGlobalDBCompleteCoordinatorShouldApplyParentClose(t *testing.T) {
 		name string
 	}{
 		{name: "terminate"},
-		{name: "cancel"},
 		{name: "abandon"},
 	} {
 		stored, loadErr := globalDB.GetLoopRunByID(ctx, children[testCase.name].ID)
 		if loadErr != nil {
 			t.Fatalf("GetLoopRunByID(%s child) error = %v", testCase.name, loadErr)
 		}
-		if stored.Status != looppkg.StatusRunning || stored.CancelRequested {
+		if stored.Status != looppkg.StatusRunning {
 			t.Fatalf("%s child = %#v, want untouched until post-commit", testCase.name, stored)
 		}
 	}

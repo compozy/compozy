@@ -79,10 +79,8 @@ const (
 	TransitionCauseStart TransitionCause = "start"
 	// TransitionCausePromote records queued-run promotion.
 	TransitionCausePromote TransitionCause = "promote"
-	// TransitionCauseOperatorCancel records a graceful operator cancellation.
+	// TransitionCauseOperatorCancel records an operator cancellation.
 	TransitionCauseOperatorCancel TransitionCause = "operator_cancel"
-	// TransitionCauseOperatorKill records an immediate operator kill.
-	TransitionCauseOperatorKill TransitionCause = "operator_kill"
 	// TransitionCauseGoalReplace records an expected-run inline Goal replacement.
 	TransitionCauseGoalReplace TransitionCause = "goal_replace"
 	// TransitionCauseGoalClear records an inline Goal clear that also stops a live Run.
@@ -238,8 +236,6 @@ type Run struct {
 	ParentLoopRunID       RunID
 	Historical            bool
 	PauseRequested        bool
-	CancelRequested       bool
-	CancelKind            RunCancelKind
 	ControlActor          task.ActorIdentity
 	ControlRequestedAt    time.Time
 	GoalContextNudgeRatio float64
@@ -387,17 +383,7 @@ type Service interface {
 	) error
 	DryRun(ctx context.Context, ws WorkspaceID, name string, inputs Inputs) (*PlanPreview, error)
 	CancelRun(ctx context.Context, ws WorkspaceID, runID RunID, reason string, actor task.ActorContext) error
-	KillRun(ctx context.Context, ws WorkspaceID, runID RunID, reason string, actor task.ActorContext) error
 	CancelNode(
-		ctx context.Context,
-		ws WorkspaceID,
-		runID RunID,
-		nodeID NodeID,
-		itemIndex *int,
-		reason string,
-		actor task.ActorContext,
-	) error
-	KillNode(
 		ctx context.Context,
 		ws WorkspaceID,
 		runID RunID,

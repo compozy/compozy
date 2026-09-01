@@ -8,7 +8,6 @@ import {
   ShieldAlert,
   SkipForward,
   TimerReset,
-  Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -24,16 +23,14 @@ export const LOOP_NODE_VERB_ICONS: Record<LoopNodeVerb, LucideIcon> = {
   "resume-immediate": SkipForward,
   "resume-wait": Play,
   cancel: Ban,
-  kill: Zap,
   requeue: Redo2,
   "open-quarantine": ShieldAlert,
   amend: Pencil,
   rerun: RotateCcw,
 };
 
-export const LOOP_RUN_VERB_ICONS: Record<Extract<LoopRunVerb, "cancel" | "kill">, LucideIcon> = {
+export const LOOP_RUN_VERB_ICONS: Record<Extract<LoopRunVerb, "cancel">, LucideIcon> = {
   cancel: Ban,
-  kill: Zap,
 };
 
 /** Head-well tone: escalation lives here, not on body copy. */
@@ -43,8 +40,7 @@ export const LOOP_NODE_VERB_ICON_TONE: Record<LoopNodeVerb, ConfirmDialogIconTon
   "resume-reset-attempts": "accent",
   "resume-immediate": "accent",
   "resume-wait": "accent",
-  cancel: "neutral",
-  kill: "danger",
+  cancel: "danger",
   requeue: "accent",
   "open-quarantine": "danger",
   amend: "accent",
@@ -52,9 +48,8 @@ export const LOOP_NODE_VERB_ICON_TONE: Record<LoopNodeVerb, ConfirmDialogIconTon
 };
 
 export const LOOP_RUN_VERB_ICON_TONE: Record<
-  Extract<LoopRunVerb, "cancel" | "kill">,
+  Extract<LoopRunVerb, "cancel">,
   ConfirmDialogIconTone
 > = {
-  cancel: "neutral",
-  kill: "danger",
+  cancel: "danger",
 };

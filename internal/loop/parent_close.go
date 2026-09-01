@@ -71,9 +71,11 @@ func selectParentCloseActions(
 		if policy == "" {
 			policy = dsl.ParentCloseTerminate
 		}
-		if !dsl.IsKnownParentClosePolicy(policy) {
+		normalizedPolicy, known := dsl.NormalizeStoredParentClosePolicy(policy)
+		if !known {
 			return nil, fmt.Errorf("%w: invalid parent-close policy %q", ErrValidation, policy)
 		}
+		policy = normalizedPolicy
 		if policy == dsl.ParentCloseAbandon {
 			continue
 		}
@@ -142,10 +144,6 @@ func (s *service) applyParentCloseActions(
 		var err error
 		switch action.Policy {
 		case dsl.ParentCloseTerminate:
-			err = s.KillRun(
-				ctx, parentMutation.WorkspaceID, action.ChildRunID, reason, parentMutation.Actor,
-			)
-		case dsl.ParentCloseCancel:
 			err = s.CancelRun(
 				ctx, parentMutation.WorkspaceID, action.ChildRunID, reason, parentMutation.Actor,
 			)

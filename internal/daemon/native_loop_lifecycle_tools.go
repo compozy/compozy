@@ -51,12 +51,10 @@ func (n *daemonNativeTools) addLoopLifecycleBindings(
 	availability toolspkg.NativeAvailabilityFunc,
 ) {
 	bindings[toolspkg.ToolIDLoopCancel] = nativeToolBinding{call: n.loopCancel, availability: availability}
-	bindings[toolspkg.ToolIDLoopKill] = nativeToolBinding{call: n.loopKill, availability: availability}
 	bindings[toolspkg.ToolIDLoopNodes] = nativeToolBinding{call: n.loopNodes, availability: availability}
 	bindings[toolspkg.ToolIDLoopNodePause] = nativeToolBinding{call: n.loopNodePause, availability: availability}
 	bindings[toolspkg.ToolIDLoopNodeResume] = nativeToolBinding{call: n.loopNodeResume, availability: availability}
 	bindings[toolspkg.ToolIDLoopNodeCancel] = nativeToolBinding{call: n.loopNodeCancel, availability: availability}
-	bindings[toolspkg.ToolIDLoopNodeKill] = nativeToolBinding{call: n.loopNodeKill, availability: availability}
 	bindings[toolspkg.ToolIDLoopNodeRequeue] = nativeToolBinding{call: n.loopNodeRequeue, availability: availability}
 }
 
@@ -65,15 +63,7 @@ func (n *daemonNativeTools) loopCancel(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.loopLifecycleRunMutation(ctx, scope, req, n.loopService().CancelLoopRun, "cancel requested")
-}
-
-func (n *daemonNativeTools) loopKill(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.loopLifecycleRunMutation(ctx, scope, req, n.loopService().KillLoopRun, "killed")
+	return n.loopLifecycleRunMutation(ctx, scope, req, n.loopService().CancelLoopRun, "canceled")
 }
 
 func (n *daemonNativeTools) loopNodes(
@@ -149,15 +139,7 @@ func (n *daemonNativeTools) loopNodeCancel(
 	scope toolspkg.Scope,
 	req toolspkg.CallRequest,
 ) (toolspkg.ToolResult, error) {
-	return n.loopNodeSimpleMutation(ctx, scope, req, n.loopService().CancelLoopNode, "cancel requested")
-}
-
-func (n *daemonNativeTools) loopNodeKill(
-	ctx context.Context,
-	scope toolspkg.Scope,
-	req toolspkg.CallRequest,
-) (toolspkg.ToolResult, error) {
-	return n.loopNodeSimpleMutation(ctx, scope, req, n.loopService().KillLoopNode, "killed")
+	return n.loopNodeSimpleMutation(ctx, scope, req, n.loopService().CancelLoopNode, "canceled")
 }
 
 func (n *daemonNativeTools) loopNodeRequeue(

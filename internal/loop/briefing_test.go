@@ -155,10 +155,10 @@ func TestBriefingContract(t *testing.T) {
 		source.Run.Status = StatusCanceled
 		source.Run.LastProgressAt = now
 		source.Run.ControlActor = task.ActorIdentity{Kind: task.ActorKindHuman, Ref: "pedro"}
-		source.Outcome = &RunOutcome{Status: StatusCanceled, Cause: "operator_kill", At: now}
+		source.Outcome = &RunOutcome{Status: StatusCanceled, Cause: "operator_cancel", At: now}
 		got := ProjectBriefing(&source)
 		if got.Tone != BriefingToneOK || got.Outcome == nil || got.Outcome.ActorKind != "human" ||
-			got.Outcome.Cause != "operator_kill" || !got.Outcome.At.Equal(now) ||
+			got.Outcome.Cause != "operator_cancel" || !got.Outcome.At.Equal(now) ||
 			!strings.Contains(got.Headline, "pedro") {
 			t.Fatalf("briefing = %#v", got)
 		}

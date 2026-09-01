@@ -72,6 +72,20 @@ func TestTimelineViewContract(t *testing.T) {
 			t.Fatalf("fork title = %q", page.Entries[1].Title)
 		}
 	})
+	t.Run("Should project the legacy durable node_killed event as canceled", func(t *testing.T) {
+		t.Parallel()
+
+		entry, err := ProjectTimelineEvent(
+			RunEvent{LoopRunID: "run-a", Seq: 1, Kind: "node_killed"},
+			TimelineViewAll,
+		)
+		if err != nil {
+			t.Fatalf("ProjectTimelineEvent(node_killed) error = %v", err)
+		}
+		if entry == nil || entry.Kind != RunEventNodeCanceled || entry.Title != "A step changed state" {
+			t.Fatalf("legacy node_killed entry = %#v, want canonical canceled projection", entry)
+		}
+	})
 	t.Run("Should satisfy UT-013 with typed cursor and beyond-head errors", func(t *testing.T) {
 		t.Parallel()
 		events := []RunEvent{

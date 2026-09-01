@@ -10,7 +10,7 @@ import { isTerminalLoopStatus } from "./loop-formatters";
  *
  * The vocabulary is the public contract's, verbatim:
  * pause `mode` is `drain | cancel`; resume `mode` is
- * `plain | reset_attempts | immediate`; cancel/kill/requeue carry only a reason.
+ * `plain | reset_attempts | immediate`; cancel/requeue carry only a reason.
  */
 
 export type LoopNodeVerb =
@@ -20,13 +20,12 @@ export type LoopNodeVerb =
   | "resume-immediate"
   | "resume-wait"
   | "cancel"
-  | "kill"
   | "requeue"
   | "open-quarantine"
   | "amend"
   | "rerun";
 
-export type LoopRunVerb = "pause" | "resume" | "cancel" | "kill";
+export type LoopRunVerb = "pause" | "resume" | "cancel";
 
 /** The `mode` value each resume verb posts. */
 export const LOOP_NODE_RESUME_MODES = {
@@ -51,17 +50,16 @@ export function loopNodeWaitResumeItemIndex(node: LoopNodeLifecycle): number | u
 /**
  * Verbs offerable for one node, in menu order.
  *
- * - `running` — pause / cancel / kill. No resume (nothing is parked) and no
+ * - `running` — pause / cancel. No resume (nothing is parked) and no
  *   requeue (nothing was set aside).
  * - `retrying` — same set: pausing a backoff parks the pending retry, and
  *   skipping the backoff is the two-step Pause → Resume now (`immediate`).
- * - `paused` — the three resume modes plus cancel / kill; requeue stays absent
+ * - `paused` — the three resume modes plus cancel; requeue stays absent
  *   because a paused node was never quarantined.
  * - `waiting` — resume takes a payload validated against the wait; the other
  *   resume modes do not apply to a wait cell.
  * - `quarantined` — requeue is the recovery verb; resume is not offered.
- * - `canceling`/`canceled` — only kill can still escalate a cooperative cancel;
- *   a settled `canceled` node offers nothing.
+ * - `canceled` — the settled node offers nothing.
  */
 export function loopNodeVerbs(
   node: LoopNodeLifecycle,
@@ -73,23 +71,15 @@ export function loopNodeVerbs(
   // rather than steer a run — so a settled run offers those and nothing else.
   const timeTravelVerbs = loopNodeTimetravelVerbs(node, runStatus, timetravel);
   if (isTerminalLoopStatus(runStatus)) return timeTravelVerbs;
-  if (node.quarantined) return ["open-quarantine", "requeue", "cancel", "kill"];
-  if (node.cancelState === "canceled") return [];
-  if (node.cancelState !== "") return ["kill"];
+  if (node.cancelState !== "") return [];
+  if (node.quarantined) return ["open-quarantine", "requeue", "cancel"];
   if (node.paused) {
-    return [
-      "resume",
-      "resume-reset-attempts",
-      "resume-immediate",
-      ...timeTravelVerbs,
-      "cancel",
-      "kill",
-    ];
+    return ["resume", "resume-reset-attempts", "resume-immediate", ...timeTravelVerbs, "cancel"];
   }
   if (loopNodeWaitResumeItemIndex(node) !== undefined) {
-    return ["resume-wait", ...timeTravelVerbs, "cancel", "kill"];
+    return ["resume-wait", ...timeTravelVerbs, "cancel"];
   }
-  return ["pause", ...timeTravelVerbs, "cancel", "kill"];
+  return ["pause", ...timeTravelVerbs, "cancel"];
 }
 
 export interface LoopNodeTimetravelCapability {
@@ -122,8 +112,8 @@ function loopNodeTimetravelVerbs(
 
 /**
  * Run-level verbs. Pause is valid only from `running` (the daemon rejects it
- * elsewhere, N-003); resume only from `paused`; cancel and kill stay available
- * for any live run — cancel winds down cooperatively, kill stops immediately.
+ * elsewhere, N-003); resume only from `paused`; cancel stays available for any
+ * live run and immediately closes the run.
  */
 export function loopRunVerbs(
   status: string | null | undefined,
@@ -133,7 +123,7 @@ export function loopRunVerbs(
   const verbs: LoopRunVerb[] = [];
   if (status === "running" && !pauseRequested) verbs.push("pause");
   if (status === "paused") verbs.push("resume");
-  verbs.push("cancel", "kill");
+  verbs.push("cancel");
   return verbs;
 }
 
@@ -158,8 +148,7 @@ export const LOOP_NODE_VERB_PRESENTATION: Record<LoopNodeVerb, LoopNodeVerbPrese
   },
   "resume-immediate": { label: "Resume now", mode: "immediate", destructive: false },
   "resume-wait": { label: "Resume with payload…", destructive: false },
-  cancel: { label: "Cancel…", destructive: false },
-  kill: { label: "Kill…", destructive: true },
+  cancel: { label: "Cancel…", destructive: true },
   requeue: { label: "Requeue…", destructive: false },
   "open-quarantine": { label: "Open quarantine entry", destructive: false },
   amend: { label: "Amend output…", destructive: false },

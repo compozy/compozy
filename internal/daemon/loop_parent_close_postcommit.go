@@ -39,7 +39,7 @@ func (h loopParentClosePostCommit) ApplyCoordinatorPostCommit(
 		spec := raw.Normalize()
 		reason := "fan-out strategy canceled " + spec.NodeID + "/" + fmt.Sprint(spec.ItemIndex)
 		for _, sessionID := range spec.SessionIDs {
-			if err := controller.CancelLoopSession(ctx, sessionID, reason); err != nil {
+			if err := controller.StopLoopSession(ctx, sessionID, reason); err != nil {
 				errs = append(errs, fmt.Errorf("cancel strategy lane session %q: %w", sessionID, err))
 			}
 		}
@@ -54,14 +54,6 @@ func (h loopParentClosePostCommit) ApplyCoordinatorPostCommit(
 		}
 		switch dsl.ParentClosePolicy(spec.Policy) {
 		case dsl.ParentCloseTerminate:
-			err = api.aggregate.KillRun(
-				ctx,
-				workspaceID,
-				looppkg.RunID(spec.ChildLoopRunID),
-				reason,
-				actor,
-			)
-		case dsl.ParentCloseCancel:
 			err = api.aggregate.CancelRun(
 				ctx,
 				workspaceID,

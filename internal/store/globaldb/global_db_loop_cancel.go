@@ -39,16 +39,7 @@ func (g *LoopRepo) RequestRunCancellation(
 			result.Terminal = true
 			return nil
 		}
-		applied, err := writeRunCancellationIntent(ctx, exec, mutation)
-		if err != nil {
-			return err
-		}
-		result.Applied = applied
-		if !applied {
-			result.Run, err = cancellationRun(ctx, exec, mutation)
-			result.Terminal = result.Run.Status.Terminal()
-			return err
-		}
+		result.Applied = true
 		if err := projectRunCancellation(ctx, exec, mutation); err != nil {
 			return err
 		}
@@ -63,14 +54,6 @@ func (g *LoopRepo) RequestRunCancellation(
 		if err != nil {
 			return err
 		}
-		live, err := runHasLiveCancellationOutputs(ctx, exec, mutation.RunID)
-		if err != nil {
-			return err
-		}
-		if mutation.Kind != looppkg.RunCancelKill && run.Status == looppkg.StatusRunning && live {
-			result.Run, err = cancellationRun(ctx, exec, mutation)
-			return err
-		}
 		err = terminalizeRunCancellation(ctx, exec, mutation, run)
 		if err != nil {
 			return err
@@ -80,63 +63,6 @@ func (g *LoopRepo) RequestRunCancellation(
 			return err
 		}
 		result.Terminal = result.Run.Status.Terminal()
-		return nil
-	})
-	if err != nil {
-		return looppkg.CancellationResult{}, err
-	}
-	return result, nil
-}
-
-// AdvanceRunCancellation moves graceful delivery forward and terminalizes only at canceled.
-func (g *LoopRepo) AdvanceRunCancellation(
-	ctx context.Context,
-	mutation looppkg.CancellationMutation,
-	state looppkg.CancelState,
-) (looppkg.CancellationResult, error) {
-	if err := g.checkReady(ctx, "advance Loop run cancellation"); err != nil {
-		return looppkg.CancellationResult{}, err
-	}
-	if err := mutation.Validate(false); err != nil {
-		return looppkg.CancellationResult{}, err
-	}
-	if mutation.Kind != looppkg.RunCancelCancel || !validCancellationAdvance(state) {
-		return looppkg.CancellationResult{}, fmt.Errorf("%w: invalid Run cancellation advance", looppkg.ErrValidation)
-	}
-	var result looppkg.CancellationResult
-	err := g.withTaskImmediateTransaction(ctx, "advance Loop run cancellation", func(exec taskSQLExecutor) error {
-		run, err := cancellationRun(ctx, exec, mutation)
-		if err != nil {
-			return err
-		}
-		result.Run = run
-		if run.Status.Terminal() {
-			result.Terminal = true
-			return nil
-		}
-		if !run.CancelRequested || run.CancelKind != looppkg.RunCancelCancel {
-			return fmt.Errorf("%w: Run cancellation intent changed", looppkg.ErrTransitionConflict)
-		}
-		result.Applied, err = advanceRunNodeCancelState(ctx, exec, mutation, state)
-		if err != nil {
-			return err
-		}
-		if state == looppkg.CancelStateDraining && result.Applied {
-			result.Coordinator, err = g.reserveCancellationCoordinator(ctx, exec, run, mutation)
-			return err
-		}
-		if state != looppkg.CancelStateCanceled {
-			return nil
-		}
-		result.RevokedPromptLeases, err = cleanupRunCancellationGoals(ctx, exec, mutation)
-		if err != nil {
-			return err
-		}
-		if err := terminalizeRunCancellation(ctx, exec, mutation, run); err != nil {
-			return err
-		}
-		result.Run.Status = looppkg.StatusCanceled
-		result.Terminal = true
 		return nil
 	})
 	if err != nil {
@@ -163,7 +89,7 @@ func (g *LoopRepo) RequestNodeCancellation(
 			return err
 		}
 		result.Run = run
-		if run.Status.Terminal() || run.CancelRequested {
+		if run.Status.Terminal() {
 			result.Terminal = run.Status.Terminal()
 			return nil
 		}
@@ -193,7 +119,7 @@ func (g *LoopRepo) RequestNodeCancellation(
 			}
 		}
 		result.SessionIDs, err = listNodeCancellationSessions(ctx, exec, mutation)
-		if err != nil || mutation.Kind != looppkg.RunCancelKill {
+		if err != nil {
 			return err
 		}
 		if err := finalizeNodeCancellation(ctx, exec, mutation, run); err != nil {
@@ -201,54 +127,6 @@ func (g *LoopRepo) RequestNodeCancellation(
 		}
 		result.Coordinator, err = g.reserveCancellationCoordinator(ctx, exec, run, mutation)
 		return err
-	})
-	if err != nil {
-		return looppkg.CancellationResult{}, err
-	}
-	return result, nil
-}
-
-// AdvanceNodeCancellation advances cooperative delivery for one node.
-func (g *LoopRepo) AdvanceNodeCancellation(
-	ctx context.Context,
-	mutation looppkg.CancellationMutation,
-	state looppkg.CancelState,
-) (looppkg.CancellationResult, error) {
-	if err := g.checkReady(ctx, "advance Loop node cancellation"); err != nil {
-		return looppkg.CancellationResult{}, err
-	}
-	if err := mutation.Validate(true); err != nil {
-		return looppkg.CancellationResult{}, err
-	}
-	if mutation.Kind != looppkg.RunCancelCancel || !validCancellationAdvance(state) {
-		return looppkg.CancellationResult{}, fmt.Errorf("%w: invalid node cancellation advance", looppkg.ErrValidation)
-	}
-	var result looppkg.CancellationResult
-	err := g.withTaskImmediateTransaction(ctx, "advance Loop node cancellation", func(exec taskSQLExecutor) error {
-		run, err := cancellationRun(ctx, exec, mutation)
-		if err != nil {
-			return err
-		}
-		result.Run = run
-		if run.Status.Terminal() || run.CancelRequested {
-			result.Terminal = run.Status.Terminal()
-			return nil
-		}
-		result.Applied, err = advanceOneNodeCancelState(ctx, exec, mutation, state)
-		if err != nil {
-			return err
-		}
-		if state == looppkg.CancelStateDraining && result.Applied {
-			result.Coordinator, err = g.reserveCancellationCoordinator(ctx, exec, run, mutation)
-			return err
-		}
-		if state != looppkg.CancelStateCanceled {
-			return nil
-		}
-		if err := finalizeNodeCancellation(ctx, exec, mutation, run); err != nil {
-			return err
-		}
-		return nil
 	})
 	if err != nil {
 		return looppkg.CancellationResult{}, err
@@ -271,37 +149,7 @@ func cancellationRun(
 	return run, nil
 }
 
-func validCancellationAdvance(state looppkg.CancelState) bool {
-	switch state {
-	case looppkg.CancelStateDelivering, looppkg.CancelStateDraining, looppkg.CancelStateCanceled:
-		return true
-	default:
-		return false
-	}
-}
-
-func writeRunCancellationIntent(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	mutation looppkg.CancellationMutation,
-) (bool, error) {
-	result, err := exec.ExecContext(ctx, `UPDATE loop_runs SET
-		cancel_requested = 1, cancel_kind = ?, control_actor_kind = ?, control_actor_id = ?, control_requested_at = ?
-		WHERE id = ? AND cancel_requested = 0`, mutation.Kind.String(),
-		mutation.Actor.Actor.Kind.Normalize(), strings.TrimSpace(mutation.Actor.Actor.Ref),
-		mutation.RequestedAt.UTC(), mutation.RunID)
-	if err != nil {
-		return false, fmt.Errorf("store: request Loop run cancellation: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	return affected == 1, err
-}
-
 func projectRunCancellation(ctx context.Context, exec taskSQLExecutor, mutation looppkg.CancellationMutation) error {
-	state := looppkg.CancelStateRequested
-	if mutation.Kind == looppkg.RunCancelKill {
-		state = looppkg.CancelStateCanceled
-	}
 	if _, err := exec.ExecContext(ctx, `INSERT INTO loop_node_controls (
 		loop_run_id, node_id, cancel_state, cancel_actor_kind, cancel_actor_id, cancel_reason,
 		cancel_requested_at, revision, updated_at
@@ -322,7 +170,7 @@ func projectRunCancellation(ctx context.Context, exec taskSQLExecutor, mutation 
 			THEN loop_node_controls.revision + 1 ELSE loop_node_controls.revision END,
 		updated_at = CASE WHEN loop_node_controls.cancel_state = ''
 			THEN excluded.updated_at ELSE loop_node_controls.updated_at END`,
-		state, mutation.Actor.Actor.Kind.Normalize(), strings.TrimSpace(mutation.Actor.Actor.Ref),
+		looppkg.CancelStateCanceled, mutation.Actor.Actor.Kind.Normalize(), strings.TrimSpace(mutation.Actor.Actor.Ref),
 		strings.TrimSpace(mutation.Reason), mutation.RequestedAt.UTC(), mutation.RequestedAt.UTC(),
 		mutation.RunID,
 	); err != nil {
@@ -341,10 +189,6 @@ func writeNodeCancellationIntent(
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
 ) (bool, error) {
-	state := looppkg.CancelStateRequested
-	if mutation.Kind == looppkg.RunCancelKill {
-		state = looppkg.CancelStateCanceled
-	}
 	result, err := exec.ExecContext(ctx, `INSERT INTO loop_node_controls (
 		loop_run_id, node_id, cancel_state, cancel_actor_kind, cancel_actor_id, cancel_reason,
 		cancel_requested_at, revision, updated_at
@@ -354,7 +198,7 @@ func writeNodeCancellationIntent(
 		cancel_actor_id = excluded.cancel_actor_id, cancel_reason = excluded.cancel_reason,
 		cancel_requested_at = excluded.cancel_requested_at, revision = loop_node_controls.revision + 1,
 		updated_at = excluded.updated_at
-	WHERE loop_node_controls.cancel_state = ''`, mutation.RunID, mutation.NodeID, state,
+	WHERE loop_node_controls.cancel_state = ''`, mutation.RunID, mutation.NodeID, looppkg.CancelStateCanceled,
 		mutation.Actor.Actor.Kind.Normalize(), strings.TrimSpace(mutation.Actor.Actor.Ref),
 		strings.TrimSpace(mutation.Reason),
 		mutation.RequestedAt.UTC(), mutation.RequestedAt.UTC())
@@ -373,65 +217,6 @@ func fenceNodeCancellation(ctx context.Context, exec taskSQLExecutor, mutation l
 		return fmt.Errorf("store: fence Loop node cancellation: %w", err)
 	}
 	return nil
-}
-
-func advanceRunNodeCancelState(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	mutation looppkg.CancellationMutation,
-	state looppkg.CancelState,
-) (bool, error) {
-	from := looppkg.CancelStateRequested
-	switch state {
-	case looppkg.CancelStateDraining:
-		from = looppkg.CancelStateDelivering
-	case looppkg.CancelStateCanceled:
-		from = looppkg.CancelStateDraining
-	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_node_controls SET cancel_state = ?, revision = revision + 1, updated_at = ?
-		WHERE loop_run_id = ? AND cancel_state = ?`,
-		state,
-		mutation.RequestedAt.UTC(),
-		mutation.RunID,
-		from,
-	)
-	if err != nil {
-		return false, fmt.Errorf("store: advance Loop run node cancellation: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	return affected > 0, err
-}
-
-func advanceOneNodeCancelState(
-	ctx context.Context,
-	exec taskSQLExecutor,
-	mutation looppkg.CancellationMutation,
-	state looppkg.CancelState,
-) (bool, error) {
-	from := looppkg.CancelStateRequested
-	switch state {
-	case looppkg.CancelStateDraining:
-		from = looppkg.CancelStateDelivering
-	case looppkg.CancelStateCanceled:
-		from = looppkg.CancelStateDraining
-	}
-	result, err := exec.ExecContext(
-		ctx,
-		`UPDATE loop_node_controls SET cancel_state = ?, revision = revision + 1, updated_at = ?
-		WHERE loop_run_id = ? AND node_id = ? AND cancel_state = ?`,
-		state,
-		mutation.RequestedAt.UTC(),
-		mutation.RunID,
-		mutation.NodeID,
-		from,
-	)
-	if err != nil {
-		return false, fmt.Errorf("store: advance Loop node cancellation: %w", err)
-	}
-	affected, err := result.RowsAffected()
-	return affected == 1, err
 }
 
 func cleanupRunCancellationGoals(
@@ -466,17 +251,13 @@ func terminalizeRunCancellation(
 		next_attempt_at = NULL WHERE loop_run_id = ? AND status IN (`+liveCancelOutputStatuses+`)`, mutation.RunID); err != nil {
 		return fmt.Errorf("store: terminalize canceled Loop outputs: %w", err)
 	}
-	cause := looppkg.TransitionCauseOperatorCancel
-	if mutation.Kind == looppkg.RunCancelKill {
-		cause = looppkg.TransitionCauseOperatorKill
-	}
 	if err := compareAndSwapLoopRunStatusWithEffects(
 		ctx,
 		exec,
 		mutation.RunID,
 		run.Status,
 		looppkg.StatusCanceled,
-		cause,
+		looppkg.TransitionCauseOperatorCancel,
 		mutation.Effects,
 		mutation.RequestedAt.UTC(),
 	); err != nil {

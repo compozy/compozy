@@ -207,7 +207,7 @@ func closeRevokedGoalBinding(
 		},
 		request.ExpectedBindingEpoch,
 		checkpoint.SessionID,
-		goal.SessionCleanupCauseControlRevoked,
+		looppkg.SessionCleanupCauseControlRevoked,
 		request.RevokedAt,
 	)
 }

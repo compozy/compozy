@@ -79,8 +79,6 @@ type LoopParentClosePolicy string
 const (
 	// LoopParentCloseTerminate closes the child with its parent.
 	LoopParentCloseTerminate LoopParentClosePolicy = "terminate"
-	// LoopParentCloseCancel requests a graceful child cancellation.
-	LoopParentCloseCancel LoopParentClosePolicy = "cancel"
 	// LoopParentCloseAbandon leaves the child running independently.
 	LoopParentCloseAbandon LoopParentClosePolicy = "abandon"
 )
@@ -89,7 +87,6 @@ const (
 func LoopParentClosePolicyValues() []string {
 	return []string{
 		string(LoopParentCloseTerminate),
-		string(LoopParentCloseCancel),
 		string(LoopParentCloseAbandon),
 	}
 }

@@ -118,10 +118,19 @@ func WithGoalPromptLeaseRevoker(revoker GoalPromptLeaseRevoker) Option {
 	}
 }
 
-// WithCancellationSessionController injects post-commit prompt and process cancellation.
+// WithCancellationSessionController injects post-commit process cancellation.
 func WithCancellationSessionController(controller CancellationSessionController) Option {
 	return func(s *service) {
 		s.cancellationSessions = controller
+	}
+}
+
+// WithCancellationConcurrency bounds concurrent post-commit session stops.
+func WithCancellationConcurrency(limit int) Option {
+	return func(s *service) {
+		if limit > 0 {
+			s.cancellationLimit = limit
+		}
 	}
 }
 

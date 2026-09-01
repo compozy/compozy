@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import {
   cancelLoopNode,
-  killLoopNode,
   pauseLoopNode,
   requeueLoopNode,
   resumeLoopNode,
@@ -85,16 +84,6 @@ export function useCancelLoopNode() {
   return useMutation({
     mutationFn: ({ workspaceId, runId, nodeId, data }: NodeMutationParams) =>
       cancelLoopNode({ workspaceId, runId, nodeId }, data),
-    onSettled: (_result, _error, { workspaceId, runId }) =>
-      invalidateNodeLifecycle(queryClient, workspaceId, runId),
-  });
-}
-
-export function useKillLoopNode() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ workspaceId, runId, nodeId, data }: NodeMutationParams) =>
-      killLoopNode({ workspaceId, runId, nodeId }, data),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateNodeLifecycle(queryClient, workspaceId, runId),
   });

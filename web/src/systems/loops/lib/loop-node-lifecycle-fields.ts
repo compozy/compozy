@@ -171,7 +171,7 @@ export function triggersFold(_raw: RawLoopNode): FieldSpec {
       {
         type: "hint",
         key: "reactions_hint",
-        hint: "Effects are fail-open and observe-only: a failed effect lands on the timeline and never touches the step. Kill suppresses node reactions.",
+        hint: "Effects are fail-open and observe-only: a failed effect lands on the timeline and never touches the step. Cancellation closes the lane immediately.",
       },
       ...NODE_TRIGGERS.map(trigger => effectsField(trigger.key, trigger.label, [trigger.key])),
     ],

@@ -65,8 +65,8 @@ a control the runtime does not support.
 
 **A sticky contract header** carries the live status pill (pulsing only while `running` or
 `watching`), the generation and attempt count, the run's start metadata, the goal, and the valid
-**Pause**, **Resume**, or **Cancel run** action. **Kill run** is the destructive escape in the
-overflow menu and appears only while the run is live. The Progress story reads the run's
+**Pause**, **Resume**, or **Cancel run** action. Cancel is the destructive escape and appears only
+while the run is live. The Progress story reads the run's
 `materialized_contract`; **Inspect** keeps the raw `executed_definition` available for authoring
 and audit questions.
 
@@ -136,27 +136,25 @@ three actions:
 - **Request changes** → the run revises and continues into the next generation.
 - **Reject** → the run halts on a `blocked` terminal outcome.
 
-### Pause, resume, cancel, and kill
+### Pause, resume, and cancel
 
-- **Pause** is a **generation-boundary** operation, not a mid-node kill. The daemon records a pause
+- **Pause** is a **generation-boundary** operation, not a mid-node cancellation. The daemon records a pause
   intent; the in-flight generation's already-claimed nodes finish; the status flips `running →
 paused` only at the boundary. Pause is hidden or disabled outside `running`.
 - **Resume** continues a paused (or pause-requested) run.
-- **Cancel run** cooperatively moves through request, delivery, and drain before ending `canceled`
-  with cause `operator_cancel`. The request is durable: boot recovery and scheduler sweeps retry
-  interrupted delivery until the active worker acknowledges it or its session is already absent,
-  then the run drains. If a canceled coordinator task belongs to a nonterminal Loop, recovery
-  reopens that task and reserves one replacement coordinator run.
-- **Kill run** immediately fences stale work and ends `canceled` with cause `operator_kill`. It is
-  destructive and never happens as a hidden escalation from Cancel.
+- **Cancel run** immediately fences new work and commits `canceled` with cause `operator_cancel`.
+  After that commit, the daemon concurrently stops every session owned by the run. A stop that does
+  not complete is kept in a durable cleanup queue and retried after transient failures or a daemon
+  restart. A session borrowed from the run's origin is never stopped.
 
-There is no `stop` alias. Cancel and Kill are idempotent: retrying the same accepted request returns
-the committed winner instead of starting a second cancellation path.
+Cancel is destructive and idempotent: retrying the same accepted request returns the committed
+result instead of starting a second path. A canceled run cannot Resume. Use **Rerun from here** to
+start a new generation with new work and sessions.
 
 ### Node controls and inventories
 
 The run page offers only the verbs valid for a node's current state: **Pause**, **Resume**,
-**Cancel**, **Kill**, **Requeue**, **Amend output**, and **Rerun from here**. Pause supports `drain`
+**Cancel**, **Requeue**, **Amend output**, and **Rerun from here**. Pause supports `drain`
 (the default) or `cancel`; Resume supports `plain`, `reset_attempts`, or `immediate`, and can carry
 a JSON payload for a manual wait. Requeue is available only for quarantined work and creates a
 bounded successor generation.
@@ -262,12 +260,11 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 | List runs       | `compozy loop runs`                             | `GET /loop-runs`                          | `compozy__loop_runs`                           |
 | Pause / resume  | `compozy loop pause` · `compozy loop resume`    | `POST /loop-runs/:id/pause` · `/resume`   | `compozy__loop_pause` · `compozy__loop_resume` |
 | Approve         | `compozy loop approve --gate-id … --decision …` | `POST /loop-runs/:id/approve`             | `compozy__loop_approve`                        |
-| Cancel / kill   | `compozy loop cancel` · `compozy loop kill`     | `POST /loop-runs/:id/cancel` · `/kill`    | `compozy__loop_cancel` · `compozy__loop_kill`  |
+| Cancel run      | `compozy loop cancel`                           | `POST /loop-runs/:id/cancel`              | `compozy__loop_cancel`                         |
 | List node state | `compozy loop nodes --state …`                  | `GET /loop-nodes?state=…`                 | `compozy__loop_nodes`                          |
 | Pause node      | `compozy loop node pause`                       | `POST /loop-runs/:id/nodes/:node/pause`   | `compozy__loop_node_pause`                     |
 | Resume node     | `compozy loop node resume`                      | `POST /loop-runs/:id/nodes/:node/resume`  | `compozy__loop_node_resume`                    |
 | Cancel node     | `compozy loop node cancel`                      | `POST /loop-runs/:id/nodes/:node/cancel`  | `compozy__loop_node_cancel`                    |
-| Kill node       | `compozy loop node kill`                        | `POST /loop-runs/:id/nodes/:node/kill`    | `compozy__loop_node_kill`                      |
 | Amend node      | `compozy loop node amend`                       | `POST /loop-runs/:id/nodes/:node/amend`   | `compozy__loop_node_amend`                     |
 | Requeue node    | `compozy loop node requeue`                     | `POST /loop-runs/:id/nodes/:node/requeue` | `compozy__loop_node_requeue`                   |
 | List requests   | `compozy loop requests`                         | `GET /loop-requests`                      | `compozy__loop_requests`                       |
@@ -277,7 +274,7 @@ Origins use the closed runtime vocabulary: `initial`, `stop_when`, `reattempt`, 
 | Rerun from node | `compozy loop rerun`                            | `POST /loop-runs/:id/rerun`               | `compozy__loop_rerun`                          |
 | Fork run        | `compozy loop fork`                             | `POST /loop-runs/:id/fork`                | `compozy__loop_fork`                           |
 
-Pass `--item` or `item_index` to pause, resume, cancel, or kill one fan-out cell without changing
+Pass `--item` or `item_index` to pause, resume, or cancel one fan-out cell without changing
 its siblings. Amendments apply only to a settled output while its run, node, or cell is parked.
 They append provenance and an effective-output overlay; the recorded generation output stays
 unchanged. Resume or downstream execution reads the newest amendment. Run detail returns

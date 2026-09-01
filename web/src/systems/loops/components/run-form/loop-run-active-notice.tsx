@@ -28,7 +28,7 @@ function concurrencyNote(concurrency: string | undefined, runId: string): string
 /**
  * The run of this loop that is already live when the form opens.
  *
- * Informative only: the run's own page owns pause/resume/cancel/kill, so this notice
+ * Informative only: the run's own page owns pause/resume/cancel, so this notice
  * links there instead of duplicating controls that would need their own confirmation
  * and lifecycle truth.
  */

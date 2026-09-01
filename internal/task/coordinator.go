@@ -48,7 +48,6 @@ type CoordinatorCompletionPlan struct {
 	PostReserveSnapshot *GenerationSnapshot
 	// GenerationInFlight means at least one current-generation node is still live.
 	GenerationInFlight bool
-	CancellationDrain  bool
 	// NextCoordinator is emitted by the gate/carry-forward planner; the task_05 reconciler does not yet populate it.
 	NextCoordinator  *EnqueueSpec
 	Terminal         *CoordinatorTerminal

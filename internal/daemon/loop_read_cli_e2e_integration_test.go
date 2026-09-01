@@ -589,7 +589,7 @@ func TestDaemonE2ELoopRunReadCLIJourneys(t *testing.T) {
 	t.Run("Should reflect a real node verb in the roster and reject its stale replay IT-027", func(t *testing.T) {
 		ctx := loopReadJourneyContext(t)
 		quarantinedRun := runLoopViaHTTP(t, ctx, harness, loopReadQuarantineLoopName)
-		t.Cleanup(func() { killLoopReadRun(t, ctx, harness, quarantinedRun.ID) })
+		t.Cleanup(func() { cancelLoopReadRun(t, ctx, harness, quarantinedRun.ID) })
 		waitForLoopRosterNodeState(
 			t,
 			ctx,
@@ -715,26 +715,18 @@ func cancelLoopReadRun(
 	); err != nil {
 		t.Fatalf("cancel Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
 	}
-	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
-}
-
-func killLoopReadRun(
-	t testing.TB,
-	ctx context.Context,
-	harness *e2etest.RuntimeHarness,
-	runID string,
-) {
-	t.Helper()
-	if _, stderr, err := harness.CLI.Run(
+	var response compozycontract.LoopRunResponse
+	if err := harness.HTTPJSON(
 		ctx,
-		"loop",
-		"kill",
-		"--run-id",
-		runID,
-		"--workspace",
-		harness.WorkspaceRoot,
+		http.MethodGet,
+		loopReadRunPath(harness.WorkspaceID, runID),
+		nil,
+		&response,
 	); err != nil {
-		t.Fatalf("kill Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
+		t.Fatalf("read Loop fixture run %s after cancel error = %v", runID, err)
+	}
+	if response.Run.Status == compozycontract.LoopRunStatusCanceled || loopRunStatusTerminal(response.Run.Status) {
+		return
 	}
 	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
 }
@@ -877,7 +869,7 @@ func assertStaleRequeueConflict(
 	}
 	wantError := fmt.Sprintf(
 		"already_decided: loop: transition conflict: node %q was already requeued "+
-			"(actual_state=active, allowed_transitions=pause,cancel,kill, winner_actor_id=local-user, "+
+			"(actual_state=active, allowed_transitions=pause,cancel, winner_actor_id=local-user, "+
 			"winner_actor_kind=human, winner_reason=%s, winner_requested_at=%s)",
 		nodeID,
 		winnerReason,
@@ -885,7 +877,7 @@ func assertStaleRequeueConflict(
 	)
 	if status != http.StatusConflict || conflict.Code != string(looppkg.ReasonCodeAlreadyDecided) ||
 		len(details) != 6 || details[looppkg.ReasonMetaActualState] != "active" ||
-		details[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel,kill" ||
+		details[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel" ||
 		details[looppkg.ReasonMetaWinnerActorKind] != "human" ||
 		details[looppkg.ReasonMetaWinnerActorID] != "local-user" ||
 		details[looppkg.ReasonMetaWinnerReason] != winnerReason || winnerAt == "" ||

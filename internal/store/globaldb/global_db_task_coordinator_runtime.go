@@ -123,7 +123,7 @@ func transitionLoopBoundaryStatus(
 	if err != nil {
 		return nil, err
 	}
-	terminalCause, err := terminalCauseForLoopStatus(to, cause)
+	terminalCause, err := terminalCauseForLoopStatus(to)
 	if err != nil {
 		return nil, err
 	}
