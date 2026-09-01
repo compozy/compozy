@@ -55,6 +55,18 @@ func (m *Manager) lockConversationOperation(
 
 type conversationOperationOwnersContextKey struct{}
 
+func ownsConversationOperation(ctx context.Context, target string) bool {
+	if ctx == nil {
+		return false
+	}
+	owners, ok := ctx.Value(conversationOperationOwnersContextKey{}).(conversationOperationOwners)
+	if !ok {
+		return false
+	}
+	_, owned := owners[strings.TrimSpace(target)]
+	return owned
+}
+
 func addConversationOperationOwner(ctx context.Context, target string) conversationOperationOwners {
 	owners := make(conversationOperationOwners)
 	if current, ok := ctx.Value(conversationOperationOwnersContextKey{}).(conversationOperationOwners); ok {

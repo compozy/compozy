@@ -203,6 +203,9 @@ func (m *Manager) endConversationFinalization(id string) {
 
 func (m *Manager) waitForConversationFinalization(ctx context.Context, id string) error {
 	target := strings.TrimSpace(id)
+	if ownsConversationOperation(ctx, target) {
+		return nil
+	}
 	m.mu.RLock()
 	done := m.conversationFinalizing[target]
 	m.mu.RUnlock()

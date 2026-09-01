@@ -155,6 +155,12 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 			t.Fatalf("ClearConversation() returned while stored reader was active: %v", result.err)
 		default:
 		}
+		readCtx, cancelRead := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		_, readErr := h.manager.TranscriptPage(readCtx, session.ID, transcript.PageQuery{})
+		cancelRead()
+		if !errors.Is(readErr, context.DeadlineExceeded) {
+			t.Fatalf("TranscriptPage(while clear quiesces store) error = %v, want context deadline exceeded", readErr)
+		}
 		if _, err := os.Stat(session.DBPath()); err != nil {
 			t.Fatalf("Stat(event store while clear quiesced) error = %v", err)
 		}

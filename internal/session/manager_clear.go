@@ -46,6 +46,10 @@ func (m *Manager) ClearConversation(ctx context.Context, id string) (_ *Session,
 	if m.isPending(target) {
 		return nil, fmt.Errorf("%w: %s", ErrSessionNotActive, target)
 	}
+	if err := m.beginConversationFinalization(target); err != nil {
+		return nil, err
+	}
+	defer m.endConversationFinalization(target)
 
 	if stopErr := m.stopActiveSessionForClear(ctx, target); stopErr != nil {
 		return nil, stopErr

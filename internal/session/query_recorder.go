@@ -27,21 +27,30 @@ func (m *Manager) openQueryRecorder(ctx context.Context, id string) (EventReadCl
 	if m.openQueryStore == nil {
 		return nil, nil, errors.New("session: query recorder opener is required")
 	}
-	target, err := m.resolveRecorderOpenTarget(ctx, id, true)
-	if err != nil {
-		return nil, nil, err
-	}
-	if target.active != nil {
-		return target.active, func() error { return nil }, nil
-	}
-	if target.stored == nil {
-		return nil, nil, errors.New("session: resolved query recorder target is empty")
-	}
-	reader, err := m.openQueryStore(ctx, target.stored.owner, target.stored.dbPath)
-	if err != nil {
+	for attempt := range 2 {
+		target, err := m.resolveRecorderOpenTarget(ctx, id, true)
+		if err != nil {
+			return nil, nil, err
+		}
+		if target.active != nil {
+			return target.active, func() error { return nil }, nil
+		}
+		if target.stored == nil {
+			return nil, nil, errors.New("session: resolved query recorder target is empty")
+		}
+		reader, err := m.openQueryStore(ctx, target.stored.owner, target.stored.dbPath)
+		if err == nil {
+			return reader, m.eventStoreCleanup(reader), nil
+		}
+		if attempt == 0 && errors.Is(err, sessiondb.ErrReadOnlyPoolQuiescing) {
+			if waitErr := m.waitForConversationFinalization(ctx, target.stored.owner.SessionID); waitErr != nil {
+				return nil, nil, waitErr
+			}
+			continue
+		}
 		return nil, nil, normalizeRecorderOpenError(target.stored.owner.SessionID, err)
 	}
-	return reader, m.eventStoreCleanup(reader), nil
+	return nil, nil, errors.New("session: query recorder retry exhausted")
 }
 
 func (m *Manager) openMutationRecorder(ctx context.Context, id string) (EventRecorder, func() error, error) {
@@ -77,6 +86,9 @@ func (m *Manager) resolveRecorderOpenTarget(
 	target := strings.TrimSpace(id)
 	if target == "" {
 		return recorderOpenTarget{}, errors.New("session: session id is required")
+	}
+	if err := m.waitForConversationFinalization(ctx, target); err != nil {
+		return recorderOpenTarget{}, err
 	}
 
 	waited, err := m.waitForSessionFinalization(ctx, target)

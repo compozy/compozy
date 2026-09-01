@@ -78,6 +78,9 @@ func (m *Manager) recoverOwnedSessionDBClear(
 	owner store.SessionDBOwner,
 	dbPath string,
 ) error {
+	if err := m.waitForConversationFinalization(ctx, owner.SessionID); err != nil {
+		return err
+	}
 	pending, err := sessionDBClearRecoveryPending(dbPath)
 	if err != nil {
 		return err
