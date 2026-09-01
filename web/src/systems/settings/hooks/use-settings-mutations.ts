@@ -12,7 +12,6 @@ import {
   putSettingsMCPServer,
   putSettingsProvider,
   reloadSettings,
-  updateSettingsAttention,
   updateSettingsAutomation,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
@@ -30,7 +29,6 @@ import {
   logoutSettingsMCPAuth,
 } from "../adapters/settings-mcp-auth-api";
 import { settingsKeys } from "../lib/query-keys";
-import { settingsRestartStore } from "../stores/settings-restart-store";
 import type {
   SettingsSandboxRequest,
   SettingsHookRequest,
@@ -42,7 +40,6 @@ import type {
   SettingsMCPServerDeleteFilter,
   SettingsMCPServerPutFilter,
   SettingsMCPServerRequest,
-  SettingsMutationResult,
   SettingsProviderRequest,
   SettingsPersonaFilter,
   SettingsUpdateAutomationRequest,
@@ -50,57 +47,20 @@ import type {
   SettingsUpdateHooksExtensionsRequest,
   SettingsUpdateMemoryRequest,
   SettingsUpdateNetworkRequest,
-  SettingsUpdateAttentionRequest,
   SettingsUpdateShellRequest,
   SettingsUpdateObservabilityRequest,
   SettingsUpdatePersonaRequest,
   SettingsRolesSection,
   SettingsUpdateRolesRequest,
-  SettingsAttentionSection,
-  SettingsUpdateAttentionFilter,
   SettingsShellSection,
   SettingsSectionName,
   SettingsUpdateSkillsFilter,
   SettingsUpdateSkillsRequest,
 } from "../types";
-
-type SettingsAttentionMutationVariables = {
-  body: SettingsUpdateAttentionRequest;
-  filter: SettingsUpdateAttentionFilter;
-};
-
-type StartedSettingsAttentionMutationVariables = SettingsAttentionMutationVariables & {
-  request: Promise<SettingsMutationResult>;
-};
-
-function startSettingsAttentionMutation(
-  variables: SettingsAttentionMutationVariables
-): StartedSettingsAttentionMutationVariables {
-  return {
-    ...variables,
-    request: updateSettingsAttention(variables.body, variables.filter),
-  };
-}
-
-function recordMutation(result: SettingsMutationResult) {
-  settingsRestartStore.trigger.settingsMutationRecorded({
-    mutation: {
-      section: result.section,
-      restartRequired: Boolean(result.restart_required),
-      restartScope: result.restart_scope,
-      warnings: result.warnings ?? [],
-      lifecycle: result.lifecycle,
-      nextAction: result.next_action,
-      applyRecordId: result.apply_record_id,
-      activeGeneration: result.active_generation,
-      completedAt: new Date().toISOString(),
-    },
-  });
-}
-
-function invalidateApplyRecords(queryClient: ReturnType<typeof useQueryClient>) {
-  return queryClient.invalidateQueries({ queryKey: settingsKeys.applyRoot() });
-}
+import {
+  invalidateSettingsApplyRecords,
+  recordSettingsMutation,
+} from "./settings-mutation-helpers";
 
 function invalidateSection(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -108,7 +68,7 @@ function invalidateSection(
 ) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.section(section) }),
-    invalidateApplyRecords(queryClient),
+    invalidateSettingsApplyRecords(queryClient),
   ]);
 }
 
@@ -116,14 +76,14 @@ function invalidateRoles(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.section("roles") }),
     queryClient.invalidateQueries({ queryKey: settingsKeys.rolesStatus() }),
-    invalidateApplyRecords(queryClient),
+    invalidateSettingsApplyRecords(queryClient),
   ]);
 }
 
 function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
   const tasks = [
     queryClient.invalidateQueries({ queryKey: settingsKeys.providersRoot() }),
-    invalidateApplyRecords(queryClient),
+    invalidateSettingsApplyRecords(queryClient),
   ];
 
   if (name) {
@@ -136,7 +96,7 @@ function invalidateProviders(queryClient: ReturnType<typeof useQueryClient>, nam
 function invalidateSandboxes(queryClient: ReturnType<typeof useQueryClient>, name?: string) {
   const tasks = [
     queryClient.invalidateQueries({ queryKey: settingsKeys.sandboxesRoot() }),
-    invalidateApplyRecords(queryClient),
+    invalidateSettingsApplyRecords(queryClient),
   ];
 
   if (name) {
@@ -150,14 +110,14 @@ function invalidateHooks(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.hooksRoot() }),
     queryClient.invalidateQueries({ queryKey: settingsKeys.section("hooks-extensions") }),
-    invalidateApplyRecords(queryClient),
+    invalidateSettingsApplyRecords(queryClient),
   ]);
 }
 
 function invalidateMCPServers(queryClient: ReturnType<typeof useQueryClient>) {
   return Promise.all([
     queryClient.invalidateQueries({ queryKey: settingsKeys.mcpRoot() }),
-    invalidateApplyRecords(queryClient),
+    invalidateSettingsApplyRecords(queryClient),
   ]);
 }
 
@@ -166,7 +126,7 @@ export function useReloadSettings() {
 
   return useMutation({
     mutationFn: () => reloadSettings(),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => queryClient.invalidateQueries({ queryKey: settingsKeys.all }),
   });
 }
@@ -176,7 +136,7 @@ export function useUpdateSettingsGeneral() {
 
   return useMutation({
     mutationFn: (body: SettingsUpdateGeneralRequest) => updateSettingsGeneral(body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "general"),
   });
 }
@@ -192,13 +152,13 @@ export function useUpdateSettingsPersona() {
       body: SettingsUpdatePersonaRequest;
       filter: SettingsPersonaFilter;
     }) => updateSettingsPersona(body, filter),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, variables) =>
       Promise.all([
         queryClient.invalidateQueries({
           queryKey: settingsKeys.personaSection(variables.filter),
         }),
-        invalidateApplyRecords(queryClient),
+        invalidateSettingsApplyRecords(queryClient),
       ]),
   });
 }
@@ -208,7 +168,7 @@ export function useUpdateSettingsMemory() {
 
   return useMutation({
     mutationFn: (body: SettingsUpdateMemoryRequest) => updateSettingsMemory(body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "memory"),
   });
 }
@@ -219,7 +179,7 @@ export function useUpdateSettingsRoles() {
   return useMutation({
     mutationFn: (body: SettingsUpdateRolesRequest) => updateSettingsRoles(body),
     onSuccess: (result, variables) => {
-      recordMutation(result);
+      recordSettingsMutation(result);
       // Reflect the applied section immediately so the saved confirmation shows
       // without a dirty flicker; onSettled refetches both reads to confirm.
       queryClient.setQueryData<SettingsRolesSection>(settingsKeys.section("roles"), previous =>
@@ -241,7 +201,7 @@ export function useUpdateSettingsSkills() {
       body: SettingsUpdateSkillsRequest;
       filter?: SettingsUpdateSkillsFilter;
     }) => updateSettingsSkills(body, filter ?? {}),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "skills"),
   });
 }
@@ -251,7 +211,7 @@ export function useUpdateSettingsAutomation() {
 
   return useMutation({
     mutationFn: (body: SettingsUpdateAutomationRequest) => updateSettingsAutomation(body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "automation"),
   });
 }
@@ -261,54 +221,9 @@ export function useUpdateSettingsNetwork() {
 
   return useMutation({
     mutationFn: (body: SettingsUpdateNetworkRequest) => updateSettingsNetwork(body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "network"),
   });
-}
-
-export function useUpdateSettingsAttention() {
-  const queryClient = useQueryClient();
-
-  const mutation = useMutation({
-    mutationFn: ({ request }: StartedSettingsAttentionMutationVariables) => request,
-    onSuccess: (result, variables) => {
-      recordMutation(result);
-      queryClient.setQueryData<SettingsAttentionSection>(
-        settingsKeys.attentionSection(variables.filter),
-        previous =>
-          previous
-            ? {
-                ...previous,
-                config: {
-                  ...previous.config,
-                  ...variables.body.config,
-                  muted_workspaces:
-                    variables.body.config.muted_workspaces ?? previous.config.muted_workspaces,
-                },
-              }
-            : previous
-      );
-    },
-    onSettled: (_result, _error, variables) =>
-      Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: settingsKeys.attentionSection(variables.filter),
-        }),
-        invalidateApplyRecords(queryClient),
-      ]),
-  });
-
-  return {
-    ...mutation,
-    mutate: (
-      variables: SettingsAttentionMutationVariables,
-      options?: Parameters<typeof mutation.mutate>[1]
-    ) => mutation.mutate(startSettingsAttentionMutation(variables), options),
-    mutateAsync: (
-      variables: SettingsAttentionMutationVariables,
-      options?: Parameters<typeof mutation.mutateAsync>[1]
-    ) => mutation.mutateAsync(startSettingsAttentionMutation(variables), options),
-  };
 }
 
 export function useUpdateSettingsShell() {
@@ -317,7 +232,7 @@ export function useUpdateSettingsShell() {
   return useMutation({
     mutationFn: (body: SettingsUpdateShellRequest) => updateSettingsShell(body),
     onSuccess: (result, variables) => {
-      recordMutation(result);
+      recordSettingsMutation(result);
       queryClient.setQueryData<SettingsShellSection>(settingsKeys.section("shell"), previous =>
         previous ? { ...previous, config: variables.config } : previous
       );
@@ -331,7 +246,7 @@ export function useUpdateSettingsObservability() {
 
   return useMutation({
     mutationFn: (body: SettingsUpdateObservabilityRequest) => updateSettingsObservability(body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateSection(queryClient, "observability"),
   });
 }
@@ -341,7 +256,7 @@ export function useUpdateSettingsHooksExtensions() {
 
   return useMutation({
     mutationFn: (body: SettingsUpdateHooksExtensionsRequest) => updateSettingsHooksExtensions(body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () =>
       Promise.all([
         invalidateSection(queryClient, "hooks-extensions"),
@@ -361,7 +276,7 @@ export function usePutSettingsProvider() {
   return useMutation({
     mutationFn: ({ name, body }: NameBodyParams<SettingsProviderRequest>) =>
       putSettingsProvider(name, body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, variables) => invalidateProviders(queryClient, variables?.name),
   });
 }
@@ -371,7 +286,7 @@ export function useDeleteSettingsProvider() {
 
   return useMutation({
     mutationFn: (name: string) => deleteSettingsProvider(name),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, name) => invalidateProviders(queryClient, name),
   });
 }
@@ -382,7 +297,7 @@ export function usePutSettingsSandbox() {
   return useMutation({
     mutationFn: ({ name, body }: NameBodyParams<SettingsSandboxRequest>) =>
       putSettingsSandbox(name, body),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, variables) => invalidateSandboxes(queryClient, variables?.name),
   });
 }
@@ -392,7 +307,7 @@ export function useDeleteSettingsSandbox() {
 
   return useMutation({
     mutationFn: (name: string) => deleteSettingsSandbox(name),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: (_result, _error, name) => invalidateSandboxes(queryClient, name),
   });
 }
@@ -407,7 +322,7 @@ export function usePutSettingsHook() {
       filter,
     }: NameBodyParams<SettingsHookRequest> & { filter?: SettingsHookPutFilter }) =>
       putSettingsHook(name, body, filter ?? {}),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateHooks(queryClient),
   });
 }
@@ -418,7 +333,7 @@ export function useDeleteSettingsHook() {
   return useMutation({
     mutationFn: ({ name, filter }: { name: string; filter?: SettingsHookDeleteFilter }) =>
       deleteSettingsHook(name, filter ?? {}),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateHooks(queryClient),
   });
 }
@@ -440,7 +355,7 @@ export function usePutSettingsMCPServer() {
   return useMutation({
     mutationFn: ({ name, body, filter }: MCPPutParams) =>
       putSettingsMCPServer(name, body, filter ?? {}),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateMCPServers(queryClient),
   });
 }
@@ -450,7 +365,7 @@ export function useDeleteSettingsMCPServer() {
 
   return useMutation({
     mutationFn: ({ name, filter }: MCPDeleteParams) => deleteSettingsMCPServer(name, filter ?? {}),
-    onSuccess: recordMutation,
+    onSuccess: recordSettingsMutation,
     onSettled: () => invalidateMCPServers(queryClient),
   });
 }
@@ -503,3 +418,4 @@ export {
   useDeleteSettingsNotificationPreset,
   useUpdateSettingsNotificationPreset,
 } from "./use-settings-notification-mutations";
+export { useUpdateSettingsAttention } from "./use-settings-attention-mutation";
