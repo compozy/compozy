@@ -243,6 +243,11 @@ type SkillsRegistry interface {
 	List() []*skills.Skill
 	ForWorkspace(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace) ([]*skills.Skill, error)
 	ForAgent(ctx context.Context, resolved *workspacepkg.ResolvedWorkspace, agentName string) ([]*skills.Skill, error)
+	ForAgentDef(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agent compozyconfig.AgentDef,
+	) ([]*skills.Skill, error)
 	LoadContent(ctx context.Context, skill *skills.Skill) (string, error)
 	LoadResource(ctx context.Context, skill *skills.Skill, relativePath string) (string, error)
 	SetEnabled(name string, resolved *workspacepkg.ResolvedWorkspace, enabled bool) error

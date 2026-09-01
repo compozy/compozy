@@ -24,10 +24,12 @@ import (
 	extensionpkg "github.com/compozy/compozy/internal/extension"
 	"github.com/compozy/compozy/internal/heartbeat"
 	hookspkg "github.com/compozy/compozy/internal/hooks"
+	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	skillspkg "github.com/compozy/compozy/internal/skills"
 	"github.com/compozy/compozy/internal/soul"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	toolspkg "github.com/compozy/compozy/internal/tools"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -588,6 +590,63 @@ Use the global agents convention.
 				"degraded ingest diagnostics = %#v, want fixture-specific MCP and skill skips",
 				degradedSnapshot.Info.IngestDiagnostics,
 			)
+		}
+	})
+
+	t.Run("Should publish a Profile-only extension Agent only to its owning Profile", func(t *testing.T) {
+		ctx := testutil.Context(t)
+		db := openDaemonTestGlobalDB(t)
+		homePaths := agentSkillIntegrationHome(t)
+		registry := extensionpkg.NewRegistry(db.DB())
+		agentSkillIntegrationProfileExtension(t, registry)
+
+		manager := extensionpkg.NewManager(
+			registry,
+			extensionpkg.WithHomePaths(homePaths),
+			extensionpkg.WithLogger(discardLogger()),
+		)
+		if err := manager.Start(ctx); err != nil {
+			t.Fatalf("extension manager Start() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := manager.Stop(context.Background()); err != nil {
+				t.Errorf("extension manager Stop() error = %v", err)
+			}
+		})
+
+		profiles := skillProfileCatalogStub{profiles: []profilepkg.WithCounts{
+			{Profile: profilepkg.Profile{
+				ID: store.DefaultProfileID, Name: daemonDefaultProfileName, State: profilepkg.StateActive,
+			}},
+			{Profile: profilepkg.Profile{
+				ID: "profile-finance", Name: "finance", State: profilepkg.StateActive,
+			}},
+		}}
+		provider := extensionAgentSkillDeclarationProvider(
+			registry,
+			func() extensionRuntime { return manager },
+			discardLogger(),
+			profiles,
+		)
+		desired, err := provider(ctx)
+		if err != nil {
+			t.Fatalf("extension Agent declaration provider error = %v", err)
+		}
+
+		var published []resources.ResourceScope
+		for _, declaration := range desired.agents {
+			if declaration.spec.Name == "finance-extension-agent" {
+				published = append(published, declaration.scope.Normalize())
+			}
+		}
+		want := resources.ResourceScope{Kind: resources.ResourceScopeKindProfile, ID: "profile-finance"}
+		if !slices.Equal(published, []resources.ResourceScope{want}) {
+			t.Fatalf("finance-extension-agent scopes = %#v, want only %#v", published, want)
+		}
+		for _, scope := range published {
+			if scope.Kind == resources.ResourceScopeKindProfile && scope.ID == store.DefaultProfileID {
+				t.Fatalf("finance-extension-agent leaked into the default Profile: %#v", published)
+			}
 		}
 	})
 }
@@ -1517,6 +1576,43 @@ Use extension skill context.
 			Enabled:    info.Enabled,
 			Registered: true,
 		},
+	}
+}
+
+func agentSkillIntegrationProfileExtension(t *testing.T, registry *extensionpkg.Registry) {
+	t.Helper()
+
+	dir := t.TempDir()
+	writeAgentSkillIntegrationFile(t, filepath.Join(dir, "extension.toml"), `[extension]
+name = "profile-agent-ext"
+version = "0.1.0"
+min_compozy_version = "0.5.0"
+
+[[resources.agents]]
+path = "agents/finance"
+profile = "finance"
+`)
+	writeAgentSkillIntegrationFile(
+		t,
+		filepath.Join(dir, "agents", "finance", "finance-extension-agent", "AGENT.md"),
+		`---
+name: finance-extension-agent
+provider: claude
+---
+
+Use the finance Profile context.
+`,
+	)
+	manifest, err := extensionpkg.LoadManifest(dir)
+	if err != nil {
+		t.Fatalf("extensionpkg.LoadManifest() error = %v", err)
+	}
+	checksum, err := extensionpkg.ComputeDirectoryChecksum(dir)
+	if err != nil {
+		t.Fatalf("extensionpkg.ComputeDirectoryChecksum() error = %v", err)
+	}
+	if err := registry.Install(manifest, dir, checksum); err != nil {
+		t.Fatalf("registry.Install() error = %v", err)
 	}
 }
 

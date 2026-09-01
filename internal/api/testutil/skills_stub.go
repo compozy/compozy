@@ -4,6 +4,7 @@ import (
 	"context"
 
 	core "github.com/compozy/compozy/internal/api/core"
+	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/skills"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
 )
@@ -16,6 +17,11 @@ type StubSkillsRegistry struct {
 		ctx context.Context,
 		resolved *workspacepkg.ResolvedWorkspace,
 		agentName string,
+	) ([]*skills.Skill, error)
+	ForAgentDefFn func(
+		ctx context.Context,
+		resolved *workspacepkg.ResolvedWorkspace,
+		agent compozyconfig.AgentDef,
 	) ([]*skills.Skill, error)
 	LoadContentFn        func(ctx context.Context, skill *skills.Skill) (string, error)
 	LoadResourceFn       func(ctx context.Context, skill *skills.Skill, relativePath string) (string, error)
@@ -60,6 +66,17 @@ func (s StubSkillsRegistry) ForAgent(
 		return s.ForWorkspaceFn(ctx, resolved)
 	}
 	return nil, nil
+}
+
+func (s StubSkillsRegistry) ForAgentDef(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agent compozyconfig.AgentDef,
+) ([]*skills.Skill, error) {
+	if s.ForAgentDefFn != nil {
+		return s.ForAgentDefFn(ctx, resolved, agent)
+	}
+	return s.ForAgent(ctx, resolved, agent.Name)
 }
 
 func (s StubSkillsRegistry) LoadContent(ctx context.Context, skill *skills.Skill) (string, error) {

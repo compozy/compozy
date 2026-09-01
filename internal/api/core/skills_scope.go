@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -18,13 +19,58 @@ func (h *BaseHandlers) resolveScopedSkills(
 	agentName string,
 ) ([]*skills.Skill, error) {
 	if agentName != "" {
-		skillList, err := h.SkillsRegistry.ForAgent(c.Request.Context(), resolved, agentName)
+		projected, err := h.projectedAgentForSkillScope(c.Request.Context(), resolved, agentName)
+		if err != nil {
+			return nil, err
+		}
+		var skillList []*skills.Skill
+		if projected == nil {
+			skillList, err = h.SkillsRegistry.ForAgent(c.Request.Context(), resolved, agentName)
+		} else {
+			skillList, err = h.SkillsRegistry.ForAgentDef(c.Request.Context(), resolved, *projected)
+		}
 		if err != nil {
 			return nil, mapSkillScopeError(err)
 		}
 		return skillList, nil
 	}
 	return h.SkillsRegistry.ForWorkspace(c.Request.Context(), resolved)
+}
+
+func (h *BaseHandlers) projectedAgentForSkillScope(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) (*compozyconfig.AgentDef, error) {
+	target := compozyconfig.NormalizeAgentName(agentName)
+	if resolved != nil {
+		for _, agent := range resolved.Agents {
+			if compozyconfig.NormalizeAgentName(agent.Name) == target {
+				candidate := compozyconfig.CloneAgentDef(agent)
+				return &candidate, nil
+			}
+		}
+	}
+	if h.AgentCatalog == nil {
+		return nil, nil
+	}
+	var entries []AgentCatalogEntry
+	var err error
+	if resolved == nil {
+		entries, err = h.AgentCatalog.ListAgents(ctx)
+	} else {
+		entries, err = h.AgentCatalog.ListAgentsForWorkspace(ctx, resolved)
+	}
+	if err != nil {
+		return nil, err
+	}
+	for _, entry := range entries {
+		if compozyconfig.NormalizeAgentName(entry.Def.Name) == target {
+			candidate := compozyconfig.CloneAgentDef(entry.Def)
+			return &candidate, nil
+		}
+	}
+	return nil, nil
 }
 
 func (h *BaseHandlers) resolveSkillScope(
@@ -86,7 +132,7 @@ func (h *BaseHandlers) resolveProfiledSkillScope(
 		if profileName == "" || profileName == compozyconfig.DefaultProfileDirName {
 			return nil, agentName, nil
 		}
-		return h.profileOnlySkillScope(profileName), agentName, nil
+		return h.profileOnlySkillScope(selection.Scope.ProfileID, profileName), agentName, nil
 	}
 	if h.Workspaces == nil {
 		return nil, "", errors.New("workspace resolver is not configured")
@@ -98,8 +144,9 @@ func (h *BaseHandlers) resolveProfiledSkillScope(
 	return &resolved, agentName, nil
 }
 
-func (h *BaseHandlers) profileOnlySkillScope(profileName string) *workspacepkg.ResolvedWorkspace {
+func (h *BaseHandlers) profileOnlySkillScope(profileID string, profileName string) *workspacepkg.ResolvedWorkspace {
 	return &workspacepkg.ResolvedWorkspace{
+		ProfileID:   strings.TrimSpace(profileID),
 		ProfileName: strings.TrimSpace(profileName),
 		ProfileRoot: filepath.Join(h.HomePaths.ProfilesDir, strings.TrimSpace(profileName)),
 	}
