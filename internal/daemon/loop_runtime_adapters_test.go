@@ -97,6 +97,85 @@ func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t 
 	}
 }
 
+func TestLoopActionToolWorkspaceRootResolverShouldRequireReadyWorktrees(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should resolve a ready worktree in the requested workspace", func(t *testing.T) {
+		t.Parallel()
+
+		worktrees := &recordingTaskBridgeWorktrees{getItem: &worktreepkg.Worktree{
+			ID: "wt-ready", WorkspaceID: "ws-loop", Path: "/worktrees/ready", State: worktreepkg.StateReady,
+		}}
+		resolver := &loopActionToolWorkspaceRootResolver{worktrees: worktrees}
+
+		root, release, err := resolver.AcquireActionToolWorkspaceRoot(
+			t.Context(),
+			looppkg.ActionToolWorkspaceRootRequest{
+				WorkspaceID: "ws-loop",
+				Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "ready-ref"},
+			},
+		)
+		if err != nil {
+			t.Fatalf("AcquireActionToolWorkspaceRoot() error = %v", err)
+		}
+		t.Cleanup(release)
+		if got, want := root, "/worktrees/ready"; got != want {
+			t.Fatalf("AcquireActionToolWorkspaceRoot() = %q, want %q", got, want)
+		}
+		if len(worktrees.usageCalls) != 1 || worktrees.usageCalls[0] != (taskBridgeWorktreeUsageCall{
+			workspaceID: "ws-loop", ref: "ready-ref",
+		}) {
+			t.Fatalf("AcquireUsage() calls = %#v, want workspace-scoped ready-ref", worktrees.usageCalls)
+		}
+		release()
+		if worktrees.usageReleases != 1 {
+			t.Fatalf("usage releases = %d, want 1", worktrees.usageReleases)
+		}
+	})
+
+	t.Run("Should preserve typed missing and non-ready worktree errors", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			worktrees *recordingTaskBridgeWorktrees
+			wantErr   error
+		}{
+			{
+				name:      "Should preserve a missing worktree lookup error",
+				worktrees: &recordingTaskBridgeWorktrees{getErr: worktreepkg.ErrNotFound},
+				wantErr:   worktreepkg.ErrNotFound,
+			},
+			{
+				name: "Should reject a worktree that is not ready",
+				worktrees: &recordingTaskBridgeWorktrees{getItem: &worktreepkg.Worktree{
+					ID: "wt-pending", WorkspaceID: "ws-loop", State: worktreepkg.StatePending,
+				}},
+				wantErr: worktreepkg.ErrNotReady,
+			},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				resolver := &loopActionToolWorkspaceRootResolver{worktrees: tt.worktrees}
+				_, _, err := resolver.AcquireActionToolWorkspaceRoot(
+					t.Context(),
+					looppkg.ActionToolWorkspaceRootRequest{
+						WorkspaceID: "ws-loop",
+						Environment: dsl.EnvironmentSpec{
+							Mode: dsl.EnvironmentWorktree, WorktreeRef: "pending-ref",
+						},
+					},
+				)
+				if !errors.Is(err, tt.wantErr) {
+					t.Fatalf("AcquireActionToolWorkspaceRoot() error = %v, want %v", err, tt.wantErr)
+				}
+			})
+		}
+	})
+}
+
 func TestLoopActionSessionBinderShouldApplyPolicyGate(t *testing.T) {
 	t.Parallel()
 

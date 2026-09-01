@@ -19,6 +19,15 @@ An explicit node environment wins over the Loop default. If neither exists, exec
 `run-loop` forwards the parent environment unless the child resolves its own default. Only
 `run-agent` and `goal` accept node environments.
 
+With `worktree`, both agent sessions and workspace-relative extension tool actions use the selected
+ready Worktree. For example, the `spec-cycle` extension's `import_tasks` action reads a task pack
+from that Worktree. A direct extension-tool call without a Loop Worktree context still resolves from
+the workspace root.
+
+Web authoring offers `root` and `worktree`, plus Inherit to remove an override. The API and CLI still
+accept `directory` and `per_run`. When either value is loaded in Web, it is shown read-only and is
+preserved by unrelated saves or publishes until you replace it with a Web-supported choice.
+
 ## Set a Loop default
 
 ### 1. Write a config file

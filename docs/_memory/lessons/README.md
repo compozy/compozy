@@ -43,6 +43,10 @@ These are NOT speculative warnings — every lesson here has either an ADR, a co
 | [L-033](L-033-workspace-resolution-is-a-boundary.md)            | Workspace resolution is a boundary, not command-family plumbing                  | Architecture / CLI / Workspace isolation |
 | [L-034](L-034-prototype-production-transcription-first.md)      | Prototypes of implemented surfaces are transcriptions plus deltas, never reinterpretations | Frontend / Design system / Process |
 | [L-035](L-035-reference-parity-binds-the-read-not-the-build.md) | Reference parity binds the read, not the build — components and host chrome resolve to shipped owners | Frontend / Design system / Process |
+| [L-036](L-036-mission-traceability-spec-vs-motivating-problem.md) | A spec must prove which slice solves its motivating problem                    | Spec authoring / Decision process |
+| [L-037](L-037-vertical-slices-gates-travel-with-the-slice.md)   | Deliver in vertical slices; verification gates travel with the slice             | Spec authoring / Workflow / Process |
+| [L-038](L-038-qa-scenarios-need-reachability-and-visual-axes.md) | QA scenarios need a reachability and visual-language axis, not only data truth  | Testing / QA / Design system     |
+| [L-039](L-039-self-asserted-quality-and-inverted-goldens.md)    | Self-asserted quality is no gate; a green test can bless the bug                 | Process / Testing / Verification |
 
 ## How to use
 

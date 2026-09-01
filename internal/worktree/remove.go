@@ -51,6 +51,25 @@ func (s *Service) Remove(
 	if item.State != StateReady {
 		return nil, ErrNotReady
 	}
+	releaseUsage, acquired := s.usage.tryAcquireExclusive(worktreeUsageKey(item.WorkspaceID, item.ID))
+	if !acquired {
+		return nil, ErrOperationInProgress
+	}
+	defer releaseUsage()
+
+	item, err = s.store.Get(ctx, workspaceID, item.ID)
+	if errors.Is(err, ErrNotFound) || item == nil {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("worktree: reread removal target: %w", err)
+	}
+	if item.State == StateRemoved {
+		return nil, nil
+	}
+	if item.State != StateReady {
+		return nil, ErrNotReady
+	}
 	if _, err := s.capability.Check(ctx); err != nil {
 		return nil, err
 	}

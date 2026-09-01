@@ -837,26 +837,41 @@ describe("LoopEditor", () => {
     expect(onPublished.mock.calls[0][0].version).toBe(1);
   });
 
-  it("Should show per-mode environment hints and the directory companion in the inspector", async () => {
-    renderEditor();
+  it("Should preserve an API-authored directory as read-only through an unrelated publish", async () => {
+    const { captured, handler } = capturePublish();
+    renderEditor("quality-gate-demo", [
+      handler,
+      detailHandler(
+        withExecuteTaskParams({
+          environment: { mode: "directory", directory: "packages/{{ .inputs.slug }}" },
+        })
+      ),
+    ]);
     await screen.findByTestId("loop-editor");
     await waitFor(() => expect(screen.getAllByTestId("loop-editor-node")).toHaveLength(8));
     fireEvent.click(nodeCard("execute_task"));
     await screen.findByTestId("loop-field-environment");
-    expect(
-      screen.queryByText("Runs at the workspace root. Part of the session binding key.")
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Directory (read-only)" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(screen.queryByRole("button", { name: "Per-run" })).not.toBeInTheDocument();
+    const directory = screen.getByTestId("loop-field-environment-directory");
+    expect(directory).toHaveValue("packages/{{ .inputs.slug }}");
+    expect(directory).toHaveAttribute("readonly");
 
-    fireEvent.click(screen.getByRole("button", { name: "Workspace root" }));
-    expect(
-      screen.getByText("Runs at the workspace root. Part of the session binding key.")
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Directory" }));
-    expect(
-      screen.getByText("Resolved when the run starts. Type {{ to autocomplete references.")
-    ).toBeInTheDocument();
-    expect(screen.getByTestId("loop-field-environment-directory")).toBeInTheDocument();
+    fireEvent.change(screen.getByTestId("loop-field-deadline"), {
+      target: { value: "4h" },
+    });
+    await waitFor(() => expect(screen.getByTestId("loop-editor-publish")).not.toBeDisabled());
+    fireEvent.click(screen.getByTestId("loop-editor-publish"));
+    await waitFor(() => expect(captured.definition).not.toBeNull());
+    expect(publishedNode(captured, "execute_task")).toMatchObject({
+      deadline: "4h",
+      params: {
+        environment: { mode: "directory", directory: "packages/{{ .inputs.slug }}" },
+      },
+    });
   });
 
   it("Should pick a ready worktree for a node environment override", async () => {

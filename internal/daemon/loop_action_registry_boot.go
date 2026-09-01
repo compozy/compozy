@@ -17,15 +17,19 @@ func newBootLoopActionRegistry(
 	gateEvaluator gate.GateEvaluator,
 	judgeExecutions *loopJudgeExecutionRegistry,
 ) (*looppkg.ActionRegistry, error) {
+	worktrees := executionWorktreesForState(state)
 	actionBinder := &loopActionSessionBinder{
 		sessions:            state.sessions,
 		globalWorkspacePath: globalWorkspacePath,
 		policyGate:          policyGate,
-		worktrees:           executionWorktreesForState(state),
+		worktrees:           worktrees,
 	}
 	actionOptions := []looppkg.ActionRegistryOption{
 		looppkg.WithActionDefaultMaxResultBytes(state.cfg.Tools.DefaultMaxResultBytes),
 		looppkg.WithActionSessionBinder(actionBinder),
+		looppkg.WithActionToolWorkspaceRootResolver(&loopActionToolWorkspaceRootResolver{
+			worktrees: worktrees,
+		}),
 		looppkg.WithActionLoopStarter(lazyLoopStarter{current: func() looppkg.ActionLoopStarter {
 			if state == nil {
 				return nil
@@ -45,7 +49,7 @@ func newBootLoopActionRegistry(
 			policyGate,
 			time.Now,
 			state.logger,
-			executionWorktreesForState(state),
+			worktrees,
 		)
 		actionOptions[1] = looppkg.WithActionSessionBinder(goalRuntime)
 		goalOption, err := composeLoopGoalExecutor(

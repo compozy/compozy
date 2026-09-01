@@ -22,6 +22,7 @@ type actionRegistryConfig struct {
 	eventReader    ActionEventRangeReader
 	channel        ChannelResultHarvester
 	channelStore   ChannelResultConversationStore
+	toolWorkspace  ActionToolWorkspaceRootResolver
 	maxResultBytes int64
 }
 
@@ -60,6 +61,13 @@ func WithActionGoalExecutor(executor ActionExecutor) ActionRegistryOption {
 func WithActionSessionBinder(binder ActionSessionBinder) ActionRegistryOption {
 	return func(cfg *actionRegistryConfig) {
 		cfg.sessionBinder = binder
+	}
+}
+
+// WithActionToolWorkspaceRootResolver wires trusted workspace roots for registry-backed tool actions.
+func WithActionToolWorkspaceRootResolver(resolver ActionToolWorkspaceRootResolver) ActionRegistryOption {
+	return func(cfg *actionRegistryConfig) {
+		cfg.toolWorkspace = resolver
 	}
 }
 
@@ -107,6 +115,7 @@ type ActionRegistry struct {
 	goal           ActionExecutor
 	events         ActionEventRangeReader
 	channel        ChannelResultHarvester
+	toolWorkspace  ActionToolWorkspaceRootResolver
 	maxResultBytes int64
 }
 
@@ -162,6 +171,7 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 		goal:           cfg.goal,
 		events:         cfg.eventReader,
 		channel:        cfg.channel,
+		toolWorkspace:  cfg.toolWorkspace,
 		maxResultBytes: cfg.maxResultBytes,
 	}, nil
 }
@@ -224,10 +234,11 @@ func (r *ActionRegistry) resolve(
 		}
 	}
 	return &ToolCallActionExecutor{
-		runtime:     r.runtime,
-		toolID:      id,
-		eventReader: r.events,
-		channel:     r.channel,
+		runtime:               r.runtime,
+		toolID:                id,
+		eventReader:           r.events,
+		channel:               r.channel,
+		workspaceRootResolver: r.toolWorkspace,
 		maxResultBytes: tools.EffectiveResultLimit(
 			view.Descriptor.MaxResultBytes,
 			r.maxResultBytes,

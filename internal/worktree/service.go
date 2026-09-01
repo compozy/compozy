@@ -34,6 +34,7 @@ type Service struct {
 	resolver   WorkspaceResolver
 	sessions   SessionGuard
 	locks      *RepositoryLocks
+	usage      *worktreeUsageLocks
 	hooks      HookDispatcher
 	events     EventSink
 	forge      ForgeProvider
@@ -62,6 +63,7 @@ func NewService(store Store, runner GitRunner, opts ...Option) *Service {
 	s := &Service{
 		store: store, runner: runner, capability: NewCapabilityGate(runner),
 		locks: NewRepositoryLocks(8), now: time.Now, newID: generateID, getenv: os.Getenv, environ: os.Environ,
+		usage:  newWorktreeUsageLocks(),
 		logger: slog.Default(), discovery: make(map[string]discoveryCacheEntry),
 		catalog: newCatalogBroadcaster(), creates: make(map[string]*createOperation),
 		exits: make(map[string]*exitOperationControl),

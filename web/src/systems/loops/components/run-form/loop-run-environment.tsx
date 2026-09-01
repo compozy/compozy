@@ -32,8 +32,7 @@ export function LoopRunEnvironment({
 }: LoopRunEnvironmentProps) {
   const choice = value?.mode ?? INHERIT_ENVIRONMENT;
   const invalidWorktree = value?.mode === "worktree" && !value.worktree_ref?.trim();
-  const invalidDirectory = value?.mode === "directory" && !value.directory?.trim();
-  const items = loopEnvironmentItems(gitBacked, disabled);
+  const items = loopEnvironmentItems(gitBacked, disabled, choice);
 
   function handleModeChange(next: LoopEnvironmentChoice) {
     onChange(environmentSpecForChoice(next, value));
@@ -69,18 +68,14 @@ export function LoopRunEnvironment({
           </Field>
         ) : null}
         {value?.mode === "directory" ? (
-          <Field className="mt-3" data-invalid={invalidDirectory ? "" : undefined}>
+          <Field className="mt-3">
             <FieldLabel htmlFor="loop-run-environment-directory">Directory</FieldLabel>
             <Input
               disabled={disabled}
               id="loop-run-environment-directory"
-              onChange={event => onChange({ mode: "directory", directory: event.target.value })}
-              placeholder="packages/api"
+              readOnly
               value={value.directory ?? ""}
             />
-            {invalidDirectory ? (
-              <FieldError>Enter a directory inside the workspace.</FieldError>
-            ) : null}
           </Field>
         ) : null}
       </div>

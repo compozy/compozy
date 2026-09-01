@@ -1,6 +1,6 @@
 ---
 name: cy-create-tasks
-description: Decomposes Specs into robust, independently implementable task files, assigning every test case from _tests.md to exactly one task and enriching tasks from codebase exploration. Use when a spec exists and needs to be broken down into executable tasks, or when task files need enrichment with implementation context. Do not use for spec creation or direct task execution.
+description: Decomposes Specs into shippable slices — robust, independently implementable task files each delivering an outcome observable from outside the system — assigning every test case from _tests.md to exactly one task and enriching tasks from codebase exploration. Use when a spec exists and needs to be broken down into executable tasks, or when task files need enrichment with implementation context. Do not use for spec creation or direct task execution.
 ---
 
 # Create Tasks
@@ -11,13 +11,13 @@ Decompose requirements into robust, independently implementable task files with 
 
 Every task becomes one full agent run: a fresh context that re-reads the spec corpus, re-explores the codebase, and rebuilds its model of the system from zero before the first edit. That ramp-up is the expensive part of a run — many small tasks pay it over and over and discard the accumulated reasoning at every boundary, while a robust task keeps it working.
 
-- Default to fewer, larger tasks. A task is a complete vertical slice — implementation, wiring, and its assigned tests — delivered end-to-end in one run.
+- A task is a **shippable slice**: the smallest increment that could merge to `main` on its own — implementation, wiring, surfaces, UI, docs, and its assigned tests together — with an outcome observable from outside the system (a user action that newly works, a CLI/API call that newly answers, a screen that newly renders through its real entry path). A slice crosses every layer its outcome needs; a layer grouping ("all backend", "all frontend", "all docs") is an invalid breakdown.
+- **Slice 1 solves the spec's Motivating Problem end-to-end** in its simplest honest form; later slices extend it. Order slices by user value — the spec's Build Order informs dependency edges, never sequence.
 - Split only at real boundaries:
-  - **Dependency**: a contract (schema, interface, protocol) must exist before its consumers can build on it.
+  - **Dependency**: a contract (schema, interface, protocol) must exist before its consumers can build on it. A foundation-only task is valid only when it names the shippable slice that consumes it, and that consumer is its immediate successor in the graph.
   - **Parallelization**: two slices touch disjoint files and can run as parallel waves via `_tasks.md` edges.
-  - **Domain**: different toolchains or deliverables (backend vs frontend vs SDK vs docs).
-- File count is never a split reason: a task spanning 20+ files is healthy when they form one coherent slice, and one agent run handles it comfortably.
-- A typical feature lands at 3-7 robust tasks. A breakdown with 10+ tasks almost always contains slices that belong together — merge them before presenting.
+- File count is never a split reason: a task spanning 20+ files is healthy when they form one shippable slice, and one agent run handles it comfortably.
+- The slice budget defaults to 5 shippable slices (QA tail excluded) and is overridable per invocation (`slice_budget: N`). When an honest breakdown exceeds the budget, present the overflow as a sequenced program of follow-up specs at approval time — the user chooses between one oversized spec and the program.
 
 ## Required Inputs
 
@@ -28,7 +28,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
 ## Workflow
 
 1. Choose the task taxonomy.
-   - Prefer the standard work-type slugs: `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`, `qa-report`, and `qa-execution`.
+   - Prefer the standard work-type slugs: `feature` (the default for shippable slices), `frontend`, `backend`, `docs`, `test`, `infra`, `refactor`, `chore`, `bugfix`, `qa-report`, and `qa-execution`. Layer slugs (`frontend`, `backend`) fit only single-layer foundation slices; when slices span layers, review any `loops.defaults.delivery.runtime_rules[].match.type` routing that assumed layer tasks.
    - When the specification needs a distinct category, define one concise lowercase hyphenated slug in the proposed breakdown and use it consistently. Task `type` is free-form; ordered `loops.defaults.delivery.runtime_rules[].match.type` entries own type-based runtime routing.
 
 2. Load context.
@@ -45,7 +45,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - Spawn an Agent tool call to explore the codebase for files to create or modify, test patterns, and coding conventions.
 
 3. Break down into tasks.
-   - Apply the Task Sizing doctrine above: slice the spec's Build Order into the smallest number of robust tasks the real boundaries allow.
+   - Apply the Task Sizing doctrine above: cut the spec into shippable slices ordered by user value — the smallest number of robust tasks the real boundaries allow, slice 1 solving the Motivating Problem.
    - **Each task MUST be independently implementable when all dependencies declared in `_tasks.md` graph edges are met.** No task may require undeclared work from another task. If two tasks share a tight coupling, merge them — or extract the shared piece into a dependency task only when a real boundary separates it.
    - **No circular dependencies.** If task A depends on task B, task B must NOT depend on task A (directly or transitively).
    - Each task must have: title, type, complexity, and dependency relationships in the graph plan.
@@ -56,7 +56,7 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
      - `critical`: cross-cutting change with high regression risk, requires coordination with other tasks.
    - When a task directly implements or is constrained by a specific ADR, include the ADR reference in the task's "Related ADRs" section under Implementation Details.
    - Tests live inside the task that implements the behavior they verify; never create tasks dedicated solely to testing.
-   - For every task that implements visible UI from a named visual reference, define an explicit Visual Contract: one row per reference state and required viewport, with the implementation target, fidelity, and source-authorized differences. Never use “all states,” “match the mock,” or “screenshot parity” as a substitute for enumerating rows.
+   - For every task whose slice touches a surface mapped in `_uiux.md`, define an explicit Visual Contract: one row per touched artboard section, reference state, and required viewport, with the implementation target, fidelity, and source-authorized differences. The `_uiux.md` surface inventory is the coverage floor — derive rows from it, never from what the task happens to cite. Never use “all states,” “match the mock,” or “screenshot parity” as a substitute for enumerating rows.
    - Follow the structure defined in `references/task-template.md` and the metadata definitions in `references/task-context-schema.md`.
 
 4. Assign the test contract.
@@ -93,11 +93,12 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
    - Task numbering must be sequential and consistent between `_tasks.md` and individual files.
 
 7. Enrich each task file.
-   - For each task file, check whether it already has `## Overview`, `## Deliverables`, and `## Tests` sections, plus a complete `## Visual Contract` when it implements visible UI from a named reference. Skip enrichment only when every required and conditional section is complete.
+   - For each task file, check whether it already has `## Overview`, `## Shippable Outcome`, `## Deliverables`, and `## Tests` sections, plus a complete `## Visual Contract` when its slice touches a surface mapped in `_uiux.md`. Skip enrichment only when every required and conditional section is complete.
    - Map the task to Part I requirements, user stories, Part II guidance, the `_dx.md`/`_uiux.md` surface contracts, and its subset of the `_spec.md` File References index.
    - Spawn an Agent tool call to discover relevant files, dependent files, integration points, and project rules for this specific task.
    - Fill ALL template sections from `references/task-template.md`. Every task file MUST contain each of the following sections — omitting any is a failure:
-     - `## Overview`: what slice of the system the task delivers and why, in 2-3 sentences.
+     - `## Overview`: what a user, agent, or operator can newly do when this task merges, and why it matters, in 2-3 sentences.
+     - `## Shippable Outcome`: the observable outcome plus its verification tier — the cheapest check that can falsify it: `gate` (the slice's tests and lints prove it) | `probe` (a named CLI/HTTP/UDS call shows it) | `smoke` (open the surface through its real entry path and capture the touched Visual Contract sections).
      - `<critical>` block: the standard critical reminders block from the template.
      - `<requirements>` block: specific, numbered technical requirements using MUST/SHOULD language.
      - `## Subtasks`: checklist items describing WHAT, not HOW — one per coherent unit of work, typically 5-12 for a robust task.
@@ -109,14 +110,15 @@ Every task becomes one full agent run: a fresh context that re-reads the spec co
      - `## Deliverables`: concrete outputs, including every assigned test case implemented and passing.
      - `## Tests`: the assigned test-case IDs grouped by level with the behavior they cover; full case definitions stay in `_tests.md`.
      - `## Success Criteria`: measurable outcomes including "Every assigned test case implemented and passing".
-   - When the task implements visible UI from a named visual reference, also include `## Visual Contract` from the template. Its deliverables and success criteria MUST require the durable `eng-ui-screenshot` evidence bundle for every row; implementation-only captures are invalid evidence.
+   - When the task's slice touches a surface mapped in `_uiux.md`, also include `## Visual Contract` from the template. Its deliverables and success criteria MUST require the durable `eng-ui-screenshot` evidence bundle for every row; implementation-only captures are invalid evidence.
    - Reassess complexity based on exploration findings and update if changed.
    - Update the task file in place with enriched content.
    - If enrichment fails for one task, continue to the next and report all failures at the end.
 
 8. Audit the resulting task package.
    - Audit the test assignment: every ID in `_tests.md` appears in exactly one task file's `## Tests` section. Fix any orphan or duplicate and re-audit.
-   - Audit visual references: every visible UI task that cites one has an explicit Visual Contract row for each required state/viewport, and each row names the durable evidence bundle. Fix vague or missing rows before finishing.
+   - Audit mission traceability: exactly one slice's `## Shippable Outcome` names the spec's Motivating Problem as solved end-to-end, and it is the earliest slice the dependency graph allows. A breakdown where no slice solves it — or only the last one does — is invalid; fix the breakdown.
+   - Audit visual coverage against the `_uiux.md` inventory: every artboard section of every mapped surface touched by any slice appears in that slice's Visual Contract, and each row names the durable evidence bundle. Fix vague or missing rows before finishing.
 
 ## Error Handling
 

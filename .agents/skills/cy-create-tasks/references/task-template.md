@@ -14,7 +14,12 @@ complexity: [low, medium, high, critical]
 
 ## Overview
 
-[2-3 sentences: what slice of the system this task delivers and why it matters in the context of the project.]
+[2-3 sentences: what a user, agent, or operator can newly do when this task merges, and why it matters in the context of the project.]
+
+## Shippable Outcome
+
+- Outcome: [the observable behavior after merge, reached through its real entry path]
+- Verify: [`gate` — the slice's tests/lints prove it | `probe` — exact CLI/HTTP/UDS command | `smoke` — surface entry path + touched Visual Contract sections]
 
 <critical>
 - ALWAYS READ `_spec.md` and its catalogs (`_user_stories.md`, `_dx.md`, `_uiux.md` when present, `_tests.md`) before starting
@@ -32,9 +37,9 @@ complexity: [low, medium, high, critical]
 
 ## Visual Contract
 
-[Include this section only when the task implements visible UI from a named
-visual reference. Enumerate every required state and viewport; do not use an
-“all states” catch-all row.]
+[Include this section when the task's slice touches a surface mapped in
+`_uiux.md`. Derive rows from that inventory — one row per touched artboard
+section, state, and viewport; do not use an “all states” catch-all row.]
 
 | ID    | Reference artifact + state           | Implementation target + state | Viewport | Fidelity  | Authorized differences + authority |
 | ----- | ------------------------------------ | ----------------------------- | -------- | --------- | ---------------------------------- |
@@ -76,7 +81,8 @@ Reference the `_spec.md` Part II Implementation Design for code patterns and int
 - [Concrete output 1]
 - [Concrete output 2]
 - Every test case assigned in `## Tests` implemented and passing **(REQUIRED)**
-- [Visible UI with a named reference only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
+- The `## Shippable Outcome` verification tier executed with its evidence recorded **(REQUIRED)**
+- [UI-bearing slices only: every Visual Contract row has a durable passing evidence bundle **(REQUIRED)**]
 
 ## Tests
 
@@ -91,9 +97,10 @@ Cases assigned from `_tests.md`, the test contract — read each ID's full defin
 ## Success Criteria
 
 - Every assigned test case implemented and passing
+- The Shippable Outcome is reachable through its real entry path and its verification tier passed
 - [Measurable outcome 1]
 - [Measurable outcome 2]
-- [Visible UI with a named reference only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
+- [UI-bearing slices only: every Visual Contract row is `PASS` with zero unresolved blocking divergence]
 ```
 
 ## Guidelines

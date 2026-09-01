@@ -491,6 +491,10 @@ in-body direct target written as `{route: node_id}`. The old `branch` action is 
 `worktree` requires `worktree_ref`, `directory` requires a contained `directory`, and `per_run`
 creates one worktree per execution instance, including each fan-out branch. `run-loop` forwards the
 parent environment unless the child resolves its own default. Other node kinds reject `environment`.
+In `worktree` mode, agent sessions and workspace-relative extension tool actions use the same ready
+Worktree; a direct extension-tool call without that Loop context stays at the workspace root.
+Web authors only `root` and `worktree`; API/CLI-authored `directory` and `per_run` values remain
+visible and unchanged in Web until replaced.
 The retired `params.cwd` fails validation; migrate it to
 `params.environment: {mode: directory, directory: <path>}`.
 

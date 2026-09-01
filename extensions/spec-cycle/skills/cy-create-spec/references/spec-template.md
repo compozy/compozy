@@ -10,7 +10,7 @@ Part I frames WHAT and WHY. Implementation choices — frameworks, storage engin
 
 ## Overview
 
-- What problem it solves
+- **Motivating Problem**: the concrete pain that triggered this spec and the simplest end-to-end behavior that solves it, stated as an outcome observable from outside the system. Slice 1 of the task breakdown delivers it; an ADR that narrows or defers it is valid only with the user's sign-off recorded in the ADR itself.
 - Who it is for
 - Why it is valuable
 
@@ -74,7 +74,7 @@ Capabilities the user decided this feature will not include:
 - Adjacent problems that will not be addressed, and why
 - Boundaries of this effort
 
-Exclusions record user decisions, never size management: a wanted capability stays in scope no matter how large the document grows.
+Exclusions record user decisions, never size management: a wanted capability stays in scope — when the slice budget overflows, it moves to a named follow-up spec in the program, never silently out of scope.
 
 ## Open Questions
 
@@ -92,7 +92,7 @@ Brief technical overview in 1-2 paragraphs: key architectural decisions, impleme
 
 ## MVP Boundary
 
-One statement naming which numbered tasks compose the MVP, what is post-MVP, and what is explicitly out of scope.
+One statement naming which numbered tasks compose the MVP, which slice ships first and how it solves the Motivating Problem, what is post-MVP, and what is explicitly out of scope.
 
 ## Developer Experience
 
@@ -167,7 +167,7 @@ Strategy only — every concrete test case lives in `_tests.md`:
 
 ### Build Order
 
-Ordered implementation sequence respecting dependencies, each phase with its own verification gate; safe cleanup phases separated from behavior-changing edits.
+The dependency map that feeds `_tasks.md` edges: which contracts must exist before which consumers, each phase with its own verification gate; safe cleanup phases separated from behavior-changing edits. Delivery sequence belongs to the task breakdown, which orders shippable slices by user value — slice 1 solves the Motivating Problem.
 
 ### Technical Dependencies
 

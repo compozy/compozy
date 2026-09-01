@@ -20,6 +20,7 @@ import (
 	"github.com/compozy/compozy/internal/speed"
 	"github.com/compozy/compozy/internal/testutil/acpmock"
 	e2etest "github.com/compozy/compozy/internal/testutil/e2e"
+	worktreepkg "github.com/compozy/compozy/internal/worktree"
 )
 
 const (
@@ -51,6 +52,50 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		})
 		assertImplementTasksPerTaskRuntimes(t, detail)
 		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
+	})
+
+	t.Run("Should import a worktree-only task pack and bind its workers to that worktree", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := initWorktreeE2ERepository(t)
+		harness, ctx := startImplementTasksE2EHarnessAt(t, implementTasksImplementer, workspaceRoot)
+		runWorktreeE2EGit(t, ctx, workspaceRoot, "add", ".")
+		runWorktreeE2EGit(t, ctx, workspaceRoot, "commit", "-m", "seed implement-tasks pack")
+
+		created := createWorktreeE2E(t, ctx, harness, harness.WorkspaceID, "Issue 512")
+		ready := waitForWorktreeE2EState(
+			t, ctx, harness, harness.WorkspaceID, created.ID, worktreepkg.StateReady,
+		)
+		mainTaskPack := filepath.Join(workspaceRoot, ".compozy", "tasks", implementTasksE2ESlug)
+		if err := os.RemoveAll(mainTaskPack); err != nil {
+			t.Fatalf("RemoveAll(main task pack) error = %v", err)
+		}
+		if _, err := os.Stat(mainTaskPack); !os.IsNotExist(err) {
+			t.Fatalf("Stat(main task pack) error = %v, want not exist", err)
+		}
+		worktreeTask := filepath.Join(
+			ready.Worktree.Path,
+			".compozy",
+			"tasks",
+			implementTasksE2ESlug,
+			"task_01.md",
+		)
+		if _, err := os.Stat(worktreeTask); err != nil {
+			t.Fatalf("Stat(worktree task) error = %v", err)
+		}
+
+		configPath := filepath.Join(t.TempDir(), "worktree-config.yaml")
+		configBody := fmt.Sprintf(
+			"environment:\n  mode: worktree\n  worktree_ref: %s\n",
+			quotedYAMLString(ready.Worktree.ID),
+		)
+		if err := os.WriteFile(configPath, []byte(configBody), 0o600); err != nil {
+			t.Fatalf("WriteFile(worktree config) error = %v", err)
+		}
+
+		detail := runImplementTasksE2E(t, ctx, harness, []string{"--config-file", configPath})
+		assertImplementTasksRoute(t, detail, "orchestrate", "route_not_taken:select_delivery")
+		assertImplementTasksWorkerWorktree(t, ctx, harness, detail, ready.Worktree.ID)
 	})
 
 	t.Run("Should complete orchestrated mode and stop every category worker", func(t *testing.T) {
@@ -95,11 +140,22 @@ func startImplementTasksE2EHarness(
 	orchestratedImplementer string,
 ) (*e2etest.RuntimeHarness, context.Context) {
 	t.Helper()
+	return startImplementTasksE2EHarnessAt(t, orchestratedImplementer, "")
+}
+
+func startImplementTasksE2EHarnessAt(
+	t testing.TB,
+	orchestratedImplementer string,
+	workspaceRoot string,
+) (*e2etest.RuntimeHarness, context.Context) {
+	t.Helper()
 
 	driverPath := acpmock.RequireDriver(t)
 	binaryPath := e2etest.BuildCompozyBinary(t)
 	homePaths := e2etest.NewHomePaths(t)
-	workspaceRoot := filepath.Join(t.TempDir(), "implement-tasks-workspace")
+	if strings.TrimSpace(workspaceRoot) == "" {
+		workspaceRoot = filepath.Join(t.TempDir(), "implement-tasks-workspace")
+	}
 	fixturePath := materializeImplementTasksFixture(
 		t,
 		mockFixturePath(t, "implement_tasks_fixture.json"),
@@ -590,6 +646,42 @@ func assertImplementTasksSpawnedWorkerRuntimes(
 		}
 		if len(live.Sessions) != 0 {
 			t.Fatalf("spawned implement-tasks workers remain %s: %#v", state, live.Sessions)
+		}
+	}
+}
+
+func assertImplementTasksWorkerWorktree(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	detail contract.LoopRunResponse,
+	wantWorktreeID string,
+) {
+	t.Helper()
+
+	sessionIDs := make([]string, 0, 3)
+	for _, generation := range detail.Generations {
+		for _, output := range generation.Outputs {
+			if strings.HasPrefix(output.NodeID, "execute_") && output.SessionID != "" {
+				sessionIDs = append(sessionIDs, output.SessionID)
+			}
+		}
+	}
+	if len(sessionIDs) != 3 {
+		t.Fatalf("implement-tasks worker session ids = %#v, want three sessions", sessionIDs)
+	}
+	for _, sessionID := range sessionIDs {
+		worker, err := harness.GetSession(ctx, sessionID)
+		if err != nil {
+			t.Fatalf("GetSession(%q) error = %v", sessionID, err)
+		}
+		if worker.WorktreeID != wantWorktreeID {
+			t.Fatalf(
+				"spawned worker %q worktree = %q, want %q",
+				worker.Name,
+				worker.WorktreeID,
+				wantWorktreeID,
+			)
 		}
 	}
 }
