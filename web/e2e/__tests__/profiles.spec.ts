@@ -118,7 +118,7 @@ async function addDesktop(
         expected_revision: snapshot.revision,
         actor: { kind: "e2e", id: "profiles" },
         origin: "web-e2e",
-        payload: { desktop_id: "", name, purpose: "standard" },
+        payload: { desktop_id: "", name },
       }),
     }
   );
