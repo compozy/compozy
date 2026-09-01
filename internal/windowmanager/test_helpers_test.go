@@ -176,9 +176,8 @@ func validThreeWindowSnapshot() Snapshot {
 		WorkspaceID: "workspace-a",
 		Desktops: []Desktop{
 			{
-				ID:      "desktop-default",
-				Name:    defaultDesktopName,
-				Purpose: DesktopPurposeStandard,
+				ID:   "desktop-default",
+				Name: defaultDesktopName,
 				Groups: []LayoutGroup{
 					{
 						ID:    "group-1",

@@ -116,6 +116,8 @@ export interface OsWindowSurfaceProps extends Omit<React.ComponentProps<"section
   controls?: "head" | "deck";
   onTrafficLight?: (action: OsTrafficLightAction) => void;
   zoomMenu?: (button: React.ReactNode) => React.ReactNode;
+  /** The owning frame fills its desktop; the head's zoom control reads as pressed. */
+  zoomed?: boolean;
   headClassName?: string;
   presentation?: "floating" | "compact";
   slotStore?: TopbarSlotStore;
@@ -128,6 +130,7 @@ export function OsWindowSurface({
   controls = "head",
   onTrafficLight,
   zoomMenu,
+  zoomed = false,
   headClassName,
   presentation = "floating",
   slotStore,
@@ -150,7 +153,12 @@ export function OsWindowSurface({
           data-scrolled={scrolled ? "" : undefined}
           leading={
             controls === "head" ? (
-              <OsTrafficLights onSelect={onTrafficLight} compact={compact} wrapZoom={zoomMenu} />
+              <OsTrafficLights
+                onSelect={onTrafficLight}
+                compact={compact}
+                wrapZoom={zoomMenu}
+                zoomed={zoomed}
+              />
             ) : undefined
           }
           title={title}

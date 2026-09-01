@@ -36,6 +36,7 @@ function windowFixture(
     rect: { x: 40, y: 40, w: 720, h: 480 },
     layer: 1,
     minimized: false,
+    zoomed: false,
     groupId: null,
     nodeId: null,
     stackId: null,

@@ -6,7 +6,7 @@ import { useSelector, useStore } from "@xstate/store-react";
 import type { OsTrafficLightAction } from "../components/os-traffic-lights";
 import { bindLayoutGestureCancellation } from "../lib/layout-gesture-cancellation";
 import { clampFloatingRect } from "../lib/layout-projection";
-import type { OsWindowFrameModel } from "../lib/group-projection";
+import { zoomedFrame, type OsWindowFrameModel } from "../lib/group-projection";
 import { resolveSnapTarget, type OccupiedSnapCandidate } from "../lib/snap-targets";
 import type { OsRect, WindowManagerCommandOutcome } from "../lib/os-types";
 import { snapTargetConfigFromConfig } from "../lib/window-manager-view";
@@ -150,13 +150,18 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
     });
   }, [gestureActive]);
 
+  // A zoomed unit covers every other tiled pane on its desktop, so only the
+  // zoomed frame itself can receive a structural drop while the zoom holds.
   const candidates = (): OccupiedSnapCandidate[] => {
     const state = manager.getState();
+    const zoomed = zoomedFrame(state.frames[frame.desktopId]);
+    const zoomedMembers = zoomed === null ? null : new Set(zoomed.members);
     return Object.values(state.windows).flatMap(window =>
       memberIds.has(window.id) ||
       window.desktopId !== frame.desktopId ||
       window.minimized ||
-      window.nodeId === null
+      window.nodeId === null ||
+      (zoomedMembers !== null && !zoomedMembers.has(window.id))
         ? []
         : [
             {
@@ -293,6 +298,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
   };
 
   const handleDragStart: RndDragCallback = (event, _data) => {
+    if (frame.zoomed) return;
     const point = layerPoint(event);
     const state = manager.getState();
     const config = state.windowManagerConfig;
@@ -374,11 +380,15 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
     });
     if (decision?.kind === "commit") {
       const gestureAttempt = interactionStore.getSnapshot().context.gestureAttempt;
-      const outcome = manager.applySnapTarget(
-        activeId,
-        decision.command.target,
-        decision.command.source.moveMode === "group"
-      );
+      const moveGroup = decision.command.source.moveMode === "group";
+      // The layout moved mid-drag: the release proves its units are unchanged
+      // instead of blindly re-reading, and the daemon applies it only if so.
+      const outcome = decision.command.rebase
+        ? manager.applySnapTarget(activeId, decision.command.target, moveGroup, {
+            expectedRevision: decision.command.expectedRevision,
+            sourceNodeId: win.nodeId,
+          })
+        : manager.applySnapTarget(activeId, decision.command.target, moveGroup);
       trackGestureOutcome(decision.command.target.rect, outcome, gestureAttempt);
       return;
     }
@@ -397,7 +407,13 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
           y: Math.max(0, point.y - data.y),
         },
       });
-      const outcome = manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit);
+      const outcome =
+        decision.currentRevision === decision.capturedRevision
+          ? manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit)
+          : manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit, {
+              expectedRevision: decision.capturedRevision,
+              sourceNodeId: win.nodeId,
+            });
       trackGestureOutcome(dropped, outcome, gestureAttempt);
     }
     windowManagerStore.trigger.gestureCleared();

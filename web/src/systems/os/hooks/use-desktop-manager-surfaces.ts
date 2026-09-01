@@ -41,7 +41,6 @@ export function useDesktopManagerSurfaces() {
     return {
       id: desktop.id,
       name: desktop.name,
-      purpose: desktop.purpose,
       projection: projection.projections[desktop.id],
       windowRecords,
       windows: windowRecords.map(window => ({

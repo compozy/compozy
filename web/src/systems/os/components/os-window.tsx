@@ -102,8 +102,9 @@ export function OsWindow({ frame }: OsWindowProps) {
       minHeight={compact ? undefined : minimum.height}
       maxWidth={resizeMax?.width}
       maxHeight={resizeMax?.height}
-      disableDragging={compact}
-      enableResizing={!compact && enableResizing}
+      // A zoomed frame is pinned to the work area: unzoom it to move or size it.
+      disableDragging={compact || frame.zoomed}
+      enableResizing={!compact && !frame.zoomed && enableResizing}
       dragHandleClassName={OS_WINDOW_DRAG_HANDLE_CLASS}
       cancel={OS_WINDOW_DRAG_CANCEL_SELECTOR}
       onDragStart={handleDragStart}
@@ -128,6 +129,7 @@ export function OsWindow({ frame }: OsWindowProps) {
           dragging && "opacity-70"
         )}
         data-dragging={dragging ? "" : undefined}
+        data-zoomed={frame.zoomed ? "" : undefined}
         data-testid={`os-window-frame-${frame.id}`}
         data-frame-kind={frame.kind}
         onPointerEnter={handlePointerEnter}
@@ -153,6 +155,7 @@ export function OsWindow({ frame }: OsWindowProps) {
             controls={deckVisible ? "deck" : "head"}
             presentation={presentation}
             slotStore={slotStores.get(member)}
+            zoomed={frame.zoomed}
             onTrafficLight={handleTrafficLight}
           />
         ))}
@@ -179,6 +182,7 @@ function OsWindowMember({
   controls,
   presentation,
   slotStore,
+  zoomed,
   onTrafficLight,
 }: {
   windowId: string;
@@ -187,6 +191,7 @@ function OsWindowMember({
   controls: "head" | "deck";
   presentation: "floating" | "compact";
   slotStore: TopbarSlotStore | undefined;
+  zoomed: boolean;
   onTrafficLight: Parameters<typeof OsWindowSurface>[0]["onTrafficLight"];
 }) {
   const { coordinator } = useOsShell();
@@ -220,6 +225,7 @@ function OsWindowMember({
       focused={focused}
       controls={controls}
       onTrafficLight={controls === "head" ? onTrafficLight : undefined}
+      zoomed={zoomed}
       zoomMenu={
         compact || controls === "deck"
           ? undefined

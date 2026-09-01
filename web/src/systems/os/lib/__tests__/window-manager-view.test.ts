@@ -14,7 +14,7 @@ import {
 import type { WindowManagerConfig, WindowManagerSnapshot } from "../window-manager-types";
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 3,
+  version: 4,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [
@@ -22,8 +22,6 @@ const SNAPSHOT: WindowManagerSnapshot = {
       id: "desktop:main",
       name: "Main",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       groups: [
         {
           id: "group:main",
@@ -56,6 +54,7 @@ const SNAPSHOT: WindowManagerSnapshot = {
       desktopId: "desktop:main",
       floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
       minimized: false,
+      zoomed: false,
       returnAnchor: null,
     },
     "window:tasks": {
@@ -69,6 +68,7 @@ const SNAPSHOT: WindowManagerSnapshot = {
       desktopId: "desktop:main",
       floatingRect: { x: 0.2, y: 0.2, w: 0.5, h: 0.5 },
       minimized: false,
+      zoomed: false,
       returnAnchor: null,
     },
   },
@@ -142,6 +142,7 @@ describe("window-manager view", () => {
       client: null,
       projections,
       workArea: { x: 0, y: 0, w: 540, h: 400 },
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: false,
     });
     const windows = buildWindowManagerWindows({
@@ -199,6 +200,7 @@ describe("window-manager view", () => {
         client,
         projections: {},
         workArea,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
         raiseOnFocus: true,
       }),
     });
@@ -212,6 +214,7 @@ describe("window-manager view", () => {
         client,
         projections: {},
         workArea,
+        gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
         raiseOnFocus: false,
       }),
     });

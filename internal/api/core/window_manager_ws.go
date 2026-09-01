@@ -100,6 +100,7 @@ func (h *BaseHandlers) StreamWindowManager(c *gin.Context) {
 	socket := windowManagerSocket{
 		conn: conn, subscription: subscription, clientCommands: clientCommands,
 		stop: stop, workspaceID: workspaceID, clientID: clientID, manager: service,
+		pingInterval: h.streamPingInterval(),
 	}
 	err = socket.run(c.Request.Context())
 	if err != nil && !isExpectedWindowManagerSocketError(err) && h.Logger != nil {
@@ -133,6 +134,17 @@ type windowManagerSocket struct {
 	workspaceID    windowmanager.WorkspaceID
 	clientID       *windowmanager.ClientID
 	manager        WindowManagerService
+	// revision is the newest topology revision this socket has announced; the
+	// heartbeat repeats it so a client can notice a frame it never received.
+	revision     contract.WindowManagerRevision
+	pingInterval time.Duration
+}
+
+func (h *BaseHandlers) streamPingInterval() time.Duration {
+	if h != nil && h.windowManagerPingInterval > 0 {
+		return h.windowManagerPingInterval
+	}
+	return windowManagerPingInterval
 }
 
 func (s *windowManagerSocket) run(ctx context.Context) error {
@@ -147,7 +159,11 @@ func (s *windowManagerSocket) run(ctx context.Context) error {
 	go func() {
 		readDone <- s.readPump(ctx)
 	}()
-	ticker := time.NewTicker(windowManagerPingInterval)
+	interval := s.pingInterval
+	if interval <= 0 {
+		interval = windowManagerPingInterval
+	}
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	var clientCommandUpdates <-chan windowmanager.ClientCommand
 	var clientCommandsDone <-chan struct{}
@@ -175,6 +191,7 @@ func (s *windowManagerSocket) writeInitialFence() error {
 		}
 		client = &converted
 	}
+	s.revision = snapshot.Revision
 	if err := s.writeJSON(contract.WindowManagerSnapshotFrame{
 		Type: contract.WindowManagerFrameSnapshot, WorkspaceID: s.workspaceID,
 		Revision: snapshot.Revision, Snapshot: snapshot, Client: client,
@@ -216,6 +233,9 @@ func (s *windowManagerSocket) runEventLoop(
 		case <-pings:
 			if pingErr := s.writePing(); pingErr != nil {
 				return s.cleanup(readDone, pingErr, readObserved)
+			}
+			if heartbeatErr := s.writeHeartbeat(); heartbeatErr != nil {
+				return s.cleanup(readDone, heartbeatErr, readObserved)
 			}
 		case <-s.stop:
 			return s.cleanup(readDone, s.writeClose(websocket.CloseGoingAway, "daemon shutdown"), readObserved)
@@ -266,6 +286,9 @@ func encodeWindowManagerUpdate(
 
 func (update encodedWindowManagerUpdate) write(socket *windowManagerSocket) error {
 	if update.event != nil {
+		if update.event.Revision > socket.revision {
+			socket.revision = update.event.Revision
+		}
 		return socket.writeJSON(*update.event)
 	}
 	if update.client != nil {
@@ -388,6 +411,14 @@ func (s *windowManagerSocket) writeJSON(payload any) error {
 		return fmt.Errorf("write window-manager frame: %w", err)
 	}
 	return nil
+}
+
+// writeHeartbeat follows every protocol ping with an application frame: browsers
+// cannot observe pings, so this is the only liveness signal the web client sees.
+func (s *windowManagerSocket) writeHeartbeat() error {
+	return s.writeJSON(contract.WindowManagerHeartbeatFrame{
+		Type: contract.WindowManagerFrameHeartbeat, WorkspaceID: s.workspaceID, Revision: s.revision,
+	})
 }
 
 func (s *windowManagerSocket) writePing() error {

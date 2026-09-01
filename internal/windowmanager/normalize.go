@@ -45,6 +45,9 @@ func NormalizeSnapshot(snapshot Snapshot) Snapshot {
 		normalized.Desktops[desktopIndex].Floating = append(normalized.Desktops[desktopIndex].Floating, windowID)
 		seen[windowID] = struct{}{}
 	}
+	for desktopIndex := range normalized.Desktops {
+		normalizeDesktopZoom(&normalized.Desktops[desktopIndex], normalized.Windows)
+	}
 	return normalized
 }
 
@@ -61,6 +64,42 @@ func normalizeDesktop(desktop *Desktop, windows map[WindowID]Window, seen map[Wi
 	desktop.Groups = groups
 	dissolved := normalizeFloatingStacks(desktop, windows, seen)
 	normalizeFloatingWindows(desktop, dissolved, windows, seen)
+}
+
+// normalizeDesktopZoom keeps the first zoomed unit in tree order and drops zoom
+// from minimized windows and from every later unit, so one desktop never shows
+// two competing full-area units.
+func normalizeDesktopZoom(desktop *Desktop, windows map[WindowID]Window) {
+	kept := false
+	forEachDesktopUnit(desktop, func(members []WindowID) {
+		zoomed := false
+		for _, windowID := range members {
+			window, exists := windows[windowID]
+			if !exists || !window.Zoomed {
+				continue
+			}
+			if window.Minimized {
+				window.Zoomed = false
+				windows[windowID] = window
+				continue
+			}
+			zoomed = true
+		}
+		if !zoomed {
+			return
+		}
+		if !kept {
+			kept = true
+			return
+		}
+		for _, windowID := range members {
+			window := windows[windowID]
+			if window.Zoomed {
+				window.Zoomed = false
+				windows[windowID] = window
+			}
+		}
+	})
 }
 
 func normalizeFloatingStacks(

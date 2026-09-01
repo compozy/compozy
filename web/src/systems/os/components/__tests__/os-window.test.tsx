@@ -93,6 +93,7 @@ function windowState(overrides: Partial<OsWindowState> = {}): OsWindowState {
     rect: { x: 40, y: 50, w: 720, h: 480 },
     layer: 2,
     minimized: false,
+    zoomed: false,
     groupId: null,
     nodeId: null,
     stackId: null,
@@ -112,6 +113,7 @@ function frameModel(overrides: Partial<OsWindowFrameModel> = {}): OsWindowFrameM
     activeWindowId: "window:tasks",
     stackId: null,
     minimized: false,
+    zoomed: false,
     adapted: false,
     layer: 2,
     zone: null,
@@ -182,7 +184,7 @@ describe("OsWindow", () => {
     const view = render(<OsWindow frame={frameModel({ layer: 2 })} />);
 
     expect(screen.getByTestId("os-window-frame-window:tasks").parentElement).toHaveStyle({
-      zIndex: 4,
+      zIndex: 5,
     });
 
     const tiledFrame = frameModel({ kind: "tiled", layer: 1 });
@@ -192,7 +194,22 @@ describe("OsWindow", () => {
     });
 
     expect(windowVisualLayer(frameModel({ kind: "floating", layer: 1 }))).toBe(
-      WINDOW_VISUAL_LAYER.seam + 1
+      WINDOW_VISUAL_LAYER.zoomed + 1
+    );
+    expect(windowVisualLayer(frameModel({ kind: "tiled", layer: 1, zoomed: true }))).toBe(
+      WINDOW_VISUAL_LAYER.zoomed
+    );
+  });
+
+  it("Should pin a zoomed frame and report the zoom control as pressed", () => {
+    render(<OsWindow frame={frameModel({ kind: "tiled", layer: 1, zoomed: true })} />);
+
+    const chrome = screen.getByTestId("os-window-frame-window:tasks");
+    expect(chrome).toHaveAttribute("data-zoomed", "");
+    expect(chrome.parentElement).toHaveStyle({ zIndex: WINDOW_VISUAL_LAYER.zoomed });
+    expect(screen.getByRole("button", { name: "Zoom window" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
     );
   });
 

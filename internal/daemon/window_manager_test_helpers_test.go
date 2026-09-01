@@ -144,7 +144,7 @@ func daemonWindowManagerSnapshot(
 	return windowmanager.Snapshot{
 		Version: windowmanager.SnapshotVersion, WorkspaceID: workspaceID, Revision: revision,
 		Desktops: []windowmanager.Desktop{{
-			ID: "desktop-default", Name: name, Purpose: windowmanager.DesktopPurposeStandard,
+			ID: "desktop-default", Name: name,
 			Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
 		}},
 		Windows:   map[windowmanager.WindowID]windowmanager.Window{},

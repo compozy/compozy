@@ -330,8 +330,7 @@ func writeWindowManagerClientFrame(
 func windowManagerCommandRequiresClient(commandID contract.WindowManagerCommandID) bool {
 	switch commandID {
 	case contract.WindowManagerCommandDesktopSwitch,
-		contract.WindowManagerCommandWindowFocus,
-		contract.WindowManagerCommandWindowZoom:
+		contract.WindowManagerCommandWindowFocus:
 		return true
 	default:
 		return false

@@ -20,8 +20,6 @@ export function toDraftDesktop(desktop: LayoutDesktop): WindowManagerLayoutDeskt
     id: desktop.id,
     name: desktop.name,
     order: desktop.order,
-    purpose: desktop.purpose,
-    focusOwner: desktop.focusOwner,
     groups: desktop.groups.map(toDraftGroup),
     floating: [...desktop.floating],
     floatingStacks: desktop.floatingStacks.map(stack => ({

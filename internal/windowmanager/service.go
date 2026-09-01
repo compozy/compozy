@@ -214,7 +214,7 @@ func (m *Manager) previewLocked(
 	if commandID == CommandDesktopSwitch || commandID == CommandWindowFocus {
 		return m.previewPresentation(snapshot, request)
 	}
-	client, err := m.clientForRequest(request, commandID)
+	client, err := m.clientForRequest(request)
 	if err != nil {
 		return Preview{}, err
 	}
@@ -266,7 +266,7 @@ func (m *Manager) previewLocked(
 			return Preview{}, err
 		}
 		working.Revision = nextRevision
-		projectedClient, err = m.previewDurableClient(snapshot, working, request)
+		projectedClient, err = m.previewDurableClient(working, request)
 		if err != nil {
 			return Preview{}, err
 		}
@@ -302,7 +302,6 @@ func initialSnapshot(workspaceID WorkspaceID) Snapshot {
 			{
 				ID:       DesktopID("desktop-default"),
 				Name:     defaultDesktopName,
-				Purpose:  DesktopPurposeStandard,
 				Groups:   []LayoutGroup{},
 				Floating: []WindowID{},
 			},

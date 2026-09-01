@@ -6,7 +6,7 @@ persona: Ada
 journey: J-administer-window-manager
 expected: Native tools, CLI, HTTP, and UDS expose the same semantic desktop, window, navigation, client, preview, layout, and revision contracts; the WebSocket snapshot fence orders later topology events and an optional client fence orders only that ClientView's presentation frames; restart preserves topology and routes; workspace deletion purges them; and no request can observe or mutate another workspace.
 entry_points: compozy desktop; compozy window; compozy layout; compozy__window_manager; /api/workspaces/{workspace_id}/window-manager
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status:
 retest_status: pass
@@ -24,3 +24,8 @@ qa-impact: 2026-07-22 introduced the complete semantic window-manager surface an
 
 qa-impact: 2026-07-31 added tab commands, payload extensions, list fields, deterministic errors, and
 v3 persistence across CLI, HTTP, UDS, native tools, and streams. Reset for cross-surface parity.
+
+qa-impact: 2026-09-01 `compozy desktop create` lost `--purpose` and `--focus-owner`; `compozy window
+zoom` and `compozy__window_zoom` no longer require a client; `compozy window list` and the wire window
+carry `zoomed`; the stream contract gained a `heartbeat` frame the CLI stream reader tolerates. Reset for
+a CLI/HTTP/UDS/tool parity re-walk.

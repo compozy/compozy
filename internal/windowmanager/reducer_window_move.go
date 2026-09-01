@@ -46,6 +46,7 @@ func (r *reducer) moveWindow(snapshot *Snapshot, command MoveWindowCommand) (boo
 	}
 	window.DesktopID = command.DestinationDesktopID
 	window.Minimized = false
+	window.Zoomed = false
 	window.ReturnAnchor = anchor
 	if command.FloatingRect != nil {
 		window.FloatingRect = clampRect(*command.FloatingRect)
@@ -73,6 +74,7 @@ func (r *reducer) moveWindow(snapshot *Snapshot, command MoveWindowCommand) (boo
 		); err != nil {
 			return false, err
 		}
+		r.clearDesktopZoom(snapshot, command.DestinationDesktopID)
 	}
 	r.changes.window(command.WindowID)
 	r.changes.desktop(window.DesktopID)
@@ -137,10 +139,12 @@ func (r *reducer) moveWindowGroupRelative(snapshot *Snapshot, command MoveWindow
 		member.DesktopID = command.DestinationDesktopID
 		member.Placement = WindowPlacementStacked
 		member.Minimized = false
+		member.Zoomed = false
 		member.ReturnAnchor = nil
 		snapshot.Windows[memberID] = member
 		r.changes.window(memberID)
 	}
+	r.clearDesktopZoom(snapshot, command.DestinationDesktopID)
 	r.changes.node(node.ID)
 	if sourceGroupID != nil {
 		r.changes.group(*sourceGroupID)
@@ -188,6 +192,7 @@ func (r *reducer) moveFloatingStackFrame(
 	for _, memberID := range stack.WindowIDs {
 		member := snapshot.Windows[memberID]
 		member.DesktopID = command.DestinationDesktopID
+		member.Zoomed = false
 		snapshot.Windows[memberID] = member
 		r.changes.window(memberID)
 	}
@@ -227,6 +232,7 @@ func (r *reducer) floatTiledStackFrame(snapshot *Snapshot, command MoveWindowCom
 		member.DesktopID = command.DestinationDesktopID
 		member.Placement = WindowPlacementStacked
 		member.Minimized = false
+		member.Zoomed = false
 		member.ReturnAnchor = nil
 		snapshot.Windows[memberID] = member
 		r.changes.window(memberID)
@@ -262,6 +268,7 @@ func (r *reducer) moveWindowGroup(snapshot *Snapshot, command MoveWindowCommand)
 	for _, memberID := range nodeWindowIDs(group.Root) {
 		member := snapshot.Windows[memberID]
 		member.DesktopID = command.DestinationDesktopID
+		member.Zoomed = false
 		snapshot.Windows[memberID] = member
 		r.changes.window(memberID)
 	}

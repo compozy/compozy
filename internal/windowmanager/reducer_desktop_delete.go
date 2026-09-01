@@ -11,43 +11,57 @@ func (r *reducer) deleteDesktop(snapshot *Snapshot, command DeleteDesktopCommand
 		return false, ErrFinalDesktop
 	}
 	source := snapshot.Desktops[index]
-	nonEmpty := len(source.Groups) > 0 || len(source.Floating) > 0
-	if nonEmpty && command.DestinationID == nil {
+	if !desktopEmpty(source) && command.DestinationID == nil {
 		return false, ErrDestinationRequired
 	}
 	if command.DestinationID != nil && *command.DestinationID == command.DesktopID {
 		return false, fmt.Errorf("destination must differ from source: %w", ErrDestinationRequired)
 	}
 	if command.DestinationID != nil {
-		destinationIndex, found := desktopIndexByID(snapshot, *command.DestinationID)
-		if !found {
-			return false, fmt.Errorf("desktop %q: %w", *command.DestinationID, ErrDesktopNotFound)
+		if err := r.transferDesktopContents(snapshot, source, *command.DestinationID); err != nil {
+			return false, err
 		}
-		destination := &snapshot.Desktops[destinationIndex]
-		transferredGroups := cloneDesktop(source).Groups
-		destination.Groups = append(destination.Groups, transferredGroups...)
-		for _, group := range transferredGroups {
-			r.changes.group(group.ID)
-		}
-		if layoutGroupsOverlap(destination.Groups) {
-			reflowLayoutGroupFrames(destination.Groups)
-			for _, group := range destination.Groups {
-				r.changes.group(group.ID)
-			}
-		}
-		destination.Floating = append(destination.Floating, source.Floating...)
-		for windowID, window := range snapshot.Windows {
-			if window.DesktopID != source.ID {
-				continue
-			}
-			window.DesktopID = destination.ID
-			snapshot.Windows[windowID] = window
-			r.changes.window(windowID)
-		}
-		r.changes.desktop(destination.ID)
 	}
 	snapshot.Desktops = append(snapshot.Desktops[:index], snapshot.Desktops[index+1:]...)
 	setDesktopOrders(snapshot)
 	r.changes.desktop(source.ID)
 	return true, nil
+}
+
+// transferDesktopContents moves every island, floating frame, and floating
+// window of the source onto the destination; arriving windows drop their zoom
+// so the destination keeps whatever it was already showing.
+func (r *reducer) transferDesktopContents(snapshot *Snapshot, source Desktop, destinationID DesktopID) error {
+	destinationIndex, found := desktopIndexByID(snapshot, destinationID)
+	if !found {
+		return fmt.Errorf("desktop %q: %w", destinationID, ErrDesktopNotFound)
+	}
+	destination := &snapshot.Desktops[destinationIndex]
+	transferred := cloneDesktop(source)
+	destination.Groups = append(destination.Groups, transferred.Groups...)
+	for _, group := range transferred.Groups {
+		r.changes.group(group.ID)
+	}
+	if layoutGroupsOverlap(destination.Groups) {
+		reflowLayoutGroupFrames(destination.Groups)
+		for _, group := range destination.Groups {
+			r.changes.group(group.ID)
+		}
+	}
+	destination.Floating = append(destination.Floating, transferred.Floating...)
+	destination.FloatingStacks = append(destination.FloatingStacks, transferred.FloatingStacks...)
+	for _, stack := range transferred.FloatingStacks {
+		r.changes.node(stack.ID)
+	}
+	for windowID, window := range snapshot.Windows {
+		if window.DesktopID != source.ID {
+			continue
+		}
+		window.DesktopID = destination.ID
+		window.Zoomed = false
+		snapshot.Windows[windowID] = window
+		r.changes.window(windowID)
+	}
+	r.changes.desktop(destination.ID)
+	return nil
 }

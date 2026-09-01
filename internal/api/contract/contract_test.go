@@ -125,7 +125,7 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 		document := windowmanager.LayoutDocument{
 			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
 			Desktops: []windowmanager.Desktop{{
-				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+				ID: "desktop:main", Name: "Main",
 				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{zoomedWindowID},
 			}},
 			Windows: map[windowmanager.WindowID]windowmanager.Window{
@@ -189,13 +189,11 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 		t.Parallel()
 		axis := windowmanager.AxisHorizontal
 		windowID := windowmanager.WindowID("window:a")
-		focusOwner := windowID
 		historyLimit := 20
 		document := windowmanager.LayoutDocument{
 			Version: windowmanager.SnapshotVersion, WorkspaceID: "workspace:test",
 			Desktops: []windowmanager.Desktop{{
-				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
-				FocusOwner: &focusOwner,
+				ID: "desktop:main", Name: "Main",
 				Groups: []windowmanager.LayoutGroup{{
 					ID: "group:main", Frame: windowmanager.NormalizedRect{Width: 1, Height: 1},
 					Root: windowmanager.LayoutNode{
@@ -222,15 +220,13 @@ func TestWindowManagerReturnAnchorContract(t *testing.T) {
 		if err != nil {
 			t.Fatalf("WindowManagerLayoutFromDomain() error = %v", err)
 		}
-		wire.Desktops[0].FocusOwner = new(windowmanager.WindowID)
 		wire.Desktops[0].Floating[0] = "wire-mutated"
 		wire.Desktops[0].Groups[0].Root.Weights[0] = 0.9
 		wire.Desktops[0].Groups[0].Root.Children[0].WindowID = new(windowmanager.WindowID)
 		*wire.Overrides.HistoryLimit = 99
 		wire.Overrides.Snap.RepeatRatios[0] = 0.25
 		wire.Overrides.Shortcuts["layout.balance"][0] = "Alt+KeyB"
-		if *document.Desktops[0].FocusOwner != windowID ||
-			document.Desktops[0].Floating[0] != "window:floating" ||
+		if document.Desktops[0].Floating[0] != "window:floating" ||
 			document.Desktops[0].Groups[0].Root.Weights[0] != 0.4 ||
 			*document.Desktops[0].Groups[0].Root.Children[0].WindowID != windowID ||
 			*document.Overrides.HistoryLimit != 20 ||
@@ -367,7 +363,7 @@ func TestWindowManagerV3WireContract(t *testing.T) {
 			Version:     windowmanager.SnapshotVersion,
 			WorkspaceID: "workspace:test",
 			Desktops: []windowmanager.Desktop{{
-				ID: "desktop:main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+				ID: "desktop:main", Name: "Main",
 				Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
 				FloatingStacks: []windowmanager.FloatingStack{{
 					ID: "stack:main", WindowIDs: []windowmanager.WindowID{"window:a", "window:b"},

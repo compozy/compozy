@@ -73,3 +73,11 @@ desks when it is removed.
 Profile arrangement isolation, switch restoration, archive, delete, and workspace purge are owned by
 ET-profile-desktop-restoration. This row retains gesture geometry, resize, drag, zoom, and cancellation
 assertions and links the profile row as its first overlap rather than duplicating that walk.
+
+qa-impact: 2026-09-01 zoom is a per-window `zoomed` flag on the window's own desktop; focus desktops
+are gone, so "a focus desktop is released the moment its zoomed window leaves" no longer applies —
+the zoomed frame fills the work area over the untouched tree and unzoom reveals it unchanged. Edge
+tiles against an existing island now displace that island to the free zone (clean cut) instead of
+being refused with `topology.group_overlap`; a corner tile keeps the larger band. Pointer releases
+after a mid-drag revision change carry a rebase proof instead of cancelling with `stale-layout`.
+Zoom-specific assertions moved to ET-window-zoom-in-place. Reset for the current build.

@@ -7,11 +7,9 @@ import (
 )
 
 type WindowManagerCreateDesktopPayload struct {
-	DesktopID  windowmanager.DesktopID      `json:"desktop_id"`
-	Name       string                       `json:"name"`
-	Purpose    windowmanager.DesktopPurpose `json:"purpose"`
-	FocusOwner *windowmanager.WindowID      `json:"focus_owner,omitempty"`
-	AfterID    *windowmanager.DesktopID     `json:"after_id,omitempty"`
+	DesktopID windowmanager.DesktopID  `json:"desktop_id"`
+	Name      string                   `json:"name"`
+	AfterID   *windowmanager.DesktopID `json:"after_id,omitempty"`
 }
 
 type WindowManagerUpdateDesktopPayload struct {
@@ -160,11 +158,9 @@ func decodeCreateDesktopPayload(raw json.RawMessage) (windowmanager.Command, err
 		return nil, err
 	}
 	return windowmanager.CreateDesktopCommand{
-		DesktopID:  payload.DesktopID,
-		Name:       payload.Name,
-		Purpose:    payload.Purpose,
-		FocusOwner: payload.FocusOwner,
-		AfterID:    payload.AfterID,
+		DesktopID: payload.DesktopID,
+		Name:      payload.Name,
+		AfterID:   payload.AfterID,
 	}, nil
 }
 

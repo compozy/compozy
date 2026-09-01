@@ -24,3 +24,7 @@ qa-impact: 2026-07-22 replaced the workspace-card Spaces overlay with a persiste
 
 qa-impact: 2026-07-31 cross-desktop tab activation and multi-instance cycling now switch the active
 client through the pager projection. Reset as the adjacent desktop canary.
+
+qa-impact: 2026-09-01 focus desktops no longer exist: zoom keeps the window on its own desktop, so
+the pager never gains or loses a dot on zoom and "current and focus desktops are distinguishable" is
+dropped from the expectation; the overview no longer shows a Focus pill. Reset for the current build.

@@ -140,6 +140,9 @@ func (r *windowManagerRepository) Load(
 		return windowmanager.Snapshot{}, mapWindowManagerStoreError("load snapshot", err)
 	}
 	snapshot, err := decodeWindowManagerSnapshot(entry.Value, workspaceID)
+	if err == nil && storedWindowManagerSnapshotVersion(entry.Value) == windowmanager.LegacySnapshotVersion {
+		return snapshot, r.persistMigratedSnapshot(ctx, workspaceID, snapshot, entry.Rev)
+	}
 	if !errors.Is(err, errWindowManagerSnapshotDiscardable) {
 		return snapshot, err
 	}
@@ -252,6 +255,44 @@ func (r *windowManagerRepository) DeleteWorkspace(
 	return r.deleteSnapshotEntry(ctx, workspaceID, entry.Rev, "window-manager.workspace.delete")
 }
 
+// persistMigratedSnapshot writes a migrated aggregate back under its new
+// revision so the migration happens once and every revision-keyed cache sees
+// the change.
+func (r *windowManagerRepository) persistMigratedSnapshot(
+	ctx context.Context,
+	workspaceID windowmanager.WorkspaceID,
+	snapshot windowmanager.Snapshot,
+	entryRevision uint64,
+) error {
+	encoded, err := json.Marshal(snapshot)
+	if err != nil {
+		return fmt.Errorf("daemon: encode migrated window-manager snapshot: %w", err)
+	}
+	_, err = r.service.Apply(
+		ctx,
+		clientstate.WorkspaceID(workspaceID),
+		windowManagerStateDomain,
+		[]clientstate.Op{{
+			Kind:  clientstate.OpPut,
+			Key:   windowManagerSnapshotKey(r.profileID),
+			Value: encoded,
+			IfRev: entryRevision,
+		}},
+		clientstate.ApplyOptions{Origin: "window-manager.snapshot.migrate"},
+	)
+	if err != nil {
+		return mapWindowManagerStoreError("persist migrated snapshot", err)
+	}
+	r.logger.Info(
+		"migrated window-manager snapshot",
+		"workspace_id", workspaceID,
+		"from_version", windowmanager.LegacySnapshotVersion,
+		"to_version", snapshot.Version,
+		"revision", snapshot.Revision,
+	)
+	return nil
+}
+
 func (r *windowManagerRepository) deleteSnapshotEntry(
 	ctx context.Context,
 	workspaceID windowmanager.WorkspaceID,
@@ -341,6 +382,9 @@ func decodeWindowManagerSnapshot(
 	encoded []byte,
 	workspaceID windowmanager.WorkspaceID,
 ) (windowmanager.Snapshot, error) {
+	if storedWindowManagerSnapshotVersion(encoded) == windowmanager.LegacySnapshotVersion {
+		return migrateLegacyWindowManagerSnapshot(encoded, workspaceID)
+	}
 	decoder := json.NewDecoder(bytes.NewReader(encoded))
 	decoder.DisallowUnknownFields()
 	var snapshot windowmanager.Snapshot
@@ -375,6 +419,41 @@ func decodeWindowManagerSnapshot(
 	}
 	if err := windowmanager.ValidateSnapshot(snapshot); err != nil {
 		return windowmanager.Snapshot{}, fmt.Errorf("daemon: validate stored window-manager snapshot: %w", err)
+	}
+	return snapshot, nil
+}
+
+// storedWindowManagerSnapshotVersion peeks at the version so an older aggregate
+// shape can be migrated before the strict current-shape decode rejects it.
+func storedWindowManagerSnapshotVersion(encoded []byte) uint32 {
+	var header struct {
+		Version uint32 `json:"version"`
+	}
+	if err := json.Unmarshal(encoded, &header); err != nil {
+		return 0
+	}
+	return header.Version
+}
+
+// migrateLegacyWindowManagerSnapshot upgrades a stored version 3 aggregate; a
+// legacy document that cannot be migrated is discarded like any other
+// incompatible snapshot.
+func migrateLegacyWindowManagerSnapshot(
+	encoded []byte,
+	workspaceID windowmanager.WorkspaceID,
+) (windowmanager.Snapshot, error) {
+	snapshot, err := windowmanager.MigrateLegacySnapshotV3(encoded)
+	if err != nil {
+		return windowmanager.Snapshot{}, fmt.Errorf(
+			"daemon: migrate window-manager snapshot: %w",
+			errors.Join(windowmanager.ErrInvalidTopology, errWindowManagerSnapshotDiscardable, err),
+		)
+	}
+	if snapshot.WorkspaceID != workspaceID {
+		return windowmanager.Snapshot{}, fmt.Errorf(
+			"daemon: window-manager snapshot workspace mismatch: %w",
+			windowmanager.ErrInvalidTopology,
+		)
 	}
 	return snapshot, nil
 }

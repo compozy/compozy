@@ -316,11 +316,88 @@ func TestWindowManagerRepository(t *testing.T) {
 				WorkspaceID: windowmanager.WorkspaceID(workspaceID), ExpectedRevision: 0,
 				Payload: windowmanager.CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
 			})
-			if err != nil || result.Snapshot.Revision != 1 || result.Snapshot.Version != 3 {
+			if err != nil || result.Snapshot.Revision != 1 || result.Snapshot.Version != windowmanager.SnapshotVersion {
 				t.Fatalf("Execute(after discard) = %+v, error = %v", result, err)
 			}
 		},
 	)
+
+	t.Run("Should migrate a version 3 arrangement and keep its focus owner zoomed on its desktop", func(t *testing.T) {
+		t.Parallel()
+		fixture := newDaemonWindowManagerFixture(t)
+		ctx := testutil.Context(t)
+		workspaceID := clientstate.WorkspaceID(fixture.workspace.ID)
+		legacy := []byte(strings.ReplaceAll(`{"version":3,"workspace_id":"WORKSPACE_ID","revision":5,
+			"desktops":[
+				{"id":"desktop-default","name":"Desktop 1","order":0,"purpose":"standard",
+					"groups":[],"floating":["settings"],"floating_stacks":[]},
+				{"id":"desktop-focus","name":"Focus — Tasks","order":1,"purpose":"focus","focus_owner":"tasks",
+					"groups":[{"id":"group-focus","frame":{"x":0,"y":0,"width":1,"height":1},
+						"root":{"id":"leaf-focus","kind":"leaf","window_id":"tasks"}}],
+					"floating":[],"floating_stacks":[]}],
+			"windows":{
+				"tasks":{"id":"tasks","app":"tasks","route":{"pathname":"/tasks","search":{}},"nav_stack":[],
+					"pinned":false,"placement":"tiled","desktop_id":"desktop-focus",
+					"floating_rect":{"x":0.1,"y":0.1,"width":0.5,"height":0.5},"minimized":false,
+					"return_anchor":{"desktop_id":"desktop-default","source_revision":4}},
+				"settings":{"id":"settings","app":"settings","route":{"pathname":"/settings","search":{}},"nav_stack":[],
+					"pinned":false,"placement":"floating","desktop_id":"desktop-default",
+					"floating_rect":{"x":0.2,"y":0.2,"width":0.5,"height":0.5},"minimized":false}},
+			"history":{"undo":[],"redo":[]},"overrides":{},"updated_at":"2026-08-30T10:00:00Z"}`,
+			"WORKSPACE_ID", fixture.workspace.ID))
+		if _, err := fixture.engine.Apply(
+			ctx,
+			workspaceID,
+			windowManagerStateDomain,
+			[]clientstate.Op{
+				{Kind: clientstate.OpPut, Key: windowManagerSnapshotKey(testWindowManagerProfileID), Value: legacy},
+			},
+			clientstate.ApplyOptions{},
+		); err != nil {
+			t.Fatalf("Apply(v3 snapshot) error = %v", err)
+		}
+		loaded, err := fixture.repository.Load(ctx, windowmanager.WorkspaceID(workspaceID))
+		if err != nil {
+			t.Fatalf("Load(v3 snapshot) error = %v", err)
+		}
+		if loaded.Version != windowmanager.SnapshotVersion || loaded.Revision != 6 || len(loaded.Desktops) != 2 {
+			t.Fatalf("migrated snapshot = %+v", loaded)
+		}
+		stored, err := fixture.engine.Get(
+			ctx, workspaceID, windowManagerStateDomain, windowManagerSnapshotKey(testWindowManagerProfileID),
+		)
+		if err != nil {
+			t.Fatalf("Get(after migration) error = %v", err)
+		}
+		var persisted windowmanager.Snapshot
+		if err := json.Unmarshal(stored.Value, &persisted); err != nil {
+			t.Fatalf("json.Unmarshal(persisted migration) error = %v", err)
+		}
+		if persisted.Version != windowmanager.SnapshotVersion || persisted.Revision != 6 {
+			t.Fatalf(
+				"load did not persist the migrated snapshot: version %d revision %d",
+				persisted.Version,
+				persisted.Revision,
+			)
+		}
+		tasks := loaded.Windows["tasks"]
+		if !tasks.Zoomed || tasks.DesktopID != "desktop-focus" ||
+			tasks.Placement != windowmanager.WindowPlacementTiled || tasks.ReturnAnchor == nil ||
+			tasks.ReturnAnchor.DesktopID != "desktop-default" {
+			t.Fatalf("migrated focus owner = %+v", tasks)
+		}
+		result, err := fixture.manager.Execute(ctx, windowmanager.CommandRequest{
+			WorkspaceID: windowmanager.WorkspaceID(workspaceID), ExpectedRevision: 6,
+			Payload: windowmanager.CreateDesktopCommand{DesktopID: "d2", Name: "Two"},
+		})
+		if err != nil || result.Snapshot.Revision != 7 || result.Snapshot.Version != windowmanager.SnapshotVersion {
+			t.Fatalf("Execute(after migration) = %+v, error = %v", result, err)
+		}
+		reloaded, err := fixture.repository.Load(ctx, windowmanager.WorkspaceID(workspaceID))
+		if err != nil || reloaded.Version != windowmanager.SnapshotVersion || !reloaded.Windows["tasks"].Zoomed {
+			t.Fatalf("Load(after migration commit) = %+v, error = %v", reloaded, err)
+		}
+	})
 
 	t.Run(
 		"Should discard only decode and version classes while preserving forensic blobs [IT-002]",

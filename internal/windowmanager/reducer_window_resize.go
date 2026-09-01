@@ -10,6 +10,7 @@ func (r *reducer) resizeWindow(snapshot *Snapshot, command ResizeWindowCommand) 
 	if !found {
 		return false, fmt.Errorf("window %q has no placement: %w", command.WindowID, ErrInvalidTopology)
 	}
+	r.endZoom(snapshot, zoomUnitMembers(snapshot, command.WindowID))
 	switch {
 	case placement.floatingStackIndex >= 0:
 		return r.resizeFloatingStackFrame(snapshot, placement, command.Frame)

@@ -6,7 +6,7 @@ persona: Bruno
 journey: J-operate-desktop-shell
 expected: A fresh workspace renders one persistent desktop with menubar, dock, wallpaper, and command hint; local streams attach without requesting remote gateway tickets or logging product errors; workspace switching isolates complete window topologies; stream loss exposes an honest disconnected state, blocks unsafe mutations, and reconnect replaces the query cache from a new snapshot fence without regressing revision.
 entry_points: web desktop root; workspace trigger; window-manager WebSocket stream
-qa_status: pass
+qa_status: untested
 bug_ids: BUG-0017; BUG-20260813-desktop-shell-context-order; BUG-20260729-session-window-cross-tab-focus
 fix_status: fixed
 retest_status: pass
@@ -54,3 +54,9 @@ real desktop window with no sync warning and remained rendered after a full page
 qa-impact: 2026-08-20 Knowledge route projection stopped allocating a new selector result on each
 external-store read. Reset to verify that opening Knowledge does not enter a render loop or break
 the desktop shell.
+
+qa-impact: 2026-09-01 stream hardening: heartbeat frames, a client stall watchdog, wake/online
+verification, jittered reconnect, and 409 self-recovery replaced the sticky read-only conflict state.
+Reset to re-walk "stream loss exposes an honest disconnected state ... reconnect replaces the query
+cache from a new snapshot fence" from the current build; liveness assertions live in
+RT-window-manager-stream-liveness.

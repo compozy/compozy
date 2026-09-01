@@ -149,7 +149,7 @@ function shortcutRegistry(
 }
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 3,
+  version: 4,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [],
@@ -172,6 +172,7 @@ function windowFixture(id: string, layer: number): OsWindow {
     rect: { x: 40 * layer, y: 40, w: 600, h: 420 },
     layer,
     minimized: false,
+    zoomed: false,
     groupId: null,
     nodeId: null,
     stackId: null,
@@ -475,6 +476,7 @@ function primaryFrame(): OsWindowFrameModel {
     activeWindowId: "window:primary",
     stackId: null,
     minimized: false,
+    zoomed: false,
     adapted: false,
     layer: 2,
     zone: null,
@@ -802,7 +804,23 @@ describe("useOsWindow", () => {
     expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
   });
 
-  it("Should restore the authoritative rect after a stale drag stop finishes", async () => {
+  it("Should not start a drag gesture from a zoomed frame", () => {
+    const shell = createShell();
+    const { result } = renderHook(() => useOsWindow({ ...primaryFrame(), zoomed: true }), {
+      wrapper: shell.wrapper,
+    });
+
+    act(() => {
+      result.current.handleDragStart(
+        new MouseEvent("mousedown", { clientX: 320, clientY: 200 }),
+        dragData(80, 40)
+      );
+    });
+
+    expect(windowManagerStore.getSnapshot().context.gesture).toBeNull();
+  });
+
+  it("Should commit a stale free drop with a rebase proof instead of discarding it", async () => {
     const shell = createShell();
     beginPrimarySnapGesture();
     shell.state.snapshot = { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 };
@@ -818,14 +836,18 @@ describe("useOsWindow", () => {
         new MouseEvent("mouseup", { clientX: 500, clientY: 300 }),
         dragData(500, 300)
       );
-      expect(updatePosition).not.toHaveBeenCalled();
       await Promise.resolve();
     });
 
-    expect(shell.controller.commitFloatingRect).not.toHaveBeenCalled();
+    expect(shell.controller.commitFloatingRect).toHaveBeenCalledOnce();
+    expect(shell.controller.commitFloatingRect).toHaveBeenCalledWith(
+      "window:primary",
+      { x: 500, y: 300, w: 600, h: 420 },
+      undefined,
+      false,
+      { expectedRevision: SNAPSHOT.revision, sourceNodeId: null }
+    );
     expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
-    expect(updatePosition).toHaveBeenCalledWith({ x: 80, y: 40 });
-    expect(updateSize).toHaveBeenCalledWith({ width: 600, height: 420 });
   });
 
   it("Should restore the authoritative rect when drag stop has no active gesture", async () => {
@@ -1055,6 +1077,7 @@ describe("useWindowMergeTarget", () => {
       activeWindowId: "window:target",
       stackId: null,
       minimized: false,
+      zoomed: false,
       adapted: false,
       layer: 3,
       zone: null,
@@ -1186,6 +1209,48 @@ describe("useWindowMergeTarget", () => {
     expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
       frameId: "frame:over",
       targetWindowId: "window:over",
+      insertIndex: 1,
+    });
+  });
+
+  it("Should skip tiled heads hidden under a zoomed frame on the same desktop", () => {
+    const frames = installAnimationFrameQueue();
+    const shell = createShell();
+    const zoomed: OsWindowFrameModel = {
+      ...targetFrame(),
+      id: "frame:zoomed",
+      kind: "tiled",
+      zoomed: true,
+      members: ["window:zoomed"],
+      activeWindowId: "window:zoomed",
+      layer: 1,
+      rect: { x: 0, y: 0, w: 1280, h: 800 },
+    };
+    const covered: OsWindowFrameModel = { ...targetFrame(), kind: "tiled", layer: 1 };
+    shell.setRuntimeState({ frames: { "desktop:main": [covered, zoomed] } });
+    const { result } = renderHook(
+      () => ({
+        covered: useWindowMergeTarget(covered, true),
+        zoomed: useWindowMergeTarget(zoomed, true),
+      }),
+      { wrapper: shell.wrapper }
+    );
+    const coveredChrome = chromeWithHead();
+    const zoomedChrome = chromeWithHead();
+    const coveredHead = coveredChrome.querySelector('[data-slot="os-window-head"]');
+    if (!(coveredHead instanceof HTMLElement)) throw new Error("window head fixture is required");
+    const measureCovered = vi.spyOn(coveredHead, "getBoundingClientRect");
+    result.current.covered.chromeRef.current = coveredChrome;
+    result.current.zoomed.chromeRef.current = zoomedChrome;
+
+    act(() => beginPrimarySnapGesture());
+    act(() => pointerMove(200, 60));
+    frames.flush();
+
+    expect(measureCovered).not.toHaveBeenCalled();
+    expect(windowManagerStore.getSnapshot().context.deckDropTarget).toEqual({
+      frameId: "frame:zoomed",
+      targetWindowId: "window:zoomed",
       insertIndex: 1,
     });
   });
@@ -1693,8 +1758,6 @@ describe("useOsWindowCommands", () => {
             id: "desktop:main",
             name: "Main",
             order: 0,
-            purpose: "standard",
-            focusOwner: null,
             groups: [],
             floating: [],
             floatingStacks: [],
@@ -1703,8 +1766,6 @@ describe("useOsWindowCommands", () => {
             id: "desktop:second",
             name: "Second",
             order: 1,
-            purpose: "standard",
-            focusOwner: null,
             groups: [],
             floating: [],
             floatingStacks: [],

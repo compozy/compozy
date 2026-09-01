@@ -421,7 +421,6 @@ func TestCommandTransaction(t *testing.T) {
 			Desktops: []Desktop{{
 				ID:       "desktop-default",
 				Name:     "Resource Desktop",
-				Purpose:  DesktopPurposeStandard,
 				Groups:   []LayoutGroup{},
 				Floating: []WindowID{},
 			}},

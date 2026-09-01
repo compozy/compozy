@@ -132,7 +132,7 @@ export const settingsWindowManagerDesktopIds = {
  * review capture.
  */
 export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
-  version: 3,
+  version: 4,
   workspace_id: storyDefaultWorkspaceId,
   revision: 41,
   desktops: [
@@ -140,7 +140,6 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       id: settingsWindowManagerDesktopIds.build,
       name: "Build",
       order: 0,
-      purpose: "standard",
       groups: [
         {
           id: "group-main",
@@ -183,7 +182,6 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       id: settingsWindowManagerDesktopIds.review,
       name: "Review",
       order: 1,
-      purpose: "standard",
       groups: [
         {
           id: "group-top",
@@ -212,8 +210,6 @@ export const settingsWindowManagerSnapshotFixture: WindowManagerSnapshotWire = {
       id: settingsWindowManagerDesktopIds.focus,
       name: "Deep work",
       order: 2,
-      purpose: "focus",
-      focus_owner: "app:knowledge",
       groups: [
         {
           id: "group-focus",
@@ -306,11 +302,12 @@ function tiled(
     desktop_id: desktopId,
     floating_rect: { x: 0.2, y: 0.2, width: 0.4, height: 0.4 },
     minimized: false,
+    zoomed: false,
   };
 }
 
 export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire = {
-  version: 3,
+  version: 4,
   workspace_id: storyDefaultWorkspaceId,
   desktops: settingsWindowManagerSnapshotFixture.desktops,
   windows: settingsWindowManagerSnapshotFixture.windows,
@@ -320,7 +317,7 @@ export const windowManagerLayoutDocumentFixture: WindowManagerLayoutDocumentWire
 export const windowManagerLayoutResourceFixture: WindowManagerLayoutResourceFixture = {
   kind: "window_layout",
   id: "launch-console",
-  version: 3,
+  version: 4,
   scope: { kind: "workspace", id: storyDefaultWorkspaceId },
   owner: { kind: "daemon", id: "storybook" },
   source: { kind: "operator", id: "storybook" },

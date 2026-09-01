@@ -64,7 +64,6 @@ export function LayoutDesktopTabs({
           >
             <span className="font-mono text-badge text-faint">{index + 1}</span>
             <span className="truncate">{desktop.name}</span>
-            {desktop.purpose === "focus" ? <span className="eyebrow text-info">Focus</span> : null}
           </button>
         );
       })}

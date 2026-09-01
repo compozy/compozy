@@ -41,7 +41,7 @@ type CommandRequest struct {
 	WorkspaceID      WorkspaceID
 	CommandID        CommandID
 	ExpectedRevision Revision
-	// ClientID is required for desktop.switch, window.focus, and window.zoom.
+	// ClientID is required for desktop.switch and window.focus.
 	ClientID *ClientID
 	Actor    Actor
 	Origin   string
@@ -59,11 +59,9 @@ type RebaseGuard struct {
 }
 
 type CreateDesktopCommand struct {
-	DesktopID  DesktopID
-	Name       string
-	Purpose    DesktopPurpose
-	FocusOwner *WindowID
-	AfterID    *DesktopID
+	DesktopID DesktopID
+	Name      string
+	AfterID   *DesktopID
 }
 
 func (CreateDesktopCommand) CommandID() CommandID { return CommandDesktopCreate }

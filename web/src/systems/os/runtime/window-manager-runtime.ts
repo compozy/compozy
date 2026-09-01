@@ -1,30 +1,15 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { frameForWindow } from "../lib/group-projection";
-import { clampFloatingRect } from "../lib/layout-projection";
-import {
-  createTileSnapTarget,
-  type SnapCorner,
-  type SnapSide,
-  type SnapTarget,
-} from "../lib/snap-targets";
-import {
-  arrangeLayoutCommand,
-  moveWindowCommand,
-  restoreWindowCommand,
-  swapWindowsCommand,
-} from "../lib/window-manager-command-builders";
+import { frameForWindow, zoomedFrame } from "../lib/group-projection";
+import { arrangeLayoutCommand, restoreWindowCommand } from "../lib/window-manager-command-builders";
 import { mruWindowInstance, randomOsWindowId } from "../lib/window-instance-lookup";
 import { arrangePeerWindows, directionalFocusTarget } from "../lib/window-manager-navigation";
 import type {
-  MoveWindowInput,
   OsArrangePreset,
   OsDesktopBounds,
   OsDesktopRuntime,
   OsDesktopRuntimeStore,
-  OsFloatingDrop,
   OsOpenTarget,
-  OsRect,
   OsWallpaper,
   WindowManagerCommandOutcome,
   WindowManagerOpenOutcome,
@@ -33,22 +18,17 @@ import type { GroupFrameEditInput } from "../lib/frame-seams";
 import type { FocusDirection, NormalizedRect } from "../lib/window-manager-types";
 import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { orderedDesktops } from "../lib/desktop-order";
-import { windowManagerLayoutArea } from "../lib/window-manager-layout-area";
-import {
-  buildOsDesktopRuntimeView,
-  normalizedRectToWire,
-  pixelRectToNormalized,
-} from "../lib/window-manager-view";
+import { buildOsDesktopRuntimeView, normalizedRectToWire } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
-import { advanceWindowManagerPlacementCycle } from "../stores/window-manager-store-commands";
 import { randomWindowManagerId } from "./window-manager-runtime-core";
-import { openWindowCommand, WindowManagerTabRuntime } from "./window-manager-tab-commands";
+import { WindowManagerSnapRuntime } from "./window-manager-snap-commands";
+import { openWindowCommand } from "./window-manager-tab-commands";
 
 function rejectedCommandOutcome(): WindowManagerCommandOutcome {
   return { accepted: false, completion: Promise.resolve(false) };
 }
 
-export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsDesktopRuntime {
+export class WindowManagerRuntime extends WindowManagerSnapRuntime implements OsDesktopRuntime {
   constructor(queryClient: QueryClient) {
     super(queryClient);
     this.initializeView();
@@ -57,7 +37,7 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
   createDesktop(): void {
     this.dispatch({
       commandId: "desktop.create",
-      payload: { desktop_id: "", name: "", purpose: "standard" },
+      payload: { desktop_id: "", name: "" },
     });
   }
 
@@ -117,100 +97,6 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
         move_group: false,
       },
     });
-  }
-
-  tileWindow(windowId: string, edge: SnapSide | SnapCorner): void {
-    const config = this.view.windowManagerConfig;
-    if (!this.view.windows[windowId] || config === null) return;
-    const cycleStep = advanceWindowManagerPlacementCycle(windowManagerStore, windowId, edge);
-    this.applySnapTarget(
-      windowId,
-      createTileSnapTarget(
-        windowManagerLayoutArea(this.workArea(), config.gaps),
-        edge,
-        config.snap.repeatRatios,
-        cycleStep,
-        config.gaps.inner
-      )
-    );
-  }
-
-  applySnapTarget(
-    windowId: string,
-    target: SnapTarget,
-    moveGroup = false
-  ): WindowManagerCommandOutcome {
-    const window = this.view.windows[windowId];
-    if (!window) return rejectedCommandOutcome();
-    windowManagerStore.trigger.placementTargetTracked({
-      windowId,
-      edge: target.kind === "tile" ? target.edge : null,
-    });
-    // A group move carries every frame member in deck order; `window.move`
-    // has no group placement, so tiles arrange the members as one stack.
-    const frameMembers = moveGroup
-      ? frameForWindow(this.view.frames, windowId)?.members
-      : undefined;
-    const groupMembers =
-      frameMembers !== undefined && frameMembers.length > 1 ? frameMembers : null;
-    if (target.kind === "zoom") {
-      return this.zoomWindow(windowId);
-    }
-    if (target.kind === "swap") {
-      return this.dispatch(swapWindowsCommand(windowId, target.targetWindowId));
-    }
-    if (target.kind === "tile") {
-      const config = this.view.windowManagerConfig;
-      if (config === null) return rejectedCommandOutcome();
-      // The frame stores the whole zone: the inner gap is a pixel quantity the
-      // projection re-applies, so baking it into a fraction would compound it
-      // and drift with every viewport size.
-      const frame = pixelRectToNormalized(
-        target.zoneRect,
-        windowManagerLayoutArea(this.workArea(), config.gaps)
-      );
-      const outcome = this.dispatch({
-        commandId: "layout.arrange",
-        payload: {
-          desktop_id: window.desktopId,
-          window_ids: groupMembers === null ? [windowId] : [...groupMembers],
-          arrangement: groupMembers === null ? "horizontal" : "stack",
-          frame: normalizedRectToWire(frame),
-          group_id: randomWindowManagerId("group"),
-        },
-      });
-      return groupMembers === null
-        ? outcome
-        : this.restoreStackActive(outcome, groupMembers, windowId);
-    }
-    const placement = target.kind === "insert" ? target.relation : target.side;
-    return this.moveWindow(windowId, {
-      destinationDesktopId: window.desktopId,
-      targetWindowId: target.targetWindowId,
-      placement,
-      moveGroup,
-    });
-  }
-
-  /**
-   * `layout.arrange{stack}` activates the first member by contract; when the
-   * dragged frame's active tab sat elsewhere in deck order, one follow-up
-   * `window.stack.set_active` restores it after the arrange lands.
-   */
-  private restoreStackActive(
-    outcome: WindowManagerCommandOutcome,
-    members: readonly string[],
-    activeId: string
-  ): WindowManagerCommandOutcome {
-    if (!outcome.accepted || members[0] === activeId) return outcome;
-    return {
-      accepted: true,
-      completion: outcome.completion.then(async applied => {
-        if (!applied) return false;
-        const activation = this.activateStackMember(activeId);
-        return activation.accepted ? activation.completion : false;
-      }),
-    };
   }
 
   focusDirection(direction: FocusDirection): void {
@@ -330,8 +216,7 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
         if (applied) return true;
         if (windowManagerStore.getSnapshot().context.commandState.status !== "conflict")
           return false;
-        if (!(await this.refreshSnapshot())) return false;
-        this.clearConflict();
+        if (!(await this.awaitConflictRecovery())) return false;
         const retry = this.openOrFocusAttempt(target, false);
         return retry.accepted && (await retry.completion);
       }),
@@ -340,7 +225,20 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
 
   closeWindow = (id: string): Promise<boolean> => this.closeWindowScoped(id, "tab");
 
+  /**
+   * Focus reveals: a tiled window hidden under a zoomed unit on its desktop is
+   * unzoomed into view first, so activating it from the dock or palette never
+   * lands focus on something the user cannot see.
+   */
   focusWindow = (id: string): WindowManagerCommandOutcome => {
+    const window = this.view.windows[id];
+    if (window && !window.minimized && window.placement !== "floating") {
+      const zoomed = frameForWindow(this.view.frames, id);
+      const covering = zoomedFrame(this.view.frames[window.desktopId]);
+      if (covering !== null && (zoomed === null || zoomed.id !== covering.id)) {
+        this.zoomWindow(covering.activeWindowId);
+      }
+    }
     return this.dispatch({
       commandId: "window.focus",
       payload: { window_id: id, direction: "" },
@@ -361,59 +259,12 @@ export class WindowManagerRuntime extends WindowManagerTabRuntime implements OsD
     return this.dispatch(restoreWindowCommand(window));
   };
 
-  zoomWindow = (id: string): WindowManagerCommandOutcome => {
-    return this.dispatch({ commandId: "window.zoom", payload: { window_id: id } });
-  };
-
-  toggleFloating = (id: string, floatingRect?: OsRect): WindowManagerCommandOutcome => {
-    const normalized = floatingRect
-      ? pixelRectToNormalized(
-          clampFloatingRect({ proposedRect: floatingRect, workArea: this.workArea() }),
-          this.workArea()
-        )
-      : undefined;
-    return this.dispatch({
-      commandId: "window.toggle_floating",
-      payload: {
-        window_id: id,
-        ...(normalized ? { floating_rect: normalizedRectToWire(normalized) } : {}),
-      },
-    });
-  };
-
-  moveWindow = (id: string, input: MoveWindowInput): WindowManagerCommandOutcome => {
-    return this.dispatch(moveWindowCommand(id, input, this.workArea()));
-  };
-
   arrangeLayout = (anchorId: string, preset: OsArrangePreset): void => {
     const anchor = this.view.windows[anchorId];
     if (!anchor) return;
     const peers = arrangePeerWindows(this.view.windows, anchorId);
     const command = arrangeLayoutCommand(anchor, peers, preset, randomWindowManagerId("group"));
     if (command !== null) this.dispatch(command);
-  };
-
-  commitFloatingRect = (
-    id: string,
-    rect: OsRect,
-    drop?: OsFloatingDrop,
-    moveGroup = false
-  ): WindowManagerCommandOutcome => {
-    const window = this.view.windows[id];
-    if (!window) return rejectedCommandOutcome();
-    const area = this.workArea();
-    const clamped = clampFloatingRect({
-      proposedRect: rect,
-      workArea: area,
-      pointer: drop?.pointer,
-      grabOffset: drop?.grabOffset,
-    });
-    return this.moveWindow(id, {
-      destinationDesktopId: window.desktopId,
-      placement: "floating",
-      floatingRect: clamped,
-      moveGroup,
-    });
   };
 
   resizeLayout = (

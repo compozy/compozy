@@ -37,6 +37,7 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 				return false, err
 			}
 			r.changes.window(focused.ID)
+			r.revealPlacedWindow(snapshot, windowID)
 		} else {
 			insertTiled = false
 		}
@@ -140,11 +141,6 @@ func (r *reducer) resolveOpenDesktop(snapshot *Snapshot, requested DesktopID) (D
 	if r.focusedWindow != nil {
 		if focused, exists := snapshot.Windows[*r.focusedWindow]; exists {
 			return focused.DesktopID, nil
-		}
-	}
-	for _, desktop := range snapshot.Desktops {
-		if desktop.Purpose == DesktopPurposeStandard {
-			return desktop.ID, nil
 		}
 	}
 	if len(snapshot.Desktops) == 0 {

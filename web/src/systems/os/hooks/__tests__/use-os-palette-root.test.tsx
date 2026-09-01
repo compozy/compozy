@@ -345,6 +345,7 @@ function windowFixture(overrides: Partial<OsWindow> = {}): OsWindow {
     instanceKey: null,
     layer: 1,
     minimized: false,
+    zoomed: false,
     navStack: [],
     nodeId: null,
     parentAxis: null,
@@ -362,22 +363,18 @@ const DESKTOPS: readonly LayoutDesktop[] = [
   {
     floating: [],
     floatingStacks: [],
-    focusOwner: null,
     groups: [],
     id: "desktop:alpha",
     name: "Alpha",
     order: 0,
-    purpose: "standard",
   },
   {
     floating: [],
     floatingStacks: [],
-    focusOwner: null,
     groups: [],
     id: "desktop:beta",
     name: "Beta",
     order: 1,
-    purpose: "standard",
   },
 ];
 

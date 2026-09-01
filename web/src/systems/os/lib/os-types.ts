@@ -7,6 +7,7 @@ import type {
   LayoutDesktop,
   LayoutNodeId,
   LayoutProjection,
+  LayoutRevision,
   NormalizedRect,
   WindowPlacement,
   WindowManagerClientView,
@@ -62,6 +63,7 @@ export interface OsWindow {
   rect: OsRect;
   layer: number;
   minimized: boolean;
+  zoomed: boolean;
   groupId: GroupId | null;
   nodeId: LayoutNodeId | null;
   stackId: LayoutNodeId | null;
@@ -104,6 +106,16 @@ export interface OsDesktopBounds {
 export interface OsFloatingDrop {
   pointer: { x: number; y: number };
   grabOffset: { x: number; y: number };
+}
+
+/**
+ * Proof a pointer release carries when the layout moved during the gesture: the
+ * daemon applies the command only while the dragged unit still sits where the
+ * gesture started (US-019).
+ */
+export interface GestureRebase {
+  expectedRevision: LayoutRevision;
+  sourceNodeId: LayoutNodeId | null;
 }
 
 export interface MoveWindowInput {
@@ -175,7 +187,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
     id: string,
     rect: OsRect,
     drop?: OsFloatingDrop,
-    moveGroup?: boolean
+    moveGroup?: boolean,
+    rebase?: GestureRebase
   ): WindowManagerCommandOutcome;
   resizeLayout(splitId: string, boundaryIndex: number, delta: number): WindowManagerCommandOutcome;
   resizeWindowFrame(windowId: string, frame: NormalizedRect): WindowManagerCommandOutcome;
@@ -220,7 +233,8 @@ export interface WindowManagerController extends OsDesktopRuntime {
   applySnapTarget(
     windowId: string,
     target: SnapTarget,
-    moveGroup?: boolean
+    moveGroup?: boolean,
+    rebase?: GestureRebase
   ): WindowManagerCommandOutcome;
   focusDirection(direction: FocusDirection): void;
   undoLayout(): void;

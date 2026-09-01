@@ -41,17 +41,14 @@ func (n *daemonNativeTools) windowManagerCommandRequest(
 
 func windowManagerCommandNeedsClient(commandID windowmanager.CommandID) bool {
 	return commandID == windowmanager.CommandDesktopSwitch ||
-		commandID == windowmanager.CommandWindowFocus ||
-		commandID == windowmanager.CommandWindowZoom
+		commandID == windowmanager.CommandWindowFocus
 }
 
 func (payload windowManagerDesktopCreatePayload) command() windowmanager.Command {
 	return windowmanager.CreateDesktopCommand{
-		DesktopID:  windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
-		Name:       strings.TrimSpace(payload.Name),
-		Purpose:    windowmanager.DesktopPurpose(strings.TrimSpace(payload.Purpose)),
-		FocusOwner: windowManagerOptionalString[windowmanager.WindowID](payload.FocusOwner),
-		AfterID:    windowManagerOptionalString[windowmanager.DesktopID](payload.AfterID),
+		DesktopID: windowmanager.DesktopID(strings.TrimSpace(payload.DesktopID)),
+		Name:      strings.TrimSpace(payload.Name),
+		AfterID:   windowManagerOptionalString[windowmanager.DesktopID](payload.AfterID),
 	}
 }
 

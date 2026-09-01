@@ -42,3 +42,7 @@ registration atomically so overlapping switches serialize. Already `untested`, s
 needed. Add one pair of clients on different profiles and confirm neither sees the other's windows
 and neither is force-switched when its peer switches. Per-profile restoration itself is owned by
 `ET-profile-desktop-restoration`.
+
+qa-impact: 2026-09-01 `window.zoom` no longer requires a `client_id` and no longer changes topology
+beyond the `zoomed` flag: two clients on one profile both see the zoomed frame, and a zoom from the CLI
+without a client leaves every client's active desktop and focus untouched. Reset for the current build.
