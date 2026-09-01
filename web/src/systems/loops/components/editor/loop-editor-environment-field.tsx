@@ -1,6 +1,6 @@
 import type { ComponentProps } from "react";
 
-import { Field, FieldError, FieldLabel, PillGroup, cn } from "@compozy/ui";
+import { Field, FieldError, FieldLabel, Input, PillGroup, cn } from "@compozy/ui";
 
 import { WorktreeRefSelect, type WorktreePayload } from "@/systems/workspace";
 
@@ -19,9 +19,7 @@ import {
   type EnvironmentFieldSpec,
   type FieldPath,
 } from "../../lib/loop-node-schema-types";
-import type { LoopReferenceSuggestion } from "../../lib/loop-references";
 import type { LoopEnvironmentSpec, LoopValidationIssue } from "../../types";
-import { LoopReferenceInput } from "./loop-reference-input";
 
 const UNSET_MODE_VALUE = "";
 
@@ -31,7 +29,6 @@ interface LoopEditorEnvironmentFieldProps extends Omit<ComponentProps<"div">, "o
   disabled: boolean;
   onChangeFields: (edits: NodeFieldEdit[]) => void;
   onChange: (path: FieldPath, value: unknown) => void;
-  suggestions: readonly LoopReferenceSuggestion[];
   worktrees?: readonly WorktreePayload[];
   gitBacked?: boolean;
   loopDefaultEnvironment?: LoopEnvironmentSpec;
@@ -53,7 +50,6 @@ export function LoopEditorEnvironmentField({
   disabled,
   onChangeFields,
   onChange,
-  suggestions,
   worktrees = [],
   gitBacked = true,
   loopDefaultEnvironment,
@@ -63,14 +59,17 @@ export function LoopEditorEnvironmentField({
 }: LoopEditorEnvironmentFieldProps) {
   const cwdIssue = lintIssues.find(issue => issue.code === ENVIRONMENT_CWD_REMOVED_CODE);
   const invalidCwd = Boolean(cwdIssue) || hasRetiredCwd(raw);
-  const items = loopEnvironmentItems(gitBacked, disabled).map(item =>
+  const mode = field.mode ?? INHERIT_ENVIRONMENT;
+  const items = loopEnvironmentItems(gitBacked, disabled, mode).map(item =>
     item.value === INHERIT_ENVIRONMENT ? { ...item, label: field.inheritLabel } : item
   );
   const selectedRef = String(getAtPath(raw, [...field.basePath, "worktree_ref"]) ?? "");
   const referenced = worktrees.find(worktree => worktree.id === selectedRef);
   const readyWorktrees = worktrees.filter(worktree => worktree.state === "ready");
   const directory = String(getAtPath(raw, [...field.basePath, "directory"]) ?? "");
-  const hint = invalidCwd ? undefined : environmentHint(field.mode, loopDefaultEnvironment);
+  const readOnlyMode = field.mode === "directory" || field.mode === "per_run";
+  const hint =
+    invalidCwd || readOnlyMode ? undefined : environmentHint(field.mode, loopDefaultEnvironment);
 
   function handleChange(next: string) {
     if (next === UNSET_MODE_VALUE) return;
@@ -117,15 +116,13 @@ export function LoopEditorEnvironmentField({
       ) : null}
       {field.mode === "directory" && !invalidCwd ? (
         <div className="mt-3">
-          <FieldLabel>Directory</FieldLabel>
-          <LoopReferenceInput
-            ariaLabel="Directory"
+          <FieldLabel htmlFor="loop-field-environment-directory">Directory</FieldLabel>
+          <Input
             disabled={disabled}
-            mono
-            onChange={value => onChange([...field.basePath, "directory"], value)}
-            placeholder="packages/{{ .inputs.slug }}"
-            suggestions={suggestions}
-            testId="loop-field-environment-directory"
+            id="loop-field-environment-directory"
+            readOnly
+            className="font-mono"
+            data-testid="loop-field-environment-directory"
             value={directory}
           />
         </div>

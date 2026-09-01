@@ -12,11 +12,12 @@ import (
 
 // ToolCallActionExecutor adapts a ToolID action to RuntimeRegistry.Call.
 type ToolCallActionExecutor struct {
-	runtime        tools.Registry
-	toolID         tools.ToolID
-	eventReader    ActionEventRangeReader
-	channel        ChannelResultHarvester
-	maxResultBytes int64
+	runtime               tools.Registry
+	toolID                tools.ToolID
+	eventReader           ActionEventRangeReader
+	channel               ChannelResultHarvester
+	workspaceRootResolver ActionToolWorkspaceRootResolver
+	maxResultBytes        int64
 }
 
 // Execute calls RuntimeRegistry.Call with rendered action params.
@@ -50,16 +51,21 @@ func (e *ToolCallActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("marshal action params for %q: %w", node.ID, err)
 	}
+	trustedWorkspaceRoot, err := e.trustedWorkspaceRoot(callCtx, in)
+	if err != nil {
+		return ActionRawResult{}, err
+	}
 	scope := normalizeActionToolScope(in)
 	result, err := e.runtime.Call(callCtx, scope, tools.CallRequest{
-		ToolID:        e.toolID,
-		ToolCallID:    actionToolCallID(node, in),
-		SessionID:     scope.SessionID,
-		WorkspaceID:   scope.WorkspaceID,
-		AgentName:     scope.AgentName,
-		ActorKind:     scope.ActorKind,
-		CorrelationID: in.CorrelationID,
-		Input:         input,
+		ToolID:               e.toolID,
+		ToolCallID:           actionToolCallID(node, in),
+		SessionID:            scope.SessionID,
+		WorkspaceID:          scope.WorkspaceID,
+		AgentName:            scope.AgentName,
+		ActorKind:            scope.ActorKind,
+		CorrelationID:        in.CorrelationID,
+		Input:                input,
+		TrustedWorkspaceRoot: trustedWorkspaceRoot,
 	})
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("call action tool %q: %w", e.toolID, err)

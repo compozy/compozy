@@ -206,20 +206,30 @@ describe("LoopConfigureDialog", () => {
     expect(screen.getByTestId("loop-configure-limit-input-iteration_cap")).toHaveValue(16);
   });
 
-  it("Should collect the directory required by the loop environment default", async () => {
-    renderSheet({ config: null });
+  it("Should preserve an API-authored directory while editing another setting", async () => {
+    renderSheet({
+      config: {
+        ...loopConfigFixture,
+        environment: { mode: "directory", directory: "packages/api" },
+      },
+    });
     const modes = await screen.findByTestId("loop-configure-environment-mode");
-
-    fireEvent.click(within(modes).getByRole("button", { name: "Directory" }));
+    expect(within(modes).getByRole("button", { name: "Directory (read-only)" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+    expect(within(modes).queryByRole("button", { name: "Per-run" })).not.toBeInTheDocument();
     const directory = screen.getByLabelText("Directory");
-    expect(directory).toHaveValue("");
+    expect(directory).toHaveValue("packages/api");
+    expect(directory).toHaveAttribute("readonly");
 
-    fireEvent.change(directory, { target: { value: "packages/api" } });
+    fireEvent.click(rowSwitch("loop-configure-human-gate"));
     fireEvent.click(screen.getByTestId("loop-configure-save"));
 
     await waitFor(() => expect(putBodies).toHaveLength(1));
     expect(putBodies[0].config).toMatchObject({
       environment: { mode: "directory", directory: "packages/api" },
+      human_gate_enabled: false,
     });
   });
 

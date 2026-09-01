@@ -41,8 +41,10 @@ A failed `setup_command` is different from lifecycle `failed`: the checkout stay
   first prompt. Changing the environment later creates a new session; it never moves a live one.
 - A Task policy resolves to the workspace root, one named Worktree, or a fresh Worktree per run.
   The resolved choice is saved on the run and does not change after enqueue.
-- A Loop agent action resolves `root`, `worktree`, `per_run`, or `directory`. A node value wins over
-  the Loop default; `run-loop` forwards the parent environment unless the child resolves its own.
+- A Loop agent or extension-tool action resolves `root`, `worktree`, `per_run`, or `directory`. A
+  node value wins over the Loop default; `run-loop` forwards the parent environment unless the child
+  resolves its own. A named Worktree scopes both the agent's current directory and
+  workspace-relative extension resources to that checkout.
 
 ## In this section
 

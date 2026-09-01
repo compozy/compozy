@@ -215,6 +215,56 @@ func TestDaemonExtensionToolProvider(t *testing.T) {
 		}
 	})
 
+	t.Run("Should anchor spec-cycle import task patterns to the trusted worktree root", func(t *testing.T) {
+		t.Parallel()
+
+		workspaceRoot := t.TempDir()
+		worktreeRoot := t.TempDir()
+		inner := &daemonExtensionProviderStub{handle: &daemonExtensionHandleStub{}}
+		resolver := &daemonExtensionWorkspaceResolverStub{
+			resolved: workspacepkg.ResolvedWorkspace{
+				Workspace:   workspacepkg.Workspace{ID: "ws-1", RootDir: workspaceRoot},
+				WorkspaceID: "ws-1",
+			},
+		}
+		provider := newDaemonScopedExtensionToolProvider(inner, resolver)
+		handle, ok, err := provider.Resolve(
+			t.Context(),
+			toolspkg.Scope{WorkspaceID: "ws-1"},
+			specCycleImportTasksToolID,
+		)
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+		if !ok {
+			t.Fatal("Resolve() ok = false, want true")
+		}
+
+		_, err = handle.Call(t.Context(), toolspkg.CallRequest{
+			ToolID:               specCycleImportTasksToolID,
+			WorkspaceID:          "ws-1",
+			TrustedWorkspaceRoot: worktreeRoot,
+			Input:                json.RawMessage(`{"pattern":".compozy/tasks/example/task_*.md"}`),
+		})
+		if err != nil {
+			t.Fatalf("Call() error = %v", err)
+		}
+
+		var input struct {
+			Pattern string `json:"pattern"`
+		}
+		if err := json.Unmarshal(inner.handle.request.Input, &input); err != nil {
+			t.Fatalf("Unmarshal(patched input) error = %v", err)
+		}
+		want := filepath.Join(worktreeRoot, ".compozy", "tasks", "example", "task_*.md")
+		if input.Pattern != want {
+			t.Fatalf("patched pattern = %q, want trusted worktree pattern %q", input.Pattern, want)
+		}
+		if got := inner.handle.request.TrustedWorkspaceRoot; got != worktreeRoot {
+			t.Fatalf("TrustedWorkspaceRoot = %q, want %q", got, worktreeRoot)
+		}
+	})
+
 	t.Run("Should reject relative spec-cycle import task patterns that escape the workspace root", func(t *testing.T) {
 		t.Parallel()
 

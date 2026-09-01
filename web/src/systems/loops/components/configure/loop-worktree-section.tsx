@@ -1,4 +1,4 @@
-import { Field, FieldError, FieldLabel, FormSection, Input, PillGroup } from "@compozy/ui";
+import { Field, FieldLabel, FormSection, Input, PillGroup } from "@compozy/ui";
 
 import { WorktreeRefSelect, type WorktreePayload } from "@/systems/workspace";
 
@@ -20,7 +20,6 @@ interface LoopWorktreeSectionProps {
 
 const MODE_HINTS: Partial<Record<LoopEnvironmentChoice, string>> = {
   [INHERIT_ENVIRONMENT]: "No loop default declared — nodes choose their own environment.",
-  per_run: "Fresh worktree per run.",
 };
 
 /**
@@ -38,9 +37,8 @@ export function LoopWorktreeSection({
   onChange,
 }: LoopWorktreeSectionProps) {
   const mode: LoopEnvironmentChoice = value?.mode ?? INHERIT_ENVIRONMENT;
-  const items = loopEnvironmentItems(gitBacked, disabled);
+  const items = loopEnvironmentItems(gitBacked, disabled, mode);
   const hint = MODE_HINTS[mode];
-  const invalidDirectory = value?.mode === "directory" && !value.directory?.trim();
 
   function handleModeChange(next: LoopEnvironmentChoice) {
     onChange(environmentSpecForChoice(next, value));
@@ -70,18 +68,14 @@ export function LoopWorktreeSection({
           </div>
         ) : null}
         {value?.mode === "directory" ? (
-          <Field className="mt-3" data-invalid={invalidDirectory ? "" : undefined}>
+          <Field className="mt-3">
             <FieldLabel htmlFor="loop-configure-environment-directory">Directory</FieldLabel>
             <Input
               disabled={disabled}
               id="loop-configure-environment-directory"
-              onChange={event => onChange({ mode: "directory", directory: event.target.value })}
-              placeholder="packages/api"
+              readOnly
               value={value.directory ?? ""}
             />
-            {invalidDirectory ? (
-              <FieldError>Enter a directory inside the workspace.</FieldError>
-            ) : null}
           </Field>
         ) : null}
         {hint ? <p className="mt-2 text-form-hint leading-relaxed text-subtle">{hint}</p> : null}

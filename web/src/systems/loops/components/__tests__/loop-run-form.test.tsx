@@ -16,6 +16,7 @@ import { buildLocalNetworkParticipationFixture } from "@/test/network-participat
 import { storyWorkspaceIds } from "@/storybook/fintech-scenario";
 import { LoopRunForm } from "../run-form/loop-run-form";
 import { handlers } from "../../mocks";
+import { worktreeBehindFixture } from "@/systems/workspace/mocks";
 import { worktreeHandlers } from "@/systems/workspace/mocks/worktree-handlers";
 import { loopDetailByName, loopEffectiveConfigFixture } from "../../mocks/fixtures";
 import type { LoopEffectiveConfig } from "../../types";
@@ -404,13 +405,20 @@ describe("LoopRunForm", () => {
     });
   });
 
-  it("Should send the selected environment as a per-run override", async () => {
+  it("Should offer only Web-supported environment overrides", async () => {
     renderForm();
     openSection(/Environment/);
-    const perRun = screen.getByRole("button", { name: "Per-run" });
-    await waitFor(() => expect(perRun).toBeEnabled());
-    fireEvent.click(perRun);
-    await waitFor(() => expect(perRun).toHaveAttribute("aria-pressed", "true"));
+    expect(screen.queryByRole("button", { name: "Directory" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Per-run" })).not.toBeInTheDocument();
+    const worktree = screen.getByRole("button", { name: "Named worktree" });
+    await waitFor(() => expect(worktree).toBeEnabled());
+    fireEvent.click(worktree);
+    await waitFor(() => expect(worktree).toHaveAttribute("aria-pressed", "true"));
+    const picker = await screen.findByTestId("loop-run-environment-ref");
+    fireEvent.click(picker);
+    fireEvent.click(
+      await screen.findByRole("option", { name: new RegExp(worktreeBehindFixture.name) })
+    );
     expect(screen.getByTestId("loop-run-overrides-badge")).toHaveTextContent("overrides set");
     fireEvent.change(screen.getByTestId("loop-run-field-input-slug"), {
       target: { value: "billing-webhooks" },
@@ -418,7 +426,9 @@ describe("LoopRunForm", () => {
     fireEvent.click(screen.getByTestId("loop-run-submit-button"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     await expect(runRequestBody()).resolves.toMatchObject({
-      config_overrides: { environment: { mode: "per_run" } },
+      config_overrides: {
+        environment: { mode: "worktree", worktree_ref: worktreeBehindFixture.id },
+      },
     });
   });
 });

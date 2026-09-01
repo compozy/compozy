@@ -27,7 +27,7 @@ const meta: Meta<typeof LoopWorktreeSection> = {
     docs: {
       description: {
         component:
-          "The loop-level environment default. Inherit is the rendering of an absent key — choosing it clears the stored default rather than writing a placeholder mode — and a node override always wins over whatever is set here. The per-node control is captured on the LoopEditor inspector (VC-31..VC-35).",
+          "The loop-level environment default. Web authors choose Inherit, Workspace root, or Named worktree. Directory and Per-run values created through the API or CLI remain visible as read-only values.",
       },
     },
   },
@@ -53,8 +53,8 @@ export const LoopDefaultNamedWorktree: Story = {
   ),
 };
 
-/** VC-30 — per-run: a fresh worktree for each run of the loop. */
-export const LoopDefaultPerRun: Story = {
+/** VC-30 — an API-authored per-run value remains visible but cannot be edited in Web. */
+export const LoopDefaultPerRunReadOnly: Story = {
   args: { ...LoopDefaultUnset.args, value: { mode: "per_run" } },
   render: () => <SectionHarness initial={{ mode: "per_run" }} />,
 };

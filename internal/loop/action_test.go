@@ -226,6 +226,105 @@ func TestActionRegistryShouldResolveReservedKindsBeforeRuntimeAndRejectUnknownKi
 func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) {
 	t.Parallel()
 
+	t.Run("Should propagate the selected worktree as the trusted workspace root", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("ext__spec_cycle__import_tasks")
+		registry := &fakeActionToolRegistry{
+			views:      map[tools.ToolID]tools.ToolView{toolID: {}},
+			callResult: tools.ToolResult{Structured: json.RawMessage(`{"ok":true}`)},
+		}
+		resolver := &fakeActionToolWorkspaceRootResolver{root: "/worktrees/feature-512"}
+		actions := newActionRegistryForTest(
+			t,
+			registry,
+			loop.WithActionToolWorkspaceRootResolver(resolver),
+		)
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		_, err = executor.Execute(t.Context(), dsl.Node{
+			ID: "load_tasks", Class: dsl.NodeClassAction, Kind: toolID.String(),
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Environment: &dsl.EnvironmentSpec{
+				Mode:        dsl.EnvironmentWorktree,
+				WorktreeRef: "feature-512",
+			},
+			Actor: mustDaemonActor(t),
+		})
+		if err != nil {
+			t.Fatalf("Execute() error = %v", err)
+		}
+		call := registry.mustSingleCall(t)
+		if got, want := call.TrustedWorkspaceRoot, "/worktrees/feature-512"; got != want {
+			t.Fatalf("TrustedWorkspaceRoot = %q, want %q", got, want)
+		}
+		request := resolver.mustSingleRequest(t)
+		if request.WorkspaceID != "ws-1" || request.Environment.WorktreeRef != "feature-512" {
+			t.Fatalf("workspace root request = %#v, want workspace and worktree propagated", request)
+		}
+	})
+
+	t.Run("Should stop before tool dispatch when worktree resolution fails", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("ext__spec_cycle__import_tasks")
+		resolveErr := errors.New("worktree is not ready")
+		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{toolID: {}}}
+		actions := newActionRegistryForTest(
+			t,
+			registry,
+			loop.WithActionToolWorkspaceRootResolver(&fakeActionToolWorkspaceRootResolver{err: resolveErr}),
+		)
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		_, err = executor.Execute(t.Context(), dsl.Node{
+			ID: "load_tasks", Class: dsl.NodeClassAction, Kind: toolID.String(),
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "pending"},
+			Actor:       mustDaemonActor(t),
+		})
+		if !errors.Is(err, resolveErr) {
+			t.Fatalf("Execute() error = %v, want resolver error", err)
+		}
+		if got := registry.callCount(); got != 0 {
+			t.Fatalf("RuntimeRegistry.Call calls = %d, want 0", got)
+		}
+	})
+
+	t.Run("Should fail closed when a worktree action has no root resolver", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("ext__spec_cycle__import_tasks")
+		registry := &fakeActionToolRegistry{views: map[tools.ToolID]tools.ToolView{toolID: {}}}
+		actions := newActionRegistryForTest(t, registry)
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		_, err = executor.Execute(t.Context(), dsl.Node{
+			ID: "load_tasks", Class: dsl.NodeClassAction, Kind: toolID.String(),
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "feature-512"},
+			Actor:       mustDaemonActor(t),
+		})
+		if !errors.Is(err, loop.ErrActionDependencyMissing) {
+			t.Fatalf("Execute() error = %v, want ErrActionDependencyMissing", err)
+		}
+		if got := registry.callCount(); got != 0 {
+			t.Fatalf("RuntimeRegistry.Call calls = %d, want 0", got)
+		}
+	})
+
 	t.Run("Should execute RuntimeRegistry call and sync harvest structured output", func(t *testing.T) {
 		t.Parallel()
 
@@ -1571,6 +1670,13 @@ func (r *fakeActionToolRegistry) getCount() int {
 	return len(r.gets)
 }
 
+func (r *fakeActionToolRegistry) callCount() int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return len(r.calls)
+}
+
 func (r *fakeActionToolRegistry) mustSingleCall(t *testing.T) tools.CallRequest {
 	t.Helper()
 	r.mu.Lock()
@@ -1587,6 +1693,40 @@ type fakeActionEventReader struct {
 	last   loop.ActionEventRangeRequest
 	result loop.ActionEventRangeResult
 	err    error
+}
+
+type fakeActionToolWorkspaceRootResolver struct {
+	mu       sync.Mutex
+	root     string
+	err      error
+	requests []loop.ActionToolWorkspaceRootRequest
+}
+
+func (r *fakeActionToolWorkspaceRootResolver) ResolveActionToolWorkspaceRoot(
+	_ context.Context,
+	req loop.ActionToolWorkspaceRootRequest,
+) (string, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.requests = append(r.requests, req)
+	if r.err != nil {
+		return "", r.err
+	}
+	return r.root, nil
+}
+
+func (r *fakeActionToolWorkspaceRootResolver) mustSingleRequest(
+	t *testing.T,
+) loop.ActionToolWorkspaceRootRequest {
+	t.Helper()
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if len(r.requests) != 1 {
+		t.Fatalf("ResolveActionToolWorkspaceRoot calls = %d, want 1", len(r.requests))
+	}
+	return r.requests[0]
 }
 
 func (r *fakeActionEventReader) ReadActionEventRange(

@@ -21,10 +21,13 @@ flowchart TD
     K -->|worktree| L[Resolve the ready worktree]
     K -->|per_run| M[Materialize one checkout per node instance]
     K -->|directory| N[Render and contain the directory under the workspace root]
-    L --> O[Start the node session at the resolved root]
+    L --> L1{Agent or extension tool}
+    L1 -->|agent| O[Start the node session at the resolved root]
+    L1 -->|extension tool| O1[Resolve workspace-relative resources from the same checkout]
     M --> O
     N --> O
     O --> P[Reach the Loop node and run terminal state]
+    O1 --> P
     I --> Q[Fresh reads show the same run, session, and worktree identities]
     P --> Q
     Q --> R{Retained worktree?}
@@ -59,7 +62,7 @@ journey:
       expected_observable: "Task runs retain the enqueue-time policy snapshot, and every per-run task or Loop node instance receives its own worktree identity."
     - step: 3
       verb: "Let the worker or node execute"
-      expected_observable: "The session runs from the resolved worktree or contained directory, with no fallback to the parent root and no sibling checkout leakage."
+      expected_observable: "The session and workspace-relative extension tools use the resolved worktree or contained directory, with no fallback to the parent root and no sibling checkout leakage."
     - step: 4
       verb: "Complete, cancel, or observe a denied materialization"
       expected_observable: "Successful and canceled worktrees remain inspectable with run attribution; a pre-create denial fails only its run and leaves no orphan."
@@ -72,7 +75,7 @@ journey:
   goal:
     observable: "Task and Loop work runs in the selected isolated environment and remains attributable after completion."
     side_effects: [policy-snapshotted, worktree-created, session-bound, run-attributed, terminal-state-persisted]
-  true_end_state: "Fresh structured reads show each run and session bound to the same durable worktree or contained directory used for execution; retained worktrees remain manageable through the ordinary exit flow, and denied creation has no Git, registry, or event residue."
+  true_end_state: "Fresh structured reads show each run, session, and workspace-relative extension action using the same durable worktree or contained directory selected for execution; retained worktrees remain manageable through the ordinary exit flow, and denied creation has no Git, registry, or event residue."
   exit:
     natural: "The operator inspects or removes retained worktrees after the task or Loop reaches a terminal state."
   abandonment:
@@ -86,7 +89,7 @@ journey:
 
 coverage:
   journeys: "Task profile through terminal run, designated fan-out, and Loop node execution all reach a durable end state."
-  functional: "Snapshot authority, distinct per-run roots, directory containment, hook denial cleanup, and cross-surface parity are in scope."
+  functional: "Snapshot authority, extension-tool root propagation, distinct per-run roots, directory containment, hook denial cleanup, and cross-surface parity are in scope."
   experiential: "Structured output must make the selected mode, resulting binding, and recoverable failure clear without requiring database or Git inspection."
   edge_error_empty: "Post-enqueue profile edits, invalid refs, explicit hook denial, cancellation, and empty fan-out attribution are covered by the walk."
   cross_cutting: "Workspace isolation, event correlation, config lifecycle, and agent-manageability are checked across task and Loop consumers."
