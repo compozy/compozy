@@ -46,7 +46,11 @@ func TestProfileReadScopeQueryValues(t *testing.T) {
 func TestAgentProfileSelectionUsesTheDaemonSessionOwner(t *testing.T) {
 	t.Parallel()
 
+	root := &cobra.Command{Use: "compozy"}
+	sessionCommand := &cobra.Command{Use: "session"}
 	command := &cobra.Command{Use: "prompt"}
+	root.AddCommand(sessionCommand)
+	sessionCommand.AddCommand(command)
 	command.SetContext(context.Background())
 	command.Flags().String(profileFlagName, "", "")
 	client := &profileTestDaemonClient{

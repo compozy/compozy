@@ -211,6 +211,9 @@ func prepareAgentProfileSelection(
 		source = profileResolutionEnv
 	}
 	if strings.TrimSpace(name) == "" {
+		if !agentCommandUsesProfileScopedSessionSurface(cmd) {
+			return true, nil
+		}
 		sessions, ok := client.(agentSessionClient)
 		if !ok || profiles == nil {
 			return true, fmt.Errorf(
@@ -248,6 +251,14 @@ func prepareAgentProfileSelection(
 	})
 	recordProfileReadSelection(cmd, profileReadSelection{Profile: name})
 	return true, nil
+}
+
+func agentCommandUsesProfileScopedSessionSurface(cmd *cobra.Command) bool {
+	if cmd == nil {
+		return false
+	}
+	parts := strings.Fields(cmd.CommandPath())
+	return len(parts) >= 2 && parts[1] == "session"
 }
 
 func recordProfileReadSelection(cmd *cobra.Command, selection profileReadSelection) {
