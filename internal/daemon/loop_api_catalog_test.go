@@ -90,7 +90,7 @@ func TestDaemonLoopCatalogShouldBatchBeforePageHydration(t *testing.T) {
 		definitionResolver := &daemonLoopDefinitionResolver{
 			catalog:  catalog,
 			profiles: service.profiles,
-			compilerFactory: func(context.Context) *looppkg.Compiler {
+			compilerFactory: func(context.Context, looppkg.WorkspaceID, string) *looppkg.Compiler {
 				return looppkg.NewCompiler()
 			},
 		}

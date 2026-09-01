@@ -2821,7 +2821,7 @@ func TestLoopCoordinatorRunnerShouldPollThroughExtensionRuntime(t *testing.T) {
 		if err != nil {
 			t.Fatalf("daemonLoopDefinitionFromSpec() error = %v", err)
 		}
-		resolved, err := newLoopCompilerFactory(nil)(ctx).Compile(definition)
+		resolved, err := newLoopCompilerFactory(nil)(ctx, "ws-watch-pin", store.DefaultProfileID).Compile(definition)
 		if err != nil {
 			t.Fatalf("Compile(watch Loop pin) error = %v", err)
 		}

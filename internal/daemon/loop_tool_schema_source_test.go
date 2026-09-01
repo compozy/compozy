@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
@@ -128,6 +129,70 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		}
 		if captured != marker {
 			t.Fatalf("registry List context marker = %#v, want %q", captured, marker)
+		}
+	})
+
+	t.Run("Should project lifecycle tools in the acting profile and workspace", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := loopToolSchemaDescriptor(t)
+		descriptor.ID = "ext__qa_lab__capture_candidate"
+		var captured toolspkg.Scope
+		source := newScopedLoopToolSchemaSource(
+			t.Context(),
+			loopToolSchemaRegistry{
+				views: map[toolspkg.ToolID]toolspkg.ToolView{
+					descriptor.ID: {Descriptor: descriptor},
+				},
+				listScope: &captured,
+			},
+			toolspkg.Scope{
+				Operator: true, ProfileID: "profile-engineering", WorkspaceID: "workspace-qa",
+			},
+		)
+
+		if _, ok := source.Snapshot(descriptor.ID.String()); !ok {
+			t.Fatalf("Snapshot(%q) ok = false, want lifecycle action schema", descriptor.ID)
+		}
+		if !captured.Operator || captured.ProfileID != "profile-engineering" ||
+			captured.WorkspaceID != "workspace-qa" {
+			t.Fatalf("registry List scope = %#v, want acting profile and workspace", captured)
+		}
+	})
+
+	t.Run("Should compile a lifecycle action only through its valid scope", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := loopToolSchemaDescriptor(t)
+		descriptor.ID = "ext__qa_lab__capture_candidate"
+		validScope := toolspkg.Scope{
+			Operator: true, ProfileID: "profile-engineering", WorkspaceID: "workspace-qa",
+		}
+		registry := loopToolSchemaRegistry{
+			views: map[toolspkg.ToolID]toolspkg.ToolView{
+				descriptor.ID: {Descriptor: descriptor},
+			},
+			requiredScope: &validScope,
+		}
+		definition := looppkgdsl.Definition{Graph: looppkgdsl.Graph{Nodes: []looppkgdsl.Node{{
+			ID: "capture", Class: looppkgdsl.NodeClassAction, Kind: descriptor.ID.String(),
+		}}}}
+
+		resolved, err := newLoopCompilerFactory(registry)(
+			t.Context(), "workspace-qa", "profile-engineering",
+		).Compile(definition)
+		if err != nil {
+			t.Fatalf("Compile(valid lifecycle scope) error = %v", err)
+		}
+		if _, ok := resolved.ToolSchemas[descriptor.ID.String()]; !ok {
+			t.Fatalf("resolved tool schemas = %#v, want %q", resolved.ToolSchemas, descriptor.ID)
+		}
+
+		_, err = newLoopCompilerFactory(registry)(
+			t.Context(), "workspace-peer", "profile-engineering",
+		).Compile(definition)
+		if err == nil || !strings.Contains(err.Error(), looppkg.CodeUnknownActionKind) {
+			t.Fatalf("Compile(peer lifecycle scope) error = %v, want %s", err, looppkg.CodeUnknownActionKind)
 		}
 	})
 
@@ -465,14 +530,22 @@ type loopToolSchemaRegistry struct {
 	listCalls        *int
 	getCalls         *int
 	listContextValue *any
+	listScope        *toolspkg.Scope
+	requiredScope    *toolspkg.Scope
 }
 
-func (r loopToolSchemaRegistry) List(ctx context.Context, _ toolspkg.Scope) ([]toolspkg.ToolView, error) {
+func (r loopToolSchemaRegistry) List(ctx context.Context, scope toolspkg.Scope) ([]toolspkg.ToolView, error) {
 	if r.listCalls != nil {
 		*r.listCalls++
 	}
 	if r.listContextValue != nil {
 		*r.listContextValue = ctx.Value(loopToolSchemaContextKey{})
+	}
+	if r.listScope != nil {
+		*r.listScope = scope
+	}
+	if r.requiredScope != nil && scope != *r.requiredScope {
+		return nil, nil
 	}
 	views := make([]toolspkg.ToolView, 0, len(r.views))
 	for id := range r.views {
