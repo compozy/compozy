@@ -2,30 +2,40 @@
 
 - **Scope:** Validate typed Loop Agent inputs through the acting Profile and exercise stock implement-tasks with a Profile-only extension Agent and Agent-local skill.
 - **Cadence tier:** targeted
-- **Build:** `430f0be1c6153d4cc691038a8e088c6696707d02`, test `7dc8d82adcdcaa6da5780370c0d92840f3ced5dd` · **Environment:** isolated integration harness
+- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1` · **Environment:** isolated integration harness
 - **Started:** 2026-09-01T20:00:00Z · **Status:** closed
 
 ## Session Matrix & Results
 
 | # | Journey / Scenario | Status | Result |
 |---|---|---|---|
-| 1 | `LP-implement-tasks-orchestrated-mode` | Blocked (needs human verify) | Input admission succeeds in the Profile scope; the conductor sandbox exits 69 before Profile worker spawn |
+| 1 | `LP-implement-tasks-orchestrated-mode` | Pass | Conductor succeeded; three Profile-scoped engineer workers observed the Agent-local sentinel, completed in task order, stopped, and left zero active workers |
 
 ## What Was Fixed
 
-- **Root cause:** typed Loop entity validation discarded `ProfileID` and resolved only the default workspace lens.
-- **Fix:** propagate the acting or persisted Profile through Start, DryRun, Fork, automation preflight, and response annotations; resolve Agent, Skill, and Loop resources with that Profile lens.
-- **Regressions:** direct real-catalog Profile isolation, service propagation, persisted response scope, and the retained stock implement-tasks E2E.
+- **Root cause 1:** typed Loop entity validation discarded `ProfileID` and resolved only the default workspace lens.
+- **Fix 1:** propagate the acting or persisted Profile through Start, DryRun, Fork, automation preflight, response annotations, and daemon entity catalogs.
+- **Root cause 2:** daemon-issued exact session IDs were looked up through the ambient CLI Profile. The conductor's first `compozy me` preflight therefore returned exit 69 `session not found`; after exact-ID lookup was repaired, generic nested `session` commands still hid the spawned Profile child.
+- **Fix 2:** use all-Profile lookup only for the exact daemon-issued caller Session ID, retain canonical Agent/workspace/active validation, and inherit the validated caller's Profile only for nested `session` commands. Other Agent-facing namespaces remain daemon-authenticated and unchanged.
+- **Regressions:** direct real-catalog Profile isolation, service propagation, persisted response scope, exact caller identity, session-only Profile inheritance, secret-safe sandbox diagnostics, and the retained stock implement-tasks E2E.
 
-## Runtime Errors Observed
+## Retained Red Evidence
 
-- The stock implement-tasks E2E reaches the conductor with `implementer=engineer`, then its sandbox command exits 69 before any engineer worker diagnostics are written. Adding an explicit `--profile engineering` to every nested CLI invocation did not change the outcome. The run remains active until the 90-second harness deadline.
+The public E2E now records the command (`/bin/sh`), stdout/stderr, exit code, conductor Session/Agent/intended Profile/Workspace identity, and the first failing step without environment or credential values. Before Fix 2 it reported first boundary `compozy me`, exit `69`, output `{"error":"session not found"}`, and no worker creation.
+
+## Green Evidence
+
+- The conductor preflight and canonical spawn/prompt/stop chain succeed.
+- Three engineer children are created with the exact Profile and selected runtime.
+- Every child observes the engineer Agent-local sentinel skill.
+- Task files settle completed in the expected order; the orchestrated branch settles done and the per-task branch remains not-taken.
+- All children are stopped and no worker remains in starting, active, or stopping state after settlement.
 
 ## Human Verifications Needed
 
-- [ ] Diagnose the retained E2E at `TestDaemonE2EImplementTasksShouldCompleteTaskJourney/Should_use_a_Profile_extension_Agent_and_its_local_skill_in_orchestrated_mode`; capture the nested spawn/prompt stderr, then prove engineer Agent-local skill visibility and worker cleanup.
+None.
 
 ## Final Status
 
-- **Exit gate:** `make gate` passed; focused Profile catalog and service race tests passed.
-- **Verdict:** not ready — owning-layer fix is coherent, but the accepted stock implement-tasks public-path proof remains red.
+- **Exit gate:** fresh `make gate` passed; focused CLI/Loop/daemon/acpmock race tests passed; the exact public implement-tasks E2E passed repeatedly on the contribution and integrated heads.
+- **Verdict:** ready pending exact-head provider CI.
