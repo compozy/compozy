@@ -24,14 +24,12 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	stopReporter := startPromptActivityReporter(ctx, req)
 	defer stopReporter()
 
-	stopCancellationNotifier := d.startPromptCancellationNotifier(ctx, proc, active)
-	defer stopCancellationNotifier()
-
 	promptRequest, err := buildWirePromptRequest(proc, req)
 	if err != nil {
 		emitPromptBuildError(proc, req, err)
 		return
 	}
+	// The SDK turns context cancellation into request-scoped $/cancel_request.
 	response, err := acpsdk.SendRequest[wirePromptResponse](
 		proc.conn,
 		ctx,
@@ -73,64 +71,6 @@ func (d *Driver) runPrompt(ctx context.Context, proc *AgentProcess, active *acti
 	}
 	d.waitForPromptQuiescence(active)
 	proc.emitPromptEvent(doneEvent)
-}
-
-func (d *Driver) startPromptCancellationNotifier(
-	ctx context.Context,
-	proc *AgentProcess,
-	active *activePromptState,
-) func() {
-	if ctx.Err() != nil {
-		d.sendPromptCancellationNotification(ctx, proc, active)
-		return func() {}
-	}
-
-	done := make(chan struct{})
-	stopped := make(chan struct{})
-	go func() {
-		defer close(stopped)
-		select {
-		case <-ctx.Done():
-			d.sendPromptCancellationNotification(ctx, proc, active)
-		case <-done:
-		}
-	}()
-	var stopOnce sync.Once
-	return func() {
-		stopOnce.Do(func() {
-			close(done)
-		})
-		<-stopped
-	}
-}
-
-func (d *Driver) sendPromptCancellationNotification(
-	ctx context.Context,
-	proc *AgentProcess,
-	active *activePromptState,
-) {
-	if strings.TrimSpace(proc.SessionID) == "" {
-		return
-	}
-	notifyCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
-	defer cancel()
-	err := proc.conn.SendNotification(
-		notifyCtx,
-		acpsdk.AgentMethodSessionCancel,
-		acpsdk.CancelNotification{SessionId: acpsdk.SessionId(proc.SessionID)},
-	)
-	if err != nil && !errors.Is(err, context.Canceled) {
-		d.logger.WarnContext(
-			notifyCtx,
-			"acp: send session cancel notification",
-			"session_id",
-			proc.SessionID,
-			"turn_id",
-			active.turnID,
-			"error",
-			err,
-		)
-	}
 }
 
 func buildWirePromptRequest(proc *AgentProcess, req PromptRequest) (acpsdk.PromptRequest, error) {

@@ -25,11 +25,6 @@ func (m *Manager) clearStoppedConversation(
 	sanitized store.SessionMeta,
 	spec *sessionStartSpec,
 ) (_ *Session, err error) {
-	if err := m.beginConversationFinalization(target); err != nil {
-		return nil, err
-	}
-	defer m.endConversationFinalization(target)
-
 	clearDisposition := sessionDBClearRollback
 	dbPath := store.SessionDBFile(filepath.Join(m.homePaths.SessionsDir, target))
 	familyLease, resumeQueries, err := m.acquireOwnedSessionDBFamily(

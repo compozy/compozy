@@ -46,7 +46,7 @@ func (d *Driver) Prompt(ctx context.Context, proc *AgentProcess, req PromptReque
 	return active.events, nil
 }
 
-// Cancel cancels the local active prompt or falls back to ACP cooperative cancellation.
+// Cancel cancels only the active prompt and is an idempotent no-op once it settles.
 func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	if ctx == nil {
 		return errors.New("acp: context is required")
@@ -63,9 +63,7 @@ func (d *Driver) Cancel(ctx context.Context, proc *AgentProcess) error {
 	if proc.cancelCurrentPrompt() {
 		return nil
 	}
-	return proc.conn.SendNotification(ctx, acpsdk.AgentMethodSessionCancel, acpsdk.CancelNotification{
-		SessionId: acpsdk.SessionId(proc.SessionID),
-	})
+	return nil
 }
 
 // Interrupt signals processes matching a scoped toolruntime selector.
@@ -174,7 +172,12 @@ func (d *Driver) cancelSessionForStop(ctx context.Context, proc *AgentProcess) [
 	cancelCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), time.Second)
 	defer cancel()
 
-	if err := d.Cancel(cancelCtx, proc); err != nil && !errors.Is(err, context.Canceled) {
+	err := proc.conn.SendNotification(
+		cancelCtx,
+		acpsdk.AgentMethodSessionCancel,
+		acpsdk.CancelNotification{SessionId: acpsdk.SessionId(proc.SessionID)},
+	)
+	if err != nil && !errors.Is(err, context.Canceled) {
 		return []error{fmt.Errorf("acp: cancel session prompt: %w", err)}
 	}
 	return nil

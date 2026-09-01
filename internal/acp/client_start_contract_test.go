@@ -522,8 +522,8 @@ func TestStopCancelsANonInspectionSession(t *testing.T) {
 		if err := driver.Stop(testutil.Context(t), proc); err != nil {
 			t.Fatalf("Stop() error = %v", err)
 		}
-		if !captureMethodExists(t, captureFile, acpsdk.AgentMethodSessionCancel) {
-			t.Fatal("session/cancel was not sent for a non-inspection session")
+		if got := len(captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionCancel)); got != 1 {
+			t.Fatalf("session/cancel notifications for a non-inspection session = %d, want 1", got)
 		}
 	})
 }

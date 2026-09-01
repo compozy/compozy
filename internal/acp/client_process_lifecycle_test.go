@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -234,6 +235,90 @@ func TestAgentProcessExitLifecycle(t *testing.T) {
 		}
 		if _, admitted := proc.beginChildTask(); admitted {
 			t.Fatal("beginChildTask() admitted work after Done()")
+		}
+	})
+}
+
+func TestDriverCancelPreservesTurnScope(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Should leave a completed turn and the next turn untouched", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "late-cancel.jsonl")
+		proc := startHelperProcess(t, driver, "echo_prompt", "", StartOpts{
+			Env: helperEnvWithCapture("echo_prompt", "", captureFile),
+		})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		firstEvents, err := driver.Prompt(t.Context(), proc, PromptRequest{
+			TurnID:  "turn-before-late-cancel",
+			Message: "before late cancel",
+		})
+		if err != nil {
+			t.Fatalf("Prompt(first turn) error = %v", err)
+		}
+		collectEvents(t, firstEvents)
+
+		if err := driver.Cancel(t.Context(), proc); err != nil {
+			t.Fatalf("Cancel(after completed turn) error = %v", err)
+		}
+		if got := len(captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionCancel)); got != 0 {
+			t.Fatalf("session/cancel notifications after late cancel = %d, want 0", got)
+		}
+
+		secondEvents, err := driver.Prompt(t.Context(), proc, PromptRequest{
+			TurnID:  "turn-after-late-cancel",
+			Message: "after late cancel",
+		})
+		if err != nil {
+			t.Fatalf("Prompt(next turn) error = %v", err)
+		}
+		events := collectEvents(t, secondEvents)
+		if len(events) == 0 || events[0].Type != EventTypeAgentMessage || events[0].Text != "after late cancel" {
+			t.Fatalf("Prompt(next turn) events = %#v, want echoed agent message", events)
+		}
+	})
+
+	t.Run("Should cancel an active turn locally without canceling the session", func(t *testing.T) {
+		t.Parallel()
+
+		driver := New()
+		captureFile := filepath.Join(t.TempDir(), "active-cancel.jsonl")
+		proc := startHelperProcess(t, driver, "block_prompt_until_cancel", "", StartOpts{
+			Env: helperEnvWithCapture("block_prompt_until_cancel", "", captureFile),
+		})
+		t.Cleanup(func() {
+			stopProcess(t, driver, proc)
+		})
+
+		eventsCh, err := driver.Prompt(t.Context(), proc, PromptRequest{
+			TurnID:  "turn-active-cancel",
+			Message: "block until canceled",
+		})
+		if err != nil {
+			t.Fatalf("Prompt() error = %v", err)
+		}
+		startCtx, cancelStart := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancelStart()
+		select {
+		case event := <-eventsCh:
+			if event.Type != EventTypeAgentMessage || event.Text != "blocking" {
+				t.Fatalf("first prompt event = %#v, want blocking agent message", event)
+			}
+		case <-startCtx.Done():
+			t.Fatal("Prompt() did not start before test context expired")
+		}
+
+		if err := driver.Cancel(t.Context(), proc); err != nil {
+			t.Fatalf("Cancel(active turn) error = %v", err)
+		}
+		collectEvents(t, eventsCh)
+		if got := len(captureRequestParamsForMethod(t, captureFile, acpsdk.AgentMethodSessionCancel)); got != 0 {
+			t.Fatalf("session/cancel notifications after active cancel = %d, want 0", got)
 		}
 	})
 }
