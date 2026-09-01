@@ -26,8 +26,6 @@ const (
 	EventTypeThought = "thought"
 	// EventTypeToolCall is emitted when a tool call starts or is updated in-flight.
 	EventTypeToolCall = "tool_call"
-	// EventTypeAgentReportedTerminal carries terminal output reported by the agent runtime.
-	EventTypeAgentReportedTerminal = "terminal_output"
 	// EventTypeToolResult is emitted when a tool call finishes.
 	EventTypeToolResult = "tool_result"
 	// EventTypePlan is emitted for plan updates.
@@ -69,9 +67,6 @@ const (
 	// RuntimeApplicationProviderManaged leaves runtime selection to the provider-owned bridge.
 	RuntimeApplicationProviderManaged RuntimeApplicationStrategy = "provider_managed"
 )
-
-// AgentEventOriginAgentReported marks observational output supplied by the agent runtime.
-const AgentEventOriginAgentReported = "agent_reported"
 
 // StartOpts defines how to launch and initialize an ACP agent process.
 type StartOpts struct {

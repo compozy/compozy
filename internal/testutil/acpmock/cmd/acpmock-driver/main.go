@@ -43,12 +43,11 @@ type mockAgent struct {
 	lifecycleCtx    context.Context
 	cancelLifecycle context.CancelFunc
 
-	mu                     sync.Mutex
-	sessions               map[string]*sessionState
-	nextSession            int
-	nextCancel             uint64
-	reportedTerminalOutput bool
-	asyncWG                sync.WaitGroup
+	mu          sync.Mutex
+	sessions    map[string]*sessionState
+	nextSession int
+	nextCancel  uint64
+	asyncWG     sync.WaitGroup
 }
 
 type agentConnection interface {
@@ -134,12 +133,8 @@ func (a *mockAgent) Authenticate(context.Context, acpsdk.AuthenticateRequest) (a
 
 func (a *mockAgent) Initialize(
 	_ context.Context,
-	request acpsdk.InitializeRequest,
+	_ acpsdk.InitializeRequest,
 ) (acpsdk.InitializeResponse, error) {
-	a.mu.Lock()
-	reportedTerminalOutput, ok := request.ClientCapabilities.Meta["terminal_output"].(bool)
-	a.reportedTerminalOutput = ok && reportedTerminalOutput
-	a.mu.Unlock()
 	return acpsdk.InitializeResponse{
 		ProtocolVersion: acpsdk.ProtocolVersionNumber,
 		AgentCapabilities: acpsdk.AgentCapabilities{

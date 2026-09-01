@@ -79,10 +79,6 @@ export type {
 } from "./types";
 export type { SessionPromptRuntimeSnapshot } from "./contexts/session-prompt-runtime-context-value";
 export { isEditableTarget } from "./lib/editable-target";
-export {
-  SessionAgentReportedBlock,
-  type SessionAgentReportedBlockProps,
-} from "./components/session-agent-reported-block";
 
 export {
   SessionPromptRuntimeProvider,

@@ -27,24 +27,22 @@ func AcceptedPromptStreamTurnID(result session.SendPromptResult) (string, error)
 }
 
 type promptAgentEventPayload struct {
-	Type             string                                    `json:"type"`
-	Origin           string                                    `json:"origin,omitempty"`
-	SessionID        string                                    `json:"session_id,omitempty"`
-	TurnID           string                                    `json:"turn_id,omitempty"`
-	RequestID        string                                    `json:"request_id,omitempty"`
-	Timestamp        string                                    `json:"timestamp,omitempty"`
-	Text             string                                    `json:"text,omitempty"`
-	Title            string                                    `json:"title,omitempty"`
-	ToolCallID       string                                    `json:"tool_call_id,omitempty"`
-	StopReason       string                                    `json:"stop_reason,omitempty"`
-	Action           string                                    `json:"action,omitempty"`
-	Resource         string                                    `json:"resource,omitempty"`
-	Decision         string                                    `json:"decision,omitempty"`
-	Error            string                                    `json:"error,omitempty"`
-	Usage            *promptTokenUsagePayload                  `json:"usage,omitempty"`
-	Runtime          *contract.RuntimeActivityPayload          `json:"runtime,omitempty"`
-	ReportedTerminal *contract.ACPAgentReportedTerminalPayload `json:"reported_terminal,omitempty"`
-	Raw              json.RawMessage                           `json:"raw,omitempty"`
+	Type       string                           `json:"type"`
+	SessionID  string                           `json:"session_id,omitempty"`
+	TurnID     string                           `json:"turn_id,omitempty"`
+	RequestID  string                           `json:"request_id,omitempty"`
+	Timestamp  string                           `json:"timestamp,omitempty"`
+	Text       string                           `json:"text,omitempty"`
+	Title      string                           `json:"title,omitempty"`
+	ToolCallID string                           `json:"tool_call_id,omitempty"`
+	StopReason string                           `json:"stop_reason,omitempty"`
+	Action     string                           `json:"action,omitempty"`
+	Resource   string                           `json:"resource,omitempty"`
+	Decision   string                           `json:"decision,omitempty"`
+	Error      string                           `json:"error,omitempty"`
+	Usage      *promptTokenUsagePayload         `json:"usage,omitempty"`
+	Runtime    *contract.RuntimeActivityPayload `json:"runtime,omitempty"`
+	Raw        json.RawMessage                  `json:"raw,omitempty"`
 }
 
 type promptTokenUsagePayload struct {

@@ -132,12 +132,8 @@ func (e *PromptStreamEncoder) emitGenericEvent(writer FlushWriter, event acp.Age
 	if err := e.closeOpenBlocks(writer); err != nil {
 		return err
 	}
-	partID := ""
-	if event.Type == acp.EventTypeAgentReportedTerminal && event.ReportedTerminal != nil {
-		partID = strings.TrimSpace(event.ReportedTerminal.ID)
-	}
 	return WriteSSE(writer, SSEMessage{Data: promptDataEventEnvelope{
-		Type: "data-compozy-event", ID: partID, Data: promptAgentEventPayloadFromEvent(event),
+		Type: "data-compozy-event", Data: promptAgentEventPayloadFromEvent(event),
 	}})
 }
 

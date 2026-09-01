@@ -6,7 +6,6 @@
 
 import { formatDuration } from "@compozy/ui";
 
-import { isAgentEventPayload } from "@/systems/session/lib/message-parts";
 import { isDeliberateTerminalTool } from "@/systems/session/lib/session-terminal-tools";
 import { aggregateChangedFiles } from "./session-timeline-changed-files";
 import {
@@ -137,7 +136,7 @@ function foldTurnGroup(
 
 // Text, permission, and terminal evidence remain operator-visible after a turn
 // settles. Deliberate terminal tool rows are their own surface, not transient
-// work; agent-reported terminals stay on the data-event path.
+// work.
 function isPersistentTurnRow(row: SessionRow): boolean {
   if (row.kind === "text") return true;
   if (row.kind === "work") {
@@ -147,13 +146,7 @@ function isPersistentTurnRow(row: SessionRow): boolean {
       row.entries.every(entry => isDeliberateTerminalTool(entry.toolName))
     );
   }
-  return (
-    row.kind === "data" &&
-    (row.part.name === "data-compozy-permission" ||
-      (row.part.name === "data-compozy-event" &&
-        isAgentEventPayload(row.part.data) &&
-        row.part.data.origin === "agent_reported"))
-  );
+  return row.kind === "data" && row.part.name === "data-compozy-permission";
 }
 
 // Label fallbacks: a settled turn folds even when its duration is unknown, and

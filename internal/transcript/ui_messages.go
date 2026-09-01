@@ -208,8 +208,6 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 		builder.applyToolResult(decoded)
 	case acp.EventTypePermission:
 		builder.appendDataPart(uiPartDataPermission, uiPermissionDataPartID(decoded.agent), decoded.dataPayload())
-	case acp.EventTypeAgentReportedTerminal:
-		builder.appendDataPart(uiPartDataEvent, uiReportedTerminalDataPartID(decoded.agent), decoded.dataPayload())
 	case acp.EventTypeError:
 		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
 		builder.finished = true
@@ -218,13 +216,6 @@ func applyDecodedEvent(builder *uiMessageBuilder, decoded *decodedStoredEvent) {
 	default:
 		builder.appendDataPart(uiPartDataEvent, "", decoded.dataPayload())
 	}
-}
-
-func uiReportedTerminalDataPartID(event acp.AgentEvent) string {
-	if event.ReportedTerminal == nil {
-		return ""
-	}
-	return strings.TrimSpace(event.ReportedTerminal.ID)
 }
 
 func (b *uiMessageBuilder) appendText(text string) {

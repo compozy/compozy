@@ -25,7 +25,7 @@ func availableCommandPayloads(commands []store.SessionAdvertisedCommand) []contr
 // AgentEventPayloadFromEvent converts an agent event into the shared raw-stream payload.
 func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload {
 	return contract.AgentEventPayload{
-		Type: event.Type, Origin: event.Origin(), SessionID: event.SessionID, TurnID: event.TurnID,
+		Type: event.Type, SessionID: event.SessionID, TurnID: event.TurnID,
 		MessageID: event.MessageIDValue(), RequestID: event.RequestIDValue(),
 		Timestamp: event.Timestamp, Text: event.Text, Title: event.Title, ToolCallID: event.ToolCallID,
 		StopReason: event.StopReason, PromptStopReason: contract.ACPPromptStopReason(event.PromptStopReason),
@@ -33,21 +33,8 @@ func AgentEventPayloadFromEvent(event acp.AgentEvent) contract.AgentEventPayload
 		Resource: event.Resource, Decision: event.Decision, Error: event.Error,
 		Failure: SessionFailurePayloadFromStore(event.Failure), Usage: TokenUsagePayloadFromUsage(event.Usage),
 		Goal: goalPromptMetaPayload(event.Goal), Runtime: runtimeActivityPayloadFromEvent(event.Runtime),
-		PromptRuntime:    runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),
-		ReportedTerminal: agentReportedTerminalPayload(event.ReportedTerminal),
-		Raw:              payloadJSONBytes(event.Raw),
-	}
-}
-
-func agentReportedTerminalPayload(
-	terminal *acp.AgentReportedTerminal,
-) *contract.ACPAgentReportedTerminalPayload {
-	if terminal == nil {
-		return nil
-	}
-	return &contract.ACPAgentReportedTerminalPayload{
-		ID: terminal.ID, Cwd: terminal.Cwd, TotalBytes: terminal.TotalBytes,
-		Truncated: terminal.Truncated, ExitCode: terminal.ExitCode, Signal: terminal.Signal,
+		PromptRuntime: runtimeSelectionPayloadFromACP(event.PromptRuntimeSnapshot()),
+		Raw:           payloadJSONBytes(event.Raw),
 	}
 }
 

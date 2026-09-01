@@ -128,67 +128,6 @@ func TestMockAgentInitializeAdvertisesFixtureLoadCapability(t *testing.T) {
 	}
 }
 
-func TestMockAgentReportedTerminalRequiresNegotiatedCapability(t *testing.T) {
-	t.Parallel()
-
-	t.Run("Should emit terminal metadata and chunks after capability negotiation", func(t *testing.T) {
-		t.Parallel()
-
-		conn := &recordingSandboxConnection{}
-		agent := &mockAgent{conn: conn}
-		if _, err := agent.Initialize(context.Background(), acpsdk.InitializeRequest{
-			ClientCapabilities: acpsdk.ClientCapabilities{Meta: map[string]any{"terminal_output": true}},
-		}); err != nil {
-			t.Fatalf("Initialize() error = %v", err)
-		}
-		entry, err := agent.emitReportedTerminal(context.Background(), "sess-reported", acpmock.Step{
-			Kind: acpmock.StepKindReportedTerminal, ToolCallID: "tool-1", TerminalID: "reported-1",
-			Title: "bun test", Cwd: "/workspace", Chunks: []string{"one\n", "two\n"},
-			ExitCode: new(7), Signal: "TERM",
-		})
-		if err != nil {
-			t.Fatalf("emitReportedTerminal() error = %v", err)
-		}
-		if got, want := entry.Text, "one\ntwo\n"; got != want {
-			t.Fatalf("diagnostics text = %q, want %q", got, want)
-		}
-		if got, want := len(conn.notifications), 4; got != want {
-			t.Fatalf("notification count = %d, want %d", got, want)
-		}
-		startMeta := conn.notifications[0].Update.ToolCall.Meta
-		startInfo, ok := startMeta["terminal_info"].(map[string]any)
-		if !ok || startInfo["terminal_id"] != "reported-1" || startInfo["cwd"] != "/workspace" {
-			t.Fatalf("start metadata = %#v, want reported-1 in /workspace", startMeta)
-		}
-		for index, wantData := range []string{"one\n", "two\n"} {
-			notificationIndex := index + 1
-			meta := conn.notifications[notificationIndex].Update.ToolCallUpdate.Meta
-			output, ok := meta["terminal_output"].(map[string]any)
-			if !ok || output["terminal_id"] != "reported-1" || output["data"] != wantData {
-				t.Fatalf("chunk %d metadata = %#v, want reported-1/%q", notificationIndex, meta, wantData)
-			}
-		}
-		finalMeta := conn.notifications[3].Update.ToolCallUpdate.Meta
-		exit, ok := finalMeta["terminal_exit"].(map[string]any)
-		if !ok || exit["terminal_id"] != "reported-1" || exit["exit_code"] != 7 || exit["signal"] != "TERM" {
-			t.Fatalf("final metadata = %#v, want reported-1/7/TERM", finalMeta)
-		}
-	})
-
-	t.Run("Should fail a reported step when the client omits the capability", func(t *testing.T) {
-		t.Parallel()
-
-		agent := &mockAgent{conn: &recordingSandboxConnection{}}
-		_, err := agent.emitReportedTerminal(context.Background(), "sess-reported", acpmock.Step{
-			Kind: acpmock.StepKindReportedTerminal, ToolCallID: "tool-1", TerminalID: "reported-1",
-			Title: "bun test", Text: "ok",
-		})
-		if err == nil || !strings.Contains(err.Error(), "did not advertise") {
-			t.Fatalf("emitReportedTerminal() error = %v, want capability negotiation failure", err)
-		}
-	})
-}
-
 func TestExtractPromptTextPreservesAugmentedPromptWithoutNestedMessageMarker(t *testing.T) {
 	t.Parallel()
 

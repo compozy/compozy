@@ -41,7 +41,6 @@ import {
   PermissionDataPart,
   resolveToolResult,
   RuntimeActivityNotice,
-  SessionAgentReportedBlock,
   SessionToolCallRow,
   ThinkingBlock,
   type UIMessage,
@@ -62,13 +61,6 @@ function SessionReasoningRowView({ row }: { row: SessionReasoningRow }) {
 function SessionDataRowView({ row }: { row: SessionDataRow }) {
   if (row.part.name === "data-compozy-event" && isClarifyEventData(row.part.data)) {
     return <ClarificationDataPart data={row.part.data} />;
-  }
-  if (
-    row.part.name === "data-compozy-event" &&
-    isAgentEventPayload(row.part.data) &&
-    row.part.data.origin === "agent_reported"
-  ) {
-    return <SessionAgentReportedBlock data={row.part.data} />;
   }
   if (row.part.name === "data-compozy-event" && isAgentEventPayload(row.part.data)) {
     return <RuntimeActivityNotice event={row.part.data} count={row.count} />;

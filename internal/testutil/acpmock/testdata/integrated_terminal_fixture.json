@@ -38,41 +38,6 @@
                             "chunks": ["I received the sourced terminal excerpt."]
                         }
                     ]
-                },
-                {
-                    "name": "agent-reported-terminal",
-                    "match": {
-                        "turn_source": "user",
-                        "user_text": "show agent reported terminal"
-                    },
-                    "steps": [
-                        {
-                            "kind": "reported_terminal",
-                            "tool_call_id": "reported-tool-1",
-                            "terminal_id": "reported-terminal-1",
-                            "title": "bun test --filter terminal",
-                            "cwd": "/workspace/compozy",
-                            "chunks": ["$ bun test --filter terminal\n", "12 tests passed\n"],
-                            "exit_code": 0
-                        },
-                        {
-                            "kind": "assistant",
-                            "text": "The terminal report is complete."
-                        }
-                    ]
-                },
-                {
-                    "name": "agent-without-terminal-report",
-                    "match": {
-                        "turn_source": "user",
-                        "user_text": "show no terminal report"
-                    },
-                    "steps": [
-                        {
-                            "kind": "assistant",
-                            "text": "There is no terminal report for this turn."
-                        }
-                    ]
                 }
             ]
         }

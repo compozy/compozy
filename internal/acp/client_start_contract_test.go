@@ -49,7 +49,7 @@ func TestStartInitializeContract(t *testing.T) {
 		}
 	})
 
-	t.Run("Should advertise agent-reported terminal output support", func(t *testing.T) {
+	t.Run("Should not opt into agent-reported terminal output", func(t *testing.T) {
 		t.Parallel()
 
 		driver := New()
@@ -61,13 +61,17 @@ func TestStartInitializeContract(t *testing.T) {
 
 		params := captureRequestParams(t, captureFile, acpsdk.AgentMethodInitialize)
 		var capabilities struct {
-			Meta map[string]any `json:"_meta"`
+			Meta     map[string]any `json:"_meta"`
+			Terminal bool           `json:"terminal"`
 		}
 		if err := json.Unmarshal(params["clientCapabilities"], &capabilities); err != nil {
 			t.Fatalf("decode initialize clientCapabilities: %v", err)
 		}
-		if advertised, ok := capabilities.Meta["terminal_output"].(bool); !ok || !advertised {
-			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want true", capabilities.Meta)
+		if !capabilities.Terminal {
+			t.Fatal("clientCapabilities.terminal = false, want true")
+		}
+		if value, ok := capabilities.Meta["terminal_output"]; ok {
+			t.Fatalf("clientCapabilities._meta.terminal_output = %#v, want absent", value)
 		}
 	})
 }

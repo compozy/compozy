@@ -1674,34 +1674,6 @@ func TestAgentEventPayloadRoundTripsThroughJSON(t *testing.T) {
 		}
 	})
 
-	t.Run("Should round-trip agent-reported terminal provenance", func(t *testing.T) {
-		t.Parallel()
-
-		event := acp.AgentEvent{
-			Type:      acp.EventTypeAgentReportedTerminal,
-			SessionID: "sess-reported", TurnID: "turn-reported",
-			Timestamp: time.Date(2026, 4, 7, 10, 31, 0, 0, time.UTC),
-			Text:      "tests passed", Title: "bun test",
-			ReportedTerminal: &acp.AgentReportedTerminal{
-				ID: "reported-1", Cwd: "/workspace", TotalBytes: 12, Truncated: true,
-				ExitCode: new(0), Signal: "TERM",
-			},
-		}
-		payload := core.AgentEventPayloadFromEvent(event)
-		var roundTrip contract.AgentEventPayload
-		marshalJSON(t, payload, &roundTrip)
-
-		if got, want := roundTrip.Origin, acp.AgentEventOriginAgentReported; got != want {
-			t.Fatalf("origin = %q, want %q", got, want)
-		}
-		if roundTrip.ReportedTerminal == nil || roundTrip.ReportedTerminal.ID != "reported-1" ||
-			roundTrip.ReportedTerminal.Cwd != "/workspace" ||
-			roundTrip.ReportedTerminal.TotalBytes != 12 || !roundTrip.ReportedTerminal.Truncated ||
-			roundTrip.ReportedTerminal.ExitCode == nil || *roundTrip.ReportedTerminal.ExitCode != 0 ||
-			roundTrip.ReportedTerminal.Signal != "TERM" {
-			t.Fatalf("reported terminal payload = %#v", roundTrip.ReportedTerminal)
-		}
-	})
 }
 
 func TestAutomationJobPayloadJSONShape(t *testing.T) {

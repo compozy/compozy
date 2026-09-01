@@ -12,7 +12,6 @@ import (
 type canonicalEventPayload struct {
 	Schema    string `json:"schema,omitempty"`
 	Type      string `json:"type,omitempty"`
-	Origin    string `json:"origin,omitempty"`
 	SessionID string `json:"session_id,omitempty"`
 	TurnID    string `json:"turn_id,omitempty"`
 	MessageID string `json:"message_id,omitempty"`
@@ -44,6 +43,5 @@ type canonicalEventPayload struct {
 	Usage             *acp.TokenUsage                  `json:"usage,omitempty"`
 	Runtime           *acp.RuntimeActivity             `json:"runtime,omitempty"`
 	PromptRuntime     *acp.PromptRuntime               `json:"prompt_runtime,omitempty"`
-	ReportedTerminal  *acp.AgentReportedTerminal       `json:"reported_terminal,omitempty"`
 	Raw               json.RawMessage                  `json:"raw,omitempty"`
 }

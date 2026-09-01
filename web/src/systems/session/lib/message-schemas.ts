@@ -7,7 +7,6 @@ import type { SessionMessage } from "../types";
 
 const compozyEventDataSchema = z.looseObject({
   type: z.string(),
-  origin: z.string().optional(),
   session_id: z.string().optional(),
   turn_id: z.string().optional(),
   request_id: z.string().optional(),
@@ -53,16 +52,6 @@ const compozyEventDataSchema = z.looseObject({
       idle_seconds: z.number().optional(),
       elapsed_ms: z.number(),
       elapsed_seconds: z.number().optional(),
-    })
-    .optional(),
-  reported_terminal: z
-    .object({
-      id: z.string(),
-      cwd: z.string().optional(),
-      total_bytes: z.number(),
-      truncated: z.boolean().optional(),
-      exit_code: z.number().optional(),
-      signal: z.string().optional(),
     })
     .optional(),
   goal: z

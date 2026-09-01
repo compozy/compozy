@@ -90,24 +90,9 @@ func (s Step) validateKindPayload(path string) error {
 		return validateSandboxStep(path, s)
 	case StepKindDriverControl:
 		return validateDriverControlStep(path, s)
-	case StepKindReportedTerminal:
-		return validateReportedTerminalStep(path, s)
 	default:
 		return fmt.Errorf("acpmock: %s.kind %q is invalid", path, s.Kind)
 	}
-}
-
-func validateReportedTerminalStep(path string, step Step) error {
-	if err := validateToolIdentity(path, step); err != nil {
-		return err
-	}
-	if strings.TrimSpace(step.TerminalID) == "" {
-		return fmt.Errorf("acpmock: %s.terminal_id is required", path)
-	}
-	if !hasTextPayload(step.Text, step.Chunks) {
-		return fmt.Errorf("acpmock: %s requires text or chunks", path)
-	}
-	return nil
 }
 
 func validateTextStep(path string, step Step) error {

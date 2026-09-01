@@ -51,14 +51,5 @@ type AgentEvent struct {
 	Goal             *GoalPromptMeta
 	Usage            *TokenUsage
 	Runtime          *RuntimeActivity
-	ReportedTerminal *AgentReportedTerminal
 	Raw              json.RawMessage
-}
-
-// Origin returns the source classification derived from the event type.
-func (e AgentEvent) Origin() string {
-	if e.Type == EventTypeAgentReportedTerminal {
-		return AgentEventOriginAgentReported
-	}
-	return ""
 }
