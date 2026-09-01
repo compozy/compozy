@@ -24,13 +24,15 @@ import (
 )
 
 const (
-	implementTasksE2ESlug      = "implement-tasks"
-	implementTasksImplementer  = "code_implementer"
-	implementTasksCustomAgent  = "custom_implementer"
-	implementTasksSentinel     = "CUSTOM_IMPLEMENTER_SENTINEL_V1"
-	implementTasksFixtureAgent = "implement_tasks_implementer"
-	implementTasksOrchestrator = "orchestrator"
-	implementTasksConductor    = "implement_tasks_orchestrator"
+	implementTasksE2ESlug       = "implement-tasks"
+	implementTasksImplementer   = "code_implementer"
+	implementTasksCustomAgent   = "custom_implementer"
+	implementTasksSentinel      = "CUSTOM_IMPLEMENTER_SENTINEL_V1"
+	implementTasksFixtureAgent  = "implement_tasks_implementer"
+	implementTasksOrchestrator  = "orchestrator"
+	implementTasksConductor     = "implement_tasks_orchestrator"
+	implementTasksEngineer      = "engineer"
+	implementTasksEngineerSkill = "PROFILE_ENGINEER_SENTINEL_V1"
 )
 
 func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
@@ -133,6 +135,94 @@ func TestDaemonE2EImplementTasksShouldCompleteTaskJourney(t *testing.T) {
 		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksCustomAgent)
 		assertImplementTasksWorkerPromptContains(t, harness, implementTasksSentinel)
 	})
+
+	t.Run("Should use a Profile extension Agent and its local skill in orchestrated mode", func(t *testing.T) {
+		t.Parallel()
+
+		harness, ctx := startImplementTasksE2EHarness(t, implementTasksEngineer)
+		installImplementTasksProfileEngineer(t, ctx, harness)
+		if _, stderr, err := harness.CLI.RunInDir(
+			ctx,
+			harness.WorkspaceRoot,
+			"profile", "use", "engineering", "-o", "json",
+		); err != nil {
+			t.Fatalf("CLI select engineering Profile error = %v; stderr=%s", err, strings.TrimSpace(stderr))
+		}
+
+		detail := runImplementTasksE2EInProfile(t, ctx, harness, "engineering", []string{
+			"--input", "mode=orchestrated",
+			"--input", "implementer=" + implementTasksEngineer,
+		})
+		assertImplementTasksRoute(t, detail, "select_category", "route_not_taken:select_mode")
+		assertImplementTasksSpawnedWorkerRuntimes(t, ctx, harness, implementTasksEngineer)
+		assertImplementTasksWorkerPromptContains(t, harness, implementTasksEngineerSkill)
+	})
+}
+
+func installImplementTasksProfileEngineer(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+) {
+	t.Helper()
+
+	sourceDir := filepath.Join(t.TempDir(), "profile-engineer-extension")
+	files := map[string]string{
+		"extension.toml": `[extension]
+name = "profile-engineer-extension"
+version = "1.0.0"
+min_compozy_version = "0.0.0"
+
+[[profiles]]
+name = "engineering"
+
+[[resources.agents]]
+path = "agents/engineering"
+profile = "engineering"
+`,
+		"agents/engineering/engineer/AGENT.md": fmt.Sprintf(`---
+name: engineer
+provider: %s
+command: %s
+model: base-model
+reasoning_effort: low
+permissions: approve-all
+---
+
+Implement the assigned task.
+`, acpmock.ProviderName, quotedYAMLString(acpmock.BuildCommand(
+			acpmock.RequireDriver(t),
+			materializeImplementTasksFixture(
+				t,
+				mockFixturePath(t, "implement_tasks_fixture.json"),
+				harness.BinaryPath,
+				implementTasksEngineer,
+			),
+			implementTasksFixtureAgent,
+			filepath.Join(harness.HomePaths.LogsDir, "implement-tasks-worker.jsonl"),
+		))),
+		"agents/engineering/engineer/skills/profile-engineer/SKILL.md": `---
+name: profile-engineer
+description: PROFILE_ENGINEER_SENTINEL_V1
+---
+
+# Profile engineer
+`,
+	}
+	for name, content := range files {
+		path := filepath.Join(sourceDir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("MkdirAll(%s) error = %v", filepath.Dir(path), err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("WriteFile(%s) error = %v", path, err)
+		}
+	}
+	if _, err := harness.InstallExtension(ctx, contract.InstallExtensionRequest{
+		Source: contract.InstallExtensionSourceLocalPath, Ref: sourceDir, AllowUnverified: true,
+	}); err != nil {
+		t.Fatalf("InstallExtension(profile engineer) error = %v", err)
+	}
 }
 
 func startImplementTasksE2EHarness(
@@ -173,6 +263,7 @@ func startImplementTasksE2EHarnessAt(
 			DefaultProvider: acpmock.ProviderName,
 			PermissionMode:  config.PermissionModeApproveAll,
 			Mutate: func(cfg *config.Config) {
+				cfg.Extensions.Trust.AllowUnverified = true
 				acpMockProvider := acpmock.ProviderConfig(driverPath)
 				acpMockProvider.Models.Reasoning.Apply = config.ReasoningApplyACPOption
 				cfg.Providers[acpmock.ProviderName] = acpMockProvider
@@ -308,12 +399,26 @@ func runImplementTasksE2E(
 	extraArgs []string,
 ) contract.LoopRunResponse {
 	t.Helper()
+	return runImplementTasksE2EInProfile(t, ctx, harness, "", extraArgs)
+}
+
+func runImplementTasksE2EInProfile(
+	t testing.TB,
+	ctx context.Context,
+	harness *e2etest.RuntimeHarness,
+	profile string,
+	extraArgs []string,
+) contract.LoopRunResponse {
+	t.Helper()
 
 	args := []string{
 		"loop", "run", "--workspace", harness.WorkspaceRoot, "--name", "implement-tasks",
 		"--input", "slug=" + implementTasksE2ESlug,
 	}
 	args = append(args, extraArgs...)
+	if strings.TrimSpace(profile) != "" {
+		args = append(args, "--profile", profile)
+	}
 	stdout, stderr, err := harness.CLI.RunInDir(ctx, harness.WorkspaceRoot, args...)
 	if err != nil {
 		t.Fatalf("CLI implement-tasks run error = %v; stderr=%s", err, strings.TrimSpace(stderr))
@@ -322,11 +427,16 @@ func runImplementTasksE2E(
 	if !strings.HasSuffix(strings.TrimSpace(stdout), webURL) {
 		t.Fatalf("CLI implement-tasks output = %q, want web URL as final line", stdout)
 	}
-	waitForImplementTasksRunDone(t, ctx, harness, runID)
+	waitForImplementTasksRunDone(t, ctx, harness, runID, profile)
+	statusArgs := []string{
+		"loop", "status", "--workspace", harness.WorkspaceRoot, "--run-id", runID, "-o", "json",
+	}
+	if strings.TrimSpace(profile) != "" {
+		statusArgs = append(statusArgs, "--profile", profile)
+	}
 	var detail contract.LoopRunResponse
 	if err := harness.CLI.RunJSONInDir(
-		ctx, harness.WorkspaceRoot, &detail, "loop", "status",
-		"--workspace", harness.WorkspaceRoot, "--run-id", runID, "-o", "json",
+		ctx, harness.WorkspaceRoot, &detail, statusArgs...,
 	); err != nil {
 		t.Fatalf("CLI implement-tasks status error = %v", err)
 	}
@@ -338,6 +448,7 @@ func waitForImplementTasksRunDone(
 	ctx context.Context,
 	harness *e2etest.RuntimeHarness,
 	runID string,
+	profile string,
 ) {
 	t.Helper()
 	ticker := time.NewTicker(20 * time.Millisecond)
@@ -346,7 +457,18 @@ func waitForImplementTasksRunDone(
 		var response contract.LoopRunResponse
 		path := "/api/workspaces/" + url.PathEscape(harness.WorkspaceID) +
 			"/loop-runs/" + url.PathEscape(runID)
+		if strings.TrimSpace(profile) != "" {
+			path += "?profile=" + url.QueryEscape(profile)
+		}
 		if err := harness.HTTPJSON(ctx, http.MethodGet, path, nil, &response); err != nil {
+			if strings.Contains(err.Error(), "status 404") {
+				select {
+				case <-ctx.Done():
+					t.Fatalf("wait implement-tasks run %s: %v", runID, ctx.Err())
+				case <-ticker.C:
+					continue
+				}
+			}
 			t.Fatalf("HTTP implement-tasks status error = %v", err)
 		}
 		if response.Run.Status == contract.LoopRunStatusDone {
