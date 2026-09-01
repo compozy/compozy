@@ -16,6 +16,7 @@ var defaultManifestToolInputSchema = json.RawMessage(`{"type":"object"}`)
 // ManifestToolDescriptor is a manifest-authoritative cold descriptor plus runtime proof metadata.
 type ManifestToolDescriptor struct {
 	Name              string
+	Profile           string
 	Tool              toolspkg.Tool
 	RuntimeDescriptor toolspkg.ExtensionToolRuntimeDescriptor
 }
@@ -42,6 +43,7 @@ func ResolveManifestToolDescriptors(manifest *Manifest) ([]ManifestToolDescripto
 		if err != nil {
 			return nil, err
 		}
+		descriptor.Profile = strings.TrimSpace(manifest.Resources.Tools[name].Profile)
 		descriptors = append(descriptors, descriptor)
 	}
 	return descriptors, nil

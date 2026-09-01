@@ -99,6 +99,14 @@ func (p *ExtensionToolProvider) manifestToolsWithFingerprint(
 	if profileID == "" {
 		profileID = store.DefaultProfileID
 	}
+	profileName := ""
+	if p.profileNames != nil {
+		profileName, err = p.profileNames.ProfileName(ctx, profileID)
+		if err != nil {
+			return nil, "", fmt.Errorf("extension: resolve tool profile %q: %w", profileID, err)
+		}
+		profileName = strings.TrimSpace(profileName)
+	}
 	infos, err := p.manifestToolInfos(workspaceID)
 	if err != nil {
 		return nil, "", err
@@ -112,12 +120,12 @@ func (p *ExtensionToolProvider) manifestToolsWithFingerprint(
 	if err := extensionProviderContextErr(ctx); err != nil {
 		return nil, "", err
 	}
-	fingerprint := extensionToolManifestFingerprint(profileID, workspaceID, sources)
+	fingerprint := extensionToolManifestFingerprint(profileID, profileName, workspaceID, sources)
 	if cached, ok := p.cachedManifestTools(fingerprint); ok {
 		return cached, fingerprint, nil
 	}
 
-	tools := p.resolveManifestTools(sources)
+	tools := p.resolveManifestTools(profileName, sources)
 	if err := extensionProviderContextErr(ctx); err != nil {
 		return nil, "", err
 	}
@@ -248,6 +256,7 @@ func (p *ExtensionToolProvider) readExtensionManifestSnapshot(
 }
 
 func (p *ExtensionToolProvider) resolveManifestTools(
+	profileName string,
 	sources []extensionManifestToolSource,
 ) []extensionManifestTool {
 	manifestTools := make([]extensionManifestTool, 0)
@@ -265,6 +274,9 @@ func (p *ExtensionToolProvider) resolveManifestTools(
 			continue
 		}
 		for j := range descriptors {
+			if profileName != "" && !manifestPlacementVisible(descriptors[j].Profile, profileName) {
+				continue
+			}
 			if descriptors[j].Tool.Backend.Kind != toolspkg.BackendExtensionHost {
 				continue
 			}
@@ -377,11 +389,14 @@ func (p *ExtensionToolProvider) reconcileManifestSnapshots(
 
 func extensionToolManifestFingerprint(
 	profileID string,
+	profileName string,
 	workspaceID string,
 	sources []extensionManifestToolSource,
 ) string {
 	var builder strings.Builder
 	builder.WriteString(strings.TrimSpace(profileID))
+	builder.WriteByte(0)
+	builder.WriteString(strings.TrimSpace(profileName))
 	builder.WriteByte(0)
 	builder.WriteString(strings.TrimSpace(workspaceID))
 	builder.WriteByte(0)
@@ -411,6 +426,7 @@ func extensionToolManifestFingerprint(
 
 func cloneManifestToolDescriptor(src *ManifestToolDescriptor) ManifestToolDescriptor {
 	cloned := *src
+	cloned.Profile = strings.TrimSpace(src.Profile)
 	cloned.Tool = src.Tool.Descriptor().Tool()
 	cloned.RuntimeDescriptor.Capabilities = slices.Clone(src.RuntimeDescriptor.Capabilities)
 	cloned.RuntimeDescriptor.Command = cloneExtensionCommandSpec(src.RuntimeDescriptor.Command)

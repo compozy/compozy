@@ -45,6 +45,7 @@ type ExtensionToolProvider struct {
 	manifestReadFile extensionManifestReadFile
 	registry         *Registry
 	runtime          ExtensionToolRuntimeResolver
+	profileNames     ProfileNameResolver
 	logger           *slog.Logger
 	source           toolspkg.SourceRef
 	cache            extensionToolProviderCache
@@ -59,6 +60,14 @@ func WithToolProviderLogger(logger *slog.Logger) ExtensionToolProviderOption {
 		if logger != nil {
 			provider.logger = logger
 		}
+	}
+}
+
+// WithToolProviderProfileNameResolver binds profile-named manifest placements
+// to the stable profile identity carried by tool scopes.
+func WithToolProviderProfileNameResolver(resolver ProfileNameResolver) ExtensionToolProviderOption {
+	return func(provider *ExtensionToolProvider) {
+		provider.profileNames = resolver
 	}
 }
 
