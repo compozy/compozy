@@ -9,8 +9,8 @@ entry_points: compozy loop validate|create|fork|run; POST /api/workspaces/:works
 qa_status: pass
 bug_ids:
 fix_status: fixed
-retest_status: passed
-fix_commits: 45cf683dc6654b2212a88a6fd91d3bd9c710e070; 9ed228b6b814014f70c2752858c067b3471300a3
+retest_status: pass
+fix_commits: 45cf683dc135ee25e82658af5981bf54503d40fd; 9ed228b6d8a2cd55687aaf73c2ff0a02be92ac55; f5613df7dfac0725d4499166d6f14dff7e76a6ac
 evidence: go test -race ./internal/extension -run TestExtensionToolProvider(Catalog|Dispatch|Availability) -count=1; go test -race ./internal/daemon -run TestLoopToolSchemaSource|TestDaemonExtensionToolProvider -count=1
 last_report: docs/qa/reports/2026-09-01-loop-lifecycle-actions.md
 overlaps: ET-compozy-native-tool-invocation; LP-live-run-survives-extension-disable
