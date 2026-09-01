@@ -437,6 +437,23 @@ type TaskRunReleasedPayload struct {
 	RecoveryReason               string    `json:"recovery_reason,omitempty"`
 }
 
+type TaskRunResultPage struct {
+	RunID      string `json:"run_id"`
+	ResultRef  string `json:"result_ref,omitempty"`
+	Offset     int64  `json:"offset"`
+	Bytes      int64  `json:"bytes"`
+	TotalBytes int64  `json:"total_bytes"`
+	DataBase64 string `json:"data_base64"`
+	NextOffset *int64 `json:"next_offset,omitempty"`
+	EOF        bool   `json:"eof"`
+}
+
+type TaskRunResultParams struct {
+	ID     string `json:"id"`
+	Offset int64  `json:"offset,omitempty"`
+	Limit  int64  `json:"limit,omitempty"`
+}
+
 type TaskRunSessionPayload struct {
 	SessionID   string    `json:"session_id"`
 	WorkspaceID string    `json:"workspace_id,omitempty"`
@@ -446,10 +463,3 @@ type TaskRunSessionPayload struct {
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
-
-type TaskRunStartParams struct {
-	ID             string `json:"id"`
-	IdempotencyKey string `json:"idempotency_key,omitempty"`
-}
-
-type TaskRunStatus uint8

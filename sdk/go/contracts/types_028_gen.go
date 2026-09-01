@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+type TaskRunStartParams struct {
+	ID             string `json:"id"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type TaskRunStatus uint8
+
 type TaskRunSummaryPayload struct {
 	ID                           string                      `json:"id"`
 	TaskID                       string                      `json:"task_id"`
@@ -303,39 +310,4 @@ type TerminalExit struct {
 	Cause  string  `json:"cause"`
 	Code   *int    `json:"code,omitempty"`
 	Signal *string `json:"signal,omitempty"`
-}
-
-type TerminalInputProvidedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RequestID   string    `json:"request_id"`
-	Redacted    bool      `json:"redacted"`
-	Length      int       `json:"length"`
-	Outcome     string    `json:"outcome"`
-}
-
-type TerminalInputRequestedPayload struct {
-	Event       HookEvent `json:"event"`
-	Timestamp   time.Time `json:"timestamp"`
-	WorkspaceID string    `json:"workspace_id"`
-	ProfileID   string    `json:"profile_id"`
-	TerminalID  string    `json:"terminal_id,omitempty"`
-	ActorKind   string    `json:"actor_kind"`
-	ActorID     string    `json:"actor_id"`
-	SessionID   string    `json:"session_id,omitempty"`
-	RunID       string    `json:"run_id,omitempty"`
-	Generation  int64     `json:"generation,omitempty"`
-	At          time.Time `json:"at"`
-	RequestID   string    `json:"request_id"`
-	Reason      string    `json:"reason"`
-	Redacted    bool      `json:"redacted"`
 }
