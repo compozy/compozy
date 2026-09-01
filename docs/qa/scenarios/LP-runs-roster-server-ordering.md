@@ -7,12 +7,12 @@ journey: J-operate-loop-run-headless
 expected: Every runs-list read returns needs-you runs first, then active, then terminal, with the ordering applied before pagination so a run that needs a human never falls off page one; each item carries progress (round, steps done, steps total) always and an attention object (kind, count, since) only when something is actually waiting; CLI columns, HTTP and UDS responses agree on the same persisted state, a malformed cursor is a field-addressed 400 invalid_cursor, and a run id from another workspace resolves to 404 rather than an empty success.
 entry_points: compozy loop runs; compozy loop runs --loop <loop-name> --status <status> -o json; GET /api/workspaces/:workspace_id/loop-runs over HTTP and UDS; /docs/cli/loop/runs
 qa_status: pass
-bug_ids: BUG-20260719-autonomous-progress-unobservable
+bug_ids: BUG-20260719-autonomous-progress-unobservable; BUG-20260901-filtered-fanout-phantom-rows
 fix_status: fixed
-retest_status: pass — runtime-owned observer followed catalog advancement and matched all 11 terminal Tasks
-fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-task07-final-web-20260822-131622-550786-lab/qa-artifacts/qa/task07-scenario-walks.md; .compozy/tasks/loop-task-legibility/evidence/visual/task_05/VC-33
-last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
+retest_status: pass
+fix_commits: e96962c
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-506-filtered-fanout-roster-20260901-131013-477371-lab/qa-artifacts/qa/logs/cli-runs.json
+last_report: docs/qa/reports/2026-09-01-issue-506-filtered-fanout.md
 overlaps: LP-run-read-agent-journey; LP-web-runs-roster-rerank; LP-web-runs-breadcrumb; GL-016
 ---
 
@@ -41,3 +41,9 @@ this resolves the row's only blocked decision and the scenario now passes. Evide
 QA impact 2026-08-21: reset because the degraded-read age presentation changed after the prior
 walk. The fresh task_07 lab must re-walk ordering, paging, attention omission, progress, and the
 updated degraded age before restoring a verdict.
+
+QA impact 2026-09-01: reset because runs-list progress inherits sparse roster denominators. The
+targeted re-walk must confirm server-owned progress excludes non-materialized fan-out source indexes.
+
+QA result 2026-09-01: passed. The sparse run settled with server-owned progress `3/3`; rejected
+source indexes did not enlarge the denominator, and the native runs read agreed.

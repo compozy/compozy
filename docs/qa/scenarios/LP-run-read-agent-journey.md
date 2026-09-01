@@ -7,12 +7,12 @@ journey: J-operate-loop-run-headless
 expected: The briefing, complete node roster, and durable timeline agree on current run truth over HTTP, UDS, and CLI; unblocker commands execute verbatim, attempt history survives recovery, timeline resume has no gaps or duplicates, and foreign positions fail deterministically.
 entry_points: compozy loop why <run-id>; compozy loop nodes --run <run-id> --all; compozy loop events <run-id> --after <seq> --follow --view <notable|all>; GET /api/workspaces/:workspace_id/loop-runs/:run_id/{briefing,nodes,timeline}; skills/compozy/references/loops.md; /docs/cli/loop/why; /docs/cli/loop/nodes; /docs/cli/loop/events
 qa_status: pass
-bug_ids: BUG-20260719-autonomous-progress-unobservable; BUG-20260821-loop-unblocker-invalid-json; BUG-20260821-loop-timeline-head-omitted
+bug_ids: BUG-20260719-autonomous-progress-unobservable; BUG-20260821-loop-unblocker-invalid-json; BUG-20260821-loop-timeline-head-omitted; BUG-20260901-filtered-fanout-phantom-rows
 fix_status: fixed
-retest_status: pass — public-read observer matched the independent Task catalog through eight durable transitions and 11 terminal Tasks
-fix_commits: a53f470; b0eaf22; 37c101d
-evidence: /Users/pedronauck/dev/qa-labs/compozy-loop-unblocker-operator-input-20260821-20260821-124157-149087-lab/qa-artifacts/qa/request-unblocker-required-schema-rewalk.md; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/headless/read-parity.sha256; /Users/pedronauck/dev/qa-labs/compozy-loop-task-legibility-runtime-20260821-1126-20260821-112711-004724-lab/qa-artifacts/qa/observation-summary.json
-last_report: docs/qa/reports/2026-08-21-loop-task-legibility.md
+retest_status: pass
+fix_commits: a53f470; b0eaf22; 37c101d; e96962c
+evidence: /Users/pedronauck/dev/qa-labs/compozy-issue-506-filtered-fanout-roster-20260901-131013-477371-lab/qa-artifacts/qa/logs/parity-summary.json
+last_report: docs/qa/reports/2026-09-01-issue-506-filtered-fanout.md
 overlaps: LP-runs-roster-server-ordering; LP-terminal-loop-settlement
 ---
 
@@ -56,3 +56,9 @@ kept its durable winner metadata, superseded coordinator snapshots did not fail 
 Runs reached their expected states. Commands:
 `go test -race -tags=integration ./internal/daemon -run '^TestDaemonE2ELoopRunReadCLIJourneys$/.*(IT-022|IT-027|IT-032)$' -count=10 -failfast` and
 `go test -race -tags=integration ./internal/daemon -run '^TestDaemonE2ELoopRunReadCLIJourneys$' -count=5 -failfast`.
+
+QA impact 2026-09-01: reset because sparse roster rows change briefing, node, and progress values on
+CLI, HTTP, UDS, and native reads. The targeted re-walk must compare one persisted run across them.
+
+QA result 2026-09-01: passed. CLI, HTTP, and UDS returned the same sparse worker indexes `2,4`
+and fan-out rollup `2/2`; native `compozy__loop_runs` reported the same completed run progress.
