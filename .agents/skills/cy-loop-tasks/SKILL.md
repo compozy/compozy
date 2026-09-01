@@ -149,10 +149,14 @@ sections.
 6. **Local lane** — activate `cy-execute-task` on the picked file with
    auto-commit disabled. Run the task's focused validation — the commands
    the task file names plus scoped tests for touched packages; no
-   project-wide gate here (gate map: Critical Rules). Then `cy-final-verify`
-   with the narrow per-task claim. Skip any per-task peer-review or QA-walk
-   step the task file requests — flag `docs/qa/scenarios/` per the diff and
-   move on (review is Phase D, the walk is Phase C).
+   project-wide gate here (gate map: Critical Rules). Run the task's
+   `## Shippable Outcome` verification tier and record its evidence in the
+   task memory: `gate` is already covered by focused validation; `probe`
+   runs its named CLI/HTTP/UDS command; `smoke` opens the surface through
+   its real entry path and captures the touched Visual Contract sections.
+   Then `cy-final-verify` with the narrow per-task claim. Per-task
+   peer-review requests stay deferred to Phase D and full QA cycles stay in
+   Phase C — flag `docs/qa/scenarios/` per the diff and move on.
 7. Confirm memory is updated (written locally, or verified from the worker)
    and that `cy-final-verify` evidence is PASS before any state flip. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
@@ -185,8 +189,9 @@ all reflect the same completed task.
    `cy-final-verify` evidence; it never commits. Skip step 6.
 6. **Local lane** — implement the slice, record decisions and learnings in
    the current memory file, run the slice's focused validation (slice-named
-   commands + scoped tests for touched packages; no project-wide gate), then
-   `cy-final-verify` with the narrow per-slice claim.
+   commands + scoped tests for touched packages; no project-wide gate) —
+   for a slice that touches UI, include a smoke pass through the surface's
+   real entry path — then `cy-final-verify` with the narrow per-slice claim.
 7. Confirm memory is updated and `cy-final-verify` evidence is PASS. For the
    frontend lane, verify the worker's evidence instead of re-running verify.
 8. Acceptance self-check: when every spec criterion has a completed
@@ -350,11 +355,14 @@ The canonical `[[CODEX_LOOP ...]]` header, the manual invocation text, and
 - Peer review (`deep-review`) runs only in Phase D. Per-task peer-review
   instructions inside task files or specs are superseded by this loop's phase
   machine — note "deferred to Phase D" in the task memory and move on.
-- The QA walk runs only in Phase C. Per-task QA-walk demands — task-file
-  validation items, `cy-final-verify`'s QA Tracker Impact, project rules —
-  are satisfied during Phase B by flagging alone: add/reset
-  `docs/qa/scenarios/` files per the task's diff, note "walk deferred to
-  Phase C" in the task memory, and move on.
+- Full QA cycles (journeys, charters, dated reports) run only in Phase C.
+  Phase B owns each task's proportional verification — the `## Shippable
+  Outcome` tier (`gate` | `probe` | `smoke` with Visual Contract capture)
+  with evidence in the task memory — plus scenario flagging: add/reset
+  `docs/qa/scenarios/` files per the task's diff, note "full walk deferred
+  to Phase C" in the task memory, and move on. A UI slice's smoke evidence
+  is Phase B work; relocating it to a later phase is the gate relocation
+  this rule exists to prevent.
 - Checkpoint commits (Phases B and D) belong to the orchestrator:
   `cy-execute-task` runs with auto-commit disabled, and every worker packet
   forbids committing. The checkpoint captures code, memory, task frontmatter,

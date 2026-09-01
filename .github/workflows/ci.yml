@@ -14,10 +14,18 @@ concurrency:
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
+  # Turborepo remote cache (Vercel): jobs exchange the GitHub OIDC token for a
+  # short-lived Turborepo token (revoked at job end). Pull requests read the
+  # shared cache; push and workflow_dispatch lanes upload. Fork PRs skip the
+  # exchange and stay local-only.
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+  TURBO_CACHE: ${{ github.event_name == 'pull_request' && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
 
 permissions:
   contents: read
   pull-requests: read
+  id-token: write
 
 jobs:
   pr-title:
@@ -215,6 +223,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
       - name: Run frontend verification
         env:
           COMPOZY_CODEGEN_CHECKED: "1"
@@ -286,19 +301,25 @@ jobs:
       matrix:
         include:
           - shard_index: "0"
-            shard_label: "1/5"
+            shard_label: "1/8"
           - shard_index: "1"
-            shard_label: "2/5"
+            shard_label: "2/8"
           - shard_index: "2"
-            shard_label: "3/5"
+            shard_label: "3/8"
           - shard_index: "3"
-            shard_label: "4/5"
+            shard_label: "4/8"
           - shard_index: "4"
-            shard_label: "5/5"
+            shard_label: "5/8"
+          - shard_index: "5"
+            shard_label: "6/8"
+          - shard_index: "6"
+            shard_label: "7/8"
+          - shard_index: "7"
+            shard_label: "8/8"
     env:
       COMPOZY_GO_TEST_P: "1"
       COMPOZY_GO_TEST_SHARD_INDEX: ${{ matrix.shard_index }}
-      COMPOZY_GO_TEST_SHARD_TOTAL: "5"
+      COMPOZY_GO_TEST_SHARD_TOTAL: "8"
       COMPOZY_GO_TEST_JSONFILE_DIR: /tmp/gotest-json
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
@@ -418,6 +439,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
       - name: Run desktop verification
         run: |
           make desktop-lint
@@ -468,10 +496,10 @@ jobs:
             fi
           done
 
-  e2e-runtime-web:
-    name: E2E runtime and web
+  e2e-runtime:
+    name: E2E runtime
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     needs: changes
     if: needs.changes.outputs.relevant == 'true'
     steps:
@@ -482,6 +510,61 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
           install-gotestsum: "true"
+
+      - name: Set up Bun (runtime build dependencies)
+        uses: ./.github/actions/setup-bun
+        with:
+          install-playwright: "false"
+
+      - name: Restore Turbo cache
+        uses: actions/cache/restore@v6
+        with:
+          path: .turbo
+          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
+            ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
+            ${{ runner.os }}-turbo-
+
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
+      - name: Run runtime E2E lane
+        run: make test-e2e-runtime
+        env:
+          CGO_ENABLED: 0
+          CI: "true"
+
+      - name: Upload runtime E2E artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-runtime-artifacts
+          path: /tmp/compozy-e2e-*
+          if-no-files-found: ignore
+          retention-days: 7
+
+  e2e-web:
+    name: E2E web (shard ${{ matrix.shard }}/4)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    needs: changes
+    if: needs.changes.outputs.relevant == 'true'
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: ./.github/actions/setup-go
+        with:
+          go-version: ${{ env.GO_VERSION }}
 
       - name: Set up Bun (web deps + Playwright)
         uses: ./.github/actions/setup-bun
@@ -498,29 +581,30 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
-      - name: Run runtime and web E2E lane
-        run: make test-e2e
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
+      - name: Run web E2E lane shard
+        run: make test-e2e-web
         env:
           CGO_ENABLED: 0
           CI: "true"
+          COMPOZY_E2E_WEB_SHARD: ${{ matrix.shard }}/4
 
-      - name: Upload E2E artifacts on failure
+      - name: Upload web E2E artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-runtime-web-artifacts
+          name: e2e-web-artifacts-shard-${{ matrix.shard }}
           path: |
             .tmp/playwright
             /tmp/compozy-e2e-*
           if-no-files-found: ignore
           retention-days: 7
-
-      - name: Save Turbo cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v6
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
 
   e2e-desktop:
     name: E2E desktop
@@ -562,6 +646,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
       - name: Run desktop E2E lane
         run: make test-e2e-desktop
         env:
@@ -579,27 +670,21 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Save Turbo cache
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: actions/cache/save@v6
-        with:
-          path: .turbo
-          key: ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-${{ github.run_id }}
-
   e2e-combined:
     name: E2E (combined lane)
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [changes, e2e-runtime-web, e2e-desktop]
+    needs: [changes, e2e-runtime, e2e-web, e2e-desktop]
     if: always() && needs.changes.outputs.relevant == 'true'
     steps:
-      - name: Require both E2E lanes
+      - name: Require every E2E lane
         env:
-          RUNTIME_WEB_RESULT: ${{ needs.e2e-runtime-web.result }}
+          RUNTIME_RESULT: ${{ needs.e2e-runtime.result }}
+          WEB_RESULT: ${{ needs.e2e-web.result }}
           DESKTOP_RESULT: ${{ needs.e2e-desktop.result }}
         run: |
           set -euo pipefail
-          for result in "$RUNTIME_WEB_RESULT" "$DESKTOP_RESULT"; do
+          for result in "$RUNTIME_RESULT" "$WEB_RESULT" "$DESKTOP_RESULT"; do
             if [[ "$result" != "success" ]]; then
               echo "E2E lane finished with result: $result"
               exit 1

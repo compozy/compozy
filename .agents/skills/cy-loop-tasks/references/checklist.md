@@ -34,7 +34,7 @@ final iteration.
 - [ ] The lane matched detect-phase: `lane=frontend agent=<x>` printed → herdr dispatch; no suffix → local `cy-execute-task`.
 - [ ] Focused validation ran (task/slice-named commands + scoped tests; no project-wide gate), every failure was repaired in the same phase action, then `cy-final-verify` passed (or worker PASS evidence was verified for the frontend lane) before `update-state.py`.
 - [ ] No peer-review round (`deep-review`) ran in this iteration — per-task review instructions were deferred to Phase D.
-- [ ] QA stayed flag-only: user-visible diffs added/reset `docs/qa/scenarios/` files; the walk was deferred to Phase C.
+- [ ] The task's `## Shippable Outcome` verification tier ran with evidence in the task memory (`gate` covered by focused validation; `probe` command output cited; `smoke` entry-path pass + touched Visual Contract captures); user-visible diffs added/reset `docs/qa/scenarios/` files; the full walk was deferred to Phase C.
 - [ ] Exactly ONE task was attempted in this iteration.
 - [ ] `commit-checkpoint.py <slug> --task <stem>` ran after `update-state.py` and printed a commit SHA or the literal `SKIP: no changes` (plus a `stack: submitted` line when `state.stacked=true`), captured in the summary's checkpoint field.
 

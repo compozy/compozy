@@ -52,21 +52,22 @@ Stage 1 — Part I (Product):
 2. Before authoring, confirm the active idea is framed as WHAT/WHY/WHO and not implementation detail.
 3. After Part I is written, run `python3 scripts/check-spec-part1-leak.py <spec_path>` to surface framework/storage/error-code/file-format names. Move every match to Part II unless the spec is *about* the named technology.
 4. Confirm Part I lists explicit Goals, Non-Goals, and Open Questions, and states the agent/operator manageability outcome and extension ecosystem expectation without naming implementation details.
+5. Confirm the Overview opens with the Motivating Problem and the simplest end-to-end behavior that solves it, stated as an outcome observable from outside the system. Cross-check every ADR against it: an ADR that narrows or defers the Motivating Problem must carry the user's recorded sign-off.
 
 Stage 2 — Surface + Part II (Technical):
 
-5. Read `references/spec-six-markers.md`.
-6. Confirm `_dx.md` exists and is written as-if-shipped (paired write→see examples, zero internals). For features touching `web/`, confirm `_uiux.md` exists — its presence is the UI-bearing signal the QA tail consumes.
-7. After Part II is written, run `python3 scripts/check-spec-markers.py <spec_path>` to verify the six markers are present.
-8. Confirm "No fallback / no compat shim / no placeholder" clauses are present where breaking changes apply, and delete targets are listed.
-9. Confirm Testing Approach is strategy-only and `_tests.md` carries the concrete cases derived from `_user_stories.md`, `_dx.md`, and `_uiux.md`.
-10. Confirm the Agent Manageability Plan and API sections are consistent with `_dx.md` (routes, payloads, CLI verbs, config keys — no divergence between promise and design).
-11. Confirm the Extensibility Integration Plan enumerates extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected.
-12. Confirm the Config Lifecycle section enumerates `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected.
-13. Confirm File References is filled as the read-first index: repo files, `.resources/<competitor>/path` entries when the design drew on competitors, and `analysis/`/design sources — each annotated with why to read it.
-14. Confirm the Assumptions and Defaults section closes the spec.
-15. Confirm Web/Docs Impact is captured if any contract surface is touched (activate `cy-web-docs-impact`).
-16. After the user approves the complete spec and it has been saved, offer `cy-spec-peer-review`. Invoke it only if the user explicitly opts in.
+6. Read `references/spec-six-markers.md`.
+7. Confirm `_dx.md` exists and is written as-if-shipped (paired write→see examples, zero internals). For features touching `web/`, confirm `_uiux.md` exists — its presence is the UI-bearing signal the QA tail consumes.
+8. After Part II is written, run `python3 scripts/check-spec-markers.py <spec_path>` to verify the six markers are present.
+9. Confirm "No fallback / no compat shim / no placeholder" clauses are present where breaking changes apply, and delete targets are listed.
+10. Confirm Testing Approach is strategy-only and `_tests.md` carries the concrete cases derived from `_user_stories.md`, `_dx.md`, and `_uiux.md`.
+11. Confirm the Agent Manageability Plan and API sections are consistent with `_dx.md` (routes, payloads, CLI verbs, config keys — no divergence between promise and design).
+12. Confirm the Extensibility Integration Plan enumerates extension manifests, hooks, skills/capabilities, tools/resources, registries, bridge SDKs, MCP sidecars, and protocol docs that are added/changed/removed or explicitly unaffected.
+13. Confirm the Config Lifecycle section enumerates `config.toml` keys/defaults, merge/overlay behavior, validation, examples, generated CLI/site docs, and tests that are added/changed/removed or explicitly unaffected.
+14. Confirm File References is filled as the read-first index: repo files, `.resources/<competitor>/path` entries when the design drew on competitors, and `analysis/`/design sources — each annotated with why to read it.
+15. Confirm the Assumptions and Defaults section closes the spec.
+16. Confirm Web/Docs Impact is captured if any contract surface is touched (activate `cy-web-docs-impact`).
+17. After the user approves the complete spec and it has been saved, offer `cy-spec-peer-review`. Invoke it only if the user explicitly opts in.
 
 ### Phase: `tasks`
 
@@ -81,6 +82,9 @@ Stage 2 — Surface + Part II (Technical):
 9. Confirm test density is proportional to behavior count per task. Reject "fraco" plans (1-2 tests for many behaviors).
 10. Confirm each task's `### Competitor References` copies its `.resources/<competitor>/path` subset from `_spec.md` File References when the spec drew on competitors.
 11. Confirm no TBD / placeholder rows.
+12. Confirm every implementation task is a shippable slice: it carries a `## Shippable Outcome` with its verification tier, and no task is a layer grouping (all-backend / all-frontend / all-docs).
+13. Confirm mission traceability: exactly one slice's Shippable Outcome solves the spec's Motivating Problem end-to-end, and it is the earliest slice the dependency graph allows.
+14. When `_uiux.md` exists, confirm visual coverage: every artboard section of every mapped surface touched by a slice appears in that slice's Visual Contract.
 
 ### Phase: `task-body`
 

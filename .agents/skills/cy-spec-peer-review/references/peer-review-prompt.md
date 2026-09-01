@@ -28,8 +28,10 @@ YOUR JOB:
    under-specified safety invariants, parallel-queue creation, hooks tailing event tables, hidden
    coupling to deferred features, security regressions (raw claim_token leakage, unverified-format
    identity classification), schema-without-migration, partial-surface completion (CLI/HTTP only,
-   UDS/docs/codegen later), test-shape violations baked into the plan, and Part II designs
-   that diverge from what `_dx.md`/`_uiux.md` promise.
+   UDS/docs/codegen later), test-shape violations baked into the plan, Part II designs
+   that diverge from what `_dx.md`/`_uiux.md` promise, a Motivating Problem that no MVP slice
+   solves end-to-end (or an ADR narrowing/deferring it without the user's recorded sign-off),
+   and multiple distinct product problems packed into one spec where a sequenced program was due.
 3. Identify NITS (non-blocking improvements): clarity, naming, test-density, observability event
    coverage, doc co-ship completeness.
 4. Issue a READINESS verdict: READY / BLOCKED / NEEDS_REWORK.

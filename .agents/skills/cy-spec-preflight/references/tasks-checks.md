@@ -12,10 +12,12 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 ## Boundary
 
 - [ ] An `## MVP Boundary` section above the table names which numbered tasks are MVP, what is post-MVP, what is out of scope.
+- [ ] Mission traceability: exactly one slice's `## Shippable Outcome` solves the spec's Motivating Problem end-to-end, and it is the earliest slice the dependency graph allows.
 
 ## Per-row directives
 
 - [ ] **Dependencies** populated for every row (`task_NN, task_MM` or `-`).
+- [ ] **Shippable Outcome** section exists in every implementation task — observable outcome plus verification tier (`gate` | `probe` | `smoke`) — and no task is a layer grouping (all-backend / all-frontend / all-docs).
 - [ ] **Complexity** rated `low | medium | high | critical`. Critical reserved for safety primitives + final QA execution.
 - [ ] **Status** starts as `pending` unless enriching an existing task tree with known completed work.
 - [ ] **Skills** are named in each task body, not in the master table, when a task requires explicit skill activation.
@@ -40,6 +42,10 @@ Run after `cy-create-tasks` produces a draft, before handing off to execution.
 - [ ] CLI/HTTP/UDS changes include agent-operability tests: structured output, status/config discovery, deterministic errors, and cross-surface state comparison when applicable.
 - [ ] Config changes include merge/overlay, default, validation, docs/example, and restart/reload tests where applicable.
 - [ ] Test plan cites `eng-test-conventions` for shape, `eng-cleanup-failure-paths` for cleanup audit, `eng-schema-migration` for migrations, `eng-contract-codegen-coship` for contract changes.
+
+## Visual coverage (UI-bearing slugs)
+
+- [ ] Every artboard section of every `_uiux.md` surface touched by a slice appears in that slice's `## Visual Contract`, with rows derived from the `_uiux.md` inventory — never from what the task happens to cite.
 
 ## Competitor refs
 

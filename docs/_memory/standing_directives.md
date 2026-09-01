@@ -183,3 +183,22 @@ Ongoing engineering posture, not date-stamped per-task plans. These are perpetua
 **Source:** explicit user directive on 2026-04-26; reinforces Compozy's product premise (`agent-first`, highly extensible, highly configurable).
 
 **Triggers re-evaluation when:** any spec/feature changes runtime behavior, public contracts, CLI verbs, HTTP/UDS routes, config keys, hooks, extension manifests, skill/tool/resource surfaces, bridge SDKs, or agent-operated workflows.
+
+---
+
+## SD-012 — Sliced Delivery and Proportional Verification
+
+**Posture.** Specs deliver through shippable slices, not layer phases. A slice is the smallest increment that could merge to `main` alone, with an outcome observable from outside the system; its verification is proportional and travels with it. Quality and speed together: the tier covers only what the slice changed, never a full QA cycle per task.
+
+**Required behavior:**
+
+- Task graphs cut by outcome, never by layer: "all backend → all frontend → docs → QA" is an invalid breakdown (L-037). A foundation-only task names the slice that consumes it, and that consumer is next.
+- Slice 1 solves the spec's Motivating Problem end-to-end in its simplest honest form; an ADR narrowing or deferring that problem carries the user's recorded sign-off (L-036).
+- The slice budget defaults to 5 per spec, overridable per invocation (`slice_budget: N`); an honest overflow is presented as a sequenced program of independently shippable specs and the user decides.
+- Every slice carries `## Shippable Outcome` with the cheapest verification tier that can falsify it — `gate` (tests/lints) | `probe` (named CLI/HTTP/UDS command) | `smoke` (real entry path + touched Visual Contract captures). Tier evidence lands with the slice; relocating a slice's gate to a later task is forbidden (L-037). Visual Contract rows derive from the `_uiux.md` inventory, never task self-citation.
+- Full QA cycles (journeys, charters, dated reports) remain the trailing QA pair's job — it complements per-slice evidence and never re-walks it (SD-005 unchanged on the tail's existence).
+- Per-slice PRs stay opt-in (`--stacked`, off by default); the default single-branch flow keeps one checkpoint commit per slice.
+
+**Source:** agent-comms post-mortem 2026-09-01: 8-feature spec, layer-split graph, all UI in one 7-hour task, gates deferred to a tail task that never named them — first browser verification ~28h after first commit, ~700 review findings (~350 post-SHIP), 9 feature vs 52 repair commits, motivating problem never delivered. Spec set archived at [`compozy-specs/_archived/2026-08-19-agent-comms/`](https://github.com/compozy/compozy-specs/tree/main/_archived/2026-08-19-agent-comms); execution trail on the unmerged `agent-comms` branch (remote only, draft PR [compozy/compozy#497](https://github.com/compozy/compozy/pull/497)). Lessons L-036..L-039.
+
+**Triggers re-evaluation when:** any change to `cy-create-tasks` sizing rules, the QA tail pair, `cy-loop-tasks` phase machine, or a proposed `_tasks.md` whose graph groups work by layer.

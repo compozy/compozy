@@ -20,13 +20,14 @@ The spec has two parts written in two stages, separated by a checkpoint:
 - Decide, then write: once a stage's frontier is empty and its ADRs are recorded, write that stage's files directly. The user reviews the generated files and requests changes afterward — no draft-approval loops.
 </HARD-GATE>
 
-## Full Scope, One Spec
+## Full Scope, Sliced Delivery
 
-Capture the complete scope the user wants in this single spec, however large it grows. Agents run long and `cy-create-tasks` decomposes the work later, so document size is never a reason to trim, defer, or stage anything.
+Capture the complete scope the user wants, however large it grows — a capability leaves scope only when the user decides against it (record that in Non-Goals). Scope lives in the documents; delivery lives in shippable slices:
 
-- A capability leaves the spec only when the user decides against it — record that in Non-Goals.
+- The spec opens with its **Motivating Problem** — the concrete pain that triggered it — and the simplest end-to-end behavior that solves it. That behavior is what `cy-create-tasks` turns into slice 1; every later capability extends it. An ADR that narrows or defers the Motivating Problem is valid only with the user's sign-off recorded in the ADR itself.
+- When the scope holds more than one distinct product problem, or an honest breakdown would exceed the slice budget (default 5 shippable slices; `slice_budget: N` per invocation), present it at the checkpoint as a sequenced program of specs — each independently shippable — and let the user choose between one spec and the program.
 - YAGNI applies to invention: challenge features the user never asked for; keep every one they did.
-- When the user adds scope mid-conversation, fold it in and keep going.
+- When the user adds scope mid-conversation, fold it in — and re-check the slice budget at the next checkpoint.
 - Design minimalism applies to Part II — to the design, never the scope: include no component, interface, or abstraction the design does not strictly need, and prefer adding a file to an existing package over proposing new packages.
 
 ## Grilling

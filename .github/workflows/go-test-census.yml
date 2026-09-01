@@ -52,14 +52,20 @@ jobs:
         if: env.CENSUS_RUN_ID != ''
         run: go run github.com/magefile/mage@v1.17.2 testCensusUpdate /tmp/gotest-json
 
-      - name: Open a refresh PR when the census changed
+      - name: Publish the refresh branch when the census changed
         if: env.CENSUS_RUN_ID != ''
         env:
-          GH_TOKEN: ${{ github.token }}
+          # The enterprise policy blocks GITHUB_TOKEN from creating pull
+          # requests. With an optional CENSUS_PR_TOKEN (fine-grained PAT with
+          # contents + pull-requests write) the PR opens automatically;
+          # otherwise the branch is pushed and the summary links the one-click
+          # PR creation page.
+          GH_TOKEN: ${{ secrets.CENSUS_PR_TOKEN || github.token }}
+          HAS_PR_TOKEN: ${{ secrets.CENSUS_PR_TOKEN != '' }}
         run: |
           set -euo pipefail
           if git diff --quiet -- magefiles/gotest_census.json; then
-            echo "Census unchanged; no PR needed."
+            echo "Census unchanged; no refresh needed."
             exit 0
           fi
           branch="ci/gotest-census-refresh"
@@ -69,11 +75,24 @@ jobs:
           git add magefiles/gotest_census.json
           git commit -m "ci: refresh go unit-test shard census"
           git push --force origin "$branch"
-          if ! gh pr view "$branch" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+          if gh pr view "$branch" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Refresh PR already open for $branch."
+            exit 0
+          fi
+          if [[ "$HAS_PR_TOKEN" == "true" ]]; then
             gh pr create \
               --repo "$GITHUB_REPOSITORY" \
               --base main \
               --head "$branch" \
               --title "ci: refresh go unit-test shard census" \
               --body "Automated weekly refresh of magefiles/gotest_census.json from the shard timing artifacts of CI run ${CENSUS_RUN_ID}."
+            exit 0
           fi
+          compare_url="https://github.com/${GITHUB_REPOSITORY}/compare/main...${branch}?expand=1"
+          {
+            echo "## Census refresh pushed"
+            echo
+            echo "Enterprise policy prevents GITHUB_TOKEN from opening pull requests."
+            echo "Open the refresh PR manually: ${compare_url}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::notice title=Census refresh pushed::Open the PR manually: ${compare_url}"
