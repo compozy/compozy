@@ -351,6 +351,27 @@ describe("Session SessionToolCallRow — wraps <SessionToolCallRow> from @compoz
     expect(screen.queryByText("Output")).not.toBeInTheDocument();
   });
 
+  it("Should intercept a hosted-MCP terminal open carrying a string envelope", async () => {
+    render(
+      artifactRow(
+        "ws-terminal",
+        makeToolMessage({
+          toolName: "mcp__compozy-hosted-tools__compozy__terminal_open",
+          toolInput: {},
+          toolResult: {
+            rawOutput: {
+              content: '{"terminal_id":"term-51e7b88e4515"}',
+              raw_output: '{"terminal_id":"term-51e7b88e4515"}',
+            },
+          },
+        })
+      )
+    );
+
+    expect(await screen.findByTestId("terminal-content")).toBeInTheDocument();
+    expect(queryRoot()).toBeNull();
+  });
+
   it("Should render the existing Output dispatcher inside the inline body", () => {
     render(
       <SessionToolCallRow

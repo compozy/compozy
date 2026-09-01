@@ -1,23 +1,45 @@
 import type { TerminalExit, TerminalInfo, TerminalSignal } from "@/systems/terminal/parts";
 
-/** Native tools that open or run a supervised terminal — not agent-reported output. */
+/** Native tools that open or run a supervised terminal — not internal command output. */
 const DELIBERATE_TERMINAL_TOOLS = new Set(["compozy__terminal_exec", "compozy__terminal_open"]);
 
+const HOSTED_COMPOZY_TOOL_PATTERN = /^mcp__.+?__(compozy__[a-z0-9_]+)$/;
+
+/** Hosted-MCP projections prefix native ids (`mcp__<server>__compozy__x`); recover the id. */
+export function canonicalCompozyToolName(toolName: string): string {
+  const trimmed = toolName.trim();
+  const match = HOSTED_COMPOZY_TOOL_PATTERN.exec(trimmed);
+  return match?.[1] ?? trimmed;
+}
+
 export function isDeliberateTerminalTool(toolName: string | undefined): boolean {
-  return toolName !== undefined && DELIBERATE_TERMINAL_TOOLS.has(toolName);
+  return (
+    toolName !== undefined && DELIBERATE_TERMINAL_TOOLS.has(canonicalCompozyToolName(toolName))
+  );
 }
 
 export function asRecord(value: unknown): Record<string, unknown> {
   return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 }
 
+/** MCP results carry the structured payload as a JSON string; decode before reading. */
+function asEnvelopeRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      return typeof parsed === "object" && parsed !== null
+        ? (parsed as Record<string, unknown>)
+        : null;
+    } catch {
+      return null;
+    }
+  }
+  return typeof value === "object" && value !== null ? (value as Record<string, unknown>) : null;
+}
+
 /** The supervised terminal this tool call named, when the runtime created one. */
 export function readSupervisedTerminalId(rawOutput: unknown): string | null {
-  const envelope = asRecord(rawOutput);
-  const raw = asRecord(
-    envelope.structured ?? envelope.raw_output ?? envelope.rawOutput ?? rawOutput
-  );
-  return readNonEmptyString(raw.terminal_id);
+  return readNonEmptyString(readTerminalEnvelope(rawOutput).terminal_id);
 }
 
 export function readNonEmptyString(value: unknown): string | null {
@@ -26,7 +48,11 @@ export function readNonEmptyString(value: unknown): string | null {
 
 export function readTerminalEnvelope(rawOutput: unknown): Record<string, unknown> {
   const envelope = asRecord(rawOutput);
-  return asRecord(envelope.structured ?? envelope.raw_output ?? envelope.rawOutput ?? rawOutput);
+  for (const candidate of [envelope.structured, envelope.raw_output, envelope.rawOutput]) {
+    const record = asEnvelopeRecord(candidate);
+    if (record !== null) return record;
+  }
+  return asRecord(rawOutput);
 }
 
 export interface SessionTerminalEnvelopeRun {

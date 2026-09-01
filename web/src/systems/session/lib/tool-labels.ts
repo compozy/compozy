@@ -28,6 +28,8 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { canonicalCompozyToolName } from "./session-terminal-tools";
+
 // --- Tool Icons ---
 
 const TOOL_ICONS: Record<string, LucideIcon> = {
@@ -165,6 +167,51 @@ const TOOL_LABELS: Record<string, ToolLabels> = {
     past: "Opened terminal",
     failure: "open terminal",
   },
+  compozy__terminal_write: {
+    active: "Typing in terminal...",
+    past: "Typed in terminal",
+    failure: "type in terminal",
+  },
+  compozy__terminal_read: {
+    active: "Reading terminal...",
+    past: "Read terminal",
+    failure: "read terminal",
+  },
+  compozy__terminal_wait: {
+    active: "Waiting on terminal...",
+    past: "Waited on terminal",
+    failure: "wait on terminal",
+  },
+  compozy__terminal_list: {
+    active: "Listing terminals...",
+    past: "Listed terminals",
+    failure: "list terminals",
+  },
+  compozy__terminal_signal: {
+    active: "Signaling terminal...",
+    past: "Signaled terminal",
+    failure: "signal terminal",
+  },
+  compozy__terminal_close: {
+    active: "Closing terminal...",
+    past: "Closed terminal",
+    failure: "close terminal",
+  },
+  compozy__terminal_claim: {
+    active: "Claiming terminal...",
+    past: "Claimed terminal",
+    failure: "claim terminal",
+  },
+  compozy__terminal_yield: {
+    active: "Yielding terminal...",
+    past: "Yielded terminal",
+    failure: "yield terminal",
+  },
+  compozy__terminal_request_input: {
+    active: "Requesting input...",
+    past: "Requested input",
+    failure: "request input",
+  },
 };
 
 const REGISTERED_TOOL_NAMES = new Set(Object.keys(TOOL_LABELS));
@@ -180,6 +227,10 @@ export function resolveRegisteredToolName(toolName: string): string {
   }
   if (REGISTERED_TOOL_NAMES.has(trimmed)) {
     return trimmed;
+  }
+  const canonical = canonicalCompozyToolName(trimmed);
+  if (REGISTERED_TOOL_NAMES.has(canonical)) {
+    return canonical;
   }
   for (const registered of REGISTERED_TOOL_NAMES) {
     if (trimmed.startsWith(`${registered} `)) {

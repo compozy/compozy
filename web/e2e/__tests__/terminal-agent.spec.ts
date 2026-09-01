@@ -20,6 +20,7 @@ import {
   focusWindowThroughPalette,
   openAppWindow,
   sessionWindow,
+  windowFrame,
 } from "../fixtures/os-navigation";
 import type { BrowserRuntime, RuntimePaths } from "../fixtures/runtime";
 import { profilesOperatorSelectors, sessionWindowSelectors } from "../fixtures/selectors";
@@ -234,55 +235,6 @@ test.use({
   },
 });
 
-test("E2E-010: agent-reported output stays labeled and absent from the Terminal app", async ({
-  appPage,
-  runtime,
-}) => {
-  assertLaunchRuntime(runtime);
-  await completeOnboardingIfPrompted(appPage);
-  const workspace = await runtime.resolveWorkspace(runtime.paths.workspaceDir);
-  const created = await runtime.requestJSON<SessionEnvelope>("/api/sessions", {
-    method: "POST",
-    body: JSON.stringify({ agent_name: MOCK_AGENT, workspace: workspace.id }),
-  });
-  const sessionId = created.session.id;
-  await appPage.goto(runtime.url(`/agents/${MOCK_AGENT}/sessions/${sessionId}`), {
-    waitUntil: "domcontentloaded",
-  });
-  const sessionWin = sessionWindow(appPage, sessionId);
-  const sessionUI = sessionWindowSelectors(sessionWin, appPage);
-  await expect(sessionWin).toBeVisible({ timeout: 20_000 });
-  await sessionUI.composerTextarea.fill("show agent reported terminal");
-  await sessionUI.composerTextarea.press("Enter");
-
-  const reported = sessionWin.getByTestId("session-agent-reported-block-reported-terminal-1");
-  await expect(reported).toBeVisible({ timeout: 20_000 });
-  await expect(reported.getByText("reported by agent")).toBeVisible();
-  await expect(reported.getByRole("log", { name: /reported by the agent/i })).toHaveAttribute(
-    "data-readonly",
-    "true"
-  );
-  await expect(reported.getByRole("button")).toHaveCount(0);
-  await expect(reported).toContainText("12 tests passed");
-
-  const catalog = await runtime.requestJSON<{ terminals: unknown[] }>(
-    `/api/workspaces/${encodeURIComponent(workspace.id)}/terminals?profile=default`
-  );
-  expect(catalog.terminals).toEqual([]);
-  // The Terminal app resolves into a fresh terminal of its own; the reported
-  // pseudo-terminal never appears in the catalog it draws from.
-  await ensureProjectWorkspace(appPage, runtime);
-  const terminalWindow = await openAppWindow(appPage, "Terminal", "terminal");
-  await expect(
-    terminalWindow.locator('[data-testid^="terminal-pane-term-"]:visible')
-  ).toBeVisible();
-  const afterOpen = await runtime.requestJSON<{ terminals: Array<{ title: string }> }>(
-    `/api/workspaces/${encodeURIComponent(workspace.id)}/terminals?profile=default`
-  );
-  expect(afterOpen.terminals).toHaveLength(1);
-  expect(afterOpen.terminals[0]?.title).not.toContain("reported");
-});
-
 test("E2E-003: deliberate agent exec stays discoverable from approval through journal", async ({
   appPage,
   runtime,
@@ -324,6 +276,12 @@ test("E2E-003: deliberate agent exec stays discoverable from approval through jo
     const execution = readToolResult<TerminalToolResult>(callResult);
     expect(execution).toMatchObject({ still_running: true });
     const terminalId = execution.terminal_id;
+
+    // The daemon materializes a Terminal window for the agent-opened pty
+    // without stealing focus from the session the human is reading.
+    const materialized = appPage.locator('[data-slot="os-window-surface"][data-app="terminal"]');
+    await expect(materialized).toBeVisible({ timeout: 20_000 });
+    await expect(windowFrame(harness.sessionWin)).toHaveAttribute("data-focused", "");
 
     await ensureProjectWorkspace(appPage, runtime);
     // The deep link is the deterministic way to this exact terminal; ambient
