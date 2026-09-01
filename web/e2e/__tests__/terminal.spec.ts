@@ -408,13 +408,26 @@ test("E2E-002: browser keeps two terminal windows across reload and reattaches a
   await appPage.reload({ waitUntil: "domcontentloaded" });
   const restoredFrame = appPage.locator('[data-slot="os-window-frame"][data-focused]');
   await expect(restoredFrame.locator('[role="tab"]')).toHaveCount(2);
-  // Reattach re-votes the grid size, so the screens are read after convergence.
+  // Reattach re-votes the grid size, and a transient shrink may reflow the
+  // focused viewport (ADR-015 sizes by writers). Retention is therefore
+  // asserted on the unfocused PTY, which cast no vote, while the focused one
+  // proves the stronger fact: the same process answers through the restored
+  // attachment.
+  const restoredWindow = focusedTerminalWindow(appPage);
+  const restoredID = await visibleTerminalPaneID(restoredWindow);
+  expect([firstID, secondID]).toContain(restoredID);
+  const retainedID = restoredID === firstID ? secondID : firstID;
+  const retainedMarker = retainedID === firstID ? "first-screen-intact" : "second-screen-intact";
   await expect
-    .poll(async () => (await terminalScreen(runtime, workspace.id, firstID)).content)
-    .toContain("first-screen-intact");
+    .poll(async () => (await terminalScreen(runtime, workspace.id, retainedID)).content)
+    .toContain(retainedMarker);
+  const restoredLog = await takeTerminalControl(restoredWindow);
+  await restoredLog.click();
+  await appPage.keyboard.type("printf 'reattach-live\\n'");
+  await appPage.keyboard.press("Enter");
   await expect
-    .poll(async () => (await terminalScreen(runtime, workspace.id, secondID)).content)
-    .toContain("second-screen-intact");
+    .poll(async () => (await terminalScreen(runtime, workspace.id, restoredID)).content)
+    .toContain("reattach-live");
   const running = await runTerminalCLI<TerminalListEnvelope>(runtime.paths, [
     "list",
     "--workspace",
