@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids:
 fix_status: fixed
 retest_status: passed
-fix_commits: 4eb70b82202446ad9eb3ec7a9ea35734cb6c824a
+fix_commits: 30405950134c99f0feea2d97fb6acf81f357bc7e
 evidence: go test -tags=integration ./internal/daemon -run TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound/Should_route_classifier_output_and_expose_gate_reroute_causes_through_loop_status -count=1; /Users/pedronauck/dev/qa-labs/compozy-issue-479-exclusive-route-20260825-213535-019283-lab/qa-artifacts/qa/notes/cli-runtime-verdict.json; /Users/pedronauck/dev/qa-labs/compozy-issue-479-exclusive-route-20260825-213535-019283-lab/qa-artifacts/qa/notes/cli-task-catalog-verdict.json; /Users/pedronauck/dev/qa-labs/compozy-issue-479-exclusive-route-20260825-213535-019283-lab/qa-artifacts/qa/notes/http-independent-verdict.json
 last_report: docs/qa/reports/2026-09-01-loop-route-selection.md
 overlaps:

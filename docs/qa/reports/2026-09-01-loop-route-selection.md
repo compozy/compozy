@@ -2,7 +2,7 @@
 
 - **Scope:** Honor same-pass route skips before evaluating later coordinator-owned gates or actions.
 - **Cadence tier:** targeted
-- **Build:** `4eb70b82202446ad9eb3ec7a9ea35734cb6c824a` · **Environment:** isolated integration harness using the real CLI, HTTP API, UDS, and Loop runtime with deterministic ACP fixtures
+- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `30405950134c99f0feea2d97fb6acf81f357bc7e` · **Environment:** isolated integration harness using the real CLI, HTTP API, UDS, and Loop runtime with deterministic ACP fixtures
 - **Started:** 2026-09-01T20:00:00Z · **Status:** closed
 
 ## Personas
@@ -19,7 +19,7 @@
 
 | # | Journey / Scenario | Persona | Status | Issue | Fix commit |
 |---|---|---|---|---|---|
-| 1 | `LP-exclusive-route-history` | Bruno | Pass | Unselected gate executed after the selected route | `4eb70b82` |
+| 1 | `LP-exclusive-route-history` | Bruno | Pass | Unselected gate executed after the selected route | `30405950` |
 
 ## Session Debriefs
 
