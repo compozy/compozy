@@ -2,7 +2,7 @@
 
 - **Scope:** Honor same-pass route skips before evaluating later coordinator-owned gates or actions.
 - **Cadence tier:** targeted
-- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `30405950134c99f0feea2d97fb6acf81f357bc7e` · **Environment:** isolated integration harness using the real CLI, HTTP API, UDS, and Loop runtime with deterministic ACP fixtures
+- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `304059507bbeff0213b1d516cccbd5be7939bb03` · **Environment:** isolated integration harness using the real CLI, HTTP API, UDS, and Loop runtime with deterministic ACP fixtures
 - **Started:** 2026-09-01T20:00:00Z · **Status:** closed
 
 ## Personas
