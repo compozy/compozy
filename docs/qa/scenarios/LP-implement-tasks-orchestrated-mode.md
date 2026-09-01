@@ -10,9 +10,9 @@ qa_status: blocked-verify
 bug_ids: BUG-20260826-optional-runtime-run-fails
 fix_status: fixed
 retest_status: pending
-fix_commits: d2490f96e
+fix_commits: d2490f96e; 430f0be1c6153d4cc691038a8e088c6696707d02; 7dc8d82adcdcaa6da5780370c0d92840f3ced5dd
 evidence:
-last_report: docs/qa/reports/2026-08-28-pr-502-orchestrated-implementer.md
+last_report: docs/qa/reports/2026-09-01-profile-extension-implementer.md
 overlaps: LP-003; LP-goal-command-judge; ET-spec-cycle-skill-bundle
 ---
 
@@ -27,3 +27,5 @@ Agent-local sentinel visibility, category runtime propagation, settlement, and w
 authorized provider credentials were unavailable for the isolated public-interface walk. A human
 must authorize provider access and run this charter before the scenario can become `pass`. The
 existing optional-runtime retest remains `pending`; no blocked result is promoted to pass.
+
+2026-09-01: `blocked-verify` — typed entity validation now resolves the Profile lens and the direct public catalog regression passes without leaking to the default Profile. The new stock implement-tasks E2E installs `engineer` and its Agent-local skill in `engineering`, but its conductor sandbox currently exits 69 before worker spawn and the run remains active until timeout, even on the combined A+B+C head. The executable failing regression is retained; publication must not claim the full Profile engineer journey until this remaining public-path failure is diagnosed.
