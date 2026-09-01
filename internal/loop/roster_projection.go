@@ -1,7 +1,7 @@
 package loop
 
 import (
-	"sort"
+	"slices"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
@@ -14,7 +14,7 @@ func rosterGenerations(source *RosterSource) []int {
 	for _, item := range source.Generations {
 		generations = append(generations, int(item.Generation))
 	}
-	sort.Ints(generations)
+	slices.Sort(generations)
 	return generations
 }
 
@@ -23,18 +23,18 @@ func rosterItems(
 	generation int,
 	node dsl.Node,
 	outputs map[string]*GenerationOutput,
-	maxOutputItems map[string]int,
+	outputItemIndexes map[string][]int,
 	attempts map[string][]NodeAttempt,
 	controls map[NodeID]*NodeControl,
 	waits map[string]*NodeWait,
 	excluded map[string]bool,
 ) []RosterNode {
-	maxItem, ok := maxOutputItems[rosterNodeKey(generation, node.ID)]
-	if !ok || maxItem < 1 {
+	itemIndexes := outputItemIndexes[rosterNodeKey(generation, node.ID)]
+	if len(itemIndexes) == 0 {
 		return nil
 	}
-	items := make([]RosterNode, 0, maxItem+1)
-	for itemIndex := 0; itemIndex <= maxItem; itemIndex++ {
+	items := make([]RosterNode, 0, len(itemIndexes))
+	for _, itemIndex := range itemIndexes {
 		key := rosterKey(generation, node.ID, itemIndex)
 		items = append(items, newRosterNode(
 			runID, generation, node, itemIndex, outputs[key], attempts[key],

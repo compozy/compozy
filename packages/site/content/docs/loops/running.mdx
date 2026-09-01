@@ -192,6 +192,10 @@ The roster covers one run's nodes across generations. `--generation` narrows it 
 `--all` pages the whole roster in a single call, which is why `--all` and `--cursor` are mutually
 exclusive. Both `--all` and `--generation` require `--run`.
 
+Fan-out workers keep the source item indexes that created them. Filtering or batching can leave gaps
+such as `2, 5`; missing indexes are not pending workers. Roster progress and `fanout_rollups` count
+only the worker rows that exist.
+
 Structured rows in either mode carry the exact run, generation, node, and item identity needed by
 the node verbs. See
 [Failure handling](/docs/loops/failure-handling#inspect-and-recover-nodes) for the command forms.
