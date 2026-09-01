@@ -138,8 +138,7 @@
         },
         "test": {
             "dependsOn": ["//#codegen-check", "transit"],
-            "outputs": [],
-            "passThroughEnv": ["VITEST_MAX_WORKERS"]
+            "outputs": []
         }
     }
 }

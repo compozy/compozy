@@ -14,10 +14,9 @@ export default defineConfig({
     name: "web",
     environment: "jsdom",
     globals: true,
-    // Bounded pool: turbo runs workspace test tasks concurrently (L-030).
-    // CI overrides via VITEST_MAX_WORKERS (turbo passThroughEnv) where this
-    // suite is the dominant tail task and owns the whole runner.
-    maxWorkers: process.env.VITEST_MAX_WORKERS ?? "50%",
+    // Bounded pool: turbo runs workspace test tasks concurrently (L-030), and
+    // 4 jsdom workers exhaust the 16GB CI runners (three OOM'd jobs on PR #520).
+    maxWorkers: "50%",
     // Several UI integration suites legitimately exceed Vitest's default timeout
     // under full-suite load; use an explicit budget for stable CI/local verification.
     testTimeout: 20_000,

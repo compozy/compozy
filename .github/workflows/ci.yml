@@ -236,8 +236,7 @@ jobs:
           COMPOZY_CODEGEN_CHECKED: "1"
         run: |
           bun run lint
-          bunx turbo run typecheck test --filter='!@compozy/desktop' --filter='!compozy-web'
-          VITEST_MAX_WORKERS=100% bunx turbo run typecheck test --filter=compozy-web
+          bunx turbo run typecheck test --filter='!@compozy/desktop'
           bunx turbo run build --filter=./web
 
       - name: Upload frontend artifacts on failure
