@@ -2,7 +2,7 @@ import type { OsAttentionBadges } from "./attention-model";
 import type { OsAppDescriptor } from "./app-catalog";
 import type { OsAppId } from "./os-types";
 
-export const DOCK_ICON_IDS = [
+const DOCK_ICON_IDS = [
   "sessions",
   "dashboard",
   "agents",

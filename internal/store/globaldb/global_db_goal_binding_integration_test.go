@@ -1356,6 +1356,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			}
 
 			insertGoalSchemaLoopRun(t, globalDB, "run-goal-creating-stop", "ws-goal-cleanup", "catalog", nil)
+			bindingCreatedAt := now.Add(time.Minute)
 			if _, err := globalDB.db.ExecContext(
 				ctx,
 				`INSERT INTO loop_session_bindings (
@@ -1370,7 +1371,7 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				"profile-creating-stop",
 				"policy-creating-stop",
 				"creation-creating-stop",
-				store.FormatTimestamp(now),
+				store.FormatTimestamp(bindingCreatedAt),
 			); err != nil {
 				t.Fatalf("insert creating binding error = %v", err)
 			}
@@ -1380,24 +1381,32 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 				Kind:        looppkg.RunCancelCancel,
 				Reason:      "operator canceled run",
 				Actor:       operatorActorContextForTest("operator-cancel-creating"),
-				RequestedAt: now.Add(time.Minute),
+				RequestedAt: now,
 			}); err != nil {
 				t.Fatalf("RequestRunCancellation(creating binding) error = %v", err)
 			}
 			var state, failureCode string
+			var failedAt time.Time
 			var activatedAt *time.Time
 			if err := globalDB.db.QueryRowContext(
 				ctx,
-				`SELECT state, failure_code, activated_at FROM loop_session_bindings
-			 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1`,
+				`SELECT state, failure_code, failed_at, activated_at FROM loop_session_bindings
+				 WHERE loop_run_id = ? AND handle = ? AND binding_epoch = 1`,
 				"run-goal-creating-stop",
 				"goal:creating-stop",
-			).Scan(&state, &failureCode, &activatedAt); err != nil {
+			).Scan(&state, &failureCode, &failedAt, &activatedAt); err != nil {
 				t.Fatalf("read stopped creating binding error = %v", err)
 			}
 			if state != string(goal.BindingStateFailed) ||
-				failureCode != goalBindingFailureStopCreationUnsettled || activatedAt != nil {
-				t.Fatalf("stopped creating binding = state:%q failure:%q activated:%v", state, failureCode, activatedAt)
+				failureCode != goalBindingFailureStopCreationUnsettled ||
+				!failedAt.Equal(bindingCreatedAt) || activatedAt != nil {
+				t.Fatalf(
+					"stopped creating binding = state:%q failure:%q failed:%v activated:%v",
+					state,
+					failureCode,
+					failedAt,
+					activatedAt,
+				)
 			}
 			pending, err = globalDB.ClaimGoalSessionCleanup(ctx, 10)
 			if err != nil {
@@ -1423,6 +1432,9 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 			}
 			if len(pending) != 1 || pending[0].SessionID != "session-creating-stop" {
 				t.Fatalf("settled creation cleanup = %#v", pending)
+			}
+			if !pending[0].CreatedAt.Equal(bindingCreatedAt) {
+				t.Fatalf("settled creation cleanup created_at = %v, want %v", pending[0].CreatedAt, bindingCreatedAt)
 			}
 		},
 	)

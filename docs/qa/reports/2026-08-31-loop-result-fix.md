@@ -1,6 +1,6 @@
 # QA Run Report — 2026-08-31 — loop-result-fix
 
-- **Scope:** Durable oversized Loop action results, exact task-run result paging, bounded Web disclosure/copy, spec-cycle path-only task fan-out, and bounded native tool-catalog paging.
+- **Scope:** Durable oversized Loop action results, exact task-run result paging, bounded Web disclosure/copy, spec-cycle path-only task fan-out, bounded native tool-catalog paging, and cancellation cleanup timestamp ordering.
 - **Cadence tier:** targeted
 - **Build:** working tree before final commit · **Environment:** isolated labs `consumer-saas-growth-20260831-181713-956331` and `tool-list-pagination-20260831-20260831-205804-197783`; real daemon, CLI, HTTP, UDS, native tool, Web, and Codex ACP sessions
 - **Started:** 2026-08-31T15:03:15-03:00 · **Completed:** 2026-08-31T18:05:15-03:00 · **Status:** pass
@@ -31,6 +31,7 @@
 | 4 | CH-spec-cycle-path-restart | J-01 / LP-spec-cycle-path-fanout | Bruno | Interrupt Tour | Pass | | |
 | 5 | CH-artifact-recovery-paging | J-14 / ET-tool-result-artifact-recovery | Rafa | Garbage Tour | Skipped | Existing `blocked-verify` retention charter is unchanged; affected artifact regression suites remain the adjacent automated canary. | |
 | 6 | Existing ET-035 contract | J-agent-marketplace-parity / ET-035 | Ada | Feature Tour | Pass | | |
+| 7 | Existing Loop cancellation contract | J-recover-loop-node-failure / LP-cancel-vs-kill | Bruno | Interrupt Tour | Pass | | |
 
 Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) | Blocked (human decision)`
 
@@ -66,9 +67,15 @@ Status legend: `Pending | Pass | Fixed | Skipped | Blocked (needs human verify) 
 - The default call matched the first 100-entry page. Every compact row retained the input-schema digest, risk, toolsets, availability, and policy decision; `compozy__tool_info` retained the full schema, backend, and description.
 - `limit=101` and `offset=-1` both returned `tool_invalid_input` with `schema_invalid`, never an internal error.
 
+### Cancellation cleanup timestamp ordering
+
+- A CI E2E interleaving persisted a run-owned Goal binding after the Loop cancellation request timestamp. The old cleanup path attempted to write `failed_at` before `created_at`, so SQLite rejected the transaction and the failed teardown polluted the next journey.
+- The canonical Goal binding lifecycle suite now forces that timestamp order and verifies both `failed_at` and cleanup `created_at` equal the binding creation time. It passes with the integration tag and race detector.
+- The public-daemon Loop read journey then passed with the race detector, including the kill cleanup after IT-027 and the ordered HTTP/UDS/CLI page checks in IT-032.
+
 ## What Was Fixed
 
-The first ET-035 walk found that numeric schema bounds were not enforced by the generic native input validator: `limit=101` was accepted and `offset=-1` reached a slice boundary. The handler now validates both fields and returns the typed `tool_invalid_input/schema_invalid` result. The pre-commit cleanup also split two production files that had crossed the repository's 500-line architecture cap.
+The first ET-035 walk found that numeric schema bounds were not enforced by the generic native input validator: `limit=101` was accepted and `offset=-1` reached a slice boundary. The handler now validates both fields and returns the typed `tool_invalid_input/schema_invalid` result. The pre-commit cleanup also split two production files that had crossed the repository's 500-line architecture cap. A later CI E2E exposed cancellation-before-binding timestamp ordering; the store now clamps one shared terminal timestamp to the binding creation boundary without weakening the schema constraint.
 
 ## Paper Cuts
 
@@ -110,5 +117,5 @@ None.
 
 - **Exit gate (QA walks):** pass; delivery still requires the repository's separate `make gate` and exact-head PR CI contract.
 - **Issues by user impact:** Blocks-Completion 0 · Data-Loss 0 · Trust-Damage 0 · Friction 0 · Cosmetic 0
-- **Coverage:** 3/3 changed journeys walked; five changed scenarios pass; the unchanged session tool-artifact retention charter remains `blocked-verify` and was skipped.
+- **Coverage:** 4/4 changed journeys walked; six changed scenarios pass; the unchanged session tool-artifact retention charter remains `blocked-verify` and was skipped.
 - **Verdict:** PASS — changed behavior is ready for the delivery gate.

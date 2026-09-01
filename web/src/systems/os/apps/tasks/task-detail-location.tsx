@@ -17,6 +17,7 @@ import { TaskDetailTopbar } from "./task-detail-topbar";
 import { useTaskDetailLocation } from "./use-task-detail-location";
 import {
   type ResolvedTaskDetailSearch,
+  latestTaskRun,
   TaskActivityPanel,
   type TaskDetailTab,
   TaskOverviewPanel,
@@ -24,6 +25,7 @@ import {
   type TaskRunReview,
   TaskRunsPanel,
   TasksDetailSubhead,
+  useTaskRunResult,
 } from "@/systems/tasks";
 
 function buildTabItems(runCount: number): ReadonlyArray<LaneTabsItem<TaskDetailTab>> {
@@ -79,6 +81,13 @@ export function TaskDetailLocation({
 }) {
   const controller = useTaskDetailLocation(taskId, search);
   const { page, detail, record, command } = controller;
+  const completedRun = latestTaskRun(page.runs, "completed");
+  const completedRunResult = useTaskRunResult({
+    resultBytes: completedRun?.result_bytes ?? 0,
+    resultRef: completedRun?.result_ref ?? "",
+    runId: completedRun?.id ?? "",
+    workspaceId: record?.workspace_id ?? "",
+  });
 
   if (page.detailLoading) {
     return <TaskDetailLoading />;
@@ -153,6 +162,14 @@ export function TaskDetailLocation({
                 <TabsContent value="overview">
                   <TaskOverviewPanel
                     activeRunElapsed={controller.activeElapsed}
+                    completedResult={
+                      completedRun
+                        ? {
+                            external: completedRun.result_ref ? completedRunResult : undefined,
+                            run: completedRun,
+                          }
+                        : undefined
+                    }
                     detail={detail}
                     isLive={page.isLive}
                     nowHandlers={{

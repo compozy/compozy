@@ -337,6 +337,7 @@ export type {
 } from "./hooks/use-task-stream";
 export { useTasksPage } from "./hooks/use-tasks-page";
 export type { InboxLaneFilter, UseTasksPageOptions } from "./hooks/use-tasks-page";
+export { latestTaskRun } from "./lib/task-run-presentation";
 export { useTaskCreateState } from "./hooks/use-task-create-state";
 export { useTaskEditState } from "./hooks/use-task-edit-state";
 export { useTaskDetailPage } from "./hooks/use-task-detail-page";

@@ -736,56 +736,58 @@ func TestDomainValidationHelpers(t *testing.T) {
 		}
 
 		tests := []struct {
-			name   string
-			mutate func(*Run)
+			name        string
+			mutate      func(*Run)
+			wantMessage string
 		}{
 			{
-				name: "claim token requires hash",
+				name: "Should require a claim token hash",
 				mutate: func(run *Run) {
 					run.ClaimTokenHash = ""
 				},
 			},
 			{
-				name: "malformed hash",
+				name: "Should reject a malformed claim token hash",
 				mutate: func(run *Run) {
 					run.ClaimTokenHash = "sha256:" + strings.Repeat("A", 64)
 				},
 			},
 			{
-				name: "lease before claimed at",
+				name: "Should reject a lease before the claim time",
 				mutate: func(run *Run) {
 					run.LeaseUntil = run.ClaimedAt.Add(-time.Second)
 				},
 			},
 			{
-				name: "heartbeat after lease",
+				name: "Should reject a heartbeat after the lease",
 				mutate: func(run *Run) {
 					run.HeartbeatAt = run.LeaseUntil.Add(time.Second)
 				},
 			},
 			{
-				name: "required capability with whitespace",
+				name: "Should reject whitespace in a required capability",
 				mutate: func(run *Run) {
 					run.RequiredCapabilities = []string{"golang linux"}
 				},
 			},
 			{
-				name: "preferred capability with comma",
+				name: "Should reject a comma in a preferred capability",
 				mutate: func(run *Run) {
 					run.PreferredCapabilities = []string{"agent,codex"}
 				},
 			},
 			{
-				name: "raw token in metadata",
+				name: "Should reject a raw token in metadata",
 				mutate: func(run *Run) {
 					run.Metadata = json.RawMessage(`{"nested":{"claim_token":"raw"}}`)
 				},
 			},
 			{
-				name: "raw token in result",
+				name: "Should reject a raw token in the result",
 				mutate: func(run *Run) {
 					run.SetResult(json.RawMessage(`{"claim_token":"raw"}`))
 				},
+				wantMessage: "task_run.result must not contain raw lease credentials",
 			},
 		}
 
@@ -796,8 +798,9 @@ func TestDomainValidationHelpers(t *testing.T) {
 				run := base
 				tt.mutate(&run)
 				err := run.Validate()
-				if err == nil || !errors.Is(err, ErrValidation) {
-					t.Fatalf("Run.Validate() error = %v, want ErrValidation", err)
+				if err == nil || !errors.Is(err, ErrValidation) ||
+					(tt.wantMessage != "" && !strings.Contains(err.Error(), tt.wantMessage)) {
+					t.Fatalf("Run.Validate() error = %v, want ErrValidation containing %q", err, tt.wantMessage)
 				}
 			})
 		}
