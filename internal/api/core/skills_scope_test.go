@@ -2,6 +2,7 @@ package core
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,11 +16,16 @@ import (
 )
 
 type projectedSkillAgentCatalog struct {
-	globalEntry AgentCatalogEntry
-	profile     map[string]AgentCatalogEntry
+	globalEntry  AgentCatalogEntry
+	profile      map[string]AgentCatalogEntry
+	globalErr    error
+	workspaceErr error
 }
 
 func (c projectedSkillAgentCatalog) ListAgents(context.Context) ([]AgentCatalogEntry, error) {
+	if c.globalErr != nil {
+		return nil, c.globalErr
+	}
 	return []AgentCatalogEntry{c.globalEntry}, nil
 }
 
@@ -27,6 +33,9 @@ func (c projectedSkillAgentCatalog) ListAgentsForWorkspace(
 	_ context.Context,
 	resolved *workspacepkg.ResolvedWorkspace,
 ) ([]AgentCatalogEntry, error) {
+	if c.workspaceErr != nil {
+		return nil, c.workspaceErr
+	}
 	entry, ok := c.profile[resolved.ProfileID]
 	if !ok {
 		return nil, nil
@@ -95,6 +104,44 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Should return catalog errors", func(t *testing.T) {
+		t.Parallel()
+		catalogErr := errors.New("catalog unavailable")
+		cases := []struct {
+			name     string
+			resolved *workspacepkg.ResolvedWorkspace
+			catalog  projectedSkillAgentCatalog
+		}{
+			{name: "global", catalog: projectedSkillAgentCatalog{globalErr: catalogErr}},
+			{
+				name: "Workspace",
+				resolved: &workspacepkg.ResolvedWorkspace{
+					ProfileID: "profile-work",
+					Workspace: workspacepkg.Workspace{ID: "workspace-test", RootDir: t.TempDir()},
+				},
+				catalog: projectedSkillAgentCatalog{workspaceErr: catalogErr},
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				handlers := &BaseHandlers{
+					SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),
+					AgentCatalog:   tc.catalog,
+				}
+				request := httptest.NewRequestWithContext(
+					t.Context(), "GET", "/api/skills?for_agent=extension-agent", http.NoBody,
+				)
+				_, err := handlers.resolveScopedSkills(
+					&gin.Context{Request: request}, tc.resolved, "extension-agent",
+				)
+				if !errors.Is(err, catalogErr) {
+					t.Fatalf("resolveScopedSkills() error = %v, want %v", err, catalogErr)
+				}
+			})
+		}
+	})
 }
 
 func TestProfileOnlySkillScopePreservesProfileIdentity(t *testing.T) {
