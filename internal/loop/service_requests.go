@@ -135,7 +135,7 @@ func (s *service) Respond(ctx context.Context, input RespondInput) (RespondResul
 		return RespondResult{}, err
 	}
 	if err := s.validateResponseEntities(
-		ctx, input.WorkspaceID, run.LoopName, request, input.Decision, input.Payload,
+		ctx, input.WorkspaceID, run.ProfileID, run.LoopName, request, input.Decision, input.Payload,
 	); err != nil {
 		return RespondResult{}, err
 	}

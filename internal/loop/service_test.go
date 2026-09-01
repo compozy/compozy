@@ -2389,6 +2389,39 @@ func TestServiceDryRunShouldReturnPlanPreviewWithoutState(t *testing.T) {
 		}
 	})
 
+	t.Run("Should validate typed entities in the acting profile for start and dry-run", func(t *testing.T) {
+		t.Parallel()
+
+		definition := validDefinition()
+		definition.Inputs["implementer"] = dsl.Input{Type: dsl.InputTypeAgent, Required: true}
+		store := newFakeLoopStore()
+		profileIDs := make([]string, 0, 2)
+		svc := newTestServiceWithOptions(
+			t,
+			store,
+			definition,
+			loop.WithInputEntityCatalog(inputEntityCatalogStub{profileIDs: &profileIDs}),
+		)
+		inputs := loop.Inputs{ProfileID: "profile-engineering", Values: map[string]any{
+			"tasks": "task-ref", "implementer": "engineer",
+		}}
+
+		if _, err := svc.DryRun(t.Context(), "ws-1", "valid-loop", inputs); err != nil {
+			t.Fatalf("DryRun() error = %v", err)
+		}
+		if _, err := svc.Start(t.Context(), "ws-1", "valid-loop", inputs, humanActor(t)); err != nil {
+			t.Fatalf("Start() error = %v", err)
+		}
+		if got, want := len(profileIDs), 4; got != want {
+			t.Fatalf("entity validation calls = %d, want %d: %v", got, want, profileIDs)
+		}
+		for _, profileID := range profileIDs {
+			if profileID != "profile-engineering" {
+				t.Fatalf("entity validation profile = %q, want profile-engineering", profileID)
+			}
+		}
+	})
+
 	t.Run("Should reject an invalid runtime input before start and dry-run", func(t *testing.T) {
 		t.Parallel()
 
@@ -3279,14 +3312,19 @@ func newTestService(t *testing.T, store *fakeLoopStore, def dsl.Definition) loop
 type inputEntityCatalogStub struct {
 	missingKind  dsl.EntityKind
 	missingValue string
+	profileIDs   *[]string
 }
 
 func (s inputEntityCatalogStub) HasInputEntity(
 	_ context.Context,
 	_ loop.WorkspaceID,
+	profileID string,
 	kind dsl.EntityKind,
 	value string,
 ) (bool, error) {
+	if s.profileIDs != nil {
+		*s.profileIDs = append(*s.profileIDs, profileID)
+	}
 	return kind != s.missingKind || value != s.missingValue, nil
 }
 
@@ -3358,19 +3396,21 @@ func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
 				Expect: expect,
 			},
 		}
+		profileIDs := make([]string, 0, 3)
 		svc := newTestServiceWithOptions(
 			t,
 			store,
 			definition,
 			loop.WithInputEntityCatalog(inputEntityCatalogStub{
 				missingKind: dsl.EntityKindAgent, missingValue: "removed-reviewer",
+				profileIDs: &profileIDs,
 			}),
 		)
 		run, err := svc.Start(
 			context.Background(),
 			"ws-response",
 			definition.Meta.Name,
-			loop.Inputs{ProfileID: storepkg.DefaultProfileID,
+			loop.Inputs{ProfileID: "profile-engineering",
 				Values: map[string]any{"tasks": "task-ref"},
 			},
 			humanActor(t),
@@ -3409,6 +3449,11 @@ func TestServiceRespondShouldValidateAnnotatedEntityReferences(t *testing.T) {
 		}
 		if store.respondCalls != 1 {
 			t.Fatalf("RespondRequest calls = %d, want 1 after valid response", store.respondCalls)
+		}
+		for _, profileID := range profileIDs {
+			if profileID != "profile-engineering" {
+				t.Fatalf("response entity validation profile = %q, want persisted run profile", profileID)
+			}
 		}
 	})
 }

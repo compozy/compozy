@@ -166,7 +166,7 @@ func (s *service) prepareResolvedStart(
 		return Run{}, err
 	}
 	if err := s.validateResolvedInputEntities(
-		ctx, ws, loopName, resolved.Definition, resolvedInputs,
+		ctx, ws, inputs.ProfileID, loopName, resolved.Definition, resolvedInputs,
 	); err != nil {
 		return Run{}, err
 	}

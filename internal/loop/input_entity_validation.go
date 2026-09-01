@@ -9,18 +9,19 @@ import (
 
 // InputEntityCatalog is the daemon-owned authority for exact entity lookups.
 type InputEntityCatalog interface {
-	HasInputEntity(context.Context, WorkspaceID, dsl.EntityKind, string) (bool, error)
+	HasInputEntity(context.Context, WorkspaceID, string, dsl.EntityKind, string) (bool, error)
 }
 
 func (s *service) validateResolvedInputEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	definition dsl.Definition,
 	resolved ResolvedInputs,
 ) error {
 	return ValidateInputEntities(
-		ctx, workspaceID, loopName, definition, resolved, s.inputEntities, s.runtimeCatalog,
+		ctx, workspaceID, profileID, loopName, definition, resolved, s.inputEntities, s.runtimeCatalog,
 	)
 }
 
@@ -28,6 +29,7 @@ func (s *service) validateResolvedInputEntities(
 func ValidateInputEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	definition dsl.Definition,
 	resolved ResolvedInputs,
@@ -50,7 +52,7 @@ func ValidateInputEntities(
 			}
 		case dsl.InputTypeAgent:
 			if err := validateEntityInput(
-				ctx, workspaceID, dsl.EntityKindAgent, field, input, value, origin, loopName, entities,
+				ctx, workspaceID, profileID, dsl.EntityKindAgent, field, input, value, origin, loopName, entities,
 			); err != nil {
 				return err
 			}
@@ -59,7 +61,7 @@ func ValidateInputEntities(
 				continue
 			}
 			if err := validateEntityInput(
-				ctx, workspaceID, dsl.EntityKind(input.Ref.Kind), field, input, value, origin, loopName,
+				ctx, workspaceID, profileID, dsl.EntityKind(input.Ref.Kind), field, input, value, origin, loopName,
 				entities,
 			); err != nil {
 				return err
@@ -72,6 +74,7 @@ func ValidateInputEntities(
 func validateEntityInput(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	kind dsl.EntityKind,
 	field string,
 	input dsl.Input,
@@ -90,7 +93,7 @@ func validateEntityInput(
 			fmt.Errorf("entity input must be a string"),
 		)
 	}
-	exists, err := entities.HasInputEntity(ctx, workspaceID, kind, text)
+	exists, err := entities.HasInputEntity(ctx, workspaceID, profileID, kind, text)
 	if err != nil {
 		return fmt.Errorf("validate Loop input %q %s reference: %w", field, kind, err)
 	}

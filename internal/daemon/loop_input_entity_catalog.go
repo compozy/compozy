@@ -7,7 +7,6 @@ import (
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/dsl"
-	"github.com/compozy/compozy/internal/resources"
 	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/vault"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -18,7 +17,7 @@ type daemonLoopInputEntityCatalog struct {
 	state *bootState
 }
 
-type loopInputEntityValidator func(context.Context, string, string) (bool, error)
+type loopInputEntityValidator func(context.Context, string, string, string) (bool, error)
 
 type loopInputEntityDescriptor struct {
 	ListSurface string
@@ -31,6 +30,7 @@ var _ looppkg.InputEntityCatalog = daemonLoopInputEntityCatalog{}
 func (c daemonLoopInputEntityCatalog) HasInputEntity(
 	ctx context.Context,
 	workspaceID looppkg.WorkspaceID,
+	profileID string,
 	kind dsl.EntityKind,
 	value string,
 ) (bool, error) {
@@ -42,7 +42,7 @@ func (c daemonLoopInputEntityCatalog) HasInputEntity(
 	if !exists {
 		return false, nil
 	}
-	return descriptor.Validate(ctx, string(workspaceID), target)
+	return descriptor.Validate(ctx, string(workspaceID), strings.TrimSpace(profileID), target)
 }
 
 func (c daemonLoopInputEntityCatalog) entityRegistry() map[dsl.EntityKind]loopInputEntityDescriptor {
@@ -55,9 +55,7 @@ func (c daemonLoopInputEntityCatalog) entityRegistry() map[dsl.EntityKind]loopIn
 		},
 		dsl.EntityKindLoop: {
 			ListSurface: "loops.list", IDShape: "Loop name",
-			Validate: func(_ context.Context, workspaceID string, value string) (bool, error) {
-				return c.hasLoop(workspaceID, value), nil
-			},
+			Validate: c.hasLoop,
 		},
 		dsl.EntityKindWorktree: {
 			ListSurface: "worktrees.list", IDShape: "worktree id", Validate: c.hasWorktree,
@@ -67,13 +65,13 @@ func (c daemonLoopInputEntityCatalog) entityRegistry() map[dsl.EntityKind]loopIn
 		},
 		dsl.EntityKindWorkspace: {
 			ListSurface: "workspaces.list", IDShape: "workspace id",
-			Validate: func(ctx context.Context, _ string, value string) (bool, error) {
+			Validate: func(ctx context.Context, _, _ string, value string) (bool, error) {
 				return c.hasWorkspace(ctx, value)
 			},
 		},
 		dsl.EntityKindSecret: {
 			ListSurface: "vault.list", IDShape: "vault reference",
-			Validate: func(ctx context.Context, _ string, value string) (bool, error) {
+			Validate: func(ctx context.Context, _, _ string, value string) (bool, error) {
 				return c.hasSecret(ctx, value)
 			},
 		},
@@ -83,11 +81,16 @@ func (c daemonLoopInputEntityCatalog) entityRegistry() map[dsl.EntityKind]loopIn
 func (c daemonLoopInputEntityCatalog) resolvedWorkspace(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 ) (*workspacepkg.ResolvedWorkspace, error) {
 	if c.state.workspaceResolver == nil {
 		return nil, nil
 	}
-	resolved, err := c.state.workspaceResolver.Resolve(ctx, workspaceID)
+	lens, err := resolveLoopResourceLens(ctx, c.state.profiles, workspaceID, profileID)
+	if err != nil {
+		return nil, err
+	}
+	resolved, err := c.state.workspaceResolver.ResolveForProfile(ctx, workspaceID, lens.ProfileName)
 	if err != nil {
 		return nil, err
 	}
@@ -97,9 +100,10 @@ func (c daemonLoopInputEntityCatalog) resolvedWorkspace(
 func (c daemonLoopInputEntityCatalog) hasAgent(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 ) (bool, error) {
-	resolved, err := c.resolvedWorkspace(ctx, workspaceID)
+	resolved, err := c.resolvedWorkspace(ctx, workspaceID, profileID)
 	if err != nil || resolved == nil {
 		return false, err
 	}
@@ -121,12 +125,13 @@ func (c daemonLoopInputEntityCatalog) hasAgent(
 func (c daemonLoopInputEntityCatalog) hasSkill(
 	ctx context.Context,
 	workspaceID string,
+	profileID string,
 	name string,
 ) (bool, error) {
 	if c.state.skillsRegistry == nil {
 		return false, nil
 	}
-	resolved, err := c.resolvedWorkspace(ctx, workspaceID)
+	resolved, err := c.resolvedWorkspace(ctx, workspaceID, profileID)
 	if err != nil || resolved == nil {
 		return false, err
 	}
@@ -142,26 +147,32 @@ func (c daemonLoopInputEntityCatalog) hasSkill(
 	return false, nil
 }
 
-func (c daemonLoopInputEntityCatalog) hasLoop(workspaceID string, name string) bool {
+func (c daemonLoopInputEntityCatalog) hasLoop(
+	ctx context.Context,
+	workspaceID string,
+	profileID string,
+	name string,
+) (bool, error) {
 	if c.state.loopCatalog == nil {
-		return false
+		return false, nil
 	}
-	for _, record := range c.state.loopCatalog.Snapshot() {
+	lens, err := resolveLoopResourceLens(ctx, c.state.profiles, workspaceID, profileID)
+	if err != nil {
+		return false, err
+	}
+	for _, record := range looppkg.ResolveEffectiveResources(c.state.loopCatalog.Snapshot(), lens) {
 		if strings.TrimSpace(record.Spec.Name) != name {
 			continue
 		}
-		scope := record.Scope.Normalize()
-		if scope.Kind == resources.ResourceScopeKindUser ||
-			(scope.Kind == resources.ResourceScopeKindWorkspace && scope.ID == workspaceID) {
-			return true
-		}
+		return true, nil
 	}
-	return false
+	return false, nil
 }
 
 func (c daemonLoopInputEntityCatalog) hasWorktree(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	ref string,
 ) (bool, error) {
 	if c.state.worktrees == nil {
@@ -177,6 +188,7 @@ func (c daemonLoopInputEntityCatalog) hasWorktree(
 func (c daemonLoopInputEntityCatalog) hasSession(
 	ctx context.Context,
 	workspaceID string,
+	_ string,
 	id string,
 ) (bool, error) {
 	if c.state.sessions == nil {
