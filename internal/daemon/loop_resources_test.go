@@ -514,6 +514,7 @@ func TestDaemonLoopAPIServiceShouldPublishWithServerManagedCASVersion(t *testing
 							fixture.ctx,
 							fixture.forkPath,
 							looppkg.WorkspaceID(fixture.workspaceID),
+							store.DefaultProfileID,
 							"implement-tasks",
 						); err != nil {
 							return fmt.Errorf("project copied fork: %w", err)

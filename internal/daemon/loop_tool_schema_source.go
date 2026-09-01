@@ -38,6 +38,19 @@ func newScopedLoopToolSchemaSource(
 	return &loopToolSchemaSource{ctx: ctx, registry: registry, scope: scope}
 }
 
+func newLoopToolSchemaSourceForScope(
+	ctx context.Context,
+	registry toolspkg.Registry,
+	workspaceID looppkg.WorkspaceID,
+	profileID string,
+) looppkg.ToolSchemaSource {
+	return newScopedLoopToolSchemaSource(ctx, registry, toolspkg.Scope{
+		Operator:    true,
+		WorkspaceID: strings.TrimSpace(string(workspaceID)),
+		ProfileID:   strings.TrimSpace(profileID),
+	})
+}
+
 func (s *loopToolSchemaSource) Snapshot(toolID string) (looppkg.ToolSchemaSnapshot, bool) {
 	if s.registry == nil {
 		return looppkg.ToolSchemaSnapshot{}, false
@@ -92,11 +105,9 @@ func newLoopCompilerFactory(
 	registry toolspkg.Registry,
 ) func(context.Context, looppkg.WorkspaceID, string) *looppkg.Compiler {
 	return func(ctx context.Context, workspaceID looppkg.WorkspaceID, profileID string) *looppkg.Compiler {
-		scope := toolspkg.Scope{
-			Operator: true, WorkspaceID: strings.TrimSpace(string(workspaceID)),
-			ProfileID: strings.TrimSpace(profileID),
-		}
-		return newLoopCompilerWithSchemaSource(newScopedLoopToolSchemaSource(ctx, registry, scope))
+		return newLoopCompilerWithSchemaSource(
+			newLoopToolSchemaSourceForScope(ctx, registry, workspaceID, profileID),
+		)
 	}
 }
 

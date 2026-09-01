@@ -9,6 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/compozy/compozy/internal/api/contract"
+	apicore "github.com/compozy/compozy/internal/api/core"
+
 	speccycle "github.com/compozy/compozy/extensions/spec-cycle"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	extensionpkg "github.com/compozy/compozy/internal/extension"
@@ -193,6 +196,43 @@ func TestLoopToolSchemaSource(t *testing.T) {
 		).Compile(definition)
 		if err == nil || !strings.Contains(err.Error(), looppkg.CodeUnknownActionKind) {
 			t.Fatalf("Compile(peer lifecycle scope) error = %v, want %s", err, looppkg.CodeUnknownActionKind)
+		}
+	})
+
+	t.Run("Should validate lifecycle actions through the public API only in the acting scope", func(t *testing.T) {
+		t.Parallel()
+
+		descriptor := loopToolSchemaDescriptor(t)
+		descriptor.ID = "ext__qa_lab__capture_candidate"
+		validScope := toolspkg.Scope{
+			Operator: true, ProfileID: "profile-engineering", WorkspaceID: "workspace-qa",
+		}
+		registry := loopToolSchemaRegistry{
+			views: map[toolspkg.ToolID]toolspkg.ToolView{
+				descriptor.ID: {Descriptor: descriptor},
+			},
+			requiredScope: &validScope,
+		}
+		service := &daemonLoopAPIService{toolRegistry: registry}
+		definition := looppkgdsl.Definition{Graph: looppkgdsl.Graph{Nodes: []looppkgdsl.Node{{
+			ID: "capture", Class: looppkgdsl.NodeClassAction, Kind: descriptor.ID.String(),
+		}}}}
+		request := contract.ValidateLoopRequest{Definition: contract.LoopDefinitionDocument(definition)}
+
+		response, err := service.ValidateLoop(
+			t.Context(), "workspace-qa", "profile-engineering", "", request,
+		)
+		if err != nil {
+			t.Fatalf("ValidateLoop(valid lifecycle scope) error = %v", err)
+		}
+		if !response.Valid {
+			t.Fatalf("ValidateLoop(valid lifecycle scope) response = %#v, want valid", response)
+		}
+
+		_, err = service.ValidateLoop(t.Context(), "workspace-peer", "profile-engineering", "", request)
+		lintErr, ok := errors.AsType[*apicore.LoopLintFailedError](err)
+		if !ok || len(lintErr.Errors) != 1 || lintErr.Errors[0].Code != looppkg.CodeUnknownActionKind {
+			t.Fatalf("ValidateLoop(peer lifecycle scope) error = %v, want %s", err, looppkg.CodeUnknownActionKind)
 		}
 	})
 
