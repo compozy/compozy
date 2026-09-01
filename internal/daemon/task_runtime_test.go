@@ -1299,16 +1299,35 @@ type taskBridgeWorktreeGetCall struct {
 	ref         string
 }
 
+type taskBridgeWorktreeUsageCall struct {
+	workspaceID string
+	ref         string
+}
+
 type recordingTaskBridgeWorktrees struct {
 	getItem          *worktreepkg.Worktree
 	getErr           error
 	getCalls         []taskBridgeWorktreeGetCall
+	usageCalls       []taskBridgeWorktreeUsageCall
+	usageReleases    int
 	materialized     *worktreepkg.Worktree
 	materializeFn    func(string, worktreepkg.RunWorktreeRequest) (*worktreepkg.Worktree, error)
 	materializeErr   error
 	materializeCalls []taskBridgeWorktreeMaterializeCall
 	rollbackErr      error
 	rollbackCalls    []taskBridgeWorktreeRollbackCall
+}
+
+func (w *recordingTaskBridgeWorktrees) AcquireUsage(
+	_ context.Context,
+	workspaceID string,
+	ref string,
+) (*worktreepkg.Worktree, func(), error) {
+	w.usageCalls = append(w.usageCalls, taskBridgeWorktreeUsageCall{workspaceID: workspaceID, ref: ref})
+	if w.getErr != nil {
+		return nil, nil, w.getErr
+	}
+	return w.getItem, sync.OnceFunc(func() { w.usageReleases++ }), nil
 }
 
 func (w *recordingTaskBridgeWorktrees) Get(

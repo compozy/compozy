@@ -192,6 +192,37 @@ func TestServiceRemoveAndRecover(t *testing.T) {
 		}
 	})
 
+	t.Run("Should block removal while a tool holds a usage lease", func(t *testing.T) {
+		t.Parallel()
+		fixture := newRemovalTestFixture(t)
+		item, release, err := fixture.service.AcquireUsage(
+			t.Context(), fixture.workspace.ID, fixture.item.ID,
+		)
+		if err != nil {
+			t.Fatalf("AcquireUsage() error = %v", err)
+		}
+		if item == nil || item.ID != fixture.item.ID {
+			t.Fatalf("AcquireUsage() item = %#v, want %q", item, fixture.item.ID)
+		}
+		t.Cleanup(release)
+
+		if _, err := fixture.service.Remove(
+			t.Context(), fixture.workspace.ID, fixture.item.ID, true,
+		); !errors.Is(err, ErrOperationInProgress) {
+			t.Fatalf("Remove(active usage) error = %v, want ErrOperationInProgress", err)
+		}
+		if got := fixture.mustItem(t).State; got != StateReady {
+			t.Fatalf("active usage state = %q, want ready", got)
+		}
+
+		release()
+		if _, err := fixture.service.Remove(
+			t.Context(), fixture.workspace.ID, fixture.item.ID, true,
+		); err != nil {
+			t.Fatalf("Remove(after release) error = %v", err)
+		}
+	})
+
 	t.Run("Should preserve the fence when session and status safety checks fail", func(t *testing.T) {
 		t.Parallel()
 		sessionFailure := newRemovalTestFixture(t)

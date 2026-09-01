@@ -51,9 +51,12 @@ func (e *ToolCallActionExecutor) Execute(
 	if err != nil {
 		return ActionRawResult{}, fmt.Errorf("marshal action params for %q: %w", node.ID, err)
 	}
-	trustedWorkspaceRoot, err := e.trustedWorkspaceRoot(callCtx, in)
+	trustedWorkspaceRoot, releaseWorkspaceRoot, err := e.acquireTrustedWorkspaceRoot(callCtx, in)
 	if err != nil {
 		return ActionRawResult{}, err
+	}
+	if releaseWorkspaceRoot != nil {
+		defer releaseWorkspaceRoot()
 	}
 	scope := normalizeActionToolScope(in)
 	result, err := e.runtime.Call(callCtx, scope, tools.CallRequest{

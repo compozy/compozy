@@ -10,6 +10,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -230,11 +231,16 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		t.Parallel()
 
 		toolID := tools.ToolID("ext__spec_cycle__import_tasks")
+		resolver := &fakeActionToolWorkspaceRootResolver{root: "/worktrees/feature-512"}
 		registry := &fakeActionToolRegistry{
 			views:      map[tools.ToolID]tools.ToolView{toolID: {}},
 			callResult: tools.ToolResult{Structured: json.RawMessage(`{"ok":true}`)},
+			onCall: func() {
+				if !resolver.leaseHeld.Load() {
+					t.Error("workspace usage lease was released before RuntimeRegistry.Call")
+				}
+			},
 		}
-		resolver := &fakeActionToolWorkspaceRootResolver{root: "/worktrees/feature-512"}
 		actions := newActionRegistryForTest(
 			t,
 			registry,
@@ -265,6 +271,55 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		request := resolver.mustSingleRequest(t)
 		if request.WorkspaceID != "ws-1" || request.Environment.WorktreeRef != "feature-512" {
 			t.Fatalf("workspace root request = %#v, want workspace and worktree propagated", request)
+		}
+		if resolver.leaseHeld.Load() || resolver.releaseCount.Load() != 1 {
+			t.Fatalf(
+				"workspace usage lease after Execute = held:%t releases:%d, want released once",
+				resolver.leaseHeld.Load(),
+				resolver.releaseCount.Load(),
+			)
+		}
+	})
+
+	t.Run("Should release the worktree usage lease when tool dispatch fails", func(t *testing.T) {
+		t.Parallel()
+
+		toolID := tools.ToolID("ext__spec_cycle__import_tasks")
+		callErr := errors.New("extension call failed")
+		resolver := &fakeActionToolWorkspaceRootResolver{root: "/worktrees/feature-512"}
+		registry := &fakeActionToolRegistry{
+			views:   map[tools.ToolID]tools.ToolView{toolID: {}},
+			callErr: callErr,
+		}
+		actions := newActionRegistryForTest(
+			t,
+			registry,
+			loop.WithActionToolWorkspaceRootResolver(resolver),
+		)
+		executor, err := actions.Resolve(t.Context(), tools.Scope{}, toolID.String())
+		if err != nil {
+			t.Fatalf("Resolve() error = %v", err)
+		}
+
+		_, err = executor.Execute(t.Context(), dsl.Node{
+			ID: "load_tasks", Class: dsl.NodeClassAction, Kind: toolID.String(),
+		}, loop.ActionExecutionInput{
+			WorkspaceID: "ws-1",
+			Environment: &dsl.EnvironmentSpec{
+				Mode:        dsl.EnvironmentWorktree,
+				WorktreeRef: "feature-512",
+			},
+			Actor: mustDaemonActor(t),
+		})
+		if !errors.Is(err, callErr) {
+			t.Fatalf("Execute() error = %v, want %v", err, callErr)
+		}
+		if resolver.leaseHeld.Load() || resolver.releaseCount.Load() != 1 {
+			t.Fatalf(
+				"workspace usage lease after failure = held:%t releases:%d, want released once",
+				resolver.leaseHeld.Load(),
+				resolver.releaseCount.Load(),
+			)
 		}
 	})
 
@@ -1608,6 +1663,7 @@ type fakeActionToolRegistry struct {
 	getErr     error
 	callResult tools.ToolResult
 	callErr    error
+	onCall     func()
 	gets       []tools.ToolID
 	calls      []tools.CallRequest
 }
@@ -1657,6 +1713,9 @@ func (r *fakeActionToolRegistry) Call(
 	defer r.mu.Unlock()
 
 	r.calls = append(r.calls, req)
+	if r.onCall != nil {
+		r.onCall()
+	}
 	if r.callErr != nil {
 		return tools.ToolResult{}, r.callErr
 	}
@@ -1696,24 +1755,31 @@ type fakeActionEventReader struct {
 }
 
 type fakeActionToolWorkspaceRootResolver struct {
-	mu       sync.Mutex
-	root     string
-	err      error
-	requests []loop.ActionToolWorkspaceRootRequest
+	mu           sync.Mutex
+	root         string
+	err          error
+	requests     []loop.ActionToolWorkspaceRootRequest
+	leaseHeld    atomic.Bool
+	releaseCount atomic.Int64
 }
 
-func (r *fakeActionToolWorkspaceRootResolver) ResolveActionToolWorkspaceRoot(
+func (r *fakeActionToolWorkspaceRootResolver) AcquireActionToolWorkspaceRoot(
 	_ context.Context,
 	req loop.ActionToolWorkspaceRootRequest,
-) (string, error) {
+) (string, func(), error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	r.requests = append(r.requests, req)
 	if r.err != nil {
-		return "", r.err
+		return "", nil, r.err
 	}
-	return r.root, nil
+	r.leaseHeld.Store(true)
+	release := sync.OnceFunc(func() {
+		r.leaseHeld.Store(false)
+		r.releaseCount.Add(1)
+	})
+	return r.root, release, nil
 }
 
 func (r *fakeActionToolWorkspaceRootResolver) mustSingleRequest(
@@ -1724,7 +1790,7 @@ func (r *fakeActionToolWorkspaceRootResolver) mustSingleRequest(
 	defer r.mu.Unlock()
 
 	if len(r.requests) != 1 {
-		t.Fatalf("ResolveActionToolWorkspaceRoot calls = %d, want 1", len(r.requests))
+		t.Fatalf("AcquireActionToolWorkspaceRoot calls = %d, want 1", len(r.requests))
 	}
 	return r.requests[0]
 }

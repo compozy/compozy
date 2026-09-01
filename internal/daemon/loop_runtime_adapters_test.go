@@ -108,20 +108,28 @@ func TestLoopActionToolWorkspaceRootResolverShouldRequireReadyWorktrees(t *testi
 		}}
 		resolver := &loopActionToolWorkspaceRootResolver{worktrees: worktrees}
 
-		root, err := resolver.ResolveActionToolWorkspaceRoot(t.Context(), looppkg.ActionToolWorkspaceRootRequest{
-			WorkspaceID: "ws-loop",
-			Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "ready-ref"},
-		})
+		root, release, err := resolver.AcquireActionToolWorkspaceRoot(
+			t.Context(),
+			looppkg.ActionToolWorkspaceRootRequest{
+				WorkspaceID: "ws-loop",
+				Environment: dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "ready-ref"},
+			},
+		)
 		if err != nil {
-			t.Fatalf("ResolveActionToolWorkspaceRoot() error = %v", err)
+			t.Fatalf("AcquireActionToolWorkspaceRoot() error = %v", err)
 		}
+		t.Cleanup(release)
 		if got, want := root, "/worktrees/ready"; got != want {
-			t.Fatalf("ResolveActionToolWorkspaceRoot() = %q, want %q", got, want)
+			t.Fatalf("AcquireActionToolWorkspaceRoot() = %q, want %q", got, want)
 		}
-		if len(worktrees.getCalls) != 1 || worktrees.getCalls[0] != (taskBridgeWorktreeGetCall{
+		if len(worktrees.usageCalls) != 1 || worktrees.usageCalls[0] != (taskBridgeWorktreeUsageCall{
 			workspaceID: "ws-loop", ref: "ready-ref",
 		}) {
-			t.Fatalf("Get() calls = %#v, want workspace-scoped ready-ref", worktrees.getCalls)
+			t.Fatalf("AcquireUsage() calls = %#v, want workspace-scoped ready-ref", worktrees.usageCalls)
+		}
+		release()
+		if worktrees.usageReleases != 1 {
+			t.Fatalf("usage releases = %d, want 1", worktrees.usageReleases)
 		}
 	})
 
@@ -151,7 +159,7 @@ func TestLoopActionToolWorkspaceRootResolverShouldRequireReadyWorktrees(t *testi
 				t.Parallel()
 
 				resolver := &loopActionToolWorkspaceRootResolver{worktrees: tt.worktrees}
-				_, err := resolver.ResolveActionToolWorkspaceRoot(
+				_, _, err := resolver.AcquireActionToolWorkspaceRoot(
 					t.Context(),
 					looppkg.ActionToolWorkspaceRootRequest{
 						WorkspaceID: "ws-loop",
@@ -161,7 +169,7 @@ func TestLoopActionToolWorkspaceRootResolverShouldRequireReadyWorktrees(t *testi
 					},
 				)
 				if !errors.Is(err, tt.wantErr) {
-					t.Fatalf("ResolveActionToolWorkspaceRoot() error = %v, want %v", err, tt.wantErr)
+					t.Fatalf("AcquireActionToolWorkspaceRoot() error = %v, want %v", err, tt.wantErr)
 				}
 			})
 		}

@@ -8,6 +8,8 @@ import (
 	"github.com/compozy/compozy/internal/loop/dsl"
 )
 
+const toolWorkspaceRootResolverDependency = "tool_workspace_root_resolver"
+
 // ActionToolWorkspaceRootRequest identifies the effective workspace root for one tool action.
 type ActionToolWorkspaceRootRequest struct {
 	WorkspaceID WorkspaceID
@@ -16,38 +18,46 @@ type ActionToolWorkspaceRootRequest struct {
 
 // ActionToolWorkspaceRootResolver resolves trusted roots outside the Loop package.
 type ActionToolWorkspaceRootResolver interface {
-	ResolveActionToolWorkspaceRoot(context.Context, ActionToolWorkspaceRootRequest) (string, error)
+	AcquireActionToolWorkspaceRoot(context.Context, ActionToolWorkspaceRootRequest) (string, func(), error)
 }
 
-func (e *ToolCallActionExecutor) trustedWorkspaceRoot(
+func (e *ToolCallActionExecutor) acquireTrustedWorkspaceRoot(
 	ctx context.Context,
 	in ActionExecutionInput,
-) (string, error) {
+) (string, func(), error) {
 	environment := in.EnvironmentValue()
 	if environment.Mode != dsl.EnvironmentWorktree {
-		return "", nil
+		return "", nil, nil
 	}
 	if e.workspaceRootResolver == nil {
-		return "", reasonError(
+		return "", nil, reasonError(
 			ReasonCodeActionDependencyMissing,
 			ErrActionDependencyMissing,
-			map[string]string{actionDependencyMetaKey: "tool_workspace_root_resolver"},
+			map[string]string{actionDependencyMetaKey: toolWorkspaceRootResolverDependency},
 		)
 	}
-	root, err := e.workspaceRootResolver.ResolveActionToolWorkspaceRoot(ctx, ActionToolWorkspaceRootRequest{
+	root, release, err := e.workspaceRootResolver.AcquireActionToolWorkspaceRoot(ctx, ActionToolWorkspaceRootRequest{
 		WorkspaceID: in.WorkspaceID,
 		Environment: environment,
 	})
 	if err != nil {
-		return "", fmt.Errorf("resolve action tool workspace root: %w", err)
+		return "", nil, fmt.Errorf("acquire action tool workspace root: %w", err)
+	}
+	if release == nil {
+		return "", nil, reasonError(
+			ReasonCodeActionDependencyMissing,
+			fmt.Errorf("%w: tool workspace root resolver returned no release function", ErrActionDependencyMissing),
+			map[string]string{actionDependencyMetaKey: toolWorkspaceRootResolverDependency},
+		)
 	}
 	root = strings.TrimSpace(root)
 	if root == "" {
-		return "", reasonError(
+		release()
+		return "", nil, reasonError(
 			ReasonCodeActionDependencyMissing,
 			fmt.Errorf("%w: tool workspace root resolver returned an empty root", ErrActionDependencyMissing),
-			map[string]string{actionDependencyMetaKey: "tool_workspace_root_resolver"},
+			map[string]string{actionDependencyMetaKey: toolWorkspaceRootResolverDependency},
 		)
 	}
-	return root, nil
+	return root, release, nil
 }

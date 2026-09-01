@@ -29,7 +29,7 @@ export function loopEnvironmentItems(
     items.push({
       value: current,
       label: `${LOOP_ENVIRONMENT_MODE_LABELS[current]} (read-only)`,
-      disabled,
+      disabled: true,
     });
   }
   return items;

@@ -11,8 +11,8 @@ bug_ids:
 fix_status:
 retest_status: pass
 fix_commits:
-evidence: docs/qa/evidence/2026-09-01-issue-512-loop-worktree-tools/web-run-done-after-reload.png
-last_report: docs/qa/reports/2026-09-01-issue-512-loop-worktree-tools.md
+evidence: qa-lab pr-519-review-fixes worktree-removal-blocked.json; tool-run-completed.json; worktree-removed-after-tool.json
+last_report: docs/qa/reports/2026-09-01-pr-519-review-fixes.md
 overlaps:
 ---
 
@@ -25,3 +25,7 @@ CLI-started run and a Web-started run with ready Worktree `wt_d7e6c291e8cae07e` 
 extension action and returned the task path under `project-worktree`. CLI, HTTP, Web, and runtime
 evidence agreed after a fresh Web reload. The real-worktree integration suite separately verifies
 that implement-tasks worker sessions retain the same Worktree id.
+
+QA follow-up 2026-09-01: while the real extension task run was claimed and blocked inside
+`ext__spec_cycle__import_tasks`, CLI removal returned `worktree_operation_in_progress`. After the
+tool completed with the worktree-only task path, the same CLI removal succeeded.

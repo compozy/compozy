@@ -214,10 +214,11 @@ describe("LoopConfigureDialog", () => {
       },
     });
     const modes = await screen.findByTestId("loop-configure-environment-mode");
-    expect(within(modes).getByRole("button", { name: "Directory (read-only)" })).toHaveAttribute(
-      "aria-pressed",
-      "true"
-    );
+    const readOnlyDirectory = within(modes).getByRole("button", {
+      name: "Directory (read-only)",
+    });
+    expect(readOnlyDirectory).toHaveAttribute("aria-pressed", "true");
+    expect(readOnlyDirectory).toBeDisabled();
     expect(within(modes).queryByRole("button", { name: "Per-run" })).not.toBeInTheDocument();
     const directory = screen.getByLabelText("Directory");
     expect(directory).toHaveValue("packages/api");

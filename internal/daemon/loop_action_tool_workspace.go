@@ -14,29 +14,51 @@ type loopActionWorktreeReader interface {
 	Get(context.Context, string, string) (*worktree.Worktree, error)
 }
 
+type loopActionWorktreeUsage interface {
+	AcquireUsage(context.Context, string, string) (*worktree.Worktree, func(), error)
+}
+
 type loopActionToolWorkspaceRootResolver struct {
-	worktrees loopActionWorktreeReader
+	worktrees loopActionWorktreeUsage
 }
 
 var _ looppkg.ActionToolWorkspaceRootResolver = (*loopActionToolWorkspaceRootResolver)(nil)
 
-func (r *loopActionToolWorkspaceRootResolver) ResolveActionToolWorkspaceRoot(
+func (r *loopActionToolWorkspaceRootResolver) AcquireActionToolWorkspaceRoot(
 	ctx context.Context,
 	req looppkg.ActionToolWorkspaceRootRequest,
-) (string, error) {
+) (string, func(), error) {
 	if req.Environment.Mode != dsl.EnvironmentWorktree {
-		return "", nil
+		return "", nil, nil
 	}
-	item, err := resolveReadyLoopActionWorktree(
+	if r.worktrees == nil {
+		return "", nil, fmt.Errorf("%w: loop worktree service is unavailable", worktree.ErrNotFound)
+	}
+	item, release, err := r.worktrees.AcquireUsage(
 		ctx,
-		r.worktrees,
 		strings.TrimSpace(string(req.WorkspaceID)),
 		req.Environment.WorktreeRef,
 	)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
-	return item.Path, nil
+	if release == nil {
+		return "", nil, fmt.Errorf("%w: loop worktree usage lease has no release function", worktree.ErrNotReady)
+	}
+	if item == nil {
+		release()
+		return "", nil, fmt.Errorf("%w: loop worktree %q", worktree.ErrNotFound, req.Environment.WorktreeRef)
+	}
+	if item.State != worktree.StateReady || strings.TrimSpace(item.Path) == "" {
+		release()
+		return "", nil, fmt.Errorf(
+			"%w: loop worktree %q is %q",
+			worktree.ErrNotReady,
+			req.Environment.WorktreeRef,
+			item.State,
+		)
+	}
+	return item.Path, release, nil
 }
 
 func resolveReadyLoopActionWorktree(
