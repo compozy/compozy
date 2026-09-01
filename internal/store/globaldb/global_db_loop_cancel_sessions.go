@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	looppkg "github.com/compozy/compozy/internal/loop"
 )
@@ -14,6 +15,7 @@ type cancellationSessionSource struct {
 	sourceKind  looppkg.SessionCleanupSourceKind
 	sourceID    string
 	sourceEpoch int64
+	createdAt   time.Time
 }
 
 func listRunCancellationSessions(
@@ -21,7 +23,12 @@ func listRunCancellationSessions(
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
 ) ([]string, error) {
-	return listAndEnqueueCancellationSessions(ctx, exec, mutation)
+	return listAndEnqueueCancellationSessions(
+		ctx,
+		exec,
+		mutation,
+		looppkg.SessionCleanupCauseOperatorCancel,
+	)
 }
 
 func listNodeCancellationSessions(
@@ -29,19 +36,24 @@ func listNodeCancellationSessions(
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
 ) ([]string, error) {
-	return listAndEnqueueCancellationSessions(ctx, exec, mutation)
+	return listAndEnqueueCancellationSessions(ctx, exec, mutation, looppkg.SessionCleanupCauseTerminal)
 }
 
 func listAndEnqueueCancellationSessions(
 	ctx context.Context,
 	exec taskSQLExecutor,
 	mutation looppkg.CancellationMutation,
+	cause looppkg.SessionCleanupCause,
 ) ([]string, error) {
 	sources, err := queryCancellationSessionSources(ctx, exec, mutation)
 	if err != nil {
 		return nil, err
 	}
 	for _, source := range sources {
+		createdAt := mutation.RequestedAt.UTC()
+		if source.createdAt.After(createdAt) {
+			createdAt = source.createdAt
+		}
 		var enqueueErr error
 		switch source.sourceKind {
 		case looppkg.SessionCleanupSourceGoalBinding:
@@ -58,8 +70,8 @@ func listAndEnqueueCancellationSessions(
 				SourceID:    source.sourceID,
 				SourceEpoch: source.sourceEpoch,
 				SessionID:   source.sessionID,
-				Cause:       looppkg.SessionCleanupCauseOperatorCancel,
-				CreatedAt:   mutation.RequestedAt.UTC(),
+				Cause:       cause,
+				CreatedAt:   createdAt,
 			})
 		case looppkg.SessionCleanupSourceTaskRun:
 			enqueueErr = enqueueTaskRunSessionCleanupWithExecutor(
@@ -69,8 +81,8 @@ func listAndEnqueueCancellationSessions(
 				mutation.RunID,
 				source.sourceID,
 				source.sessionID,
-				looppkg.SessionCleanupCauseOperatorCancel,
-				mutation.RequestedAt.UTC(),
+				cause,
+				createdAt,
 			)
 		default:
 			enqueueErr = fmt.Errorf(
@@ -96,7 +108,8 @@ func queryCancellationSessionSources(
 	mutation looppkg.CancellationMutation,
 ) ([]cancellationSessionSource, error) {
 	bindingQuery := `SELECT 0 AS priority, binding.session_id, 'goal-binding' AS source_kind,
-		binding.handle AS source_id, binding.binding_epoch AS source_epoch
+		binding.handle AS source_id, binding.binding_epoch AS source_epoch,
+		binding.created_at AS source_created_at
 		FROM loop_session_bindings AS binding
 		WHERE binding.loop_run_id = ? AND binding.workspace_id = ?
 		  AND binding.ownership = 'run-owned' AND binding.state IN ('creating','active')`
@@ -118,7 +131,7 @@ func queryCancellationSessionSources(
 	}
 
 	taskQuery := `SELECT 1 AS priority, task_run.session_id, 'task-run' AS source_kind,
-		task_run.id AS source_id, 0 AS source_epoch
+		task_run.id AS source_id, 0 AS source_epoch, task_run.queued_at AS source_created_at
 		FROM task_runs AS task_run
 		JOIN loop_runs AS run ON run.id = task_run.loop_run_id
 		WHERE task_run.loop_run_id = ? AND task_run.workspace_id = ? AND task_run.run_kind = 'worker'
@@ -134,7 +147,7 @@ func queryCancellationSessionSources(
 		}
 	}
 
-	query := `SELECT priority, session_id, source_kind, source_id, source_epoch FROM (` +
+	query := `SELECT priority, session_id, source_kind, source_id, source_epoch, source_created_at FROM (` +
 		bindingQuery + ` UNION ALL ` + taskQuery + `) ORDER BY session_id, priority, source_id`
 	args := make([]any, 0, len(bindingArgs)+len(taskArgs))
 	args = append(args, bindingArgs...)
@@ -159,19 +172,26 @@ func scanCancellationSessionSources(rows cancellationSessionRows) ([]cancellatio
 	for rows.Next() {
 		var priority int
 		var source cancellationSessionSource
+		var createdAtRaw string
 		if err := rows.Scan(
 			&priority,
 			&source.sessionID,
 			&source.sourceKind,
 			&source.sourceID,
 			&source.sourceEpoch,
+			&createdAtRaw,
 		); err != nil {
 			return nil, errors.Join(
 				fmt.Errorf("store: scan Loop cancellation session: %w", err),
 				rows.Close(),
 			)
 		}
+		createdAt, err := parseLoopRunSummaryTimestamp(createdAtRaw)
+		if err != nil {
+			return nil, errors.Join(err, rows.Close())
+		}
 		source.sessionID = strings.TrimSpace(source.sessionID)
+		source.createdAt = createdAt
 		if _, found := seenSessionIDs[source.sessionID]; found {
 			continue
 		}
