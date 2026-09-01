@@ -259,7 +259,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 				Mode:        dsl.EnvironmentWorktree,
 				WorktreeRef: "feature-512",
 			},
-			Actor: mustDaemonActor(t),
+			Actor: new(mustDaemonActor(t)),
 		})
 		if err != nil {
 			t.Fatalf("Execute() error = %v", err)
@@ -309,7 +309,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 				Mode:        dsl.EnvironmentWorktree,
 				WorktreeRef: "feature-512",
 			},
-			Actor: mustDaemonActor(t),
+			Actor: new(mustDaemonActor(t)),
 		})
 		if !errors.Is(err, callErr) {
 			t.Fatalf("Execute() error = %v, want %v", err, callErr)
@@ -344,7 +344,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		}, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "pending"},
-			Actor:       mustDaemonActor(t),
+			Actor:       new(mustDaemonActor(t)),
 		})
 		if !errors.Is(err, resolveErr) {
 			t.Fatalf("Execute() error = %v, want resolver error", err)
@@ -370,7 +370,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 		}, loop.ActionExecutionInput{
 			WorkspaceID: "ws-1",
 			Environment: &dsl.EnvironmentSpec{Mode: dsl.EnvironmentWorktree, WorktreeRef: "feature-512"},
-			Actor:       mustDaemonActor(t),
+			Actor:       new(mustDaemonActor(t)),
 		})
 		if !errors.Is(err, loop.ErrActionDependencyMissing) {
 			t.Fatalf("Execute() error = %v, want ErrActionDependencyMissing", err)
@@ -503,7 +503,7 @@ func TestToolCallActionExecutorShouldExecuteAndHarvestToolResults(t *testing.T) 
 
 		_, err = executor.Execute(t.Context(), dsl.Node{
 			ID: "load_tasks", Class: dsl.NodeClassAction, Kind: toolID.String(),
-		}, loop.ActionExecutionInput{WorkspaceID: "ws-1", Actor: mustDaemonActor(t)})
+		}, loop.ActionExecutionInput{WorkspaceID: "ws-1", Actor: new(mustDaemonActor(t))})
 		if !errors.Is(err, loop.ErrActionResultTooLarge) {
 			t.Fatalf("Execute() error = %v, want ErrActionResultTooLarge", err)
 		}
