@@ -6,7 +6,7 @@ trigger: explicit
 
 # Tasks Tail QA Pair
 
-Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`, so the implementation agent always closes a program with a real verification pass. The pair operates on the repo's living QA tree (`docs/qa/`) — plans become journeys/charters/scenario files, results become registry bugs and dated reports.
+Auto-append the canonical QA pair (`$qa-report` + `$qa-execution`) to every `_tasks.md` produced by `cy-create-tasks`, so the implementation agent always closes a program with a real verification pass. The pair operates on the repo's living QA tree (`docs/qa/`) — plans become journeys/charters/scenario files, results become registry bugs and dated reports. The tail complements per-slice verification, never replaces it: each slice ships with its own `## Shippable Outcome` evidence, and the tail walks cross-slice journeys plus anything that changed after a slice's evidence was recorded — it does not re-walk untouched per-slice results.
 
 ## Procedures
 

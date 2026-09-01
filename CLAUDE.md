@@ -181,9 +181,9 @@ Any SQLite table/column/index/constraint change → activate `eng-schema-migrati
 
 `docs/_memory/` is institutional memory — authoritative when CLAUDE.md is silent. Read the relevant file before the matching work:
 
-- `standing_directives.md` — active engineering posture (SD-001..011); read before a spec or architecture pivot.
+- `standing_directives.md` — active engineering posture (SD-001..012); read before a spec or architecture pivot.
 - `spec-authoring-playbook.md` — mandatory preflight for `cy-create-spec`/`cy-create-tasks` (enforced by `cy-spec-preflight`).
-- `lessons/` (`L-001..035` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
+- `lessons/` (`L-001..039` + README) — durable lessons with confirmed root cause + evidence; scan the index by issue class.
 - `glossary.md` — canonical vocabulary; read when naming anything or reviewing a rename.
 - `_synthesis.md` + `analysis/` — evidence corpus behind the rules; read when challenging one.
 

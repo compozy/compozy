@@ -48,7 +48,7 @@ A narrow verification does not support a broad claim. Running `make test` alone 
 
 **If in doubt, follow the repository's verification contract.** A narrow lane cannot support a broad claim, and pending/red CI is not delivery.
 
-**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity").
+**Passing pipeline != meeting requirements.** A green build proves the code compiles, lints, and passes existing tests. It does not prove the implementation matches the requirements. For "task complete" or "requirements met" claims, also verify the deliverables against the original specification — line by line, not by assumption. In a spec/PRD workflow, "the original specification" means the canonical artifacts in the spec directory (example documents, input tables, parity maps, QA seeds) — never just the task file's paraphrase of them (see "Spec Contract Parity"). And spec parity alone cannot detect a spec that drifted from its own mission: when the spec states a Motivating Problem, a workstream-level completion claim also names which delivered slice solves it, with the evidence that it does.
 
 ## Common Failures
 
@@ -144,7 +144,7 @@ If the owning local gate has not passed in this session after the last code chan
 - **New behavior:** add content-addressed scenario file(s) with `qa_status: untested`.
 - **Changed behavior:** reset the affected files' `qa_status` to `untested` (a stale `pass` is worse than no verdict).
 
-**Flag, don't retest.** Running QA is the QA cycle's job — `untested` scenarios are exactly its scope. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
+**Flag, don't re-walk the full cycle.** Full QA cycles (journeys, charters, dated reports) are the QA pair's job — `untested` scenarios are exactly its scope. The task's own `## Shippable Outcome` verification tier, when its task file defines one, is completion evidence rather than QA: it runs with the task and cannot be deferred to the QA cycle. Skipping the flag silently (when the companion skills and tracker are present) is a stale-verdict claim: the same dishonesty as claiming tests pass without running them.
 
 ## Spec Contract Parity (spec workflows)
 
@@ -165,7 +165,7 @@ When a spec/task names an OpenDesign artifact, HTML mock, screenshot, or other t
 2. Enumerate every required state/viewport. For each one, require a durable bundle containing `reference.png`, `implementation.png`, `side-by-side.png`, `diff.png`, `comparison.json`, and `review.md`.
 3. Open and inspect every pair. Within the in-scope regions, a missing/reordered region, wrong shell, materially different geometry or hierarchy, missing visible state, hand-rolled markup where a shipped `@compozy/ui` primitive or existing composite exists, or uncited visual-language delta is a blocker regardless of green tests or pixel ratio. Content, data, copy, brand-mark, control-existence, component-identity, and host-chrome divergences are judged against their canonical owners (runtime truth, `COPY.md`, brand inventory, `@compozy/ui` + existing composites, the live host surface) — require the cited authorized difference, not prototype parity; a mapped component's standard internals and live host chrome differing from the prototype's redraw are non-blocking.
 4. Run the `eng-ui-screenshot` bundle validator for every row and require exit zero (`PASS` plus `blocking_divergences: 0`). Implementation-only screenshots, filenames, checklist ticks, and “looks close” prose are not parity evidence.
-5. Cite the contract matrix and bundle root in the Verification Report (`Visual contract:` line). If no named visual reference exists, report `n/a — no named visual reference found`.
+5. Cite the contract matrix and bundle root in the Verification Report (`Visual contract:` line). If no named visual reference exists, report `n/a — no named visual reference found` — invalid when the spec directory carries `_uiux.md` and the work touched a surface it maps: resolve the reference from the `_uiux.md` inventory instead of reporting absence.
 
 A runtime-truth conflict does not permit a silent visual deviation: follow runtime truth, then reconcile the contract or cite the higher-authority artifact that explicitly authorizes the difference before reporting PASS.
 

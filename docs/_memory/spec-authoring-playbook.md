@@ -31,7 +31,8 @@ Part I frames **what** and **why**. It does not frame **how**.
 
 #### MUST contain
 
-- Problem statement, user/operator impact, current pain.
+- **Motivating Problem** opening the Overview: the concrete pain that triggered the spec and the simplest end-to-end behavior that solves it, stated as an outcome observable from outside the system. Slice 1 of the breakdown delivers it; an ADR narrowing or deferring it needs the user's sign-off recorded in the ADR. → `lessons/L-036`, SD-012.
+- User/operator impact, current pain.
 - Agent/operator manageability outcome: who or what must inspect, configure, operate, or repair the capability outside the web UI.
 - Extension ecosystem expectation: whether third-party/runtime extension points should participate, without naming implementation details.
 - Goals + non-goals listed explicitly (non-goals are not inferred — they're stated).
@@ -112,13 +113,14 @@ The autonomy spec is the high-water mark. Six markers correlate with **clean exe
 
 ## 3. Phase: Tasks (`$cy-create-tasks`)
 
-Tasks turn a spec into an implementable dependency graph. The structure of `_tasks.md` is load-bearing.
+Tasks turn a spec into a graph of **shippable slices**. The structure of `_tasks.md` is load-bearing.
 
 ### `_tasks.md` shape
 
 - Table columns: `# | Title | Status | Complexity | Dependencies`. Preserve column order across edits.
-- **MVP Boundary** section above the table: name which tasks implement the MVP, which trailing tasks cover QA planning/execution, and what remains post-MVP.
-- **Final two rows** are always `qa-report` (high) + `qa-execution` (critical), operating on the living `docs/qa/` tree (state.csv, journeys, charters, bug registry, dated reports). UI-bearing features (the slug has `_uiux.md`) include e2e in qa-execution. → `cy-tasks-tail-qa-pair` skill.
+- **Shippable slices, never layers.** Every implementation task is the smallest increment that could merge to `main` alone, crossing every layer its outcome needs; "all backend / all frontend / all docs" groupings are invalid breakdowns. Slice 1 solves the Motivating Problem end-to-end; order by user value. Budget: 5 slices default, `slice_budget: N` overrides — honest overflow becomes a sequenced program of specs, the user decides. → `lessons/L-037`, SD-012.
+- **MVP Boundary** section above the table: name which tasks implement the MVP, which slice ships first solving the Motivating Problem, which trailing tasks cover QA planning/execution, and what remains post-MVP.
+- **Final two rows** are always `qa-report` (high) + `qa-execution` (critical), operating on the living `docs/qa/` tree (state.csv, journeys, charters, bug registry, dated reports). UI-bearing features (the slug has `_uiux.md`) include e2e in qa-execution. The tail complements per-slice `## Shippable Outcome` evidence and never re-walks it. → `cy-tasks-tail-qa-pair` skill, SD-012.
 
 ### Per-row directives
 
@@ -157,6 +159,7 @@ Each task file is the unit of execution. The autonomy task files are the canonic
 ### Body sections
 
 - **Goal**: 1-3 sentences naming the deliverable.
+- **Shippable Outcome**: the observable outcome after merge plus the cheapest verification tier that can falsify it — `gate` | `probe` | `smoke` (real entry path + touched Visual Contract captures). Evidence lands with the task; relocating it to a later task is forbidden. → `lessons/L-037`, `lessons/L-038`, SD-012.
 - **Files / Surfaces**: enumerated list of files/packages touched.
 - **Implementation Steps**: numbered, deterministic.
 - **Tests**: enumerated assertions covering happy path + failure paths + concurrency stress where relevant. → `eng-test-conventions` skill, `lessons/L-002`, `eng-cleanup-failure-paths` skill.
@@ -203,6 +206,10 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 - **Raw `claim_token` over the wire / in logs / in memory.** → CLAUDE.md Security Invariants.
 - **Agent-operated features that only expose web UI controls.** → SD-011.
 - **Config changes without same-change docs, examples, validation, and tests.** → SD-011.
+- **Layer-split task graphs** (all backend → all frontend → docs → QA tail). → `lessons/L-037`, SD-012.
+- **A Motivating Problem no slice solves** — scope-out by ADR without recorded user sign-off. → `lessons/L-036`.
+- **Gate relocation** — deferring a slice's smoke/Visual Contract evidence to a later task. → `lessons/L-037`.
+- **Golden fixtures captured from behavior instead of contract** — a green test that blesses the bug. → `lessons/L-039`.
 
 ---
 
@@ -210,8 +217,8 @@ If the agent's draft contains any of these, refuse to mark the artifact ready:
 
 | Topic                                       | Where to read                                                          |
 | ------------------------------------------- | ---------------------------------------------------------------------- |
-| Standing posture                            | `docs/_memory/standing_directives.md` (SD-001..SD-011)                 |
-| Lessons (incident → rule)                   | `docs/_memory/lessons/README.md` (L-001..L-013)                        |
+| Standing posture                            | `docs/_memory/standing_directives.md` (SD-001..SD-012)                 |
+| Lessons (incident → rule)                   | `docs/_memory/lessons/README.md` (L-001..L-039)                        |
 | Vocabulary                                  | `docs/_memory/glossary.md`                                             |
 | Cross-source synthesis                      | `docs/_memory/_synthesis.md` and `docs/_memory/analysis/analysis_*.md` |
 | Spec quality evidence                       | `docs/_memory/lessons/L-012-techspec-prose-only-rework.md`             |
