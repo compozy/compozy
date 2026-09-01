@@ -619,6 +619,8 @@ func TestPromptFileMutationVerifier(t *testing.T) {
 				t.Fatalf("Events() error = %v", err)
 			}
 			markers := 0
+			markerSequence := int64(0)
+			terminalSequence := int64(0)
 			persistedEditKind := false
 			for _, storedEvent := range stored {
 				event, unmarshalErr := transcript.UnmarshalAgentEvent(storedEvent.Content)
@@ -631,9 +633,13 @@ func TestPromptFileMutationVerifier(t *testing.T) {
 				marker, ok := transcript.ParseMarker(event.Raw)
 				if ok && marker.Kind == transcript.MarkerFileMutationUnverified {
 					markers++
+					markerSequence = storedEvent.Sequence
 					if got := marker.Evidence["failure_count"]; got != float64(1) && got != 1 {
 						t.Fatalf("marker failure_count = %#v, want 1", got)
 					}
+				}
+				if event.Type == terminal {
+					terminalSequence = storedEvent.Sequence
 				}
 			}
 			if markers != tc.wantMarker {
@@ -643,6 +649,14 @@ func TestPromptFileMutationVerifier(t *testing.T) {
 				t.Fatal("persisted edit tool kind = false, want canonical edit evidence")
 			}
 			if tc.wantMarker > 0 {
+				if markerSequence == 0 || terminalSequence == 0 || markerSequence >= terminalSequence {
+					t.Fatalf(
+						"persisted marker sequence = %d, terminal sequence = %d, want marker before %q",
+						markerSequence,
+						terminalSequence,
+						terminal,
+					)
+				}
 				assertFileMutationMarkerNotifiedBeforeTerminal(t, h.notifier.eventsForSession(sess.ID), terminal)
 			}
 		})

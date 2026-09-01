@@ -24,11 +24,11 @@ func (m *Manager) observeRecordAndNotifyPromptEvent(
 	if loop.activity != nil && !runtimeEvent {
 		loop.activity.observeEvent(normalized)
 	}
+	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	if err := m.recordEvent(ctx, session, normalized); err != nil {
 		return fmt.Errorf("session: record prompt event: %w", err)
 	}
 	loop.fileMutations.Observe(normalized)
-	m.emitFileMutationMarkerBeforeTerminalNotification(ctx, session, turnState, loop, normalized)
 	m.notifyManagedPromptEvent(ctx, session, turnState, normalized)
 	m.scheduleCompactionFromUsage(session, normalized)
 	if kind, summary, evidence, ok := promptTranscriptMarker(normalized); ok {

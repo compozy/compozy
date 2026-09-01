@@ -32,4 +32,11 @@ the title and marker.
 QA impact 2026-08-03: removed obsolete interrupt-salvage expectations. RT-019 now owns durable,
 fenced interrupt and steer replacements; this scenario retains only title and file-verifier behavior.
 
+QA impact 2026-08-31: terminal session events now persist and publish only after the unresolved
+file-mutation marker, so a live Web stream cannot close before receiving the marker. The focused
+browser regression passed 20/20 repetitions against a production daemon build, and the session
+manager regression failed before the ordering fix and passed afterward. The browser harness uses a
+simulated provider, so this scenario remains `blocked-verify` until the same failed-edit journey is
+walked with a real provider and confirmed after refresh through an independent event read.
+
 src: .compozy/tasks/hermes-comparison/_user_stories.md#us-004-compaction-under-pressure-crash-safe
