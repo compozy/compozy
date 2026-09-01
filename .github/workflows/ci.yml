@@ -14,14 +14,14 @@ concurrency:
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
-  # Turborepo remote cache (Vercel) via OIDC: turbo jobs exchange the GitHub
-  # OIDC token for a short-lived, cache-scoped Turborepo token (revoked when
-  # the job ends), so no long-lived credential reaches PR-controlled code.
-  # Pull requests read the shared cache without write access; only pushes to
-  # main upload. Fork PRs skip the exchange and stay local-only.
+  # Turborepo remote cache (Vercel), trusted lanes only: push and
+  # workflow_dispatch jobs exchange the GitHub OIDC token for a short-lived
+  # cache-scoped Turborepo token (revoked at job end) and verify signed
+  # artifacts. Pull-request jobs receive no cache credential at all — the
+  # OIDC exchange is skipped and the signature key resolves empty — and use
+  # the branch-scoped actions/cache fallback instead.
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
-  TURBO_CACHE: ${{ github.event_name == 'pull_request' && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
+  TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ github.event_name != 'pull_request' && secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY || '' }}
 
 permissions:
   contents: read
@@ -225,7 +225,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Set up Turborepo remote cache (OIDC)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
         with:
@@ -442,7 +442,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Set up Turborepo remote cache (OIDC)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
         with:
@@ -529,7 +529,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Set up Turborepo remote cache (OIDC)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
         with:
@@ -584,7 +584,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Set up Turborepo remote cache (OIDC)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
         with:
@@ -649,7 +649,7 @@ jobs:
             ${{ runner.os }}-turbo-
 
       - name: Set up Turborepo remote cache (OIDC)
-        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
         with:
