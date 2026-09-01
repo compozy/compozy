@@ -42,6 +42,15 @@ func (h *BaseHandlers) projectedAgentForSkillScope(
 	resolved *workspacepkg.ResolvedWorkspace,
 	agentName string,
 ) (*compozyconfig.AgentDef, error) {
+	target := compozyconfig.NormalizeAgentName(agentName)
+	if resolved != nil {
+		for _, agent := range resolved.Agents {
+			if compozyconfig.NormalizeAgentName(agent.Name) == target {
+				candidate := compozyconfig.CloneAgentDef(agent)
+				return &candidate, nil
+			}
+		}
+	}
 	if h.AgentCatalog == nil {
 		return nil, nil
 	}
@@ -55,7 +64,6 @@ func (h *BaseHandlers) projectedAgentForSkillScope(
 	if err != nil {
 		return nil, err
 	}
-	target := compozyconfig.NormalizeAgentName(agentName)
 	for _, entry := range entries {
 		if compozyconfig.NormalizeAgentName(entry.Def.Name) == target {
 			candidate := compozyconfig.CloneAgentDef(entry.Def)

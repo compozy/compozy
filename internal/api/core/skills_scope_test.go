@@ -196,6 +196,52 @@ func TestResolveScopedSkillsUsesProjectedAgentSourcePath(t *testing.T) {
 	})
 }
 
+func TestResolveScopedSkillsUsesWorkspaceResolverAgentBeforeCatalog(t *testing.T) {
+	t.Parallel()
+
+	globalAgent := projectedSkillAgent(t, "stale catalog winner", "stale catalog body")
+	profileAgent := projectedSkillAgent(t, "resolved Profile winner", "resolved Profile body")
+	resolved := &workspacepkg.ResolvedWorkspace{
+		ProfileID: "profile-work", ProfileName: "work",
+		Workspace: workspacepkg.Workspace{ID: "workspace-test", RootDir: t.TempDir()},
+		Agents:    []compozyconfig.AgentDef{profileAgent.entry.Def},
+	}
+	handlers := &BaseHandlers{
+		SkillsRegistry: skills.NewRegistry(skills.RegistryConfig{}),
+		AgentCatalog: projectedSkillAgentCatalog{
+			globalEntry: globalAgent.entry,
+			profiles: map[string]AgentCatalogEntry{
+				"profile-work": globalAgent.entry,
+			},
+		},
+	}
+	request := httptest.NewRequestWithContext(
+		t.Context(), "GET", "/api/skills?for_agent=extension-agent", http.NoBody,
+	)
+	got, err := handlers.resolveScopedSkills(
+		&gin.Context{Request: request}, resolved, "extension-agent",
+	)
+	if err != nil {
+		t.Fatalf("resolveScopedSkills() error = %v", err)
+	}
+	if len(got) != 1 || got[0].Meta.Description != profileAgent.description ||
+		got[0].FilePath != profileAgent.skillPath {
+		t.Fatalf(
+			"resolveScopedSkills() = %#v, want resolved Profile Agent %q from %q",
+			got,
+			profileAgent.description,
+			profileAgent.skillPath,
+		)
+	}
+	content, err := handlers.SkillsRegistry.LoadContent(t.Context(), got[0])
+	if err != nil {
+		t.Fatalf("SkillsRegistry.LoadContent() error = %v", err)
+	}
+	if got := strings.TrimSpace(content); got != profileAgent.body {
+		t.Fatalf("SkillsRegistry.LoadContent() = %q, want %q", got, profileAgent.body)
+	}
+}
+
 func TestProfileOnlySkillScopePreservesProfileIdentity(t *testing.T) {
 	t.Parallel()
 
