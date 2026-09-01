@@ -33,12 +33,12 @@ stopping --> stopped: finalization complete`}
   caption="CompozyOS creates an active logical session without starting ACP. Its first prompt binds a runtime; stopping normally finalizes the session through `stopping`."
 />
 
-| State      | Meaning                                                                                                                                                                                                                                     | Valid live transition |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
-| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                                                                                    | `starting -> active`  |
-| `active`   | CompozyOS has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events.                                                        | `active -> stopping`  |
-| `stopping` | CompozyOS has accepted a stop request and is draining the session toward a stopped state.                                                                                                                                                   | `stopping -> stopped` |
-| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available. A normal user prompt can restore an eligible stopped user session; a terminal `process_exit` remains read-only history and must be forked into a new session. | `stopped -> starting` |
+| State      | Meaning                                                                                                                                                                                                                                  | Valid live transition |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------- |
+| `starting` | A prompt to a stopped session is restoring the ACP process and durable provider history.                                                                                                                                                 | `starting -> active`  |
+| `active`   | CompozyOS has durably allocated the session ID, prepared its storage, and accepts prompts. Before the first prompt, its runtime is `unbound`; after binding, it can emit ACP events.                                                     | `active -> stopping`  |
+| `stopping` | CompozyOS has accepted a stop request and is draining the session toward a stopped state.                                                                                                                                                | `stopping -> stopped` |
+| `stopped`  | Final metadata is written and the recorder is closed. Reads remain available. A normal prompt can restore an eligible stopped public session; a terminal `process_exit` remains read-only history and must be forked into a new session. | `stopped -> starting` |
 
 ## Creating a session
 
@@ -250,6 +250,12 @@ An active session still processes one prompt turn at a time, but CompozyOS accep
 modes so operators and agents do not have to guess what happens when a prompt is already running.
 `session.busy_input.default_mode` defaults to `queue`; `session.busy_input.queue_cap` bounds
 the persisted queue.
+
+The Web composer is available for active and eligible stopped `user`, `system`, `coordinator`, and
+`spawned` sessions. While one of these sessions is busy, the Web controls can queue a prompt, steer
+or interrupt the current turn, or stop generation. These are turn-level controls: daemon-managed
+sessions still do not expose user-session lifecycle actions such as rename, clear, attach, delete,
+or stop session. Dream and hidden maintenance sessions remain read-only in the Web session view.
 
 | Mode        | CLI                                                                             | HTTP shape                                                                                                                                                                                                                 | Result                                                                                                                                                      |
 | ----------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |

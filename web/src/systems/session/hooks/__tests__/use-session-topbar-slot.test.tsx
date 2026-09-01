@@ -9,6 +9,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { renderWithTopbar } from "@/test/render-with-topbar";
+import type { SessionPayload } from "../../types";
 
 import { SessionRenameDialog } from "../../components/session-rename-dialog";
 import { primarySessionFixture } from "../../mocks/fixtures";
@@ -17,6 +18,7 @@ import { useSessionTopbarSlot } from "../use-session-topbar-slot";
 function SessionPublisher({
   onStop,
   onRename = vi.fn(),
+  session = primarySessionFixture,
   inspectorOpen = false,
   onInspectorToggle = vi.fn(),
   sidebarOpen = false,
@@ -24,13 +26,14 @@ function SessionPublisher({
 }: {
   onStop: () => void;
   onRename?: () => void;
+  session?: SessionPayload;
   inspectorOpen?: boolean;
   onInspectorToggle?: () => void;
   sidebarOpen?: boolean;
   onSidebarToggle?: () => void;
 }) {
   useSessionTopbarSlot({
-    session: primarySessionFixture,
+    session,
     isDeleting: false,
     isRenaming: false,
     isStopping: false,
@@ -74,6 +77,23 @@ describe("useSessionTopbarSlot", () => {
     expect(onStop).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("session-inspector-toggle")).toHaveAttribute("aria-pressed", "false");
   });
+
+  it.each(["system", "coordinator", "spawned"] as const)(
+    "Should keep %s session lifecycle actions out of the topbar",
+    sessionType => {
+      renderWithTopbar(
+        <SessionPublisher
+          onStop={vi.fn()}
+          session={{ ...primarySessionFixture, type: sessionType }}
+        />
+      );
+
+      expect(screen.getByRole("button", { name: "Open sessions sidebar" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Open session inspector" })).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "Stop session" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: "More actions" })).not.toBeInTheDocument();
+    }
+  );
 
   it("Should place the inspector toggle immediately before overflow and report pressed state", () => {
     const onInspectorToggle = vi.fn();
