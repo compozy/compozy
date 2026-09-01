@@ -169,7 +169,7 @@ func (h *BaseHandlers) resolveSkillExposureScope(
 		return nil, "", err
 	}
 	if profileName != "" && profileName != compozyconfig.DefaultProfileDirName {
-		return h.profileOnlySkillScope(profileName), "", nil
+		return h.profileOnlySkillScope(actor.ReadScope.ProfileID, profileName), "", nil
 	}
 	return nil, "", nil
 }
