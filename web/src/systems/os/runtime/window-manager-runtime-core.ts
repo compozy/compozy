@@ -1,4 +1,4 @@
-import type { QueryCacheNotifyEvent, QueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 import { shallowEqual } from "@xstate/store";
 
 import { executeWindowManagerCommand } from "../adapters/window-manager-api";
@@ -28,6 +28,11 @@ import {
   reportCommandCompleted,
   reportCommandRefused,
 } from "./window-manager-command-outcome";
+import {
+  queryCacheEventChangesData,
+  randomWindowManagerId,
+  WINDOW_MANAGER_DIAGNOSTIC_TTL_MS,
+} from "./window-manager-runtime-helpers";
 import { WindowManagerSnapshotRefresher } from "./window-manager-snapshot-refresher";
 
 export interface WindowManagerRuntimeBinding {
@@ -35,35 +40,6 @@ export interface WindowManagerRuntimeBinding {
   /** The profile whose desks this runtime presents; a switch rebinds (US-026). */
   profileId: string;
   clientId: string;
-}
-
-/** How long a refused-command notice stays before the surface clears it on its own. */
-export const WINDOW_MANAGER_DIAGNOSTIC_TTL_MS = 5_000;
-
-export function randomWindowManagerId(prefix: string): string {
-  if (typeof globalThis.crypto?.randomUUID === "function") {
-    return `${prefix}-${globalThis.crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-}
-
-function queryCacheEventChangesData(event: QueryCacheNotifyEvent): boolean {
-  switch (event.type) {
-    case "added":
-      return event.query.state.data !== undefined;
-    case "removed":
-      return true;
-    case "updated":
-      return (
-        event.action.type === "success" ||
-        (event.action.type === "setState" && Object.hasOwn(event.action.state, "data"))
-      );
-    case "observerAdded":
-    case "observerRemoved":
-    case "observerResultsUpdated":
-    case "observerOptionsUpdated":
-      return false;
-  }
 }
 
 /** Query/client lifecycle and semantic command transport shared by the OS runtime. */

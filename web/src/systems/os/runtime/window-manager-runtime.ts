@@ -20,7 +20,7 @@ import { sameOsWindowRoute } from "../lib/window-manager-route";
 import { orderedDesktops } from "../lib/desktop-order";
 import { buildOsDesktopRuntimeView, normalizedRectToWire } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
-import { randomWindowManagerId } from "./window-manager-runtime-core";
+import { randomWindowManagerId } from "./window-manager-runtime-helpers";
 import { WindowManagerSnapRuntime } from "./window-manager-snap-commands";
 import { openWindowCommand } from "./window-manager-tab-commands";
 

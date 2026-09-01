@@ -16,7 +16,7 @@ import type { WindowManagerCommandInput } from "../lib/window-manager-types";
 import { normalizedRectToWire, pixelRectToNormalized } from "../lib/window-manager-view";
 import { windowManagerStore } from "../stores/window-manager-store";
 import { advanceWindowManagerPlacementCycle } from "../stores/window-manager-store-commands";
-import { randomWindowManagerId } from "./window-manager-runtime-core";
+import { randomWindowManagerId } from "./window-manager-runtime-helpers";
 import { WindowManagerTabRuntime } from "./window-manager-tab-commands";
 
 function rejectedCommandOutcome(): WindowManagerCommandOutcome {

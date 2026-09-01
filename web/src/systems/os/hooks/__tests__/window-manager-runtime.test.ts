@@ -25,7 +25,7 @@ import {
 } from "../../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../../stores/window-manager-store-commands";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
-import { WINDOW_MANAGER_DIAGNOSTIC_TTL_MS } from "../../runtime/window-manager-runtime-core";
+import { WINDOW_MANAGER_DIAGNOSTIC_TTL_MS } from "../../runtime/window-manager-runtime-helpers";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
