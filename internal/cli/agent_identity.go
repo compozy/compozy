@@ -45,6 +45,11 @@ func resolveAgentCallerFromEnv(
 
 func agentSessionLookup(client agentSessionClient) agentidentity.SessionLookup {
 	return func(ctx context.Context, sessionID string) (agentidentity.SessionSnapshot, error) {
+		// The daemon-issued session identity is the authority at this boundary.
+		// Do not let the invoking CLI's ambient Profile hide a valid caller from
+		// the exact-ID lookup; agentidentity.Resolve still verifies the returned
+		// session ID, Agent name, active state, and workspace before use.
+		ctx = context.WithValue(ctx, profileReadSelectionContextKey{}, profileReadSelection{AllProfiles: true})
 		record, err := client.GetSession(ctx, sessionID)
 		if err != nil {
 			return agentidentity.SessionSnapshot{}, fmt.Errorf("cli: lookup agent session %q: %w", sessionID, err)

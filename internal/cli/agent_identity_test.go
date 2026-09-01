@@ -38,9 +38,12 @@ func TestResolveAgentCallerFromEnv(t *testing.T) {
 				}
 
 				client := &stubClient{
-					getSessionFn: func(_ context.Context, id string) (SessionRecord, error) {
+					getSessionFn: func(ctx context.Context, id string) (SessionRecord, error) {
 						if id != "sess-1" {
 							t.Fatalf("GetSession() id = %q, want sess-1", id)
+						}
+						if values := profileQueryValues(ctx, nil); values.Get("all_profiles") != "true" {
+							t.Fatalf("GetSession() profile query = %v, want all_profiles=true", values)
 						}
 						return SessionRecord{
 							ID:          "sess-1",

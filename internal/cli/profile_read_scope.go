@@ -6,7 +6,9 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/compozy/compozy/internal/agentidentity"
 	"github.com/compozy/compozy/internal/api/contract"
+	"github.com/compozy/compozy/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -127,7 +129,7 @@ func prepareProfileReadSelection(
 		recordProfileReadSelection(cmd, profileReadSelection{AllProfiles: true})
 		return nil
 	}
-	if handled, err := prepareAgentProfileSelection(cmd, deps); handled || err != nil {
+	if handled, err := prepareAgentProfileSelection(cmd, deps, profiles, workspaces); handled || err != nil {
 		return err
 	}
 	if handled, err := prepareRemoteGatewayProfileSelection(cmd, deps, workspaces); handled || err != nil {
@@ -189,7 +191,12 @@ func prepareRemoteGatewayProfileSelection(
 	return true, nil
 }
 
-func prepareAgentProfileSelection(cmd *cobra.Command, deps commandDeps) (bool, error) {
+func prepareAgentProfileSelection(
+	cmd *cobra.Command,
+	deps commandDeps,
+	profiles profileResolutionClient,
+	client workspaceLookupClient,
+) (bool, error) {
 	credentials := agentCredentialsFromEnv(deps)
 	if strings.TrimSpace(credentials.SessionID) == "" || strings.TrimSpace(credentials.AgentName) == "" {
 		return false, nil
@@ -204,7 +211,36 @@ func prepareAgentProfileSelection(cmd *cobra.Command, deps commandDeps) (bool, e
 		source = profileResolutionEnv
 	}
 	if strings.TrimSpace(name) == "" {
-		return true, nil
+		sessions, ok := client.(agentSessionClient)
+		if !ok || profiles == nil {
+			return true, fmt.Errorf(
+				"cli: resolve agent session profile: %w",
+				agentidentity.ErrIdentityLookupUnavailable,
+			)
+		}
+		caller, err := resolveAgentCallerFromEnv(cmd.Context(), deps, sessions, "profile.resolve")
+		if err != nil {
+			return true, err
+		}
+		profileID := strings.TrimSpace(caller.Session.ProfileID)
+		name = configDefaultKey
+		if profileID != store.DefaultProfileID {
+			items, listErr := profiles.ListProfiles(cmd.Context())
+			if listErr != nil {
+				return true, fmt.Errorf("cli: list profiles for agent session: %w", listErr)
+			}
+			name = ""
+			for _, item := range items {
+				if strings.TrimSpace(item.ID) == profileID {
+					name = strings.TrimSpace(item.Name)
+					break
+				}
+			}
+			if name == "" {
+				return true, fmt.Errorf("cli: agent session profile %q was not found", profileID)
+			}
+		}
+		source = profileResolutionSession
 	}
 	recordProfileResolution(cmd, profileResolution{
 		Profile: contract.Profile{Name: name},

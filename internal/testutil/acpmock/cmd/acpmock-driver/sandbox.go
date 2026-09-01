@@ -28,24 +28,31 @@ func (a *mockAgent) executeSandboxCommand(
 	}
 
 	result := a.runSandboxCommand(ctx, sessionID, step)
+	diagnostics := sandboxDiagnosticsStep(step, result)
 	if expected := strings.TrimSpace(step.ExpectErrorContains); expected != "" {
 		return a.finishSandboxFailure(ctx, sessionID, step, toolCallID, title, result, expected)
 	}
 	if err := validateSandboxResult(step, result); err != nil {
-		return acpmock.DiagnosticsStep{}, err
+		diagnostics.Error = err.Error()
+		return diagnostics, err
 	}
 	if err := a.finishSandboxSuccess(ctx, sessionID, step, toolCallID, title, result); err != nil {
 		return acpmock.DiagnosticsStep{}, err
 	}
 
+	return diagnostics, nil
+}
+
+func sandboxDiagnosticsStep(step acpmock.Step, result sandboxRunResult) acpmock.DiagnosticsStep {
 	return acpmock.DiagnosticsStep{
 		Kind:       acpmock.StepKindSandbox,
-		ToolCallID: toolCallID,
+		ToolCallID: strings.TrimSpace(step.ToolCallID),
 		Command:    strings.TrimSpace(step.Command),
 		Args:       append([]string(nil), step.Args...),
 		ExitCode:   result.ExitCode,
 		Output:     result.Output,
-	}, nil
+		Error:      result.ObservedError,
+	}
 }
 
 func (a *mockAgent) executeDriverControl(
