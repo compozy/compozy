@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -18,13 +19,63 @@ func (h *BaseHandlers) resolveScopedSkills(
 	agentName string,
 ) ([]*skills.Skill, error) {
 	if agentName != "" {
-		skillList, err := h.SkillsRegistry.ForAgent(c.Request.Context(), resolved, agentName)
+		skillWorkspace, err := h.skillWorkspaceWithProjectedAgent(c.Request.Context(), resolved, agentName)
+		if err != nil {
+			return nil, err
+		}
+		skillList, err := h.SkillsRegistry.ForAgent(c.Request.Context(), skillWorkspace, agentName)
 		if err != nil {
 			return nil, mapSkillScopeError(err)
 		}
 		return skillList, nil
 	}
 	return h.SkillsRegistry.ForWorkspace(c.Request.Context(), resolved)
+}
+
+// skillWorkspaceWithProjectedAgent enriches the filesystem workspace snapshot
+// with the winning daemon resource definition. Extension Agents are published
+// in the daemon catalog with their source path, which is required for the
+// registry to discover Agent-local skills. Keep this enrichment scoped to the
+// requested Agent so ordinary workspace resolution and precedence remain
+// unchanged.
+func (h *BaseHandlers) skillWorkspaceWithProjectedAgent(
+	ctx context.Context,
+	resolved *workspacepkg.ResolvedWorkspace,
+	agentName string,
+) (*workspacepkg.ResolvedWorkspace, error) {
+	if h.AgentCatalog == nil {
+		return resolved, nil
+	}
+	entries, err := h.AgentCatalog.ListAgentsForWorkspace(ctx, resolved)
+	if err != nil {
+		return nil, err
+	}
+	target := compozyconfig.NormalizeAgentName(agentName)
+	var projected *compozyconfig.AgentDef
+	for _, entry := range entries {
+		if compozyconfig.NormalizeAgentName(entry.Def.Name) == target {
+			candidate := compozyconfig.CloneAgentDef(entry.Def)
+			projected = &candidate
+			break
+		}
+	}
+	if projected == nil {
+		return resolved, nil
+	}
+
+	projectedWorkspace := workspacepkg.ResolvedWorkspace{}
+	if resolved != nil {
+		projectedWorkspace = *resolved
+		projectedWorkspace.Agents = append([]compozyconfig.AgentDef(nil), resolved.Agents...)
+	}
+	for index := range projectedWorkspace.Agents {
+		if compozyconfig.NormalizeAgentName(projectedWorkspace.Agents[index].Name) == target {
+			projectedWorkspace.Agents[index] = *projected
+			return &projectedWorkspace, nil
+		}
+	}
+	projectedWorkspace.Agents = append(projectedWorkspace.Agents, *projected)
+	return &projectedWorkspace, nil
 }
 
 func (h *BaseHandlers) resolveSkillScope(

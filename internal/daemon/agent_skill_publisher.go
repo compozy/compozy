@@ -263,18 +263,10 @@ func extensionAgentSkillDeclarationProvider(
 			if ext == nil || ext.Manifest == nil || !ext.Status.Registered {
 				continue
 			}
-			agents, err := extensionpkg.LoadAgentResources(
-				ext.RootDir,
-				extensionpkg.ResourcePaths(ext.Manifest.Resources.Agents),
-			)
-			if err != nil {
-				return agentSkillDeclarations{}, fmt.Errorf(
-					"daemon: load extension %q agents for sync: %w",
-					ext.Info.Name,
-					err,
-				)
-			}
-			appendExtensionAgentResources(&desired, snapshot.scope, ext.Info.Name, agents)
+			// Profile projections already load the visible StaticAgents set from
+			// the projected manifest. Re-reading Manifest.Resources.Agents here
+			// would reintroduce profile-only agents into every scope.
+			appendExtensionAgentResources(&desired, snapshot.scope, ext.Info.Name, ext.StaticAgents)
 			appendSkillResources(&desired, snapshot.scope, skillPublicationSource{
 				prefix: "extension/" + strings.TrimSpace(ext.Info.Name) + "/skills",
 				owner:  extensionOwner(ext.Info.Name),
