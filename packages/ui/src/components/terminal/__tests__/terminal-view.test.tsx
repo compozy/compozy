@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { destroyTerminalInstances } from "../terminal-registry";
 import { TerminalView, type TerminalViewHandle } from "../terminal-view";
+import { createFakeFontFaceSet, installFakeFontFaceSet } from "./fake-font-face-set";
 import { createFakeEngine, type FakeEngine } from "./fake-terminal-engine";
 
 /**
@@ -53,8 +54,12 @@ beforeEach(() => {
   }
 });
 
+let restoreFonts: (() => void) | null = null;
+
 afterEach(() => {
   destroyTerminalInstances(() => true);
+  restoreFonts?.();
+  restoreFonts = null;
   for (const token of Object.keys(TERMINAL_TOKENS)) {
     document.documentElement.style.removeProperty(token);
   }
@@ -719,5 +724,50 @@ describe("TerminalView", () => {
 
     terminal.emitSelectionChange("selected output");
     expect(terminal.acceptKeyEvent(key("c"))).toBe(false);
+  });
+
+  it("Should gate the first paint on a missing font stack and clear the glyph atlas once it lands", async () => {
+    const fonts = createFakeFontFaceSet();
+    restoreFonts = installFakeFontFaceSet(fonts);
+    const engine = createFakeEngine();
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={loaderFor(engine)}
+        instanceId={nextInstanceId()}
+        style={{ fontFamily: '"Test Mono", monospace', fontSize: "12px" }}
+      />
+    );
+
+    await waitFor(() => expect(fonts.loadCalls).toHaveLength(1));
+    // The stack is still loading and the budget has not elapsed: opening the
+    // emulator now would rasterize tofu into the atlas.
+    expect(engine.terminals).toHaveLength(0);
+
+    fonts.settleLoads();
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    await waitFor(() => expect(engine.lastTerminal().clearTextureAtlasCount).toBe(1));
+    // The clear alone leaves a blank canvas; the repaint is what puts the now
+    // correctly-rasterized rows back on screen.
+    expect(engine.lastTerminal().refreshCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("Should attach without clearing the glyph atlas when the font stack was already resident", async () => {
+    const fonts = createFakeFontFaceSet(['12px "Test Mono"']);
+    restoreFonts = installFakeFontFaceSet(fonts);
+    const engine = createFakeEngine();
+    render(
+      <TerminalView
+        aria-label="Terminal output"
+        engineLoader={loaderFor(engine)}
+        instanceId={nextInstanceId()}
+        style={{ fontFamily: '"Test Mono", monospace', fontSize: "12px" }}
+      />
+    );
+
+    await waitFor(() => expect(engine.terminals).toHaveLength(1));
+    expect(fonts.loadCalls).toHaveLength(0);
+    await act(async () => {});
+    expect(engine.lastTerminal().clearTextureAtlasCount).toBe(0);
   });
 });

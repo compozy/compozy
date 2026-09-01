@@ -13,7 +13,7 @@ import {
 
 import { OsDock, OsDockZone, type OsDockItemData } from "../os-dock";
 import { OsWindowFrame } from "../os-window-frame";
-import { buildDeskItems, DesktopShell, DESK_APP_ITEMS, DESK_ITEMS } from "./_desktop";
+import { buildDeskItems, DesktopShell, DESK_ITEMS } from "./_desktop";
 
 const meta: Meta<typeof OsDock> = {
   title: "systems/os/components/OsDock",
@@ -148,9 +148,9 @@ export const Resting: Story = {
 export const BadgeCap: Story = {
   args: {
     items: [
-      { id: "sessions", name: "Sessions", icon: DESK_APP_ITEMS[0].icon, running: true, badge: 12 },
-      { id: "tasks", name: "Tasks", icon: DESK_APP_ITEMS[4].icon, badge: 9 },
-      { id: "agents", name: "Agents", icon: DESK_APP_ITEMS[2].icon },
+      { id: "sessions", name: "Sessions", icon: "sessions", running: true, badge: 12 },
+      { id: "tasks", name: "Tasks", icon: "tasks", badge: 9 },
+      { id: "agents", name: "Agents", icon: "agents" },
     ] satisfies OsDockItemData[],
     onSelect: fn(),
   },

@@ -15,6 +15,7 @@ import { DesktopDock } from "../desktop-dock";
 import { OsDock } from "../os-dock";
 import { OsDockAppMenu } from "../os-dock-app-menu";
 import { useDesktopDock } from "../../hooks/use-desktop-dock";
+import { isOsDockSeparator } from "../../lib/os-dock-model";
 import type { SessionPayload } from "@/systems/session";
 
 const dockShell = vi.hoisted(() => ({
@@ -399,6 +400,33 @@ describe("OsDock", () => {
     expect(result.current.entries.find(entry => entry.id === "session")).toMatchObject({
       badge: 1,
     });
+  });
+
+  it("Should keep Agents through Triggers in one dock division after Terminal", () => {
+    const { result } = renderHook(() => useDesktopDock({}, { onNewSession: vi.fn() }));
+    const ids = result.current.entries.map(entry =>
+      isOsDockSeparator(entry) ? `sep:${entry.id}` : entry.id
+    );
+
+    expect(ids).toEqual([
+      "session",
+      "dashboard",
+      "terminal",
+      "sep:sep-1",
+      "agents",
+      "network",
+      "tasks",
+      "loops",
+      "jobs",
+      "triggers",
+      "sep:sep-2",
+      "marketplace",
+      "bridges",
+      "knowledge",
+      "sep:sep-3",
+      "sandbox",
+      "vault",
+    ]);
   });
 
   it("Should launch a new session from the dock when the catalog is empty", () => {

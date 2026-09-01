@@ -1,3 +1,23 @@
+/* Nerd Font symbols — shell prompts and agent output lean on Private Use Area
+   icons (powerline separators, devicons, octicons), and browsers resolve no
+   system fallback for PUA codepoints, so an installed Nerd Font on the machine
+   never reaches this document. The bundled JetBrains Mono ships none of them;
+   the mono stack carries this symbols-only face instead, scoped by
+   unicode-range to exactly the codepoints the font ships so ordinary text
+   never downloads it. `local()` first: an installed copy costs no bytes. */
+@font-face {
+  font-family: "Symbols Nerd Font Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src:
+    local("Symbols Nerd Font Mono"),
+    local("SymbolsNFM"),
+    url("./assets/fonts/symbols-nerd-font-mono.woff2") format("woff2");
+  unicode-range:
+    U+23FB-23FE, U+2630, U+2665, U+26A1, U+276C-2771, U+2B58, U+E000-F533, U+F0001-F1AF0;
+}
+
 .dark {
   color-scheme: dark;
 }

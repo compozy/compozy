@@ -142,7 +142,7 @@ tokens:
       terminal-ansi-15: "var(--terminal-ansi-15)"
     fonts:
       sans: '"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif'
-      mono: '"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace'
+      mono: '"JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace'
       display: "var(--font-sans)"
       keys: '-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif'
       weight-normal: "400"
@@ -825,17 +825,17 @@ crumbs) or `--text-group-label` (in-folder groups) — not marketing
 
 <!-- BEGIN:tokens:fonts -->
 
-| Token                    | Value                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------- |
-| `--font-sans`            | `"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif`             |
-| `--font-mono`            | `"JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace`         |
-| `--font-display`         | `var(--font-sans)`                                                              |
-| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif` |
-| `--font-weight-normal`   | `400`                                                                           |
-| `--font-weight-medium`   | `510`                                                                           |
-| `--font-weight-semibold` | `600`                                                                           |
-| `--font-weight-bold`     | `700`                                                                           |
-| `--font-weight-display`  | `620`                                                                           |
+| Token                    | Value                                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------------------------- |
+| `--font-sans`            | `"Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif`                               |
+| `--font-mono`            | `"JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace` |
+| `--font-display`         | `var(--font-sans)`                                                                                |
+| `--font-keys`            | `-apple-system, "BlinkMacSystemFont", "Segoe UI", "Geist Variable", sans-serif`                   |
+| `--font-weight-normal`   | `400`                                                                                             |
+| `--font-weight-medium`   | `510`                                                                                             |
+| `--font-weight-semibold` | `600`                                                                                             |
+| `--font-weight-bold`     | `700`                                                                                             |
+| `--font-weight-display`  | `620`                                                                                             |
 
 <!-- END:tokens:fonts -->
 

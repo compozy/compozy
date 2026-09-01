@@ -14,6 +14,8 @@ export interface FakeTerminal extends Terminal {
   readonly resizes: Array<{ cols: number; rows: number }>;
   readonly openedIn: HTMLElement[];
   resetCount: number;
+  refreshCount: number;
+  clearTextureAtlasCount: number;
   disposed: boolean;
   acceptKeyEvent(event: KeyboardEvent): boolean;
   emitData(payload: string): void;
@@ -124,6 +126,8 @@ function createFakeTerminal(
     resizes: [] as Array<{ cols: number; rows: number }>,
     openedIn: [] as HTMLElement[],
     resetCount: 0,
+    refreshCount: 0,
+    clearTextureAtlasCount: 0,
     disposed: false,
     get rows() {
       return rows;
@@ -149,7 +153,12 @@ function createFakeTerminal(
       rows = nextRows;
       terminal.resizes.push({ cols: nextCols, rows: nextRows });
     },
-    refresh: () => undefined,
+    refresh: () => {
+      terminal.refreshCount += 1;
+    },
+    clearTextureAtlas: () => {
+      terminal.clearTextureAtlasCount += 1;
+    },
     reset: () => {
       terminal.resetCount += 1;
     },

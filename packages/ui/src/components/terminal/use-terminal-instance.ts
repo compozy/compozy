@@ -3,6 +3,7 @@
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import type { TerminalDimensions, TerminalEngine, TerminalEngineLoader } from "./terminal-engine";
+import { loadTerminalFonts } from "./terminal-fonts";
 import { readTerminalMetrics, terminalMetricsEqual } from "./terminal-metrics";
 import {
   addTerminalInstanceListener,
@@ -100,6 +101,12 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
         return;
       }
       if (cancelled) return;
+      // The atlas rasterizes whatever faces are resident when the emulator
+      // opens, so the stack gets a bounded head start; a face slower than the
+      // budget still lands through the refresh scheduled below.
+      const fonts = loadTerminalFonts(container);
+      await fonts.firstPaint;
+      if (cancelled) return;
       const instance =
         getTerminalInstance(instanceKey) ??
         createInstance(engine, instanceKey, container, emitRendererChange);
@@ -124,6 +131,7 @@ export function useTerminalInstance(options: UseTerminalInstanceOptions): {
       // never resizes again would otherwise leave the daemon with no size at
       // all, and the resize observer only speaks when geometry changes.
       reportProposedDimensions(instance, emitProposedDimensions);
+      scheduleGlyphRefresh(instance, fonts.settled);
     })();
 
     return () => {
@@ -324,4 +332,19 @@ function readOnlyOptions(readOnly: boolean): {
 function refreshTerminalPaint(instance: TerminalInstance): void {
   const rows = instance.terminal.rows;
   if (rows > 0) instance.terminal.refresh(0, rows - 1);
+}
+
+/**
+ * A face that arrived after the emulator opened leaves stale tofu in the glyph
+ * atlas, because cells are only re-rasterized when the cache is cleared. One
+ * clear per late arrival, skipped when the instance was destroyed or replaced
+ * while the font was still in flight.
+ */
+function scheduleGlyphRefresh(instance: TerminalInstance, settled: Promise<boolean>): void {
+  void settled.then(loaded => {
+    if (!loaded) return;
+    if (getTerminalInstance(instance.key) !== instance) return;
+    instance.terminal.clearTextureAtlas();
+    refreshTerminalPaint(instance);
+  });
 }

@@ -157,7 +157,11 @@
 
   /* Font families. */
   --font-sans: "Geist Variable", -apple-system, "BlinkMacSystemFont", sans-serif;
-  --font-mono: "JetBrains Mono Variable", "JetBrains Mono", "Courier New", monospace;
+  /* "Symbols Nerd Font Mono" backfills the Private Use Area icons terminals
+     emit (see the @font-face in tokens-runtime.css); JetBrains Mono wins every
+     codepoint it actually covers. */
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", "Symbols Nerd Font Mono", "Courier New", monospace;
   /* Display alias reserved for explicit logo/wordmark surfaces only.
      Keep the `font-display` utility out of type-ramp callers under
      `web/src/**` and `packages/ui/src/**` — review-enforced, no lint rule.
