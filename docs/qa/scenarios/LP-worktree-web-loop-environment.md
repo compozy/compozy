@@ -2,18 +2,28 @@
 id: LP-worktree-web-loop-environment
 area: LP
 title: Declare loop and node execution environments in the builder
-persona: Ada
+persona: Bruno
 journey: J-isolated-task-loop-execution
-expected: The loop configure dialog sets a loop-level environment default that survives an unrelated save, and agent-executing nodes expose exactly one Environment control with the locked mode vocabulary. Switching a mode writes only the companion key that mode allows. The retired working-directory field is gone from every node, and a definition still carrying it fails validation with the daemon's migration reason on the offending node.
+expected: Loop configure, run, and node Environment controls author only root or a named worktree, while API/CLI-authored directory and per-run values remain visible, read-only, and byte-for-byte preserved by unrelated saves or publishes.
 entry_points: S12 Loop configure dialog -> Environment default; S13 loop builder -> node inspector -> Environment
 qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
+retest_status: pass
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-worktree-support-terminal-rewalk-20260813-150834-409343-lab/qa-artifacts/qa/screenshots/loop-node-named-worktree.png; web/src/systems/loops/components/__tests__/loop-editor.test.tsx
-last_report: docs/qa/reports/2026-08-13-worktree-support.md
+evidence: docs/qa/evidence/2026-09-01-pr-519-review-fixes/directory-read-only-disabled.png; docs/qa/evidence/2026-09-01-pr-519-review-fixes/per-run-read-only-disabled.png
+last_report: docs/qa/reports/2026-09-01-pr-519-review-fixes.md
 overlaps: LP-loop-environment-resolution
 ---
 
-QA impact: Task 07 adds the loop environment default, the node Environment descriptor, and the hard cut of params.cwd from the builder.
+QA impact: Issue 512 removes directory and per-run from Web authoring without removing those API/CLI
+contracts. The walk must prove both the reduced choice set and lossless preservation of a loaded
+read-only value.
+
+QA completion 2026-09-01: the live Run form offered only Inherit, Workspace root, and Named
+worktree, then completed against the selected ready Worktree. A CLI-authored directory remained
+read-only and byte-for-byte unchanged after an unrelated Human approval gate save and a fresh CLI
+read. A subsequent CLI-authored per-run value rendered as `Per-run (read-only)`.
+
+QA follow-up 2026-09-01: fresh Web loads rendered both CLI-authored `Directory (read-only)` and
+`Per-run (read-only)` controls as disabled while preserving the directory value exactly.

@@ -173,21 +173,11 @@ func (h *daemonExtensionToolHandle) workspaceScopedImportTasksCallRequest(
 	ctx context.Context,
 	req toolspkg.CallRequest,
 ) (toolspkg.CallRequest, error) {
-	if h.workspaceResolver == nil {
-		return toolspkg.CallRequest{}, importTasksScopeError(
-			req.ToolID,
-			fmt.Sprintf("tool %q has no workspace resolver", req.ToolID),
-			toolspkg.ErrToolInvalidInput,
-		)
+	scoped, err := h.attachTrustedWorkspace(ctx, req)
+	if err != nil {
+		return toolspkg.CallRequest{}, err
 	}
-	workspaceID := strings.TrimSpace(req.WorkspaceID)
-	if workspaceID == "" {
-		return toolspkg.CallRequest{}, importTasksScopeError(
-			req.ToolID,
-			fmt.Sprintf("tool %q requires workspace scope", req.ToolID),
-			toolspkg.ErrToolInvalidInput,
-		)
-	}
+	req = scoped
 	var input struct {
 		Pattern string `json:"pattern"`
 	}
@@ -215,7 +205,7 @@ func (h *daemonExtensionToolHandle) workspaceScopedImportTasksCallRequest(
 			fmt.Errorf("%w: absolute pattern %q", toolspkg.ErrToolInvalidInput, pattern),
 		)
 	}
-	absolute, err := h.resolveImportTasksPattern(ctx, req.ToolID, workspaceID, pattern)
+	absolute, err := h.resolveImportTasksPattern(req.ToolID, req.TrustedWorkspaceRoot, pattern)
 	if err != nil {
 		return toolspkg.CallRequest{}, err
 	}
@@ -255,7 +245,10 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 			fmt.Errorf("resolve workspace: %w", err),
 		)
 	}
-	root := strings.TrimSpace(resolved.RootDir)
+	root := strings.TrimSpace(req.TrustedWorkspaceRoot)
+	if root == "" {
+		root = strings.TrimSpace(resolved.RootDir)
+	}
 	if root == "" {
 		return toolspkg.CallRequest{}, extensionWorkspaceScopeError(
 			req.ToolID,
@@ -276,31 +269,10 @@ func (h *daemonExtensionToolHandle) attachTrustedWorkspace(
 }
 
 func (h *daemonExtensionToolHandle) resolveImportTasksPattern(
-	ctx context.Context,
 	toolID toolspkg.ToolID,
-	workspaceID string,
+	root string,
 	pattern string,
 ) (string, error) {
-	resolved, err := h.workspaceResolver.Resolve(ctx, workspaceID)
-	if err != nil {
-		return "", toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			toolID,
-			fmt.Sprintf("tool %q workspace %q is invalid", toolID, workspaceID),
-			fmt.Errorf("%w: resolve workspace: %w", toolspkg.ErrToolInvalidInput, err),
-			toolspkg.ReasonScopeMismatch,
-		)
-	}
-	root := strings.TrimSpace(resolved.RootDir)
-	if root == "" {
-		return "", toolspkg.NewToolError(
-			toolspkg.ErrorCodeInvalidInput,
-			toolID,
-			fmt.Sprintf("tool %q workspace %q has no root directory", toolID, workspaceID),
-			toolspkg.ErrToolInvalidInput,
-			toolspkg.ReasonScopeMismatch,
-		)
-	}
 	absolute, err := workspaceRelativePattern(root, pattern)
 	if err != nil {
 		return "", toolspkg.NewToolError(

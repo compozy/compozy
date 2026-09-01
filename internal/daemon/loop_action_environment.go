@@ -15,7 +15,7 @@ import (
 )
 
 type loopActionWorktrees interface {
-	Get(context.Context, string, string) (*worktree.Worktree, error)
+	loopActionWorktreeReader
 	MaterializeForRun(context.Context, string, worktree.RunWorktreeRequest) (*worktree.Worktree, error)
 	RollbackRunMaterialization(context.Context, string, string, string) error
 }
@@ -69,27 +69,14 @@ func (b *loopActionSessionBinder) applyLoopActionEnvironment(
 	case dsl.EnvironmentRoot, dsl.EnvironmentDirectory:
 		return nil, nil
 	case dsl.EnvironmentWorktree:
-		if b.worktrees == nil {
-			return nil, fmt.Errorf("%w: loop worktree service is unavailable", worktree.ErrNotFound)
-		}
-		item, getErr := b.worktrees.Get(
+		item, getErr := resolveReadyLoopActionWorktree(
 			ctx,
+			b.worktrees,
 			strings.TrimSpace(string(req.WorkspaceID)),
 			environment.WorktreeRef,
 		)
 		if getErr != nil {
 			return nil, getErr
-		}
-		if item == nil {
-			return nil, fmt.Errorf("%w: loop worktree %q", worktree.ErrNotFound, environment.WorktreeRef)
-		}
-		if item.State != worktree.StateReady {
-			return nil, fmt.Errorf(
-				"%w: loop worktree %q is %q",
-				worktree.ErrNotReady,
-				environment.WorktreeRef,
-				item.State,
-			)
 		}
 		opts.Worktree = item.ID
 		opts.CWD = item.Path

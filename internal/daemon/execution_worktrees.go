@@ -12,6 +12,7 @@ import (
 // adapter resolves the current service at call time.
 type executionWorktreeService interface {
 	Get(context.Context, string, string) (*worktree.Worktree, error)
+	AcquireUsage(context.Context, string, string) (*worktree.Worktree, func(), error)
 	MaterializeForRun(context.Context, string, worktree.RunWorktreeRequest) (*worktree.Worktree, error)
 	RollbackRunMaterialization(context.Context, string, string, string) error
 }
@@ -34,6 +35,18 @@ func (r daemonExecutionWorktrees) service() executionWorktreeService {
 		return nil
 	}
 	return r.lookup()
+}
+
+func (r daemonExecutionWorktrees) AcquireUsage(
+	ctx context.Context,
+	workspaceID string,
+	ref string,
+) (*worktree.Worktree, func(), error) {
+	service := r.service()
+	if service == nil {
+		return nil, nil, fmt.Errorf("daemon: worktree service is unavailable: %w", worktree.ErrNotFound)
+	}
+	return service.AcquireUsage(ctx, workspaceID, ref)
 }
 
 func (r daemonExecutionWorktrees) Get(

@@ -349,27 +349,29 @@ export const NodeEnvironmentDirectory: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = await revealNodeEnvironment(canvasElement, ["loop-field-environment-directory"]);
-    await canvas.findByRole("combobox", { name: "Directory" });
-    await expect(canvas.getByTestId("loop-field-environment-directory")).toHaveValue(
-      "packages/{{ .inputs.slug }}"
+    await expect(canvas.getByRole("button", { name: "Directory (read-only)" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
     );
+    const directory = canvas.getByTestId("loop-field-environment-directory");
+    await expect(directory).toHaveAttribute("readonly");
+    await expect(directory).toHaveValue("packages/{{ .inputs.slug }}");
   },
 };
 
-export const NodeEnvironmentReadout: Story = {
+export const NodeEnvironmentPerRunReadOnly: Story = {
   args: { workspaceId: WS, name: "implement-tasks" },
   parameters: {
     msw: {
-      handlers: [
-        compozyApiMock.get("/api/workspaces/{workspace_id}/loops/{name}/config", () =>
-          HttpResponse.json({
-            config: { ...loopConfigFixture, environment: { mode: "per_run" } },
-            effective_config: { ...loopEffectiveConfigFixture, environment: { mode: "per_run" } },
-          })
-        ),
-        ...editorHandlers(nodeEnvironmentDetail(null)),
-      ],
+      handlers: editorHandlers(nodeEnvironmentDetail({ mode: "per_run" })),
     },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = await revealNodeEnvironment(canvasElement);
+    await expect(canvas.getByRole("button", { name: "Per-run (read-only)" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
   },
 };
 

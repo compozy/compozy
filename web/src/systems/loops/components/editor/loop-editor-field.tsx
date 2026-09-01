@@ -323,7 +323,6 @@ export function LoopEditorField(props: LoopEditorFieldProps) {
         onChange={props.onChange}
         onChangeFields={props.onChangeFields}
         raw={raw as RawLoopNode}
-        suggestions={props.suggestions}
         worktrees={props.worktrees}
       />
     );
