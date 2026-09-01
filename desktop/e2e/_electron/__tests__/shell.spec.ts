@@ -1154,7 +1154,8 @@ test("Terminal E2E-013: packaged shell preserves terminal input, accelerators, r
   await product.locator('[data-slot="os-dock-item"][data-app="terminal"]').click();
   const terminalWindow = product.getByTestId("terminal-window");
   await expect(terminalWindow).toBeVisible();
-  await terminalWindow.getByTestId("terminal-empty-open").click();
+  // Opening the Terminal app resolves straight into a live PTY; there is no
+  // empty state to click through.
   const terminalGrid = terminalWindow.getByRole("log");
   await expect(terminalGrid).toBeVisible();
   await expect(terminalGrid).toHaveAttribute("data-renderer", /^(dom|webgl)$/u);
