@@ -1,15 +1,15 @@
 ---
 name: cy-spec-peer-review
-description: Cross-LLM peer review of a Spec's technical design via compozy exec — scoped Markdown findings for user-directed incorporation. Use when a spec has already been approved and the user wants an external review round, especially for autonomy/network/memory-impacting designs. Do not use for Stage 1 product drafts, automatic approval gates, code review batches, or auto-looped review cycles.
+description: Cross-LLM peer review of a Spec's technical design by a persistent reviewer session — scoped Markdown findings for user-directed incorporation; follow-up rounds continue the same reviewer instead of spawning a new one. Use when a spec has already been approved and the user wants an external review round, especially for autonomy/network/memory-impacting designs. Do not use for Stage 1 product drafts, automatic approval gates, code review batches, or auto-looped review cycles.
 trigger: explicit
-argument-hint: "[spec-path] [--ide] [--model] [--reasoning]"
+argument-hint: "[spec-path] [--reviewer] [--model] [--reasoning]"
 ---
 
 # Spec Peer Review
 
-An independent reviewer runtime pressure-tests an approved Spec (Part II focus) via `compozy exec`. This skill runs that pressure-test only when the user explicitly asks for a review round after approving the current draft. It does not auto-run, auto-incorporate findings, or auto-loop additional rounds.
+An independent **reviewer session** pressure-tests an approved Spec (Part II focus). One review program = one reviewer session: round 1 spawns it and reads the full corpus; every later round is a continuation prompt to that same live session, so the reviewer re-reads only what changed. This skill runs that pressure-test only when the user explicitly asks for a review round after approving the current draft. It does not auto-run, auto-incorporate findings, or auto-loop additional rounds.
 
-The review result is a direct-written Markdown findings file. `compozy exec` stdout/stderr is operational evidence only; never parse it as the review source of truth.
+The review result is a direct-written Markdown findings file. Reviewer terminal/stream output is operational evidence only; never parse it as the review source of truth.
 
 ## User Decisions
 
@@ -30,9 +30,10 @@ The validator is a read-only helper: it inspects the findings artifact and exits
 ## Required Inputs
 
 - **spec-path** (optional): explicit path to the `_spec.md` under review. When omitted, resolve to the most recently modified `.compozy/tasks/<slug>/_spec.md` whose sibling `_meta.md` shows `Pending: > 0` or no `_meta.md` exists yet.
-- `--ide <ide>` (default `codex`) — forwarded to `compozy exec --ide`. Secondary option: `--ide claude --model opus --reasoning max`.
-- `--model <model>` (default `gpt-5.6-sol`) — forwarded to `compozy exec --model`.
-- `--reasoning <effort>` (default `xhigh`) — forwarded to `compozy exec --reasoning-effort`. Accepted: `low`, `medium`, `high`, `xhigh`, `max`.
+- **Reviewer selection** (default: Codex on `gpt-5.6-sol`, reasoning `xhigh`): how the reviewer session runs depends on the dispatch substrate —
+  - **CompozyOS session** (canonical): a reviewer agent definition carries provider/model/reasoning; pass it via `--reviewer <agent-name>`.
+  - **herdr worker TUI** (when the operator orchestrates through herdr): model flags ride the worker launch, e.g. `--kind codex -- --yolo -m gpt-5.6-sol -c model_reasoning_effort=xhigh`.
+  - `--model` / `--reasoning` override the defaults on either substrate. Never substitute a different model than the user requested.
 
 ## Findings Artifact Contract
 
@@ -52,7 +53,7 @@ schema_version: 1
 review_kind: spec
 round: N
 readiness: READY|BLOCKED|NEEDS_REWORK
-reviewer_runtime: <resolved --ide>
+reviewer_runtime: <reviewer runtime, e.g. codex>
 reviewer_model: <resolved --model>
 generated_at: <ISO-8601 timestamp>
 ---
@@ -87,8 +88,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 1. Read `references/peer-review-prompt.md` for the canonical executable reviewer prompt template. The assembled prompt must start with the reviewer instructions, not with a Markdown wrapper describing the template.
 2. Define the round artifact paths:
    - Findings target: `.compozy/tasks/<slug>/qa/peer-review-findings-roundN.md`.
-   - Operational event log: `.compozy/tasks/<slug>/qa/peer-review-events-roundN.jsonl`.
-   - Operational stderr log: `.compozy/tasks/<slug>/qa/peer-review-result-roundN.err`.
+   - Operational evidence log (when the dispatch substrate produces one): `.compozy/tasks/<slug>/qa/peer-review-log-roundN.txt`.
    - Pre-run status snapshot: `.compozy/tasks/<slug>/qa/peer-review-status-before-roundN.txt`.
    - Post-run status snapshot: `.compozy/tasks/<slug>/qa/peer-review-status-after-roundN.txt`.
    - Validation error, only when needed: `.compozy/tasks/<slug>/qa/peer-review-validation-error-roundN.md`.
@@ -99,11 +99,12 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
    - `{related_research}` — any `analysis/*.md` siblings, or `none`.
    - `{findings_path}` — exact absolute path to `.compozy/tasks/<slug>/qa/peer-review-findings-roundN.md`.
    - `{round}` — numeric review round `N`.
-   - `{reviewer_runtime}` — resolved `--ide` (default `codex`).
+   - `{reviewer_runtime}` — the reviewer runtime (default `codex`).
    - `{reviewer_model}` — resolved `--model` (default `gpt-5.6-sol`).
 4. Write the assembled prompt to `.compozy/tasks/<slug>/qa/peer-review-prompt-roundN.md`.
+5. Round 1 uses the full template. **Round N+1 composes a continuation prompt instead** — the reviewer session already holds the corpus. It contains only: the exact list of changed files (with a one-line summary of what changed in each), the incorporation record path, the instruction to verify each prior finding is genuinely resolved and to sweep the new text for fresh regressions, and the new findings target with frontmatter `round: N+1` (new finding IDs continue the sequence). Same scoped-write contract and findings format; never resend the full corpus.
 
-**Step 3: Execute the Cross-LLM Review**
+**Step 3: Execute the Review Round in the Reviewer Session**
 
 1. Capture the pre-run status snapshot:
 
@@ -111,11 +112,18 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
    git status --short > .compozy/tasks/<slug>/qa/peer-review-status-before-roundN.txt
    ```
 
-2. Run (substitute the resolved `--ide`/`--model`/`--reasoning`, defaults `codex`/`gpt-5.6-sol`/`xhigh`):
+2. **Round 1 — spawn the reviewer session** on the chosen substrate and deliver the full prompt:
+   - **CompozyOS session (canonical)**:
 
-   ```bash
-   compozy exec --ide <ide> --model <model> --reasoning-effort <reasoning> --format json --prompt-file .compozy/tasks/<slug>/qa/peer-review-prompt-roundN.md > .compozy/tasks/<slug>/qa/peer-review-events-roundN.jsonl 2> .compozy/tasks/<slug>/qa/peer-review-result-roundN.err
-   ```
+     ```bash
+     compozy session new --cwd "$PWD" --agent <reviewer-agent> --name spec-review-<slug>   # capture the session id
+     compozy session prompt <session-id> "$(cat .compozy/tasks/<slug>/qa/peer-review-prompt-round1.md)"
+     compozy session wait <session-id> --until idle --timeout 1800s
+     ```
+
+   - **herdr worker TUI** (operator-orchestrated): create a labeled tab, `herdr agent start <name> --kind codex --pane <pane> -- --yolo -m <model> -c model_reasoning_effort=<reasoning>`, then `herdr agent prompt <name> "$(cat …/peer-review-prompt-round1.md)"` and wait on `done` in check-in intervals.
+
+   **Round N+1 — continue the same reviewer session** with the continuation prompt from Step 2 (`session prompt <session-id> …` / `herdr agent prompt <name> …`). The reviewer already holds the corpus; the continuation prompt names only the changed files, the incorporation record, and the new findings target.
 
 3. Capture the post-run status snapshot:
 
@@ -123,9 +131,9 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
    git status --short > .compozy/tasks/<slug>/qa/peer-review-status-after-roundN.txt
    ```
 
-4. If the command returns a non-zero exit code, fail loudly. Do not retry silently. Inspect stderr for model misconfiguration (see Error Handling).
-5. Treat `peer-review-events-roundN.jsonl` as operational evidence only. Do not parse it for readiness or findings.
-6. Require the findings target file to exist after the command exits. If missing, the round is invalid even when `compozy exec` exited 0.
+4. If the dispatch fails (session refuses the prompt, worker rejects launch flags, wait surfaces an error), fail loudly. Do not retry silently. Inspect the error for model/agent misconfiguration (see Error Handling).
+5. Treat any captured session/worker output log as operational evidence only. Do not parse it for readiness or findings.
+6. Require the findings target file to exist after the round settles. If missing, the round is invalid even when the session settled cleanly.
 
 **Step 4: Validate and Summarize Findings**
 
@@ -168,22 +176,25 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 **Step 6: Optional Additional Rounds**
 
 1. Ask whether the user wants another peer-review round or wants to stop with the current saved spec.
-2. If the user requests another round, re-run from Step 2 against the updated spec and create a fresh `roundN+1` artifact set.
-3. Do not auto-loop. The user explicitly requests further rounds.
+2. If the user requests another round, compose the continuation prompt (Step 2.5) and deliver it to the **same reviewer session** (Step 3, round N+1) with a fresh `roundN+1` artifact set. The reviewer re-reads only the changed files.
+3. Spawn a fresh reviewer only when the session is genuinely gone or invalid (daemon restarted, worker retired, corrupted state) — then the full round-1 template applies to the new session, and the loss is noted in the round summary.
+4. Do not auto-loop. The user explicitly requests further rounds.
+5. When the review program ends (user stops or the final round is incorporated), retire the reviewer session (`compozy session stop <session-id>` / close the herdr worker tab) after recording anything the registry needs.
 
 ## Critical Rules
 
 - This skill never commits, pushes, opens PRs, auto-approves specs, or invokes provider review fetchers.
 - Prompt, event log, findings, summary, incorporation, and status snapshot artifacts are versioned with `-roundN`. Never overwrite a prior round.
-- The `compozy exec` call is the only place this skill spends external review credit. Do not invoke it more than once per round unless the round is explicitly invalid and the user requests a rerun.
+- One reviewer session per review program; every round after the first is a continuation prompt to that session. The reviewer dispatch is the only place this skill spends external review credit — one prompt per round unless the round is explicitly invalid and the user requests a rerun. The program ends with the reviewer session retired.
 - The bundled helper paths used by this skill (`references/peer-review-prompt.md`, `references/quality-markers.md`, `scripts/validate-findings.sh`) are read-only templates/helpers — the skill reads or runs them, never edits them during a review round.
 
 ## Error Handling
 
-- **Model misconfiguration (`The model 'X' does not exist`):** stop and surface the configured model. The IDE may be set to a stale name like `gpt-5.5`. Do not mutate the call to substitute a model — verify with the user. (See `docs/_memory/lessons/L-010-model-name-validation.md`.)
-- **`compozy exec` not found:** the skill assumes Compozy CLI is on `PATH`. If absent, fail with the install hint rather than swallowing.
+- **Model misconfiguration (`The model 'X' does not exist`):** stop and surface the configured model. The reviewer agent definition or worker flags may carry a stale name like `gpt-5.5`. Do not mutate the call to substitute a model — verify with the user. (See `docs/_memory/lessons/L-010-model-name-validation.md`.)
+- **Dispatch substrate unavailable** (daemon not running for `compozy session`, herdr absent for a worker): fail with the start hint (`compozy daemon start` / `herdr status`) rather than swallowing.
+- **Reviewer session lost between rounds** (stopped, daemon restarted, worker retired): note the loss, spawn a fresh reviewer with the full round-1 template, and continue the round numbering.
 - **Quality markers missing:** if the Step 1 quality-marker check fails, do not run the reviewer. Print the missing markers and exit so the user can amend the spec first.
-- **`--ide` invalid:** list accepted values (`codex`, `claude`, `cursor-agent`, `droid`, `opencode`, `pi`, `gemini`, `copilot`) and ask the user to choose — do not fall back.
+- **Reviewer selection invalid** (unknown agent definition or worker kind): list what exists (`compozy agent list` / herdr-supported kinds) and ask the user to choose — do not fall back.
 - **Missing findings file:** treat this as an invalid round, not a clean review. Write a validation-error artifact and ask whether to rerun.
 - **Malformed findings frontmatter or missing required sections:** treat this as an invalid round. Do not infer readiness from stdout.
 - **Empty or placeholder findings:** treat empty `# Blockers` or `# Nits` sections as acceptable only when the section explicitly says `None.`; reject `TBD`, `TODO`, or vague placeholders.
