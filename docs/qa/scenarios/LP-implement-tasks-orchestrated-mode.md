@@ -9,8 +9,8 @@ entry_points: compozy loop run --name implement-tasks --input slug=<slug> --inpu
 qa_status: pass
 bug_ids: BUG-20260826-optional-runtime-run-fails
 fix_status: fixed
-retest_status: passed
-fix_commits: 16096e1e3f40ca9c6df7d6100e7aee28058880bf; d4df0df81d36364ed21009d68324dd6c9c2dbeaa; 5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1
+retest_status: pass
+fix_commits: 16096e1e706261c30e112995c0cbe457c27014ce; d4df0df8adbb73896b2cd33243db98f4037b00c3; 5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1; be2ca774e0ea4c5f1a3aa30fe73bb9110d451735
 evidence:
 last_report: docs/qa/reports/2026-09-01-profile-extension-implementer.md
 overlaps: LP-003; LP-goal-command-judge; ET-spec-cycle-skill-bundle

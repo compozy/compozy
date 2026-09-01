@@ -2,7 +2,7 @@
 
 - **Scope:** Validate typed Loop Agent inputs through the acting Profile and exercise stock implement-tasks with a Profile-only extension Agent and Agent-local skill.
 - **Cadence tier:** targeted
-- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `5cc860834d63d2aaf2f8e68e08fce0747f7b4fc1` · **Environment:** isolated integration harness
+- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `be2ca774e0ea4c5f1a3aa30fe73bb9110d451735` · **Environment:** isolated integration harness
 - **Started:** 2026-09-01T20:00:00Z · **Status:** closed
 
 ## Session Matrix & Results
