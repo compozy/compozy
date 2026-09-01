@@ -71,8 +71,8 @@ export function loopNodeVerbs(
   // rather than steer a run — so a settled run offers those and nothing else.
   const timeTravelVerbs = loopNodeTimetravelVerbs(node, runStatus, timetravel);
   if (isTerminalLoopStatus(runStatus)) return timeTravelVerbs;
-  if (node.quarantined) return ["open-quarantine", "requeue", "cancel"];
   if (node.cancelState !== "") return [];
+  if (node.quarantined) return ["open-quarantine", "requeue", "cancel"];
   if (node.paused) {
     return ["resume", "resume-reset-attempts", "resume-immediate", ...timeTravelVerbs, "cancel"];
   }

@@ -102,7 +102,7 @@ INSERT INTO loop_session_cleanup (
     cleanup_id, workspace_id, loop_run_id, source_kind, source_id, source_epoch, session_id, cause, created_at
 ) VALUES (
     sqlc.arg(cleanup_id), sqlc.arg(workspace_id), sqlc.arg(loop_run_id), sqlc.arg(source_kind),
-    sqlc.arg(source_id), sqlc.arg(source_epoch), sqlc.arg(session_id), sqlc.arg(cause),
+    trim(sqlc.arg(source_id)), sqlc.arg(source_epoch), sqlc.arg(session_id), sqlc.arg(cause),
     CAST(sqlc.arg(created_at) AS TEXT)
 )
 ON CONFLICT(cleanup_id) DO NOTHING;

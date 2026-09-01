@@ -5036,6 +5036,99 @@ func TestGlobalDBCompleteCoordinatorAndEnqueueNextShouldDeferBoundaryWhileGenera
 		testGlobalDBCompleteCoordinatorShouldPreserveConcurrentProgress(t)
 	})
 
+	t.Run("Should supersede an in-flight generation after run cancellation", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 7, 4, 15, 38, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-coordinator-inflight-canceled", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		claim := claimCoordinatorRunForTest(
+			ctx,
+			t,
+			globalDB,
+			loopRun.ID,
+			"run-coordinator-inflight-canceled",
+			now,
+		)
+		if _, err := globalDB.RequestRunCancellation(ctx, looppkg.CancellationMutation{
+			WorkspaceID: loopRun.WorkspaceID,
+			RunID:       loopRun.ID,
+			Reason:      "operator canceled in-flight generation",
+			Actor:       operatorActorContextForTest("operator:cancel-inflight"),
+			RequestedAt: now.Add(time.Second),
+		}); err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+
+		nodeTaskID := "loop." + string(loopRun.ID) + ".g1.node.stale.0"
+		nodeRunID := "run.loop." + string(loopRun.ID) + ".g1.node.stale.0"
+		completion := taskpkg.CoordinatorCompletion{
+			RunID:      claim.Run.ID,
+			ClaimToken: claim.ClaimToken,
+			Actor:      coordinatorActorContextForTest(),
+			Plan: taskpkg.CoordinatorCompletionPlan{
+				NodeTasks: []taskpkg.CoordinatorTaskSpec{{
+					TaskID: nodeTaskID, Title: "Stale Loop delivery node",
+					Metadata: json.RawMessage(`{"node_id":"stale"}`),
+				}},
+				NodeRuns: []taskpkg.EnqueueSpec{{
+					TaskID: nodeTaskID, RunID: nodeRunID, RunKind: taskpkg.RunKindWorker,
+					LoopRunID: string(loopRun.ID), IdempotencyKey: "coordinator-inflight-canceled-stale",
+				}},
+				Snapshot: taskpkg.GenerationSnapshot{
+					LoopRunID: string(loopRun.ID), Generation: 1,
+					Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+						NodeID: "stale", Status: "pending",
+					}}},
+				},
+				GenerationInFlight: true,
+			},
+			Now: now.Add(2 * time.Second),
+		}
+		wrongTokenCompletion := completion
+		wrongTokenCompletion.ClaimToken += "-wrong"
+		if _, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			wrongTokenCompletion,
+			looppkg.NewStoreFinalizer(),
+		); !errors.Is(err, taskpkg.ErrInvalidClaimToken) {
+			t.Fatalf(
+				"CompleteCoordinatorAndEnqueueNext(wrong token) error = %v, want %v",
+				err,
+				taskpkg.ErrInvalidClaimToken,
+			)
+		}
+
+		result, err := globalDB.CompleteCoordinatorAndEnqueueNext(
+			ctx,
+			completion,
+			looppkg.NewStoreFinalizer(),
+		)
+		if err != nil {
+			t.Fatalf("CompleteCoordinatorAndEnqueueNext() error = %v", err)
+		}
+		if got, want := coordinatorResultStatus(t, &result), string(looppkg.StatusCanceled); got != want {
+			t.Fatalf("loop status = %q, want %q", got, want)
+		}
+		if !result.PlanSuperseded {
+			t.Fatal("plan superseded = false, want canceled run to fence stale plan")
+		}
+		if len(result.EnqueuedRuns) != 0 {
+			t.Fatalf("enqueued runs = %d, want no stale enqueue", len(result.EnqueuedRuns))
+		}
+		if _, err := globalDB.GetTaskRun(ctx, nodeRunID); !errors.Is(err, taskpkg.ErrTaskRunNotFound) {
+			t.Fatalf("GetTaskRun(stale node) error = %v, want %v", err, taskpkg.ErrTaskRunNotFound)
+		}
+	})
+
 	cases := []struct {
 		name      string
 		mutateRun func(*looppkg.Run)

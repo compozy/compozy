@@ -370,6 +370,60 @@ func TestGoalSessionBindingLifecycleIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Should normalize cleanup source identity across whitespace retries", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			workspaceID = "ws-goal-cleanup-normalized"
+			loopRunID   = "run-goal-cleanup-normalized"
+			handle      = "goal:cleanup-normalized"
+			sessionID   = "session-goal-cleanup-normalized"
+		)
+		globalDB := openLoopTestGlobalDB(t, workspaceID)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, 8, 26, 12, 30, 0, 0, time.UTC)
+		insertGoalSchemaLoopRun(t, globalDB, loopRunID, workspaceID, "catalog", nil)
+		seedActiveGoalBindingForTest(t, globalDB, loopRunID, workspaceID, handle, 1, sessionID, now)
+
+		enqueue := func(sourceID string) error {
+			return globalDB.withTaskImmediateTransaction(
+				ctx,
+				"enqueue normalized Goal cleanup",
+				func(exec taskSQLExecutor) error {
+					return enqueueLoopSessionCleanupWithExecutor(ctx, exec, looppkg.SessionCleanupObligation{
+						CleanupID: loopSessionCleanupID(
+							loopRunID,
+							looppkg.SessionCleanupSourceGoalBinding,
+							sourceID,
+							1,
+						),
+						WorkspaceID: workspaceID,
+						LoopRunID:   loopRunID,
+						SourceKind:  looppkg.SessionCleanupSourceGoalBinding,
+						SourceID:    sourceID,
+						SourceEpoch: 1,
+						SessionID:   sessionID,
+						Cause:       looppkg.SessionCleanupCauseStop,
+						CreatedAt:   now,
+					})
+				},
+			)
+		}
+		if err := enqueue("  " + handle + "  "); err != nil {
+			t.Fatalf("enqueue(padded source) error = %v", err)
+		}
+		if err := enqueue(handle); err != nil {
+			t.Fatalf("enqueue(normalized retry) error = %v", err)
+		}
+		pending, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
+		}
+		if len(pending) != 1 || pending[0].SourceID != handle {
+			t.Fatalf("normalized cleanup = %#v, want one source %q", pending, handle)
+		}
+	})
+
 	t.Run("Should close a completed run-agent binding and publish durable cleanup", func(t *testing.T) {
 		t.Parallel()
 

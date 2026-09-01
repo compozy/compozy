@@ -2067,157 +2067,161 @@ func inventoryNodeIDsForTest(items []looppkg.NodeInventoryItem) []looppkg.NodeID
 func TestGlobalDBLoopRunCancellationShouldCommitTerminalTruthAndCleanupAtomically(t *testing.T) {
 	t.Parallel()
 
-	globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-other")
-	ctx := testutil.Context(t)
-	now := time.Date(2026, time.August, 31, 15, 0, 0, 0, time.UTC)
-	run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
-	coordinatorTaskID, liveTaskID, liveRunID, terminalTaskID := seedLoopSettlementHierarchyForTest(
-		t, globalDB, run, "forced-cancel", now,
-	)
-	seedLoopCancellationBindingForTest(
-		t, globalDB, string(run.ID), string(run.WorkspaceID), "main", 1, "session-binding", now,
-	)
-	seedLoopTaskRunSessionForTest(t, globalDB, run.WorkspaceID, taskRunID, "session-task-run", now)
+	t.Run("Should commit terminal truth and cleanup atomically", func(t *testing.T) {
+		t.Parallel()
 
-	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
+		globalDB := openLoopTestGlobalDB(t, "ws-1", "ws-other")
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 31, 15, 0, 0, 0, time.UTC)
+		run, taskRunID := seedLiveLoopLivenessCellForTest(t, globalDB, now)
+		coordinatorTaskID, liveTaskID, liveRunID, terminalTaskID := seedLoopSettlementHierarchyForTest(
+			t, globalDB, run, "forced-cancel", now,
+		)
+		seedLoopCancellationBindingForTest(
+			t, globalDB, string(run.ID), string(run.WorkspaceID), "main", 1, "session-binding", now,
+		)
+		seedLoopTaskRunSessionForTest(t, globalDB, run.WorkspaceID, taskRunID, "session-task-run", now)
+
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_generation_outputs (
 		loop_run_id, generation, node_id, item_index, status, attempt, first_scheduled_at, epoch
 	) VALUES (?, 1, 'hold', 0, 'waiting', 1, ?, 1)`, run.ID, now); err != nil {
-		t.Fatalf("seed cancellation wait output error = %v", err)
-	}
-	if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_waits (
+			t.Fatalf("seed cancellation wait output error = %v", err)
+		}
+		if _, err := globalDB.db.ExecContext(ctx, `INSERT INTO loop_node_waits (
 		loop_run_id, generation, node_id, item_index, kind, claim_state, issued_epoch, created_at
 	) VALUES (?, 1, 'hold', 0, 'timer', 'waiting', 1, ?)`, run.ID, now); err != nil {
-		t.Fatalf("seed cancellation wait error = %v", err)
-	}
+			t.Fatalf("seed cancellation wait error = %v", err)
+		}
 
-	originSessionID := "session-origin-borrowed"
-	seedLoopTaskRunSessionForTest(t, globalDB, run.WorkspaceID, liveRunID, originSessionID, now)
-	if _, err := globalDB.db.ExecContext(
-		ctx,
-		`UPDATE loop_runs SET origin_kind = 'session', origin_session_id = ?,
+		originSessionID := "session-origin-borrowed"
+		seedLoopTaskRunSessionForTest(t, globalDB, run.WorkspaceID, liveRunID, originSessionID, now)
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`UPDATE loop_runs SET origin_kind = 'session', origin_session_id = ?,
 			origin_creation_profile_ref = 'profile-origin', origin_policy_spec_digest = 'policy-origin',
 			origin_creation_digest = 'creation-origin' WHERE id = ?`,
-		originSessionID,
-		run.ID,
-	); err != nil {
-		t.Fatalf("seed borrowed origin session error = %v", err)
-	}
+			originSessionID,
+			run.ID,
+		); err != nil {
+			t.Fatalf("seed borrowed origin session error = %v", err)
+		}
 
-	foreignRun := testLoopRun("looprun-cancel-foreign", now, looppkg.StatusRunning)
-	foreignRun.WorkspaceID = "ws-other"
-	createdForeign, err := globalDB.CreateLoopRunForStart(ctx, foreignRun, dsl.ConcurrencyAllow)
-	if err != nil {
-		t.Fatalf("CreateLoopRunForStart(foreign) error = %v", err)
-	}
-	seedLoopCancellationBindingForTest(
-		t,
-		globalDB,
-		string(createdForeign.ID),
-		string(createdForeign.WorkspaceID),
-		"foreign",
-		1,
-		"session-foreign",
-		now,
-	)
+		foreignRun := testLoopRun("looprun-cancel-foreign", now, looppkg.StatusRunning)
+		foreignRun.WorkspaceID = "ws-other"
+		createdForeign, err := globalDB.CreateLoopRunForStart(ctx, foreignRun, dsl.ConcurrencyAllow)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart(foreign) error = %v", err)
+		}
+		seedLoopCancellationBindingForTest(
+			t,
+			globalDB,
+			string(createdForeign.ID),
+			string(createdForeign.WorkspaceID),
+			"foreign",
+			1,
+			"session-foreign",
+			now,
+		)
 
-	mutation := looppkg.CancellationMutation{
-		WorkspaceID: run.WorkspaceID,
-		RunID:       run.ID,
-		Reason:      "operator request",
-		Actor:       operatorActorContextForTest("operator:cancel"),
-		RequestedAt: now.Add(time.Minute),
-	}
-	result, err := globalDB.RequestRunCancellation(ctx, mutation)
-	if err != nil {
-		t.Fatalf("RequestRunCancellation() error = %v", err)
-	}
-	if !result.Applied || !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
-		t.Fatalf("RequestRunCancellation() = %#v, want applied terminal cancellation", result)
-	}
-	if !slices.Equal(result.SessionIDs, []string{"session-binding", "session-task-run"}) {
-		t.Fatalf("cancellation sessions = %#v, want exact run-owned sessions", result.SessionIDs)
-	}
-	assertLoopPublicTerminalSettlementForTest(
-		t,
-		globalDB,
-		run,
-		coordinatorTaskID,
-		liveTaskID,
-		liveRunID,
-		terminalTaskID,
-		taskpkg.TaskStatusCanceled,
-		"run canceled; node no longer needed",
-	)
+		mutation := looppkg.CancellationMutation{
+			WorkspaceID: run.WorkspaceID,
+			RunID:       run.ID,
+			Reason:      "operator request",
+			Actor:       operatorActorContextForTest("operator:cancel"),
+			RequestedAt: now.Add(time.Minute),
+		}
+		result, err := globalDB.RequestRunCancellation(ctx, mutation)
+		if err != nil {
+			t.Fatalf("RequestRunCancellation() error = %v", err)
+		}
+		if !result.Applied || !result.Terminal || result.Run.Status != looppkg.StatusCanceled {
+			t.Fatalf("RequestRunCancellation() = %#v, want applied terminal cancellation", result)
+		}
+		if !slices.Equal(result.SessionIDs, []string{"session-binding", "session-task-run"}) {
+			t.Fatalf("cancellation sessions = %#v, want exact run-owned sessions", result.SessionIDs)
+		}
+		assertLoopPublicTerminalSettlementForTest(
+			t,
+			globalDB,
+			run,
+			coordinatorTaskID,
+			liveTaskID,
+			liveRunID,
+			terminalTaskID,
+			taskpkg.TaskStatusCanceled,
+			"run canceled; node no longer needed",
+		)
 
-	var outputStatus string
-	var outputEpoch int64
-	if err := globalDB.db.QueryRowContext(ctx, `SELECT status, epoch FROM loop_generation_outputs
+		var outputStatus string
+		var outputEpoch int64
+		if err := globalDB.db.QueryRowContext(ctx, `SELECT status, epoch FROM loop_generation_outputs
 		WHERE loop_run_id = ? AND task_run_id = ?`, run.ID, taskRunID).Scan(&outputStatus, &outputEpoch); err != nil {
-		t.Fatalf("read canceled output error = %v", err)
-	}
-	if outputStatus != "canceled" || outputEpoch != 5 {
-		t.Fatalf("canceled output = %q/%d, want canceled/5", outputStatus, outputEpoch)
-	}
-	waits, err := globalDB.ListNodeWaits(ctx, run.WorkspaceID, run.ID)
-	if err != nil || len(waits) != 0 {
-		t.Fatalf("ListNodeWaits(after cancel) = %#v, %v, want no active waits", waits, err)
-	}
-	controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
-	if err != nil {
-		t.Fatalf("ListNodeControls() error = %v", err)
-	}
-	if len(controls) != 2 {
-		t.Fatalf("canceled controls = %#v, want work and hold", controls)
-	}
-	for _, control := range controls {
-		if control.CancelState != looppkg.CancelStateCanceled || control.CancelProvenance == nil ||
-			control.CancelProvenance.ActorID != "operator:cancel" {
-			t.Fatalf("canceled control = %#v, want terminal provenance", control)
+			t.Fatalf("read canceled output error = %v", err)
 		}
-	}
-
-	cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
-	}
-	if len(cleanups) != 2 {
-		t.Fatalf("cleanup obligations = %#v, want two exact run-owned sessions", cleanups)
-	}
-	cleanupBySession := make(map[string]looppkg.SessionCleanupObligation, len(cleanups))
-	for _, cleanup := range cleanups {
-		cleanupBySession[cleanup.SessionID] = cleanup
-	}
-	if cleanupBySession["session-binding"].SourceKind != looppkg.SessionCleanupSourceGoalBinding ||
-		cleanupBySession["session-task-run"].SourceKind != looppkg.SessionCleanupSourceTaskRun {
-		t.Fatalf("cleanup sources = %#v, want binding and task-run ownership", cleanupBySession)
-	}
-	for _, cleanup := range cleanups {
-		if cleanup.WorkspaceID != run.WorkspaceID || cleanup.LoopRunID != run.ID ||
-			cleanup.Cause != looppkg.SessionCleanupCauseOperatorCancel {
-			t.Fatalf("cleanup scope = %#v, want canceled run only", cleanup)
+		if outputStatus != "canceled" || outputEpoch != 5 {
+			t.Fatalf("canceled output = %q/%d, want canceled/5", outputStatus, outputEpoch)
 		}
-	}
-	if _, found := cleanupBySession[originSessionID]; found {
-		t.Fatalf("borrowed origin session %q was scheduled for cleanup", originSessionID)
-	}
-	if _, found := cleanupBySession["session-foreign"]; found {
-		t.Fatal("foreign workspace session was scheduled for cleanup")
-	}
+		waits, err := globalDB.ListNodeWaits(ctx, run.WorkspaceID, run.ID)
+		if err != nil || len(waits) != 0 {
+			t.Fatalf("ListNodeWaits(after cancel) = %#v, %v, want no active waits", waits, err)
+		}
+		controls, err := globalDB.ListNodeControls(ctx, run.WorkspaceID, run.ID)
+		if err != nil {
+			t.Fatalf("ListNodeControls() error = %v", err)
+		}
+		if len(controls) != 2 {
+			t.Fatalf("canceled controls = %#v, want work and hold", controls)
+		}
+		for _, control := range controls {
+			if control.CancelState != looppkg.CancelStateCanceled || control.CancelProvenance == nil ||
+				control.CancelProvenance.ActorID != "operator:cancel" {
+				t.Fatalf("canceled control = %#v, want terminal provenance", control)
+			}
+		}
 
-	repeated, err := globalDB.RequestRunCancellation(ctx, mutation)
-	if err != nil {
-		t.Fatalf("RequestRunCancellation(repeated) error = %v", err)
-	}
-	if repeated.Applied || !repeated.Terminal || repeated.Run.Status != looppkg.StatusCanceled {
-		t.Fatalf("RequestRunCancellation(repeated) = %#v, want terminal no-op", repeated)
-	}
-	replayedCleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
-	if err != nil {
-		t.Fatalf("ClaimLoopSessionCleanup(repeated) error = %v", err)
-	}
-	if len(replayedCleanups) != len(cleanups) {
-		t.Fatalf("repeated cleanup obligations = %#v, want no duplicates", replayedCleanups)
-	}
+		cleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimLoopSessionCleanup() error = %v", err)
+		}
+		if len(cleanups) != 2 {
+			t.Fatalf("cleanup obligations = %#v, want two exact run-owned sessions", cleanups)
+		}
+		cleanupBySession := make(map[string]looppkg.SessionCleanupObligation, len(cleanups))
+		for _, cleanup := range cleanups {
+			cleanupBySession[cleanup.SessionID] = cleanup
+		}
+		if cleanupBySession["session-binding"].SourceKind != looppkg.SessionCleanupSourceGoalBinding ||
+			cleanupBySession["session-task-run"].SourceKind != looppkg.SessionCleanupSourceTaskRun {
+			t.Fatalf("cleanup sources = %#v, want binding and task-run ownership", cleanupBySession)
+		}
+		for _, cleanup := range cleanups {
+			if cleanup.WorkspaceID != run.WorkspaceID || cleanup.LoopRunID != run.ID ||
+				cleanup.Cause != looppkg.SessionCleanupCauseOperatorCancel {
+				t.Fatalf("cleanup scope = %#v, want canceled run only", cleanup)
+			}
+		}
+		if _, found := cleanupBySession[originSessionID]; found {
+			t.Fatalf("borrowed origin session %q was scheduled for cleanup", originSessionID)
+		}
+		if _, found := cleanupBySession["session-foreign"]; found {
+			t.Fatal("foreign workspace session was scheduled for cleanup")
+		}
+
+		repeated, err := globalDB.RequestRunCancellation(ctx, mutation)
+		if err != nil {
+			t.Fatalf("RequestRunCancellation(repeated) error = %v", err)
+		}
+		if repeated.Applied || !repeated.Terminal || repeated.Run.Status != looppkg.StatusCanceled {
+			t.Fatalf("RequestRunCancellation(repeated) = %#v, want terminal no-op", repeated)
+		}
+		replayedCleanups, err := globalDB.ClaimLoopSessionCleanup(ctx, 10)
+		if err != nil {
+			t.Fatalf("ClaimLoopSessionCleanup(repeated) error = %v", err)
+		}
+		if len(replayedCleanups) != len(cleanups) {
+			t.Fatalf("repeated cleanup obligations = %#v, want no duplicates", replayedCleanups)
+		}
+	})
 }
 
 // Invariant: node cancellation fences only the addressed node or cell and commits its terminal

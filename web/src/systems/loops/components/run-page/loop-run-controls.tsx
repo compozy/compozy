@@ -1,10 +1,10 @@
 import { Ban, Pause, Play } from "lucide-react";
 
-import { Button } from "@compozy/ui";
+import { Button, cn } from "@compozy/ui";
 
 import { type LoopRunVerb, loopRunVerbs } from "../../lib/loop-node-controls";
 
-interface LoopRunControlsProps {
+interface LoopRunControlsProps extends React.ComponentProps<"div"> {
   status?: string | null;
   pauseRequested?: boolean;
   /**
@@ -25,12 +25,18 @@ export function LoopRunControls({
   onPause,
   onResume,
   onCancel,
+  className,
+  ...props
 }: LoopRunControlsProps) {
   const verbs = loopRunVerbs(status, Boolean(pauseRequested));
   if (verbs.length === 0) return null;
   const pausing = status === "running" && Boolean(pauseRequested);
   return (
-    <div className="flex items-center gap-2" data-testid="loop-run-controls">
+    <div
+      className={cn("flex items-center gap-2", className)}
+      data-testid="loop-run-controls"
+      {...props}
+    >
       {verbs.includes("pause") ? (
         <Button
           type="button"

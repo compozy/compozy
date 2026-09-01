@@ -2988,17 +2988,18 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		store := newFakeLoopStore()
 		store.cancellationSessionIDs = []string{"session-work"}
 		run := seedFakeRun(store, loop.StatusRunning)
-		var stopped []string
+		var observedStatus loop.Status
+		var stoppedSessionID string
 		svc := newTestServiceWithOptions(
 			t,
 			store,
 			validDefinition(),
 			loop.WithCancellationSessionController(loop.CancellationSessionControllerFuncs{
 				Stop: func(_ context.Context, sessionID, _ string) error {
-					if got := store.mustRun(t, run.ID).Status; got != loop.StatusCanceled {
-						t.Fatalf("status during Stop = %q, want canceled", got)
-					}
-					stopped = append(stopped, sessionID)
+					store.mu.Lock()
+					observedStatus = store.runs[run.ID].Status
+					store.mu.Unlock()
+					stoppedSessionID = sessionID
 					return nil
 				},
 			}),
@@ -3010,8 +3011,11 @@ func TestServiceCancellationShouldRecordCanceledTerminalTruth(t *testing.T) {
 		if got := store.mustRun(t, run.ID).Status; got != loop.StatusCanceled {
 			t.Fatalf("stored status = %q, want canceled", got)
 		}
-		if !reflect.DeepEqual(stopped, []string{"session-work"}) {
-			t.Fatalf("stopped sessions = %#v", stopped)
+		if observedStatus != loop.StatusCanceled {
+			t.Fatalf("status observed during Stop = %q, want canceled", observedStatus)
+		}
+		if stoppedSessionID != "session-work" {
+			t.Fatalf("stopped session = %q, want session-work", stoppedSessionID)
 		}
 		if got := store.lastTransition(t).cause; got != loop.TransitionCauseOperatorCancel {
 			t.Fatalf("transition cause = %q, want operator_cancel", got)

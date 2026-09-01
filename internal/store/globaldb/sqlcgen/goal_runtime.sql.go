@@ -185,7 +185,7 @@ INSERT INTO loop_session_cleanup (
     cleanup_id, workspace_id, loop_run_id, source_kind, source_id, source_epoch, session_id, cause, created_at
 ) VALUES (
     ?1, ?2, ?3, ?4,
-    ?5, ?6, ?7, ?8,
+    trim(?5), ?6, ?7, ?8,
     CAST(?9 AS TEXT)
 )
 ON CONFLICT(cleanup_id) DO NOTHING

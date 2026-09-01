@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { loopNodeLifecycleFixture } from "../../testing/loop-node-lifecycle-fixture";
@@ -378,6 +379,25 @@ describe("LoopNodeAmendDialog typed fields", () => {
 });
 
 describe("LoopRunControls", () => {
+  it("Should forward native div props and ref while preserving control layout classes", () => {
+    const ref = createRef<HTMLDivElement>();
+    render(
+      <LoopRunControls
+        ref={ref}
+        aria-label="Run actions"
+        className="custom-controls"
+        status="running"
+        onPause={vi.fn()}
+        onResume={vi.fn()}
+        onCancel={vi.fn()}
+      />
+    );
+
+    const controls = screen.getByLabelText("Run actions");
+    expect(ref.current).toBe(controls);
+    expect(controls).toHaveClass("flex", "items-center", "gap-2", "custom-controls");
+  });
+
   it("Should show Pause + Cancel while running and fire the callback", () => {
     const onPause = vi.fn();
     render(

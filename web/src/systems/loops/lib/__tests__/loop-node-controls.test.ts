@@ -76,6 +76,15 @@ describe("loopNodeVerbs", () => {
     );
   });
 
+  it("Should let committed cancellation override quarantine verbs", () => {
+    expect(
+      loopNodeVerbs(
+        node({ cancelState: "canceled", quarantined: true, state: "quarantined" }),
+        "running"
+      )
+    ).toEqual([]);
+  });
+
   it("Should offer no verb at all once the run is terminal", () => {
     for (const status of ["done", "failed", "canceled", "exhausted"]) {
       expect(loopNodeVerbs(node({ paused: true, state: "paused" }), status)).toEqual([]);

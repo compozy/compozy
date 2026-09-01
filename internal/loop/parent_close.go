@@ -71,9 +71,11 @@ func selectParentCloseActions(
 		if policy == "" {
 			policy = dsl.ParentCloseTerminate
 		}
-		if !dsl.IsKnownParentClosePolicy(policy) {
+		normalizedPolicy, known := dsl.NormalizeStoredParentClosePolicy(policy)
+		if !known {
 			return nil, fmt.Errorf("%w: invalid parent-close policy %q", ErrValidation, policy)
 		}
+		policy = normalizedPolicy
 		if policy == dsl.ParentCloseAbandon {
 			continue
 		}

@@ -144,7 +144,7 @@ func ProjectTimelineEvent(event RunEvent, view TimelineView) (*TimelineEntry, er
 	if err != nil {
 		return nil, err
 	}
-	tier, ok := TimelineTierFor(RunEventKind(event.Kind))
+	tier, ok := TimelineTierFor(projectedRunEventKind(event.Kind))
 	if !ok {
 		return nil, fmt.Errorf("%w: unclassified event kind %q", ErrValidation, event.Kind)
 	}
@@ -193,7 +193,7 @@ func projectTimelineWithHead(runID RunID, head int64, events []RunEvent, query T
 	}
 	filtered := make([]RunEvent, 0, len(events))
 	for _, event := range events {
-		tier, ok := TimelineTierFor(RunEventKind(event.Kind))
+		tier, ok := TimelineTierFor(projectedRunEventKind(event.Kind))
 		if !ok {
 			return TimelinePage{}, fmt.Errorf("%w: unclassified event kind %q", ErrValidation, event.Kind)
 		}
@@ -291,12 +291,13 @@ func timelineEntry(event RunEvent) (TimelineEntry, error) {
 			return TimelineEntry{}, fmt.Errorf("decode timeline event %d payload: %w", event.Seq, err)
 		}
 	}
-	title, err := timelineTitle(RunEventKind(event.Kind), payload)
+	kind := projectedRunEventKind(event.Kind)
+	title, err := timelineTitle(kind, payload)
 	if err != nil {
 		return TimelineEntry{}, err
 	}
 	return TimelineEntry{
-		Seq: event.Seq, FirstSeq: event.Seq, Kind: RunEventKind(event.Kind),
+		Seq: event.Seq, FirstSeq: event.Seq, Kind: kind,
 		Generation: payload.Generation, NodeID: payload.NodeID, Attempt: payload.Attempt,
 		Title: title, At: event.At.UTC(),
 	}, nil

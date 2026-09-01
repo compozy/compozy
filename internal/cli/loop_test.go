@@ -1152,11 +1152,25 @@ func TestLoopCommandShouldMapCLIVerbsToClient(t *testing.T) {
 	t.Run("Should reject deleted Loop lifecycle commands", func(t *testing.T) {
 		t.Parallel()
 
-		for _, args := range [][]string{{"loop", "stop"}, {"loop", "kill"}, {"loop", "node", "kill"}} {
-			_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), args...)
-			if err == nil || !strings.Contains(err.Error(), "unknown command") {
-				t.Fatalf("executeRootCommand(%v) error = %v, want unknown command", args, err)
-			}
+		tests := []struct {
+			name string
+			args []string
+			want string
+		}{
+			{name: "Should reject deleted stop", args: []string{"loop", "stop"}, want: `unknown command "stop"`},
+			{name: "Should reject deleted run kill", args: []string{"loop", "kill"}, want: `unknown command "kill"`},
+			{
+				name: "Should reject deleted node kill",
+				args: []string{"loop", "node", "kill"},
+				want: `unknown command "kill"`,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				_, _, err := executeRootCommand(t, newTestDeps(t, &stubClient{}), tc.args...)
+				assertErrorContains(t, err, tc.want)
+			})
 		}
 	})
 

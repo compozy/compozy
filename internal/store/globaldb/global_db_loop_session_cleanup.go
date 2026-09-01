@@ -153,6 +153,7 @@ func enqueueLoopSessionCleanupWithExecutor(
 	exec taskSQLExecutor,
 	obligation looppkg.SessionCleanupObligation,
 ) error {
+	obligation.SourceID = strings.TrimSpace(obligation.SourceID)
 	if err := obligation.Validate(); err != nil {
 		return err
 	}

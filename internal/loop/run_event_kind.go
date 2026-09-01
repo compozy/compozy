@@ -2,6 +2,8 @@ package loop
 
 type RunEventKind string
 
+const runEventNodeKilled RunEventKind = "node_killed"
+
 const (
 	RunEventNodeRunning          RunEventKind = "node_running"
 	RunEventNodeSucceeded        RunEventKind = "node_succeeded"
@@ -59,4 +61,12 @@ func RunEventKindValues() []string {
 		string(RunEventRequestAnswered), string(RunEventRequestExpired), string(RunEventRequestCanceled),
 		string(RunEventNodeAmended), string(RunEventBranchPruned), string(RunEventRunForked),
 	}
+}
+
+func projectedRunEventKind(value string) RunEventKind {
+	kind := RunEventKind(value)
+	if kind == runEventNodeKilled {
+		return RunEventNodeCanceled
+	}
+	return kind
 }

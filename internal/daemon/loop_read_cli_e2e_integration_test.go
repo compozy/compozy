@@ -715,6 +715,19 @@ func cancelLoopReadRun(
 	); err != nil {
 		t.Fatalf("cancel Loop read fixture run %s error = %v stderr=%s", runID, err, stderr)
 	}
+	var response compozycontract.LoopRunResponse
+	if err := harness.HTTPJSON(
+		ctx,
+		http.MethodGet,
+		loopReadRunPath(harness.WorkspaceID, runID),
+		nil,
+		&response,
+	); err != nil {
+		t.Fatalf("read Loop fixture run %s after cancel error = %v", runID, err)
+	}
+	if response.Run.Status == compozycontract.LoopRunStatusCanceled || loopRunStatusTerminal(response.Run.Status) {
+		return
+	}
 	waitForLoopRunStatus(t, ctx, harness, runID, compozycontract.LoopRunStatusCanceled)
 }
 

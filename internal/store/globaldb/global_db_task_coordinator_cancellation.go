@@ -46,3 +46,24 @@ func protectCanceledLoopFromStaleCoordinator(
 	completion.Plan = plan
 	return true, nil
 }
+
+func requireCanceledCoordinatorCompletion(run taskpkg.Run, rawToken string) error {
+	if strings.TrimSpace(run.ClaimTokenHash) == "" {
+		return fmt.Errorf(
+			"%w: task run %q has no retained claim token hash",
+			taskpkg.ErrInvalidClaimToken,
+			run.ID,
+		)
+	}
+	if !taskpkg.VerifyClaimToken(rawToken, run.ClaimTokenHash) {
+		return fmt.Errorf("%w: task run %q token mismatch", taskpkg.ErrInvalidClaimToken, run.ID)
+	}
+	if run.Status.Normalize() != taskpkg.TaskRunStatusCanceled {
+		return fmt.Errorf(
+			"%w: task run %q is not canceled",
+			taskpkg.ErrInvalidStatusTransition,
+			run.ID,
+		)
+	}
+	return nil
+}
