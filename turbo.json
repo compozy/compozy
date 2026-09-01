@@ -1,5 +1,8 @@
 {
     "$schema": "https://turbo.build/schema.json",
+    "remoteCache": {
+        "signature": true
+    },
     "tasks": {
         "//#codegen-check": {
             "cache": false,
@@ -135,7 +138,8 @@
         },
         "test": {
             "dependsOn": ["//#codegen-check", "transit"],
-            "outputs": []
+            "outputs": [],
+            "passThroughEnv": ["VITEST_MAX_WORKERS"]
         }
     }
 }
