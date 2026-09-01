@@ -14,6 +14,7 @@ vi.mock("../../adapters/settings-api", () => ({
   putSettingsProvider: vi.fn(),
   reloadSettings: vi.fn(),
   updateSettingsAutomation: vi.fn(),
+  updateSettingsAttention: vi.fn(),
   updateSettingsGeneral: vi.fn(),
   updateSettingsHooksExtensions: vi.fn(),
   updateSettingsMemory: vi.fn(),
@@ -34,6 +35,7 @@ import {
   deleteSettingsProvider,
   putSettingsMCPServer,
   reloadSettings,
+  updateSettingsAttention,
   updateSettingsGeneral,
   updateSettingsHooksExtensions,
   updateSettingsMemory,
@@ -58,6 +60,7 @@ import {
   useLogoutMCPAuth,
   usePutSettingsMCPServer,
   useReloadSettings,
+  useUpdateSettingsAttention,
   useUpdateSettingsGeneral,
   useUpdateSettingsHooksExtensions,
   useUpdateSettingsMemory,
@@ -148,6 +151,36 @@ describe("useUpdateSettingsGeneral", () => {
       JSON.stringify(arg?.queryKey).includes("memory")
     );
     expect(memoryInvalidations).toHaveLength(0);
+  });
+});
+
+describe("useUpdateSettingsAttention", () => {
+  it("Should start the live write before returning from the user gesture", () => {
+    const { wrapper } = createWrapper();
+    vi.mocked(updateSettingsAttention).mockResolvedValue({
+      ...generalMutation,
+      section: "attention" as const,
+      lifecycle: "live" as const,
+      next_action: "none" as const,
+      restart_required: false,
+    });
+    const { result } = renderHook(() => useUpdateSettingsAttention(), { wrapper });
+    const variables = {
+      body: {
+        config: {
+          toasts: true,
+          sound: false,
+          system: false,
+          muted_workspaces: [],
+        },
+      },
+      filter: { scope: "user" as const },
+    };
+
+    act(() => {
+      result.current.mutate(variables);
+      expect(updateSettingsAttention).toHaveBeenCalledWith(variables.body, variables.filter);
+    });
   });
 });
 

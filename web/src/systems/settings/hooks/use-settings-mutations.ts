@@ -64,6 +64,24 @@ import type {
   SettingsUpdateSkillsRequest,
 } from "../types";
 
+type SettingsAttentionMutationVariables = {
+  body: SettingsUpdateAttentionRequest;
+  filter: SettingsUpdateAttentionFilter;
+};
+
+type StartedSettingsAttentionMutationVariables = SettingsAttentionMutationVariables & {
+  request: Promise<SettingsMutationResult>;
+};
+
+function startSettingsAttentionMutation(
+  variables: SettingsAttentionMutationVariables
+): StartedSettingsAttentionMutationVariables {
+  return {
+    ...variables,
+    request: updateSettingsAttention(variables.body, variables.filter),
+  };
+}
+
 function recordMutation(result: SettingsMutationResult) {
   settingsRestartStore.trigger.settingsMutationRecorded({
     mutation: {
@@ -251,14 +269,8 @@ export function useUpdateSettingsNetwork() {
 export function useUpdateSettingsAttention() {
   const queryClient = useQueryClient();
 
-  return useMutation({
-    mutationFn: ({
-      body,
-      filter,
-    }: {
-      body: SettingsUpdateAttentionRequest;
-      filter: SettingsUpdateAttentionFilter;
-    }) => updateSettingsAttention(body, filter),
+  const mutation = useMutation({
+    mutationFn: ({ request }: StartedSettingsAttentionMutationVariables) => request,
     onSuccess: (result, variables) => {
       recordMutation(result);
       queryClient.setQueryData<SettingsAttentionSection>(
@@ -285,6 +297,18 @@ export function useUpdateSettingsAttention() {
         invalidateApplyRecords(queryClient),
       ]),
   });
+
+  return {
+    ...mutation,
+    mutate: (
+      variables: SettingsAttentionMutationVariables,
+      options?: Parameters<typeof mutation.mutate>[1]
+    ) => mutation.mutate(startSettingsAttentionMutation(variables), options),
+    mutateAsync: (
+      variables: SettingsAttentionMutationVariables,
+      options?: Parameters<typeof mutation.mutateAsync>[1]
+    ) => mutation.mutateAsync(startSettingsAttentionMutation(variables), options),
+  };
 }
 
 export function useUpdateSettingsShell() {
