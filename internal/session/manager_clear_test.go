@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -101,6 +102,36 @@ func TestClearConversationRestartsSameSessionWithFreshContext(t *testing.T) {
 				t.Fatalf("stored event content still contains cleared prompt: %s", event.Content)
 			}
 		}
+	})
+
+	t.Run("Should commit the clear before opening the replacement event store", func(t *testing.T) {
+		t.Parallel()
+
+		h := newHarness(t)
+		var openCount atomic.Int32
+		h.manager = newManagerWithHarness(
+			t,
+			h,
+			WithStore(func(ctx context.Context, owner store.SessionDBOwner, path string) (EventRecorder, error) {
+				if openCount.Add(1) == 2 {
+					if _, err := os.Stat(sessionDBClearCommitPath(path)); err != nil {
+						return nil, fmt.Errorf("clear commit must precede replacement store open: %w", err)
+					}
+				}
+				return sessiondb.OpenSessionDB(ctx, owner, path)
+			}),
+		)
+
+		session := createSession(t, h)
+		cleared, err := h.manager.ClearConversation(testutil.Context(t), session.ID)
+		if err != nil {
+			t.Fatalf("ClearConversation() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if err := h.manager.Stop(testutil.Context(t), cleared.ID); err != nil {
+				t.Errorf("Stop(cleared session cleanup) error = %v", err)
+			}
+		})
 	})
 
 	t.Run("Should wait for active stored readers before replacing the event store", func(t *testing.T) {

@@ -76,6 +76,13 @@ func (m *Manager) restartClearedConversation(
 	dbPath string,
 	clearGeneration string,
 ) (_ *Session, err error) {
+	targetEpoch, err := m.nextTranscriptEpoch(ctx, nil, target)
+	if err != nil {
+		return nil, err
+	}
+	if commitErr := commitSessionDBClear(dbPath, clearGeneration, targetEpoch); commitErr != nil {
+		return nil, fmt.Errorf("session: commit cleared event store for %q: %w", target, commitErr)
+	}
 	session, err := m.startSession(ctx, spec)
 	if err != nil {
 		return nil, err
@@ -88,13 +95,6 @@ func (m *Manager) restartClearedConversation(
 			err = errors.Join(err, fmt.Errorf("session: rollback failed clear restart for %q: %w", target, rollbackErr))
 		}
 	}()
-	targetEpoch, err := m.nextTranscriptEpoch(ctx, session, target)
-	if err != nil {
-		return nil, err
-	}
-	if commitErr := commitSessionDBClear(dbPath, clearGeneration, targetEpoch); commitErr != nil {
-		return nil, fmt.Errorf("session: commit cleared event store for %q: %w", target, commitErr)
-	}
 	if _, err := m.ensureTranscriptEpoch(ctx, session, target, targetEpoch); err != nil {
 		return nil, err
 	}
