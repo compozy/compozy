@@ -14,15 +14,19 @@ concurrency:
 env:
   CGO_ENABLED: 0
   GO_VERSION: "1.26.4"
-  # Turborepo remote cache (Vercel). Fork PRs receive empty secrets and fall
-  # back to local-only caching automatically.
+  # Turborepo remote cache (Vercel) via OIDC: turbo jobs exchange the GitHub
+  # OIDC token for a short-lived, cache-scoped Turborepo token (revoked when
+  # the job ends), so no long-lived credential reaches PR-controlled code.
+  # Pull requests read the shared cache without write access; only pushes to
+  # main upload. Fork PRs skip the exchange and stay local-only.
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
-  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
+  TURBO_CACHE: ${{ github.event_name == 'pull_request' && 'local:rw,remote:r' || 'local:rw,remote:rw' }}
 
 permissions:
   contents: read
   pull-requests: read
+  id-token: write
 
 jobs:
   pr-title:
@@ -219,6 +223,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
+
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
 
       - name: Run frontend verification
         env:
@@ -430,6 +441,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
       - name: Run desktop verification
         run: |
           make desktop-lint
@@ -510,6 +528,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
 
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
+
       - name: Run runtime E2E lane
         run: make test-e2e-runtime
         env:
@@ -557,6 +582,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
+
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
 
       - name: Run web E2E lane shard
         run: make test-e2e-web
@@ -615,6 +647,13 @@ jobs:
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-${{ github.job }}-
             ${{ runner.os }}-turbo-${{ hashFiles('bun.lock', 'turbo.json') }}-
             ${{ runner.os }}-turbo-
+
+      - name: Set up Turborepo remote cache (OIDC)
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+        continue-on-error: true
+        uses: vercel/setup-turborepo-remote-cache-action@135046f5efcadb17337d9b29b8d5b4035ae64b10 # v1.0.0
+        with:
+          team: ${{ vars.TURBO_TEAM }}
 
       - name: Run desktop E2E lane
         run: make test-e2e-desktop

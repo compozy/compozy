@@ -123,7 +123,7 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 
    - **herdr worker TUI** (operator-orchestrated): create a labeled tab, `herdr agent start <name> --kind codex --pane <pane> -- --yolo -m <model> -c model_reasoning_effort=<reasoning>`, then `herdr agent prompt <name> "$(cat …/peer-review-prompt-round1.md)"` and wait on `done` in check-in intervals.
 
-   **Round N+1 — continue the same reviewer session** with the continuation prompt from Step 2 (`session prompt <session-id> …` / `herdr agent prompt <name> …`). The reviewer already holds the corpus; the continuation prompt names only the changed files, the incorporation record, and the new findings target.
+   **Round N+1 — continue the same reviewer session**: deliver the Step 2.5 continuation prompt (`session prompt <session-id> …` / `herdr agent prompt <name> …`).
 
 3. Capture the post-run status snapshot:
 
@@ -176,8 +176,8 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 **Step 6: Optional Additional Rounds**
 
 1. Ask whether the user wants another peer-review round or wants to stop with the current saved spec.
-2. If the user requests another round, compose the continuation prompt (Step 2.5) and deliver it to the **same reviewer session** (Step 3, round N+1) with a fresh `roundN+1` artifact set. The reviewer re-reads only the changed files.
-3. Spawn a fresh reviewer only when the session is genuinely gone or invalid (daemon restarted, worker retired, corrupted state) — then the full round-1 template applies to the new session, and the loss is noted in the round summary.
+2. If the user requests another round, run Step 2.5 and Step 3 (round N+1) with a fresh `roundN+1` artifact set.
+3. If the reviewer session is gone or invalid, follow Error Handling → *Reviewer session lost between rounds*.
 4. Do not auto-loop. The user explicitly requests further rounds.
 5. When the review program ends (user stops or the final round is incorporated), retire the reviewer session (`compozy session stop <session-id>` / close the herdr worker tab) after recording anything the registry needs.
 
@@ -185,14 +185,14 @@ Every blocker and nit must include an ID, a real section/path reference, the iss
 
 - This skill never commits, pushes, opens PRs, auto-approves specs, or invokes provider review fetchers.
 - Prompt, event log, findings, summary, incorporation, and status snapshot artifacts are versioned with `-roundN`. Never overwrite a prior round.
-- One reviewer session per review program; every round after the first is a continuation prompt to that session. The reviewer dispatch is the only place this skill spends external review credit — one prompt per round unless the round is explicitly invalid and the user requests a rerun. The program ends with the reviewer session retired.
+- The reviewer dispatch is the only place this skill spends external review credit — one prompt per round unless the round is explicitly invalid and the user requests a rerun.
 - The bundled helper paths used by this skill (`references/peer-review-prompt.md`, `references/quality-markers.md`, `scripts/validate-findings.sh`) are read-only templates/helpers — the skill reads or runs them, never edits them during a review round.
 
 ## Error Handling
 
 - **Model misconfiguration (`The model 'X' does not exist`):** stop and surface the configured model. The reviewer agent definition or worker flags may carry a stale name like `gpt-5.5`. Do not mutate the call to substitute a model — verify with the user. (See `docs/_memory/lessons/L-010-model-name-validation.md`.)
 - **Dispatch substrate unavailable** (daemon not running for `compozy session`, herdr absent for a worker): fail with the start hint (`compozy daemon start` / `herdr status`) rather than swallowing.
-- **Reviewer session lost between rounds** (stopped, daemon restarted, worker retired): note the loss, spawn a fresh reviewer with the full round-1 template, and continue the round numbering.
+- **Reviewer session lost between rounds** (stopped, daemon restarted, worker retired, corrupted state): note the loss in the round summary, spawn a fresh reviewer with the full round-1 template, and continue the round numbering.
 - **Quality markers missing:** if the Step 1 quality-marker check fails, do not run the reviewer. Print the missing markers and exit so the user can amend the spec first.
 - **Reviewer selection invalid** (unknown agent definition or worker kind): list what exists (`compozy agent list` / herdr-supported kinds) and ask the user to choose — do not fall back.
 - **Missing findings file:** treat this as an invalid round, not a clean review. Write a validation-error artifact and ask whether to rerun.
