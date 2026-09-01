@@ -30,6 +30,7 @@ func hostAPIMethodHandlers(handler *HostAPIHandler) map[string]hostAPIMethodFunc
 		string(extensioncontract.HostAPIMethodTasksCancel):             handler.handleTasksCancel,
 		string(extensioncontract.HostAPIMethodTasksRuns):               handler.handleTasksRuns,
 		string(extensioncontract.HostAPIMethodTasksRunsGet):            handler.handleTasksRunsGet,
+		string(extensioncontract.HostAPIMethodTasksRunsResult):         handler.handleTasksRunsResult,
 		string(extensioncontract.HostAPIMethodTasksRunsEnqueue):        handler.handleTasksRunsEnqueue,
 		string(extensioncontract.HostAPIMethodTasksRunsStart):          handler.handleTasksRunsStart,
 		string(extensioncontract.HostAPIMethodTasksRunsAttachSession):  handler.handleTasksRunsAttachSession,

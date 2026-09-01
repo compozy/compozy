@@ -54,7 +54,6 @@ const (
 	LoopRunEventNodePaused           = looppkg.RunEventNodePaused
 	LoopRunEventNodeResumed          = looppkg.RunEventNodeResumed
 	LoopRunEventNodeCanceled         = looppkg.RunEventNodeCanceled
-	LoopRunEventNodeKilled           = looppkg.RunEventNodeKilled
 	LoopRunEventNodeQuarantined      = looppkg.RunEventNodeQuarantined
 	LoopRunEventNodeRequeued         = looppkg.RunEventNodeRequeued
 	LoopRunEventNodeWaitStarted      = looppkg.RunEventNodeWaitStarted
@@ -137,7 +136,6 @@ func LoopRunTransitionCauseValues() []string {
 		string(LoopRunTransitionCauseStart),
 		string(LoopRunTransitionCausePromote),
 		string(LoopRunTransitionCauseOperatorCancel),
-		string(LoopRunTransitionCauseOperatorKill),
 		string(LoopRunTransitionCauseGoalReplace),
 		string(LoopRunTransitionCauseGoalClear),
 		string(LoopRunTransitionCausePauseBoundary),
@@ -209,7 +207,6 @@ func LoopRunLifecycleEventKindValues() []string {
 		string(LoopRunEventNodePaused),
 		string(LoopRunEventNodeResumed),
 		string(LoopRunEventNodeCanceled),
-		string(LoopRunEventNodeKilled),
 		string(LoopRunEventNodeQuarantined),
 		string(LoopRunEventNodeRequeued),
 		string(LoopRunEventNodeWaitStarted),

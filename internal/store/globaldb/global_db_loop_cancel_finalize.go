@@ -20,9 +20,6 @@ func finalizeNodeCancellation(
 		return err
 	}
 	failureCode := string(looppkg.TransitionCauseOperatorCancel)
-	if mutation.Kind == looppkg.RunCancelKill {
-		failureCode = string(looppkg.TransitionCauseOperatorKill)
-	}
 	cause := strings.TrimSpace(mutation.Reason)
 	if cause == "" {
 		cause = failureCode
@@ -48,21 +45,25 @@ func finalizeNodeCancellation(
 		mutation.RunID, mutation.NodeID); err != nil {
 		return fmt.Errorf("store: terminalize canceled Loop node outputs: %w", err)
 	}
-	kind := loopRunEventNodeCanceled
-	if mutation.Kind == looppkg.RunCancelKill {
-		kind = loopRunEventNodeKilled
-	}
-	eventID, _, err := appendLoopRunEventWithIdentity(ctx, exec, run.ID, run.WorkspaceID, kind, map[string]any{
-		loopRunEventPayloadKeyGeneration: run.Generation,
-		loopRunEventPayloadKeyNodeID:     mutation.NodeID,
-		loopRunEventPayloadKeyActorKind:  mutation.Actor.Actor.Kind.Normalize(),
-		loopRunEventPayloadKeyActorID:    strings.TrimSpace(mutation.Actor.Actor.Ref),
-		loopRunEventPayloadKeyReason:     strings.TrimSpace(mutation.Reason),
-	}, mutation.RequestedAt.UTC())
+	eventID, _, err := appendLoopRunEventWithIdentity(
+		ctx,
+		exec,
+		run.ID,
+		run.WorkspaceID,
+		loopRunEventNodeCanceled,
+		map[string]any{
+			loopRunEventPayloadKeyGeneration: run.Generation,
+			loopRunEventPayloadKeyNodeID:     mutation.NodeID,
+			loopRunEventPayloadKeyActorKind:  mutation.Actor.Actor.Kind.Normalize(),
+			loopRunEventPayloadKeyActorID:    strings.TrimSpace(mutation.Actor.Actor.Ref),
+			loopRunEventPayloadKeyReason:     strings.TrimSpace(mutation.Reason),
+		},
+		mutation.RequestedAt.UTC(),
+	)
 	if err != nil {
 		return err
 	}
-	if mutation.Kind == looppkg.RunCancelKill || len(mutation.Effects) == 0 {
+	if len(mutation.Effects) == 0 {
 		return nil
 	}
 	return insertLoopEffectIntentsWithExecutor(

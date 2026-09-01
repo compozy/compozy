@@ -27,7 +27,7 @@ compozysdk.NewExtension(compozysdk.ExtensionDefinition{
 
 ## Closed set
 
-`permissions.requires` is validated against a closed set of **95** Host API methods at build,
+`permissions.requires` is validated against the closed Host API method set at build,
 validate, install, and daemon load. An unknown value is a hard error, never a silent no-op:
 
 ```text
@@ -80,7 +80,7 @@ method list, per call.
 
 ## Permission catalog
 
-Twenty-six consent areas cover the 95 methods.
+Twenty-six consent areas cover the cataloged methods.
 
 | Consent area       | Host API methods                                                                                                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -108,7 +108,7 @@ Twenty-six consent areas cover the 95 methods.
 | `skills:read`      | `skills/list`                                                                                                                                                                                                                 |
 | `soul:read`        | `agents/soul/get`, `agents/soul/history`, `agents/soul/validate`                                                                                                                                                              |
 | `soul:write`       | `agents/soul/delete`, `agents/soul/put`, `agents/soul/rollback`, `sessions/soul/refresh`                                                                                                                                      |
-| `task:read`        | `tasks`, `tasks/dashboard`, `tasks/get`, `tasks/inbox`, `tasks/runs`, `tasks/runs/get`, `tasks/timeline`, `tasks/tree`                                                                                                        |
+| `task:read`        | `tasks`, `tasks/dashboard`, `tasks/get`, `tasks/inbox`, `tasks/runs`, `tasks/runs/get`, `tasks/runs/result`, `tasks/timeline`, `tasks/tree`                                                                                   |
 | `task:write`       | `tasks/cancel`, `tasks/create`, `tasks/runs/attach_session`, `tasks/runs/cancel`, `tasks/runs/complete`, `tasks/runs/enqueue`, `tasks/runs/fail`, `tasks/runs/start`, `tasks/update`                                          |
 
 Read and write are separate areas everywhere, so a read-only reviewer extension never requests a

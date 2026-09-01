@@ -324,7 +324,7 @@ tool ID.
 
 ## Task And Autonomy Tools
 
-Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
+Task tools: `compozy__task_list`, `compozy__task_read`, `compozy__task_create`, `compozy__task_child_create`, `compozy__task_update`, `compozy__task_cancel`, `compozy__task_promote_from_thread`, `compozy__task_fanout_runs`, `compozy__task_run_list`, `compozy__task_run_result`, `compozy__task_run_review_request`, `compozy__task_run_review_list`, `compozy__task_run_review_show`, `compozy__task_execution_profile_get`, `compozy__task_execution_profile_set`, `compozy__task_execution_profile_delete`, `compozy__task_worktree_policy_set`, `compozy__task_notification_subscribe`, `compozy__task_notification_list`, `compozy__task_notification_show`, `compozy__task_notification_delete`.
 
 Task-notification cursor diagnostics expose an explicit `{kind, workspace_id}` scope, with `kind`
 closed to `global` or `workspace`. Subscribe and list use the hard-cut `workspace_id` input; do not
@@ -339,9 +339,9 @@ Autonomy tools are bound to the caller session. `compozy__task_run_claim_next` c
 
 ## Loop Tools
 
-Toolset `compozy__loops` has 31 tools: Goal get/control/report; Loop
-list/inspect/validate/create/run/status/runs/turns/cancel/kill/pause/resume/configure/approve/delete;
-node list/pause/resume/cancel/kill/requeue; request list/get/respond/amend; and diff/rerun/fork.
+Toolset `compozy__loops` has 29 tools: Goal get/control/report; Loop
+list/inspect/validate/create/run/status/runs/turns/cancel/pause/resume/configure/approve/delete;
+node list/pause/resume/cancel/requeue; request list/get/respond/amend; and diff/rerun/fork.
 
 No `compozy__loop_edit`. See references/loops.md for publishing, approval/self-approval, and Goal report
 binding semantics.

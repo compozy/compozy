@@ -333,7 +333,7 @@ export function attentionScenario(): LoopRunStoryScenario {
   };
 }
 
-/** VC-R2 — the `canceled` terminal reached by a cooperative cancel. */
+/** VC-R2 — the `canceled` terminal reached by operator cancellation. */
 export function canceledScenario(): LoopRunStoryScenario {
   const frame = createFrameFactory();
   const frames = [
@@ -464,37 +464,5 @@ export function parkedProgressScenario(): LoopRunStoryScenario {
       }),
     ],
     waits: [wait({ node_id: "collect_fixes", kind: "event", age_seconds: 7 * 60 })],
-  };
-}
-
-/** VC-R2 — the same terminal reached by kill; only the `cause` differs. */
-export function killedScenario(): LoopRunStoryScenario {
-  const scenario = canceledScenario();
-  const frame = createFrameFactory();
-  return {
-    ...scenario,
-    // Same terminal, different cause — and a kill does not drain, so the
-    // sentence cannot promise the finished step's result the way a cancel does.
-    briefing: briefingFor(scenario.run, {
-      ...scenario.briefing,
-      headline: "Pedro killed this run in the middle of round 2",
-      detail: "The step that had already finished is kept; the one in flight was cut where it was.",
-      outcome: {
-        status: "canceled",
-        cause: "operator_kill",
-        actor_kind: "user",
-        actor_ref: "pedro",
-        at: minutesAgo(1),
-      },
-    }),
-    frames: [
-      ...scenario.frames.slice(0, -1),
-      frame("status_changed", 1, {
-        from: "running",
-        to: "canceled",
-        status: "canceled",
-        cause: "operator_kill",
-      }),
-    ],
   };
 }

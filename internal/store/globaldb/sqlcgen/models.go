@@ -781,19 +781,6 @@ type LoopGoalJudgeAttempt struct {
 	CompletedAt     sql.NullTime   `json:"completed_at"`
 }
 
-type LoopGoalSessionCleanup struct {
-	ID           int64        `json:"id"`
-	CleanupID    string       `json:"cleanup_id"`
-	WorkspaceID  string       `json:"workspace_id"`
-	LoopRunID    string       `json:"loop_run_id"`
-	Handle       string       `json:"handle"`
-	BindingEpoch int64        `json:"binding_epoch"`
-	SessionID    string       `json:"session_id"`
-	Cause        string       `json:"cause"`
-	CreatedAt    time.Time    `json:"created_at"`
-	CompletedAt  sql.NullTime `json:"completed_at"`
-}
-
 type LoopGoalSessionOutbox struct {
 	ID              int64          `json:"id"`
 	EventID         string         `json:"event_id"`
@@ -1013,8 +1000,6 @@ type LoopRun struct {
 	NetworkSource            string          `json:"network_source"`
 	BestGeneration           sql.NullInt64   `json:"best_generation"`
 	BestScore                sql.NullFloat64 `json:"best_score"`
-	CancelRequested          int64           `json:"cancel_requested"`
-	CancelKind               string          `json:"cancel_kind"`
 }
 
 type LoopRunEvent struct {
@@ -1048,6 +1033,20 @@ type LoopSessionBinding struct {
 	ClosedAt           sql.NullTime   `json:"closed_at"`
 	AdoptedGeneration  int64          `json:"adopted_generation"`
 	AdoptionAttemptID  sql.NullString `json:"adoption_attempt_id"`
+}
+
+type LoopSessionCleanup struct {
+	ID          int64        `json:"id"`
+	CleanupID   string       `json:"cleanup_id"`
+	WorkspaceID string       `json:"workspace_id"`
+	LoopRunID   string       `json:"loop_run_id"`
+	SourceKind  string       `json:"source_kind"`
+	SourceID    string       `json:"source_id"`
+	SourceEpoch int64        `json:"source_epoch"`
+	SessionID   string       `json:"session_id"`
+	Cause       string       `json:"cause"`
+	CreatedAt   time.Time    `json:"created_at"`
+	CompletedAt sql.NullTime `json:"completed_at"`
 }
 
 type LoopTimetravelOp struct {

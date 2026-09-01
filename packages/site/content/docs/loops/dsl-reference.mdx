@@ -184,6 +184,16 @@ The daemon validates the agent's exact structured result against that schema bef
 task and revalidates it before publishing node success. A mismatch fails with `invalid_output`.
 Large results keep the same structured value when stored by content reference. The bound agent
 session may heartbeat its task, but only the owning daemon can complete or fail it.
+Loop action results up to 16 KiB stay inline. Larger accepted values are stored by content reference,
+so run payloads expose `result_ref` and `result_bytes` instead of embedding the value. Read the exact
+bytes through `compozy task run result`, `GET /api/task-runs/{id}/result`, or
+`compozy__task_run_result`.
+
+`tools.default_max_result_bytes` is the outer action-result bound. For a literal tool action, a
+smaller descriptor limit wins. A zero configured default uses the 16 MiB platform ceiling rather
+than making result size unbounded. A result above the effective bound, or a tool result already
+marked truncated, fails the node with `action_result_too_large`; the diagnostic names the node,
+tool, actual bytes, effective limit, and safe next action.
 Each managed `run-agent` cell owns a system session. A session-started Loop records the nearest
 origin session as informational parent lineage without borrowing it. Terminal cell settlement
 closes the binding and queues a durable stop. A failure scheduled for retry keeps the binding active
@@ -324,7 +334,7 @@ condition fails closed with `predicate_evaluation_failed`; it never falls throug
 | `on_error`                                       | Exactly one of `route` or `allow_fail`; optional `effects` observe the decision. |
 | `on_retry`, `on_success`, `on_pause`             | Effects for those committed node transitions.                                    |
 | `on_timeout`, `on_cancel`, `on_quarantine`       | Effects for those committed node transitions.                                    |
-| `on_parent_close`                                | Awaited `run-loop` policy: `terminate`, `cancel`, or `abandon`.                  |
+| `on_parent_close`                                | Awaited `run-loop` policy: `terminate` or `abandon`.                             |
 
 Automatic retry is class-gated: only `transport` and `attempt_timeout` qualify. Mechanical actions
 inherit family defaults; `run-agent` and `run-loop` require explicit node-level `retry`, and `goal`

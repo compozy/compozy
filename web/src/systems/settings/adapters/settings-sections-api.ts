@@ -373,6 +373,7 @@ export async function updateSettingsAttention(
 ): Promise<SettingsMutationResult> {
   const { data, error, response } = await apiClient.PATCH("/api/settings/attention", {
     body,
+    keepalive: true,
     params: { query: normalizeSettingsLayerFilter(filter) },
     signal,
   });

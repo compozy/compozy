@@ -134,7 +134,7 @@ func claimResultWithoutRawTokenInMetadata(result *ClaimResult) {
 		result.Task.Metadata = removeRawClaimTokenFields(result.Task.Metadata)
 	}
 	result.Run.Metadata = removeRawClaimTokenFields(result.Run.Metadata)
-	result.Run.Result = rawJSONPointer(removeRawClaimTokenFields(rawJSONValue(result.Run.Result)))
+	result.Run.SetResult(removeRawClaimTokenFields(result.Run.ResultValue()))
 }
 
 func removeRawClaimTokenFields(raw json.RawMessage) json.RawMessage {

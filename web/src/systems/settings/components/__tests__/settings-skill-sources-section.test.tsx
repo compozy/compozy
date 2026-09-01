@@ -36,7 +36,7 @@ function model(overrides: Partial<SettingsSkillSourcesModel> = {}): SettingsSkil
     removeCustom: vi.fn(),
     validateEntry: () => null,
     customize: vi.fn(),
-    useInherited: vi.fn(),
+    restoreInherited: vi.fn(),
     inheritPendingKey: null,
     inheritError: null,
     save: vi.fn(),
@@ -206,12 +206,12 @@ describe("SettingsSkillSourcesSection", () => {
 
   it("Should state each key's inheritance at workspace scope", async () => {
     const user = userEvent.setup();
-    const useInherited = vi.fn();
+    const restoreInherited = vi.fn();
     const customize = vi.fn();
     render(
       <SettingsSkillSourcesSection
         model={model({
-          useInherited,
+          restoreInherited,
           customize,
           postures: [
             { key: "sources", inherited: false, armed: true },
@@ -229,7 +229,7 @@ describe("SettingsSkillSourcesSection", () => {
     ).toHaveTextContent("inherited");
 
     await user.click(screen.getByTestId("settings-page-skills-sources-key-sources-use-inherited"));
-    expect(useInherited).toHaveBeenCalledWith("sources");
+    expect(restoreInherited).toHaveBeenCalledWith("sources");
 
     await user.click(
       screen.getByTestId("settings-page-skills-sources-key-custom_sources-customize")

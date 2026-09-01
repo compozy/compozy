@@ -173,7 +173,7 @@ export function SessionWindowContent({
               : undefined
           }
           canPrompt={controls.canPrompt}
-          onCancelPrompt={controls.handleStop}
+          onCancelPrompt={controls.handleCancelPrompt}
           onQueuePrompt={controls.handleQueuePrompt}
           onInterruptPrompt={controls.handleInterruptPrompt}
           onSteerPrompt={controls.handleSteerPrompt}

@@ -15,7 +15,6 @@ type CancellationMutation struct {
 	RunID       RunID
 	NodeID      NodeID
 	ItemIndex   *int
-	Kind        RunCancelKind
 	Reason      string
 	Actor       task.ActorContext
 	RequestedAt time.Time
@@ -27,7 +26,7 @@ func (m CancellationMutation) Validate(nodeRequired bool) error {
 	if strings.TrimSpace(string(m.WorkspaceID)) == "" || strings.TrimSpace(string(m.RunID)) == "" ||
 		(nodeRequired && strings.TrimSpace(string(m.NodeID)) == "") ||
 		(m.ItemIndex != nil && *m.ItemIndex < 0) ||
-		(m.Kind != RunCancelCancel && m.Kind != RunCancelKill) || m.RequestedAt.IsZero() {
+		m.RequestedAt.IsZero() {
 		return fmt.Errorf("%w: cancellation mutation is incomplete", ErrValidation)
 	}
 	if err := m.Actor.Validate(); err != nil {
@@ -51,61 +50,26 @@ type CancellationResult struct {
 	Applied             bool
 }
 
-// PendingCancellation carries one durable delivery command and its current session bindings.
-type PendingCancellation struct {
-	WorkspaceID WorkspaceID
-	RunID       RunID
-	NodeID      NodeID
-	State       CancelState
-	Reason      string
-	RequestedAt time.Time
-	RequestedBy task.ActorIdentity
-	SessionIDs  []string
-}
-
 // CancellationStore owns atomic cancellation state, fencing, Goal cleanup, and terminal truth.
 type CancellationStore interface {
 	RequestRunCancellation(context.Context, CancellationMutation) (CancellationResult, error)
-	AdvanceRunCancellation(context.Context, CancellationMutation, CancelState) (CancellationResult, error)
 	RequestNodeCancellation(context.Context, CancellationMutation) (CancellationResult, error)
-	AdvanceNodeCancellation(context.Context, CancellationMutation, CancelState) (CancellationResult, error)
 }
 
-// CancellationReconciliationStore lists durable cancellation deliveries that still need progress.
-type CancellationReconciliationStore interface {
-	CancellationStore
-	ListPendingCancellations(context.Context, int) ([]PendingCancellation, error)
-}
-
-// CancellationReconciler retries committed cooperative cancellation delivery.
-type CancellationReconciler interface {
-	ReconcilePendingCancellations(context.Context, int, task.ActorContext) (int, error)
-}
-
-// CancellationSessionController performs post-commit prompt cancellation or immediate process stop.
+// CancellationSessionController performs the post-commit process stop.
 type CancellationSessionController interface {
-	CancelLoopSession(context.Context, string, string) error
-	KillLoopSession(context.Context, string, string) error
+	StopLoopSession(context.Context, string, string) error
 }
 
 // CancellationSessionControllerFuncs adapts cancellation callbacks.
 type CancellationSessionControllerFuncs struct {
-	Cancel func(context.Context, string, string) error
-	Kill   func(context.Context, string, string) error
+	Stop func(context.Context, string, string) error
 }
 
-// CancelLoopSession implements CancellationSessionController.
-func (f CancellationSessionControllerFuncs) CancelLoopSession(ctx context.Context, id, reason string) error {
-	if f.Cancel == nil {
+// StopLoopSession implements CancellationSessionController.
+func (f CancellationSessionControllerFuncs) StopLoopSession(ctx context.Context, id, reason string) error {
+	if f.Stop == nil {
 		return nil
 	}
-	return f.Cancel(ctx, id, reason)
-}
-
-// KillLoopSession implements CancellationSessionController.
-func (f CancellationSessionControllerFuncs) KillLoopSession(ctx context.Context, id, reason string) error {
-	if f.Kill == nil {
-		return nil
-	}
-	return f.Kill(ctx, id, reason)
+	return f.Stop(ctx, id, reason)
 }

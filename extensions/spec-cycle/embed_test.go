@@ -89,7 +89,7 @@ func TestSpecCycleRuntimeToolDescriptorsShouldPinSchemaDigests(t *testing.T) {
 		}{
 			toolImportTasks: {
 				inputDigest:  "ff6206bbb7edbf85229a394c4752286046cdbc069b1a89b3067f139f1f68a832",
-				outputDigest: "084491ee6855dd4b58a53ac222f7eeebe59d8f53eba12e7ed4583c58fee3d1cf",
+				outputDigest: "ed61017d14c6e0cdea1846d9e418369696ccf198a37c02baa3389247f1fba4f7",
 				readOnly:     true,
 				risk:         toolspkg.RiskRead,
 			},

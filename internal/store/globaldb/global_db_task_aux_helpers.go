@@ -96,7 +96,15 @@ func (g *TaskRepo) getTaskRunWithExecutor(
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
-	return g.loadTaskRunCapabilities(ctx, exec, run)
+	run, err = g.loadTaskRunCapabilities(ctx, exec, run)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	runs, err := attachTaskRunResultDescriptors(ctx, exec, []taskpkg.Run{run})
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	return runs[0], nil
 }
 
 func (g *TaskRepo) getTaskWithExecutor(

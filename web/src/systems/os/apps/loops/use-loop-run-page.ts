@@ -17,7 +17,6 @@ import {
   type LoopRunGeneration,
   type LoopRunRecord,
   loopPrunedSessionIds,
-  loopRunVerbs,
   projectLoopRunPageView,
   projectLoopRunRegisters,
   selectedRosterNode,
@@ -25,7 +24,6 @@ import {
   loopStreamSeam,
   useApproveLoopRun,
   useCancelLoopRun,
-  useKillLoopRun,
   useLoop,
   useLoopRun,
   useLoopRunBriefing,
@@ -154,7 +152,6 @@ export function useLoopRunPage(
   const pauseMutation = usePauseLoopRun();
   const resumeMutation = useResumeLoopRun();
   const cancelMutation = useCancelLoopRun();
-  const killMutation = useKillLoopRun();
   const approveMutation = useApproveLoopRun();
 
   const nowMs = useNowTick(isLive && liveDataEnabled);
@@ -214,25 +211,8 @@ export function useLoopRunPage(
     }
   };
 
-  const handleKill = async (): Promise<boolean> => {
-    try {
-      await killMutation.mutateAsync({ workspaceId, runId });
-      toast.success("Run killed — in-flight work was stopped immediately");
-      return true;
-    } catch (failure) {
-      const feedback = runControlFeedback(failure, runId);
-      if (feedback.answer) {
-        toast.info(feedback.answer.title, { description: feedback.answer.detail });
-      } else {
-        toast.error(feedback.error ?? "Failed to kill run");
-      }
-      return false;
-    }
-  };
-
   const resetRunControlErrors = () => {
     cancelMutation.reset();
-    killMutation.reset();
   };
 
   const handleDecision = (decision: LoopGateDecision, gateId: string) => {
@@ -333,20 +313,14 @@ export function useLoopRunPage(
     handlePause,
     handleResume,
     handleCancel,
-    handleKill,
     handleDecision,
     pendingAction,
     isPausePending: pauseMutation.isPending,
     isResumePending: resumeMutation.isPending,
     isCancelPending: cancelMutation.isPending,
-    isKillPending: killMutation.isPending,
     cancelAnswer: runControlFeedback(cancelMutation.error, runId).answer,
-    killAnswer: runControlFeedback(killMutation.error, runId).answer,
     cancelError: runControlFeedback(cancelMutation.error, runId).error,
-    killError: runControlFeedback(killMutation.error, runId).error,
     resetRunControlErrors,
-    /** Kill is offerable exactly while the daemon reports a live run. */
-    canKillRun: Boolean(run) && loopRunVerbs(run?.status, false).includes("kill"),
     // The daemon settles one run verb before the next is offerable, so the
     // controls read a single in-flight verb rather than four parallel flags.
     pendingRunVerb: pauseMutation.isPending
@@ -355,8 +329,6 @@ export function useLoopRunPage(
         ? ("resume" as const)
         : cancelMutation.isPending
           ? ("cancel" as const)
-          : killMutation.isPending
-            ? ("kill" as const)
-            : undefined,
+          : undefined,
   };
 }

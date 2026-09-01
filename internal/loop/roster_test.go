@@ -214,6 +214,70 @@ func TestRosterContract(t *testing.T) {
 			t.Fatalf("page = %#v", page)
 		}
 	})
+	t.Run("Should preserve only materialized fanout item indexes", func(t *testing.T) {
+		t.Parallel()
+		tests := []struct {
+			name        string
+			outputs     []GenerationOutput
+			wantIndexes []int
+			wantRollups []FanoutRollup
+		}{
+			{
+				name: "Should preserve a lone nonzero worker index",
+				outputs: []GenerationOutput{
+					{Generation: 1, NodeID: "worker", ItemIndex: 2, Status: generationOutputSucceeded},
+				},
+				wantIndexes: []int{2},
+				wantRollups: []FanoutRollup{},
+			},
+			{
+				name: "Should sort sparse worker indexes without filling gaps",
+				outputs: []GenerationOutput{
+					{Generation: 1, NodeID: "worker", ItemIndex: 5, Status: generationOutputSucceeded},
+					{Generation: 1, NodeID: "worker", ItemIndex: 2, Status: generationOutputSucceeded},
+				},
+				wantIndexes: []int{2, 5},
+				wantRollups: []FanoutRollup{{Generation: 1, NodeID: "fan", Done: 2, Total: 2}},
+			},
+		}
+		for _, test := range tests {
+			t.Run(test.name, func(t *testing.T) {
+				t.Parallel()
+				source := RosterSource{
+					Run: Run{ID: "r", LoopName: "fan", Generation: 1},
+					Graph: dsl.Graph{
+						Nodes: []dsl.Node{
+							{ID: "fan", Class: dsl.NodeClassControl, Kind: string(dsl.ControlFanOut)},
+							{ID: "worker", Class: dsl.NodeClassAction},
+						},
+						Edges: []dsl.Edge{{From: "fan", To: "worker"}},
+					},
+					Outputs: test.outputs,
+				}
+
+				page, err := ProjectRoster(&source, RosterQuery{})
+				if err != nil {
+					t.Fatalf("ProjectRoster() error = %v", err)
+				}
+				gotIndexes := make([]int, 0, len(test.wantIndexes))
+				for _, node := range page.Nodes {
+					if node.NodeID == "worker" {
+						gotIndexes = append(gotIndexes, node.ItemIndex)
+					}
+				}
+				if !slices.Equal(gotIndexes, test.wantIndexes) {
+					t.Fatalf("worker item indexes = %v, want %v", gotIndexes, test.wantIndexes)
+				}
+				if !slices.Equal(page.FanoutRollups, test.wantRollups) {
+					t.Fatalf("fanout rollups = %#v, want %#v", page.FanoutRollups, test.wantRollups)
+				}
+				progress := ProgressFromRoster(page, 1)
+				if progress.StepsDone != len(test.wantIndexes) || progress.StepsTotal != len(test.wantIndexes) {
+					t.Fatalf("progress = %#v, want %d/%d", progress, len(test.wantIndexes), len(test.wantIndexes))
+				}
+			})
+		}
+	})
 	t.Run("Should name a fanout rollup after its authored container", func(t *testing.T) {
 		t.Parallel()
 		source := RosterSource{

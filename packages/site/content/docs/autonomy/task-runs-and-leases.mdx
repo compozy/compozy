@@ -109,6 +109,26 @@ compozy task complete run-123 \
 
 The optional result JSON must not contain raw lease credentials.
 
+### Reading a run result
+
+Task-run reads keep their envelope bounded. A small result appears inline as `result`; a larger Loop
+action result appears as `result_ref` with its exact `result_bytes`. Read either form through the same
+paged resource:
+
+```bash
+compozy task run result run-123 --offset 0 --limit 65536
+```
+
+Human output writes the exact page bytes. Structured output carries base64 bytes, the byte offset,
+total byte count, optional `next_offset`, and `eof`. Continue from `next_offset`; do not concatenate
+decoded text page by page because a UTF-8 character can cross a byte boundary. See the generated
+[`compozy task run result`](/docs/cli/task/run/result) reference for flags.
+
+HTTP and UDS use `GET /api/task-runs/{id}/result`. Extensions use `tasks/runs/result` with
+`task:read`, and managed sessions use `compozy__task_run_result`. The default and maximum page is
+64 KiB. Missing results and foreign-workspace runs share `404`; corrupt or unreadable retained bytes
+return `502`.
+
 ### Direct terminal actions for non-leased runs
 
 The session-bound `compozy task complete` command and `compozy__task_run_complete` tool use the

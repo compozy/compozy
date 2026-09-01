@@ -20,16 +20,7 @@ func (s *daemonLoopAPIService) CancelLoopRun(
 	runID string,
 	actor taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
-	return s.mutateLoopRunCancellation(ctx, workspaceID, runID, false, actor)
-}
-
-func (s *daemonLoopAPIService) KillLoopRun(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	actor taskpkg.ActorContext,
-) (contract.LoopMutationResponse, error) {
-	return s.mutateLoopRunCancellation(ctx, workspaceID, runID, true, actor)
+	return s.mutateLoopRunCancellation(ctx, workspaceID, runID, actor)
 }
 
 func (s *daemonLoopAPIService) PauseLoopNode(
@@ -117,18 +108,7 @@ func (s *daemonLoopAPIService) CancelLoopNode(
 	req contract.LoopNodeMutationRequest,
 	actor taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
-	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.ItemIndex, req.Reason, false, actor)
-}
-
-func (s *daemonLoopAPIService) KillLoopNode(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	nodeID string,
-	req contract.LoopNodeMutationRequest,
-	actor taskpkg.ActorContext,
-) (contract.LoopMutationResponse, error) {
-	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.ItemIndex, req.Reason, true, actor)
+	return s.mutateLoopNodeCancellation(ctx, workspaceID, runID, nodeID, req.ItemIndex, req.Reason, actor)
 }
 
 func (s *daemonLoopAPIService) RequeueLoopNode(
@@ -227,7 +207,6 @@ func (s *daemonLoopAPIService) mutateLoopRunCancellation(
 	ctx context.Context,
 	workspaceID string,
 	runID string,
-	kill bool,
 	actor taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
 	ws, err := normalizeLoopWorkspaceID(workspaceID)
@@ -238,11 +217,7 @@ func (s *daemonLoopAPIService) mutateLoopRunCancellation(
 	if normalizedRunID == "" {
 		return contract.LoopMutationResponse{}, fmt.Errorf("%w: run_id is required", looppkg.ErrValidation)
 	}
-	if kill {
-		err = s.aggregate.KillRun(ctx, ws, normalizedRunID, "operator request", actor)
-	} else {
-		err = s.aggregate.CancelRun(ctx, ws, normalizedRunID, "operator request", actor)
-	}
+	err = s.aggregate.CancelRun(ctx, ws, normalizedRunID, "operator request", actor)
 	if err != nil {
 		return contract.LoopMutationResponse{}, err
 	}
@@ -263,18 +238,13 @@ func (s *daemonLoopAPIService) mutateLoopNodeCancellation(
 	nodeID string,
 	itemIndex *int,
 	reason string,
-	kill bool,
 	actor taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
 	ws, normalizedRunID, normalizedNodeID, err := normalizeLoopNodeIdentity(workspaceID, runID, nodeID)
 	if err != nil {
 		return contract.LoopMutationResponse{}, err
 	}
-	if kill {
-		err = s.aggregate.KillNode(ctx, ws, normalizedRunID, normalizedNodeID, itemIndex, reason, actor)
-	} else {
-		err = s.aggregate.CancelNode(ctx, ws, normalizedRunID, normalizedNodeID, itemIndex, reason, actor)
-	}
+	err = s.aggregate.CancelNode(ctx, ws, normalizedRunID, normalizedNodeID, itemIndex, reason, actor)
 	if err != nil {
 		return contract.LoopMutationResponse{}, err
 	}

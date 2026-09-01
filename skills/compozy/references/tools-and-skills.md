@@ -35,7 +35,9 @@ Use this sequence for CompozyOS-native work:
 Hosted MCP projects the full availability-gated callable catalog for a bare managed session. CompozyOS no
 longer caps that projection to bootstrap/catalog tools unless the agent definition or session
 lineage explicitly narrows it. Use `compozy__tool_search` and `compozy__tool_info` to diagnose known but
-denied tools; use `compozy__tool_list` when you need only the currently callable set.
+denied tools; page `compozy__tool_list` with `offset`/`next_offset` for compact summaries of the
+currently callable set, then
+`compozy__tool_info` for one complete schema and backend descriptor.
 
 In a managed session, resolve canonical `compozy__skill_search`/`compozy__skill_view`, then call returned references. Do not invoke the operator CLI or read skill files directly. If policy denies the native tool, report the skill as unavailable. Operators can use `compozy skill view` from their own shell.
 
@@ -54,6 +56,9 @@ Operator fallback is `compozy tool artifact read <artifact-uri> --workspace <wor
 [-o json]`; human output writes the exact page bytes, while structured output carries base64 bytes
 and paging metadata. A `result_persistence_failed` tool error preserves a bounded partial result but
 does not promise a durable artifact; inspect the partial result and do not fabricate or retry a URI.
+
+A task-run `result_ref` is a different resource. Resolve `compozy__task_run_result` and page it by
+run ID; never pass a task-run reference to `compozy__tool_artifact_read`.
 
 ## Tool Presentation Metadata
 

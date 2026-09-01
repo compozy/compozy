@@ -25,7 +25,6 @@ const NODE_STATE_KINDS: Record<string, string> = {
   node_paused: "paused",
   node_resumed: "resumed",
   node_canceled: "canceled",
-  node_killed: "killed",
   node_quarantined: "quarantined",
   node_requeued: "requeued",
 };

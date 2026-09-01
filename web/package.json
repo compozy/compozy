@@ -79,6 +79,7 @@
         "@types/react-dom": "^19.2.5",
         "@vitejs/plugin-react": "^6.1.0",
         "babel-plugin-react-compiler": "^1.0.0",
+        "emojibase": "17.0.0",
         "emojibase-data": "17.0.0",
         "fake-indexeddb": "^6.2.5",
         "jsdom": "^29.1.1",

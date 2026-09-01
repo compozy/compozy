@@ -22,7 +22,6 @@ import {
   LoopTimetravelError,
   useAmendLoopNode,
   useCancelLoopNode,
-  useKillLoopNode,
   usePauseLoopNode,
   useRequeueLoopNode,
   useRerunLoopRun,
@@ -108,17 +107,12 @@ export function useLoopNodeControls(
   const pauseNode = usePauseLoopNode();
   const resumeNode = useResumeLoopNode();
   const cancelNode = useCancelLoopNode();
-  const killNode = useKillLoopNode();
   const requeueNode = useRequeueLoopNode();
   const amendMutation = useAmendLoopNode();
   const rerunMutation = useRerunLoopRun();
 
   const isPending =
-    pauseNode.isPending ||
-    resumeNode.isPending ||
-    cancelNode.isPending ||
-    killNode.isPending ||
-    requeueNode.isPending;
+    pauseNode.isPending || resumeNode.isPending || cancelNode.isPending || requeueNode.isPending;
 
   const isTimetravelPending = amendMutation.isPending || rerunMutation.isPending;
 
@@ -316,12 +310,6 @@ export function useLoopNodeControls(
         cancelNode.mutate(
           { ...target, data: reasonBody },
           { onSuccess: onSuccess(`${node.nodeId} canceled`), onError }
-        );
-        return;
-      case "kill":
-        killNode.mutate(
-          { ...target, data: reasonBody },
-          { onSuccess: onSuccess(`${node.nodeId} killed`), onError }
         );
         return;
       case "requeue":

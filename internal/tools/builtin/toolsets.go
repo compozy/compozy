@@ -213,6 +213,7 @@ var builtinToolsets = []toolspkg.Toolset{
 			toolspkg.ToolIDTaskBlocks.String(),
 			toolspkg.ToolIDTaskRecover.String(),
 			toolspkg.ToolIDTaskRunList.String(),
+			toolspkg.ToolIDTaskRunResult.String(),
 			toolspkg.ToolIDTaskRunReviewRequest.String(),
 			toolspkg.ToolIDTaskRunReviewList.String(),
 			toolspkg.ToolIDTaskRunReviewShow.String(),

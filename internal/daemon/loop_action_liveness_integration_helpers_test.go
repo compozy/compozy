@@ -24,18 +24,42 @@ var errLoopFailureBreakerIntegration = errors.New("forced breaker failure")
 
 func testLoopActionLivenessIntegration(t *testing.T) {
 	t.Helper()
-	testLoopActionSettlementIntegration(t, "action-liveness", quietLoopActionExecutor{}, false)
+	testLoopActionSettlementIntegration(
+		t,
+		"action-liveness",
+		quietLoopActionExecutor{},
+		taskpkg.MaxResultBytes,
+		false,
+	)
 }
 
-func testLoopActionOversizedResultIntegration(t *testing.T) {
+func testLoopActionWithinBudgetResultIntegration(t *testing.T) {
 	t.Helper()
-	testLoopActionSettlementIntegration(t, "oversized-result", oversizedLoopActionExecutor{}, true)
+	testLoopActionSettlementIntegration(
+		t,
+		"within-budget-result",
+		oversizedLoopActionExecutor{dataBytes: taskpkg.MaxResultBytes},
+		2*taskpkg.MaxResultBytes,
+		false,
+	)
+}
+
+func testLoopActionAboveBudgetResultIntegration(t *testing.T) {
+	t.Helper()
+	testLoopActionSettlementIntegration(
+		t,
+		"above-budget-result",
+		oversizedLoopActionExecutor{dataBytes: taskpkg.MaxResultBytes},
+		taskpkg.MaxResultBytes,
+		true,
+	)
 }
 
 func testLoopActionSettlementIntegration(
 	t *testing.T,
 	suffix string,
 	executor looppkg.ActionExecutor,
+	actionResultMaxBytes int64,
 	wantFailure bool,
 ) {
 	t.Helper()
@@ -85,6 +109,7 @@ func testLoopActionSettlementIntegration(
 	actions, err := looppkg.NewActionRegistry(
 		inertActionToolRegistry{},
 		looppkg.WithActionGoalExecutor(executor),
+		looppkg.WithActionDefaultMaxResultBytes(actionResultMaxBytes),
 	)
 	if err != nil {
 		t.Fatalf("loop.NewActionRegistry() error = %v", err)
@@ -109,6 +134,7 @@ func testLoopActionSettlementIntegration(
 		taskpkg.WithCoordinatorTerminalHookStatusValidator(func(status string) bool {
 			return looppkg.Status(status).Terminal()
 		}),
+		taskpkg.WithActionResultMaxBytes(actionResultMaxBytes),
 	)
 	if err != nil {
 		t.Fatalf("task.NewManager() error = %v", err)
@@ -162,8 +188,11 @@ func testLoopActionSettlementIntegration(
 	runtime.livenessPollInterval = func(time.Duration) time.Duration { return 5 * time.Millisecond }
 	executeErr := runtime.executeQueuedRun(ctx, taskRecord, worker, loopActionRuntimeReasonEnqueued)
 	if wantFailure {
-		if executeErr == nil || !errors.Is(executeErr, taskpkg.ErrValidation) {
-			t.Fatalf("executeQueuedRun(oversized) error = %v, want ErrValidation", executeErr)
+		if executeErr == nil || !errors.Is(executeErr, looppkg.ErrActionResultTooLarge) {
+			t.Fatalf(
+				"executeQueuedRun(above budget) error = %v, want ErrActionResultTooLarge",
+				executeErr,
+			)
 		}
 	} else if executeErr != nil {
 		t.Fatalf("executeQueuedRun(quiet) error = %v", executeErr)
@@ -176,8 +205,11 @@ func testLoopActionSettlementIntegration(
 	if wantFailure {
 		wantStatus = taskpkg.TaskRunStatusFailed
 	}
-	if settled.Status.Normalize() != wantStatus || !settled.LeaseUntil.IsZero() || settled.ClaimTokenHash != "" {
+	if settled.Status.Normalize() != wantStatus || !settled.LeaseUntil.IsZero() {
 		t.Fatalf("worker lease state = %#v, want %s without an owned lease", settled, wantStatus)
+	}
+	if settled.ClaimTokenHash == "" {
+		t.Fatalf("worker ClaimTokenHash = empty, want retained fencing history")
 	}
 	outputs, err := db.ListGenerationOutputs(ctx, created.WorkspaceID, created.ID, 1)
 	if err != nil {
@@ -189,8 +221,26 @@ func testLoopActionSettlementIntegration(
 	if wantFailure && outputs[0].Status != "failed" {
 		t.Fatalf("oversized generation output = %#v, want failed", outputs[0])
 	}
+	if wantFailure && (!strings.Contains(outputs[0].OutputRef, "action_result_too_large") ||
+		!strings.Contains(outputs[0].OutputRef, `action node \"converge\"`) ||
+		!strings.Contains(outputs[0].OutputRef, "65536-byte result limit")) {
+		t.Fatalf("oversized generation output = %#v, want bounded node-aware diagnostic", outputs[0])
+	}
 	if !wantFailure && outputs[0].Status == "failed" {
 		t.Fatalf("quiet generation outputs = %#v, want no liveness failure", outputs)
+	}
+	if !wantFailure && strings.Contains(suffix, "within-budget") {
+		if len(settled.ResultValue()) != 0 || settled.ResultReference() == "" ||
+			settled.ResultByteCount() <= taskpkg.MaxResultBytes {
+			t.Fatalf("settled result = %#v, want external descriptor above envelope cap", settled)
+		}
+		if outputs[0].OutputRef != settled.ResultReference() {
+			t.Fatalf(
+				"generation output ref = %q, want settled ref %q",
+				outputs[0].OutputRef,
+				settled.ResultReference(),
+			)
+		}
 	}
 }
 
@@ -595,16 +645,18 @@ func (quietLoopActionExecutor) Harvest(
 	return looppkg.ActionOutput{Value: raw.Value}, nil
 }
 
-type oversizedLoopActionExecutor struct{}
+type oversizedLoopActionExecutor struct {
+	dataBytes int
+}
 
-func (oversizedLoopActionExecutor) Execute(
+func (e oversizedLoopActionExecutor) Execute(
 	_ context.Context,
 	_ loopdsl.Node,
 	_ looppkg.ActionExecutionInput,
 ) (looppkg.ActionRawResult, error) {
 	return looppkg.ActionRawResult{Value: map[string]any{
 		"status": "complete",
-		"data":   strings.Repeat("x", taskpkg.MaxResultBytes),
+		"data":   strings.Repeat("x", e.dataBytes),
 	}}, nil
 }
 

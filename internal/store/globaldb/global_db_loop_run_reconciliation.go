@@ -46,7 +46,7 @@ func (g *LoopRepo) reconcileLoopRunOrphans(
 			cause := looppkg.TerminalCauseRunMissing
 			reason := runMissingReason
 			if candidate.status.Valid {
-				cause, err = terminalCauseForLoopStatus(looppkg.Status(candidate.status.String), "")
+				cause, err = terminalCauseForLoopStatus(looppkg.Status(candidate.status.String))
 				if err != nil {
 					return err
 				}

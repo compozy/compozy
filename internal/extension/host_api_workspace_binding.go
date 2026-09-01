@@ -97,6 +97,7 @@ var hostAPIWorkspaceBindings = map[extensionprotocol.HostAPIMethod]HostAPIWorksp
 	extensionprotocol.HostAPIMethodTasksCancel:                 HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodTasksRuns:                   HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodTasksRunsGet:                HostAPIWorkspaceBindingNone,
+	extensionprotocol.HostAPIMethodTasksRunsResult:             HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodTasksRunsEnqueue:            HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodTasksRunsStart:              HostAPIWorkspaceBindingNone,
 	extensionprotocol.HostAPIMethodTasksRunsAttachSession:      HostAPIWorkspaceBindingNone,

@@ -65,7 +65,15 @@ func (g *TaskRepo) GetTaskRun(ctx context.Context, id string) (taskpkg.Run, erro
 	if err != nil {
 		return taskpkg.Run{}, err
 	}
-	return g.loadTaskRunCapabilities(ctx, g.db, run)
+	run, err = g.loadTaskRunCapabilities(ctx, g.db, run)
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	runs, err := attachTaskRunResultDescriptors(ctx, g.db, []taskpkg.Run{run})
+	if err != nil {
+		return taskpkg.Run{}, err
+	}
+	return runs[0], nil
 }
 
 // ListTaskRuns returns persisted runs that match the supplied filters.
@@ -128,7 +136,11 @@ func (g *TaskRepo) listTaskRunsWithExecutor(
 		return nil, fmt.Errorf("store: iterate task runs: %w", err)
 	}
 
-	return g.loadTaskRunCapabilitiesForList(ctx, exec, runs)
+	runs, err = g.loadTaskRunCapabilitiesForList(ctx, exec, runs)
+	if err != nil {
+		return nil, err
+	}
+	return attachTaskRunResultDescriptors(ctx, exec, runs)
 }
 
 // ListTaskRunsByStatus returns persisted runs that match any of the supplied statuses.
@@ -166,7 +178,11 @@ func (g *TaskRepo) ListTaskRunsByStatus(
 		runs = append(runs, run)
 	}
 
-	return g.loadTaskRunCapabilitiesForList(ctx, g.db, runs)
+	runs, err = g.loadTaskRunCapabilitiesForList(ctx, g.db, runs)
+	if err != nil {
+		return nil, err
+	}
+	return attachTaskRunResultDescriptors(ctx, g.db, runs)
 }
 
 // CountActiveSessionBindings reports how many non-terminal runs are bound to one session.

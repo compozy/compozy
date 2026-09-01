@@ -600,7 +600,7 @@ describe("useSettingsSkillsPage", () => {
     act(() => result.current.selectWorkspaceScope());
     await waitFor(() => expect(result.current.sources.postures).not.toBeNull());
 
-    act(() => result.current.sources.useInherited("sources"));
+    act(() => result.current.sources.restoreInherited("sources"));
 
     await waitFor(() => expect(updateSettingsSkills).toHaveBeenCalled());
     expect(vi.mocked(updateSettingsSkills).mock.calls.at(-1)?.[0]).toEqual({

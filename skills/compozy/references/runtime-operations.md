@@ -60,6 +60,11 @@ durable next-prompt intent; `effective` is the runtime already bound to the curr
 
 Session types include user sessions and daemon-managed sessions such as dream, system, coordinator, worker, and reviewer sessions. Do not infer authority from a session type alone. Use the session context and daemon tools to confirm what the current session may do.
 
+The Web composer accepts prompts for public `user`, `system`, `coordinator`, and `spawned` sessions.
+When one is busy, operators can queue, steer, interrupt, or stop the active generation. This prompt
+authority does not grant lifecycle authority: daemon-managed sessions keep rename, clear, attach,
+delete, and whole-session stop unavailable. Dream and hidden maintenance sessions remain read-only.
+
 The daemon owns `coordinator` and `spawned` classification. A `session.pre_create` hook cannot change
 a session into or out of either type, and later lifecycle hooks cannot change any persisted session
 type or workspace identity.
@@ -70,7 +75,7 @@ Attachability is explicit live runtime state. Use `compozy session list --resuma
 `compozy session resume`. The command acquires an attach lease for an eligible live session; it does
 not restart `stopped`, and stopped sessions reject attach.
 
-A normal prompt to a stopped user session restarts its ACP process, reloads the durable provider
+A normal prompt to an eligible stopped public session restarts its ACP process, reloads the durable provider
 history, and submits the new prompt against the same session ID. Concurrent prompts share one
 restart. Attach, queue management, steer, interrupt, and other control operations never trigger this
 restart.

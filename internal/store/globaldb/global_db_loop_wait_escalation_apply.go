@@ -58,7 +58,7 @@ func loadDueWaitEscalation(
 	if err != nil {
 		return dueWaitEscalation{}, err
 	}
-	if !run.Status.Live() || run.Status == looppkg.StatusPaused || run.CancelRequested {
+	if !run.Status.Live() || run.Status == looppkg.StatusPaused {
 		return dueWaitEscalation{}, fmt.Errorf(
 			"%w: wait run is not eligible for escalation",
 			looppkg.ErrInvalidTransition,

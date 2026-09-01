@@ -37,7 +37,6 @@ import {
 import {
   attentionScenario,
   canceledScenario,
-  killedScenario,
   parkedProgressScenario,
   pausedByRuleScenario,
   pausedNodeScenario,
@@ -99,7 +98,7 @@ function ScenarioPage({
           onResume={() => {}}
           onCancel={() => {}}
         />
-        <LoopRunOverflowMenu loopName={props.run.loop_name} onKill={() => {}} />
+        <LoopRunOverflowMenu loopName={props.run.loop_name} />
       </div>
     ),
   });
@@ -328,11 +327,6 @@ export const NeedsAttention: Story = {
 export const Canceled: Story = {
   args: {},
   render: () => <LoopRunPageStory scenario={canceledScenario()} />,
-};
-
-export const Killed: Story = {
-  args: {},
-  render: () => <LoopRunPageStory scenario={killedScenario()} />,
 };
 
 export const ParkedProgress: Story = {

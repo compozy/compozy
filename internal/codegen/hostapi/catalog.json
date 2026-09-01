@@ -576,6 +576,16 @@
         "result": { "name": "TaskRunDetail", "value": "apicontract.TaskRunDetailPayload{}" }
     },
     {
+        "constant": "HostAPIMethodTasksRunsResult",
+        "wire": "tasks/runs/result",
+        "family": "tasks",
+        "params": { "name": "TaskRunResultParams", "value": "TaskRunResultParams{}" },
+        "result": {
+            "name": "TaskRunResultPage",
+            "value": "apicontract.TaskRunResultPageResponse{}"
+        }
+    },
+    {
         "constant": "HostAPIMethodTasksRunsEnqueue",
         "wire": "tasks/runs/enqueue",
         "family": "tasks",

@@ -8,6 +8,7 @@
 - Gateway
 - Marketplace catalog
 - Skill sources
+- Tool and Loop action result bounds
 - Autonomy scheduler
 - Loop defaults and observability
 - Goals
@@ -141,6 +142,14 @@ profile lens; its workspace body is `{"override": {...}}`, where an absent field
 `null` clears the override. Workspace-profile config remains repository-authored and read-only.
 Before acting on what a source change does to the catalog — precedence, origins, suppression,
 exposure — read the Skill sources and exposure section of `references/tools-and-skills.md`.
+
+## Tool And Loop Action Result Bounds
+
+`tools.default_max_result_bytes` defaults to 256 KiB. It is the outer bound for tool results and
+Loop action persistence; a smaller tool descriptor limit wins. Set `0` only to select the 16 MiB
+platform ceiling. Accepted Loop action values above 16 KiB are stored by content reference and read
+through the task-run result paging surface. This setting is restart-required and has no second
+Loop-specific key or Settings control.
 
 ## Autonomy Scheduler
 

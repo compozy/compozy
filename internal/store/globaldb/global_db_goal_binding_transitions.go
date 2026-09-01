@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	looppkg "github.com/compozy/compozy/internal/loop"
 	"github.com/compozy/compozy/internal/loop/goal"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/store/globaldb/sqlcgen"
@@ -237,7 +238,7 @@ func retireGoalBinding(
 			ctx,
 			exec,
 			current,
-			goal.SessionCleanupCauseReseed,
+			looppkg.SessionCleanupCauseReseed,
 			req.ActivatedAt,
 		)
 	}
@@ -326,7 +327,7 @@ func (g *GoalRepo) CloseSessionBinding(ctx context.Context, req goal.CloseBindin
 			req.Key,
 			req.ExpectedBindingEpoch,
 			binding.SessionID,
-			goal.SessionCleanupCauseTerminal,
+			looppkg.SessionCleanupCauseTerminal,
 			req.ClosedAt,
 		)
 	})

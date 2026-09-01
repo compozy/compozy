@@ -90,7 +90,7 @@ export const RUN_LOOP_NODE: RawNode = {
   class: "action",
   kind: "run-loop",
   params: { loop: "release-notes", mode: "await" },
-  on_parent_close: "cancel",
+  on_parent_close: "terminate",
 };
 
 /** A custom loop whose run-agent node carries the whole authored failure contract. */

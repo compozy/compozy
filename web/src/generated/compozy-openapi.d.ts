@@ -4364,6 +4364,23 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/task-runs/{id}/result": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** Read one exact byte page from a task-run result */
+    get: operations["readTaskRunResult"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/task-runs/{id}/reviews": {
     parameters: {
       query?: never;
@@ -5468,23 +5485,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/kill": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Kill one Loop run */
-    post: operations["killLoopRun"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes": {
     parameters: {
       query?: never;
@@ -5530,23 +5530,6 @@ export interface paths {
     put?: never;
     /** Cancel one Loop node */
     post: operations["cancelLoopNode"];
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/workspaces/{workspace_id}/loop-runs/{run_id}/nodes/{node_id}/kill": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    /** Kill one Loop node */
-    post: operations["killLoopNode"];
     delete?: never;
     options?: never;
     head?: never;
@@ -7481,7 +7464,7 @@ export interface components {
         /** @enum {string} */
         on_eval_error?: "fail" | "exit";
         /** @enum {string} */
-        on_parent_close?: "terminate" | "cancel" | "abandon";
+        on_parent_close?: "terminate" | "abandon";
         on_pause?: (
           | {
               emit: {
@@ -14414,6 +14397,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -16161,6 +16147,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -53006,6 +52995,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -53347,6 +53339,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -53667,6 +53662,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -54630,6 +54628,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -54771,6 +54772,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -55147,6 +55151,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -55522,6 +55529,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -55663,6 +55673,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -56161,6 +56174,9 @@ export interface operations {
                   resolved_worktree_mode: "none" | "ref" | "per_run";
                   resolved_worktree_ref?: string;
                   result?: unknown;
+                  /** Format: int64 */
+                  result_bytes?: number;
+                  result_ref?: string;
                   session_id?: string;
                   /** Format: date-time */
                   started_at?: string | null;
@@ -73826,6 +73842,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -74282,6 +74301,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -74646,6 +74668,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -74964,6 +74989,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -75282,6 +75310,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -75874,6 +75905,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -75982,6 +76016,192 @@ export interface operations {
       };
       /** @description Internal server error */
       500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task service is not configured */
+      503: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+    };
+  };
+  readTaskRunResult: {
+    parameters: {
+      query?: {
+        /** @description Zero-based byte offset */
+        offset?: number;
+        /** @description Page size in bytes; defaults to and is capped at 65536 */
+        limit?: number;
+      };
+      header?: never;
+      path: {
+        /** @description Task run id */
+        id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            /** Format: int64 */
+            bytes: number;
+            data_base64: string;
+            eof: boolean;
+            /** Format: int64 */
+            next_offset?: number | null;
+            /** Format: int64 */
+            offset: number;
+            result_ref?: string;
+            run_id: string;
+            /** Format: int64 */
+            total_bytes: number;
+          };
+        };
+      };
+      /** @description Invalid task-run result byte range */
+      400: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run result not found */
+      404: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Internal server error */
+      500: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          "application/json": {
+            code?: string;
+            details?: {
+              [key: string]: string;
+            };
+            diagnostic?: {
+              category: string;
+              code: string;
+              data_freshness: string;
+              doc_url?: string;
+              evidence?: {
+                [key: string]: unknown;
+              };
+              id: string;
+              message: string;
+              severity: string;
+              suggested_command?: string;
+              title: string;
+            } | null;
+            error: string;
+          };
+        };
+      };
+      /** @description Task-run result is corrupt or unreadable */
+      502: {
         headers: {
           [name: string]: unknown;
         };
@@ -76739,6 +76959,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -78437,6 +78660,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -79846,6 +80072,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -82213,6 +82442,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -83446,6 +83678,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;
@@ -87186,6 +87421,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -88990,6 +89228,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -89339,6 +89580,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -89723,6 +89967,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -90101,6 +90348,9 @@ export interface operations {
               resolved_worktree_mode: "none" | "ref" | "per_run";
               resolved_worktree_ref?: string;
               result?: unknown;
+              /** Format: int64 */
+              result_bytes?: number;
+              result_ref?: string;
               session_id?: string;
               /** Format: date-time */
               started_at?: string | null;
@@ -103128,7 +103378,7 @@ export interface operations {
                   /** @enum {string} */
                   on_eval_error?: "fail" | "exit";
                   /** @enum {string} */
-                  on_parent_close?: "terminate" | "cancel" | "abandon";
+                  on_parent_close?: "terminate" | "abandon";
                   on_pause?: (
                     | {
                         emit: {
@@ -105155,7 +105405,6 @@ export interface operations {
                   | "node_paused"
                   | "node_resumed"
                   | "node_canceled"
-                  | "node_killed"
                   | "node_quarantined"
                   | "node_requeued"
                   | "node_wait_started"
@@ -105612,265 +105861,6 @@ export interface operations {
               value?: string;
             } | null;
             valid?: boolean;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop service is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  killLoopRun: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Loop run id */
-        run_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          [key: string]: unknown;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            control?: {
-              attention_flag?: string;
-              attention_producer_node_id?: string;
-              attention_reason?: string;
-              cancel_provenance?: {
-                actor_id: string;
-                actor_kind: string;
-                reason?: string;
-                /** Format: date-time */
-                requested_at: string;
-                rule_id?: string;
-              } | null;
-              cancel_state?: string;
-              death_resume_streak: number;
-              /** Format: date-time */
-              last_evidence_at?: string | null;
-              loop_run_id: string;
-              node_id: string;
-              pause_provenance?: {
-                actor_id: string;
-                actor_kind: string;
-                reason?: string;
-                /** Format: date-time */
-                requested_at: string;
-                rule_id?: string;
-              } | null;
-              paused: boolean;
-              quarantine_entry?: unknown;
-              quarantined: boolean;
-              /** Format: date-time */
-              quarantined_at?: string | null;
-              /** Format: int64 */
-              revision: number;
-              /** Format: date-time */
-              updated_at: string;
-            } | null;
-            item_index?: number | null;
-            node_id?: string;
-            ok: boolean;
-            provenance?: {
-              actor_id: string;
-              actor_kind: string;
-              reason?: string;
-              /** Format: date-time */
-              requested_at: string;
-              rule_id?: string;
-            } | null;
-            run_id: string;
-            status?: string;
-          };
-        };
-      };
-      /** @description Invalid Loop request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop run not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop operation rejected */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
           };
         };
       };
@@ -106406,268 +106396,6 @@ export interface operations {
     };
   };
   cancelLoopNode: {
-    parameters: {
-      query?: {
-        /** @description Act as this profile by name */
-        profile?: string;
-      };
-      header?: never;
-      path: {
-        /** @description Workspace id */
-        workspace_id: string;
-        /** @description Loop run id */
-        run_id: string;
-        /** @description Loop node id */
-        node_id: string;
-      };
-      cookie?: never;
-    };
-    /** @description JSON request body */
-    requestBody: {
-      content: {
-        "application/json": {
-          item_index?: number | null;
-          reason?: string;
-        };
-      };
-    };
-    responses: {
-      /** @description OK */
-      200: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            control?: {
-              attention_flag?: string;
-              attention_producer_node_id?: string;
-              attention_reason?: string;
-              cancel_provenance?: {
-                actor_id: string;
-                actor_kind: string;
-                reason?: string;
-                /** Format: date-time */
-                requested_at: string;
-                rule_id?: string;
-              } | null;
-              cancel_state?: string;
-              death_resume_streak: number;
-              /** Format: date-time */
-              last_evidence_at?: string | null;
-              loop_run_id: string;
-              node_id: string;
-              pause_provenance?: {
-                actor_id: string;
-                actor_kind: string;
-                reason?: string;
-                /** Format: date-time */
-                requested_at: string;
-                rule_id?: string;
-              } | null;
-              paused: boolean;
-              quarantine_entry?: unknown;
-              quarantined: boolean;
-              /** Format: date-time */
-              quarantined_at?: string | null;
-              /** Format: int64 */
-              revision: number;
-              /** Format: date-time */
-              updated_at: string;
-            } | null;
-            item_index?: number | null;
-            node_id?: string;
-            ok: boolean;
-            provenance?: {
-              actor_id: string;
-              actor_kind: string;
-              reason?: string;
-              /** Format: date-time */
-              requested_at: string;
-              rule_id?: string;
-            } | null;
-            run_id: string;
-            status?: string;
-          };
-        };
-      };
-      /** @description Invalid Loop request */
-      400: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop run not found */
-      404: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop conflict */
-      409: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop operation rejected */
-      422: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Internal server error */
-      500: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-      /** @description Loop service is not configured */
-      503: {
-        headers: {
-          [name: string]: unknown;
-        };
-        content: {
-          "application/json": {
-            code?: string;
-            details?: {
-              [key: string]: string;
-            };
-            diagnostic?: {
-              category: string;
-              code: string;
-              data_freshness: string;
-              doc_url?: string;
-              evidence?: {
-                [key: string]: unknown;
-              };
-              id: string;
-              message: string;
-              severity: string;
-              suggested_command?: string;
-              title: string;
-            } | null;
-            error: string;
-          };
-        };
-      };
-    };
-  };
-  killLoopNode: {
     parameters: {
       query?: {
         /** @description Act as this profile by name */
@@ -108907,7 +108635,6 @@ export interface operations {
                 | "node_paused"
                 | "node_resumed"
                 | "node_canceled"
-                | "node_killed"
                 | "node_quarantined"
                 | "node_requeued"
                 | "node_wait_started"
@@ -110381,7 +110108,7 @@ export interface operations {
                 /** @enum {string} */
                 on_eval_error?: "fail" | "exit";
                 /** @enum {string} */
-                on_parent_close?: "terminate" | "cancel" | "abandon";
+                on_parent_close?: "terminate" | "abandon";
                 on_pause?: (
                   | {
                       emit: {
@@ -111031,7 +110758,7 @@ export interface operations {
                     /** @enum {string} */
                     on_eval_error?: "fail" | "exit";
                     /** @enum {string} */
-                    on_parent_close?: "terminate" | "cancel" | "abandon";
+                    on_parent_close?: "terminate" | "abandon";
                     on_pause?: (
                       | {
                           emit: {
@@ -111987,7 +111714,7 @@ export interface operations {
                     /** @enum {string} */
                     on_eval_error?: "fail" | "exit";
                     /** @enum {string} */
-                    on_parent_close?: "terminate" | "cancel" | "abandon";
+                    on_parent_close?: "terminate" | "abandon";
                     on_pause?: (
                       | {
                           emit: {
@@ -113039,7 +112766,7 @@ export interface operations {
                 /** @enum {string} */
                 on_eval_error?: "fail" | "exit";
                 /** @enum {string} */
-                on_parent_close?: "terminate" | "cancel" | "abandon";
+                on_parent_close?: "terminate" | "abandon";
                 on_pause?: (
                   | {
                       emit: {
@@ -113689,7 +113416,7 @@ export interface operations {
                     /** @enum {string} */
                     on_eval_error?: "fail" | "exit";
                     /** @enum {string} */
-                    on_parent_close?: "terminate" | "cancel" | "abandon";
+                    on_parent_close?: "terminate" | "abandon";
                     on_pause?: (
                       | {
                           emit: {
@@ -118390,7 +118117,7 @@ export interface operations {
                 /** @enum {string} */
                 on_eval_error?: "fail" | "exit";
                 /** @enum {string} */
-                on_parent_close?: "terminate" | "cancel" | "abandon";
+                on_parent_close?: "terminate" | "abandon";
                 on_pause?: (
                   | {
                       emit: {
@@ -132511,6 +132238,9 @@ export interface operations {
                 resolved_worktree_mode: "none" | "ref" | "per_run";
                 resolved_worktree_ref?: string;
                 result?: unknown;
+                /** Format: int64 */
+                result_bytes?: number;
+                result_ref?: string;
                 session_id?: string;
                 /** Format: date-time */
                 started_at?: string | null;

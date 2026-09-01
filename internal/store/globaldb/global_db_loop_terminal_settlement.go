@@ -169,7 +169,7 @@ func loopSettlementTarget(cause looppkg.TerminalCause) (taskpkg.Status, string, 
 		return taskpkg.TaskStatusCompleted, loopSettlementDoneDetail, nil
 	case looppkg.TerminalCauseFailed, looppkg.TerminalCauseExhausted, looppkg.TerminalCauseStalled:
 		return taskpkg.TaskStatusFailed, "run " + string(cause) + "; node no longer needed", nil
-	case looppkg.TerminalCauseCanceled, looppkg.TerminalCauseKilled:
+	case looppkg.TerminalCauseCanceled:
 		return taskpkg.TaskStatusCanceled, "run " + string(cause) + "; node no longer needed", nil
 	case looppkg.TerminalCauseRunMissing:
 		return taskpkg.TaskStatusCanceled, runMissingReason, nil
@@ -352,11 +352,7 @@ func loopSettlementTransitionsForRecords(
 
 func terminalCauseForLoopStatus(
 	status looppkg.Status,
-	cause looppkg.TransitionCause,
 ) (looppkg.TerminalCause, error) {
-	if status == looppkg.StatusCanceled && cause == looppkg.TransitionCauseOperatorKill {
-		return looppkg.TerminalCauseKilled, nil
-	}
 	switch status {
 	case looppkg.StatusDone:
 		return looppkg.TerminalCauseDone, nil

@@ -33,7 +33,6 @@ const (
 	loopGenerationKey = "generation"
 	loopTurnsKey      = "turns"
 	loopCancelKey     = "cancel"
-	loopKillKey       = "kill"
 	loopNodeKey       = "node"
 	loopNodesKey      = "nodes"
 	loopRequeueKey    = "requeue"
@@ -72,7 +71,6 @@ func newLoopCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopRunsCommand(deps))
 	cmd.AddCommand(newLoopTurnsCommand(deps))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopCancelKey, "Cancel one Loop run"))
-	cmd.AddCommand(newLoopRunActionCommand(deps, loopKillKey, "Kill one Loop run"))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopPauseKey, "Pause one Loop run"))
 	cmd.AddCommand(newLoopRunActionCommand(deps, loopResumeKey, "Resume one Loop run"))
 	cmd.AddCommand(newLoopNodeCommand(deps))

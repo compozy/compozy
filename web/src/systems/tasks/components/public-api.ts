@@ -53,7 +53,7 @@ export { TaskOverviewPanel } from "./task-overview-panel";
 export { TASK_RESULT_ANCHOR_ID } from "./task-overview-constants";
 export type { TaskOverviewPanelProps } from "./task-overview-panel";
 export { TaskResultSection } from "./task-result-section";
-export type { TaskResultSectionProps } from "./task-result-section";
+export type { TaskResultPageController, TaskResultSectionProps } from "./task-result-section";
 export { TaskRunsPanel } from "./task-runs-panel";
 export type { TaskRunsPanelProps } from "./task-runs-panel";
 export { TaskPropertiesRail } from "./task-properties-rail";

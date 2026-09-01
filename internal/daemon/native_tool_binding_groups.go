@@ -271,22 +271,6 @@ func (n *daemonNativeTools) taskToolBindings(
 			call:         n.taskRecover,
 			availability: availability,
 		},
-		toolspkg.ToolIDTaskRunList: {
-			call:         n.taskRunList,
-			availability: availability,
-		},
-		toolspkg.ToolIDTaskRunReviewRequest: {
-			call:         n.taskRunReviewRequest,
-			availability: availability,
-		},
-		toolspkg.ToolIDTaskRunReviewList: {
-			call:         n.taskRunReviewList,
-			availability: availability,
-		},
-		toolspkg.ToolIDTaskRunReviewShow: {
-			call:         n.taskRunReviewShow,
-			availability: availability,
-		},
 		toolspkg.ToolIDTaskExecutionProfileGet: {
 			call:         n.taskExecutionProfileGet,
 			availability: availability,
@@ -304,6 +288,7 @@ func (n *daemonNativeTools) taskToolBindings(
 			availability: availability,
 		},
 	}
+	mergeNativeToolBindings(bindings, n.taskRunToolBindings(availability))
 	mergeNativeToolBindings(bindings, n.taskNotificationToolBindings(notificationAvailability))
 	mergeNativeToolBindings(bindings, n.taskNetworkToolBindings(availability))
 	return bindings

@@ -151,13 +151,7 @@ function LoopRunDetail({
             onResume={page.handleResume}
             onCancel={() => dialogs.openRunControl("cancel")}
           />
-          <LoopRunOverflowMenu
-            isKillPending={page.isKillPending}
-            loopName={page.run.loop_name}
-            // Kill is offered only while the run is live; a terminal run gets the
-            // views but no verb the daemon would reject.
-            onKill={page.canKillRun ? () => dialogs.openRunControl("kill") : undefined}
-          />
+          <LoopRunOverflowMenu loopName={page.run.loop_name} />
         </div>
       ) : undefined,
   });
@@ -306,16 +300,16 @@ function LoopRunDetail({
         workspaceId={workspaceId}
       />
       <LoopRunControlDialog
-        answer={dialogs.runVerb === "kill" ? page.killAnswer : page.cancelAnswer}
+        answer={page.cancelAnswer}
         elapsedLabel={page.elapsedLabel}
-        error={dialogs.runVerb === "kill" ? page.killError : page.cancelError}
+        error={page.cancelError}
         generation={page.effectiveRun.generation}
         inFlightCount={
           page.nodeLifecycles.filter(
             node => !node.parked && node.state !== "canceled" && node.cancelState !== "canceled"
           ).length
         }
-        isPending={page.isCancelPending || page.isKillPending}
+        isPending={page.isCancelPending}
         onConfirm={verb => {
           void dialogs.confirmRunControl(verb);
         }}

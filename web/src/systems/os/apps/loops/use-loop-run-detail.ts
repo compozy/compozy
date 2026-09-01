@@ -41,7 +41,6 @@ export function useLoopRunDetail(
   const dialogs = useLoopRunDetailDialogs({
     resetRunControlErrors: page.resetRunControlErrors,
     handleCancel: page.handleCancel,
-    handleKill: page.handleKill,
   });
   // The Events lane's raw `view=all` read, started only once Inspect is open —
   // which is the only place that lane exists. It is composed here rather than in

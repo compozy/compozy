@@ -7,20 +7,22 @@ import (
 	"strings"
 
 	"github.com/compozy/compozy/internal/loop/dsl"
+	"github.com/compozy/compozy/internal/task"
 	"github.com/compozy/compozy/internal/tools"
 )
 
 type actionRegistryConfig struct {
-	runtime       tools.Registry
-	runAgent      ActionExecutor
-	runLoop       ActionExecutor
-	transform     ActionExecutor
-	goal          ActionExecutor
-	sessionBinder ActionSessionBinder
-	loopStarter   ActionLoopStarter
-	eventReader   ActionEventRangeReader
-	channel       ChannelResultHarvester
-	channelStore  ChannelResultConversationStore
+	runtime        tools.Registry
+	runAgent       ActionExecutor
+	runLoop        ActionExecutor
+	transform      ActionExecutor
+	goal           ActionExecutor
+	sessionBinder  ActionSessionBinder
+	loopStarter    ActionLoopStarter
+	eventReader    ActionEventRangeReader
+	channel        ChannelResultHarvester
+	channelStore   ChannelResultConversationStore
+	maxResultBytes int64
 }
 
 // ActionRegistryOption configures the loop action registry.
@@ -89,15 +91,23 @@ func WithActionChannelResultStore(conversations ChannelResultConversationStore) 
 	}
 }
 
+// WithActionDefaultMaxResultBytes sets the configured outer result bound for Loop actions.
+func WithActionDefaultMaxResultBytes(maxBytes int64) ActionRegistryOption {
+	return func(cfg *actionRegistryConfig) {
+		cfg.maxResultBytes = maxBytes
+	}
+}
+
 // ActionRegistry resolves open action kinds through reserved executors or RuntimeRegistry.
 type ActionRegistry struct {
-	runtime   tools.Registry
-	runAgent  ActionExecutor
-	runLoop   ActionExecutor
-	transform ActionExecutor
-	goal      ActionExecutor
-	events    ActionEventRangeReader
-	channel   ChannelResultHarvester
+	runtime        tools.Registry
+	runAgent       ActionExecutor
+	runLoop        ActionExecutor
+	transform      ActionExecutor
+	goal           ActionExecutor
+	events         ActionEventRangeReader
+	channel        ChannelResultHarvester
+	maxResultBytes int64
 }
 
 // NewActionRegistry creates the runtime action adapter over the existing tools registry.
@@ -109,7 +119,10 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 			map[string]string{actionDependencyMetaKey: "runtime_registry"},
 		)
 	}
-	cfg := &actionRegistryConfig{runtime: runtime}
+	cfg := &actionRegistryConfig{
+		runtime:        runtime,
+		maxResultBytes: task.MaxActionResultBytes,
+	}
 	for _, opt := range opts {
 		if opt != nil {
 			opt(cfg)
@@ -117,6 +130,16 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 	}
 	if cfg.transform == nil {
 		cfg.transform = TransformActionExecutor{}
+	}
+	if cfg.maxResultBytes < 0 || cfg.maxResultBytes > task.MaxActionResultBytes {
+		return nil, fmt.Errorf(
+			"%w: action result limit must be between 0 and %d bytes",
+			ErrValidation,
+			task.MaxActionResultBytes,
+		)
+	}
+	if cfg.maxResultBytes == 0 {
+		cfg.maxResultBytes = task.MaxActionResultBytes
 	}
 	if cfg.runLoop == nil {
 		cfg.runLoop = &RunLoopActionExecutor{starter: cfg.loopStarter}
@@ -132,13 +155,14 @@ func NewActionRegistry(runtime tools.Registry, opts ...ActionRegistryOption) (*A
 		cfg.channel = channel
 	}
 	return &ActionRegistry{
-		runtime:   runtime,
-		runAgent:  cfg.runAgent,
-		runLoop:   cfg.runLoop,
-		transform: cfg.transform,
-		goal:      cfg.goal,
-		events:    cfg.eventReader,
-		channel:   cfg.channel,
+		runtime:        runtime,
+		runAgent:       cfg.runAgent,
+		runLoop:        cfg.runLoop,
+		transform:      cfg.transform,
+		goal:           cfg.goal,
+		events:         cfg.eventReader,
+		channel:        cfg.channel,
+		maxResultBytes: cfg.maxResultBytes,
 	}, nil
 }
 
@@ -204,6 +228,10 @@ func (r *ActionRegistry) resolve(
 		toolID:      id,
 		eventReader: r.events,
 		channel:     r.channel,
+		maxResultBytes: tools.EffectiveResultLimit(
+			view.Descriptor.MaxResultBytes,
+			r.maxResultBytes,
+		),
 	}, nil
 }
 

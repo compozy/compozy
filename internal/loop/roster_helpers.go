@@ -2,6 +2,7 @@ package loop
 
 import (
 	"fmt"
+	"slices"
 )
 
 func rosterKey(generation int, nodeID NodeID, itemIndex int) string {
@@ -12,18 +13,19 @@ func rosterNodeKey(generation int, nodeID NodeID) string {
 	return fmt.Sprintf("%d/%s", generation, nodeID)
 }
 
-func indexOutputs(items []GenerationOutput) (map[string]*GenerationOutput, map[string]int) {
+func indexOutputs(items []GenerationOutput) (map[string]*GenerationOutput, map[string][]int) {
 	indexed := map[string]*GenerationOutput{}
-	maxItems := map[string]int{}
+	itemIndexes := map[string][]int{}
 	for index := range items {
 		item := &items[index]
 		indexed[rosterKey(item.Generation, NodeID(item.NodeID), item.ItemIndex)] = item
 		key := rosterNodeKey(item.Generation, NodeID(item.NodeID))
-		if current, ok := maxItems[key]; !ok || item.ItemIndex > current {
-			maxItems[key] = item.ItemIndex
-		}
+		itemIndexes[key] = append(itemIndexes[key], item.ItemIndex)
 	}
-	return indexed, maxItems
+	for key := range itemIndexes {
+		slices.Sort(itemIndexes[key])
+	}
+	return indexed, itemIndexes
 }
 
 func indexAttempts(items []NodeAttempt) map[string][]NodeAttempt {

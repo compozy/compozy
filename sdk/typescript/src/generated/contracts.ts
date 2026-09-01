@@ -93,6 +93,7 @@ export type HostAPIMethod =
   | "tasks/runs/enqueue"
   | "tasks/runs/fail"
   | "tasks/runs/get"
+  | "tasks/runs/result"
   | "tasks/runs/start"
   | "tasks/timeline"
   | "tasks/tree"
@@ -6038,6 +6039,8 @@ export interface TaskRun {
   error?: string;
   metadata?: JSONValue;
   result?: JSONValue;
+  result_ref?: string;
+  result_bytes?: number;
 }
 
 export interface TaskDesignationRollupPayload {
@@ -6689,6 +6692,23 @@ export interface TaskRunReleasedPayload {
   previous_session_id?: string;
   recovery_action?: string;
   recovery_reason?: string;
+}
+
+export interface TaskRunResultPage {
+  run_id: string;
+  result_ref?: string;
+  offset: number;
+  bytes: number;
+  total_bytes: number;
+  data_base64: string;
+  next_offset?: number;
+  eof: boolean;
+}
+
+export interface TaskRunResultParams {
+  id: string;
+  offset?: number;
+  limit?: number;
 }
 
 export interface TaskRunStartParams {
@@ -8078,6 +8098,10 @@ export interface HostAPIMethodMap {
   "tasks/runs/get": {
     params: TaskRunGetParams;
     result: TaskRunDetail;
+  };
+  "tasks/runs/result": {
+    params: TaskRunResultParams;
+    result: TaskRunResultPage;
   };
   "tasks/runs/enqueue": {
     params: TaskRunEnqueueParams;

@@ -1,6 +1,5 @@
 export {
   cancelLoopNode,
-  killLoopNode,
   listLoopNodes,
   pauseLoopNode,
   requeueLoopNode,
@@ -38,7 +37,6 @@ export {
   buildLoopStreamUrl,
   cancelLoopRun,
   getLoopRun,
-  killLoopRun,
   listLoopRuns,
   pauseLoopRun,
   resumeLoopRun,

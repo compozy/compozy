@@ -117,9 +117,7 @@ CREATE TABLE loop_node_controls (
 	)),
 	attention_reason      TEXT NOT NULL DEFAULT '',
 	attention_producer_node_id TEXT NOT NULL DEFAULT '',
-	cancel_state          TEXT NOT NULL DEFAULT '' CHECK (cancel_state IN (
-		'', 'requested', 'delivering', 'draining', 'canceled'
-	)),
+	cancel_state          TEXT NOT NULL DEFAULT '' CHECK (cancel_state IN ('', 'canceled')),
 	cancel_actor_kind     TEXT,
 	cancel_actor_id       TEXT,
 	cancel_reason         TEXT,
@@ -428,18 +426,25 @@ CREATE TABLE loop_goal_judge_attempts (
 	UNIQUE (loop_run_id, generation, node_id, item_index, turn)
 );
 
-CREATE TABLE loop_goal_session_cleanup (
-			id            INTEGER PRIMARY KEY AUTOINCREMENT,
-			cleanup_id    TEXT NOT NULL UNIQUE CHECK (length(trim(cleanup_id)) > 0),
-			workspace_id  TEXT NOT NULL,
-			loop_run_id   TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
-			handle        TEXT NOT NULL CHECK (length(trim(handle)) > 0),
-			binding_epoch INTEGER NOT NULL CHECK (binding_epoch >= 1),
-			session_id    TEXT NOT NULL CHECK (length(trim(session_id)) > 0),
-			cause         TEXT NOT NULL CHECK (cause IN ('terminal','reseed','control-revoked','stop')),
-			created_at    TIMESTAMP NOT NULL,
-			completed_at  TIMESTAMP CHECK (completed_at IS NULL OR completed_at >= created_at),
-			UNIQUE (loop_run_id, handle, binding_epoch)
+CREATE TABLE loop_session_cleanup (
+			id           INTEGER PRIMARY KEY AUTOINCREMENT,
+			cleanup_id   TEXT NOT NULL UNIQUE CHECK (length(trim(cleanup_id)) > 0),
+			workspace_id TEXT NOT NULL,
+			loop_run_id  TEXT NOT NULL REFERENCES loop_runs(id) ON DELETE CASCADE,
+			source_kind  TEXT NOT NULL CHECK (source_kind IN ('goal-binding','task-run')),
+			source_id    TEXT NOT NULL CHECK (length(trim(source_id)) > 0),
+			source_epoch INTEGER NOT NULL CHECK (source_epoch >= 0),
+			session_id   TEXT NOT NULL CHECK (length(trim(session_id)) > 0),
+			cause        TEXT NOT NULL CHECK (cause IN (
+				'terminal','reseed','control-revoked','stop','operator-cancel'
+			)),
+			created_at   TIMESTAMP NOT NULL,
+			completed_at TIMESTAMP CHECK (completed_at IS NULL OR completed_at >= created_at),
+			UNIQUE (loop_run_id, source_kind, source_id, source_epoch),
+			CHECK (
+				(source_kind = 'goal-binding' AND source_epoch >= 1)
+				OR (source_kind = 'task-run' AND source_epoch = 0)
+			)
 		);
 
 CREATE TABLE loop_goal_session_outbox (

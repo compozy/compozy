@@ -2439,13 +2439,13 @@ func TestLinterShouldValidateLifecycleGrammar(t *testing.T) {
 			Class:              dsl.NodeClassAction,
 			Kind:               string(dsl.ActionRunLoop),
 			Params:             dsl.NodeParams{"loop": "child-loop", "mode": string(dsl.RunLoopAwait)},
-			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseCancel},
+			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseTerminate},
 		})
 		requireLintCodes(t, loop.NewLinter().Lint(valid))
 
 		invalidKind := validDefinition()
 		invalidKind.Normalize()
-		requireNode(t, &invalidKind, "agent").OnParentClose = dsl.ParentCloseCancel
+		requireNode(t, &invalidKind, "agent").OnParentClose = dsl.ParentCloseTerminate
 		requireLintDiagnostic(t, loop.NewLinter().Lint(invalidKind), loop.CodeParentCloseInvalid, loop.SeverityError)
 
 		invalidValue := valid

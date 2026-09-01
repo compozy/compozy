@@ -6,8 +6,8 @@ import (
 	"fmt"
 )
 
-type goalSessionCleanupReconciler interface {
-	ReconcileGoalSessionCleanup(context.Context) error
+type loopSessionCleanupReconciler interface {
+	ReconcileLoopSessionCleanup(context.Context) error
 }
 
 func (d *Daemon) bootGoalSessionOutboxRelay(
@@ -26,18 +26,18 @@ func (d *Daemon) bootGoalSessionOutboxRelay(
 	if !ok {
 		return errors.New("daemon: session manager does not implement Goal outbox event append")
 	}
-	cleanupStore, ok := state.registry.(goalSessionCleanupStore)
+	cleanupStore, ok := state.registry.(loopSessionCleanupStore)
 	if !ok {
 		return errors.New("daemon: registry does not implement Goal session cleanup")
 	}
-	reconciler, ok := state.registry.(goalSessionCleanupReconciler)
+	reconciler, ok := state.registry.(loopSessionCleanupReconciler)
 	if !ok {
 		return errors.New("daemon: registry does not implement Goal session cleanup reconciliation")
 	}
-	if err := reconciler.ReconcileGoalSessionCleanup(ctx); err != nil {
-		return fmt.Errorf("daemon: reconcile Goal session cleanup: %w", err)
+	if err := reconciler.ReconcileLoopSessionCleanup(ctx); err != nil {
+		return fmt.Errorf("daemon: reconcile Loop session cleanup: %w", err)
 	}
-	stopper, ok := state.sessions.(goalSessionCleanupStopper)
+	stopper, ok := state.sessions.(loopSessionCleanupStopper)
 	if !ok {
 		return errors.New("daemon: session manager does not implement Goal session cleanup stop")
 	}

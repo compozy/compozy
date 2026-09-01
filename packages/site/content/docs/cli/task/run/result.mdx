@@ -1,22 +1,23 @@
 ---
-title: "compozy loop kill"
-description: "Kill one Loop run"
+title: "compozy task run result"
+description: "Read one exact task-run result page"
 ---
 
-## compozy loop kill
+## compozy task run result
 
-Kill one Loop run
+Read one exact task-run result page
 
 ```
-compozy loop kill [flags]
+compozy task run result <run-id> [flags]
 ```
 
 ### Options
 
 ```
-  -h, --help               help for kill
-      --run-id string      Loop run ID
-      --workspace string   Override workspace (ID, name, or path)
+      --all-profiles   Read across every profile and include owner labels
+  -h, --help           help for result
+      --limit int      Page size in bytes (default and maximum 65536)
+      --offset int     Zero-based byte offset
 ```
 
 ### Options inherited from parent commands
@@ -41,5 +42,5 @@ The root `-o, --output` flag accepts these values. A renderer is supported only 
 Example:
 
 ```bash
-compozy loop kill -o json
+compozy task run result <run-id> -o json
 ```

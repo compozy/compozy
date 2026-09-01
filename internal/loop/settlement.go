@@ -12,7 +12,6 @@ const (
 	TerminalCauseExhausted  TerminalCause = "exhausted"
 	TerminalCauseStalled    TerminalCause = "stalled"
 	TerminalCauseCanceled   TerminalCause = "canceled"
-	TerminalCauseKilled     TerminalCause = "killed"
 	TerminalCauseRunMissing TerminalCause = "run_missing"
 )
 

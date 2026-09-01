@@ -5,7 +5,6 @@ import {
   cancelLoopRun,
   createLoop,
   deleteLoop,
-  killLoopRun,
   patchLoop,
   pauseLoopRun,
   putLoopAnnotations,
@@ -92,7 +91,7 @@ function invalidateLoopDefinitionQueries(
 /**
  * Invalidate this workspace's runs lists + (optionally) a single run's detail.
  * The node inventories join this set because a run-level pause, resume, cancel,
- * or kill moves every one of that run's nodes between inventory views.
+ * or cancel moves every one of that run's nodes between inventory views.
  */
 function invalidateLoopRunQueries(queryClient: QueryClient, workspaceId: string, runId?: string) {
   const pending = [
@@ -210,20 +209,6 @@ export function useCancelLoopRun() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({ workspaceId, runId }: LoopRunParams) => cancelLoopRun(workspaceId, runId),
-    onSettled: (_result, _error, { workspaceId, runId }) =>
-      invalidateLoopRunQueries(queryClient, workspaceId, runId),
-  });
-}
-
-/**
- * Kill stops the run immediately instead of winding it down. It shares the
- * cancel invalidation set because both land on the `canceled` terminal — the
- * difference is what happens to in-flight work, not what the caches must reread.
- */
-export function useKillLoopRun() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ workspaceId, runId }: LoopRunParams) => killLoopRun(workspaceId, runId),
     onSettled: (_result, _error, { workspaceId, runId }) =>
       invalidateLoopRunQueries(queryClient, workspaceId, runId),
   });

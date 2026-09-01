@@ -390,6 +390,7 @@ type DaemonClient interface {
 	FanOutTaskRuns(ctx context.Context, id string, request FanOutTaskRunsRequest) (FanOutTaskRunsRecord, error)
 	ListTaskRuns(ctx context.Context, id string, query TaskRunListQuery) ([]TaskRunRecord, error)
 	GetTaskRun(ctx context.Context, id string) (TaskRunDetailRecord, error)
+	ReadTaskRunResult(ctx context.Context, id string, offset int64, limit int64) (TaskRunResultPageRecord, error)
 	StartTaskRun(ctx context.Context, id string, request StartTaskRunRequest) (TaskRunRecord, error)
 	AttachTaskRunSession(ctx context.Context, id string, request AttachTaskRunSessionRequest) (TaskRunRecord, error)
 	CompleteTaskRun(ctx context.Context, id string, request CompleteTaskRunRequest) (TaskRunRecord, error)

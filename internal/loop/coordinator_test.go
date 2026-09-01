@@ -2372,7 +2372,7 @@ func TestCoordinatorRunnerShouldClassifyAwaitedChildTerminalFailClosed(t *testin
 			if err != nil {
 				t.Fatalf("GetLoopRunByID(parent) error = %v", err)
 			}
-			if storedParent.Status != StatusRunning || storedParent.CancelRequested {
+			if storedParent.Status != StatusRunning {
 				t.Fatalf("child terminal mutated persisted parent = %#v", storedParent)
 			}
 		})
@@ -2505,55 +2505,61 @@ func TestCoordinatorRunnerShouldRejectMalformedAwaitedChildIdentity(t *testing.T
 	})
 }
 
-// Invariant: a terminal parent plan carries only owned terminate/cancel children; abandon is
+// Invariant: a terminal parent plan carries only owned terminate children; abandon is
 // intentionally absent, and an omitted policy defaults to terminate. The coordinator suite
 // owns authored parent-close selection.
 func TestAttachCoordinatorParentCloseIntentsShouldHonorAuthoredPolicy(t *testing.T) {
 	t.Parallel()
 
-	parent := Run{ID: "looprun-parent-close", WorkspaceID: "ws-1", LoopName: "parent"}
-	resolved := &ResolvedDefinition{Definition: dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{
-		{
-			ID: "default_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-			NodeLifecycleState: &dsl.NodeLifecycleState{},
-		},
-		{
-			ID: "cancel_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseCancel},
-		},
-		{
-			ID: "abandon_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
-			NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseAbandon},
-		},
-	}}}}
-	plan := task.CoordinatorCompletionPlan{
-		Snapshot: task.GenerationSnapshot{Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{
-			{NodeID: "default_child", ChildLoopRunID: "child-default"},
-			{NodeID: "cancel_child", ChildLoopRunID: "child-cancel"},
-			{NodeID: "abandon_child", ChildLoopRunID: "child-abandon"},
-		}}},
-		Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
-	}
-	if err := attachCoordinatorParentCloseIntents(parent, resolved, &plan); err != nil {
-		t.Fatalf("attachCoordinatorParentCloseIntents() error = %v", err)
-	}
-	if len(plan.ParentCloses) != 2 {
-		t.Fatalf("parent close intents = %#v, want terminate and cancel only", plan.ParentCloses)
-	}
-	policies := map[string]string{}
-	for _, spec := range plan.ParentCloses {
-		if spec.ParentLoopRunID != string(parent.ID) || spec.ParentStatus != string(StatusFailed) {
-			t.Fatalf("parent close identity = %#v", spec)
+	t.Run("Should normalize durable predecessor policy while selecting close intents", func(t *testing.T) {
+		t.Parallel()
+
+		parent := Run{ID: "looprun-parent-close", WorkspaceID: "ws-1", LoopName: "parent"}
+		resolved := &ResolvedDefinition{Definition: dsl.Definition{Graph: dsl.Graph{Nodes: []dsl.Node{
+			{
+				ID: "default_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				NodeLifecycleState: &dsl.NodeLifecycleState{},
+			},
+			{
+				ID: "abandon_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentCloseAbandon},
+			},
+			{
+				ID: "legacy_cancel_child", Class: dsl.NodeClassAction, Kind: string(dsl.ActionRunLoop),
+				NodeLifecycleState: &dsl.NodeLifecycleState{OnParentClose: dsl.ParentClosePolicy("cancel")},
+			},
+		}}}}
+		plan := task.CoordinatorCompletionPlan{
+			Snapshot: task.GenerationSnapshot{Payload: GenerationSnapshotPayload{Outputs: []GenerationOutput{
+				{NodeID: "default_child", ChildLoopRunID: "child-default"},
+				{NodeID: "abandon_child", ChildLoopRunID: "child-abandon"},
+				{NodeID: "legacy_cancel_child", ChildLoopRunID: "child-legacy-cancel"},
+			}}},
+			Terminal: &task.CoordinatorTerminal{Status: string(StatusFailed)},
 		}
-		policies[spec.ChildLoopRunID] = spec.Policy
-	}
-	if policies["child-default"] != string(dsl.ParentCloseTerminate) ||
-		policies["child-cancel"] != string(dsl.ParentCloseCancel) {
-		t.Fatalf("parent close policies = %#v", policies)
-	}
-	if _, found := policies["child-abandon"]; found {
-		t.Fatalf("abandoned child appeared in parent close intents: %#v", policies)
-	}
+		if err := attachCoordinatorParentCloseIntents(parent, resolved, &plan); err != nil {
+			t.Fatalf("attachCoordinatorParentCloseIntents() error = %v", err)
+		}
+		if len(plan.ParentCloses) != 2 {
+			t.Fatalf("parent close intents = %#v, want default and legacy terminate", plan.ParentCloses)
+		}
+		policies := map[string]string{}
+		for _, spec := range plan.ParentCloses {
+			if spec.ParentLoopRunID != string(parent.ID) || spec.ParentStatus != string(StatusFailed) {
+				t.Fatalf("parent close identity = %#v", spec)
+			}
+			policies[spec.ChildLoopRunID] = spec.Policy
+		}
+		if policies["child-default"] != string(dsl.ParentCloseTerminate) {
+			t.Fatalf("parent close policies = %#v", policies)
+		}
+		if policies["child-legacy-cancel"] != string(dsl.ParentCloseTerminate) {
+			t.Fatalf("legacy parent close policies = %#v, want canonical terminate", policies)
+		}
+		if _, found := policies["child-abandon"]; found {
+			t.Fatalf("abandoned child appeared in parent close intents: %#v", policies)
+		}
+	})
 }
 
 func TestCoordinatorRunnerShouldRetryAwaitingChildLoopOnTimeout(t *testing.T) {

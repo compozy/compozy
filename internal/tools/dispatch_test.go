@@ -1146,6 +1146,42 @@ func TestRuntimeRegistryDispatchResultLimitingAndRedaction(t *testing.T) {
 		}
 	})
 
+	t.Run("Should keep the configured default as the outer result bound", func(t *testing.T) {
+		t.Parallel()
+
+		const defaultMaxBytes int64 = 768
+		descriptor := validDispatchDescriptor()
+		descriptor.MaxResultBytes = 4096
+		artifactStore := &recordingToolArtifactStore{}
+		provider := dispatchProviderWithHandle(descriptor, &registryTestHandle{
+			descriptor:   descriptor,
+			availability: availableDispatchHandle(),
+			result: ToolResult{
+				Content: []ToolContent{{Type: "text", Text: strings.Repeat("x", 4096)}},
+			},
+		})
+		registry := mustDispatchRegistry(
+			t,
+			provider,
+			WithResultProcessor(NewResultProcessor(defaultMaxBytes, artifactStore)),
+		)
+
+		result, err := registry.Call(
+			t.Context(),
+			Scope{WorkspaceID: "workspace-a"},
+			CallRequest{ToolID: descriptor.ID, Input: json.RawMessage(`{"query":"x"}`)},
+		)
+		if err != nil {
+			t.Fatalf("RuntimeRegistry.Call() error = %v, want nil", err)
+		}
+		if !result.Truncated || result.Bytes > defaultMaxBytes {
+			t.Fatalf("result = %#v, want truncation within configured %d-byte bound", result, defaultMaxBytes)
+		}
+		if got := artifactStore.putCount(); got != 1 {
+			t.Fatalf("artifact Put calls = %d, want 1", got)
+		}
+	})
+
 	t.Run("Should offload one post-hook redacted result and page back byte-identical content", func(t *testing.T) {
 		t.Parallel()
 

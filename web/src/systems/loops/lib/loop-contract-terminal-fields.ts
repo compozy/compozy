@@ -12,4 +12,4 @@ export const LOOP_TERMINAL_REACTIONS: EffectsFieldSpec[] = [
 ];
 
 export const LOOP_TERMINAL_REACTIONS_HINT =
-  "Each trigger is a plain effect list firing exactly once per run on the resulting outcome — kill included. Kill suppresses node reactions, never these.";
+  "Each trigger is a plain effect list firing exactly once per run on the resulting outcome. Cancellation does not suppress terminal reactions.";

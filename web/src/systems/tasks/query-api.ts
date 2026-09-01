@@ -11,6 +11,7 @@ export {
   taskReviewsOptions,
   taskRunDetailOptions,
   taskRunReviewDetailOptions,
+  taskRunResultPageOptions,
   taskRunReviewsOptions,
   taskRunsOptions,
   taskTimelineOptions,

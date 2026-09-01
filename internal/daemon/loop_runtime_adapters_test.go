@@ -54,27 +54,19 @@ func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t 
 	operationErr := errors.New("session operation failed")
 	tests := []struct {
 		name    string
-		kill    bool
 		err     error
 		wantErr error
 	}{
 		{
-			name: "Should accept a missing prompt session as already canceled",
+			name: "Should accept a missing session as already stopped",
 			err:  fmt.Errorf("missing prompt session: %w", session.ErrSessionNotFound),
 		},
 		{
-			name: "Should accept a missing process session as already killed",
-			kill: true,
-			err:  fmt.Errorf("missing process session: %w", session.ErrSessionNotFound),
-		},
-		{
-			name:    "Should propagate prompt cancellation failures",
-			err:     operationErr,
-			wantErr: operationErr,
+			name: "Should accept an inactive session as already stopped",
+			err:  fmt.Errorf("inactive prompt session: %w", session.ErrSessionNotActive),
 		},
 		{
 			name:    "Should propagate process stop failures",
-			kill:    true,
 			err:     operationErr,
 			wantErr: operationErr,
 		},
@@ -83,34 +75,23 @@ func TestLoopCancellationSessionControllerShouldTreatMissingSessionsAsStopped(t 
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			sessions := &loopActionBinderSessionManager{cancelErr: test.err, stopErr: test.err}
+			sessions := &loopActionBinderSessionManager{stopErr: test.err}
 			controller := loopCancellationSessionController{sessions: sessions}
-			var err error
-			if test.kill {
-				err = controller.KillLoopSession(t.Context(), "sess-cancel", "operator request")
-			} else {
-				err = controller.CancelLoopSession(t.Context(), "sess-cancel", "operator request")
-			}
+			err := controller.StopLoopSession(t.Context(), "sess-cancel", "operator request")
 			if !errors.Is(err, test.wantErr) {
 				t.Fatalf("session cancellation error = %v, want %v", err, test.wantErr)
 			}
 
 			sessions.mu.Lock()
 			defer sessions.mu.Unlock()
-			if test.kill {
-				if !slices.Equal(sessions.stopIDs, []string{"sess-cancel"}) {
-					t.Fatalf("StopWithCause session ids = %#v, want one exact session", sessions.stopIDs)
-				}
-				if !slices.Equal(sessions.stopCauses, []session.StopCause{session.CauseUserRequested}) {
-					t.Fatalf("StopWithCause causes = %#v, want user requested", sessions.stopCauses)
-				}
-				if !slices.Equal(sessions.stopDetails, []string{"operator request"}) {
-					t.Fatalf("StopWithCause details = %#v, want exact operator detail", sessions.stopDetails)
-				}
-				return
+			if !slices.Equal(sessions.stopIDs, []string{"sess-cancel"}) {
+				t.Fatalf("StopWithCause session ids = %#v, want one exact session", sessions.stopIDs)
 			}
-			if !slices.Equal(sessions.cancelIDs, []string{"sess-cancel"}) {
-				t.Fatalf("CancelPrompt session ids = %#v, want one exact session", sessions.cancelIDs)
+			if !slices.Equal(sessions.stopCauses, []session.StopCause{session.CauseUserRequested}) {
+				t.Fatalf("StopWithCause causes = %#v, want user requested", sessions.stopCauses)
+			}
+			if !slices.Equal(sessions.stopDetails, []string{"operator request"}) {
+				t.Fatalf("StopWithCause details = %#v, want exact operator detail", sessions.stopDetails)
 			}
 		})
 	}

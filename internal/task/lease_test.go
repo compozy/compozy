@@ -289,16 +289,17 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 	t.Run("Should redact raw claim token fields", func(t *testing.T) {
 		t.Parallel()
 
+		run := Run{
+			Metadata: json.RawMessage(`{"claim_token":"run-raw","items":[{"claim_token":"item-raw","ok":true}]}`),
+		}
+		run.SetResult(json.RawMessage(`{"claim_token":"result-raw","ok":true}`))
 		result := ClaimResult{
 			Task: &Task{
 				Metadata: json.RawMessage(
 					`{"claim_token":"task-raw","nested":{"claim_token":"nested-raw","keep":true}}`,
 				),
 			},
-			Run: Run{
-				Metadata: json.RawMessage(`{"claim_token":"run-raw","items":[{"claim_token":"item-raw","ok":true}]}`),
-				Result:   rawJSONPointer(json.RawMessage(`{"claim_token":"result-raw","ok":true}`)),
-			},
+			Run: run,
 			CoordinationChannel: &CoordinationChannelMetadata{
 				ID:                  " coord.core ",
 				AllowedMessageKinds: []string{"status", "status", " reply "},
@@ -309,7 +310,7 @@ func TestClaimResultSanitizesRawClaimTokenMetadata(t *testing.T) {
 		for label, raw := range map[string]json.RawMessage{
 			"task metadata": result.Task.Metadata,
 			"run metadata":  result.Run.Metadata,
-			"run result":    rawJSONValue(result.Run.Result),
+			"run result":    result.Run.ResultValue(),
 		} {
 			if strings.Contains(strings.ToLower(string(raw)), "claim_token") {
 				t.Fatalf("%s still contains raw claim_token field: %s", label, raw)
@@ -1893,7 +1894,7 @@ func assertRunLeaseUnchangedAfterBlockedCompletion(t *testing.T, got Run, want R
 		!got.LeaseUntil.Equal(want.LeaseUntil) ||
 		!got.HeartbeatAt.Equal(want.HeartbeatAt) ||
 		!got.EndedAt.Equal(want.EndedAt) ||
-		string(rawJSONValue(got.Result)) != string(rawJSONValue(want.Result)) {
+		string(got.ResultValue()) != string(want.ResultValue()) {
 		t.Fatalf("run after rejection = %#v, want lease/state unchanged from %#v", got, want)
 	}
 }

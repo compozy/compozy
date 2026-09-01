@@ -12,16 +12,14 @@ import (
 
 const (
 	loopActionCancel      = "loop_cancel"
-	loopActionKill        = "loop_kill"
 	loopActionNodePause   = "loop_node_pause"
 	loopActionNodeResume  = "loop_node_resume"
 	loopActionNodeCancel  = "loop_node_cancel"
-	loopActionNodeKill    = "loop_node_kill"
 	loopActionNodeList    = "loop_node_list"
 	loopActionNodeRequeue = "loop_node_requeue"
 )
 
-// CancelLoopRun requests cooperative cancellation for one run.
+// CancelLoopRun immediately fences and terminalizes one run.
 func (h *BaseHandlers) CancelLoopRun(c *gin.Context) {
 	h.mutateLoopLifecycle(c, loopActionCancel, func(service LoopService) (contract.LoopMutationResponse, error) {
 		actor, err := h.taskActorContextForWorkspace(c, loopActionCancel, c.Param("workspace_id"))
@@ -29,17 +27,6 @@ func (h *BaseHandlers) CancelLoopRun(c *gin.Context) {
 			return contract.LoopMutationResponse{}, err
 		}
 		return service.CancelLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"), actor)
-	})
-}
-
-// KillLoopRun immediately fences and terminalizes one run.
-func (h *BaseHandlers) KillLoopRun(c *gin.Context) {
-	h.mutateLoopLifecycle(c, loopActionKill, func(service LoopService) (contract.LoopMutationResponse, error) {
-		actor, err := h.taskActorContextForWorkspace(c, loopActionKill, c.Param("workspace_id"))
-		if err != nil {
-			return contract.LoopMutationResponse{}, err
-		}
-		return service.KillLoopRun(c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"), actor)
 	})
 }
 
@@ -83,7 +70,7 @@ func (h *BaseHandlers) ResumeLoopNode(c *gin.Context) {
 	})
 }
 
-// CancelLoopNode requests cooperative cancellation for one authored node.
+// CancelLoopNode immediately fences one authored node.
 func (h *BaseHandlers) CancelLoopNode(c *gin.Context) {
 	h.mutateLoopNodeRequest(c, loopActionNodeCancel, func(
 		service LoopService,
@@ -94,22 +81,6 @@ func (h *BaseHandlers) CancelLoopNode(c *gin.Context) {
 			return contract.LoopMutationResponse{}, err
 		}
 		return service.CancelLoopNode(
-			c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"), c.Param("node_id"), req, actor,
-		)
-	})
-}
-
-// KillLoopNode immediately fences one authored node.
-func (h *BaseHandlers) KillLoopNode(c *gin.Context) {
-	h.mutateLoopNodeRequest(c, loopActionNodeKill, func(
-		service LoopService,
-		req contract.LoopNodeMutationRequest,
-	) (contract.LoopMutationResponse, error) {
-		actor, err := h.taskActorContextForWorkspace(c, loopActionNodeKill, c.Param("workspace_id"))
-		if err != nil {
-			return contract.LoopMutationResponse{}, err
-		}
-		return service.KillLoopNode(
 			c.Request.Context(), c.Param("workspace_id"), c.Param("run_id"), c.Param("node_id"), req, actor,
 		)
 	})

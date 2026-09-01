@@ -160,7 +160,7 @@ function SourceKeyGroup({
             <Button
               data-testid={`${testId}-use-inherited`}
               disabled={model.inheritPendingKey !== null}
-              onClick={() => model.useInherited(posture.key)}
+              onClick={() => model.restoreInherited(posture.key)}
               size="sm"
               type="button"
               variant="ghost"

@@ -47,7 +47,7 @@ func failStaleBindingCreationWithCleanup(
 		ctx,
 		exec,
 		failed,
-		goal.SessionCleanupCauseControlRevoked,
+		looppkg.SessionCleanupCauseControlRevoked,
 		failedAt,
 	); err != nil {
 		return goal.SessionBinding{}, fmt.Errorf("store: enqueue stale Goal binding cleanup: %w", err)

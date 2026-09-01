@@ -40,7 +40,7 @@ func (s *service) PauseNode(
 	if err != nil || mode != NodePauseCancel || len(result.SessionIDs) == 0 {
 		return result, err
 	}
-	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, RunCancelCancel, mutation.Reason); err != nil {
+	if err := s.deliverSessionCancellation(ctx, result.SessionIDs, mutation.Reason); err != nil {
 		return result, err
 	}
 	return result, nil

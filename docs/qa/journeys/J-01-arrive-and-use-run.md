@@ -65,11 +65,11 @@ journey:
       expected_observable: "loop_run created (201); CLI/JSON/TOON identify the same persisted run and effective-port Web URL; the run page shows applied runtime provenance as read-only truth"
     - step: 6
       verb: "Watch every task execute and finish"
-      expected_observable: "The imported task graph runs sequentially through the selected per-task or orchestrated path, the other path is not_taken, collect completes, and a terminal banner shows done"
+      expected_observable: "The imported task graph exposes path and body_ref without embedded body content, implementers read each referenced file, the selected per-task or orchestrated path completes, the other path is not_taken, and a terminal banner shows done"
   goal:
     observable: "Terminal banner reads done after every imported task completed implementation; applied runtime provenance and Attempts/Tokens/Wall/Cost/Breadth meters show final truth"
     side_effects: [loop_run-created, task_runs-executed, generation-timeline-events-streamed]
-  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, every surface agrees on the selected delivery path, not_taken branch, and persisted runtime provenance, no review/verify/approve nodes appear, and another workspace cannot observe it."
+  true_end_state: "Restart the daemon and reload the CLI, HTTP/UDS, native status, SSE-backed run page, and printed deep link: the run is still done, task descriptors still resolve through path and body_ref without duplicated body content, every surface agrees on the selected delivery path, not_taken branch, and persisted runtime provenance, no review/verify/approve nodes appear, and another workspace cannot observe it."
   exit:
     natural: "User lands on the terminal run page; can open the merged result / recent-runs history."
   abandonment:

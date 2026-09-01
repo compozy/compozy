@@ -31,9 +31,6 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 		return err
 	}
 	failureCode := string(looppkg.TransitionCauseOperatorCancel)
-	if mutation.Kind == looppkg.RunCancelKill {
-		failureCode = string(looppkg.TransitionCauseOperatorKill)
-	}
 	cause := strings.TrimSpace(mutation.Reason)
 	if cause == "" {
 		cause = failureCode
@@ -58,22 +55,26 @@ func (g *LoopRepo) requestNodeLaneCancellation(
 		mutation.RunID, run.Generation, mutation.NodeID, itemIndex); err != nil {
 		return fmt.Errorf("store: cancel Loop node lane: %w", err)
 	}
-	kind := loopRunEventNodeCanceled
-	if mutation.Kind == looppkg.RunCancelKill {
-		kind = loopRunEventNodeKilled
-	}
-	eventID, _, err := appendLoopRunEventWithIdentity(ctx, exec, run.ID, run.WorkspaceID, kind, map[string]any{
-		loopRunEventPayloadKeyGeneration: run.Generation,
-		loopRunEventPayloadKeyNodeID:     mutation.NodeID,
-		loopRunEventPayloadKeyItemIndex:  itemIndex,
-		loopRunEventPayloadKeyActorKind:  mutation.Actor.Actor.Kind.Normalize(),
-		loopRunEventPayloadKeyActorID:    strings.TrimSpace(mutation.Actor.Actor.Ref),
-		loopRunEventPayloadKeyReason:     strings.TrimSpace(mutation.Reason),
-	}, mutation.RequestedAt.UTC())
+	eventID, _, err := appendLoopRunEventWithIdentity(
+		ctx,
+		exec,
+		run.ID,
+		run.WorkspaceID,
+		loopRunEventNodeCanceled,
+		map[string]any{
+			loopRunEventPayloadKeyGeneration: run.Generation,
+			loopRunEventPayloadKeyNodeID:     mutation.NodeID,
+			loopRunEventPayloadKeyItemIndex:  itemIndex,
+			loopRunEventPayloadKeyActorKind:  mutation.Actor.Actor.Kind.Normalize(),
+			loopRunEventPayloadKeyActorID:    strings.TrimSpace(mutation.Actor.Actor.Ref),
+			loopRunEventPayloadKeyReason:     strings.TrimSpace(mutation.Reason),
+		},
+		mutation.RequestedAt.UTC(),
+	)
 	if err != nil {
 		return err
 	}
-	if mutation.Kind == looppkg.RunCancelCancel && len(mutation.Effects) > 0 {
+	if len(mutation.Effects) > 0 {
 		if err := insertLoopEffectIntentsWithExecutor(
 			ctx, exec, run, eventID, mutation.Effects, mutation.RequestedAt.UTC(),
 		); err != nil {

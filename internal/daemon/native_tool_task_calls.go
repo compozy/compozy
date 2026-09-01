@@ -255,6 +255,35 @@ func (n *daemonNativeTools) taskRunList(
 	return structuredResult(map[string]any{nativeToolsRunsKey: runs}, fmt.Sprintf("%d runs", len(runs)))
 }
 
+func (n *daemonNativeTools) taskRunResult(
+	ctx context.Context,
+	scope toolspkg.Scope,
+	req toolspkg.CallRequest,
+) (toolspkg.ToolResult, error) {
+	var input taskRunResultInput
+	if err := decodeNativeInput(req, &input); err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	actor, err := actorContextFromScope(scope)
+	if err != nil {
+		return toolspkg.ToolResult{}, err
+	}
+	page, err := n.deps.Tasks.ReadTaskRunResult(
+		ctx,
+		strings.TrimSpace(input.RunID),
+		input.Offset,
+		input.Limit,
+		actor,
+	)
+	if err != nil {
+		return toolspkg.ToolResult{}, nativeTaskToolError(req.ToolID, err)
+	}
+	return structuredResult(
+		map[string]any{"result": page},
+		fmt.Sprintf("%d result bytes from %s", page.Bytes, page.RunID),
+	)
+}
+
 func (n *daemonNativeTools) taskPromoteFromThread(
 	ctx context.Context,
 	scope toolspkg.Scope,

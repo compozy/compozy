@@ -66,6 +66,11 @@ var hostAPIMethodSpecsTasks = []HostAPIMethodSpec{
 		Result: NamedType{Name: "TaskRunDetail", Value: apicontract.TaskRunDetailPayload{}},
 	},
 	{
+		Method: HostAPIMethod("tasks/runs/result"),
+		Params: NamedType{Name: "TaskRunResultParams", Value: TaskRunResultParams{}},
+		Result: NamedType{Name: "TaskRunResultPage", Value: apicontract.TaskRunResultPageResponse{}},
+	},
+	{
 		Method: HostAPIMethod("tasks/runs/enqueue"),
 		Params: NamedType{Name: "TaskRunEnqueueParams", Value: TaskRunEnqueueParams{}},
 		Result: NamedType{Name: "TaskRun", Value: apicontract.TaskRunPayload{}},

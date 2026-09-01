@@ -266,7 +266,6 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		}
 
 		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/cancel", nil, "run-1", "")
-		assertLoopOKMutation(t, engine, http.MethodPost, "/workspaces/ws-1/loop-runs/run-1/kill", nil, "run-1", "")
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/pause",
@@ -282,12 +281,6 @@ func TestLoopHandlersExposeCatalogRunConfigAnnotationsAndEvents(t *testing.T) {
 		assertLoopOKMutation(
 			t, engine, http.MethodPost,
 			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/cancel",
-			[]byte(`{"reason":"repair"}`),
-			"run-1", "worker",
-		)
-		assertLoopOKMutation(
-			t, engine, http.MethodPost,
-			"/workspaces/ws-1/loop-runs/run-1/nodes/worker/kill",
 			[]byte(`{"reason":"repair"}`),
 			"run-1", "worker",
 		)
@@ -1071,7 +1064,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 				`"deadline":"15m"`,
 				`"result_contract"`,
 				`"on_error"`,
-				`"on_parent_close":"cancel"`,
+				`"on_parent_close":"terminate"`,
 				`"on_canceled"`,
 				`"expires"`,
 			} {
@@ -1150,7 +1143,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 						Err:  looppkg.ErrInvalidTransition,
 						Meta: map[string]string{
 							looppkg.ReasonMetaActualState:        "active",
-							looppkg.ReasonMetaAllowedTransitions: "pause,cancel,kill",
+							looppkg.ReasonMetaAllowedTransitions: "pause,cancel",
 						},
 					}
 				}
@@ -1167,7 +1160,7 @@ func TestLoopHandlersExposeValidationAndConflictBodies(t *testing.T) {
 				testutil.DecodeJSONResponse(t, resp, &payload)
 				if payload.Code != string(looppkg.ReasonCodeNodeNotPaused) ||
 					payload.Details[looppkg.ReasonMetaActualState] != "active" ||
-					payload.Details[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel,kill" {
+					payload.Details[looppkg.ReasonMetaAllowedTransitions] != "pause,cancel" {
 					t.Fatalf("%s lifecycle error payload = %#v", transport, payload)
 				}
 			})
@@ -1802,14 +1795,12 @@ func registerLoopTestRoutes(engine *gin.Engine, handlers *core.BaseHandlers) {
 	workspace.GET("/loop-runs/:run_id/timeline", handlers.GetLoopRunTimeline)
 	workspace.GET("/loop-runs/:run_id/turns", handlers.ListGoalTurns)
 	workspace.POST("/loop-runs/:run_id/cancel", handlers.CancelLoopRun)
-	workspace.POST("/loop-runs/:run_id/kill", handlers.KillLoopRun)
 	workspace.POST("/loop-runs/:run_id/pause", handlers.PauseLoopRun)
 	workspace.POST("/loop-runs/:run_id/resume", handlers.ResumeLoopRun)
 	workspace.POST("/loop-runs/:run_id/approve", handlers.ApproveLoopRun)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/pause", handlers.PauseLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/resume", handlers.ResumeLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/cancel", handlers.CancelLoopNode)
-	workspace.POST("/loop-runs/:run_id/nodes/:node_id/kill", handlers.KillLoopNode)
 	workspace.POST("/loop-runs/:run_id/nodes/:node_id/requeue", handlers.RequeueLoopNode)
 	workspace.GET("/loop-requests", handlers.ListLoopRequests)
 	workspace.GET("/loop-runs/:run_id/nodes/:node_id/request", handlers.GetLoopRequest)
@@ -1889,11 +1880,9 @@ type stubLoopService struct {
 	goalCommandFn       func(context.Context, string, string, session.PromptCaller, session.GoalCommand) (session.GoalDispatchDecision, error)
 	listGoalTurnsFn     func(context.Context, string, string, core.GoalTurnListQuery) (session.GoalTurnPage, error)
 	cancelLoopRunFn     func(context.Context, string, string) (contract.LoopMutationResponse, error)
-	killLoopRunFn       func(context.Context, string, string) (contract.LoopMutationResponse, error)
 	pauseLoopNodeFn     func(context.Context, string, string, string, contract.LoopNodePauseRequest) (contract.LoopMutationResponse, error)
 	resumeLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodeResumeRequest) (contract.LoopMutationResponse, error)
 	cancelLoopNodeFn    func(context.Context, string, string, string, contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error)
-	killLoopNodeFn      func(context.Context, string, string, string, contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error)
 	requeueLoopNodeFn   func(context.Context, string, string, string, contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error)
 	listLoopNodesFn     func(context.Context, string, core.LoopNodeListQuery) (contract.LoopNodeInventoryResponse, error)
 	pauseLoopRunFn      func(context.Context, string, string) error
@@ -2057,9 +2046,6 @@ func happyLoopService(t testing.TB) *stubLoopService {
 		cancelLoopRunFn: func(_ context.Context, _ string, runID string) (contract.LoopMutationResponse, error) {
 			return contract.LoopMutationResponse{OK: true, RunID: runID}, nil
 		},
-		killLoopRunFn: func(_ context.Context, _ string, runID string) (contract.LoopMutationResponse, error) {
-			return contract.LoopMutationResponse{OK: true, RunID: runID}, nil
-		},
 		pauseLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodePauseRequest) (contract.LoopMutationResponse, error) {
 			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
 		},
@@ -2067,9 +2053,6 @@ func happyLoopService(t testing.TB) *stubLoopService {
 			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
 		},
 		cancelLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error) {
-			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
-		},
-		killLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error) {
 			return contract.LoopMutationResponse{OK: true, RunID: runID, NodeID: nodeID}, nil
 		},
 		requeueLoopNodeFn: func(_ context.Context, _ string, runID string, nodeID string, _ contract.LoopNodeMutationRequest) (contract.LoopMutationResponse, error) {
@@ -2370,15 +2353,6 @@ func (s *stubLoopService) CancelLoopRun(
 	return s.cancelLoopRunFn(ctx, workspaceID, runID)
 }
 
-func (s *stubLoopService) KillLoopRun(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	_ taskpkg.ActorContext,
-) (contract.LoopMutationResponse, error) {
-	return s.killLoopRunFn(ctx, workspaceID, runID)
-}
-
 func (s *stubLoopService) PauseLoopNode(
 	ctx context.Context,
 	workspaceID string,
@@ -2410,17 +2384,6 @@ func (s *stubLoopService) CancelLoopNode(
 	_ taskpkg.ActorContext,
 ) (contract.LoopMutationResponse, error) {
 	return s.cancelLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
-}
-
-func (s *stubLoopService) KillLoopNode(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	nodeID string,
-	req contract.LoopNodeMutationRequest,
-	_ taskpkg.ActorContext,
-) (contract.LoopMutationResponse, error) {
-	return s.killLoopNodeFn(ctx, workspaceID, runID, nodeID, req)
 }
 
 func (s *stubLoopService) RequeueLoopNode(
@@ -2623,7 +2586,7 @@ const loopLifecycleDefinitionJSON = `{
 				"on_timeout":[{"emit":{"kind":"deploy_timed_out"}}],
 				"on_cancel":[{"emit":{"kind":"deploy_canceled"}}],
 				"on_quarantine":[{"emit":{"kind":"deploy_quarantined"}}],
-				"on_parent_close":"cancel"
+				"on_parent_close":"terminate"
 			},
 			{"id":"recover","class":"control","kind":"gate","expires":{"after":"1h","route":"deploy"}}
 		],

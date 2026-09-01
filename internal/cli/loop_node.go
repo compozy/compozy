@@ -30,7 +30,6 @@ func newLoopNodeCommand(deps commandDeps) *cobra.Command {
 	cmd.AddCommand(newLoopNodePauseCommand(deps))
 	cmd.AddCommand(newLoopNodeResumeCommand(deps))
 	cmd.AddCommand(newLoopNodeSimpleCommand(deps, loopCancelKey, "Cancel one Loop node"))
-	cmd.AddCommand(newLoopNodeSimpleCommand(deps, loopKillKey, "Kill one Loop node"))
 	cmd.AddCommand(newLoopNodeSimpleCommand(deps, loopRequeueKey, "Requeue one quarantined Loop node"))
 	cmd.AddCommand(newLoopNodeAmendCommand(deps))
 	return cmd
@@ -165,8 +164,6 @@ func executeLoopNodeSimpleAction(
 	switch verb {
 	case loopCancelKey:
 		return client.CancelLoopNode(cmd.Context(), workspaceID, runID, nodeID, request, credentials)
-	case loopKillKey:
-		return client.KillLoopNode(cmd.Context(), workspaceID, runID, nodeID, request, credentials)
 	case loopRequeueKey:
 		return client.RequeueLoopNode(cmd.Context(), workspaceID, runID, nodeID, request, credentials)
 	default:

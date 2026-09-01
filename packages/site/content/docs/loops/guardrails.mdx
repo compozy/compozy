@@ -34,14 +34,14 @@ resume. `paused` is operator-initiated; `needs-approval` is system-initiated by 
 | `no-op`     | The run executed but found nothing to do. A clean watch tick is `no-op`, never a fake `done`.                                                                                                          |
 | `blocked`   | An external dependency made progress impossible — a missing dependency, missing credential, or unreachable resource; a human gate `reject`; or a `loop.gate.pre` hook denial. Distinct from `stalled`. |
 | `failed`    | An unrecoverable node or gate error, or a `loop.generation.pre` hook denial.                                                                                                                           |
-| `canceled`  | An operator cancel or kill, with cause `operator_cancel` or `operator_kill`.                                                                                                                           |
+| `canceled`  | An operator cancellation, with cause `operator_cancel`.                                                                                                                                                |
 | `exhausted` | A hard stop limit tripped before the goal — the iteration cap or an authored `max_fan_out` bound.                                                                                                      |
 | `stalled`   | No progress is being made — the no-progress window elapsed, the failure circuit breaker tripped, the blocker-ID signature repeated, or a watched source went silent past its window.                   |
 
 <OperatorNote label="Never coerced">
   `no-op`, `blocked`, and `canceled` are never coerced to `done` or `failed`; exhaustion and
-  stalling are always reported as themselves. Cooperative Cancel records `operator_cancel`;
-  immediate Kill records `operator_kill`. There is no `stop` alias.
+  stalling are always reported as themselves. Cancel records `operator_cancel` after immediately
+  fencing new work.
 </OperatorNote>
 
 `ready` and `awaiting_child` are **node-level** states only (a node's per-run status inside a
@@ -84,7 +84,7 @@ budget. Token usage still counts whenever tokens are spent.
 Parked does not mean hidden or terminal. Waiting, quarantined, attention, and retrying inventories
 remain available through `compozy loop nodes --state …`; a required quarantined producer raises
 attention instead of terminating the run. Waits and approvals have no default expiry. Authors may
-add an expiry and route, while operators may explicitly resume, cancel, kill, or requeue work.
+add an expiry and route, while operators may explicitly resume, cancel, or requeue work.
 
 ## Re-attempt and rejection semantics
 

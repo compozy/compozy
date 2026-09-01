@@ -46,7 +46,7 @@ journey:
       expected_observable: "At most the declared width is active, restart does not duplicate a lane, and per-lane controls affect only the addressed item."
     - step: 3
       verb: "Let fail_fast or best_effort settle the collect"
-      expected_observable: "Completed work is preserved, unfinished work is canceled by cause, oversized action results fail without leaking their lease, progress is truthful, run-agent child sessions stop at terminal settlement, and partial coverage remains first-class."
+      expected_observable: "Completed work is preserved, unfinished work is canceled by cause, action results above 64 KiB externalize within budget, above-budget results fail without leaking their lease, progress is truthful, run-agent child sessions stop at terminal settlement, and partial coverage remains first-class."
     - step: 4
       verb: "Refresh and compare terminal projections"
       expected_observable: "Run status, completion_state, collect counts, route causes, and bounded history agree across all public surfaces."

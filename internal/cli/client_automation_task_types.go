@@ -69,6 +69,9 @@ type TaskRunRecord = contract.TaskRunPayload
 // TaskRunDetailRecord is the shared expanded task-run payload.
 type TaskRunDetailRecord = contract.TaskRunDetailPayload
 
+// TaskRunResultPageRecord is one exact byte page from a task-run result.
+type TaskRunResultPageRecord = contract.TaskRunResultPageResponse
+
 // PauseTaskRequest captures the shared task-pause payload.
 type PauseTaskRequest = contract.PauseTaskRequest
 

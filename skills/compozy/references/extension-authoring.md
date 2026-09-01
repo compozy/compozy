@@ -129,6 +129,12 @@ promote also require fresh `text`, `message_id`, and `idempotency_key`; promote 
 `expected_turn_id`. Read the list again after an action instead of maintaining a private queue or
 assuming an input was delivered from its position alone.
 
+### Task-run result pages
+
+Declare `tasks/runs/result` with `task.read` when an extension needs the exact bytes behind a run's
+`result_ref`. Send workspace ID, run ID, byte offset, and page limit. Continue from `next_offset`
+until `eof`; join the base64-decoded bytes before decoding UTF-8 text.
+
 ### Durable session runtime
 
 Use `sessions/runtime/set` and `sessions/runtime/clear` with `session.write` when an extension must

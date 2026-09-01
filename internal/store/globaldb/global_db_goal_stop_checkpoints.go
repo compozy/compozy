@@ -177,7 +177,7 @@ func closeCanceledGoalBindings(
 			},
 			binding.BindingEpoch,
 			binding.SessionID,
-			goal.SessionCleanupCauseStop,
+			looppkg.SessionCleanupCauseStop,
 			request.CanceledAt,
 		); err != nil {
 			return err
@@ -203,10 +203,14 @@ func failCanceledCreatingGoalBindings(
 		if err != nil {
 			return err
 		}
+		terminalAt := request.CanceledAt
+		if terminalAt.Before(binding.CreatedAt) {
+			terminalAt = binding.CreatedAt
+		}
 		affected, err := sqlcgen.New(exec).
 			FailGoalBindingCreationAttempt(ctx, sqlcgen.FailGoalBindingCreationAttemptParams{
 				FailureCode: goalNullableString(goalBindingFailureStopCreationUnsettled),
-				FailedAt:    store.FormatTimestamp(request.CanceledAt), LoopRunID: string(request.RunID),
+				FailedAt:    store.FormatTimestamp(terminalAt), LoopRunID: string(request.RunID),
 				Handle: candidate.Handle, BindingEpoch: candidate.BindingEpoch,
 			})
 		if err != nil {
@@ -216,7 +220,7 @@ func failCanceledCreatingGoalBindings(
 			return err
 		}
 		if err := enqueueGoalSessionCleanupWithExecutor(
-			ctx, exec, binding, goal.SessionCleanupCauseStop, request.CanceledAt,
+			ctx, exec, binding, looppkg.SessionCleanupCauseStop, terminalAt,
 		); err != nil {
 			return err
 		}

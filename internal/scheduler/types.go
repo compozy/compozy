@@ -83,11 +83,6 @@ type LoopCoordinatorBackstop interface {
 	RunLoopCoordinatorBackstop(ctx context.Context, now time.Time, actor taskpkg.ActorContext) (int, error)
 }
 
-// LoopCancellationBackstop retries delivery for durable cooperative cancellations.
-type LoopCancellationBackstop interface {
-	ReconcilePendingCancellations(ctx context.Context, limit int, actor taskpkg.ActorContext) (int, error)
-}
-
 // StarvationStore persists the durable per-run escalation budget so the convergence tier
 // ladder survives daemon restart (in-memory wake state is wiped on Rebuild; the budget is not).
 type StarvationStore interface {
@@ -206,31 +201,30 @@ type WakeTarget struct {
 
 // CycleResult reports one mechanical scheduler pass.
 type CycleResult struct {
-	PendingRuns             int
-	ActiveRuns              int
-	SessionsScanned         int
-	RecoveredLeases         int
-	ExpiredBlocks           int
-	ReconciledCancellations int
-	WakeAttempts            int
-	WakeSucceeded           int
-	WakeFailed              int
-	NoMatchRuns             int
-	RecentlyNotified        int
-	UnclaimableRuns         int
-	Paused                  bool
-	StarvedRuns             int
-	CapacityWaitingRuns     int
-	SpawnRequested          int
-	NeedsAttention          int
-	SelectedRunIDs          []string
-	NoMatchRunIDs           []string
-	RecoveredRunIDs         []string
-	ExpiredBlockIDs         []string
-	StarvedRunIDs           []string
-	CapacityWaitingRunIDs   []string
-	SpawnRequestedRunIDs    []string
-	NeedsAttentionRunIDs    []string
+	PendingRuns           int
+	ActiveRuns            int
+	SessionsScanned       int
+	RecoveredLeases       int
+	ExpiredBlocks         int
+	WakeAttempts          int
+	WakeSucceeded         int
+	WakeFailed            int
+	NoMatchRuns           int
+	RecentlyNotified      int
+	UnclaimableRuns       int
+	Paused                bool
+	StarvedRuns           int
+	CapacityWaitingRuns   int
+	SpawnRequested        int
+	NeedsAttention        int
+	SelectedRunIDs        []string
+	NoMatchRunIDs         []string
+	RecoveredRunIDs       []string
+	ExpiredBlockIDs       []string
+	StarvedRunIDs         []string
+	CapacityWaitingRunIDs []string
+	SpawnRequestedRunIDs  []string
+	NeedsAttentionRunIDs  []string
 }
 
 // RebuildResult reports the durable state discovered while rebuilding

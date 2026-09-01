@@ -115,7 +115,7 @@ export type ApproveLoopRunRequest = OperationRequestBody<"approveLoopRun">;
  */
 export type LoopRunActionResult = OperationResponse<"pauseLoopRun", 200>;
 
-/** Run cancel/kill operations return the shared structured lifecycle projection. */
+/** Run cancellation returns the shared structured lifecycle projection. */
 export type LoopRunMutationResult = OperationResponse<"cancelLoopRun", 200>;
 
 // Node lifecycle ------------------------------------------------------------

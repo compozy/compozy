@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+type ToolID string
+
+type ToolLocation struct {
+	Path      string `json:"path,omitempty"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+}
+
 type ToolPostCallPayload struct {
 	Event          HookEvent       `json:"event"`
 	Timestamp      time.Time       `json:"timestamp"`
@@ -284,26 +292,4 @@ type ViewCloseRequest struct {
 	ViewSession string      `json:"view_session"`
 	ProfileLens ProfileLens `json:"profile_lens"`
 	Reason      string      `json:"reason,omitempty"`
-}
-
-type ViewEvent struct {
-	ViewSession  string        `json:"view_session"`
-	Handler      string        `json:"handler"`
-	Args         []any         `json:"args,omitempty"`
-	Revision     string        `json:"revision"`
-	Seq          int64         `json:"seq"`
-	Generation   uint64        `json:"generation"`
-	AckEffects   []string      `json:"ack_effects,omitempty"`
-	EffectResult *EffectResult `json:"effect_result,omitempty"`
-}
-
-type ViewFrame struct {
-	ViewSession string       `json:"view_session"`
-	Revision    string       `json:"revision"`
-	InReplyTo   int64        `json:"in_reply_to,omitempty"`
-	Generation  uint64       `json:"generation"`
-	Payload     *ViewPayload `json:"payload,omitempty"`
-	Patch       *ViewPatch   `json:"patch,omitempty"`
-	Effects     []Effect     `json:"effects,omitempty"`
-	Handlers    []string     `json:"handlers"`
 }

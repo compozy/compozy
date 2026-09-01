@@ -76,7 +76,7 @@ const (
 	TerminalExhausted TerminalState = "exhausted"
 	// TerminalStalled means progress stopped.
 	TerminalStalled TerminalState = "stalled"
-	// TerminalCanceled means an operator canceled or killed the run.
+	// TerminalCanceled means an operator canceled the run.
 	TerminalCanceled TerminalState = "canceled"
 )
 

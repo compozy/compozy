@@ -5,7 +5,6 @@ import type { LoopRunConfirmVerb } from "@/systems/loops";
 interface LoopRunDetailDialogsContext {
   resetRunControlErrors: () => void;
   handleCancel: () => Promise<boolean>;
-  handleKill: () => Promise<boolean>;
 }
 
 export interface LoopRunDetailDialogs {
@@ -36,8 +35,8 @@ export function useLoopRunDetailDialogs(
       context.resetRunControlErrors();
       setRunVerb(null);
     },
-    confirmRunControl: async verb => {
-      const accepted = verb === "kill" ? await context.handleKill() : await context.handleCancel();
+    confirmRunControl: async () => {
+      const accepted = await context.handleCancel();
       if (accepted) setRunVerb(null);
     },
   };

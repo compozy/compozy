@@ -127,10 +127,11 @@ func (m *Service) CompleteRunLease(
 	if err := requireWriteAuthority(actor); err != nil {
 		return nil, err
 	}
-	normalized, err := completion.Normalize(m.now().UTC())
+	normalized, err := completion.NormalizeWithResultLimit(m.now().UTC(), MaxActionResultBytes)
 	if err != nil {
 		return nil, err
 	}
+	normalized.actionResultMaxBytes = m.actionResultMaxBytes
 	normalized.Actor = actor
 	advisoryEventID, err := m.reserveTaskEventID()
 	if err != nil {
@@ -208,7 +209,7 @@ func (m *Service) recordCompletionHallucinationSuspected(
 }
 
 func (m *Service) suspectedCompletionTaskIDs(ctx context.Context, run Run) []string {
-	candidates := canonicalTaskIDTokens(rawJSONValue(run.Result))
+	candidates := canonicalTaskIDTokens(run.ResultValue())
 	if len(candidates) == 0 {
 		return nil
 	}

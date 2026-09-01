@@ -291,6 +291,13 @@ type hostAPITaskManager interface {
 	) ([]taskpkg.TimelineItem, error)
 	Tree(ctx context.Context, taskID string, actor taskpkg.ActorContext) (*taskpkg.TreeView, error)
 	RunDetail(ctx context.Context, runID string, actor taskpkg.ActorContext) (*taskpkg.RunDetailView, error)
+	ReadTaskRunResult(
+		ctx context.Context,
+		runID string,
+		offset int64,
+		limit int64,
+		actor taskpkg.ActorContext,
+	) (taskpkg.RunResultPage, error)
 	ListTaskRuns(
 		ctx context.Context,
 		taskID string,

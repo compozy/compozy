@@ -261,15 +261,6 @@ func (c *daemonClient) CancelLoopRun(
 	return c.loopRunLifecycleAction(ctx, workspaceID, runID, "cancel", nil, credentials)
 }
 
-func (c *daemonClient) KillLoopRun(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	credentials agentidentity.Credentials,
-) (contract.LoopMutationResponse, error) {
-	return c.loopRunLifecycleAction(ctx, workspaceID, runID, "kill", nil, credentials)
-}
-
 func (c *daemonClient) PauseLoopRun(
 	ctx context.Context,
 	workspaceID string,
@@ -370,17 +361,6 @@ func (c *daemonClient) CancelLoopNode(
 	credentials agentidentity.Credentials,
 ) (contract.LoopMutationResponse, error) {
 	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "cancel", request, credentials)
-}
-
-func (c *daemonClient) KillLoopNode(
-	ctx context.Context,
-	workspaceID string,
-	runID string,
-	nodeID string,
-	request contract.LoopNodeMutationRequest,
-	credentials agentidentity.Credentials,
-) (contract.LoopMutationResponse, error) {
-	return c.loopNodeAction(ctx, workspaceID, runID, nodeID, "kill", request, credentials)
 }
 
 func (c *daemonClient) RequeueLoopNode(

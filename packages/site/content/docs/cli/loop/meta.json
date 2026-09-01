@@ -12,7 +12,6 @@
         "events",
         "fork",
         "inspect",
-        "kill",
         "list",
         "nodes",
         "pause",

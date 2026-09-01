@@ -20,8 +20,8 @@ import {
  */
 
 /**
- * The shared lane/segment vocabulary. `never` is a branch a filter skipped: it
- * leaves the denominator and stays neutral, because absence is calm.
+ * The shared lane/segment vocabulary. `never` is durable evidence that a route
+ * branch was not taken. It is resolved work and stays visually neutral.
  */
 export type LoopProgressSegment =
   | "clean"

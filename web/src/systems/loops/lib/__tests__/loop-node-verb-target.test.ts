@@ -36,7 +36,7 @@ describe("resolveNodeVerbTarget", () => {
     const target = resolveNodeVerbTarget(SELECTION, [quarantined], [rosterNode()]);
 
     // The roster does not model quarantine. Synthesizing over the durable row
-    // would strip it and offer pause/cancel/kill on a node the daemon has held
+    // would strip it and offer pause/cancel on a node the daemon has held
     // back — verbs it would refuse.
     expect(target).toBe(quarantined);
     // The quarantine reaches the verb rules; which verbs it then permits is

@@ -57,6 +57,8 @@ var (
 	ErrActionMaterialization = errors.New("loop: action materialization failed")
 	// ErrActionTimeout reports an action turn canceled by the node timeout.
 	ErrActionTimeout = errors.New("loop: action timeout")
+	// ErrActionResultTooLarge reports a tool result that cannot be consumed without truncation.
+	ErrActionResultTooLarge = errors.New("loop: action result too large")
 )
 
 const (
@@ -74,6 +76,8 @@ const (
 	ReasonCodeActionTimeout ReasonCode = "action_timeout"
 	// ReasonCodeActionContractStale reports runtime tool schemas that differ from the Run snapshot.
 	ReasonCodeActionContractStale ReasonCode = "action_contract_stale"
+	// ReasonCodeActionResultTooLarge reports an action tool result above its effective byte limit.
+	ReasonCodeActionResultTooLarge ReasonCode = "action_result_too_large"
 )
 
 // ActionExecutor runs one loop action node and converts its raw result into node output.

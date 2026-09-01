@@ -345,7 +345,7 @@ discovery_cache_ttl = "30s"
 enabled = true
 # Enables CompozyOS-hosted local MCP projection for session-visible tools.
 hosted_mcp_enabled = true
-# Default result cap for tool descriptors that do not set a smaller cap.
+# Outer result cap; a smaller tool descriptor limit wins.
 default_max_result_bytes = 262144
 
 [tools.artifacts]
@@ -1376,7 +1376,13 @@ invoke` loop through canonical discovery tools.
 | -------------------------- | ------- | -------- | ----------------------- | -------------------------------------------------------------------------------- |
 | `enabled`                  | boolean | `true`   | `true` or `false`.      | When false, disables CompozyOS-owned registry dispatch and hosted MCP exposure.  |
 | `hosted_mcp_enabled`       | boolean | `true`   | `true` or `false`.      | Allows CompozyOS to expose the local hosted MCP proxy for session-visible tools. |
-| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Result cap used when a descriptor does not specify a smaller limit.              |
+| `default_max_result_bytes` | integer | `262144` | `0` through `16777216`. | Outer cap for tool results and Loop action results; a smaller descriptor wins.   |
+
+The effective tool-result cap is the lower positive value of this setting and the tool descriptor.
+A descriptor can tighten the configured bound but cannot raise it. Loop action completion uses the
+same configured outer bound; `0` selects the 16 MiB platform ceiling rather than unlimited storage.
+Accepted action results above 16 KiB are stored by content reference and read through the task-run
+result paging surface. No separate Settings control or additional config key is required.
 
 ## `[tools.artifacts]`
 

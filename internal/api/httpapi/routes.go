@@ -184,6 +184,7 @@ func registerTaskRoutes(api gin.IRouter, handlers *Handlers, includeTaskMutation
 
 	taskRuns := api.Group("/task-runs")
 	taskRuns.GET("/:id", handlers.GetTaskRun)
+	taskRuns.GET("/:id/result", handlers.ReadTaskRunResult)
 	taskRuns.GET("/:id/conversation/stream", handlers.StreamTaskRunConversation)
 	taskRuns.GET("/:id/reviews", handlers.ListTaskRunReviews)
 	if includeTaskMutations {

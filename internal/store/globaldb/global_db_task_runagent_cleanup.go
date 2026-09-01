@@ -72,7 +72,7 @@ func closeTerminalRunAgentBinding(
 		key,
 		binding.BindingEpoch,
 		binding.SessionID,
-		goal.SessionCleanupCauseTerminal,
+		looppkg.SessionCleanupCauseTerminal,
 		terminalAt,
 	)
 }

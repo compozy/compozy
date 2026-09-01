@@ -105,6 +105,6 @@ func cloneImportedRun(run Run) Run {
 		cloned.Review = &review
 	}
 	cloned.Metadata = cloneRawJSON(run.Metadata)
-	cloned.Result = cloneRawJSONPointer(run.Result)
+	cloned.RunResultState = cloneRunResultState(run.RunResultState)
 	return cloned
 }

@@ -73,7 +73,7 @@ func insertRerunGeneration(
 	}
 	affected, err := exec.ExecContext(ctx, `UPDATE loop_runs SET
 		status = 'running', completion_state = 'complete', pause_requested = 0,
-		cancel_requested = 0, cancel_kind = '', active_gate_id = '', active_human_criteria_json = '[]',
+		active_gate_id = '', active_human_criteria_json = '[]',
 		generation = ?, last_progress_at = ?, completed_at = NULL
 		WHERE id = ? AND workspace_id = ? AND generation = ? AND status = ?`,
 		request.Intent.Generation, request.At.UTC(), current.ID, current.WorkspaceID,
@@ -99,7 +99,7 @@ func (g *LoopRepo) restartRerunCoordinator(
 ) error {
 	current.Status = looppkg.StatusRunning
 	current.Generation = int(request.Intent.Generation)
-	current.PauseRequested, current.CancelRequested = false, false
+	current.PauseRequested = false
 	if err := g.repairLoopCoordinatorTaskWithExecutor(
 		ctx, exec, *current, loopCoordinatorTaskID(current.ID), request.At,
 	); err != nil && !errorsIsTaskNotFound(err) {

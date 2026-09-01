@@ -143,8 +143,9 @@ graph:
 
           Scope and tracking:
           - Read repository AGENTS.md/CLAUDE.md and surface-specific instructions before editing.
-          - Read .compozy/tasks/{{ .inputs.slug }}/_spec.md and _tasks.md when present and
-            treat them plus the task body below as the source of truth.
+          - Open and read {{ .item.path }} before implementation. Treat that file plus
+            .compozy/tasks/{{ .inputs.slug }}/_spec.md and _tasks.md, when present, as the
+            source of truth.
           - Keep scope tight to this task; record meaningful follow-up work instead of expanding
             scope silently.
           - Preserve unrelated worktree changes.
@@ -152,7 +153,7 @@ graph:
 
           Verification:
           - Run focused checks for each changed surface.
-          - Execute every explicit Validation, Test Plan, or Testing item from the task body.
+          - Execute every explicit Validation, Test Plan, or Testing item from the task file.
           - Report exact commands and outcomes in the structured output.
 
           Tracking and commits:
@@ -166,9 +167,6 @@ graph:
           {{ else -}}
           - Leave changes uncommitted for manual review. Do not push.
           {{ end }}
-          Task body:
-          {{ .item.body }}
-
           Closing directive:
           You have the full brief above — start work on {{ .item.title }} now instead of
           summarizing the plan back. Return `status`, `summary`, and `files_changed`. Use

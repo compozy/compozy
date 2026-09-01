@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -43,6 +44,7 @@ type inMemoryManagerStore struct {
 	blockRecurrences          map[string]BlockRecurrence
 	dependencies              map[string]map[string]Dependency
 	runs                      map[string]Run
+	externalRunResults        map[string][]byte
 	terminalCommands          map[string]TerminalRunCommand
 	claimTokens               map[string]string
 	triageStates              map[string]TriageState
@@ -685,19 +687,20 @@ func (e *recordingSessionExecutor) CleanupUnboundTaskSession(
 
 func newInMemoryManagerStore() *inMemoryManagerStore {
 	return &inMemoryManagerStore{
-		tasks:             make(map[string]Task),
-		blocks:            make(map[string]map[string]TaskBlock),
-		blockRecurrences:  make(map[string]BlockRecurrence),
-		dependencies:      make(map[string]map[string]Dependency),
-		runs:              make(map[string]Run),
-		terminalCommands:  make(map[string]TerminalRunCommand),
-		claimTokens:       make(map[string]string),
-		triageStates:      make(map[string]TriageState),
-		profiles:          make(map[string]ExecutionProfile),
-		reviews:           make(map[string]RunReview),
-		events:            make([]Event, 0),
-		eventSequenceByID: make(map[string]int64),
-		idempotencyByKey:  make(map[string]RunIdempotency),
+		tasks:              make(map[string]Task),
+		blocks:             make(map[string]map[string]TaskBlock),
+		blockRecurrences:   make(map[string]BlockRecurrence),
+		dependencies:       make(map[string]map[string]Dependency),
+		runs:               make(map[string]Run),
+		externalRunResults: make(map[string][]byte),
+		terminalCommands:   make(map[string]TerminalRunCommand),
+		claimTokens:        make(map[string]string),
+		triageStates:       make(map[string]TriageState),
+		profiles:           make(map[string]ExecutionProfile),
+		reviews:            make(map[string]RunReview),
+		events:             make([]Event, 0),
+		eventSequenceByID:  make(map[string]int64),
+		idempotencyByKey:   make(map[string]RunIdempotency),
 	}
 }
 
@@ -1871,6 +1874,23 @@ func (s *inMemoryManagerStore) GetTaskRun(_ context.Context, id string) (Run, er
 	return cloneTaskRun(run), nil
 }
 
+func (s *inMemoryManagerStore) ReadTaskRunResultPage(
+	_ context.Context,
+	runID string,
+	offset int64,
+	limit int64,
+) (RunResultPage, error) {
+	run, ok := s.runs[strings.TrimSpace(runID)]
+	if !ok {
+		return RunResultPage{}, ErrTaskRunResultNotFound
+	}
+	content, ok := s.externalRunResults[run.ID]
+	if !ok {
+		return RunResultPage{}, ErrTaskRunResultNotFound
+	}
+	return PageRunResult(run.ID, run.ResultReference(), content, offset, limit)
+}
+
 func (s *inMemoryManagerStore) ListTaskRuns(_ context.Context, query RunQuery) ([]Run, error) {
 	if err := query.Validate("task_run_query"); err != nil {
 		return nil, err
@@ -2395,7 +2415,7 @@ func (s *inMemoryManagerStore) CompleteRunLease(
 		return Run{}, err
 	}
 	run.Status = TaskRunStatusCompleted
-	run.Result = rawJSONPointer(normalized.Result.Value)
+	run.SetResult(normalized.Result.Value)
 	run.Error = ""
 	run.TokensUsed = normalized.TokensUsed
 	run.LeaseUntil = time.Time{}
@@ -2528,7 +2548,7 @@ func (s *inMemoryManagerStore) failRunLeaseMutation(
 	}
 	run.Status = TaskRunStatusFailed
 	run.Error = normalized.Failure.Error
-	run.Result = nil
+	run.ClearResult()
 	run.TokensUsed = normalized.TokensUsed
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
@@ -2574,7 +2594,7 @@ func (s *inMemoryManagerStore) CompleteCoordinatorAndEnqueueNext(
 	}
 	run.Status = TaskRunStatusCompleted
 	run.Error = ""
-	run.Result = rawJSONPointer(CoordinatorCompletedRunResult())
+	run.SetResult(CoordinatorCompletedRunResult())
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
 	run.EndedAt = normalized.Now
@@ -2675,7 +2695,7 @@ func (s *inMemoryManagerStore) ForceFailTaskRun(
 	run.Status = TaskRunStatusFailed
 	run.Error = strings.TrimSpace(failure.Reason())
 	run.FailureKind = FailureKindOperatorForced
-	run.Result = nil
+	run.ClearResult()
 	run.ClaimTokenHash = ""
 	run.LeaseUntil = time.Time{}
 	run.HeartbeatAt = time.Time{}
@@ -2943,7 +2963,7 @@ func requeuedTestRun(run Run) Run {
 	run.StartedAt = time.Time{}
 	run.EndedAt = time.Time{}
 	run.Error = ""
-	run.Result = nil
+	run.ClearResult()
 	return run
 }
 
@@ -3747,6 +3767,55 @@ func TestManagerRunDetailAggregatesRuntimeContextAndOmitsOptionalFields(t *testi
 		}
 		if detail.Summary.ToolCallCount != nil {
 			t.Fatalf("detail.Summary.ToolCallCount = %#v, want nil", detail.Summary.ToolCallCount)
+		}
+	})
+
+	t.Run("Should page exact run result bytes and mask foreign workspace access", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := context.Background()
+		store := newInMemoryManagerStore()
+		manager := newTaskManagerForTest(t, store)
+		owner := agentSessionActorContextForWorkspace("sess-owner", "ws-alpha")
+		foreign := agentSessionActorContextForWorkspace("sess-foreign", "ws-beta")
+		now := time.Date(2026, 8, 31, 12, 0, 0, 0, time.UTC)
+		taskRecord := Task{
+			ID: "task-result-page", Scope: ScopeWorkspace, WorkspaceID: "ws-alpha",
+			Title: "Paged result", Priority: DefaultPriority, MaxAttempts: DefaultTaskMaxAttempts,
+			Status: TaskStatusCompleted, ApprovalPolicy: ApprovalPolicyNone,
+			ApprovalState: ApprovalStateNotRequired, CreatedBy: owner.Actor, Origin: owner.Origin,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		if err := store.CreateTask(ctx, taskRecord); err != nil {
+			t.Fatalf("CreateTask() error = %v", err)
+		}
+		content := []byte(`{"summary":"ação界complete"}`)
+		run := Run{
+			ID: "run-result-page", TaskID: taskRecord.ID, WorkspaceID: taskRecord.WorkspaceID,
+			Status: TaskRunStatusCompleted, Attempt: 1, Origin: owner.Origin, QueuedAt: now, EndedAt: now,
+		}
+		run.SetExternalResult("sha256:result-page", int64(len(content)))
+		if err := store.CreateTaskRun(ctx, run); err != nil {
+			t.Fatalf("CreateTaskRun() error = %v", err)
+		}
+		store.externalRunResults[run.ID] = content
+
+		page, err := manager.ReadTaskRunResult(ctx, run.ID, 10, 5, owner)
+		if err != nil {
+			t.Fatalf("ReadTaskRunResult() error = %v", err)
+		}
+		decoded, err := base64.StdEncoding.DecodeString(page.DataBase64)
+		if err != nil {
+			t.Fatalf("DecodeString(page) error = %v", err)
+		}
+		if got, want := string(decoded), string(content[10:15]); got != want {
+			t.Fatalf("page bytes = %q, want %q", got, want)
+		}
+		if _, err := manager.ReadTaskRunResult(ctx, run.ID, 0, 5, foreign); !errors.Is(
+			err,
+			ErrTaskRunResultNotFound,
+		) {
+			t.Fatalf("ReadTaskRunResult(foreign) error = %v, want masked not found", err)
 		}
 	})
 
@@ -8472,10 +8541,10 @@ func TestManagerTerminalRunStopsBackingSession(t *testing.T) {
 		if got, want := stored.Status.Normalize(), TaskRunStatusRunning; got != want {
 			t.Fatalf("stored run status = %q, want %q after preflight rejection", got, want)
 		}
-		if len(rawJSONValue(stored.Result)) != 0 || !stored.EndedAt.IsZero() {
+		if len(stored.ResultValue()) != 0 || !stored.EndedAt.IsZero() {
 			t.Fatalf(
 				"stored run terminal fields = result:%s ended_at:%s, want rollback",
-				rawJSONValue(stored.Result),
+				stored.ResultValue(),
 				stored.EndedAt,
 			)
 		}
@@ -10763,10 +10832,10 @@ func testManagerStartRunShouldExecuteCoordinatorInDaemonWithoutSession(
 	if started.Status != TaskRunStatusCompleted {
 		t.Fatalf("StartRun(coordinator).Status = %q, want %q", started.Status, TaskRunStatusCompleted)
 	}
-	if got, want := string(rawJSONValue(started.Result)), string(CoordinatorCompletedRunResult()); got != want {
+	if got, want := string(started.ResultValue()), string(CoordinatorCompletedRunResult()); got != want {
 		t.Fatalf(
 			"StartRun(coordinator).Result = %s, want %s",
-			rawJSONValue(started.Result),
+			started.ResultValue(),
 			CoordinatorCompletedRunResult(),
 		)
 	}
@@ -13278,7 +13347,7 @@ func TestManagerTaskMutationTransactionRollsBackWhenAuditAppendFails(t *testing.
 	run.TaskID = taskRecord.ID
 	run.Status = TaskRunStatusRunning
 	run.StartedAt = run.QueuedAt.Add(time.Minute)
-	run.Result = nil
+	run.ClearResult()
 	if err := base.CreateTaskRun(ctx, run); err != nil {
 		t.Fatalf("CreateTaskRun() error = %v", err)
 	}
@@ -13294,8 +13363,12 @@ func TestManagerTaskMutationTransactionRollsBackWhenAuditAppendFails(t *testing.
 	if got, want := storedRun.Status, TaskRunStatusRunning; got != want {
 		t.Fatalf("stored run status = %q, want rollback to %q", got, want)
 	}
-	if storedRun.Result != nil || !storedRun.EndedAt.IsZero() {
-		t.Fatalf("stored completion fields = result %s ended_at %v, want rollback", storedRun.Result, storedRun.EndedAt)
+	if len(storedRun.ResultValue()) != 0 || !storedRun.EndedAt.IsZero() {
+		t.Fatalf(
+			"stored completion fields = result %s ended_at %v, want rollback",
+			storedRun.ResultValue(),
+			storedRun.EndedAt,
+		)
 	}
 	storedTask, err := base.GetTask(ctx, taskRecord.ID)
 	if err != nil {
@@ -14439,7 +14512,7 @@ func cloneTaskRun(record Run) Run {
 		cloned.ClaimedBy = &claimedBy
 	}
 	cloned.Metadata = cloneRawJSON(record.Metadata)
-	cloned.Result = cloneRawJSONPointer(record.Result)
+	cloned.RunResultState = cloneRunResultState(record.RunResultState)
 	if record.Review != nil {
 		review := *record.Review
 		review.MissingWork = cloneRawJSON(record.Review.MissingWork)
