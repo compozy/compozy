@@ -188,7 +188,7 @@ func (c daemonLoopInputEntityCatalog) hasWorktree(
 func (c daemonLoopInputEntityCatalog) hasSession(
 	ctx context.Context,
 	workspaceID string,
-	_ string,
+	profileID string,
 	id string,
 ) (bool, error) {
 	if c.state.sessions == nil {
@@ -201,7 +201,9 @@ func (c daemonLoopInputEntityCatalog) hasSession(
 	if err != nil {
 		return false, err
 	}
-	return info != nil && strings.TrimSpace(info.WorkspaceID) == workspaceID, nil
+	return info != nil &&
+		strings.TrimSpace(info.WorkspaceID) == workspaceID &&
+		strings.TrimSpace(info.ProfileID) == strings.TrimSpace(profileID), nil
 }
 
 func (c daemonLoopInputEntityCatalog) hasWorkspace(ctx context.Context, id string) (bool, error) {

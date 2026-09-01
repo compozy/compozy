@@ -1,13 +1,16 @@
 package daemon
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	apitest "github.com/compozy/compozy/internal/api/testutil"
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/loop/dsl"
 	profilepkg "github.com/compozy/compozy/internal/profile"
 	"github.com/compozy/compozy/internal/resources"
+	"github.com/compozy/compozy/internal/session"
 	"github.com/compozy/compozy/internal/store"
 	"github.com/compozy/compozy/internal/testutil"
 	workspacepkg "github.com/compozy/compozy/internal/workspace"
@@ -84,5 +87,47 @@ func TestDaemonLoopInputEntityCatalogShouldResolveAgentsInTheActingProfile(t *te
 	}
 	if found {
 		t.Fatal("HasInputEntity(default engineer) = true, want profile isolation")
+	}
+}
+
+func TestDaemonLoopInputEntityCatalogShouldRejectSessionsOutsideTheActingProfile(t *testing.T) {
+	t.Parallel()
+
+	const (
+		workspaceID      = "ws-profile-loop-input"
+		engineeringID    = "profile-engineering"
+		otherProfileID   = "profile-other"
+		engineeringSess  = "session-engineering"
+		otherProfileSess = "session-other-profile"
+	)
+	sessions := apitest.StubSessionManager{StatusFn: func(_ context.Context, id string) (*session.Info, error) {
+		switch id {
+		case engineeringSess:
+			return &session.Info{ID: id, ProfileID: engineeringID, WorkspaceID: workspaceID}, nil
+		case otherProfileSess:
+			return &session.Info{ID: id, ProfileID: otherProfileID, WorkspaceID: workspaceID}, nil
+		default:
+			return nil, session.ErrSessionNotFound
+		}
+	}}
+	catalog := daemonLoopInputEntityCatalog{state: &bootState{sessions: sessions}}
+
+	found, err := catalog.HasInputEntity(
+		t.Context(), workspaceID, engineeringID, dsl.EntityKindSession, engineeringSess,
+	)
+	if err != nil {
+		t.Fatalf("HasInputEntity(engineering session) error = %v", err)
+	}
+	if !found {
+		t.Fatal("HasInputEntity(engineering session) = false, want true")
+	}
+	found, err = catalog.HasInputEntity(
+		t.Context(), workspaceID, engineeringID, dsl.EntityKindSession, otherProfileSess,
+	)
+	if err != nil {
+		t.Fatalf("HasInputEntity(peer Profile session) error = %v", err)
+	}
+	if found {
+		t.Fatal("HasInputEntity(peer Profile session) = true, want Profile isolation")
 	}
 }
