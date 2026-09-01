@@ -2,7 +2,7 @@
 
 - **Scope:** Include lifecycle-loaded extension tools in Loop schema resolution without leaking them across workspace or Profile boundaries.
 - **Cadence tier:** targeted
-- **Build:** `4e9e26ff2f651fb281c106c9d9484d42afc1c309` · **Environment:** isolated tests plus fresh combined CLI/API/UDS runtime lab
+- **Base:** `34208e9990622ee62e9a5cf114386273ae6abfa0` · **Build:** `9ed228b6b814014f70c2752858c067b3471300a3` · **Environment:** isolated tests plus fresh combined CLI/API/UDS runtime lab
 - **Started:** 2026-09-01T20:00:00Z · **Status:** closed
 
 ## Personas
@@ -19,7 +19,7 @@
 
 | # | Journey / Scenario | Persona | Status | Issue | Fix commit |
 |---|---|---|---|---|---|
-| 1 | `LP-extension-action-schema-scope` | Bruno | Pass | Lifecycle tool absent from Loop schema catalog | `547ab1a3`, `4e9e26ff` |
+| 1 | `LP-extension-action-schema-scope` | Bruno | Pass | Lifecycle tool absent from Loop schema catalog | `45cf683d`, `9ed228b6` |
 
 ## Session Debriefs
 

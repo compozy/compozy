@@ -10,7 +10,7 @@ qa_status: pass
 bug_ids:
 fix_status: fixed
 retest_status: passed
-fix_commits: 547ab1a379f7ea26abd05a048d9675705b16522a; 4e9e26ff2f651fb281c106c9d9484d42afc1c309
+fix_commits: 45cf683dc6654b2212a88a6fd91d3bd9c710e070; 9ed228b6b814014f70c2752858c067b3471300a3
 evidence: go test -race ./internal/extension -run TestExtensionToolProvider(Catalog|Dispatch|Availability) -count=1; go test -race ./internal/daemon -run TestLoopToolSchemaSource|TestDaemonExtensionToolProvider -count=1
 last_report: docs/qa/reports/2026-09-01-loop-lifecycle-actions.md
 overlaps: ET-compozy-native-tool-invocation; LP-live-run-survives-extension-disable
