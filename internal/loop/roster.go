@@ -178,7 +178,7 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 		}
 	}
 	generations := rosterGenerations(source)
-	outputs, maxOutputItems := indexOutputs(source.Outputs)
+	outputs, outputItemIndexes := indexOutputs(source.Outputs)
 	attempts := indexAttempts(source.Attempts)
 	controls := indexControls(source.Controls)
 	waits := indexWaits(source.Waits)
@@ -196,7 +196,7 @@ func ProjectRoster(source *RosterSource, query RosterQuery) (RosterPage, error) 
 		for _, node := range graphNodes {
 			key := rosterKey(generation, node.ID, 0)
 			items := rosterItems(
-				source.Run.ID, generation, node, outputs, maxOutputItems,
+				source.Run.ID, generation, node, outputs, outputItemIndexes,
 				attempts, controls, waits, routeExcluded,
 			)
 			if len(items) == 0 {

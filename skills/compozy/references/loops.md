@@ -83,6 +83,9 @@ attempt ledger, and `compozy loop events <run> --view notable|all -o jsonl` for 
 `all|running|queued|waiting|retrying|paused|quarantined|succeeded|failed|canceled|not_taken` and pages 50
 by default up to 500; without `--run` the same verb reads the workspace exception inventory, where
 `--state` is required, closed to `waiting|quarantined|attention|retrying`, and pages 50 by default up to 200.
+Fan-out roster indexes preserve source positions, so filtering or batching can make them sparse. Treat
+only returned rows as workers; never infer missing indexes or include them in progress or rollup
+denominators. `not_taken` is reserved for durable route evidence, not filter rejects.
 `events --after <seq> --follow` resumes at a plain per-run sequence; HTTP timeline pagination instead
 uses an opaque run-bound cursor. Follow attaches after the first page's `head_seq`, so the durable/live
 handoff does not duplicate or skip events. A plain sequence beyond the current history returns the
