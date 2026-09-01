@@ -16,7 +16,7 @@ env:
   GO_VERSION: "1.26.4"
   # Turborepo remote cache (Vercel). Fork PRs receive empty secrets and fall
   # back to local-only caching automatically.
-  TURBO_TEAM: compozy
+  TURBO_TEAM: ${{ vars.TURBO_TEAM }}
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_REMOTE_CACHE_SIGNATURE_KEY: ${{ secrets.TURBO_REMOTE_CACHE_SIGNATURE_KEY }}
 
@@ -223,12 +223,10 @@ jobs:
       - name: Run frontend verification
         env:
           COMPOZY_CODEGEN_CHECKED: "1"
-          # CI job runs the web vitest suite as the dominant tail task; use every
-          # runner core instead of the local 50% cap (L-030 concerns local runs).
-          VITEST_MAX_WORKERS: "100%"
         run: |
           bun run lint
-          bunx turbo run typecheck test --filter='!@compozy/desktop'
+          bunx turbo run typecheck test --filter='!@compozy/desktop' --filter='!compozy-web'
+          VITEST_MAX_WORKERS=100% bunx turbo run typecheck test --filter=compozy-web
           bunx turbo run build --filter=./web
 
       - name: Upload frontend artifacts on failure
