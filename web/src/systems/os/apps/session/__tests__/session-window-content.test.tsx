@@ -1,17 +1,18 @@
 // Suite: OS session-window content
-// Invariant: a terminal process-exited session forks a child in the same workspace
-// and preserves the original as the child's durable parent.
+// Invariant: recovery preserves durable lineage and composer cancellation never stops the session.
 // Owning layer: the session-window recovery action.
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { Suspense } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SessionPayload } from "@/systems/session";
 
 const mocks = vi.hoisted(() => ({
+  cancelPrompt: vi.fn(),
   forkMutation: { isPending: false, mutate: vi.fn() },
   selectSession: vi.fn(),
   sessionThreadProps: vi.fn(),
+  stopSession: vi.fn(),
   toastError: vi.fn(),
 }));
 
@@ -31,6 +32,8 @@ vi.mock("../use-session-window-controller", () => ({
     commandCatalogStatus: "ready",
     controls: {
       canPrompt: false,
+      handleCancelPrompt: mocks.cancelPrompt,
+      handleStop: mocks.stopSession,
       isBusyInputPending: false,
       isResuming: false,
       isSessionRunning: false,
@@ -121,11 +124,50 @@ const deadSession: SessionPayload = {
 
 describe("SessionWindowContent", () => {
   beforeEach(() => {
+    mocks.cancelPrompt.mockReset();
     mocks.forkMutation.isPending = false;
     mocks.forkMutation.mutate.mockReset();
     mocks.selectSession.mockReset();
     mocks.sessionThreadProps.mockReset();
+    mocks.stopSession.mockReset();
     mocks.toastError.mockReset();
+  });
+
+  it("Should bind Stop generation to prompt cancellation instead of session stopping", async () => {
+    const session = {
+      ...deadSession,
+      failure: undefined,
+      health: undefined,
+      runtime: {
+        effective: { provider: "codex" },
+        selection_revision: 0,
+        status: "ready",
+      },
+      state: "active",
+    } satisfies SessionPayload;
+
+    render(
+      <Suspense fallback={null}>
+        <SessionWindowContent
+          agentName="codex-agent"
+          liveDataEnabled={false}
+          onDeleteSuccess={vi.fn()}
+          session={session}
+          sessionId={session.id}
+          windowId={`session:${session.id}`}
+          workspaceId="ws-alpha"
+        />
+      </Suspense>
+    );
+
+    await waitFor(() => expect(mocks.sessionThreadProps).toHaveBeenCalled());
+    const props = mocks.sessionThreadProps.mock.lastCall?.[0] as {
+      onCancelPrompt: () => void;
+    };
+    act(() => props.onCancelPrompt());
+
+    expect(mocks.cancelPrompt).toHaveBeenCalledOnce();
+    expect(mocks.stopSession).not.toHaveBeenCalled();
   });
 
   it("Should fork a dead session into its workspace and select the child", async () => {

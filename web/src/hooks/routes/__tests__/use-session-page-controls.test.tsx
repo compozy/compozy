@@ -1,3 +1,7 @@
+// Suite: Web session-page prompt and lifecycle controls
+// Invariant: public session types share prompt controls while lifecycle controls remain user-only.
+// Boundary IN: useSessionPageControls and the real session prompt eligibility policy.
+// Boundary OUT: rendered composer/topbar wiring and daemon transport contracts.
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -74,7 +78,11 @@ import { useSessionPageControls } from "../use-session-page-controls";
 
 const WORKSPACE_ID = "ws_alpha";
 
-function makeSession(state: SessionPayload["state"], turnId?: string): SessionPayload {
+function makeSession(
+  state: SessionPayload["state"],
+  turnId?: string,
+  sessionType: NonNullable<SessionPayload["type"]> = "user"
+): SessionPayload {
   return {
     profile_id: "00000000000000000000000000",
     profile_name: "default",
@@ -104,7 +112,7 @@ function makeSession(state: SessionPayload["state"], turnId?: string): SessionPa
     archived_at: null,
     available_commands: [],
     pending_interactions: [],
-    type: "user",
+    type: sessionType,
     created_at: "2026-04-17T10:00:00Z",
     updated_at: "2026-04-17T10:00:00Z",
   };
@@ -169,11 +177,11 @@ describe("useSessionPageControls", () => {
     routeHookMocks.stopMutation.mutateAsync.mockReset();
   });
 
-  it("Should serialize prompt cancellation and block destructive controls", async () => {
+  it("Should serialize managed prompt cancellation and block destructive controls", async () => {
     const cancellation = createDeferredPromise<void>();
     routeHookMocks.auiState.thread.isRunning = true;
     routeHookMocks.cancelSessionPrompt.mockReturnValue(cancellation.promise);
-    const { result } = renderControls();
+    const { result } = renderControls(makeSession("active", "turn-managed", "system"));
 
     act(() => {
       result.current.handleCancelPrompt();
@@ -192,6 +200,19 @@ describe("useSessionPageControls", () => {
     });
   });
 
+  it("Should stop a user session without canceling its active prompt through the prompt path", async () => {
+    routeHookMocks.auiState.thread.isRunning = true;
+    routeHookMocks.stopMutation.mutateAsync.mockResolvedValue(undefined);
+    const { result } = renderControls(makeSession("active", "turn-user"));
+
+    act(() => result.current.handleStop());
+
+    await waitFor(() =>
+      expect(routeHookMocks.stopMutation.mutateAsync).toHaveBeenCalledWith("sess-1")
+    );
+    expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
+  });
+
   it("Should own delete success in the mutation lifecycle before the route unmounts", () => {
     const onDeleteSuccess = vi.fn();
     const { result } = renderControls(makeSession("stopped"), onDeleteSuccess);
@@ -207,16 +228,42 @@ describe("useSessionPageControls", () => {
     expect(onDeleteSuccess).toHaveBeenCalledOnce();
   });
 
-  it("Should allow a normal prompt to resume a stopped user session", () => {
-    const { result } = renderControls(makeSession("stopped"));
+  it.each(["user", "system", "coordinator", "spawned"] as const)(
+    "Should allow normal prompts for active and stopped %s sessions",
+    sessionType => {
+      const active = renderControls(makeSession("active", undefined, sessionType));
+      expect(active.result.current.canPrompt).toBe(true);
+      expect(active.result.current.allowBusyInput).toBe(true);
+      active.unmount();
 
-    expect(result.current.canPrompt).toBe(true);
-    expect(result.current.isSessionRunning).toBe(false);
+      const stopped = renderControls(makeSession("stopped", undefined, sessionType));
+      expect(stopped.result.current.canPrompt).toBe(true);
+      expect(stopped.result.current.isSessionRunning).toBe(false);
+    }
+  );
+
+  it.each([
+    { label: "dream", session: makeSession("active", undefined, "dream") },
+    { label: "missing-type", session: { ...makeSession("active"), type: undefined } },
+    { label: "starting", session: makeSession("starting", undefined, "system") },
+    { label: "stopping", session: makeSession("stopping", undefined, "system") },
+    {
+      label: "archived",
+      session: {
+        ...makeSession("stopped", undefined, "system"),
+        archived_at: "2026-04-17T11:00:00Z",
+      },
+    },
+  ])("Should keep $label sessions read-only", ({ session }) => {
+    const { result } = renderControls(session);
+
+    expect(result.current.canPrompt).toBe(false);
+    expect(result.current.allowBusyInput).toBe(false);
   });
 
   it("Should keep a dead stopped session readable without allowing another prompt", () => {
     const { result } = renderControls({
-      ...makeSession("stopped"),
+      ...makeSession("stopped", undefined, "system"),
       failure: { kind: "process_exit", summary: "Codex exited" },
       health: {
         active_prompt: false,
@@ -250,6 +297,29 @@ describe("useSessionPageControls", () => {
     expect(routeHookMocks.clearMutation.mutate).toHaveBeenCalledOnce();
   });
 
+  it("Should reject lifecycle mutations for a managed session", async () => {
+    routeHookMocks.transcriptMessages = [{ id: "message-1" }];
+    const { result } = renderControls(makeSession("active", "turn-managed", "system"));
+
+    expect(result.current.canClear).toBe(false);
+    act(() => {
+      result.current.handleStop();
+      result.current.handleDelete();
+      result.current.handleClear();
+      result.current.handleResume();
+      result.current.handleUnarchive();
+    });
+    await expect(result.current.handleRename("Managed title")).resolves.toBeUndefined();
+
+    expect(routeHookMocks.stopMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(routeHookMocks.deleteMutation.mutate).not.toHaveBeenCalled();
+    expect(routeHookMocks.clearMutation.mutate).not.toHaveBeenCalled();
+    expect(routeHookMocks.resumeMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(routeHookMocks.unarchiveMutation.mutate).not.toHaveBeenCalled();
+    expect(routeHookMocks.renameMutation.mutateAsync).not.toHaveBeenCalled();
+    expect(routeHookMocks.cancelSessionPrompt).not.toHaveBeenCalled();
+  });
+
   it("Should expose only the daemon queue projection across turn changes", () => {
     routeHookMocks.sessionInputsQuery.data = {
       inputs: [
@@ -275,7 +345,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.auiState.thread.isRunning = true;
     const admission = createDeferredPromise<unknown>();
     routeHookMocks.queuePromptMutation.mutateAsync.mockReturnValue(admission.promise);
-    const { result } = renderControls();
+    const { result } = renderControls(makeSession("active", "turn-managed", "system"));
 
     let request!: Promise<unknown>;
     act(() => {
@@ -299,7 +369,7 @@ describe("useSessionPageControls", () => {
     routeHookMocks.interruptPromptMutation.mutateAsync.mockResolvedValue({
       status: "interrupting",
     });
-    const { result } = renderControls(makeSession("active", "turn-live"));
+    const { result } = renderControls(makeSession("active", "turn-live", "system"));
 
     await act(async () => {
       await result.current.handleSteerPrompt({ message: "new constraint", attachments: [] });

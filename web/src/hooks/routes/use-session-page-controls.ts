@@ -84,8 +84,8 @@ export function useSessionPageControls(
   const daemonRunning = isSessionRunning(session);
   const userControllable = isUserControllableSession(session);
   const effectiveRunning = isRunning || daemonRunning;
-  const promptControlsAvailable = effectiveRunning && userControllable;
   const canPrompt = canPromptSession(session);
+  const promptControlsAvailable = effectiveRunning && canPrompt;
   const bindingKey = `${workspaceId}\u0000${sessionId}`;
   const { store } = useStoreBinding(bindingKey, () =>
     createSessionPageControlsLogic().createStore()
@@ -133,7 +133,7 @@ export function useSessionPageControls(
     isClearing ||
     busyInputPending;
   const hasConversationContent = messages.length > 0 || transcriptMessages.length > 0;
-  const canClear = hasConversationContent && !controlsBusy && !effectiveRunning;
+  const canClear = userControllable && hasConversationContent && !controlsBusy && !effectiveRunning;
 
   const handleQueuePrompt: SessionBusyInputHandler = draft => {
     const text = draft.message.trim();
@@ -268,12 +268,7 @@ export function useSessionPageControls(
   };
 
   const handleStop = () => {
-    if (controlsBusy) {
-      return;
-    }
-
-    if (promptControlsAvailable) {
-      handleCancelPrompt();
+    if (controlsBusy || !userControllable) {
       return;
     }
 
@@ -284,7 +279,7 @@ export function useSessionPageControls(
   };
 
   const handleResume = () => {
-    if (controlsBusy) {
+    if (controlsBusy || !userControllable) {
       return;
     }
 
@@ -295,7 +290,7 @@ export function useSessionPageControls(
   };
 
   const handleUnarchive = () => {
-    if (controlsBusy || session.archived_at === null) {
+    if (controlsBusy || !userControllable || session.archived_at === null) {
       return;
     }
 
@@ -312,7 +307,7 @@ export function useSessionPageControls(
   };
 
   const handleDelete = () => {
-    if (controlsBusy) {
+    if (controlsBusy || !userControllable) {
       return;
     }
 
@@ -325,6 +320,9 @@ export function useSessionPageControls(
   };
 
   const handleRename = async (name: string) => {
+    if (!userControllable) {
+      return;
+    }
     if (controlsBusy) {
       throw new Error("Session controls are busy.");
     }
@@ -339,7 +337,7 @@ export function useSessionPageControls(
   };
 
   const handleClear = () => {
-    if (controlsBusy || effectiveRunning) {
+    if (controlsBusy || !userControllable || effectiveRunning) {
       return;
     }
 
@@ -353,7 +351,7 @@ export function useSessionPageControls(
   return {
     canClear,
     canPrompt,
-    allowBusyInput: userControllable,
+    allowBusyInput: canPrompt,
     handleCancelPrompt,
     handleClear,
     handleDismissResumeFailure,

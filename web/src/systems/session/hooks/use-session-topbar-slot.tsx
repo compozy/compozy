@@ -81,15 +81,17 @@ export function useSessionTopbarSlot({
 
   const isActive = session.state === "active" || session.state === "starting";
   const isArchived = session.archived_at !== null;
+  const lifecycleControllable = isUserControllableSession(session);
   const canResume =
     session.archived_at === null &&
     session.attachable === true &&
-    isUserControllableSession(session) &&
+    lifecycleControllable &&
     !isSessionRunning(session);
-  const showStopAction = isActive && !canResume;
+  const showUnarchiveAction = lifecycleControllable && isArchived;
+  const showStopAction = lifecycleControllable && isActive && !canResume;
   const controlsBusy = isStopping || isResuming || isUnarchiving || isDeleting || isRenaming;
 
-  const primaryAction = isArchived ? (
+  const primaryAction = showUnarchiveAction ? (
     <Button
       type="button"
       variant="ghost"
@@ -202,7 +204,7 @@ export function useSessionTopbarSlot({
         {inspectorToggle}
       </>
     ),
-    overflow: (
+    overflow: lifecycleControllable ? (
       <DropdownMenu
         open={overflowOpen}
         onOpenChange={setOverflowOpen}
@@ -227,19 +229,17 @@ export function useSessionTopbarSlot({
           <TopbarOverflowIcon aria-hidden="true" className="size-3" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" data-testid="session-topbar-overflow-menu">
-          {isUserControllableSession(session) ? (
-            <DropdownMenuItem
-              data-testid="rename-button"
-              disabled={controlsBusy}
-              onClick={() => {
-                renameRequested.current = true;
-                setOverflowOpen(false);
-              }}
-            >
-              {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
-              Rename session
-            </DropdownMenuItem>
-          ) : null}
+          <DropdownMenuItem
+            data-testid="rename-button"
+            disabled={controlsBusy}
+            onClick={() => {
+              renameRequested.current = true;
+              setOverflowOpen(false);
+            }}
+          >
+            {isRenaming ? <Spinner className="size-3" /> : <Pencil className="size-3" />}
+            Rename session
+          </DropdownMenuItem>
           {isActive && canResume ? (
             <DropdownMenuItem
               data-testid="stop-menu-item"
@@ -269,6 +269,6 @@ export function useSessionTopbarSlot({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
-    ),
+    ) : null,
   });
 }

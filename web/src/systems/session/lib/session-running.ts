@@ -3,6 +3,12 @@ import type { SessionPayload } from "../types";
 const RUNNING_BADGES = new Set(["running"]);
 const NON_RUNNING_BADGES = new Set(["hung", "stopped", "unhealthy"]);
 const NON_RUNNING_STATES = new Set(["stopped"]);
+const PUBLIC_SESSION_TYPES = new Set<NonNullable<SessionPayload["type"]>>([
+  "user",
+  "system",
+  "coordinator",
+  "spawned",
+]);
 
 function nonEmpty(value: unknown): boolean {
   return typeof value === "string" && value.trim().length > 0;
@@ -66,6 +72,10 @@ export function isUserControllableSession(session: SessionPayload): boolean {
   return (session.type ?? "user") === "user";
 }
 
+function isPublicSession(session: SessionPayload): boolean {
+  return session.type !== undefined && PUBLIC_SESSION_TYPES.has(session.type);
+}
+
 /**
  * A process-exited session has durable history but no ACP peer to resume.
  * Health alone cannot identify this state: intentionally stopped sessions are
@@ -87,7 +97,7 @@ export function canPromptSession(session: SessionPayload): boolean {
     return false;
   }
   return (
-    isUserControllableSession(session) &&
+    isPublicSession(session) &&
     session.archived_at === null &&
     (session.state === "active" || session.state === "stopped")
   );

@@ -14,6 +14,10 @@ flowchart TD
     SCRL --> PILL[Pill click returns to the live edge]
     W -->|prefers-reduced-motion| RM[Static labels, no animation]
     E --> C{Composer while running}
+    C -->|public managed session| MC[Queue, Steer, Interrupt, and Stop generation available; lifecycle actions absent]
+    MC --> Q
+    MC --> SI
+    MC --> STP
     C -->|Enter| Q[Draft queued + visible hint; queued rows editable]
     C -->|Stop| STP[Turn stops; primary flips to Send; badge reflects immediately]
     STP --> READY[Stopped thread keeps its history and composer available]
@@ -49,7 +53,7 @@ journey:
       expected_observable: "Changing focus does not pause either visible session; a hidden session suspends live reads and catches up when visible; expanded rows and scroll anchors remain stable"
     - step: 3
       verb: "Queue a prompt while the agent is busy"
-      expected_observable: "Enter queues the draft with a visible hint and an editable queued row; the primary button is a Send↔Stop toggle; steer/interrupt controls remain"
+      expected_observable: "Enter queues the draft with a visible hint and an editable queued row; user, system, coordinator, and spawned sessions expose Queue, Steer, Interrupt, and Stop generation while managed-session lifecycle actions stay absent"
     - step: 4
       verb: "Stop the turn (or let it settle)"
       expected_observable: "Stop flips the primary back to Send and reflects the badge immediately; on natural settle the turn folds behind 'Worked for Xs' with the terminal message below, a changed-files roll-up if files were edited, and a hover copy+timestamp toolbar"
@@ -59,7 +63,7 @@ journey:
   goal:
     observable: "The live turn is smooth to follow and steer; queued prompts dispatch in order after the turn ends; after Stop, a normal prompt continues the same durable history"
     side_effects: [queued-prompts-dispatched-in-order, tool-events-streamed, changed-files-rolled-up, stopped-session-auto-resumed]
-  true_end_state: "After watching two side-by-side sessions, both visible transcripts are current without refocusing; after Stop and a normal follow-up prompt, reload the same permalink and confirm the durable history and status still match reality."
+  true_end_state: "After watching two side-by-side sessions, both visible transcripts are current without refocusing; after Stop and a normal follow-up prompt, reload the same permalink and confirm the durable history and status still match reality; a managed session remains promptable without gaining user-owned lifecycle actions."
   exit:
     natural: "Operator has a settled, readable turn and either follows the next turn or reads the finished transcript (J-14)."
   abandonment:
