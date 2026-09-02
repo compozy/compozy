@@ -14,6 +14,7 @@ func newSkillActivationContextProvider(state *bootState) skillspkg.ActivationCon
 		}
 
 		views, err := state.toolRegistry.List(ctx, toolspkg.Scope{
+			ProfileID:   target.ProfileID,
 			WorkspaceID: target.WorkspaceID,
 			SessionID:   target.SessionID,
 			AgentName:   target.AgentName,

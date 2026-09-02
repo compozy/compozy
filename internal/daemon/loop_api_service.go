@@ -247,7 +247,7 @@ func (s *daemonLoopAPIService) CreateLoop(
 		if err != nil {
 			return contract.LoopResponse{}, err
 		}
-		return s.forkLoop(ctx, ws, record.Spec.FilePath, root, record.Spec.Name)
+		return s.forkLoop(ctx, ws, profileID, record.Spec.FilePath, root, record.Spec.Name)
 	}
 	if req.Definition == nil {
 		return contract.LoopResponse{}, fmt.Errorf(
@@ -260,14 +260,14 @@ func (s *daemonLoopAPIService) CreateLoop(
 		return contract.LoopResponse{}, err
 	}
 	def.Meta.Version = 1
-	if err := s.compileForPublish(ctx, def); err != nil {
+	if err := s.compileForPublish(ctx, ws, profileID, def); err != nil {
 		return contract.LoopResponse{}, err
 	}
-	path, err := s.writeDefinition(ctx, root, def, false)
+	path, err := s.writeDefinition(ctx, ws, profileID, root, def, false)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
-	return s.loopResponseFromDefinitionFile(ctx, path, ws, def.Meta.Name)
+	return s.loopResponseFromDefinitionFile(ctx, path, ws, profileID, def.Meta.Name)
 }
 
 func (s *daemonLoopAPIService) GetLoop(
@@ -360,24 +360,24 @@ func (s *daemonLoopAPIService) PatchLoop(
 		return contract.LoopResponse{}, err
 	}
 	next.Meta.Version = current.Spec.Version + 1
-	if err := s.compileForPublish(ctx, next); err != nil {
+	if err := s.compileForPublish(ctx, ws, profileID, next); err != nil {
 		return contract.LoopResponse{}, err
 	}
 	root, err := s.workspaceLoopRoot(ctx, ws)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
-	path, err := s.writeDefinition(ctx, root, next, true)
+	path, err := s.writeDefinition(ctx, ws, profileID, root, next, true)
 	if err != nil {
 		return contract.LoopResponse{}, err
 	}
-	return s.loopResponseFromDefinitionFile(ctx, path, ws, name)
+	return s.loopResponseFromDefinitionFile(ctx, path, ws, profileID, name)
 }
 
 func (s *daemonLoopAPIService) ValidateLoop(
 	ctx context.Context,
 	workspaceID string,
-	_ string,
+	profileID string,
 	name string,
 	req contract.ValidateLoopRequest,
 ) (contract.LoopValidationResponse, error) {
@@ -391,12 +391,12 @@ func (s *daemonLoopAPIService) ValidateLoop(
 			looppkg.ErrValidation,
 		)
 	}
+	ws, err := normalizeLoopWorkspaceID(workspaceID)
+	if err != nil {
+		return contract.LoopValidationResponse{}, err
+	}
 	var catalog looppkg.RuntimeCatalog
 	if s.runtimeCatalog != nil {
-		ws, normalizeErr := normalizeLoopWorkspaceID(workspaceID)
-		if normalizeErr != nil {
-			return contract.LoopValidationResponse{}, normalizeErr
-		}
 		catalog, err = s.runtimeCatalog.ForWorkspace(ctx, ws)
 		if err != nil {
 			return contract.LoopValidationResponse{}, fmt.Errorf("resolve workspace runtime catalog: %w", err)
@@ -405,7 +405,7 @@ func (s *daemonLoopAPIService) ValidateLoop(
 	if err := looppkg.ValidateDefinitionRuntime(ctx, catalog, def); err != nil {
 		return contract.LoopValidationResponse{}, err
 	}
-	if err := s.compileForPublish(ctx, def); err != nil {
+	if err := s.compileForPublish(ctx, ws, profileID, def); err != nil {
 		return contract.LoopValidationResponse{}, err
 	}
 	return contract.LoopValidationResponse{Valid: true}, nil

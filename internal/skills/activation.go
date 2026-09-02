@@ -13,6 +13,7 @@ type ActivationContextProvider func(context.Context, ActivationTarget) (Activati
 
 // ActivationTarget identifies the runtime scope whose skill catalog is being projected.
 type ActivationTarget struct {
+	ProfileID         string
 	WorkspaceID       string
 	SessionID         string
 	AgentName         string

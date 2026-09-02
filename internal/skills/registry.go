@@ -269,7 +269,7 @@ func (r *Registry) refreshWorkspaceCacheLocked(
 		globalSkills,
 		workspaceSkills,
 		skillSourceWorkspaceName,
-		resolvedSkillEventProfileID(resolved),
+		resolvedSkillProfileID(resolved),
 		workspaceKey,
 		"",
 	)

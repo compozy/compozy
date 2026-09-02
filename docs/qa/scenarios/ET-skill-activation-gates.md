@@ -6,13 +6,13 @@ persona: Ada
 journey: J-offer-runnable-capabilities
 expected: A skill with satisfied metadata.compozy.when gates appears in startup and current-turn catalogs; one with an unmet platform, environment, tool, or authored-capability gate remains manageable with structured inactive reasons but is absent from both catalogs; restoring a required callable tool makes the next catalog projection offer it without restarting CompozyOS.
 entry_points: SKILL.md metadata.compozy.when; agent startup and current-turn prompt catalogs; GET /api/skills; compozy skill list|inspect|view; compozy__skill_list|view; Web /skills
-qa_status: blocked-verify
+qa_status: pass
 bug_ids:
 fix_status:
 retest_status:
 fix_commits:
-evidence: /Users/pedronauck/dev/qa-labs/compozy-qa-et-current-source-20260730-061655-910372-lab/qa-artifacts/qa
-last_report: docs/qa/reports/2026-07-28-untested-full.md
+evidence: .cache/qa-labs/compozy-pr-531-profile-scopes-20260902-170122-478233-lab/qa-artifacts/qa/notes/skill-gate.md; .cache/gate/logs/go-test-1788369547-28708.log
+last_report: docs/qa/reports/2026-09-02-pr-531-remediation.md
 overlaps: ET-001; ET-002; ET-003
 ---
 
@@ -40,3 +40,7 @@ src: .compozy/tasks/hermes-comparison/_user_stories.md#us-011-only-runnable-skil
 
 QA impact 2026-07-26: activation metadata and CLI entry points hard-cut to Compozy.
 Status remains untested; the next QA cycle owns live retesting.
+
+QA impact 2026-09-02: profile-aware extension tool discovery changed the `requires_tools` activation input; reset for a focused named-Profile re-walk.
+
+2026-09-02: `pass` — the named-Profile catalog offered the skill, the default Profile reported the exact missing-tool reason, and disable/enable changed the following catalog projection without restarting the daemon.
