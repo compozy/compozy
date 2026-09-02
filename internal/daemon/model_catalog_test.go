@@ -1087,12 +1087,16 @@ func TestDaemonModelCatalogWiring(t *testing.T) {
 			refreshErrCh <- refreshErr
 		}()
 		waitForCatalogTestSignal(t, service.started, "manual refresh start")
+		refreshCtx := <-service.refreshCtx
 
 		shutdownCtx, cancelShutdown := context.WithTimeout(testutil.Context(t), time.Nanosecond)
 		defer cancelShutdown()
 		err = runtime.Shutdown(shutdownCtx)
 		if !errors.Is(err, context.DeadlineExceeded) {
 			t.Fatalf("Shutdown(deadline) error = %v, want context.DeadlineExceeded", err)
+		}
+		if !errors.Is(refreshCtx.Err(), context.Canceled) {
+			t.Fatalf("refresh context error = %v, want context.Canceled", refreshCtx.Err())
 		}
 		close(service.release)
 		waitForCatalogTestSignal(t, service.released, "manual refresh release")
@@ -1845,17 +1849,19 @@ func (s *recordingModelCatalogService) ListSourceStatus(
 }
 
 type manuallyReleasedModelCatalogService struct {
-	started  chan struct{}
-	release  chan struct{}
-	released chan struct{}
-	once     sync.Once
+	started    chan struct{}
+	release    chan struct{}
+	released   chan struct{}
+	refreshCtx chan context.Context
+	once       sync.Once
 }
 
 func newManuallyReleasedModelCatalogService() *manuallyReleasedModelCatalogService {
 	return &manuallyReleasedModelCatalogService{
-		started:  make(chan struct{}),
-		release:  make(chan struct{}),
-		released: make(chan struct{}),
+		started:    make(chan struct{}),
+		release:    make(chan struct{}),
+		released:   make(chan struct{}),
+		refreshCtx: make(chan context.Context, 1),
 	}
 }
 
@@ -1870,6 +1876,7 @@ func (s *manuallyReleasedModelCatalogService) Refresh(
 	ctx context.Context,
 	_ modelcatalog.RefreshOptions,
 ) ([]modelcatalog.SourceStatus, error) {
+	s.refreshCtx <- ctx
 	s.once.Do(func() {
 		close(s.started)
 	})
