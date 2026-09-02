@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/compozy/compozy/internal/api/contract"
@@ -54,31 +53,15 @@ func newDesktopListCommand(deps commandDeps) *cobra.Command {
 
 func newDesktopCreateCommand(deps commandDeps) *cobra.Command {
 	var flags windowManagerMutationFlags
-	var desktopID, name, purpose, focusOwner, afterID string
+	var desktopID, name, afterID string
 	cmd := &cobra.Command{
 		Use:   windowManagerCreateKey,
 		Short: "Create a persistent virtual desktop",
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			focusOwnerID, err := optionalWindowManagerID[windowmanager.WindowID](cmd, "focus-owner", focusOwner)
-			if err != nil {
-				return err
-			}
 			afterDesktopID, err := optionalWindowManagerID[windowmanager.DesktopID](cmd, "after", afterID)
 			if err != nil {
 				return err
-			}
-			desktopPurpose := windowmanager.DesktopPurpose(strings.TrimSpace(purpose))
-			if desktopPurpose != windowmanager.DesktopPurposeStandard &&
-				desktopPurpose != windowmanager.DesktopPurposeFocus {
-				return fmt.Errorf(
-					"cli: --purpose must be %q or %q",
-					windowmanager.DesktopPurposeStandard,
-					windowmanager.DesktopPurposeFocus,
-				)
-			}
-			if desktopPurpose == windowmanager.DesktopPurposeFocus && focusOwnerID == nil {
-				return errors.New("cli: --focus-owner is required when --purpose=focus")
 			}
 			request, err := flags.request(
 				cmd,
@@ -86,8 +69,8 @@ func newDesktopCreateCommand(deps commandDeps) *cobra.Command {
 				contract.WindowManagerCommandDesktopCreate,
 				contract.WindowManagerCreateDesktopPayload{
 					DesktopID: windowmanager.DesktopID(strings.TrimSpace(desktopID)),
-					Name:      strings.TrimSpace(name), Purpose: desktopPurpose,
-					FocusOwner: focusOwnerID, AfterID: afterDesktopID,
+					Name:      strings.TrimSpace(name),
+					AfterID:   afterDesktopID,
 				},
 			)
 			if err != nil {
@@ -103,9 +86,6 @@ func newDesktopCreateCommand(deps commandDeps) *cobra.Command {
 	flags.add(cmd)
 	cmd.Flags().StringVar(&desktopID, "id", "", "Stable desktop ID; generated when omitted")
 	cmd.Flags().StringVar(&name, "name", "", "Desktop name")
-	cmd.Flags().
-		StringVar(&purpose, "purpose", string(windowmanager.DesktopPurposeStandard), "Desktop purpose: standard or focus")
-	cmd.Flags().StringVar(&focusOwner, "focus-owner", "", "Window that owns a focus desktop")
 	cmd.Flags().StringVar(&afterID, "after", "", "Insert after this desktop ID")
 	return cmd
 }

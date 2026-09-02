@@ -103,7 +103,7 @@ func testLayoutResource(id string) LayoutResource {
 		Document: LayoutDocument{
 			Version: SnapshotVersion,
 			Desktops: []Desktop{{
-				ID: "desktop-default", Name: "Desktop 1", Purpose: DesktopPurposeStandard,
+				ID: "desktop-default", Name: "Desktop 1",
 				Groups: []LayoutGroup{}, Floating: []WindowID{},
 			}},
 			Windows: map[WindowID]Window{},

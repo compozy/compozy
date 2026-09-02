@@ -19,7 +19,8 @@ HTML prototypes and design handoffs for Compozy web surfaces. Organized by produ
 | Loop graph | [`graph-eng/`](graph-eng/) | [`graph-eng/index.html`](graph-eng/index.html) |
 | Command palette | [`command-palette/`](command-palette/) | [`command-palette/index.html`](command-palette/index.html) |
 | Profiles | [`profiles/`](profiles/) | [`profiles/index.html`](profiles/index.html) · contract [`DESIGN-NOTES.md`](profiles/DESIGN-NOTES.md) |
-| Session | [`session/`](session/) | [`session/index.html`](session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](session/SESSION-REDESIGN-SPEC.md) |
+| Sessions stability (active) | [`sessions-stability/`](sessions-stability/) | [`sessions-stability/index.html`](sessions-stability/index.html) · contract [`DESIGN-NOTES.md`](sessions-stability/DESIGN-NOTES.md) |
+| Session (retired → `_done/session/`) | [`_done/session/`](_done/session/) | [`_done/session/index.html`](_done/session/index.html) · spec [`SESSION-REDESIGN-SPEC.md`](_done/session/SESSION-REDESIGN-SPEC.md) |
 | Systems (vault/sandbox) | [`systems/`](systems/) | [`systems/vault.html`](systems/vault.html) |
 | Shipped archives | [`_done/`](_done/) | agents · loops · marketplace · shell |
 

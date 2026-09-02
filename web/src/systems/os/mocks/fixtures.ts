@@ -53,8 +53,8 @@ type WindowManagerStorySnapshot = CompozyApiOkJsonResponseFor<
 >;
 
 export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
-  // SnapshotVersion (internal/windowmanager/types.go:9).
-  version: 3,
+  // SnapshotVersion (internal/windowmanager/types.go).
+  version: 4,
   workspace_id: storyDefaultWorkspaceId,
   revision: 12,
   desktops: [
@@ -62,7 +62,6 @@ export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
       id: windowManagerStoryDesktopId,
       name: "Launch",
       order: 0,
-      purpose: "standard",
       groups: [
         {
           id: "group-settings",
@@ -89,6 +88,7 @@ export const windowManagerSnapshotFixture: WindowManagerStorySnapshot = {
       desktop_id: windowManagerStoryDesktopId,
       floating_rect: { x: 0.08, y: 0.08, width: 0.84, height: 0.84 },
       minimized: false,
+      zoomed: false,
     },
   },
   closed_entry_count: 0,

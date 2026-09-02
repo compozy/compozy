@@ -208,6 +208,7 @@ export class StorybookWindowManagerMockRuntime {
       desktop_id: window.desktopId,
       floating_rect: window.floatingRect,
       minimized: false,
+      zoomed: false,
     };
     desktop.floating.push(window.id);
     snapshot.revision += 1;

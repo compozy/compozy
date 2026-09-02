@@ -128,17 +128,13 @@ func (r *reducer) nowUTC() time.Time {
 }
 
 func (r *reducer) minimizeWindow(snapshot *Snapshot, windowID WindowID) (bool, error) {
-	if ownsFocusDesktop(snapshot, windowID) {
-		if _, err := r.restoreZoomedWindow(snapshot, windowID); err != nil {
-			return false, err
-		}
-	}
 	window := snapshot.Windows[windowID]
-	anchor := captureReturnAnchor(snapshot, windowID)
+	anchor := minimizeAnchor(snapshot, window)
 	if !removeWindow(snapshot, windowID) {
 		return false, fmt.Errorf("window %q has no placement: %w", windowID, ErrInvalidTopology)
 	}
 	window.Minimized = true
+	window.Zoomed = false
 	window.Placement = WindowPlacementFloating
 	window.ReturnAnchor = anchor
 	window.FloatingRect = clampRect(window.FloatingRect)
@@ -153,15 +149,19 @@ func (r *reducer) minimizeWindow(snapshot *Snapshot, windowID WindowID) (bool, e
 	return true, nil
 }
 
-func ownsFocusDesktop(snapshot *Snapshot, windowID WindowID) bool {
-	window, exists := snapshot.Windows[windowID]
-	if !exists {
-		return false
+// minimizeAnchor keeps the slot a solo zoomed window will return to, so restore
+// re-zooms it there and unzoom still takes it home. A zoomed tab leaves its
+// zoom with the deck and anchors to its deck slot like any other tab.
+func minimizeAnchor(snapshot *Snapshot, window Window) *ReturnAnchor {
+	if _, stacked := findStackByWindow(snapshot, window.ID); stacked || !window.Zoomed {
+		return captureReturnAnchor(snapshot, window.ID)
 	}
-	index, exists := desktopIndexByID(snapshot, window.DesktopID)
-	if !exists {
-		return false
+	anchor := cloneReturnAnchor(window.ReturnAnchor)
+	if anchor == nil {
+		anchor = captureReturnAnchor(snapshot, window.ID)
 	}
-	desktop := snapshot.Desktops[index]
-	return desktop.Purpose == DesktopPurposeFocus && desktop.FocusOwner != nil && *desktop.FocusOwner == windowID
+	if anchor != nil {
+		anchor.Zoomed = true
+	}
+	return anchor
 }

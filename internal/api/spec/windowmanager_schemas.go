@@ -39,6 +39,7 @@ var windowManagerBaseComponentSchemas = []windowManagerComponentSchema{
 	{name: "WindowManagerEventFrame", value: contract.WindowManagerEventFrame{}},
 	{name: "WindowManagerClientFrame", value: contract.WindowManagerClientFrame{}},
 	{name: "WindowManagerErrorFrame", value: contract.WindowManagerErrorFrame{}},
+	{name: "WindowManagerHeartbeatFrame", value: contract.WindowManagerHeartbeatFrame{}},
 }
 
 var windowManagerComponentSchemas = buildWindowManagerComponentSchemas()

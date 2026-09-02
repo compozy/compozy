@@ -37,7 +37,6 @@ const DESKTOPS: DesktopOverviewItem[] = [
   {
     id: "control",
     name: "Control",
-    purpose: "standard",
     thumbnail: <DesktopThumbnail layout="control" />,
     windows: [
       { id: "dashboard", title: "Dashboard", detail: "Workspace status" },
@@ -47,7 +46,6 @@ const DESKTOPS: DesktopOverviewItem[] = [
   {
     id: "build",
     name: "Build",
-    purpose: "focus",
     thumbnail: <DesktopThumbnail layout="build" />,
     windows: [
       { id: "agents", title: "Agents", detail: "Implement window manager" },
@@ -57,7 +55,6 @@ const DESKTOPS: DesktopOverviewItem[] = [
   {
     id: "research",
     name: "Research",
-    purpose: "standard",
     thumbnail: <DesktopThumbnail layout="research" />,
     windows: [{ id: "knowledge", title: "Knowledge", detail: "Reference projects" }],
   },

@@ -264,11 +264,6 @@ export function DesktopsOverviewGrid({
                       Current
                     </Pill>
                   ) : null}
-                  {desktop.purpose === "focus" ? (
-                    <Pill size="xs" tone="neutral">
-                      Focus
-                    </Pill>
-                  ) : null}
                 </div>
                 <p className="mt-0.5 text-form-hint text-subtle">
                   {windowCount} window{windowCount === 1 ? "" : "s"}

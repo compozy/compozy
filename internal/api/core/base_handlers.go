@@ -66,51 +66,53 @@ type BaseHandlerConfig struct {
 	Worktrees                    WorktreeService
 	WorkspaceAccess              workspaceaccess.Policy
 	WindowManager                WindowManagerProvider
-	Onboarding                   OnboardingStore
-	AgentCatalog                 AgentCatalog
-	AgentDefinitionSync          AgentDefinitionSync
-	ModelCatalog                 ModelCatalogService
-	MarketplaceCatalog           MarketplaceCatalogService
-	ProviderAuthRunner           authproviders.ProviderAuthCommandRunner
-	ProviderAuthCommandResolver  authproviders.ProviderAuthCommandResolver
-	AgentContextService          AgentContextService
-	SoulAuthoring                SoulAuthoringService
-	SoulHistoryPurger            SoulHistoryPurger
-	SoulRefresher                SoulRefresher
-	HeartbeatAuthoring           HeartbeatAuthoringService
-	HeartbeatHistoryPurger       HeartbeatHistoryPurger
-	HeartbeatStatus              HeartbeatStatusService
-	HeartbeatWake                HeartbeatWakeService
-	SessionHealth                SessionHealthReader
-	HeartbeatWakeEvents          HeartbeatWakeEventReader
-	CoordinatorRole              CoordinatorRoleResolver
-	Roles                        RolesStatusProvider
-	SkillsRegistry               SkillsRegistry
-	SkillResources               SkillResourceSyncer
-	SkillExposures               store.SkillExposureRepository
-	SkillExposureEvents          store.EventSummaryStore
-	SkillMarketplace             SkillMarketplaceService
-	InstalledSkillMarketplace    InstalledSkillMarketplaceService
-	TaskActorContextResolver     TaskActorContextResolver
-	MemoryStore                  *memory.Store
-	DreamTrigger                 DreamTrigger
-	MemoryExtractor              MemoryExtractorService
-	MemoryProviders              MemoryProviderService
-	MemorySessionLedger          MemorySessionLedgerService
-	RuntimeMemory                doctor.RuntimeMemorySnapshotSource
-	DeadEntities                 doctor.DeadEntitySource
-	Gateway                      GatewayService
-	GatewayPairingSource         string
-	HomePaths                    compozyconfig.HomePaths
-	Config                       compozyconfig.Config
-	Logger                       *slog.Logger
-	StartedAt                    time.Time
-	Now                          func() time.Time
-	PollInterval                 time.Duration
-	AgentLoader                  AgentLoader
-	StreamDone                   <-chan struct{}
-	HTTPPort                     int
-	PID                          func() int
+	// WindowManagerPingInterval spaces stream pings and heartbeat frames; zero keeps the default.
+	WindowManagerPingInterval   time.Duration
+	Onboarding                  OnboardingStore
+	AgentCatalog                AgentCatalog
+	AgentDefinitionSync         AgentDefinitionSync
+	ModelCatalog                ModelCatalogService
+	MarketplaceCatalog          MarketplaceCatalogService
+	ProviderAuthRunner          authproviders.ProviderAuthCommandRunner
+	ProviderAuthCommandResolver authproviders.ProviderAuthCommandResolver
+	AgentContextService         AgentContextService
+	SoulAuthoring               SoulAuthoringService
+	SoulHistoryPurger           SoulHistoryPurger
+	SoulRefresher               SoulRefresher
+	HeartbeatAuthoring          HeartbeatAuthoringService
+	HeartbeatHistoryPurger      HeartbeatHistoryPurger
+	HeartbeatStatus             HeartbeatStatusService
+	HeartbeatWake               HeartbeatWakeService
+	SessionHealth               SessionHealthReader
+	HeartbeatWakeEvents         HeartbeatWakeEventReader
+	CoordinatorRole             CoordinatorRoleResolver
+	Roles                       RolesStatusProvider
+	SkillsRegistry              SkillsRegistry
+	SkillResources              SkillResourceSyncer
+	SkillExposures              store.SkillExposureRepository
+	SkillExposureEvents         store.EventSummaryStore
+	SkillMarketplace            SkillMarketplaceService
+	InstalledSkillMarketplace   InstalledSkillMarketplaceService
+	TaskActorContextResolver    TaskActorContextResolver
+	MemoryStore                 *memory.Store
+	DreamTrigger                DreamTrigger
+	MemoryExtractor             MemoryExtractorService
+	MemoryProviders             MemoryProviderService
+	MemorySessionLedger         MemorySessionLedgerService
+	RuntimeMemory               doctor.RuntimeMemorySnapshotSource
+	DeadEntities                doctor.DeadEntitySource
+	Gateway                     GatewayService
+	GatewayPairingSource        string
+	HomePaths                   compozyconfig.HomePaths
+	Config                      compozyconfig.Config
+	Logger                      *slog.Logger
+	StartedAt                   time.Time
+	Now                         func() time.Time
+	PollInterval                time.Duration
+	AgentLoader                 AgentLoader
+	StreamDone                  <-chan struct{}
+	HTTPPort                    int
+	PID                         func() int
 }
 
 // BaseHandlers contains the shared transport-independent API handler logic.
@@ -198,11 +200,12 @@ type BaseHandlers struct {
 	AgentLoader                  AgentLoader
 	PID                          func() int
 
-	settingsMu           sync.RWMutex
-	streamDone           <-chan struct{}
-	httpPort             atomic.Int64
-	activeSessionStreams atomic.Int64
-	windowManagerStreams *windowManagerStreamLifecycle
+	settingsMu                sync.RWMutex
+	streamDone                <-chan struct{}
+	httpPort                  atomic.Int64
+	activeSessionStreams      atomic.Int64
+	windowManagerStreams      *windowManagerStreamLifecycle
+	windowManagerPingInterval time.Duration
 }
 
 // NewBaseHandlers builds a shared handler set with transport-specific defaults applied.
@@ -215,6 +218,7 @@ func NewBaseHandlers(cfg *BaseHandlerConfig) *BaseHandlers {
 	handlers.applyAuthoredContextConfig(cfg)
 	handlers.streamDone = cfg.StreamDone
 	handlers.windowManagerStreams = newWindowManagerStreamLifecycle()
+	handlers.windowManagerPingInterval = cfg.WindowManagerPingInterval
 	handlers.httpPort.Store(int64(cfg.HTTPPort))
 	return handlers
 }

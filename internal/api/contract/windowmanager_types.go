@@ -99,6 +99,7 @@ type WindowManagerReturnAnchor struct {
 	NeighborIDs    []windowmanager.WindowID  `json:"neighbor_ids,omitempty"`
 	SourceRevision WindowManagerRevision     `json:"source_revision"`
 	SourceGroup    *WindowManagerLayoutGroup `json:"source_group,omitempty"`
+	Zoomed         bool                      `json:"zoomed,omitempty"`
 }
 
 // WindowManagerWindow is one durable application instance.
@@ -113,6 +114,7 @@ type WindowManagerWindow struct {
 	DesktopID    windowmanager.DesktopID       `json:"desktop_id"`
 	FloatingRect windowmanager.NormalizedRect  `json:"floating_rect"`
 	Minimized    bool                          `json:"minimized"`
+	Zoomed       bool                          `json:"zoomed"`
 	ReturnAnchor *WindowManagerReturnAnchor    `json:"return_anchor,omitempty"`
 }
 

@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Transcript timeline · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-timeline · S5 quiet timeline + S6 scroll ownership + S7 streaming prose.
+  Spec: _uiux.md S5/S6/S7 · US-021, US-022, US-026, US-001, US-002, US-009, US-019, US-024,
+  US-025 · ADR-006 (one live row, folds, no empty shell) · ADR-007 (scroll modes) ·
+  ADR-008 (smooth reveal) · ADR-009 (two-axis tool hierarchy). VC rows: task_07 VC-01..09.
+  Provenance:
+    production — packages/ui ToolCallRow (24px, 20px well, 14px glyph, mono preview, chevron
+                 12), session-timeline-render.tsx `turn-fold` (border-b line, 12px subtle;
+                 interrupted = CircleStop + danger), session-user-message.tsx bubble,
+                 ScrollToBottomPill (32px, bottom 12), use-thread-scroll-controller.ts
+                 (modes following-end · anchoring-new-turn · free-scrolling; 96px band; 16px
+                 anchor offset), tool-labels.ts kind icons.
+    spec      — one live row replacing in place; ≥2 settled tools group; settled turns fold;
+                 interrupted stays open with warning ink (delta from production danger);
+                 absorbed tool failures don't shout; 40px re-arm band (delta from 96);
+                 anchor accounts for real composer height; smooth reveal for prose only.
+-->
+<style>
+  /* lab-only: the streaming demo needs a fixed-height stage */
+  .tl-stream{min-height:120px}
+</style>
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="tl-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Sessions stability</a><span class="w2-sep">/</span><h1 class="w2-title">Transcript timeline</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="sessions-stability-connection.html">← Connection</a><a class="btn btn--sm" href="sessions-stability-find-trail.html">Next: Find &amp; trail →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ss-contract" data-od-id="tl-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S5 + S6 + S7 — the conversation reads as a narrative, not a machine log.</b> While a turn runs there is exactly one live tool row that replaces itself; finished tools of that turn collapse into one line; when the turn settles its work folds behind “Worked for 4m 12s · Ran 6 commands, edited 2 files” and the answer stays. A turn you stopped stays open where you stopped it. Scrolling has one owner at a time, and streamed prose reveals smoothly.</p>
+        <p class="ss-contract__file">sessions-stability-timeline.html · S5 · S6 · S7 · ADR-006/007/008/009</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionLiveToolRow</b><i>web/src/systems/session/components/session-live-tool-row.tsx</i>one shimmering row; replaces in place; parallel = count</span></li>
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionToolGroupRow</b><i>web/src/systems/session/components/session-tool-group-row.tsx</i>“Ran N commands, edited M files” disclosure over ToolCallRow children (≥2)</span></li>
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionTurnFoldRow</b><i>web/src/systems/session/components/session-turn-fold-row.tsx</i>rework of the <code>turn-fold</code> row kind: duration + counts, interrupted-open, failed</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>AssistantMessageTimeline</b><i>web/src/components/assistant-ui/session-timeline-render.tsx</i>row kinds <code>work</code>/<code>work-toggle</code>/<code>turn-fold</code> re-derived from pure <code>lib/</code> modules; progress ticks never become rows</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>ToolCallStatusIcon</b><i>packages/ui/src/components/custom/tool-call-status-icon.tsx</i>absorbed failure = subtle ×; danger only when the failure ended the turn (ADR-009)</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>useThreadScrollController</b><i>web/src/components/assistant-ui/hooks/use-thread-scroll-controller.ts</i>40px re-arm band; anchor uses real composer height; 2-frame fold suppression; height-delta prepend</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>MessageMarkdown / StreamMarkdown host</b><i>web/src/systems/session/components/message-markdown.tsx</i>smooth reveal + throttled highlight (prose only)</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionUserMessage</b><i>web/src/components/assistant-ui/session-user-message.tsx</i>meta line under the bubble for steer / interrupt / queue origin</span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>ToolCallRow · Marker · CodeBlock · ScrollToBottomPill · Collapsible</b><i>@compozy/ui + web — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#tl-anatomy">Anatomy — a live turn after a settled one</a><code>ADR-006</code></li>
+          <li><a href="#tl-live">Live row — single · parallel</a><code>task_07 VC-01 · VC-02</code></li>
+          <li><a href="#tl-group">Completed-tools group — closed · open</a><code>task_07 VC-03</code></li>
+          <li><a href="#tl-partial">Group with one absorbed failure</a><code>task_07 VC-04</code></li>
+          <li><a href="#tl-fold">Settled fold — closed · open · zero-tool turn</a><code>task_07 VC-05</code></li>
+          <li><a href="#tl-stopped">Interrupted turn stays open</a><code>task_07 VC-06</code></li>
+          <li><a href="#tl-steer">Steer markers — injected · fallback · superseded · pending</a><code>task_07 VC-07</code></li>
+          <li><a href="#tl-late">Output after a stop · turn-level failure</a><code>US-009.EC-3</code></li>
+          <li><a href="#tl-big">Large payload — truncated with expand / download</a><code>task_07 VC-08</code></li>
+          <li><a href="#tl-dict">Tool hierarchy dictionary</a><code>ADR-009</code></li>
+          <li><a href="#tl-scroll">Scroll ownership — three modes</a><code>ADR-007 · S6</code></li>
+          <li><a href="#tl-stream">Streaming prose — smooth · reduced motion · off</a><code>task_07 VC-09</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · ANATOMY ===== -->
+    <section class="lab-sec" id="tl-anatomy" data-od-id="tl-anatomy">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Anatomy — one settled turn, one live turn</h2><span class="lab-sec__gist">US-021 · US-022 · US-023 · ADR-006</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Read top to bottom: what you asked, what it did (folded), what it said; then what you asked, what it’s saying, what it already did (one line), what it’s doing (one live line).</b> Nothing else. Progress ticks, tool starts, checkpoints — none of them become rows. The status row under the scroller (S3) is the only other live element.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tl-anatomy-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="tl-anatomy-win" style="--ss-win-h:560px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div><i class="ss-n">1</i>
+                    <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary>
+                      <div class="ss-fold__body">
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__name">Read file</span><span class="ss-tool__prev">internal/session/manager_lifecycle_test.go · 412 lines</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/session/... -run Lifecycle -count=5</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/session/manager_lifecycle_test.go</span><span class="ss-tool__stat"><span class="add">+41</span><span class="del">−27</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                      </div></details><i class="ss-n">2</i>
+                    <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps; it waits on the lifecycle channel instead.</p></div><i class="ss-n">3</i>
+                  </div>
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+                    <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div><i class="ss-n">4</i>
+                    <details class="ss-group"><summary class="ss-group__head"><span class="ss-tool__well"><svg data-lucide="check"></svg></span>Ran 3 commands, edited 1 file<svg class="ss-group__chev" data-lucide="chevron-right"></svg></summary>
+                      <div class="ss-group__body">
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="search"></svg></span><span class="ss-tool__name">Searched content</span><span class="ss-tool__prev">time.Sleep in internal/store</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                        <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/store/retry_test.go</span><span class="ss-tool__stat"><span class="add">+18</span><span class="del">−4</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                      </div></details><i class="ss-n">5</i>
+                    <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry -count=3</span></div><i class="ss-n">6</i>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 14s</b><span class="sep">·</span>Running shell</div><i class="ss-n">7</i></div>
+                <div class="ss-composer-zone"><div class="ss-composer"><div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div><span class="spacer"></span><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div></div></div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Your message</b> <em>SessionUserMessage — production bubble, unchanged</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Settled fold</b> <em>SessionTurnFoldRow · duration + counts · closed by default · production <code>turn-fold</code> geometry</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Final answer</b> <em>outside the fold — the fold never hides the reply</em></span></li>
+            <li><i class="ss-n">4</i><span><b>Live prose</b> <em>StreamMarkdown with the smooth reveal (S7) — only mounts once content exists</em></span></li>
+            <li><i class="ss-n">5</i><span><b>Completed-tools group</b> <em>SessionToolGroupRow · settled tools of the live turn (≥2) · one line, expandable</em></span></li>
+            <li><i class="ss-n">6</i><span><b>The one live row</b> <em>SessionLiveToolRow · replaces itself · shimmer · kind glyph</em></span></li>
+            <li><i class="ss-n">7</i><span><b>Status row</b> <em>S3 — the only other live element</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>anatomy</span><span class="ss-tag"><b>component</b>7 rows, 3 new</span><span class="ss-tag"><b>accent</b>0 (stop neutral, no live dot)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · LIVE ROW ===== -->
+    <section class="lab-sec" id="tl-live" data-od-id="tl-live">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">The live row — single, and honest about parallel work</h2><span class="lab-sec__gist">US-021.AC-1 · US-021.EC-2 · task_07 VC-01 · VC-02</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Production ToolCallRow geometry with one change: the label shimmers instead of a spinner.</b> Kind glyph on the left (terminal / file-pen / file-text / search / globe / bot), verb + preview in one sentence, nothing on the right. When the agent runs several tools at once the row still stays one row and counts them; expanding it lists the in-flight calls. The shimmer is the only motion in the transcript and it dies under reduced motion.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="tl-live-demo" style="display:flex;flex-direction:column;gap:6px">
+            <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry -count=3</span><i class="ss-n">1</i></div>
+            <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__label ss-shimmer">Editing internal/store/retry_test.go</span></div>
+            <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__label ss-shimmer">Reading internal/store/queue.go</span></div>
+            <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="globe"></svg></span><span class="ss-tool__label ss-shimmer">Fetching pkg.go.dev/modernc.org/sqlite</span></div>
+            <details class="ss-group" style="margin-top:4px"><summary class="ss-group__head ss-tool--live" style="min-height:24px"><span class="ss-tool__well"><svg data-lucide="layers"></svg></span><span class="ss-shimmer" style="font-size:var(--text-small-body)">Running 3 tools…</span><svg class="ss-group__chev" data-lucide="chevron-right"></svg><i class="ss-n">2</i></summary>
+              <div class="ss-group__body">
+                <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go vet ./...</span></div>
+                <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="search"></svg></span><span class="ss-tool__label ss-shimmer">Searching content — time.Sleep</span></div>
+                <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__label ss-shimmer">Reading internal/store/schema.sql</span></div>
+              </div></details>
+            <div class="ss-tool ss-tool--live ss-rm" style="margin-top:4px"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry -count=3</span><span class="ss-tool__state">reduced motion</span><i class="ss-n">3</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Single live row</b> <em>24px · 20px well · 14px glyph muted · label 13.5px shimmer subtle→fg-strong, 2s linear · no trailing state</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Parallel</b> <em>“Running 3 tools…” with the <code>layers</code> glyph · expand lists the in-flight calls · still one row in the narrative</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Reduced motion</b> <em>plain subtle text; the word “Running” carries the state</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>live · parallel · reduced-motion</span><span class="ss-tag"><b>component</b>SessionLiveToolRow</span><span class="ss-tag"><b>VC</b>task_07/VC-01 · VC-02</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · GROUP ===== -->
+    <section class="lab-sec" id="tl-group" data-od-id="tl-group">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">Completed tools of the live turn — one line until you open it</h2><span class="lab-sec__gist">US-021.AC-2 · US-021.AC-3 · task_07 VC-03</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Two or more settled tools become a sentence; one stays a row.</b> The sentence is built from categories in a fixed order — commands, edited files, read files, searches, agents, other — with distinct-file counts for edits and reads. The chevron shows on hover and rotates when open; open reveals the production ToolCallRows, each expandable on its own for output or diff. Opening never yanks the viewport (S6).</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="tl-group-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Closed</div><div class="plain">
+              <details class="ss-group"><summary class="ss-group__head"><span class="ss-tool__well"><svg data-lucide="check"></svg></span>Ran 6 commands, edited 2 files, read 3 files<svg class="ss-group__chev" data-lucide="chevron-right"></svg><i class="ss-n">1</i></summary></details>
+              <div class="ss-tool ss-tool--live" style="margin-top:2px"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./... -race</span></div>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Open — production ToolCallRows inside</div><div class="plain">
+              <details class="ss-group" open><summary class="ss-group__head"><span class="ss-tool__well"><svg data-lucide="check"></svg></span>Ran 6 commands, edited 2 files, read 3 files<svg class="ss-group__chev" data-lucide="chevron-right"></svg></summary>
+                <div class="ss-group__body">
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__name">Read file</span><span class="ss-tool__prev">internal/store/retry.go · 188 lines</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span><svg class="ss-tool__chev" data-lucide="chevron-right"></svg></div>
+                  <div class="ss-tool ss-tool--settled" aria-expanded="true"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/store/retry_test.go</span><span class="ss-tool__stat"><span class="add">+18</span><span class="del">−4</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span><svg class="ss-tool__chev" data-lucide="chevron-right"></svg><i class="ss-n">2</i></div>
+                  <div class="ss-tool__body"><span class="ctx">func TestRetry_NoWallClock(t *testing.T) {</span>
+<span class="del">-	time.Sleep(50 * time.Millisecond)</span>
+<span class="add">+	&lt;-mgr.Lifecycle().Settled()</span>
+<span class="ctx">	if got := mgr.Attempts(); got != 3 {</span></div>
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span><svg class="ss-tool__chev" data-lucide="chevron-right"></svg></div>
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go vet ./internal/store/...</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span><svg class="ss-tool__chev" data-lucide="chevron-right"></svg></div>
+                </div></details>
+            </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Group row</b> <em>SessionToolGroupRow · 24px · 12px subtle · check glyph in the well · chevron on hover · summary from <code>lib/tool-group.ts</code> (pure)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Child row, expanded</b> <em>production ToolCallRow: body at ml-28, left rule, mono 12.5px, 256px max, diff ink success/danger (the only color inside)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>group closed · open</span><span class="ss-tag"><b>component</b>SessionToolGroupRow · ToolCallRow</span><span class="ss-tag"><b>VC</b>task_07/VC-03</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · PARTIAL FAILURE ===== -->
+    <section class="lab-sec" id="tl-partial" data-od-id="tl-partial">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">One tool failed, the turn went on — no red</h2><span class="lab-sec__gist">US-021.EC-1 · US-026.AC-3 · task_07 VC-04</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A failure the agent absorbed is information, not an alarm.</b> The group sentence appends “· 1 failed” in the same muted ink; inside, the failed row wears a subtle × and the word “failed” — shape and word, no color. The live row keeps going below. Danger is reserved for the failure that ends the turn (section 08). Production paints every failed tool glyph danger; this is the ADR-009 delta.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="tl-partial-demo">
+            <details class="ss-group" open><summary class="ss-group__head"><span class="ss-tool__well"><svg data-lucide="check"></svg></span>Ran 4 commands, edited 1 file<span class="ss-group__fail"><span class="dotsep"></span>1 failed</span><i class="ss-n">1</i><svg class="ss-group__chev" data-lucide="chevron-right"></svg></summary>
+              <div class="ss-group__body">
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                <div class="ss-tool ss-tool--settled" aria-expanded="true"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry -count=3</span><span class="ss-tool__state"><svg data-lucide="x"></svg>failed</span><i class="ss-n">2</i><svg class="ss-tool__chev" data-lucide="chevron-right"></svg></div>
+                <div class="ss-tool__body"><span class="ctx">--- FAIL: TestRetry_NoWallClock (0.41s)</span>
+    retry_test.go:44: attempts = 2, want 3
+<span class="ctx">FAIL	github.com/compozy/compozy/internal/store	0.912s</span></div>
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">internal/store/retry_test.go</span><span class="ss-tool__stat"><span class="add">+3</span><span class="del">−1</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+              </div></details>
+            <div class="ss-tool ss-tool--live" style="margin-top:2px"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry -count=3</span><i class="ss-n">3</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>“· 1 failed” in the summary</b> <em>same ink as the rest · from the group derivation</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Absorbed failure</b> <em>ToolCallStatusIcon: <code>x</code> subtle + mono “failed” · body shows the tool’s own output · <b>delta</b> from production’s danger glyph (ADR-009)</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Turn continues</b> <em>the live row below proves the answer didn’t fail</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>partial failure</span><span class="ss-tag"><b>component</b>SessionToolGroupRow · ToolCallStatusIcon</span><span class="ss-tag"><b>VC</b>task_07/VC-04</span><span class="ss-tag"><b>tone</b>none</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · SETTLED FOLD ===== -->
+    <section class="lab-sec" id="tl-fold" data-od-id="tl-fold">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Settled turns fold — the answer stays, the work waits behind one line</h2><span class="lab-sec__gist">US-022.AC-1 · US-022.AC-2 · US-022.EC-2 · US-027.AC-3 · task_07 VC-05</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Production already draws the fold row; this pass gives it its sentence and its rules.</b> “Worked for 4m 12s · Ran 6 commands, edited 2 files” — the frozen duration from the status row moves here. Closed by default; open shows the settled group rows; the state survives streaming elsewhere. A turn with no tool work has no fold row at all — just the message and the answer.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3" data-od-id="tl-fold-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Closed (default)</div><div class="plain">
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+              <details class="ss-fold" style="margin-top:8px"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files<i class="ss-n">1</i></summary></details>
+              <div class="ss-prose"><p>Done — 14 tests updated.</p></div>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Open</div><div class="plain">
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+              <details class="ss-fold" open style="margin-top:8px"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary>
+                <div class="ss-fold__body">
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__name">Read file</span><span class="ss-tool__prev">manager_lifecycle_test.go</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test -run Lifecycle -count=5</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                  <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">Edited file</span><span class="ss-tool__prev">manager_lifecycle_test.go</span><span class="ss-tool__stat"><span class="add">+41</span><span class="del">−27</span></span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                </div></details><i class="ss-n">2</i>
+              <div class="ss-prose"><p>Done — 14 tests updated.</p></div>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Zero-tool turn — no fold row <code>US-022.EC-2</code></div><div class="plain">
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">What does “flaky” mean here?</div></div>
+              <div class="ss-prose" style="margin-top:8px"><p>Three of the manager tests pass or fail depending on scheduler timing — they sleep for a fixed 50ms and assert on state that sometimes hasn’t settled.</p></div><i class="ss-n">3</i>
+            </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Fold row</b> <em>SessionTurnFoldRow · production <code>turn-fold</code>: border-b line, 12px subtle tabular · chevron 12px rotates · duration from durable timestamps</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Open body</b> <em>the settled group rows (same ToolCallRows) · reopening after a stream update finds the same state</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Nothing to fold</b> <em>no artificial row; the turn gap (18px) is the only separator</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>fold closed · open · none</span><span class="ss-tag"><b>component</b>SessionTurnFoldRow</span><span class="ss-tag"><b>VC</b>task_07/VC-05</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · INTERRUPTED OPEN ===== -->
+    <section class="lab-sec" id="tl-stopped" data-od-id="tl-stopped">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">A turn you stopped stays open where you stopped it</h2><span class="lab-sec__gist">US-022.AC-3 · US-009.AC-4 · US-022.EC-3 · task_07 VC-06</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>You keep your place.</b> The rows stay visible; the row that was running when you pressed Stop ends with the word “stopped”; the line that would be a fold reads “You stopped after 1m 40s” in warning ink and doesn’t collapse. A steer that fell back to interrupt folds normally but names its cause. Production paints the interrupted label danger — moved to warning per ADR-009: you did this, nothing broke.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="tl-stopped-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Stopped by you — open</div><div class="plain">
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+              <div class="ss-prose" style="margin-top:8px"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything.</p></div>
+              <div class="ss-group" style="margin-top:4px">
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry -count=3</span><span class="ss-tool__state">stopped</span><i class="ss-n">1</i></div>
+              </div>
+              <div class="ss-fold ss-fold--stopped" style="margin-top:4px"><div class="ss-fold__head"><svg data-lucide="circle-stop"></svg>You stopped after 1m 40s</div></div><i class="ss-n">2</i>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Steer fell back to interrupt — folds, names the cause <code>US-022.EC-3</code></div><div class="plain">
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+              <details class="ss-fold" style="margin-top:8px"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Interrupted after 48s<span class="dotsep"></span>replaced by your steer<span class="dotsep"></span>Ran 2 commands<i class="ss-n">3</i></summary></details>
+              <div class="ss-msg-user"><div class="ss-msg-user__bubble">Only touch the lifecycle tests, skip the store package</div><span class="ss-msg-user__meta"><svg data-lucide="scissors"></svg>Steered — interrupted and replaced</span></div>
+            </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>The row that was running</b> <em>settled ink + mono “stopped” · no glyph</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Open-turn label</b> <em>SessionTurnFoldRow variant: <code>circle-stop</code> + warning ink, not a disclosure · <b>delta</b> from production danger</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Fallback fold</b> <em>“Interrupted after 48s · replaced by your steer” — folds like a settled turn, cause in words</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>interrupted open · fallback fold</span><span class="ss-tag"><b>component</b>SessionTurnFoldRow</span><span class="ss-tag"><b>VC</b>task_07/VC-06</span><span class="ss-tag"><b>tone</b>warning label only</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · STEER MARKERS ===== -->
+    <section class="lab-sec" id="tl-steer" data-od-id="tl-steer">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Steer markers — how your message reached the turn</h2><span class="lab-sec__gist">US-001.AC-2 · US-001.EC-1 · US-001.EC-3 · US-002.AC-2 · task_07 VC-07</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>A steer is your bubble with one line under it.</b> The glyph is the verb you used (corner-down-right for steer, scissors for interrupt, list-plus for the queue), the words are what happened. A steer the agent hasn’t seen yet says so until it does. A steer superseded by a later one stays in the transcript, quieter, so nothing disappears silently. No new turn boundary appears for a live steer — the reply continues below.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="tl-steer-demo" style="display:flex;flex-direction:column;gap:10px">
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Only touch the lifecycle tests, skip the store package</div><span class="ss-msg-user__meta"><svg data-lucide="corner-down-right"></svg>Steered — delivered into the live turn</span><i class="ss-n">1</i></div>
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Use the lifecycle channel, not a ticker</div><span class="ss-msg-user__meta"><svg data-lucide="corner-down-right"></svg>Steered — the agent sees it when the current tool finishes</span><i class="ss-n">2</i></div>
+            <div class="ss-msg-user ss-msg-user--superseded"><div class="ss-msg-user__bubble">Actually keep the ticker but make it injectable</div><span class="ss-msg-user__meta"><svg data-lucide="corner-down-right"></svg>Superseded by your next steer</span><i class="ss-n">3</i></div>
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Skip the store package entirely</div><span class="ss-msg-user__meta"><svg data-lucide="scissors"></svg>Steered — interrupted and replaced</span><i class="ss-n">4</i></div>
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Ship it with tests</div><span class="ss-msg-user__meta"><svg data-lucide="list-plus"></svg>From the queue<span class="dotsep"></span>was #1</span></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Injected</b> <em>meta line 11.5px subtle, glyph 12px faint · from <code>delivery = injected</code> on the transcript entry</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Pending injection</b> <em>wording updates in place to “delivered” when the tool yields (US-001.EC-1)</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Superseded</b> <em>bubble text and meta drop one step (subtle / faint) · never removed (US-001.EC-3)</em></span></li>
+            <li><i class="ss-n">4</i><span><b>Fallback</b> <em>scissors glyph, the words say the turn was replaced (US-002.AC-2)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>steer ×4 · queue origin</span><span class="ss-tag"><b>component</b>SessionUserMessage (meta line)</span><span class="ss-tag"><b>VC</b>task_07/VC-07</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · LATE OUTPUT + TURN FAILURE ===== -->
+    <section class="lab-sec" id="tl-late" data-od-id="tl-late">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Output after a stop · a failure that ended the turn</h2><span class="lab-sec__gist">US-009.EC-3 · US-011 · ADR-009</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Late output never resurrects a turn.</b> If the agent sends more after a forced stop, the transcript records it as a marker after the stopped label — kept in the log, not appended to the reply. The other case is the one danger earns: the turn itself failed. The fold row goes danger, the production “Session failed” marker names the cause and the next action.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="tl-late-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Post-stop output <code>US-009.EC-3</code></div><div class="plain" style="display:flex;flex-direction:column;gap:4px">
+              <div class="ss-fold ss-fold--stopped"><div class="ss-fold__head"><svg data-lucide="circle-stop"></svg>You stopped after 1m 40s</div></div>
+              <div class="ss-marker"><svg data-lucide="scroll-text"></svg><span><b>The agent sent more output after you stopped it</b> — kept in the log, not in the reply.<a class="ss-marker__act" href="#tl-late">Show</a></span><i class="ss-n">1</i></div>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Turn-level failure — danger earned</div><div class="plain" style="display:flex;flex-direction:column;gap:4px">
+              <div class="ss-group">
+                <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./internal/store/... -run Retry</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+              </div>
+              <div class="ss-marker" role="alert" data-tone="danger"><svg data-lucide="circle-alert"></svg><span><b>Session failed</b> — Claude Code exited while streaming (exit 137). The transcript is saved; resume to continue.<span class="mono-id">agent_exited</span></span><i class="ss-n">2</i></div>
+              <div class="ss-fold ss-fold--failed"><div class="ss-fold__head"><svg data-lucide="circle-alert"></svg>Failed after 2m 03s</div></div><i class="ss-n">3</i>
+            </div></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Late-output marker</b> <em>Marker neutral · “Show” opens the recorded post-stop events inline (read-only)</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Failure marker</b> <em>production RuntimeActivityNotice danger branch — unchanged wording pattern</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Failed fold label</b> <em>SessionTurnFoldRow variant danger · open, like an interrupted turn</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>post-stop guard · turn failure</span><span class="ss-tag"><b>component</b>Marker · SessionTurnFoldRow</span><span class="ss-tag"><b>tone</b>danger (real failure only)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 09 · LARGE PAYLOAD ===== -->
+    <section class="lab-sec" id="tl-big" data-od-id="tl-big">
+      <div class="lab-sec__head"><span class="lab-sec__num">09</span><h2 class="lab-sec__t">A giant tool result — bounded, with the rest one click away</h2><span class="lab-sec__gist">US-019.EC-2 · US-012.AC-2 · task_07 VC-08</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The frame never freezes for a payload.</b> The row expands to the production body (256px, scrolling) showing the head of the output; a footer strip says how much is shown of how much, and offers Show all (renders in a windowed viewer) and Download (the externalized artifact). The note in the footer comes from the daemon’s truncation record — it is the “visible note” US-012 requires.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="tl-big-demo">
+            <div class="ss-tool ss-tool--settled" aria-expanded="true"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">Ran command</span><span class="ss-tool__prev">go test ./... -race -v</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span><svg class="ss-tool__chev" data-lucide="chevron-right"></svg></div>
+            <div class="ss-tool__body" style="max-height:120px"><span class="ctx">=== RUN   TestManager_Lifecycle</span>
+<span class="ctx">=== RUN   TestManager_Lifecycle/Should_settle_after_cancel</span>
+    manager_lifecycle_test.go:88: settled in 12ms
+<span class="ctx">--- PASS: TestManager_Lifecycle (0.41s)</span>
+<span class="ctx">=== RUN   TestQueue_Admission</span>
+<span class="ctx">=== RUN   TestQueue_Admission/Should_refuse_at_cap</span>
+    queue_test.go:41: cap=10 entries=10 → queue_full
+<span class="ctx">--- PASS: TestQueue_Admission (0.09s)</span></div>
+            <div class="ss-tool__trunc"><svg data-lucide="scissors" style="width:12px;height:12px;color:var(--faint)"></svg>Showing the first 200 of 12,480 lines<span class="dotsep"></span>1.8 MB<span class="spacer"></span><button class="btn btn--ghost btn--xs"><svg data-lucide="maximize-2"></svg>Show all</button><button class="btn btn--ghost btn--xs"><svg data-lucide="download"></svg>Download</button><i class="ss-n">1</i></div>
+          </div>
+          <ul class="ss-legend ss-legend--1">
+            <li><i class="ss-n">1</i><span><b>Truncation strip</b> <em>production <code>ToolResultArtifact</code> (truncated results) given a footer: counts + size from the record · Show all = windowed viewer · Download = the artifact route</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>truncated payload</span><span class="ss-tag"><b>component</b>ToolCallRow · ToolResultArtifact</span><span class="ss-tag"><b>VC</b>task_07/VC-08</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 10 · DICTIONARY ===== -->
+    <section class="lab-sec" id="tl-dict" data-od-id="tl-dict">
+      <div class="lab-sec__head"><span class="lab-sec__num">10</span><h2 class="lab-sec__t">Tool hierarchy — two axes, nothing else</h2><span class="lab-sec__gist">US-026 · ADR-009</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Kind is a glyph on the left. Status is motion, ink, or a glyph on the right.</b> No per-tool colors, no chips, no labels under rows. The kind set comes from production <code>tool-labels.ts</code>; the status set is the closed list below. This table is the review line: adding a third axis is the defect.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="tl-dict-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Kind — identity (left glyph, production icon map)</div><div class="plain" style="display:flex;flex-direction:column;gap:2px">
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">command</span><span class="ss-tool__prev">Bash · compozy__* shell</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-pen"></svg></span><span class="ss-tool__name">edit</span><span class="ss-tool__prev">Edit · Write · NotebookEdit</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="file-text"></svg></span><span class="ss-tool__name">read</span><span class="ss-tool__prev">Read</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="search"></svg></span><span class="ss-tool__name">search</span><span class="ss-tool__prev">Grep · Glob</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="globe"></svg></span><span class="ss-tool__name">web</span><span class="ss-tool__prev">WebFetch · WebSearch</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="bot"></svg></span><span class="ss-tool__name">agent</span><span class="ss-tool__prev">Task · child session</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="wrench"></svg></span><span class="ss-tool__name">other</span><span class="ss-tool__prev">fallback · mcp__* = plug</span></div>
+            </div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Status — state (motion · ink · right glyph)</div><div class="plain" style="display:flex;flex-direction:column;gap:2px">
+              <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">live — shimmer, glyph muted</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">settled</span><span class="ss-tool__prev">muted name · subtle preview · check</span><span class="ss-tool__state"><svg data-lucide="check"></svg></span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">absorbed failure</span><span class="ss-tool__prev">same ink · × and the word</span><span class="ss-tool__state"><svg data-lucide="x"></svg>failed</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">stopped</span><span class="ss-tool__prev">the row that was running at Stop</span><span class="ss-tool__state">stopped</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">turn-ending failure</span><span class="ss-tool__prev">danger — the only red</span><span class="ss-tool__state" data-tone="danger"><svg data-lucide="circle-alert"></svg>failed</span></div>
+              <div class="ss-tool ss-tool--settled"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__name">empty result</span><span class="ss-tool__prev">minus, subtle (production)</span><span class="ss-tool__state"><svg data-lucide="minus"></svg></span></div>
+            </div></div>
+          </div>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>dictionary</span><span class="ss-tag"><b>component</b>SessionLiveToolRow · ToolCallRow · ToolCallStatusIcon</span><span class="ss-tag"><b>rule</b>kind ≠ status channel</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 11 · SCROLL ===== -->
+    <section class="lab-sec" id="tl-scroll" data-od-id="tl-scroll">
+      <div class="lab-sec__head"><span class="lab-sec__num">11</span><h2 class="lab-sec__t">Scroll has one owner — following, anchoring a new turn, or you</h2><span class="lab-sec__gist">US-024 · ADR-007 · S6</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Interaction contract, drawn on the transcript.</b> Following: pinned to the end, no pill. You scroll up one notch: following disengages at once and the production jump pill appears; the stream never tugs the viewport. Re-arm happens only inside the bottom band — 40px, not today’s 96 — or by the pill. After you send, your bubble anchors 16px under the top and the anchor accounts for the composer’s real height (today it assumes 0). Loading older history keeps the exact reading position; folds and composer growth never move it; steering an already-streaming turn snaps instead of animating.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="tl-scroll-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="tl-scroll-win" style="--ss-win-h:520px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread" style="position:relative;overflow:hidden">
+                  <div class="ss-guide" style="top:28px"><span class="ss-band__l">new-turn anchor · 16px below the top</span></div>
+                  <div class="ss-thread__inner" style="padding-top:20px">
+                    <div class="ss-turn">
+                      <div class="ss-msg-user"><div class="ss-msg-user__bubble ss-anchor-mark">Now make the same change in the store package</div></div><i class="ss-n">1</i>
+                      <div class="ss-prose"><p>Looking at how <code>internal/store</code> schedules its retries before I touch anything. The queue uses a fixed 50ms ticker in three places; two of them are in tests, one is in the retry loop itself.</p><p>I’ll start with the tests, then decide whether the runtime ticker needs the same treatment.</p></div>
+                      <details class="ss-group"><summary class="ss-group__head"><span class="ss-tool__well"><svg data-lucide="check"></svg></span>Ran 3 commands, edited 1 file<svg class="ss-group__chev" data-lucide="chevron-right"></svg></summary></details>
+                      <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="terminal"></svg></span><span class="ss-tool__label ss-shimmer">Running shell — go test ./internal/store/... -run Retry -count=3</span></div>
+                    </div>
+                  </div>
+                  <div class="ss-band" style="bottom:0;height:40px"><span class="ss-band__l">re-arm band · 40px (was 96)</span></div><i class="ss-n">3</i>
+                  <button class="ss-jump" aria-label="Scroll to latest" style="bottom:52px"><svg data-lucide="arrow-down"></svg></button><i class="ss-n">2</i>
+                </div>
+                <div class="ss-below"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 14s</b><span class="sep">·</span>Running shell</div></div>
+                <div class="ss-composer-zone"><div class="ss-composer ss-anchor-mark" style="outline-offset:-1px"><div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div><span class="spacer"></span><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div></div><i class="ss-n">4</i></div>
+              </div>
+            </section>
+          </div>
+          <table class="table" style="margin-top:12px;font-size:12px" data-od-id="tl-scroll-table"><thead><tr><th>Mode</th><th>Enters when</th><th>Leaves when</th><th>What you see</th></tr></thead><tbody>
+            <tr><td class="mono" style="color:var(--fg)">following</td><td style="color:var(--muted)">you reach the bottom band · you press the pill · reply outgrows the anchor</td><td style="color:var(--muted)">any upward wheel / touch / pointer-down</td><td style="color:var(--subtle)">pinned to the end, no pill</td></tr>
+            <tr><td class="mono" style="color:var(--fg)">anchoring-new-turn</td><td style="color:var(--muted)">you send (idle or queued dispatch)</td><td style="color:var(--muted)">reply grows past the reserved space → following · you scroll → free</td><td style="color:var(--subtle)">your bubble 16px under the top; composer height respected</td></tr>
+            <tr><td class="mono" style="color:var(--fg)">free-scrolling</td><td style="color:var(--muted)">any upward scroll, instantly</td><td style="color:var(--muted)">bottom band (40px) or the pill</td><td style="color:var(--subtle)">reading position frozen; pill visible; stream never tugs</td></tr>
+            <tr><td class="mono" style="color:var(--fg)">prepend</td><td style="color:var(--muted)">Load older</td><td style="color:var(--muted)">height delta applied same frame</td><td style="color:var(--subtle)">exact position preserved (US-024.AC-4)</td></tr>
+            <tr><td class="mono" style="color:var(--fg)">fold-suppressed</td><td style="color:var(--muted)">any fold/group toggle</td><td style="color:var(--muted)">2 frames later</td><td style="color:var(--subtle)">end-maintenance paused so disclosure never yanks (US-024.EC-1)</td></tr>
+          </tbody></table>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Anchored bubble</b> <em>new-turn anchor target = bubble top − 16px, clamped so the end stays reachable</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Jump pill</b> <em>production ScrollToBottomPill — unchanged (32px, bottom 12, fades + drifts) · shown only in free mode</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Re-arm band</b> <em>lab guide · <code>AT_END_THRESHOLD</code> 96 → 40px (t3code lesson: half-viewport re-arm yanked readers)</em></span></li>
+            <li><i class="ss-n">4</i><span><b>Composer height</b> <em>measured, not assumed — queue rows and notes change it; the anchor and the following pin both subtract it</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>free · anchored · following</span><span class="ss-tag"><b>component</b>useThreadScrollController · ScrollToBottomPill</span><span class="ss-tag"><b>lab ink</b>dashed guides are annotations</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 12 · STREAMING ===== -->
+    <section class="lab-sec" id="tl-stream" data-od-id="tl-stream">
+      <div class="lab-sec__head"><span class="lab-sec__num">12</span><h2 class="lab-sec__t">Streaming prose — smooth, snaps at the end, off when you say so</h2><span class="lab-sec__gist">US-025 · ADR-008 · task_07 VC-09</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Presentation only — the transcript is never delayed.</b> Chunks arrive in bursts (~100ms); the reveal drains each burst over ~160ms at a velocity that tracks arrival (capped at 2000 chars/s), and snaps to the full text the moment the stream ends. Reduced motion and the Smooth streaming setting (S10) both render chunks directly. Code blocks re-highlight on a separate, slower throttle so big pastes never stall a frame. Press Replay to watch the three modes on the same paragraph.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="tl-stream-demo">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+              <button class="btn btn--sm" id="tl-replay"><svg data-lucide="play"></svg>Replay stream</button>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><button class="switch is-on" role="switch" aria-checked="true" id="tl-smooth" aria-label="Smooth streaming"><span class="knob"></span></button>Smooth streaming</label>
+              <label style="display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)"><button class="switch" role="switch" aria-checked="false" id="tl-rm" aria-label="Simulate reduced motion"><span class="knob"></span></button>Simulate reduced motion</label>
+              <span class="mono-id" id="tl-stream-meta">idle</span>
+            </div>
+            <div class="ss-prose tl-stream" id="tl-stream-out" aria-live="polite"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps; it waits on the lifecycle channel instead. Three of the manager tests were passing or failing depending on scheduler timing, so I replaced the fixed 50ms sleeps with a settle signal from the manager itself.</p></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Smooth</b> <em>rAF reveal · drain window 160ms · velocity lerp 0.15 · max 2000 chars/s · min 40ms between commits · snap on end</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Off / reduced motion</b> <em>chunks render as they arrive · no timers · same final text</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>streaming · snap · off</span><span class="ss-tag"><b>component</b>MessageMarkdown host (prose only)</span><span class="ss-tag"><b>VC</b>task_07/VC-09</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapters 03, 06, 09. Two annotated deltas from production: interrupted label danger → warning, absorbed tool failure danger → subtle × (both ADR-009); re-arm band 96 → 40px (ADR-007). Grouping, folds, scroll modes and reveal cadence are pure derivations in <span class="mono">lib/</span>. Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>
+(function(){
+  if(window.lucide) window.lucide.createIcons();
+  var out=document.getElementById('tl-stream-out'),btn=document.getElementById('tl-replay'),sm=document.getElementById('tl-smooth'),rm=document.getElementById('tl-rm'),meta=document.getElementById('tl-stream-meta');
+  if(!out) return;
+  var FULL=out.innerHTML, TEXT=out.textContent, raf=null, timer=null;
+  function toggle(el){ var on=el.getAttribute('aria-checked')==='true'; el.setAttribute('aria-checked',on?'false':'true'); el.classList.toggle('is-on',!on); }
+  sm.addEventListener('click',function(){toggle(sm);}); rm.addEventListener('click',function(){toggle(rm);});
+  function smooth(){ return sm.getAttribute('aria-checked')==='true' && rm.getAttribute('aria-checked')!=='true' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+  btn.addEventListener('click',function(){
+    if(raf) cancelAnimationFrame(raf); if(timer) clearInterval(timer);
+    var arrived=0, shown=0, vel=0, done=false, last=performance.now(), lastEmit=0;
+    out.innerHTML='<p></p>'; var p=out.firstChild;
+    // fake transport: bursts every ~100ms of 18–60 chars, irregular
+    timer=setInterval(function(){ arrived=Math.min(TEXT.length, arrived+18+Math.floor(Math.random()*42)); if(arrived>=TEXT.length){ clearInterval(timer); done=true; } if(!smooth()){ p.textContent=TEXT.slice(0,arrived); meta.textContent='direct · '+arrived+'/'+TEXT.length; if(done){ out.innerHTML=FULL; meta.textContent='snapped · complete'; } } }, 100);
+    if(!smooth()){ meta.textContent='direct'; return; }
+    function frame(now){
+      var dt=Math.min(0.05,(now-last)/1000); last=now;
+      var backlog=arrived-shown; var target=Math.min(2000, backlog/0.16); vel+= (target-vel)*0.15;
+      shown=Math.min(arrived, shown+vel*dt);
+      var n=Math.floor(shown);
+      if(n>p.textContent.length && (n>=arrived || now-lastEmit>=40)){ p.textContent=TEXT.slice(0,n); lastEmit=now; }
+      meta.textContent='smooth · '+n+'/'+TEXT.length+' · '+Math.round(vel)+' ch/s';
+      if(done && shown>=TEXT.length){ out.innerHTML=FULL; meta.textContent='snapped · complete'; return; }
+      if(done && arrived>=TEXT.length && shown>=arrived){ out.innerHTML=FULL; meta.textContent='snapped · complete'; return; }
+      raf=requestAnimationFrame(frame);
+    }
+    raf=requestAnimationFrame(frame);
+  });
+})();
+</script>
+</body>
+</html>

@@ -32,7 +32,11 @@ function overviewState(input: {
   };
 }
 
-/** Management overview and honest daemon-connection feedback. */
+/**
+ * Management overview and honest daemon-connection feedback. The status pill
+ * also carries a refused command's notice while the stream is healthy, so a
+ * drop that rolled back never disappears without a word.
+ */
 export interface DesktopManagerSurfacesProps {
   model: DesktopManagerSurfacesModel;
   /** No workspace is bound, so there is no layout stream to report on. */
@@ -64,7 +68,6 @@ export function DesktopManagerSurfaces({
   const desktops: DesktopOverviewItem[] = model.desktops.map(desktop => ({
     id: desktop.id,
     name: desktop.name,
-    purpose: desktop.purpose,
     thumbnail: (
       <DesktopLayoutThumbnail projection={desktop.projection} windows={desktop.windowRecords} />
     ),
@@ -100,9 +103,12 @@ export function DesktopManagerSurfaces({
         onRetry={onRetry}
         onResolveConflict={onResolveConflict}
       />
-      {!unbound && model.hydration !== "pending" && model.connectionStatus !== "connected" ? (
+      {!unbound &&
+      model.hydration !== "pending" &&
+      (model.connectionStatus !== "connected" || model.diagnostic !== null) ? (
         <div
           role="status"
+          data-testid="os-window-manager-status"
           className={cn(
             "pointer-events-none absolute top-2 right-2 z-30 flex items-center gap-1.5",
             "rounded-pill border border-line-strong bg-shell-glass px-2.5 py-1",

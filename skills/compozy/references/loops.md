@@ -456,9 +456,12 @@ Node classes: `action` (open), `control` (closed), `source` (closed). Reserved *
 `goal`, `run-agent`, `run-loop`, `transform`; every other action kind is a literal tool ID
 (`compozy__*`/`ext__*`/`mcp__*`). Control kinds: `fan-out`, `collect`, `branch`, `route`, `gate`,
 `wait`, `sub-loop`. A `route` evaluates ordered `{when, to}` entries, takes the first match, and
-otherwise takes its mandatory `default`; every target is a unique direct forward edge. A `wait`
-declares exactly one of `for`, `until`, or `event`, with optional `expect`, `ahead_arrival`, and
-`expires`. Source kinds: `input`, `file-import`, `watch-source`, `watch-events`.
+otherwise takes its mandatory `default`; every target is a unique direct forward edge. Nodes that
+belong only to a non-selected path settle as durable `route_not_taken` evidence and are neither
+evaluated nor scheduled, including gates; shared downstream joins remain live. Inspect the decision
+through Loop status, the node roster, and `route_causes`. A `wait` declares exactly one of `for`,
+`until`, or `event`, with optional `expect`, `ahead_arrival`, and `expires`. Source kinds: `input`,
+`file-import`, `watch-source`, `watch-events`.
 A fan-out requires positive `max_fan_out`; logical lanes may exceed 64, while only its
 `max_parallel` window materializes at once.
 A `run-agent` result is validated against its pinned `output_schema` before the owning daemon

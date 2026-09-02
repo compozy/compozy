@@ -1,4 +1,5 @@
 import { frameResizableEdges, type TiledResizableEdges } from "./tiled-resize";
+import { windowManagerLayoutArea } from "./window-manager-layout-area";
 import type {
   DesktopId,
   LayoutDesktop,
@@ -6,6 +7,7 @@ import type {
   LayoutProjection,
   NormalizedRect,
   PixelRect,
+  ProjectionGaps,
   WindowId,
   WindowManagerClientView,
   WindowManagerSnapshot,
@@ -42,6 +44,8 @@ export interface OsWindowFrameModel {
   /** Real stack identity for stack commands; null for solo frames. */
   stackId: LayoutNodeId | null;
   minimized: boolean;
+  /** The unit fills the desktop work area; drag and resize are off until it unzooms. */
+  zoomed: boolean;
   /** Pane too small for its split — projection degraded it to a stack. */
   adapted: boolean;
   /** Stacking layer among floating frames; tiled frames never overlap. */
@@ -112,6 +116,7 @@ function tiledFrames(desktop: LayoutDesktop, projection: LayoutProjection): OsWi
       activeWindowId: stack.activeWindowId,
       stackId: stack.kind === "explicit" ? stack.nodeId : null,
       minimized: false,
+      zoomed: false,
       adapted: stack.kind === "adaptive",
       layer: 1,
       zone: stack.zone,
@@ -129,6 +134,7 @@ function tiledFrames(desktop: LayoutDesktop, projection: LayoutProjection): OsWi
       activeWindowId: window.windowId,
       stackId: null,
       minimized: false,
+      zoomed: false,
       adapted: false,
       layer: 1,
       zone: window.zone,
@@ -161,6 +167,7 @@ function floatingFrames(input: {
       activeWindowId: windowId,
       stackId: null,
       minimized: window.minimized,
+      zoomed: false,
       adapted: false,
       layer: frameLayer([windowId], focusOrder, layerBase, index),
       zone: null,
@@ -178,6 +185,7 @@ function floatingFrames(input: {
       activeWindowId: displayActive(stack.windowIds, stack.activeId, client?.stackActive[stack.id]),
       stackId: stack.id,
       minimized: stack.minimized,
+      zoomed: false,
       adapted: false,
       layer: frameLayer(stack.windowIds, focusOrder, layerBase, desktop.floating.length + index),
       zone: null,
@@ -197,14 +205,16 @@ export function buildDesktopFrames(input: {
   client: WindowManagerClientView | null;
   projections: Readonly<Record<DesktopId, LayoutProjection>>;
   workArea: PixelRect;
+  gaps: ProjectionGaps;
   raiseOnFocus: boolean;
 }): Readonly<Record<DesktopId, readonly OsWindowFrameModel[]>> {
   if (input.snapshot === null) return {};
   const layerBase = Object.keys(input.snapshot.windows).length + 1;
+  const zoomRect = windowManagerLayoutArea(input.workArea, input.gaps);
   const frames: Record<DesktopId, readonly OsWindowFrameModel[]> = {};
   for (const desktop of input.snapshot.desktops) {
     const projection = input.projections[desktop.id];
-    frames[desktop.id] = [
+    const desktopFrames = [
       ...(projection ? tiledFrames(desktop, projection) : []),
       ...floatingFrames({
         desktop,
@@ -215,8 +225,38 @@ export function buildDesktopFrames(input: {
         raiseOnFocus: input.raiseOnFocus,
       }),
     ];
+    frames[desktop.id] = zoomFrames(desktopFrames, input.snapshot, zoomRect);
   }
   return frames;
+}
+
+/**
+ * The unit holding a zoomed window takes the whole layout area and gives up
+ * its own drag and resize affordances; every other frame keeps its place so
+ * unzooming reveals the tree exactly as it was.
+ */
+function zoomFrames(
+  frames: readonly OsWindowFrameModel[],
+  snapshot: WindowManagerSnapshot,
+  zoomRect: PixelRect
+): readonly OsWindowFrameModel[] {
+  return frames.map(frame => {
+    const zoomed =
+      !frame.minimized &&
+      frame.members.some(member => {
+        const window = snapshot.windows[member];
+        return window !== undefined && window.zoomed && !window.minimized;
+      });
+    if (!zoomed) return frame;
+    return { ...frame, rect: { ...zoomRect }, zoomed: true, resizableEdges: NO_EDGES_RESIZABLE };
+  });
+}
+
+/** The zoomed frame of a desktop, if one member is zoomed. */
+export function zoomedFrame(
+  frames: readonly OsWindowFrameModel[] | undefined
+): OsWindowFrameModel | null {
+  return frames?.find(frame => frame.zoomed) ?? null;
 }
 
 /** The frame a window currently belongs to, if any (deck lookups, gestures). */

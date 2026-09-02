@@ -21,8 +21,6 @@ function nestedDesktop(): LayoutDesktop {
     id: "desktop:main",
     name: "Main",
     order: 0,
-    purpose: "standard",
-    focusOwner: null,
     floating: [],
     floatingStacks: [],
     groups: [
@@ -119,8 +117,6 @@ function islandDesktop(groups: LayoutGroup[]): LayoutDesktop {
     id: "desktop:islands",
     name: "Islands",
     order: 0,
-    purpose: "standard",
-    focusOwner: null,
     floating: [],
     floatingStacks: [],
     groups,

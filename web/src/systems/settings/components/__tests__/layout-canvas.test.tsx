@@ -33,13 +33,14 @@ function windowAt(id: string, desktopId: string) {
     desktopId,
     floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },
     minimized: false,
+    zoomed: false,
     returnAnchor: null,
   };
 }
 
 function documentWith(desktop: WindowManagerLayoutDesktop): WindowManagerLayoutDocument {
   return {
-    version: 3,
+    version: 4,
     workspaceId: "workspace-a",
     desktops: [desktop],
     windows: {
@@ -55,8 +56,6 @@ const SPLIT_DESKTOP: WindowManagerLayoutDesktop = {
   id: "desktop-one",
   name: "Build",
   order: 0,
-  purpose: "standard",
-  focusOwner: null,
   floating: ["app:float"],
   floatingStacks: [],
   groups: [

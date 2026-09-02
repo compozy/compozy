@@ -92,7 +92,7 @@ describe("layout gesture decisions", () => {
     }
   );
 
-  it("Should cancel an invalid client and any stale layout", () => {
+  it("Should cancel an invalid client and rebase a stale layout instead of cancelling", () => {
     const invalidClient = finishLayoutGesture(activeSession(), {
       finalPoint: { x: 995, y: 320 },
       finalTarget: RIGHT_TARGET,
@@ -109,7 +109,11 @@ describe("layout gesture decisions", () => {
     });
 
     expect(invalidClient.kind === "cancel" ? invalidClient.reason : null).toBe("invalid-client");
-    expect(stale.kind === "cancel" ? stale.reason : null).toBe("stale-layout");
+    expect(stale.kind).toBe("commit");
+    if (stale.kind === "commit") {
+      expect(stale.command.rebase).toBe(true);
+      expect(stale.command.expectedRevision).toBe(41);
+    }
   });
 
   it("Should cancel when the live work area differs from the pointer-down capture", () => {

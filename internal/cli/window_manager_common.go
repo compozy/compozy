@@ -47,7 +47,6 @@ const (
 	windowManagerResourceFlag     = "resource"
 	windowManagerDiagnostics      = "diagnostics"
 	windowManagerNameField        = "name"
-	windowManagerPurposeField     = "purpose"
 	windowManagerDesktopID        = "desktop_id"
 	windowManagerValidField       = "valid"
 	windowManagerNameHeader       = cliNameHeader

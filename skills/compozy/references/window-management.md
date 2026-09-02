@@ -24,14 +24,25 @@ normalizes, and commits the complete topology atomically.
 - Every durable mutation is compare-and-swap guarded by the workspace `revision`. A successful
   mutation advances it once and records one event. Layout/topology changes add one history entry;
   route navigation and stack activation do not enter or clear layout history.
-- `desktop.switch`, `window.focus`, and zoom presentation require an explicit connected `client_id`.
-  They never select an implicit foreground browser.
-- A focus desktop exists only while its owner remains on it. When the owner returns, moves, swaps,
-  minimizes, closes, or leaves through layout replacement, the daemon deletes an empty focus desktop
-  or converts an occupied one to a standard desktop.
+- `desktop.switch` and `window.focus` require an explicit connected `client_id`. They never select an
+  implicit foreground browser.
+- Zoom makes the unit holding the window (a solo window or its whole tab frame) the only full-frame
+  island of a desktop and flags it `zoomed`. When the window's desktop shows nothing else, the unit
+  zooms in place; when another window is visible there, the unit moves to a fresh desktop inserted
+  right after it so nothing gets covered. That desktop is a regular desktop: tabs and tiles work on it.
+  Unzooming returns the unit to the slot it left (`return_anchor`) and removes the desktop zoom
+  created once it is empty; closing the zoomed unit removes it the same way. Grouping a window into
+  the zoomed frame keeps the zoom; tiling another window to a screen edge shrinks the zoomed island to
+  the free zone and ends the zoom, and a structural insert, `layout.arrange`, `window.move`,
+  `window.swap`, `window.resize`, or `window.toggle_floating` ends it in place. A minimized window that
+  was zoomed comes back zoomed on the desktop it minimized from, and a zoomed frame stays zoomed when
+  its zoomed tab closes.
 - Preview, validation, rejected commands, and no-ops do not persist or emit topology events.
-- Snapshots and layout documents are version 3. The wire snapshot carries no `history` body; undo and
+- Snapshots and layout documents are version 4. The wire snapshot carries no `history` body; undo and
   redo stay daemon-internal, and the snapshot reports `closed_entry_count` instead of reopen bodies.
+  The daemon migrates a stored version 3 arrangement on load and persists it once under the next
+  revision, so caches keyed by revision refetch: a former focus desktop becomes a regular desktop whose
+  owner stays zoomed on it with its return anchor; layout history resets.
 
 Read the current revision before mutating:
 
@@ -104,9 +115,12 @@ compozy desktop switch --workspace <workspace-id> --revision <revision> \
   --client <stable-client-id> --id <desktop-id>
 compozy window focus --workspace <workspace-id> --revision <revision> \
   --client <stable-client-id> --direction right
-compozy window zoom --workspace <workspace-id> --revision <revision> \
-  --client <stable-client-id> --id <window-id>
+compozy window zoom --workspace <workspace-id> --revision <revision> --id <window-id>
 ```
+
+`window zoom` needs no client: it toggles the durable zoom, and every client sees the unit fill its
+desktop. Pass `--client` to move that client's focus onto the window and follow it to the desktop the
+zoom lands on.
 
 Use `compozy desktop clients list|register|unregister` to manage live presentation identities. Browser
 clients persist only their random stable client ID locally; topology and revisions stay in the daemon.
@@ -299,8 +313,8 @@ compozy layout validate --workspace <workspace-id> --file layout.json -o json
 compozy layout apply --workspace <workspace-id> --revision <revision> --file layout.json -o json
 ```
 
-Documents are version 3 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
-history and closed entries, so a raw round trip never restores reopen history. A version other than 3
+Documents are version 4 and round-trip `floating_stacks`, `nav_stack`, and `pinned`. Export omits
+history and closed entries, so a raw round trip never restores reopen history. A version other than 4
 fails validation with `window_manager_invalid_topology` and the `topology.unsupported_version`
 diagnostic; there is no converter — rebuild the layout with semantic commands instead.
 
@@ -309,11 +323,13 @@ validates the complete topology, preserves current routes for surviving window I
 atomic replacement. There is no raw key-value fallback.
 
 A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
-validated deep capture of its source group. For Zoom, an unchanged live source residue lets unzoom
-restore that exact group identity, node order, weights, placement, and active stack member. If the
-source changed while the window was zoomed, CompozyOS keeps those edits and uses the structural anchor
-fallback. Treat `source_group` as daemon-owned recovery state: preserve it during raw document round
-trips, and use `compozy window zoom` or `compozy__window_zoom` instead of fabricating or editing it.
+validated deep capture of its source group. Restoring a minimized window reinstalls that exact group
+identity, node order, weights, and placement while the live residue is unchanged; if the source changed
+while the window was minimized, CompozyOS keeps those edits and inserts at the structural anchor, then
+beside the client's focused window on the same desktop, then floating. A zoomed window's
+`return_anchor` is the slot unzoom takes it back to, and `return_anchor.zoomed` records a zoom the
+window held when it minimized. Treat both as daemon-owned recovery state: preserve them during raw
+document round trips and never fabricate or edit them.
 
 ## Configuration And Hooks
 

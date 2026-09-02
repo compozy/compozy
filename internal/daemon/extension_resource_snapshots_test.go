@@ -281,7 +281,7 @@ func TestExtensionKitResourcesBindWorkspaceScope(t *testing.T) {
 				Document: windowmanager.LayoutDocument{
 					Version: windowmanager.SnapshotVersion,
 					Desktops: []windowmanager.Desktop{{
-						ID: "desktop-main", Name: "Main", Purpose: windowmanager.DesktopPurposeStandard,
+						ID: "desktop-main", Name: "Main",
 						Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
 					}},
 					Windows: map[windowmanager.WindowID]windowmanager.Window{},

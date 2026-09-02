@@ -15,6 +15,7 @@ const (
 	WindowManagerFrameClientCommandAck    = "client_command_ack"
 	WindowManagerFrameClientCommandResult = "client_command_result"
 	WindowManagerFrameClientContext       = "client_context"
+	WindowManagerFrameHeartbeat           = "heartbeat"
 	WindowManagerFrameError               = "error"
 )
 
@@ -81,6 +82,14 @@ type WindowManagerClientCommandResultFrame struct {
 type WindowManagerClientContextFrame struct {
 	Type    string                          `json:"type"`
 	Context WindowManagerClientContextInput `json:"context"`
+}
+
+// WindowManagerHeartbeatFrame proves the stream is alive and names the latest
+// committed revision so a client can detect a missed event.
+type WindowManagerHeartbeatFrame struct {
+	Type        string                    `json:"type"`
+	WorkspaceID windowmanager.WorkspaceID `json:"workspace_id"`
+	Revision    WindowManagerRevision     `json:"revision"`
 }
 
 // WindowManagerErrorFrame closes a stream with one stable structured error.

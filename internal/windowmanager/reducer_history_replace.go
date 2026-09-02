@@ -40,7 +40,6 @@ func (r *reducer) replace(snapshot *Snapshot, command ReplaceLayoutCommand) (boo
 		window.Route = cloneRouteIntent(current.Route)
 		candidate.Windows[windowID] = window
 	}
-	r.releaseDetachedFocusDesktops(&candidate)
 	equal, err := statesEqual(snapshotState(*snapshot), snapshotState(candidate))
 	if err != nil {
 		return false, err

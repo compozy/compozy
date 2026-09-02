@@ -112,8 +112,7 @@ func windowLayoutRecord(
 				Version: windowmanager.SnapshotVersion,
 				Desktops: []windowmanager.Desktop{{
 					ID: "desktop-default", Name: desktopName,
-					Purpose: windowmanager.DesktopPurposeStandard,
-					Groups:  []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
+					Groups: []windowmanager.LayoutGroup{}, Floating: []windowmanager.WindowID{},
 				}},
 				Windows: map[windowmanager.WindowID]windowmanager.Window{},
 			},

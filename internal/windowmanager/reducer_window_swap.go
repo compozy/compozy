@@ -18,9 +18,12 @@ func (r *reducer) swapWindows(snapshot *Snapshot, command SwapWindowsCommand) (b
 	}
 	// A stacked window swaps as its whole tab frame: frames are the
 	// arrangement unit, so the deck exchanges places with the target unit.
+	r.endZoom(snapshot, zoomUnitMembers(snapshot, command.FirstWindowID))
+	r.endZoom(snapshot, zoomUnitMembers(snapshot, command.SecondWindowID))
 	if firstStacked || secondStacked {
 		return r.swapUnits(snapshot, command.FirstWindowID, command.SecondWindowID)
 	}
+	first, second = snapshot.Windows[command.FirstWindowID], snapshot.Windows[command.SecondWindowID]
 	firstPlacement, firstFound := findWindowPlacement(snapshot, first.ID)
 	secondPlacement, secondFound := findWindowPlacement(snapshot, second.ID)
 	if !firstFound || !secondFound {

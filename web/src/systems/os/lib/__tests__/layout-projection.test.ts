@@ -13,8 +13,6 @@ const DESKTOP: LayoutDesktop = {
   id: "desktop:main",
   name: "Main",
   order: 0,
-  purpose: "standard",
-  focusOwner: null,
   floating: [],
   floatingStacks: [],
   groups: [
@@ -105,8 +103,6 @@ describe("projectLayout", () => {
         id: "desktop:snapped",
         name: "Snapped",
         order: 0,
-        purpose: "standard",
-        focusOwner: null,
         floating: [],
         floatingStacks: [],
         groups: [
@@ -160,8 +156,6 @@ describe("projectLayout", () => {
         id: "desktop:stack",
         name: "Stack",
         order: 0,
-        purpose: "standard",
-        focusOwner: null,
         floating: [],
         floatingStacks: [],
         groups: [
@@ -200,8 +194,6 @@ describe("projectLayout", () => {
       id: "desktop:small",
       name: "Small",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       floating: [],
       floatingStacks: [],
       groups: [
@@ -261,8 +253,6 @@ describe("projectLayout", () => {
       id: "desktop:weighted",
       name: "Weighted",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       floating: [],
       floatingStacks: [],
       groups: [

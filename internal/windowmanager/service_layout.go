@@ -60,7 +60,6 @@ func validateLayoutDocument(
 		Windows:     cloneWindows(document.Windows),
 		Overrides:   cloneWorkspaceConfig(document.Overrides),
 	}
-	(&reducer{}).releaseDetachedFocusDesktops(&candidate)
 	if _, err := effectiveConfig(defaults, candidate.Overrides); err != nil {
 		return Validation{
 			Diagnostics: []Diagnostic{{Code: "config.invalid", Path: "overrides", Message: err.Error()}},

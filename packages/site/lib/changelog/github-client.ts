@@ -22,13 +22,24 @@ import {
   type ChangelogPullRequest,
   type ChangelogPullRequestsResult,
   type ChangelogRelease,
+  type ChangelogReleaseLookup,
   type ChangelogReleasesResult,
 } from "./types";
 
 const GITHUB_API_VERSION = "2026-03-10";
-const RELEASES_PER_PAGE = 100;
+const RELEASES_PER_PAGE = 25;
 const MAX_RELEASE_PAGES = 20;
 const PULL_REQUEST_BATCH_SIZE = 50;
+const RECENT_RELEASE_LOOKUP_TTL_MS = 60_000;
+const MAX_RELEASE_TAG_LENGTH = 64;
+
+interface RecentReleaseLookupCache {
+  fetcher: typeof globalThis.fetch;
+  expiresAt: number;
+  payloads: Promise<GitHubReleasePayload[]>;
+}
+
+let recentReleaseLookupCache: RecentReleaseLookupCache | undefined;
 
 class GitHubClientError extends Error {
   constructor(
@@ -142,6 +153,13 @@ function buildRelease(payload: GitHubReleasePayload): ChangelogRelease | null {
   };
 }
 
+function buildReleases(payloads: readonly GitHubReleasePayload[]): ChangelogRelease[] {
+  return payloads
+    .map(buildRelease)
+    .filter((release): release is ChangelogRelease => release !== null)
+    .toSorted((left, right) => right.publishedAt.localeCompare(left.publishedAt));
+}
+
 async function fetchReleasePage(page: number): Promise<GitHubReleasePayload[]> {
   const url = new URL(
     `https://api.github.com/repos/${COMPOZY_REPOSITORY.owner}/${COMPOZY_REPOSITORY.name}/releases`
@@ -183,11 +201,63 @@ export async function loadChangelogReleases(): Promise<ChangelogReleasesResult> 
       }
     }
 
-    const releases = payloads
-      .map(buildRelease)
-      .filter((release): release is ChangelogRelease => release !== null)
-      .toSorted((left, right) => right.publishedAt.localeCompare(left.publishedAt));
-    return { status: "ready", releases };
+    return { status: "ready", releases: buildReleases(payloads) };
+  } catch (error) {
+    return { status: "unavailable", error: toLoadError(error) };
+  }
+}
+
+async function fetchRecentReleasePayloads(): Promise<GitHubReleasePayload[]> {
+  const url = new URL(
+    `https://api.github.com/repos/${COMPOZY_REPOSITORY.owner}/${COMPOZY_REPOSITORY.name}/releases`
+  );
+  url.searchParams.set("per_page", String(RELEASES_PER_PAGE));
+  const payload = await githubJson(url.toString(), { method: "GET", cache: "no-store" }, false);
+  const parsed = githubReleaseListSchema.safeParse(payload);
+  if (!parsed.success) {
+    throw new GitHubClientError(
+      "invalid-response",
+      `GitHub release data failed validation: ${parsed.error.message}`
+    );
+  }
+  return parsed.data;
+}
+
+function loadRecentReleasePayloads(): Promise<GitHubReleasePayload[]> {
+  const now = Date.now();
+  const fetcher = globalThis.fetch;
+  if (
+    recentReleaseLookupCache &&
+    recentReleaseLookupCache.fetcher === fetcher &&
+    recentReleaseLookupCache.expiresAt > now
+  ) {
+    return recentReleaseLookupCache.payloads;
+  }
+
+  const payloads = fetchRecentReleasePayloads();
+  recentReleaseLookupCache = {
+    fetcher,
+    expiresAt: now + RECENT_RELEASE_LOOKUP_TTL_MS,
+    payloads,
+  };
+  return payloads;
+}
+
+export async function loadChangelogReleaseByTag(tag: string): Promise<ChangelogReleaseLookup> {
+  if (
+    !tag ||
+    tag.length > MAX_RELEASE_TAG_LENGTH ||
+    tag !== tag.trim() ||
+    !releaseTagIsAtOrAfter(tag, CHANGELOG_CUTOFF_TAG)
+  ) {
+    return { status: "missing" };
+  }
+
+  try {
+    const payloads = await loadRecentReleasePayloads();
+    const releases = buildReleases(payloads);
+    const release = releases.find(candidate => candidate.version === tag);
+    return release ? { status: "found", release, releases } : { status: "missing" };
   } catch (error) {
     return { status: "unavailable", error: toLoadError(error) };
   }

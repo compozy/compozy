@@ -66,6 +66,19 @@ function BackgroundFrameHarness({
 }
 
 describe("OsWindowFrame", () => {
+  it("Should expose the zoom traffic light as pressed when the frame is zoomed", () => {
+    render(
+      <OsWindowFrame title="Tasks" zoomed onTrafficLight={vi.fn()}>
+        <p>Tasks content</p>
+      </OsWindowFrame>
+    );
+
+    expect(screen.getByRole("button", { name: "Zoom window" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    );
+  });
+
   it.each(CHROME_ACTIONS)(
     "Should dispatch background $action exactly once through a focus rerender",
     async ({ action, label }) => {

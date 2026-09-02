@@ -1,6 +1,7 @@
 import type { OsWindowFrameModel } from "./group-projection";
 import type { OsDesktopRuntimeStore, OsRect, WindowManagerController } from "./os-types";
 import { autoScrollDeckAtEdges, insertSlotAt, pointInsideDeck } from "./window-deck-geometry";
+import { windowVisualLayer } from "./window-visual-layer";
 import { windowManagerStore } from "../stores/window-manager-store";
 
 const HEAD_HIT_SLOP_TOP = 4;
@@ -44,7 +45,11 @@ function pointInRect(point: { x: number; y: number }, rect: OsRect): boolean {
   );
 }
 
-function highestFloatingLayerAtPoint(
+/**
+ * Highest visual layer under the pointer per desktop, counting floating frames
+ * and a zoomed unit: whatever sits below one of those cannot receive a drop.
+ */
+function highestCoveringLayerAtPoint(
   state: OsDesktopRuntimeStore,
   draggedWindowId: string,
   layerPoint: { x: number; y: number }
@@ -53,15 +58,16 @@ function highestFloatingLayerAtPoint(
   for (const [desktopId, frames] of Object.entries(state.frames)) {
     for (const frame of frames) {
       if (
-        frame.kind !== "floating" ||
+        (frame.kind !== "floating" && !frame.zoomed) ||
         frame.minimized ||
         frame.members.some(member => member === draggedWindowId) ||
         !pointInRect(layerPoint, frame.rect)
       ) {
         continue;
       }
+      const visual = windowVisualLayer(frame);
       const current = layers.get(desktopId);
-      if (current === undefined || frame.layer > current) layers.set(desktopId, frame.layer);
+      if (current === undefined || visual > current) layers.set(desktopId, visual);
     }
   }
   return layers;
@@ -98,12 +104,13 @@ function resolveMergeTarget(
       candidates.push({ registration, frame });
     }
   }
-  candidates.sort((left, right) => right.frame.layer - left.frame.layer);
-  const highestLayers = highestFloatingLayerAtPoint(state, gesture.source.windowId, layerPoint);
+  candidates.sort((left, right) => windowVisualLayer(right.frame) - windowVisualLayer(left.frame));
+  const highestLayers = highestCoveringLayerAtPoint(state, gesture.source.windowId, layerPoint);
 
   for (const { registration, frame } of candidates) {
     if (!pointCanReachFrameHead(layerPoint, frame.rect)) continue;
-    const covered = (highestLayers.get(frame.desktopId) ?? frame.layer) > frame.layer;
+    const visual = windowVisualLayer(frame);
+    const covered = (highestLayers.get(frame.desktopId) ?? visual) > visual;
     if (covered) continue;
     if (registration.kind === "deck") {
       const tabs = registration.getTabs();

@@ -110,8 +110,6 @@ const desktopSchema = z
     id: identifierSchema,
     name: z.string().trim().min(1),
     order: z.number().int().nonnegative(),
-    purpose: z.enum(["standard", "focus"]),
-    focus_owner: identifierSchema.optional(),
     groups: z.array(
       z
         .strictObject({
@@ -128,8 +126,6 @@ const desktopSchema = z
     id: desktop.id,
     name: desktop.name,
     order: desktop.order,
-    purpose: desktop.purpose,
-    focusOwner: desktop.focus_owner ?? null,
     groups: desktop.groups,
     floating: desktop.floating,
     floatingStacks: desktop.floating_stacks,
@@ -147,6 +143,7 @@ const layoutWindowSchema = z
     desktop_id: identifierSchema,
     floating_rect: normalizedRectSchema,
     minimized: z.boolean(),
+    zoomed: z.boolean(),
     return_anchor: z.unknown().optional(),
   })
   .transform(
@@ -161,13 +158,14 @@ const layoutWindowSchema = z
       desktopId: window.desktop_id,
       floatingRect: window.floating_rect,
       minimized: window.minimized,
+      zoomed: window.zoomed,
       returnAnchor: window.return_anchor ?? null,
     })
   );
 
 export const windowManagerLayoutDocumentSchema = z
   .strictObject({
-    version: z.literal(3),
+    version: z.literal(4),
     workspace_id: z.string(),
     desktops: z.array(desktopSchema).min(1),
     windows: z.record(z.string(), layoutWindowSchema),
@@ -366,8 +364,6 @@ export function windowManagerLayoutDocumentToWire(
       id: desktop.id,
       name: desktop.name,
       order: desktop.order,
-      purpose: desktop.purpose,
-      ...(desktop.focusOwner ? { focus_owner: desktop.focusOwner } : {}),
       groups: desktop.groups.map(group => ({
         id: group.id,
         frame: rectToWire(group.frame),
@@ -396,6 +392,7 @@ export function windowManagerLayoutDocumentToWire(
           desktop_id: window.desktopId,
           floating_rect: rectToWire(window.floatingRect),
           minimized: window.minimized,
+          zoomed: window.zoomed,
           ...(window.returnAnchor ? { return_anchor: window.returnAnchor } : {}),
         },
       ])

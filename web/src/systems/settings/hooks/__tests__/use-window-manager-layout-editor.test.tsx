@@ -21,15 +21,13 @@ import type {
 
 function documentWith(desktopName: string): WindowManagerLayoutDocument {
   return {
-    version: 3,
+    version: 4,
     workspaceId: "workspace-a",
     desktops: [
       {
         id: "desktop-one",
         name: desktopName,
         order: 0,
-        purpose: "standard",
-        focusOwner: null,
         floating: [],
         floatingStacks: [],
         groups: [
@@ -53,6 +51,7 @@ function documentWith(desktopName: string): WindowManagerLayoutDocument {
         desktopId: "desktop-one",
         floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },
         minimized: false,
+        zoomed: false,
         returnAnchor: null,
       },
     },

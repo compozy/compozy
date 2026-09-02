@@ -307,10 +307,11 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 		assertSchemaHasAdditionalProperties(t, propertySchema(t, groups.Items.Value, "root"), false)
 
 		for name, frameType := range map[string]string{
-			"WindowManagerSnapshotFrame": contract.WindowManagerFrameSnapshot,
-			"WindowManagerEventFrame":    contract.WindowManagerFrameEvent,
-			"WindowManagerClientFrame":   contract.WindowManagerFrameClient,
-			"WindowManagerErrorFrame":    contract.WindowManagerFrameError,
+			"WindowManagerSnapshotFrame":  contract.WindowManagerFrameSnapshot,
+			"WindowManagerEventFrame":     contract.WindowManagerFrameEvent,
+			"WindowManagerClientFrame":    contract.WindowManagerFrameClient,
+			"WindowManagerErrorFrame":     contract.WindowManagerFrameError,
+			"WindowManagerHeartbeatFrame": contract.WindowManagerFrameHeartbeat,
 		} {
 			frame := componentSchema(t, document, name)
 			assertEnumValues(t, propertySchema(t, frame, "type"), frameType)
@@ -323,8 +324,8 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			http.StatusSwitchingProtocols,
 			"application/json",
 		)
-		if len(streamResponse.OneOf) != 4 {
-			t.Fatalf("101 response frame variants = %d, want 4", len(streamResponse.OneOf))
+		if len(streamResponse.OneOf) != 5 {
+			t.Fatalf("101 response frame variants = %d, want 5", len(streamResponse.OneOf))
 		}
 		frameTypes := make([]string, 0, len(streamResponse.OneOf))
 		for _, variant := range streamResponse.OneOf {
@@ -346,6 +347,7 @@ func TestWindowManagerOpenAPIContract(t *testing.T) {
 			contract.WindowManagerFrameClient,
 			contract.WindowManagerFrameError,
 			contract.WindowManagerFrameEvent,
+			contract.WindowManagerFrameHeartbeat,
 			contract.WindowManagerFrameSnapshot,
 		}
 		if !slices.Equal(frameTypes, expectedFrameTypes) {

@@ -28,7 +28,6 @@ export interface DesktopOverviewWindow {
 export interface DesktopOverviewItem {
   id: string;
   name: string;
-  purpose: "standard" | "focus";
   /** A non-interactive thumbnail projected from the authoritative layout. */
   thumbnail: React.ReactNode;
   windows: readonly DesktopOverviewWindow[];

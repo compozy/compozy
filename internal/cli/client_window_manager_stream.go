@@ -134,7 +134,7 @@ func readWindowManagerFrames(
 	conn *websocket.Conn,
 	handlers WindowManagerStreamHandlers,
 ) error {
-	snapshotReceived := false
+	reader := windowManagerFrameReader{handlers: handlers}
 	for {
 		_, payload, err := conn.ReadMessage()
 		if err != nil {
@@ -143,58 +143,82 @@ func readWindowManagerFrames(
 			}
 			return fmt.Errorf("cli: read window-manager stream: %w", err)
 		}
-		var envelope struct {
-			Type string `json:"type"`
-		}
-		if err := json.Unmarshal(payload, &envelope); err != nil {
-			return fmt.Errorf("cli: decode window-manager frame: %w", err)
-		}
-		switch strings.TrimSpace(envelope.Type) {
-		case contract.WindowManagerFrameSnapshot:
-			if snapshotReceived {
-				return errors.New("cli: window-manager stream sent more than one snapshot")
-			}
-			var frame contract.WindowManagerSnapshotFrame
-			if err := json.Unmarshal(payload, &frame); err != nil {
-				return fmt.Errorf("cli: decode window-manager snapshot: %w", err)
-			}
-			snapshotReceived = true
-			if err := handlers.Snapshot(frame); err != nil {
-				return err
-			}
-		case contract.WindowManagerFrameEvent:
-			if !snapshotReceived {
-				return errors.New("cli: window-manager event arrived before snapshot")
-			}
-			var frame contract.WindowManagerEventFrame
-			if err := json.Unmarshal(payload, &frame); err != nil {
-				return fmt.Errorf("cli: decode window-manager event: %w", err)
-			}
-			if err := handlers.Event(frame); err != nil {
-				return err
-			}
-		case contract.WindowManagerFrameClient:
-			if !snapshotReceived {
-				return errors.New("cli: window-manager client frame arrived before snapshot")
-			}
-			if handlers.Client == nil {
-				return errors.New("cli: window-manager stream sent an unexpected client frame")
-			}
-			var frame contract.WindowManagerClientFrame
-			if err := json.Unmarshal(payload, &frame); err != nil {
-				return fmt.Errorf("cli: decode window-manager client frame: %w", err)
-			}
-			if err := handlers.Client(frame); err != nil {
-				return err
-			}
-		case contract.WindowManagerFrameError:
-			var frame contract.WindowManagerErrorFrame
-			if err := json.Unmarshal(payload, &frame); err != nil {
-				return fmt.Errorf("cli: decode window-manager error: %w", err)
-			}
-			return &windowManagerAPIError{statusCode: http.StatusConflict, payload: frame.Error}
-		default:
-			return fmt.Errorf("cli: unsupported window-manager frame %q", envelope.Type)
+		if err := reader.handle(payload); err != nil {
+			return err
 		}
 	}
+}
+
+// windowManagerFrameReader dispatches one stream frame at a time and enforces
+// the snapshot fence every later frame depends on.
+type windowManagerFrameReader struct {
+	handlers         WindowManagerStreamHandlers
+	snapshotReceived bool
+}
+
+func (r *windowManagerFrameReader) handle(payload []byte) error {
+	var envelope struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(payload, &envelope); err != nil {
+		return fmt.Errorf("cli: decode window-manager frame: %w", err)
+	}
+	switch strings.TrimSpace(envelope.Type) {
+	case contract.WindowManagerFrameSnapshot:
+		return r.handleSnapshot(payload)
+	case contract.WindowManagerFrameEvent:
+		if err := r.requireSnapshot("event"); err != nil {
+			return err
+		}
+		var frame contract.WindowManagerEventFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			return fmt.Errorf("cli: decode window-manager event: %w", err)
+		}
+		return r.handlers.Event(frame)
+	case contract.WindowManagerFrameClient:
+		return r.handleClient(payload)
+	case contract.WindowManagerFrameHeartbeat:
+		return r.requireSnapshot("heartbeat")
+	case contract.WindowManagerFrameError:
+		var frame contract.WindowManagerErrorFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			return fmt.Errorf("cli: decode window-manager error: %w", err)
+		}
+		return &windowManagerAPIError{statusCode: http.StatusConflict, payload: frame.Error}
+	default:
+		return fmt.Errorf("cli: unsupported window-manager frame %q", envelope.Type)
+	}
+}
+
+func (r *windowManagerFrameReader) requireSnapshot(kind string) error {
+	if r.snapshotReceived {
+		return nil
+	}
+	return fmt.Errorf("cli: window-manager %s arrived before snapshot", kind)
+}
+
+func (r *windowManagerFrameReader) handleSnapshot(payload []byte) error {
+	if r.snapshotReceived {
+		return errors.New("cli: window-manager stream sent more than one snapshot")
+	}
+	var frame contract.WindowManagerSnapshotFrame
+	if err := json.Unmarshal(payload, &frame); err != nil {
+		return fmt.Errorf("cli: decode window-manager snapshot: %w", err)
+	}
+	r.snapshotReceived = true
+	return r.handlers.Snapshot(frame)
+}
+
+func (r *windowManagerFrameReader) handleClient(payload []byte) error {
+	if err := r.requireSnapshot("client frame"); err != nil {
+		return err
+	}
+	if r.handlers.Client == nil {
+		return errors.New("cli: window-manager stream sent an unexpected client frame")
+	}
+	var frame contract.WindowManagerClientFrame
+	if err := json.Unmarshal(payload, &frame); err != nil {
+		return fmt.Errorf("cli: decode window-manager client frame: %w", err)
+	}
+	return r.handlers.Client(frame)
 }

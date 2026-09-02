@@ -189,7 +189,7 @@ func TestCmdPaletteDaemonIntegration(t *testing.T) {
 		if _, err := manager.Execute(t.Context(), windowmanager.CommandRequest{
 			WorkspaceID: "workspace-acme", ExpectedRevision: 1,
 			Payload: windowmanager.CreateDesktopCommand{
-				DesktopID: "desktop-empty", Name: "Empty", Purpose: windowmanager.DesktopPurposeStandard,
+				DesktopID: "desktop-empty", Name: "Empty",
 			},
 		}); err != nil {
 			t.Fatalf("Execute(desktop.create) error = %v", err)

@@ -20,7 +20,6 @@ func cloneDesktops(desktops []Desktop) []Desktop {
 }
 
 func cloneDesktop(desktop Desktop) Desktop {
-	desktop.FocusOwner = clonePointer(desktop.FocusOwner)
 	sourceGroups := desktop.Groups
 	desktop.Groups = make([]LayoutGroup, len(sourceGroups))
 	for index, group := range sourceGroups {

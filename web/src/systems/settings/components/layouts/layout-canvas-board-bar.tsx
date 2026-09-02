@@ -1,5 +1,3 @@
-import { Pill } from "@compozy/ui";
-
 import { LAYOUT_CANVAS_REFERENCE } from "../../lib/window-manager-layout-reference";
 import { layoutWindowFace } from "../../lib/window-manager-layout-window-face";
 import type {
@@ -25,7 +23,9 @@ const REFERENCE_LABEL = `${LAYOUT_CANVAS_REFERENCE.w} × ${LAYOUT_CANVAS_REFEREN
 export function LayoutCanvasBoardBar({ document, desktop, projection }: LayoutCanvasBoardBarProps) {
   const floating = desktop.floating.filter(id => document.windows[id]?.minimized === false).length;
   const minimized = desktop.floating.filter(id => document.windows[id]?.minimized === true).length;
-  const focusOwner = desktop.focusOwner ? document.windows[desktop.focusOwner] : undefined;
+  const zoomed = Object.values(document.windows).filter(
+    window => window.desktopId === desktop.id && window.zoomed && !window.minimized
+  ).length;
   const notes = fitNotes(document, projection.diagnostics);
 
   return (
@@ -34,13 +34,8 @@ export function LayoutCanvasBoardBar({ document, desktop, projection }: LayoutCa
         <span>{projection.windows.length} tiled</span>
         <span>{floating} floating</span>
         {minimized > 0 ? <span>{minimized} minimized</span> : null}
+        {zoomed > 0 ? <span className="eyebrow">{zoomed} zoomed</span> : null}
         <span className="flex-1" />
-        {desktop.purpose === "focus" ? (
-          <Pill size="xs" tone="info">
-            Focus desktop
-            {focusOwner ? ` · ${layoutWindowFace(focusOwner, focusOwner.id).title}` : ""}
-          </Pill>
-        ) : null}
         <span className="font-mono text-badge text-faint">{REFERENCE_LABEL} reference</span>
       </div>
       {notes.length > 0 ? (

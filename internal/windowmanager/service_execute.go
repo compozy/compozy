@@ -13,7 +13,7 @@ func (m *Manager) executeDurable(
 	commandID CommandID,
 	rebasedFrom *Revision,
 ) (Result, error) {
-	working, reduced, workspaceDefaults, err := m.reduceDurable(ctx, snapshot, request, commandID)
+	working, reduced, workspaceDefaults, err := m.reduceDurable(ctx, snapshot, request)
 	if err != nil {
 		return Result{}, err
 	}
@@ -39,7 +39,7 @@ func (m *Manager) executeDurable(
 			return Result{}, err
 		}
 	}
-	projection, err := m.projectClientViews(request.WorkspaceID, snapshot, working, request)
+	projection, err := m.projectClientViews(request.WorkspaceID, working, request)
 	if err != nil {
 		return Result{}, err
 	}
@@ -89,9 +89,8 @@ func (m *Manager) reduceDurable(
 	ctx context.Context,
 	snapshot Snapshot,
 	request CommandRequest,
-	commandID CommandID,
 ) (Snapshot, reduction, Config, error) {
-	client, err := m.clientForRequest(request, commandID)
+	client, err := m.clientForRequest(request)
 	if err != nil {
 		return Snapshot{}, reduction{}, Config{}, err
 	}

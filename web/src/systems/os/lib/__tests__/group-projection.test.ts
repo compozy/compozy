@@ -5,7 +5,7 @@
 // Boundary OUT: React rendering and pixel work-area measurement.
 import { describe, expect, it } from "vitest";
 
-import { buildDesktopFrames, frameForWindow } from "../group-projection";
+import { buildDesktopFrames, zoomedFrame, frameForWindow } from "../group-projection";
 import { projectLayout } from "../layout-projection";
 import type {
   LayoutDesktop,
@@ -33,6 +33,7 @@ function windowFixture(
     desktopId,
     floatingRect: { x: 0.1, y: 0.1, w: 0.4, h: 0.4 },
     minimized: false,
+    zoomed: false,
     returnAnchor: null,
     ...overrides,
   };
@@ -57,7 +58,7 @@ function snapshotFixture(
   windows: WindowManagerWindow[]
 ): WindowManagerSnapshot {
   return {
-    version: 3,
+    version: 4,
     workspaceId: "workspace:test",
     revision: 4,
     desktops,
@@ -91,8 +92,6 @@ describe("buildDesktopFrames", () => {
       id: "desktop:a",
       name: "A",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       groups: [],
       floating: ["w-solo"],
       floatingStacks: [
@@ -121,6 +120,7 @@ describe("buildDesktopFrames", () => {
       client,
       projections: projections(snapshot, client),
       workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: true,
     });
 
@@ -140,6 +140,7 @@ describe("buildDesktopFrames", () => {
       client: clientFixture(),
       projections: projections(snapshot, clientFixture()),
       workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: true,
     });
     expect(durable["desktop:a"]?.find(frame => frame.id === "fs-1")?.activeWindowId).toBe("w-2");
@@ -150,8 +151,6 @@ describe("buildDesktopFrames", () => {
       id: "desktop:a",
       name: "A",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       groups: [],
       floating: [],
       floatingStacks: [
@@ -177,6 +176,7 @@ describe("buildDesktopFrames", () => {
       client: null,
       projections: projections(snapshot, null),
       workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: false,
     });
 
@@ -188,8 +188,6 @@ describe("buildDesktopFrames", () => {
       id: "desktop:a",
       name: "A",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       groups: [],
       floating: ["w-solo"],
       floatingStacks: [
@@ -217,6 +215,7 @@ describe("buildDesktopFrames", () => {
       client,
       projections: projections(snapshot, client),
       workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: true,
     });
 
@@ -255,8 +254,6 @@ describe("buildDesktopFrames", () => {
         id: desktopId,
         name: `D${desktopIndex}`,
         order: desktopIndex,
-        purpose: "standard",
-        focusOwner: null,
         groups: [],
         floating: soloIds,
         floatingStacks,
@@ -279,6 +276,7 @@ describe("buildDesktopFrames", () => {
       client: { ...client, focusOrder: countingFocusOrder },
       projections: {},
       workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: true,
     });
 
@@ -302,8 +300,6 @@ describe("frameForWindow", () => {
       id: "desktop:a",
       name: "A",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       groups: [],
       floating: [],
       floatingStacks: [
@@ -328,10 +324,95 @@ describe("frameForWindow", () => {
       client: null,
       projections: {},
       workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
       raiseOnFocus: false,
     });
 
     expect(frameForWindow(frames, "w-2")?.id).toBe("fs-1");
     expect(frameForWindow(frames, "w-missing")).toBeNull();
+  });
+});
+
+describe("zoomed frames", () => {
+  it("Should give the zoomed unit the whole layout area and leave its neighbours in place", () => {
+    const desktop: LayoutDesktop = {
+      id: "desktop:a",
+      name: "A",
+      order: 0,
+      groups: [
+        {
+          id: "group:a",
+          frame: { x: 0, y: 0, w: 1, h: 1 },
+          root: {
+            id: "split:a",
+            kind: "split",
+            axis: "horizontal",
+            weights: [0.5, 0.5],
+            children: [
+              { id: "leaf:tasks", kind: "leaf", windowId: "w-tasks" },
+              { id: "leaf:settings", kind: "leaf", windowId: "w-settings" },
+            ],
+          },
+        },
+      ],
+      floating: ["w-float"],
+      floatingStacks: [],
+    };
+    const snapshot = snapshotFixture(
+      [desktop],
+      [
+        windowFixture("w-tasks", "desktop:a", { placement: "tiled", zoomed: true }),
+        windowFixture("w-settings", "desktop:a", { placement: "tiled" }),
+        windowFixture("w-float", "desktop:a"),
+      ]
+    );
+    const client = clientFixture();
+    const gaps = { inner: 8, top: 0, right: 0, bottom: 0, left: 0 };
+    const frames = buildDesktopFrames({
+      snapshot,
+      client,
+      projections: projections(snapshot, client),
+      workArea: WORK_AREA,
+      gaps,
+      raiseOnFocus: true,
+    });
+    const desktopFrames = frames["desktop:a"] ?? [];
+    const zoomed = zoomedFrame(desktopFrames);
+    expect(zoomed?.id).toBe("w-tasks");
+    expect(zoomed?.rect).toEqual({ x: 0, y: 0, w: WORK_AREA.w, h: WORK_AREA.h });
+    expect(zoomed?.resizableEdges).toEqual({
+      left: false,
+      right: false,
+      top: false,
+      bottom: false,
+    });
+    const settings = desktopFrames.find(frame => frame.id === "w-settings");
+    expect(settings?.zoomed).toBe(false);
+    expect(settings?.rect.x).toBeGreaterThan(WORK_AREA.w / 2 - 20);
+    expect(desktopFrames.find(frame => frame.id === "w-float")?.zoomed).toBe(false);
+  });
+
+  it("Should not zoom a minimized window even when its flag is set", () => {
+    const desktop: LayoutDesktop = {
+      id: "desktop:a",
+      name: "A",
+      order: 0,
+      groups: [],
+      floating: ["w-min"],
+      floatingStacks: [],
+    };
+    const snapshot = snapshotFixture(
+      [desktop],
+      [windowFixture("w-min", "desktop:a", { minimized: true, zoomed: true })]
+    );
+    const frames = buildDesktopFrames({
+      snapshot,
+      client: null,
+      projections: projections(snapshot, null),
+      workArea: WORK_AREA,
+      gaps: { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
+      raiseOnFocus: false,
+    });
+    expect(zoomedFrame(frames["desktop:a"])).toBeNull();
   });
 });

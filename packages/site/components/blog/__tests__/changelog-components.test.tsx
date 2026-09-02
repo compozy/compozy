@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import ChangelogReleasePage from "@/app/changelog/[version]/page";
+import ChangelogReleasePage, { generateMetadata } from "@/app/changelog/[version]/page";
 import type { ChangelogRelease } from "@/lib/changelog/types";
 import type { AnchorHTMLAttributes, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ import { ReleaseEntry } from "../release-entry";
 import { ReleaseMarkdown } from "../release-markdown";
 
 const changelogClient = vi.hoisted(() => ({
+  loadChangelogReleaseByTag: vi.fn(),
   loadChangelogReleases: vi.fn(),
   loadReleasePullRequests: vi.fn(),
 }));
@@ -50,6 +51,56 @@ function release(version: string, overrides: Partial<ChangelogRelease> = {}): Ch
 }
 
 describe("changelog public components", () => {
+  it("renders an exact release lookup when the cached collection is behind", async () => {
+    const current = release("v0.3.0-beta.22");
+    const predecessor = release("v0.3.0-beta.21");
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({
+      status: "ready",
+      releases: [release("v0.3.0-beta.20")],
+    });
+    changelogClient.loadChangelogReleaseByTag.mockResolvedValueOnce({
+      status: "found",
+      release: current,
+      releases: [current, predecessor, release("v0.3.0-beta.20")],
+    });
+    changelogClient.loadReleasePullRequests.mockResolvedValueOnce({
+      status: "ready",
+      pullRequests: [],
+      contributors: [],
+      missingNumbers: [],
+    });
+
+    render(await ChangelogReleasePage({ params: Promise.resolve({ version: "v0.3.0-beta.22" }) }));
+
+    expect(screen.getByRole("heading", { name: "v0.3.0-beta.22" })).toBeDefined();
+    expect(
+      screen
+        .getByRole("button", { name: "Compare v0.3.0-beta.22 with v0.3.0-beta.21 on GitHub" })
+        .getAttribute("href")
+    ).toBe("https://github.com/compozy/compozy/compare/v0.3.0-beta.21...v0.3.0-beta.22");
+  });
+
+  it("keeps a genuinely missing exact release on the not-found path", async () => {
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({ status: "ready", releases: [] });
+    changelogClient.loadChangelogReleaseByTag.mockResolvedValueOnce({ status: "missing" });
+
+    await expect(
+      ChangelogReleasePage({ params: Promise.resolve({ version: "v0.3.0-beta.99" }) })
+    ).rejects.toThrow("NEXT_HTTP_ERROR_FALLBACK;404");
+  });
+
+  it("does not describe an unavailable changelog lookup as a missing release", async () => {
+    changelogClient.loadChangelogReleases.mockResolvedValueOnce({ status: "ready", releases: [] });
+    changelogClient.loadChangelogReleaseByTag.mockResolvedValueOnce({
+      status: "unavailable",
+      error: { kind: "github-response", message: "GitHub returned 500", status: 500 },
+    });
+
+    await expect(
+      generateMetadata({ params: Promise.resolve({ version: "v0.3.0-beta.22" }) })
+    ).rejects.toThrow("GitHub changelog is unavailable: GitHub returned 500");
+  });
+
   it("compares a release with its semantic predecessor when a backport was published later", async () => {
     changelogClient.loadChangelogReleases.mockResolvedValueOnce({
       status: "ready",

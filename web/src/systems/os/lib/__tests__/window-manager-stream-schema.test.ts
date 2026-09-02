@@ -59,7 +59,7 @@ function snapshotFrame() {
     workspace_id: "workspace:test",
     revision: 4,
     snapshot: {
-      version: 3,
+      version: 4,
       workspace_id: "workspace:test",
       revision: 4,
       desktops: [
@@ -67,7 +67,6 @@ function snapshotFrame() {
           id: "desktop:main",
           name: "Main",
           order: 0,
-          purpose: "standard",
           groups: [],
           floating: [],
           floating_stacks: [],

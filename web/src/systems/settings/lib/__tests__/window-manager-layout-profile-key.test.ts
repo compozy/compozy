@@ -20,7 +20,7 @@ function record(scope: "global" | "workspace"): WindowManagerLayoutResourceRecor
       participantSlots: [],
       overflowPolicy: "stack",
       document: {
-        version: 3,
+        version: 4,
         workspaceId: "workspace-a",
         desktops: [],
         windows: {},

@@ -48,8 +48,6 @@ export interface WindowManagerLayoutDesktop {
   id: string;
   name: string;
   order: number;
-  purpose: "standard" | "focus";
-  focusOwner: string | null;
   groups: WindowManagerLayoutGroup[];
   floating: string[];
   floatingStacks: WindowManagerLayoutFloatingStack[];
@@ -72,11 +70,12 @@ export interface WindowManagerLayoutWindow {
   desktopId: string;
   floatingRect: WindowManagerNormalizedRect;
   minimized: boolean;
+  zoomed: boolean;
   returnAnchor: unknown | null;
 }
 
 export interface WindowManagerLayoutDocument {
-  version: 3;
+  version: 4;
   workspaceId: string;
   desktops: WindowManagerLayoutDesktop[];
   windows: Record<string, WindowManagerLayoutWindow>;

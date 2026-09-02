@@ -644,6 +644,23 @@ func TestFrameResize(t *testing.T) {
 }
 
 func TestWindowResize(t *testing.T) {
+	t.Run("Should persist zoom teardown when the requested frame is unchanged", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "w1"})
+
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: "w1", Frame: fullRect(),
+		})
+
+		window := result.Snapshot.Windows["w1"]
+		if window.Zoomed || window.ReturnAnchor != nil {
+			t.Fatalf("no-op resize left zoom state behind: %+v", window)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
 	t.Run("Should resize floating windows and floating stacks by their frame unit", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
@@ -954,4 +971,117 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 			t.Fatal("invalid open command wrote a commit")
 		}
 	})
+}
+
+func TestArrangeDisplacesIslands(t *testing.T) {
+	t.Run("Should end zoom on open and shrink its island when the new window tiles to the edge", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: fullRect(), GroupID: "island",
+		})
+		clientID := ClientID("client-a")
+		registerTestClient(t, environment.manager, "workspace-a", clientID)
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID, ZoomWindowCommand{WindowID: "w1"})
+		opened := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		if w1 := opened.Snapshot.Windows["w1"]; w1.Zoomed || w1.ReturnAnchor != nil {
+			t.Fatalf("opening a visible peer left the prior window zoomed: %+v", w1)
+		}
+		tiled := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1},
+			GroupID: "left",
+		})
+		if len(tiled.Snapshot.Desktops) != 1 {
+			t.Fatalf("edge tile beside the former zoom island changed desktops: %+v", tiled.Snapshot.Desktops)
+		}
+		groups := tiled.Snapshot.Desktops[0].Groups
+		if len(groups) != 2 {
+			t.Fatalf("groups after edge tile = %+v", groups)
+		}
+		island := groups[0]
+		if !containsWindowID(nodeWindowIDs(island.Root), "w1") ||
+			island.Frame != (NormalizedRect{X: 0.5, Y: 0, Width: 0.5, Height: 1}) {
+			t.Fatalf("displaced island = %+v", island)
+		}
+		if w1 := tiled.Snapshot.Windows["w1"]; w1.Zoomed || w1.Placement != WindowPlacementTiled {
+			t.Fatalf("edge tile left the zoomed window = %+v", w1)
+		}
+		if !containsGroupID(tiled.Changes.GroupIDs, island.ID) {
+			t.Fatalf("displaced island missing from changes: %v", tiled.Changes.GroupIDs)
+		}
+		requireValidSnapshot(t, tiled.Snapshot)
+	})
+
+	t.Run("Should keep the larger band when a corner tile cuts an island", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.6, Height: 1},
+			GroupID: "island",
+		})
+		tiled := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 0.5},
+			GroupID: "corner",
+		})
+		island := tiled.Snapshot.Desktops[0].Groups[0]
+		if island.Frame != (NormalizedRect{X: 0, Y: 0.5, Width: 0.6, Height: 0.5}) {
+			t.Fatalf("corner cut kept the wrong band: %+v", island.Frame)
+		}
+		requireValidSnapshot(t, tiled.Snapshot)
+	})
+
+	t.Run("Should let an island's own windows re-arrange into a frame that covers it", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1", "w2"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0.3, Width: 1, Height: 0.7},
+			GroupID: "band",
+		})
+		rearranged := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1", "w2"},
+			Arrangement: ArrangementVertical, Frame: fullRect(), GroupID: "full",
+		})
+		groups := rearranged.Snapshot.Desktops[0].Groups
+		if len(groups) != 1 || groups[0].ID != "full" || groups[0].Frame != fullRect() {
+			t.Fatalf("groups after re-arranging the island's own windows = %+v", groups)
+		}
+		requireValidSnapshot(t, rearranged.Snapshot)
+	})
+
+	t.Run("Should reject an arrangement that swallows an island whole", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w2", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: "desktop-default", WindowIDs: []WindowID{"w1"},
+			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0.25, Y: 0.25, Width: 0.5, Height: 0.5},
+			GroupID: "island",
+		})
+		snapshot := mustSnapshot(t, environment.manager, "workspace-a")
+		_, err := environment.manager.Execute(t.Context(), CommandRequest{
+			WorkspaceID: "workspace-a", CommandID: CommandLayoutArrange, ExpectedRevision: snapshot.Revision,
+			Payload: ArrangeLayoutCommand{
+				DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
+				Arrangement: ArrangementHorizontal, Frame: fullRect(), GroupID: "cover",
+			},
+		})
+		if !errors.Is(err, ErrInvalidCommand) {
+			t.Fatalf("Execute(covering arrange) error = %v, want ErrInvalidCommand", err)
+		}
+	})
+}
+
+func containsGroupID(values []GroupID, target GroupID) bool {
+	return slices.Contains(values, target)
 }

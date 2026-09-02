@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability index · set map for the seven boards named in
+  .compozy/tasks/sessions-stability/_uiux.md (S1–S10). Contract: DESIGN-NOTES.md.
+  Every board opens with the same three-column block: what it is · production components it
+  changes · states with their Visual Contract ids. Specimens carry numbered callouts + a legend.
+-->
+<style>
+  body{background:var(--canvas);overflow-y:auto}
+  .hub{max-width:1040px;margin:0 auto;padding:52px 36px 80px}
+  .hub h1{font-size:22px;font-weight:600;letter-spacing:var(--track-detail);color:var(--fg-strong)}
+  .hub__lede{margin-top:10px;font-size:var(--text-small-body);line-height:1.6;color:var(--muted);max-width:72ch;text-wrap:pretty}
+  .hub__lede code{font-family:var(--font-mono);font-size:11.5px;color:var(--subtle)}
+  .hub__grp{margin-top:36px}
+  .hub__grp-t{font-size:12px;font-weight:510;color:var(--subtle);padding-bottom:10px}
+  .matrix{width:100%;border-collapse:collapse;font-size:12px}
+  .matrix th{text-align:left;font-size:var(--text-eyebrow-caps);font-weight:600;text-transform:uppercase;letter-spacing:var(--track-caps);color:var(--subtle);padding:8px 10px;border-bottom:1px solid var(--line)}
+  .matrix td{padding:9px 10px;border-bottom:1px solid var(--line-soft);vertical-align:top;color:var(--muted);line-height:1.5}
+  .matrix td:first-child{font-family:var(--font-mono);color:var(--faint);white-space:nowrap}
+  .matrix td a{color:var(--fg);font-weight:510}
+  .matrix td a:hover{color:var(--fg-strong);text-decoration:underline;text-underline-offset:2px}
+  .matrix .comp{font-family:var(--font-mono);font-size:10.5px;color:var(--subtle);letter-spacing:0}
+  .matrix .vc{font-family:var(--font-mono);font-size:10px;color:var(--faint);white-space:nowrap}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{display:flex;flex-direction:column;gap:5px;padding:14px 16px;border:1px solid var(--line);border-radius:var(--radius-lg);background:var(--canvas-soft);transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+  a.card:hover{border-color:var(--line-strong);background:var(--elevated)}
+  a.card:focus-visible{outline:none;box-shadow:var(--focus-ring)}
+  .card__top{display:flex;align-items:center;gap:8px}
+  .card__name{font-size:13.5px;font-weight:560;color:var(--fg-strong)}
+  .card__file{margin-left:auto;font-family:var(--font-mono);font-size:9.5px;color:var(--faint)}
+  .card__sub{font-size:12px;line-height:1.5;color:var(--muted)}
+  .card__mods{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+  .howto{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .howto div{padding:12px 14px;border-radius:var(--radius-md);background:var(--canvas-soft);border:1px solid var(--line-soft);font-size:12px;line-height:1.55;color:var(--muted)}
+  .howto b{display:block;font-size:12px;color:var(--fg-strong);font-weight:600;margin-bottom:3px}
+  .foot{margin-top:40px;padding-top:16px;border-top:1px solid var(--line);font-size:11.5px;line-height:1.6;color:var(--faint);max-width:72ch}
+  @media (max-width:760px){.cards,.howto{grid-template-columns:1fr}.hub{padding:36px 20px 64px}.matrix .comp{display:none}}
+</style>
+</head>
+<body>
+<div class="hub" data-od-id="ss-index">
+  <h1 data-od-id="ss-index-title">Sessions stability</h1>
+  <p class="hub__lede">Seven boards for <code>.compozy/tasks/sessions-stability/_uiux.md</code> (S1–S10). The session window learns to tell the truth while an agent works: one control that is Send, Stop, or “Stopping…”; a queue you can see and edit; a status line that says what is happening and for how long; a chip when the live view is degraded; a transcript that reads as a story instead of a log; find and a message trail for long runs; two settings. Every board opens with <b>what it is</b>, <b>which production components it changes</b>, and <b>the states it covers with their Visual Contract ids</b>. The semantic contract is <a href="DESIGN-NOTES.md" style="text-decoration:underline;color:var(--muted)"><span class="mono">DESIGN-NOTES.md</span></a>.</p>
+
+  <div class="hub__grp" data-od-id="ss-index-howto">
+    <div class="hub__grp-t">How to read a board</div>
+    <div class="howto">
+      <div><b>1 · Contract block</b>Three columns at the top: the surface in plain words · the production files it modifies, adds, deletes, or reuses unchanged · the states on the page, each linked, each with its VC id.</div>
+      <div><b>2 · Specimen + callouts</b>Every specimen is a production-geometry session window or a flush component. Inverted numbered markers point at the element; the legend under it names the component, the token values, and the authority (production · spec · delta).</div>
+      <div><b>3 · Tags</b>The mono tag strip under each specimen: <span class="mono">state</span> · <span class="mono">component</span> · <span class="mono">VC</span> · <span class="mono">tone / accent</span> budget. Grep a VC id to find its specimen.</div>
+    </div>
+  </div>
+
+  <div class="hub__grp" data-od-id="ss-index-matrix">
+    <div class="hub__grp-t">Surface → board → components</div>
+    <table class="matrix">
+      <thead><tr><th>S#</th><th>Surface</th><th>Board</th><th>Production components</th><th>VC rows</th></tr></thead>
+      <tbody>
+        <tr><td>S1</td><td>Composer &amp; primary actions</td><td><a href="sessions-stability-composer.html">Composer</a></td><td><span class="comp">modify SessionComposer · SessionComposerActionRow · sessionBusyInputLogic · useSessionPageControls · delete remount key · new badge <code>stopping</code></span></td><td class="vc">task_01 VC-01..05 · task_02 VC-01..02</td></tr>
+        <tr><td>S2</td><td>Queue strip</td><td><a href="sessions-stability-queue.html">Queue strip</a></td><td><span class="comp">new SessionQueueStrip (replaces SessionComposerQueuedPrompts) · modify SessionComposer · useSessionPageControls · RuntimeActivityNotice</span></td><td class="vc">task_03 VC-01..06</td></tr>
+        <tr><td>S3</td><td>Working &amp; thinking row</td><td><a href="sessions-stability-working.html">Working row</a></td><td><span class="comp">new SessionThinkingRow (replaces WorkingIndicator) · modify AssistantMessage · notice slot · formatElapsed</span></td><td class="vc">task_05 VC-01 · task_07 VC-10..12</td></tr>
+        <tr><td>S4</td><td>Connection &amp; sync state</td><td><a href="sessions-stability-connection.html">Connection</a></td><td><span class="comp">new SessionTransportChip · modify useSessionTopbarSlot · ThreadStatePane · useSessionRuntimeExtensions · SessionComposer · useSessionWindowSidebar</span></td><td class="vc">task_06 VC-01..05</td></tr>
+        <tr><td>S5 · S6 · S7</td><td>Transcript timeline · scroll · streaming</td><td><a href="sessions-stability-timeline.html">Timeline</a></td><td><span class="comp">new SessionLiveToolRow · SessionToolGroupRow · SessionTurnFoldRow · modify AssistantMessageTimeline · ToolCallStatusIcon · useThreadScrollController · MessageMarkdown host · SessionUserMessage</span></td><td class="vc">task_07 VC-01..09</td></tr>
+        <tr><td>S8 · S9</td><td>Find in conversation · message trail</td><td><a href="sessions-stability-find-trail.html">Find &amp; trail</a></td><td><span class="comp">new SessionFindBar · SessionMessageTrail · lib/transcript-find · lib/message-trail · modify SessionThreadViewport · useThreadScrollController · SessionTurnFoldRow</span></td><td class="vc">task_08 VC-01..05</td></tr>
+        <tr><td>S10</td><td>Session settings</td><td><a href="sessions-stability-settings.html">Settings</a></td><td><span class="comp">new SessionsSettingsSection · useSmoothStreamingPreference · modify settings navigation · config read-model</span></td><td class="vc">task_01 VC-06</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="hub__grp" data-od-id="ss-index-boards">
+    <div class="hub__grp-t">Boards — read in this order</div>
+    <div class="cards">
+      <a class="card" href="sessions-stability-composer.html" data-od-id="card-composer">
+        <span class="card__top"><span class="card__name">01 · Composer &amp; primary actions</span><span class="card__file">sessions-stability-composer.html</span></span>
+        <span class="card__sub">One disc: Send ↔ Stop ↔ Stopping…; Enter steers, ⌘⏎ queues; six disposition notes; refusals give the draft back; stopped confirmed with cause; the unverified stop; a live morph demo with the double-click guard.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--modify">modify ×4</span><span class="ss-mod ss-mod--delete">delete ×1</span><span class="ss-mod ss-mod--new">new ×1</span></span>
+      </a>
+      <a class="card" href="sessions-stability-queue.html" data-od-id="card-queue">
+        <span class="card__top"><span class="card__name">02 · Queue strip</span><span class="card__file">sessions-stability-queue.html</span></span>
+        <span class="card__sub">Header with count + Clear all; positions, owners, dispatching, the browser-only “not confirmed” row with Retry; queue full; inline clear confirm and per-entry traces; interrupt keeps the queue.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--new">new ×1</span><span class="ss-mod ss-mod--delete">delete ×1</span><span class="ss-mod ss-mod--modify">modify ×3</span></span>
+      </a>
+      <a class="card" href="sessions-stability-working.html" data-od-id="card-working">
+        <span class="card__top"><span class="card__name">03 · Working &amp; thinking row</span><span class="card__file">sessions-stability-working.html</span></span>
+        <span class="card__sub">“Thinking…” with no empty bubble; “Working for 2m 14s · Running shell”; still working with 2 agents; “Stopped after…”; the quiet warning on the session; the timer across a reconnect; failure before content.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--new">new ×1</span><span class="ss-mod ss-mod--delete">delete ×1</span><span class="ss-mod ss-mod--modify">modify ×3</span></span>
+      </a>
+      <a class="card" href="sessions-stability-connection.html" data-od-id="card-connection">
+        <span class="card__top"><span class="card__name">04 · Connection &amp; sync state</span><span class="card__file">sessions-stability-connection.html</span></span>
+        <span class="card__sub">Chip absent while live and during the 2s grace; Reconnecting · n; Catching up and the history-reset note; sync failed as a sentence + Try again; the disconnected send guard; a paused background window; the phase dictionary.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--new">new ×1</span><span class="ss-mod ss-mod--modify">modify ×5</span></span>
+      </a>
+      <a class="card" href="sessions-stability-timeline.html" data-od-id="card-timeline">
+        <span class="card__top"><span class="card__name">05 · Transcript timeline</span><span class="card__file">sessions-stability-timeline.html</span></span>
+        <span class="card__sub">S5 + S6 + S7. One live tool row, completed-tools group, settled folds, interrupted-open, steer markers, late output, giant payloads, the two-axis tool dictionary, scroll ownership drawn on the window, and a streaming demo with smooth / off / reduced motion.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--new">new ×3</span><span class="ss-mod ss-mod--modify">modify ×5</span></span>
+      </a>
+      <a class="card" href="sessions-stability-find-trail.html" data-od-id="card-find-trail">
+        <span class="card__top"><span class="card__name">06 · Find &amp; message trail</span><span class="card__file">sessions-stability-find-trail.html</span></span>
+        <span class="card__sub">S8 + S9. The docked find bar with a result list and in-text marks; no matches; jumps that open folds; searching older history; the 2px trail with hover cards, a 60-tick compression, jumped and streaming states; keyboard.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--new">new ×3</span><span class="ss-mod ss-mod--modify">modify ×4</span></span>
+      </a>
+      <a class="card" href="sessions-stability-settings.html" data-od-id="card-settings">
+        <span class="card__top"><span class="card__name">07 · Session settings</span><span class="card__file">sessions-stability-settings.html</span></span>
+        <span class="card__sub">Settings → Sessions: Follow-up behavior (daemon-owned, steer | queue) and Smooth streaming (this browser); both values; saving and write-failed; the same default across composer, CLI, and config.toml.</span>
+        <span class="card__mods"><span class="ss-mod ss-mod--new">new ×2</span><span class="ss-mod ss-mod--modify">modify ×2</span></span>
+      </a>
+    </div>
+  </div>
+
+  <p class="foot">Tokens from <span class="mono">packages/ui/src/tokens.css</span> through <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> (post-#440 parity, unmodified); domain lane <span class="mono">sessions-stability.css</span>, every class named after the production component it renders. Explored first: <span class="mono">.resources/t3code · orca · synara</span> (the 19 references in <span class="mono">_uiux.md</span>), <span class="mono">packages/ui/src/index.ts</span>, and <span class="mono">web/src/components/assistant-ui + systems/session</span>. Fixture: <span class="mono">dev-loop · Claude Code · t_9f2 · inp_4d8/4e1 · reviewer · scout</span>. Content illustrative; runtime truth owns values. Iterate — never regenerate a delivered board.</p>
+</div>
+</body>
+</html>

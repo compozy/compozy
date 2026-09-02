@@ -47,6 +47,7 @@ func (r *reducer) groupWindows(snapshot *Snapshot, command GroupWindowsCommand) 
 		window.DesktopID = target.DesktopID
 		window.Placement = WindowPlacementStacked
 		window.Minimized = false
+		window.Zoomed = false
 		window.ReturnAnchor = nil
 		snapshot.Windows[windowID] = window
 		r.changes.window(windowID)

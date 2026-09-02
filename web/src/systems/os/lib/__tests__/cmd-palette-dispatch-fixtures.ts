@@ -31,6 +31,7 @@ export function frameFixture(overrides: Partial<OsWindowFrameModel> = {}): OsWin
     activeWindowId: "w-2",
     stackId: "fs-1",
     minimized: false,
+    zoomed: false,
     adapted: false,
     layer: 1,
     zone: null,

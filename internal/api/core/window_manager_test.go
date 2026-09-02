@@ -978,7 +978,7 @@ func createDesktopCommandBody(workspaceID string, revision uint64, desktopID str
 	return fmt.Sprintf(
 		`{"workspace_id":%q,"command_id":"desktop.create","expected_revision":%d,`+
 			`"actor":{"kind":"test","id":"actor"},"origin":"core-test",`+
-			`"payload":{"desktop_id":%q,"name":"Second","purpose":"standard"}}`,
+			`"payload":{"desktop_id":%q,"name":"Second"}}`,
 		workspaceID,
 		revision,
 		desktopID,
