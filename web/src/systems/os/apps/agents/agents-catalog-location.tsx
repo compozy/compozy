@@ -10,58 +10,39 @@ export function AgentsCatalogLocation({ search }: { search: AgentsFleetSearch })
 
   const agentsErrorEmpty = Boolean(page.agentsError) && page.agents.length === 0 && !page.isLoading;
   const headCount =
-    page.isLoading || agentsErrorEmpty || page.isFirstRunEmpty || page.workspaceId === ""
-      ? undefined
-      : page.fleetTotal;
+    page.isLoading || agentsErrorEmpty || page.isFirstRunEmpty ? undefined : page.fleetTotal;
 
   useTopbarSlot({
     glyph: <Users2 />,
     count: headCount,
-    actions:
-      page.isFirstRunEmpty || page.workspaceId === "" ? undefined : (
-        <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
-          <Button
-            data-testid="agents-topbar-create"
-            onClick={page.openCreate}
-            size="sm"
-            type="button"
-          >
-            <Plus aria-hidden="true" className="size-3" />
-            New agent
-          </Button>
-        </div>
-      ),
-    toolbar:
-      page.workspaceId === "" ? undefined : (
-        <AgentFleetToolbar
-          categoryOptions={page.categoryOptions}
-          draftQuery={page.draftQuery}
-          onDraftQueryChange={page.setDraftQuery}
-          onFiltersChange={page.setFilters}
-          onViewChange={page.setView}
-          search={page.search}
-          searchInputRef={page.searchInputRef}
-          showFacets={page.showFacets}
-          showViewToggle={page.showViewToggle}
-          view={page.view}
-        />
-      ),
-  });
-
-  if (page.workspaceId === "") {
-    return (
-      <div
-        className="flex min-h-0 flex-1 items-center justify-center py-10"
-        data-testid="agents-no-workspace"
-      >
-        <Empty
-          description="Select a workspace to browse its agents."
-          icon={Users2}
-          title="No workspace selected"
-        />
+    actions: page.isFirstRunEmpty ? undefined : (
+      <div className="flex items-center gap-2" data-testid="agents-topbar-actions">
+        <Button
+          data-testid="agents-topbar-create"
+          onClick={page.openCreate}
+          size="sm"
+          type="button"
+        >
+          <Plus aria-hidden="true" className="size-3" />
+          New agent
+        </Button>
       </div>
-    );
-  }
+    ),
+    toolbar: (
+      <AgentFleetToolbar
+        categoryOptions={page.categoryOptions}
+        draftQuery={page.draftQuery}
+        onDraftQueryChange={page.setDraftQuery}
+        onFiltersChange={page.setFilters}
+        onViewChange={page.setView}
+        search={page.search}
+        searchInputRef={page.searchInputRef}
+        showFacets={page.showFacets}
+        showViewToggle={page.showViewToggle}
+        view={page.view}
+      />
+    ),
+  });
 
   return (
     <ListingPage data-testid="agent-fleet-page">
