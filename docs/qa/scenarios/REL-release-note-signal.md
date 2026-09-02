@@ -6,7 +6,7 @@ persona: Dora
 journey: J-approve-compozy-beta-candidate
 expected: Release PR changelogs and GitHub Release bodies retain user-facing features, fixes, refactors, breaking changes, and authored release notes while omitting repository-maintenance commits and squash-generated conventional titles appended after a breaking footer.
 entry_points: pr-release release-body; GitHub release PR; GitHub Releases page and API
-qa_status: pass
+qa_status: untested
 bug_ids:
 fix_status: 
 retest_status: 

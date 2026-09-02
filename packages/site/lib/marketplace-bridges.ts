@@ -93,7 +93,7 @@ export function readBridgeProviders({
   resolveSetupPage = slugs => docsSource.getPage(slugs),
 }: BridgeProviderSource = {}): BridgeProvider[] {
   const directories: string[] = [];
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
+  for (const entry of readdirSync(/* turbopackIgnore: true */ root, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       directories.push(entry.name);
     }

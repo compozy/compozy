@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-evaluate-compozy-beta
 expected: '`/changelog` lists only published GitHub releases from `v0.3.0-beta.1` onward with the exact version as each title; every version page preserves the complete release notes and real categories, compares from the closest lower semantic version, links referenced pull requests, attributes unique human contributors, exposes release assets, and refreshes within five minutes.'
 entry_points: compozy.com `/changelog`, `/changelog/<version>`, `/changelog/feed.xml`, GitHub Releases
-qa_status: untested
-bug_ids:
-fix_status:
+qa_status: fail
+bug_ids: BUG-20260901-site-search-catalog-files-missing
+fix_status: pending
 retest_status:
 fix_commits:
-evidence: docs/qa/evidence/2026-08-03-site-github-changelog/index-desktop.png; docs/qa/evidence/2026-08-03-site-github-changelog/detail-desktop.png; docs/qa/evidence/2026-08-03-site-github-changelog/index-mobile.png; docs/qa/evidence/2026-08-03-site-github-changelog/detail-mobile.png; docs/qa/evidence/2026-08-03-site-github-changelog/detail-evidence-full.png
-last_report: docs/qa/reports/2026-08-03-site-github-changelog.md
+evidence: docs/qa/evidence/2026-09-01-site-changelog-beta22/index-desktop.png; docs/qa/evidence/2026-09-01-site-changelog-beta22/detail-evidence-full.png; docs/qa/evidence/2026-09-01-site-changelog-beta22/search-error.png
+last_report: docs/qa/reports/2026-09-01-site-changelog-beta22.md
 overlaps:
 ---
 

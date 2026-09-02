@@ -123,7 +123,9 @@ interface ManifestDirectory {
 function listDirectories(root: string, parents: string[]): ManifestDirectory[] {
   const directories: ManifestDirectory[] = [];
   for (const parent of parents) {
-    for (const entry of readdirSync(resolve(root, parent), { withFileTypes: true })) {
+    for (const entry of readdirSync(/* turbopackIgnore: true */ resolve(root, parent), {
+      withFileTypes: true,
+    })) {
       if (entry.isDirectory()) {
         directories.push({ parent, name: entry.name });
       }
@@ -189,7 +191,9 @@ export function parseBundledSkillFrontmatter(
 /** `skills/embed.go` compiles every directory here into the binary. */
 function readBundledSkills(): BundledSkill[] {
   const skills: BundledSkill[] = [];
-  for (const entry of readdirSync(bundledSkillsRoot, { withFileTypes: true })) {
+  for (const entry of readdirSync(/* turbopackIgnore: true */ bundledSkillsRoot, {
+    withFileTypes: true,
+  })) {
     if (!entry.isDirectory()) continue;
     const raw = readFileSync(resolve(bundledSkillsRoot, entry.name, "SKILL.md"), "utf8");
     const { name, description } = parseBundledSkillFrontmatter(raw);
