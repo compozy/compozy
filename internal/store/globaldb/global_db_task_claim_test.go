@@ -8851,6 +8851,75 @@ func TestGlobalDBLoopGenerationOutputWritersShouldFenceStaleEpochs(t *testing.T)
 			t.Fatalf("generation output = (%q, %q, %d), want current writer result", status, outputRef, epoch)
 		}
 	})
+
+	t.Run("Should reject a same-epoch snapshot that regresses a terminal task output", func(t *testing.T) {
+		t.Parallel()
+
+		globalDB := openLoopTestGlobalDB(t)
+		ctx := testutil.Context(t)
+		now := time.Date(2026, time.August, 2, 23, 15, 0, 0, time.UTC)
+		loopRun, err := globalDB.CreateLoopRunForStart(
+			ctx,
+			testLoopRun("looprun-output-terminal-race", now, looppkg.StatusRunning),
+			dsl.ConcurrencyAllow,
+		)
+		if err != nil {
+			t.Fatalf("CreateLoopRunForStart() error = %v", err)
+		}
+		const taskRunID = "run-output-terminal-race"
+		if _, err := globalDB.db.ExecContext(
+			ctx,
+			`INSERT INTO loop_generation_outputs (
+				loop_run_id, generation, node_id, item_index, status, output_ref, task_run_id, attempt, epoch
+			) VALUES (?, 1, 'work', 0, 'succeeded', '{"ok":true}', ?, 1, 0)`,
+			string(loopRun.ID),
+			taskRunID,
+		); err != nil {
+			t.Fatalf("insert generation output error = %v", err)
+		}
+
+		tx, err := globalDB.db.BeginTx(ctx, nil)
+		if err != nil {
+			t.Fatalf("BeginTx() error = %v", err)
+		}
+		expectedEpoch := int64(0)
+		err = looppkg.NewStoreFinalizer().WriteGenerationSnapshot(
+			ctx,
+			tx,
+			taskpkg.GenerationSnapshot{
+				LoopRunID:  string(loopRun.ID),
+				Generation: 1,
+				Payload: looppkg.GenerationSnapshotPayload{Outputs: []looppkg.GenerationOutput{{
+					NodeID:        "work",
+					Status:        "running",
+					TaskRunID:     taskRunID,
+					Attempt:       1,
+					Epoch:         0,
+					ExpectedEpoch: &expectedEpoch,
+				}}},
+			},
+		)
+		if !errors.Is(err, looppkg.ErrStaleGenerationOutput) {
+			t.Fatalf("WriteGenerationSnapshot() error = %v, want ErrStaleGenerationOutput", err)
+		}
+		if rollbackErr := tx.Rollback(); rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
+			t.Fatalf("Rollback() error = %v", rollbackErr)
+		}
+
+		var status string
+		var outputRef string
+		if err := globalDB.db.QueryRowContext(
+			ctx,
+			`SELECT status, output_ref FROM loop_generation_outputs
+			 WHERE loop_run_id = ? AND generation = 1 AND node_id = 'work' AND item_index = 0`,
+			string(loopRun.ID),
+		).Scan(&status, &outputRef); err != nil {
+			t.Fatalf("query generation output error = %v", err)
+		}
+		if status != loopNodeOutputSucceeded || outputRef != `{"ok":true}` {
+			t.Fatalf("generation output = (%q, %q), want succeeded terminal result", status, outputRef)
+		}
+	})
 }
 
 func TestGlobalDBCoordinatorCompletionShouldPersistRetryAttemptAndEventAtomically(t *testing.T) {

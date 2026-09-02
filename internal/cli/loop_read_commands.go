@@ -213,7 +213,8 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 				return normalizeLoopReadError(runID, err)
 			}
 			if terminalLoopStatus(string(briefing.Status)) {
-				return nil
+				_, err = drainLoopTimeline(cmd, client, workspaceID, runID, view, page.HeadSeq)
+				return normalizeLoopReadError(runID, err)
 			}
 			return normalizeLoopReadError(
 				runID,
@@ -326,31 +327,20 @@ func followLoopEvents(
 		if cmd.Context().Err() != nil {
 			return cmd.Context().Err()
 		}
-		page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, lastSequence, 500)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			if entry.Seq <= lastSequence {
-				continue
-			}
-			if err := writeFollowTimelineEntry(cmd, entry); err != nil {
+		if !terminalObserved {
+			briefing, err := client.GetLoopRunBriefing(cmd.Context(), workspaceID, runID)
+			if err != nil {
 				return err
 			}
-			lastSequence = entry.Seq
+			terminalObserved = terminalLoopStatus(string(briefing.Status))
+		}
+		var err error
+		lastSequence, err = drainLoopTimeline(cmd, client, workspaceID, runID, view, lastSequence)
+		if err != nil {
+			return err
 		}
 		if terminalObserved {
 			return nil
-		}
-		briefing, err := client.GetLoopRunBriefing(cmd.Context(), workspaceID, runID)
-		if err != nil {
-			return err
-		}
-		if terminalLoopStatus(string(briefing.Status)) {
-			return nil
-		}
-		if page.HeadSeq > lastSequence {
-			lastSequence = page.HeadSeq
 		}
 		timer := time.NewTimer(100 * time.Millisecond)
 		select {
@@ -362,6 +352,32 @@ func followLoopEvents(
 		case <-timer.C:
 		}
 	}
+}
+
+func drainLoopTimeline(
+	cmd *cobra.Command,
+	client loopRunReadClient,
+	workspaceID, runID, view string,
+	after int64,
+) (int64, error) {
+	page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, 500)
+	if err != nil {
+		return after, err
+	}
+	lastSequence := after
+	for _, entry := range entries {
+		if entry.Seq <= lastSequence {
+			continue
+		}
+		if err := writeFollowTimelineEntry(cmd, entry); err != nil {
+			return lastSequence, err
+		}
+		lastSequence = entry.Seq
+	}
+	if page.HeadSeq > lastSequence {
+		lastSequence = page.HeadSeq
+	}
+	return lastSequence, nil
 }
 
 func streamLoopEventsOnce(

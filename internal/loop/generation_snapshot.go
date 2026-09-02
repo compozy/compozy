@@ -272,6 +272,8 @@ func writeGenerationOutput(
 	if output.ExpectedEpoch != nil {
 		expectedEpoch = *output.ExpectedEpoch
 	}
+	// Task completion records its terminal result without advancing the cell epoch.
+	// Reject an older coordinator snapshot that would make that same attempt live again.
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_generation_outputs (
@@ -297,7 +299,12 @@ func writeGenerationOutput(
 				excluded.first_scheduled_at
 			),
 			epoch = excluded.epoch
-		WHERE loop_generation_outputs.epoch = ?`,
+		WHERE loop_generation_outputs.epoch = ?
+		  AND NOT (
+			loop_generation_outputs.epoch = excluded.epoch
+			AND loop_generation_outputs.status IN ('succeeded', 'partial', 'failed', 'canceled', 'quarantined')
+			AND excluded.status IN ('pending', 'enqueued', 'running', 'retrying')
+		  )`,
 		loopRunID,
 		generation,
 		output.NodeID,
