@@ -351,8 +351,10 @@ test("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom r
   const workspace = await prepareShell(appPage, runtime);
   const tasks = await openDockApp(appPage, "Tasks", "tasks");
   const settings = await openDockApp(appPage, "Settings", "settings");
+  const agents = await openDockApp(appPage, "Agents", "agents");
   const tasksID = await windowID(tasks);
   const settingsID = await windowID(settings);
+  const agentsID = await windowID(agents);
   await arrangeWindows(
     runtime,
     workspace.id,
@@ -373,8 +375,6 @@ test("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom r
   const zoomed = await windowManagerSnapshot(runtime, workspace.id);
   const liftedID = zoomed.windows[tasksID]?.desktop_id;
 
-  const agents = await openDockApp(appPage, "Agents", "agents");
-  const agentsID = await windowID(agents);
   await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
 
   const grouped = await windowManagerSnapshot(runtime, workspace.id);

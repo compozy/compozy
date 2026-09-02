@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"reflect"
 
 	compozyconfig "github.com/compozy/compozy/internal/config"
 	"github.com/compozy/compozy/internal/deadentity"
@@ -32,34 +33,34 @@ func (a daemonSettingsRuntimeApplier) ApplyActiveConfig(
 	previous := a.state.cfg
 	a.daemon.mu.Unlock()
 
-	failures := a.applyRuntimeDependencies(ctx, &next)
+	failures := a.applyRuntimeDependencies(ctx, &previous, &next)
 	if len(failures) > 0 {
-		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
+		return a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
 	}
 	nextLoopTargetHealth, failure := a.prepareLoopTargetHealthConfigChange(&previous, &next)
 	if failure != nil {
-		return a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
+		return a.rollbackRuntimeDependencies(ctx, &previous, &next, []settingspkg.ApplyFailure{*failure})
 	}
 	if failures := a.applyNetworkAvailabilityChange(ctx, &previous, &next); len(failures) > 0 {
-		return a.rollbackRuntimeDependencies(ctx, &previous, failures)
+		return a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
 	}
 	if failures := a.applyGatewayTuningChange(&previous, &next); len(failures) > 0 {
-		failures = a.rollbackRuntimeDependencies(ctx, &previous, failures)
+		failures = a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
 		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
 	}
 	if failures := a.applyGatewayCeilingChange(ctx, &previous, &next); len(failures) > 0 {
-		failures = a.rollbackRuntimeDependencies(ctx, &previous, failures)
+		failures = a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
 		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
 	}
 	if failure := a.applyAttentionConfigChange(&previous, &next); failure != nil {
-		failures := a.rollbackRuntimeDependencies(ctx, &previous, []settingspkg.ApplyFailure{*failure})
+		failures := a.rollbackRuntimeDependencies(ctx, &previous, &next, []settingspkg.ApplyFailure{*failure})
 		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
 	}
 	if failures := a.applySkillSourceConfigChange(ctx, &previous, &next); len(failures) > 0 {
 		if rollback := a.applyAttentionConfigChange(&next, &previous); rollback != nil {
 			failures = append(failures, *rollback)
 		}
-		failures = a.rollbackRuntimeDependencies(ctx, &previous, failures)
+		failures = a.rollbackRuntimeDependencies(ctx, &previous, &next, failures)
 		return a.rollbackGatewayAndNetwork(ctx, &previous, &next, failures)
 	}
 
@@ -358,6 +359,7 @@ func (a daemonSettingsRuntimeApplier) prepareLoopTargetHealthConfigChange(
 func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 	ctx context.Context,
 	previous *compozyconfig.Config,
+	next *compozyconfig.Config,
 	failures []settingspkg.ApplyFailure,
 ) []settingspkg.ApplyFailure {
 	if a.state.windowManagers != nil {
@@ -371,7 +373,7 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 		}
 	}
 	a.reconcileExtensionMarketplace(previous)
-	if a.state.modelCatalog != nil {
+	if a.state.modelCatalog != nil && modelCatalogConfigChanged(previous, next) {
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, previous); err != nil {
 			failures = append(failures, configApplyFailure(
 				"model_catalog_rollback",
@@ -406,6 +408,7 @@ func (a daemonSettingsRuntimeApplier) rollbackRuntimeDependencies(
 
 func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 	ctx context.Context,
+	previous *compozyconfig.Config,
 	next *compozyconfig.Config,
 ) []settingspkg.ApplyFailure {
 	var failures []settingspkg.ApplyFailure
@@ -420,7 +423,7 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		}
 	}
 	a.reconcileExtensionMarketplace(next)
-	if a.state.modelCatalog != nil {
+	if a.state.modelCatalog != nil && modelCatalogConfigChanged(previous, next) {
 		if err := a.state.modelCatalog.ReconcileConfig(ctx, next); err != nil {
 			failures = append(failures, configApplyFailure(
 				"model_catalog",
@@ -451,6 +454,14 @@ func (a daemonSettingsRuntimeApplier) applyRuntimeDependencies(
 		}
 	}
 	return failures
+}
+
+func modelCatalogConfigChanged(previous, next *compozyconfig.Config) bool {
+	if previous == nil || next == nil {
+		return previous != next
+	}
+	return !reflect.DeepEqual(previous.Providers, next.Providers) ||
+		!reflect.DeepEqual(previous.ModelCatalog, next.ModelCatalog)
 }
 
 func (a daemonSettingsRuntimeApplier) reconcileExtensionMarketplace(cfg *compozyconfig.Config) {

@@ -1325,8 +1325,8 @@ test("operator declares loop and node environments in the builder", async ({
   await expect(section).toBeVisible();
   await expect(section).toHaveAttribute("data-mode", "__inherit__");
 
-  await section.locator('[data-slot="pill-group-item"]').filter({ hasText: "Per-run" }).click();
-  await expect(section).toHaveAttribute("data-mode", "per_run");
+  await section.getByRole("button", { name: "Workspace root" }).click();
+  await expect(section).toHaveAttribute("data-mode", "root");
   await appPage.getByTestId("loop-configure-save").click();
   await expect(appPage.getByTestId("loop-configure-dialog")).not.toBeVisible({ timeout: 30_000 });
 
@@ -1337,7 +1337,7 @@ test("operator declares loop and node environments in the builder", async ({
       );
       return config.config.environment?.mode;
     })
-    .toBe("per_run");
+    .toBe("root");
 
   // The node inspector carries exactly one environment control and no retired
   // working-directory field anywhere.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -234,6 +235,181 @@ func TestLoopRunReadCommands(t *testing.T) {
 		}
 	})
 
+	t.Run("Should drain a terminal transition committed after a resumed snapshot", func(t *testing.T) {
+		t.Parallel()
+
+		terminalBriefingRead := false
+		resumeClient := &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getLoopBriefingFn: func(context.Context, string, string) (contract.LoopBriefingResponse, error) {
+				terminalBriefingRead = true
+				return looppkg.Briefing{RunID: "run-a", Status: looppkg.StatusDone}, nil
+			},
+			getLoopTimelineFn: func(
+				_ context.Context,
+				_, _ string,
+				query LoopTimelineQuery,
+			) (contract.LoopTimelineResponse, error) {
+				switch query.After {
+				case 1:
+					entries := make([]looppkg.TimelineEntry, 0, 5)
+					for seq := int64(2); seq <= 6; seq++ {
+						entries = append(entries, looppkg.TimelineEntry{
+							Seq: seq, Kind: looppkg.RunEventNodeSucceeded,
+							Title: "durable prefix", At: now.Add(time.Duration(seq) * time.Second),
+						})
+					}
+					return looppkg.TimelinePage{RunID: "run-a", HeadSeq: 6, Entries: entries}, nil
+				case 6:
+					if !terminalBriefingRead {
+						return contract.LoopTimelineResponse{}, errors.New(
+							"terminal briefing fence was not read before the final catch-up",
+						)
+					}
+					return looppkg.TimelinePage{
+						RunID: "run-a", HeadSeq: 7,
+						Entries: []looppkg.TimelineEntry{{
+							Seq: 7, Kind: looppkg.RunEventStatusChanged,
+							Title: "run status: done", At: now.Add(7 * time.Second),
+						}},
+					}, nil
+				default:
+					return contract.LoopTimelineResponse{}, fmt.Errorf("unexpected timeline after %d", query.After)
+				}
+			},
+			streamLoopEventsFn: func(context.Context, string, string, int64, SSEHandler) error {
+				t.Fatal("terminal resumed snapshot unexpectedly opened an SSE stream")
+				return nil
+			},
+		}
+		resumeDeps := newTestDeps(t, resumeClient)
+		stdout, _, err := executeRootCommand(
+			t,
+			resumeDeps,
+			"loop", "events", "run-a", "--after", "1", "--follow", "--view", "all",
+			"--workspace", "alpha", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("resumed loop events error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 6 {
+			t.Fatalf("resumed timeline lines = %d: %q", len(lines), stdout)
+		}
+		for index, line := range lines {
+			var entry looppkg.TimelineEntry
+			if err := json.Unmarshal([]byte(line), &entry); err != nil {
+				t.Fatalf("decode resumed timeline line %d error = %v", index, err)
+			}
+			if want := int64(index + 2); entry.Seq != want {
+				t.Fatalf("resumed timeline line %d sequence = %d, want %d", index, entry.Seq, want)
+			}
+		}
+	})
+
+	t.Run("Should drain every page before completing an already terminal follow", func(t *testing.T) {
+		t.Parallel()
+
+		terminalClient := &stubClient{
+			getWorkspaceFn: resolveTestLoopWorkspace(t),
+			getLoopBriefingFn: func(context.Context, string, string) (contract.LoopBriefingResponse, error) {
+				return looppkg.Briefing{RunID: "run-a", Status: looppkg.StatusDone}, nil
+			},
+			getLoopTimelineFn: func(
+				_ context.Context,
+				_, _ string,
+				query LoopTimelineQuery,
+			) (contract.LoopTimelineResponse, error) {
+				switch query.Cursor {
+				case "":
+					return looppkg.TimelinePage{
+						RunID: "run-a", HeadSeq: 3, NextCursor: "older",
+						Entries: []looppkg.TimelineEntry{
+							{Seq: 2, Kind: looppkg.RunEventNodeSucceeded, Title: "durable event"},
+							{Seq: 3, Kind: looppkg.RunEventStatusChanged, Title: "run status: done"},
+						},
+					}, nil
+				case "older":
+					return looppkg.TimelinePage{
+						RunID: "run-a", HeadSeq: 3,
+						Entries: []looppkg.TimelineEntry{{
+							Seq: 1, Kind: looppkg.RunEventGenerationStarted, Title: "round 1 started",
+						}},
+					}, nil
+				default:
+					return contract.LoopTimelineResponse{}, fmt.Errorf(
+						"unexpected timeline cursor %q",
+						query.Cursor,
+					)
+				}
+			},
+			streamLoopEventsFn: func(context.Context, string, string, int64, SSEHandler) error {
+				t.Fatal("already terminal timeline unexpectedly opened an SSE stream")
+				return nil
+			},
+		}
+		terminalDeps := newTestDeps(t, terminalClient)
+		stdout, _, err := executeRootCommand(
+			t,
+			terminalDeps,
+			"loop", "events", "run-a", "--follow", "--view", "all",
+			"--workspace", "alpha", "-o", "jsonl",
+		)
+		if err != nil {
+			t.Fatalf("terminal loop events error = %v", err)
+		}
+		lines := strings.Split(strings.TrimSpace(stdout), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("terminal timeline lines = %d, want 3: %q", len(lines), stdout)
+		}
+		for index, line := range lines {
+			var entry looppkg.TimelineEntry
+			if err := json.Unmarshal([]byte(line), &entry); err != nil {
+				t.Fatalf("decode terminal timeline line %d error = %v", index, err)
+			}
+			if want := int64(index + 1); entry.Seq != want {
+				t.Fatalf("terminal timeline line %d sequence = %d, want %d", index, entry.Seq, want)
+			}
+		}
+	})
+
+	t.Run("Should keep terminal catch-up output as a valid JSON stream", func(t *testing.T) {
+		t.Parallel()
+
+		jsonDeps := newTestDeps(t, loopReadCommandClient(t, now))
+		jsonDeps.now = func() time.Time { return now }
+		stdout, _, err := executeRootCommand(
+			t,
+			jsonDeps,
+			"loop", "events", "run-a", "--after", "1", "--limit", "2", "--follow", "--view", "all",
+			"--workspace", "alpha", "-o", "json",
+		)
+		if err != nil {
+			t.Fatalf("resumed loop events JSON error = %v", err)
+		}
+		decoder := json.NewDecoder(strings.NewReader(stdout))
+		var snapshot contract.LoopTimelineResponse
+		if err := decoder.Decode(&snapshot); err != nil {
+			t.Fatalf("decode initial timeline snapshot error = %v", err)
+		}
+		if len(snapshot.Entries) != 3 || snapshot.Entries[0].Seq != 2 || snapshot.Entries[2].Seq != 4 {
+			t.Fatalf("initial timeline snapshot = %#v", snapshot)
+		}
+		wantSequences := []int64{6, 7, 8}
+		for index, want := range wantSequences {
+			var catchUp looppkg.TimelineEntry
+			if err := decoder.Decode(&catchUp); err != nil {
+				t.Fatalf("decode terminal catch-up %d error = %v", index, err)
+			}
+			if catchUp.Seq != want {
+				t.Fatalf("terminal catch-up %d sequence = %d, want %d", index, catchUp.Seq, want)
+			}
+		}
+		if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+			t.Fatalf("terminal JSON stream trailing decode error = %v, want EOF", err)
+		}
+	})
+
 	t.Run("Should return the documented beyond-head and roster validation exit codes", func(t *testing.T) {
 		exitCode, _, stderr := executeRootCommandWithExit(
 			t,
@@ -394,6 +570,8 @@ func TestLoopRunReadCommands(t *testing.T) {
 
 func loopReadCommandClient(t *testing.T, now time.Time) *stubClient {
 	t.Helper()
+	streamCalls := 0
+	terminalBriefingRead := false
 	return &stubClient{
 		getWorkspaceFn: resolveTestLoopWorkspace(t),
 		getLoopBriefingFn: func(_ context.Context, _ string, runID string) (contract.LoopBriefingResponse, error) {
@@ -430,9 +608,14 @@ func loopReadCommandClient(t *testing.T, now time.Time) *stubClient {
 					},
 				}, nil
 			}
+			status := looppkg.StatusRunning
+			if streamCalls == 1 {
+				status = looppkg.StatusDone
+				terminalBriefingRead = true
+			}
 			return looppkg.Briefing{
 				RunID:    "run-a",
-				Status:   looppkg.StatusRunning,
+				Status:   status,
 				Tone:     looppkg.BriefingToneNeedsYou,
 				Headline: `Approval "release" waiting 3m`,
 				Detail:   "The gate is asking whether to continue. 4 of 6 steps done in round 1.",
@@ -445,8 +628,8 @@ func loopReadCommandClient(t *testing.T, now time.Time) *stubClient {
 		},
 		listLoopRunsFn:     loopReadRunsFixture(now),
 		getLoopRunNodesFn:  loopReadRosterFixture(t, now),
-		getLoopTimelineFn:  loopReadTimelineFixture(now),
-		streamLoopEventsFn: loopReadStreamFixture(t, now),
+		getLoopTimelineFn:  loopReadTimelineFixture(now, &terminalBriefingRead),
+		streamLoopEventsFn: loopReadStreamFixture(t, now, &streamCalls),
 	}
 }
 
@@ -541,7 +724,7 @@ func loopReadRosterFixture(t *testing.T, now time.Time) func(
 	}
 }
 
-func loopReadTimelineFixture(now time.Time) func(
+func loopReadTimelineFixture(now time.Time, terminalBriefingRead *bool) func(
 	context.Context,
 	string,
 	string,
@@ -574,6 +757,27 @@ func loopReadTimelineFixture(now time.Time) func(
 					Seq: 8, Kind: looppkg.RunEventGoalStatusChanged,
 					Title: "goal status: completed", At: now.Add(8 * time.Second),
 				}},
+			}, nil
+		}
+		if query.After == 6 {
+			if !*terminalBriefingRead {
+				return contract.LoopTimelineResponse{}, errors.New(
+					"terminal briefing fence was not read before catch-up",
+				)
+			}
+			return looppkg.TimelinePage{
+				RunID:   "run-a",
+				HeadSeq: 8,
+				Entries: []looppkg.TimelineEntry{
+					{
+						Seq: 7, Kind: looppkg.RunEventStatusChanged,
+						Title: "run status: done", At: now.Add(7 * time.Second),
+					},
+					{
+						Seq: 8, Kind: looppkg.RunEventGoalStatusChanged,
+						Title: "goal status: completed", At: now.Add(8 * time.Second),
+					},
+				},
 			}, nil
 		}
 		if query.After == 1 {
@@ -636,7 +840,7 @@ func loopReadTimelineFixture(now time.Time) func(
 	}
 }
 
-func loopReadStreamFixture(t *testing.T, now time.Time) func(
+func loopReadStreamFixture(t *testing.T, now time.Time, calls *int) func(
 	context.Context,
 	string,
 	string,
@@ -651,8 +855,12 @@ func loopReadStreamFixture(t *testing.T, now time.Time) func(
 		after int64,
 		handler SSEHandler,
 	) error {
-		if after != 4 {
-			t.Fatalf("SSE after = %d, want durable head 4", after)
+		*calls++
+		if *calls == 1 && after != 4 {
+			t.Fatalf("first SSE after = %d, want durable head 4", after)
+		}
+		if *calls > 1 {
+			t.Fatalf("SSE calls = %d, want one stream before terminal catch-up", *calls)
 		}
 		payloads := []contract.LoopRunEventPayload{
 			{
@@ -671,11 +879,6 @@ func loopReadStreamFixture(t *testing.T, now time.Time) func(
 				Kind:        contract.LoopRunEventTokenTick,
 				At:          now.Add(6 * time.Second),
 			},
-			{
-				ID: "event-7", LoopRunID: "run-a", WorkspaceID: "ws-test", Seq: 7,
-				Kind: contract.LoopRunEventStatusChanged, Payload: json.RawMessage(`{"status":"done"}`),
-				At: now.Add(7 * time.Second),
-			},
 		}
 		for _, payload := range payloads {
 			raw, err := json.Marshal(payload)
@@ -686,6 +889,6 @@ func loopReadStreamFixture(t *testing.T, now time.Time) func(
 				return err
 			}
 		}
-		return errors.New("stream ended before terminal event")
+		return errors.New("stream disconnected before terminal event")
 	}
 }

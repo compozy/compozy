@@ -272,6 +272,7 @@ func writeGenerationOutput(
 	if output.ExpectedEpoch != nil {
 		expectedEpoch = *output.ExpectedEpoch
 	}
+	// Fence same-epoch snapshots because task completion records terminal results without advancing the epoch.
 	result, err := tx.ExecContext(
 		ctx,
 		`INSERT INTO loop_generation_outputs (
@@ -297,7 +298,11 @@ func writeGenerationOutput(
 				excluded.first_scheduled_at
 			),
 			epoch = excluded.epoch
-		WHERE loop_generation_outputs.epoch = ?`,
+		WHERE loop_generation_outputs.epoch = ? AND NOT (
+			loop_generation_outputs.epoch = excluded.epoch
+			AND loop_generation_outputs.status IN ('succeeded', 'partial', 'failed', 'canceled', 'quarantined')
+			AND excluded.status IN ('pending', 'enqueued', 'running', 'retrying')
+		  )`,
 		loopRunID,
 		generation,
 		output.NodeID,

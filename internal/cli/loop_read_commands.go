@@ -198,7 +198,7 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 				return err
 			}
 			runID := strings.TrimSpace(args[0])
-			page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, limit)
+			page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, limit, follow)
 			if err != nil {
 				return normalizeLoopReadError(runID, err)
 			}
@@ -213,7 +213,8 @@ func newLoopEventsCommand(deps commandDeps) *cobra.Command {
 				return normalizeLoopReadError(runID, err)
 			}
 			if terminalLoopStatus(string(briefing.Status)) {
-				return nil
+				_, err = drainLoopTimeline(cmd, client, workspaceID, runID, view, page.HeadSeq)
+				return normalizeLoopReadError(runID, err)
 			}
 			return normalizeLoopReadError(
 				runID,
@@ -281,6 +282,7 @@ func loadLoopTimeline(
 	workspaceID, runID, view string,
 	after int64,
 	limit int,
+	drainPages bool,
 ) (contract.LoopTimelineResponse, []looppkg.TimelineEntry, error) {
 	query := LoopTimelineQuery{View: view, After: after, Limit: limit}
 	page, err := client.GetLoopRunTimeline(cmd.Context(), workspaceID, runID, query)
@@ -288,7 +290,7 @@ func loadLoopTimeline(
 		return contract.LoopTimelineResponse{}, nil, err
 	}
 	entries := append([]looppkg.TimelineEntry(nil), page.Entries...)
-	if after > 0 {
+	if after > 0 || drainPages {
 		for page.NextCursor != "" {
 			query.Cursor = page.NextCursor
 			page, err = client.GetLoopRunTimeline(cmd.Context(), workspaceID, runID, query)
@@ -326,31 +328,20 @@ func followLoopEvents(
 		if cmd.Context().Err() != nil {
 			return cmd.Context().Err()
 		}
-		page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, lastSequence, 500)
-		if err != nil {
-			return err
-		}
-		for _, entry := range entries {
-			if entry.Seq <= lastSequence {
-				continue
-			}
-			if err := writeFollowTimelineEntry(cmd, entry); err != nil {
+		if !terminalObserved {
+			briefing, err := client.GetLoopRunBriefing(cmd.Context(), workspaceID, runID)
+			if err != nil {
 				return err
 			}
-			lastSequence = entry.Seq
+			terminalObserved = terminalLoopStatus(string(briefing.Status))
+		}
+		var err error
+		lastSequence, err = drainLoopTimeline(cmd, client, workspaceID, runID, view, lastSequence)
+		if err != nil {
+			return err
 		}
 		if terminalObserved {
 			return nil
-		}
-		briefing, err := client.GetLoopRunBriefing(cmd.Context(), workspaceID, runID)
-		if err != nil {
-			return err
-		}
-		if terminalLoopStatus(string(briefing.Status)) {
-			return nil
-		}
-		if page.HeadSeq > lastSequence {
-			lastSequence = page.HeadSeq
 		}
 		timer := time.NewTimer(100 * time.Millisecond)
 		select {
@@ -362,6 +353,32 @@ func followLoopEvents(
 		case <-timer.C:
 		}
 	}
+}
+
+func drainLoopTimeline(
+	cmd *cobra.Command,
+	client loopRunReadClient,
+	workspaceID, runID, view string,
+	after int64,
+) (int64, error) {
+	page, entries, err := loadLoopTimeline(cmd, client, workspaceID, runID, view, after, 500, true)
+	if err != nil {
+		return after, err
+	}
+	lastSequence := after
+	for _, entry := range entries {
+		if entry.Seq <= lastSequence {
+			continue
+		}
+		if err := writeFollowTimelineEntry(cmd, entry); err != nil {
+			return lastSequence, err
+		}
+		lastSequence = entry.Seq
+	}
+	if page.HeadSeq > lastSequence {
+		lastSequence = page.HeadSeq
+	}
+	return lastSequence, nil
 }
 
 func streamLoopEventsOnce(
@@ -440,7 +457,7 @@ func writeFollowTimelineEntry(cmd *cobra.Command, entry looppkg.TimelineEntry) e
 	if err != nil {
 		return err
 	}
-	if mode == OutputJSONL {
+	if mode == OutputJSON || mode == OutputJSONL {
 		return writeJSONLineWithoutWorkspaceResolution(cmd, entry)
 	}
 	return writeRawCommandOutput(cmd, strings.Join(loopEventHumanRow(entry), "\t"))
