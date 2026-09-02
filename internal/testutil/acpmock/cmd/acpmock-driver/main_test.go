@@ -412,6 +412,22 @@ func TestMockAgentLoadSessionValidation(t *testing.T) {
 }
 
 func TestMockAgentSandboxTerminalCleanup(t *testing.T) {
+	t.Run("Should retain a failing command boundary in diagnostics", func(t *testing.T) {
+		exitCode := 69
+		got := sandboxDiagnosticsStep(acpmock.Step{
+			Command: "/bin/sh", Args: []string{"-c", "compozy spawn"}, ToolCallID: "spawn-boundary",
+		}, sandboxRunResult{
+			ExitCode: &exitCode, Output: `{"error":"session not found"}`,
+			ObservedError: "spawn failed",
+		})
+		if got.Kind != acpmock.StepKindSandbox || got.Command != "/bin/sh" ||
+			len(got.Args) != 2 || got.Args[0] != "-c" || got.Args[1] != "compozy spawn" ||
+			got.Error != "spawn failed" || got.ToolCallID != "spawn-boundary" ||
+			got.ExitCode == nil || *got.ExitCode != 69 || got.Output != `{"error":"session not found"}` {
+			t.Fatalf("sandbox diagnostics = %#v, want exact failing command boundary", got)
+		}
+	})
+
 	t.Run("Should release terminal with detached context after wait cancellation", func(t *testing.T) {
 		conn := &recordingSandboxConnection{}
 		agent := &mockAgent{conn: conn}

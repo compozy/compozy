@@ -57,10 +57,13 @@ func (a *mockAgent) Prompt(ctx context.Context, params acpsdk.PromptRequest) (ac
 			cancelStep()
 		}
 		if execErr != nil {
-			record.Steps = append(record.Steps, acpmock.DiagnosticsStep{
-				Kind:  acpmock.StepKind("error"),
-				Error: execErr.Error(),
-			})
+			if entry.Kind == "" {
+				entry.Kind = acpmock.StepKind("error")
+			}
+			if strings.TrimSpace(entry.Error) == "" {
+				entry.Error = execErr.Error()
+			}
+			record.Steps = append(record.Steps, entry)
 			if diagErr := a.writeDiagnostics(record); diagErr != nil {
 				return acpsdk.PromptResponse{}, diagErr
 			}

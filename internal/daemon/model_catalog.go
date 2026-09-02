@@ -33,8 +33,9 @@ type modelCatalogRuntime struct {
 	// generationGate keeps source snapshots and persisted rows in one public generation.
 	generationGate lifecycleRWGate
 
-	ctx     context.Context
-	workers *ownedWorkerGroup
+	ctx            context.Context
+	workers        *ownedWorkerGroup
+	refreshCancels modelCatalogRefreshCancels
 
 	refreshLoopOnce  sync.Once
 	newRefreshTicker func(time.Duration) modelCatalogRefreshTicker
@@ -229,9 +230,11 @@ func (r *modelCatalogRuntime) refresh(
 		}
 		return nil, fmt.Errorf("daemon: model catalog refresh stopped: %w", r.ctx.Err())
 	}
+	unregisterRefreshCancel := r.refreshCancels.register(cancel)
 
 	go func(release func()) {
 		defer complete()
+		defer unregisterRefreshCancel()
 		if release != nil {
 			defer release()
 		}
@@ -293,6 +296,7 @@ func (r *modelCatalogRuntime) Shutdown(ctx context.Context) error {
 		return errors.New("daemon: model catalog shutdown context is required")
 	}
 	done := r.workers.Stop()
+	r.refreshCancels.stop()
 	select {
 	case <-done:
 		return nil

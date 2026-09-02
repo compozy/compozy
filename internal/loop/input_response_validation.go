@@ -14,6 +14,7 @@ import (
 func (s *service) validateResponseEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	request Request,
 	decision string,
@@ -34,7 +35,7 @@ func (s *service) validateResponseEntities(
 	if err := json.Unmarshal(payload, &payloadValue); err != nil {
 		return nil
 	}
-	return s.walkResponseEntities(ctx, workspaceID, loopName, "", schemaValue, payloadValue)
+	return s.walkResponseEntities(ctx, workspaceID, profileID, loopName, "", schemaValue, payloadValue)
 }
 
 func responseEntitySchema(request Request, decision string) json.RawMessage {
@@ -54,40 +55,66 @@ func responseEntitySchema(request Request, decision string) json.RawMessage {
 func (s *service) walkResponseEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
 	value any,
 ) error {
 	if err := s.validateResponseEntityAnnotation(
-		ctx, workspaceID, loopName, path, schema, value,
+		ctx, workspaceID, profileID, loopName, path, schema, value,
 	); err != nil {
 		return err
 	}
-	if err := s.walkResponseObjectEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+	if err := s.walkResponseObjectEntities(ctx, workspaceID, profileID, loopName, path, schema, value); err != nil {
 		return err
 	}
-	if err := s.walkResponseArrayEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+	if err := s.walkResponseArrayEntities(ctx, workspaceID, profileID, loopName, path, schema, value); err != nil {
 		return err
 	}
-	if err := s.walkResponseCompositionEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+	if err := s.walkResponseCompositionEntities(
+		ctx,
+		workspaceID,
+		profileID,
+		loopName,
+		path,
+		schema,
+		value,
+	); err != nil {
 		return err
 	}
-	if err := s.walkResponseConditionalEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+	if err := s.walkResponseConditionalEntities(
+		ctx,
+		workspaceID,
+		profileID,
+		loopName,
+		path,
+		schema,
+		value,
+	); err != nil {
 		return err
 	}
-	if err := s.walkResponseContainsEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+	if err := s.walkResponseContainsEntities(ctx, workspaceID, profileID, loopName, path, schema, value); err != nil {
 		return err
 	}
-	if err := s.walkResponsePropertyNameEntities(ctx, workspaceID, loopName, path, schema, value); err != nil {
+	if err := s.walkResponsePropertyNameEntities(
+		ctx,
+		workspaceID,
+		profileID,
+		loopName,
+		path,
+		schema,
+		value,
+	); err != nil {
 		return err
 	}
-	return s.walkResponsePrefixItemEntities(ctx, workspaceID, loopName, path, schema, value)
+	return s.walkResponsePrefixItemEntities(ctx, workspaceID, profileID, loopName, path, schema, value)
 }
 
 func (s *service) validateResponseEntityAnnotation(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -110,7 +137,7 @@ func (s *service) validateResponseEntityAnnotation(
 		}
 	}
 	return validateEntityInput(
-		ctx, workspaceID, entityKind, path, entityKindInput(entityKind), value,
+		ctx, workspaceID, profileID, entityKind, path, entityKindInput(entityKind), value,
 		InputOriginResponse, loopName, s.inputEntities,
 	)
 }
@@ -118,6 +145,7 @@ func (s *service) validateResponseEntityAnnotation(
 func (s *service) walkResponseObjectEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -135,17 +163,18 @@ func (s *service) walkResponseObjectEntities(
 			continue
 		}
 		if err := s.walkResponseEntities(
-			ctx, workspaceID, loopName, appendResponsePath(path, name), childSchema, childValue,
+			ctx, workspaceID, profileID, loopName, appendResponsePath(path, name), childSchema, childValue,
 		); err != nil {
 			return err
 		}
 	}
-	return s.walkResponseEntitySchemaMaps(ctx, workspaceID, loopName, path, schema, object)
+	return s.walkResponseEntitySchemaMaps(ctx, workspaceID, profileID, loopName, path, schema, object)
 }
 
 func (s *service) walkResponseArrayEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -158,7 +187,7 @@ func (s *service) walkResponseArrayEntities(
 	}
 	for index, item := range items {
 		if err := s.walkResponseEntities(
-			ctx, workspaceID, loopName,
+			ctx, workspaceID, profileID, loopName,
 			appendResponsePath(path, strconv.Itoa(index)), itemSchema, item,
 		); err != nil {
 			return err
@@ -170,6 +199,7 @@ func (s *service) walkResponseArrayEntities(
 func (s *service) walkResponseCompositionEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -186,7 +216,7 @@ func (s *service) walkResponseCompositionEntities(
 				continue
 			}
 			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName, path, branchSchema, value,
+				ctx, workspaceID, profileID, loopName, path, branchSchema, value,
 			); err != nil {
 				return err
 			}
@@ -198,6 +228,7 @@ func (s *service) walkResponseCompositionEntities(
 func (s *service) walkResponseConditionalEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -209,7 +240,7 @@ func (s *service) walkResponseConditionalEntities(
 			keyword = jsonSchemaThenKey
 		}
 		if branch, branchOK := entitySchemaObject(schema[keyword]); branchOK {
-			if err := s.walkResponseEntities(ctx, workspaceID, loopName, path, branch, value); err != nil {
+			if err := s.walkResponseEntities(ctx, workspaceID, profileID, loopName, path, branch, value); err != nil {
 				return err
 			}
 		}
@@ -220,6 +251,7 @@ func (s *service) walkResponseConditionalEntities(
 func (s *service) walkResponseContainsEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -232,7 +264,7 @@ func (s *service) walkResponseContainsEntities(
 				continue
 			}
 			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName, appendResponsePath(path, strconv.Itoa(index)), contains, item,
+				ctx, workspaceID, profileID, loopName, appendResponsePath(path, strconv.Itoa(index)), contains, item,
 			); err != nil {
 				return err
 			}
@@ -244,6 +276,7 @@ func (s *service) walkResponseContainsEntities(
 func (s *service) walkResponsePropertyNameEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -253,7 +286,7 @@ func (s *service) walkResponsePropertyNameEntities(
 	if names, ok := entitySchemaObject(schema["propertyNames"]); ok && objectOK {
 		for name := range object {
 			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName, appendResponsePath(path, name), names, name,
+				ctx, workspaceID, profileID, loopName, appendResponsePath(path, name), names, name,
 			); err != nil {
 				return err
 			}
@@ -265,6 +298,7 @@ func (s *service) walkResponsePropertyNameEntities(
 func (s *service) walkResponsePrefixItemEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -281,7 +315,13 @@ func (s *service) walkResponsePrefixItemEntities(
 				continue
 			}
 			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName, appendResponsePath(path, strconv.Itoa(index)), childSchema, items[index],
+				ctx,
+				workspaceID,
+				profileID,
+				loopName,
+				appendResponsePath(path, strconv.Itoa(index)),
+				childSchema,
+				items[index],
 			); err != nil {
 				return err
 			}
@@ -293,6 +333,7 @@ func (s *service) walkResponsePrefixItemEntities(
 func (s *service) walkResponseEntitySchemaMaps(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	loopName string,
 	path string,
 	schema map[string]any,
@@ -309,7 +350,15 @@ func (s *service) walkResponseEntitySchemaMaps(
 			}
 			childSchema, schemaOK := entitySchemaObject(child)
 			if schemaOK {
-				if err := s.walkResponseEntities(ctx, workspaceID, loopName, path, childSchema, value); err != nil {
+				if err := s.walkResponseEntities(
+					ctx,
+					workspaceID,
+					profileID,
+					loopName,
+					path,
+					childSchema,
+					value,
+				); err != nil {
 					return err
 				}
 			}
@@ -332,7 +381,7 @@ func (s *service) walkResponseEntitySchemaMaps(
 			}
 			matched[name] = true
 			if err := s.walkResponseEntities(
-				ctx, workspaceID, loopName, appendResponsePath(path, name), childSchema, childValue,
+				ctx, workspaceID, profileID, loopName, appendResponsePath(path, name), childSchema, childValue,
 			); err != nil {
 				return err
 			}
@@ -351,7 +400,7 @@ func (s *service) walkResponseEntitySchemaMaps(
 			continue
 		}
 		if err := s.walkResponseEntities(
-			ctx, workspaceID, loopName, appendResponsePath(path, name), childSchema, childValue,
+			ctx, workspaceID, profileID, loopName, appendResponsePath(path, name), childSchema, childValue,
 		); err != nil {
 			return err
 		}

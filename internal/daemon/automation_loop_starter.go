@@ -127,6 +127,7 @@ func (s *automationLoopStarter) ValidateLoopTarget(
 	return looppkg.ValidateInputEntities(
 		ctx,
 		validation.WorkspaceID,
+		validation.ProfileID,
 		validation.LoopName,
 		resolved.Definition,
 		looppkg.ResolvedInputs{Values: values, Origins: origins},

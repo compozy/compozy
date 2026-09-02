@@ -47,7 +47,7 @@ func (s *service) prepareForkRun(ctx context.Context, input ForkInput) (forkPrep
 	if err != nil {
 		return forkPreparation{}, err
 	}
-	if err := s.validateForkInputEntities(ctx, input.WorkspaceID, resolved, values); err != nil {
+	if err := s.validateForkInputEntities(ctx, input.WorkspaceID, source.ProfileID, resolved, values); err != nil {
 		return forkPreparation{}, err
 	}
 	return forkPreparation{
@@ -77,6 +77,7 @@ func validateForkGenerationOutputs(outputs []GenerationOutput, generation int64)
 func (s *service) validateForkInputEntities(
 	ctx context.Context,
 	workspaceID WorkspaceID,
+	profileID string,
 	resolved *ResolvedDefinition,
 	values map[string]any,
 ) error {
@@ -87,6 +88,7 @@ func (s *service) validateForkInputEntities(
 	return s.validateResolvedInputEntities(
 		ctx,
 		workspaceID,
+		profileID,
 		resolved.Definition.Meta.Name,
 		resolved.Definition,
 		ResolvedInputs{Values: values, Origins: origins},

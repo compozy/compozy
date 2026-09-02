@@ -108,7 +108,7 @@ func (s *service) DryRun(
 		return nil, err
 	}
 	if err := s.validateResolvedInputEntities(
-		ctx, ws, loopName, resolved.Definition, resolvedInputs,
+		ctx, ws, inputs.ProfileID, loopName, resolved.Definition, resolvedInputs,
 	); err != nil {
 		return nil, err
 	}

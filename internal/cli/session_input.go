@@ -78,7 +78,6 @@ func newSessionInputEditCommand(deps commandDeps) *cobra.Command {
 		},
 	}
 	bindSessionInputIdentityFlags(cmd, &flags)
-	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -116,7 +115,6 @@ func newSessionInputSteerCommand(deps commandDeps) *cobra.Command {
 	cmd.Flags().
 		StringVar(&flags.expectedTurnID, "expected-turn-id", "", "Active turn id that this steer request must match")
 	mustMarkFlagRequired(cmd, "expected-turn-id")
-	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
@@ -138,7 +136,6 @@ func newSessionInputCancelCommand(deps commandDeps) *cobra.Command {
 			return writeCommandOutput(cmd, sessionPromptBundle(record))
 		},
 	}
-	configureProfileMutationCommand(cmd, deps)
 	return cmd
 }
 
