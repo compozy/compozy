@@ -24,7 +24,7 @@ func TestInitialSnapshot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("second Snapshot() error = %v", err)
 		}
-		if first.Revision != 0 || len(first.Desktops) != 1 || first.Desktops[0].Purpose != DesktopPurposeStandard ||
+		if first.Revision != 0 || len(first.Desktops) != 1 ||
 			len(first.Windows) != 0 {
 			t.Fatalf("initial snapshot = %+v", first)
 		}
@@ -52,10 +52,9 @@ func TestNormalizeSnapshot(t *testing.T) {
 			WorkspaceID: "workspace-a",
 			Desktops: []Desktop{
 				{
-					ID:      "d1",
-					Name:    "One",
-					Order:   4,
-					Purpose: DesktopPurposeStandard,
+					ID:    "d1",
+					Name:  "One",
+					Order: 4,
 					Groups: []LayoutGroup{
 						{
 							ID:    "g1",
@@ -123,6 +122,29 @@ func TestNormalizeSnapshot(t *testing.T) {
 		requireValidSnapshot(t, first)
 	})
 
+	t.Run("Should drop zoom from desktops with visible peers and from minimized windows", func(t *testing.T) {
+		t.Parallel()
+		snapshot := validThreeWindowSnapshot()
+		for _, windowID := range []WindowID{"w1", "w3"} {
+			window := snapshot.Windows[windowID]
+			window.Zoomed = true
+			snapshot.Windows[windowID] = window
+		}
+		w4 := WindowID("w4")
+		snapshot.Windows[w4] = Window{
+			ID: w4, App: "Four", DesktopID: "desktop-default", Route: testRoute("/four"),
+			Placement: WindowPlacementFloating, FloatingRect: NormalizedRect{Width: 0.5, Height: 0.5},
+			Minimized: true, Zoomed: true,
+		}
+		snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, w4)
+		normalized := NormalizeSnapshot(snapshot)
+		if normalized.Windows["w1"].Zoomed || normalized.Windows["w3"].Zoomed || normalized.Windows[w4].Zoomed {
+			t.Fatalf("zoom flags after normalization = w1:%v w3:%v w4:%v",
+				normalized.Windows["w1"].Zoomed, normalized.Windows["w3"].Zoomed, normalized.Windows[w4].Zoomed)
+		}
+		requireValidSnapshot(t, normalized)
+	})
+
 	t.Run("Should keep normalized split weights byte-identical across repeated passes", func(t *testing.T) {
 		t.Parallel()
 		w1, w2, w3 := WindowID("w1"), WindowID("w2"), WindowID("w3")
@@ -132,9 +154,8 @@ func TestNormalizeSnapshot(t *testing.T) {
 			WorkspaceID: "workspace-a",
 			Desktops: []Desktop{
 				{
-					ID:      "d1",
-					Name:    "One",
-					Purpose: DesktopPurposeStandard,
+					ID:   "d1",
+					Name: "One",
 					Groups: []LayoutGroup{
 						{
 							ID:    "g1",
@@ -225,38 +246,52 @@ func TestValidateSnapshot(t *testing.T) {
 			mutate: func(snapshot *Snapshot) { snapshot.Desktops = nil; snapshot.Windows = map[WindowID]Window{} },
 		},
 		{
-			name: "Should reject a focus desktop without an owner",
-			code: "topology.focus_owner_required",
-			path: "desktops[1].focus_owner",
+			name: "Should reject two zoomed units on one desktop",
+			code: "topology.zoom_conflict",
+			path: "desktops[0]",
 			mutate: func(snapshot *Snapshot) {
-				snapshot.Desktops = append(snapshot.Desktops, Desktop{
-					ID: "focus", Name: "Focus", Order: 1, Purpose: DesktopPurposeFocus,
-					Groups: []LayoutGroup{}, Floating: []WindowID{},
-				})
+				for _, windowID := range []WindowID{"w1", "w3"} {
+					window := snapshot.Windows[windowID]
+					window.Zoomed = true
+					snapshot.Windows[windowID] = window
+				}
 			},
 		},
 		{
-			name: "Should reject a focus owner from another desktop",
-			code: "topology.focus_owner_desktop",
-			path: "desktops[1].focus_owner",
+			name: "Should reject a zoomed unit with a visible peer",
+			code: "topology.zoom_conflict",
+			path: "desktops[0]",
 			mutate: func(snapshot *Snapshot) {
-				owner := WindowID("w1")
-				snapshot.Desktops = append(snapshot.Desktops, Desktop{
-					ID: "focus", Name: "Focus", Order: 1, Purpose: DesktopPurposeFocus,
-					FocusOwner: &owner, Groups: []LayoutGroup{}, Floating: []WindowID{},
-				})
+				window := snapshot.Windows["w1"]
+				window.Zoomed = true
+				snapshot.Windows["w1"] = window
 			},
 		},
 		{
-			name: "Should reject an owner-less focus desktop stored in undo history",
-			code: "topology.focus_owner_required",
-			path: "history.undo[0].before.desktops[1].focus_owner",
+			name: "Should reject a minimized window that stayed zoomed",
+			code: "topology.zoomed_minimized",
+			path: `windows["w1"].zoomed`,
+			mutate: func(snapshot *Snapshot) {
+				removeWindow(snapshot, "w1")
+				window := snapshot.Windows["w1"]
+				window.Placement = WindowPlacementFloating
+				window.Minimized = true
+				window.Zoomed = true
+				snapshot.Windows["w1"] = window
+				snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, "w1")
+			},
+		},
+		{
+			name: "Should reject two zoomed units stored in undo history",
+			code: "topology.zoom_conflict",
+			path: "history.undo[0].before.desktops[0]",
 			mutate: func(snapshot *Snapshot) {
 				before := snapshotState(*snapshot)
-				before.Desktops = append(before.Desktops, Desktop{
-					ID: "focus", Name: "Focus", Order: 1, Purpose: DesktopPurposeFocus,
-					Groups: []LayoutGroup{}, Floating: []WindowID{},
-				})
+				for _, windowID := range []WindowID{"w1", "w3"} {
+					window := before.Windows[windowID]
+					window.Zoomed = true
+					before.Windows[windowID] = window
+				}
 				snapshot.History.Undo = []HistoryEntry{{
 					CommandID: CommandWindowZoom,
 					Before:    before,
@@ -561,7 +596,7 @@ func validFloatingStackSnapshot() Snapshot {
 	return Snapshot{
 		Version: SnapshotVersion, WorkspaceID: "workspace-a",
 		Desktops: []Desktop{{
-			ID: "desktop-default", Name: defaultDesktopName, Purpose: DesktopPurposeStandard,
+			ID: "desktop-default", Name: defaultDesktopName,
 			Groups: []LayoutGroup{}, Floating: []WindowID{},
 			FloatingStacks: []FloatingStack{{
 				ID: "floating-stack", WindowIDs: []WindowID{w1, w2}, ActiveID: &active,

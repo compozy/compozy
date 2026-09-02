@@ -51,6 +51,9 @@ var schemaCustomizers = map[reflect.Type]func(*openapi3.Schema){
 	reflect.TypeFor[contract.WindowManagerErrorFrame](): func(schema *openapi3.Schema) {
 		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameError)
 	},
+	reflect.TypeFor[contract.WindowManagerHeartbeatFrame](): func(schema *openapi3.Schema) {
+		customizeWindowManagerFrameSchema(schema, contract.WindowManagerFrameHeartbeat)
+	},
 	reflect.TypeFor[contract.WindowManagerLayoutNode]():                customizeClosedObjectSchema,
 	reflect.TypeFor[contract.UpdateSettingsWindowManagerRequest]():     customizeClosedObjectSchema,
 	reflect.TypeFor[contract.SettingsWindowManagerResponse]():          customizeClosedObjectSchema,

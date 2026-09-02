@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Edge and corner intent uses configured bands and hysteresis; repeated side snap cycles one-half, two-thirds, and one-third; occupied side bands structurally reflow while the occupied center swaps whole units without a modifier — a stacked window swaps as its whole tab frame — and grouping as tabs lives on the deck row and the solo head only, never a body drop; every landed window is separated from its neighbour by exactly the configured gap between tiles — edge-snapped windows included — and the drop preview shows that same landing box; shared seams resize every descendant on both sides, and abutting islands expose one draggable boundary that moves every island edge on that shared line, regardless of split or tile origin; a tiled unit's free edges and corners resize that unit alone — growth stops at the nearest island, and a split member detaches into its own island at the released frame while siblings keep their exact zones; drag-away follows policy for solo windows while a multi-member tab frame drags as one unit from its deck bar (a tiled frame floats out whole, active tab and order preserved); impossible minima adapt to a stack; a focus desktop is released the moment its zoomed window leaves, so no owner-less focus desktop lingers in the pager to reject later window opens; Zoom and unzoom restore exact group/node identity, order, weights, placement, and active stack member when the source is unchanged while preserving later source edits through deterministic fallback; and Escape, pointercancel, lost capture, outside release, or ambiguous stale revision commits nothing.
 entry_points: web desktop windows; shared seams; island boundaries; window edges; zoom control; command palette; keyboard shortcuts
-qa_status: untested
+qa_status: pass
 bug_ids: BUG-20260724-arrange-preset-overlap-reject; BUG-20260724-placement-cycles-unpruned; BUG-20260724-single-gesture-slot-multi-pointer; BUG-20260724-stale-return-anchor-on-desktop-transfer
 fix_status: pending
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/keyboard-04-dragged-network-window.png; docs/qa/evidence/2026-08-01-window-tabs/keyboard-05-resized-network-window.png;/Users/pedronauck/dev/qa-labs/compozy-open-issues-20260812-002435-338441-lab/qa-artifacts/web-window-z-index-pass.png
-last_report: docs/qa/reports/2026-08-11-open-issues.md
+retest_status: pass
+fix_commits: a1baedd3a
+evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/logs/walk-window-manager.jsonl; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/03-edge-tile-splits-solo-zoom.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/04-zoom-lifted-over-neighbor.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/05-unzoom-returned-home.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-09-01-window-manager-review-fixes.md
 overlaps: ET-profile-desktop-restoration; ET-web-window-routing-lifecycle; ET-window-manager-layout-recovery; ET-web-command-palette-shortcuts; ET-web-ui-resilience
 ---
 
@@ -73,3 +73,17 @@ desks when it is removed.
 Profile arrangement isolation, switch restoration, archive, delete, and workspace purge are owned by
 ET-profile-desktop-restoration. This row retains gesture geometry, resize, drag, zoom, and cancellation
 assertions and links the profile row as its first overlap rather than duplicating that walk.
+
+qa-impact: 2026-09-01 zoom is a per-window `zoomed` flag on the window's own desktop; focus desktops
+are gone, so "a focus desktop is released the moment its zoomed window leaves" no longer applies —
+the zoomed frame fills the work area over the untouched tree and unzoom reveals it unchanged. Edge
+tiles against an existing island now displace that island to the free zone (clean cut) instead of
+being refused with `topology.group_overlap`; a corner tile keeps the larger band. Pointer releases
+after a mid-drag revision change carry a rebase proof instead of cancelling with `stale-layout`.
+Zoom-specific assertions moved to ET-window-zoom-in-place. Reset for the current build.
+
+qa-impact: 2026-09-01 zoom is structural: the zoomed unit is the only full-frame island of its desktop, so an edge tile displaces it to the free zone instead of dropping it back to its old rect, and a zoom beside a visible window lifts to a fresh desktop instead of covering it. Walked A0b, A2, A4 and P4 on the final binary.
+
+qa-impact: 2026-09-01 review remediation keeps stale drag rebases tied to the gesture's captured source node for both snap and free-drop commands, including queued top-center zoom. Reset for a focused stale-gesture walk on the current head.
+
+qa-impact: 2026-09-01 focused current-head walk passed normal top-center zoom, edge snap, lifted-desktop paging, and exact unzoom return through the public web/API/CLI surfaces. The owning hook regressions then changed the live window node mid-gesture and proved free-drop and queued top-center zoom still submit the captured source node and revision.

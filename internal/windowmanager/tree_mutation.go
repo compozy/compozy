@@ -9,6 +9,7 @@ func removeWindow(snapshot *Snapshot, windowID WindowID) bool {
 	if !found {
 		return false
 	}
+	bequeathZoom(snapshot, windowID)
 	desktop := &snapshot.Desktops[placement.desktopIndex]
 	if placement.floatingStackIndex >= 0 {
 		stack := desktop.FloatingStacks[placement.floatingStackIndex]
@@ -66,6 +67,27 @@ func removeWindow(snapshot *Snapshot, windowID WindowID) bool {
 	return true
 }
 
+// bequeathZoom keeps a zoomed tab frame zoomed when the zoomed member leaves
+// it; the heir also takes over the slot the frame returns to on unzoom.
+func bequeathZoom(snapshot *Snapshot, windowID WindowID) {
+	window, exists := snapshot.Windows[windowID]
+	if !exists || !window.Zoomed {
+		return
+	}
+	location, stacked := findStackByWindow(snapshot, windowID)
+	if !stacked {
+		return
+	}
+	heirID, found := zoomHeir(location.members(), location.activeID(), windowID)
+	if !found {
+		return
+	}
+	heir := snapshot.Windows[heirID]
+	heir.Zoomed = true
+	heir.ReturnAnchor = cloneReturnAnchor(window.ReturnAnchor)
+	snapshot.Windows[heirID] = heir
+}
+
 func removeWindowFromNode(node LayoutNode, windowID WindowID) (LayoutNode, bool) {
 	switch node.Kind {
 	case NodeKindLeaf:
@@ -103,6 +125,11 @@ func removeWindowFromNode(node LayoutNode, windowID WindowID) (LayoutNode, bool)
 				if index < len(node.Weights) {
 					node.Weights = append(node.Weights[:index], node.Weights[index+1:]...)
 				}
+				if len(node.Children) == 0 {
+					// The last member left: the split is gone, so its island is
+					// gone too and cannot block a frame placed where it stood.
+					return LayoutNode{}, true
+				}
 			} else {
 				node.Children[index] = updated
 			}
@@ -127,7 +154,9 @@ func insertAtAnchor(
 		return err
 	}
 	if fallback != nil && *fallback != windowID {
-		if placement, exists := findWindowPlacement(snapshot, *fallback); exists && placement.groupIndex >= 0 {
+		placement, exists := findWindowPlacement(snapshot, *fallback)
+		if exists && placement.groupIndex >= 0 &&
+			snapshot.Desktops[placement.desktopIndex].ID == snapshot.Windows[windowID].DesktopID {
 			return insertRelative(snapshot, *fallback, windowID, DropAfter, generate)
 		}
 	}
@@ -200,8 +229,7 @@ func insertAtStructuralAnchor(
 		return inserted, err
 	}
 	for _, neighborID := range anchor.NeighborIDs {
-		neighbor, exists := snapshot.Windows[neighborID]
-		if exists && neighbor.DesktopID == anchor.DesktopID {
+		if tiledOnDesktop(snapshot, neighborID, anchor.DesktopID) {
 			return true, insertRelative(snapshot, neighborID, windowID, DropAfter, generate)
 		}
 	}
@@ -240,10 +268,17 @@ func insertLeafIntoSplit(
 	if err != nil {
 		return err
 	}
+	insertNodeIntoSplit(split, leaf, anchor)
+	return nil
+}
+
+// insertNodeIntoSplit puts a node back at the child index it left, with the
+// weight it had when the anchor still knows it.
+func insertNodeIntoSplit(split *LayoutNode, node LayoutNode, anchor *ReturnAnchor) {
 	index := min(max(*anchor.ChildIndex, 0), len(split.Children))
 	split.Children = append(split.Children, LayoutNode{})
 	copy(split.Children[index+1:], split.Children[index:])
-	split.Children[index] = leaf
+	split.Children[index] = node
 	weight := 1 / float64(len(split.Children))
 	if anchor.Weight != nil && finite(*anchor.Weight) && *anchor.Weight > 0 {
 		weight = *anchor.Weight
@@ -252,7 +287,6 @@ func insertLeafIntoSplit(
 	copy(split.Weights[index+1:], split.Weights[index:])
 	split.Weights[index] = weight
 	normalizeWeights(split.Weights)
-	return nil
 }
 
 func appendFloating(snapshot *Snapshot, windowID WindowID) error {

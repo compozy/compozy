@@ -19,8 +19,8 @@ and stacks; floating windows retain normalized geometry. This lets two browsers 
 viewport sizes render one shared arrangement without persisting pixels.
 
 Active desktop and focused window are client-local. Commands that change presentation — desktop
-switch, window focus, and focus-desktop zoom — require an explicit connected `client_id`, so one
-operator cannot silently redirect another operator's screen. Each client view has an independent,
+switch and window focus — require an explicit connected `client_id`, so one operator cannot silently
+redirect another operator's screen. Each client view has an independent,
 monotonic presentation revision: these commands do not advance topology revision, change layout
 history, or emit extension hooks.
 
@@ -67,10 +67,16 @@ as a stack without corrupting the stored topology. Group relocation moves the so
 group and is exclusive with `--target`, `--placement`, and `--rect`.
 
 Repeated side snapping cycles through one-half, two-thirds, and one-third by default. Top-center
-targets zoom into a dedicated focus desktop. When its owner returns, moves, swaps, minimizes, closes,
-or leaves through layout replacement, the daemon deletes an empty focus desktop or converts an
-occupied one to a standard desktop. Bottom-center is reserved for the Dock unless remapped.
-Both behavior and thresholds are validated under `[window_manager]` in `config.toml`.
+targets zoom the window: the unit holding it (the window or its whole tab frame) becomes the only
+full-size island of a desktop. When nothing else is showing on the window's desktop it zooms right
+there; when another window is visible, it moves to a new desktop placed right after the current one so
+no window gets covered. That desktop works like any other, so you can still add tabs and tiles to it.
+Unzooming brings the unit back to where it came from and removes the desktop the zoom created once it
+is empty; closing the zoomed window does the same. Grouping a window into the zoomed frame keeps the
+zoom; tiling another window to a screen edge gives the zoomed window the remaining space and ends the
+zoom, and arranging, moving, swapping, resizing, or floating ends it in place. A minimized window that
+was zoomed comes back zoomed. Bottom-center is reserved for the Dock unless remapped. Both behavior and
+thresholds are validated under `[window_manager]` in `config.toml`.
 
 ## Persistent desktops
 
@@ -109,11 +115,12 @@ profiles plus profiles scoped to the selected workspace, and rejects cross-works
 Resources cannot execute code or receive pointer events.
 
 A tiled return anchor in an exported document carries `return_anchor.source_group`, the daemon's
-validated deep capture of its source group. For Zoom, an unchanged source residue lets unzoom restore
-the exact group and node identities, order, weights, placement, and active stack member. If the source
-changed in the meantime, CompozyOS preserves those edits and uses the structural anchor fallback. Preserve
-`source_group` during raw document round trips; use the semantic Zoom operation instead of
-constructing or editing this recovery state.
+validated deep capture of its source group. Restoring a minimized window reinstalls the exact group and
+node identities, order, weights, and placement while the source residue is unchanged. If the source
+changed in the meantime, CompozyOS preserves those edits and falls back to the structural anchor, then
+the client's focused window on the same desktop, then a floating placement. A zoomed window's
+`return_anchor` is the slot unzoom takes it back to. Preserve `source_group` and `return_anchor.zoomed`
+during raw document round trips instead of constructing or editing this recovery state.
 
 ## Agent and transport access
 

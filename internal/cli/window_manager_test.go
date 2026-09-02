@@ -408,7 +408,7 @@ func TestWindowManagerMutationCommands(t *testing.T) {
 		{
 			name:            "Should create a desktop",
 			commandID:       contract.WindowManagerCommandDesktopCreate,
-			expectedPayload: `{"desktop_id":"d2","name":"Build","purpose":"standard"}`,
+			expectedPayload: `{"desktop_id":"d2","name":"Build"}`,
 			args: []string{
 				"desktop",
 				"create",
@@ -1817,7 +1817,6 @@ func windowManagerTestSnapshot(revision contract.WindowManagerRevision) contract
 				ID:       "d1",
 				Name:     "Desktop 1",
 				Order:    0,
-				Purpose:  windowmanager.DesktopPurposeStandard,
 				Groups:   []contract.WindowManagerLayoutGroup{},
 				Floating: []windowmanager.WindowID{"win-1"},
 			},
@@ -1825,7 +1824,6 @@ func windowManagerTestSnapshot(revision contract.WindowManagerRevision) contract
 				ID:       "d2",
 				Name:     "Desktop 2",
 				Order:    1,
-				Purpose:  windowmanager.DesktopPurposeStandard,
 				Groups:   []contract.WindowManagerLayoutGroup{},
 				Floating: []windowmanager.WindowID{"win-2"},
 			},

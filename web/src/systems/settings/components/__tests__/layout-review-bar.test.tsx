@@ -28,15 +28,13 @@ import { LayoutReviewBar } from "../layouts/layout-review-bar";
 const INITIAL: WindowManagerLayoutState = {
   revision: 7,
   document: {
-    version: 3,
+    version: 4,
     workspaceId: "workspace-a",
     desktops: [
       {
         id: "desktop-one",
         name: "Build",
         order: 0,
-        purpose: "standard",
-        focusOwner: null,
         floating: [],
         floatingStacks: [],
         groups: [
@@ -60,6 +58,7 @@ const INITIAL: WindowManagerLayoutState = {
         desktopId: "desktop-one",
         floatingRect: { x: 0.2, y: 0.2, w: 0.4, h: 0.4 },
         minimized: false,
+        zoomed: false,
         returnAnchor: null,
       },
     },

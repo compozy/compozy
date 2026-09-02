@@ -7,8 +7,6 @@ type WindowManagerDesktop struct {
 	ID             windowmanager.DesktopID      `json:"id"`
 	Name           string                       `json:"name"`
 	Order          int                          `json:"order"`
-	Purpose        windowmanager.DesktopPurpose `json:"purpose"`
-	FocusOwner     *windowmanager.WindowID      `json:"focus_owner,omitempty"`
 	Groups         []WindowManagerLayoutGroup   `json:"groups"`
 	Floating       []windowmanager.WindowID     `json:"floating"`
 	FloatingStacks []WindowManagerFloatingStack `json:"floating_stacks"`
@@ -50,8 +48,7 @@ func windowManagerDesktopsFromDomain(desktops []windowmanager.Desktop) []WindowM
 			groups = append(groups, windowManagerLayoutGroupFromDomain(group))
 		}
 		result = append(result, WindowManagerDesktop{
-			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Purpose: desktop.Purpose,
-			FocusOwner: cloneWindowManagerPointer(desktop.FocusOwner), Groups: groups,
+			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Groups: groups,
 			Floating:       append([]windowmanager.WindowID{}, desktop.Floating...),
 			FloatingStacks: windowManagerFloatingStacksFromDomain(desktop.FloatingStacks),
 		})
@@ -108,8 +105,7 @@ func windowManagerDesktopsToDomain(desktops []WindowManagerDesktop) []windowmana
 			groups = append(groups, windowManagerLayoutGroupToDomain(group))
 		}
 		result = append(result, windowmanager.Desktop{
-			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Purpose: desktop.Purpose,
-			FocusOwner: cloneWindowManagerPointer(desktop.FocusOwner), Groups: groups,
+			ID: desktop.ID, Name: desktop.Name, Order: desktop.Order, Groups: groups,
 			Floating:       append([]windowmanager.WindowID(nil), desktop.Floating...),
 			FloatingStacks: windowManagerFloatingStacksToDomain(desktop.FloatingStacks),
 		})

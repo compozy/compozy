@@ -70,6 +70,8 @@ export interface GestureCommandCandidate {
   target: SnapTarget;
   expectedRevision: LayoutRevision;
   finalPoint: PixelPoint;
+  /** The layout moved during the gesture; the commit must prove its nodes still match. */
+  rebase: boolean;
 }
 
 export type GestureDecision =
@@ -168,8 +170,9 @@ export function cancelLayoutGesture(
 
 /**
  * Produces at most one semantic command candidate. The pointer-up sample and
- * target always replace the last preview. A revision change cancels the gesture;
- * the shipped pointer path does not carry an authoritative rebase proof.
+ * target always replace the last preview. A revision change during the gesture
+ * does not cancel it: the candidate is marked for a rebase, and the daemon
+ * applies it only while the source and target node identities still match.
  */
 export function finishLayoutGesture(
   session: LayoutGestureSession,
@@ -199,29 +202,22 @@ export function finishLayoutGesture(
       input.currentRevision
     );
   }
-  if (input.currentRevision === session.layoutRevision) {
-    if (input.finalTarget === null) {
-      return cancelDecision(
-        "no-target",
-        input.finalPoint,
-        session.layoutRevision,
-        input.currentRevision
-      );
-    }
-    return {
-      kind: "commit",
-      command: {
-        source: session.source,
-        target: copySnapTarget(input.finalTarget),
-        expectedRevision: session.layoutRevision,
-        finalPoint: copyPoint(input.finalPoint),
-      },
-    };
+  if (input.finalTarget === null) {
+    return cancelDecision(
+      "no-target",
+      input.finalPoint,
+      session.layoutRevision,
+      input.currentRevision
+    );
   }
-  return cancelDecision(
-    "stale-layout",
-    input.finalPoint,
-    session.layoutRevision,
-    input.currentRevision
-  );
+  return {
+    kind: "commit",
+    command: {
+      source: session.source,
+      target: copySnapTarget(input.finalTarget),
+      expectedRevision: session.layoutRevision,
+      finalPoint: copyPoint(input.finalPoint),
+      rebase: input.currentRevision !== session.layoutRevision,
+    },
+  };
 }

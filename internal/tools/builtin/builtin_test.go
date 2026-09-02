@@ -2690,7 +2690,7 @@ func assertWindowManagerPreviewSchema(t *testing.T, raw json.RawMessage) {
 		},
 		{name: "Should reject a client-local desktop switch without a client", commandID: "desktop.switch"},
 		{name: "Should reject a client-local window focus without a client", commandID: "window.focus"},
-		{name: "Should reject a client-local window zoom without a client", commandID: "window.zoom"},
+		{name: "Should accept a durable window zoom without a client", commandID: "window.zoom", valid: true},
 		{name: "Should accept window stack group", commandID: "window.stack.group", valid: true},
 		{name: "Should accept window stack reorder", commandID: "window.stack.reorder", valid: true},
 		{name: "Should accept window stack activation", commandID: "window.stack.set_active", valid: true},

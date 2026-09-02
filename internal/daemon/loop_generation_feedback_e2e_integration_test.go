@@ -268,8 +268,16 @@ func TestDaemonE2ELoopGenerationFeedbackShouldConvergeAndBound(t *testing.T) {
 			causes[1].Cause != "gate_verdict:rejected" {
 			t.Fatalf("gate route cause = %#v, want rejected verdict reroute", causes[1])
 		}
+		if got := feedbackNodeOutputRef(t, cli.Generations[0], "z_publish_guard"); got != "route_not_taken:router" {
+			t.Fatalf("publish guard output_ref = %q, want route_not_taken:router", got)
+		}
 		if got := feedbackNodeOutputRef(t, cli.Generations[0], "publish"); got != "route_not_taken:router" {
 			t.Fatalf("publish output_ref = %q, want route_not_taken:router", got)
+		}
+		for _, verdict := range cli.Generations[0].Verdicts {
+			if verdict.GateID == "z_publish_guard" {
+				t.Fatalf("unselected publish guard verdict = %#v, want no evaluation", verdict)
+			}
 		}
 	})
 }
@@ -395,7 +403,7 @@ func feedbackRouteDefinition() compozycontract.LoopDefinitionDocument {
 					Routes: []dsl.RouteSpec{{
 						When: "nodes.classifier.output.bucket == 'revise'", To: "quality",
 					}},
-					Default: "publish",
+					Default: "z_publish_guard",
 				},
 				{
 					ID: "quality", Class: dsl.NodeClassControl, Kind: "gate",
@@ -406,6 +414,13 @@ func feedbackRouteDefinition() compozycontract.LoopDefinitionDocument {
 					OnResult: map[string]any{
 						"fail": map[string]any{"route": "revise"},
 					},
+				},
+				{
+					ID: "z_publish_guard", Class: dsl.NodeClassControl, Kind: "gate",
+					Criteria: []dsl.GateCriterion{{
+						ID: "ready_to_publish", Type: "command", Check: "exit 0", Expect: "exit_zero",
+					}},
+					VerdictPolicy: "fixed_passes",
 				},
 				{
 					ID: "revise", Class: dsl.NodeClassAction, Kind: "transform",
@@ -419,8 +434,9 @@ func feedbackRouteDefinition() compozycontract.LoopDefinitionDocument {
 			Edges: []dsl.Edge{
 				{From: "classifier", To: "router"},
 				{From: "router", To: "quality"},
-				{From: "router", To: "publish"},
+				{From: "router", To: "z_publish_guard"},
 				{From: "quality", To: "revise"},
+				{From: "z_publish_guard", To: "publish"},
 			},
 		},
 		DefinitionExtensionState: &dsl.DefinitionExtensionState{

@@ -6,13 +6,13 @@ persona: Bruno
 journey: J-administer-window-manager
 expected: Two registered clients using the same profile in one workspace observe the same persistent desktops, groups, windows, revisions, routes, and durable events while independently switching desktops and focusing or zooming windows; clients using different profiles observe separate desktops and windows, and switching one never changes the other's active view; a remote presentation command reaches exactly the selected client's fenced stream without advancing topology revision/history/hooks or leaking that ClientView to its peer; missing, foreign, and disconnected client IDs reject.
 entry_points: two Web browser contexts in one profile; two Web browser contexts in different profiles; compozy desktop clients; compozy desktop switch; compozy window focus; compozy window zoom; profile-scoped window-manager reads and commands
-qa_status: untested
+qa_status: pass
 bug_ids:
 fix_status:
-retest_status:
-fix_commits:
-evidence: docs/qa/evidence/2026-08-01-window-tabs/supervisor-01-desktop-pager.png; docs/qa/evidence/2026-08-01-window-tabs/supervisor-02-recovery-desktop.png; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/two-client-conflict-recovery.txt; /Users/pedronauck/dev/qa-labs/compozy-window-management-regressions-20260821-020852-370190-lab/qa-artifacts/evidence/theo-triggers-after-conflict.png
-last_report: docs/qa/reports/2026-08-20-window-management-regressions.md
+retest_status: pass
+fix_commits: a1baedd3a
+evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-parity-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/21-peer-sees-zoom-lift.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-09-01-window-manager-hardening.md
 overlaps: ET-profile-desktop-restoration; ET-window-manager-public-parity; ET-web-desktop-shell-lifecycle; RT-desktop-pager-overview
 ---
 
@@ -42,3 +42,9 @@ registration atomically so overlapping switches serialize. Already `untested`, s
 needed. Add one pair of clients on different profiles and confirm neither sees the other's windows
 and neither is force-switched when its peer switches. Per-profile restoration itself is owned by
 `ET-profile-desktop-restoration`.
+
+qa-impact: 2026-09-01 `window.zoom` no longer requires a `client_id` and no longer changes topology
+beyond the `zoomed` flag: two clients on one profile both see the zoomed frame, and a zoom from the CLI
+without a client leaves every client's active desktop and focus untouched. Reset for the current build.
+
+qa-impact: 2026-09-01 two browser clients: the zooming client follows a lifted zoom to its new desktop while the peer stays on its desktop and sees the pager grow; a clientless CLI unzoom returns the window and repairs only the lifted client's view. Walked P2.

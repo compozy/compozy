@@ -20,6 +20,10 @@ import type {
   WindowManagerErrorPayload,
   WindowManagerSnapshot,
 } from "../lib/window-manager-types";
+import {
+  createStreamLiveness,
+  windowManagerReconnectDelay,
+} from "./window-manager-stream-liveness";
 import { windowManagerStreamLogic } from "./window-manager-stream-store";
 import { workspaceKeys } from "@/systems/workspace";
 import type { GlobalShortcutRegistrationWire } from "../lib/desktop-shell-bridge";
@@ -49,6 +53,12 @@ export interface WindowManagerClientContextInput {
 function browserWindowManagerSocket(url: string): WindowManagerSocket {
   return createStreamWebSocket(url);
 }
+
+export {
+  WINDOW_MANAGER_HEARTBEAT_INTERVAL_MS,
+  WINDOW_MANAGER_STREAM_STALL_MS,
+  windowManagerReconnectDelay,
+} from "./window-manager-stream-liveness";
 
 export interface UseWindowManagerStreamOptions {
   workspaceId: string | null;
@@ -205,7 +215,6 @@ export function useWindowManagerStream({
     let refreshRetryTimer: ReturnType<typeof setTimeout> | null = null;
     let refreshRetryAttempt = 0;
     let pendingMinimumRevision = -1;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
     const refreshController = new AbortController();
     const cachedAtOpen = queryClient.getQueryData<WindowManagerSnapshot>(
       windowManagerKeys.snapshot(workspaceId, profileId)
@@ -220,14 +229,47 @@ export function useWindowManagerStream({
     const activeBindingKey = bindingKey;
     boundSocketRef.current = { bindingKey: activeBindingKey, ready: false, socket };
 
-    const applySnapshot = (snapshot: WindowManagerSnapshot) => {
+    /**
+     * Cache the snapshot. Events and refreshes only ever move the cache forward;
+     * an authoritative read (the stream fence, or a re-read the daemon itself
+     * announced as behind us) replaces the cache even when its revision is not
+     * ahead, because the daemon restarted from a discarded, replaced, or migrated
+     * arrangement and a client that keeps the old content would show it forever.
+     */
+    const applySnapshot = (snapshot: WindowManagerSnapshot, authoritative = false) => {
       if (snapshot.workspaceId !== workspaceId) return;
-      lifecycleStore.trigger.topologyObserved({ revision: snapshot.revision });
       const key = windowManagerKeys.snapshot(workspaceId, profileId);
-      queryClient.setQueryData<WindowManagerSnapshot>(key, current =>
-        reconcileWindowManagerSnapshot(current, snapshot)
-      );
+      const cached = queryClient.getQueryData<WindowManagerSnapshot>(key);
+      if (authoritative && cached !== undefined && snapshot.revision <= cached.revision) {
+        lifecycleStore.trigger.snapshotObserved({ revision: snapshot.revision });
+        queryClient.setQueryData<WindowManagerSnapshot>(key, snapshot);
+      } else {
+        lifecycleStore.trigger.topologyObserved({ revision: snapshot.revision });
+        queryClient.setQueryData<WindowManagerSnapshot>(key, current =>
+          reconcileWindowManagerSnapshot(current, snapshot)
+        );
+      }
       publishSnapshot(snapshot);
+    };
+
+    let resync: Promise<void> | null = null;
+    /** The daemon announced a revision behind the cache: re-read and accept its truth. */
+    const resyncSnapshot = () => {
+      if (resync !== null) return;
+      resync = fetchWindowManagerSnapshot(workspaceId, profileId, refreshController.signal)
+        .then(snapshot => {
+          if (stopped) return;
+          applySnapshot(snapshot, true);
+        })
+        .catch(cause => {
+          if (stopped) return;
+          publishError(
+            cause instanceof Error ? cause : new Error("Unable to re-read the window layout.")
+          );
+        })
+        .finally(() => {
+          resync = null;
+        });
     };
 
     const applyClient = (client: WindowManagerAttachedClientView) => {
@@ -306,15 +348,31 @@ export function useWindowManagerStream({
       publishClientInvalidated();
     };
 
+    // One reconnect per socket: the first trigger (close, stall, wake) wins.
+    const liveness = createStreamLiveness({
+      reconnectAttempt: () => lifecycleStore.getSnapshot().context.reconnectAttempt,
+      onReconnect: attempt => lifecycleStore.trigger.reconnectElapsed({ attempt }),
+      onStatus: status => {
+        if (!stopped) publishStatus(status);
+      },
+      closeSocket: () => {
+        socket.onclose = null;
+        socket.onerror = null;
+        socket.close();
+      },
+    });
+
     socket.onopen = () => {
       if (stopped) return;
       const bound = boundSocketRef.current;
       if (bound?.socket === socket) bound.ready = true;
+      liveness.noteFrame();
       scheduleContextRefresh();
       publishStatus("connecting");
     };
     socket.onmessage = event => {
       if (stopped || typeof event.data !== "string") return;
+      liveness.noteFrame();
       try {
         const frame = parseWindowManagerStreamFrame(JSON.parse(event.data) as unknown);
         if (frame.type === "error") {
@@ -368,13 +426,19 @@ export function useWindowManagerStream({
         if (frame.type === "snapshot") {
           receivedSnapshot = true;
           lifecycleStore.trigger.snapshotObserved({ revision: frame.snapshot.revision });
-          applySnapshot(frame.snapshot);
+          applySnapshot(frame.snapshot, true);
           if (frame.client !== null) applyClient(frame.client);
           publishStatus("connected");
           return;
         }
         if (frame.type === "client") {
           applyClient(frame.client);
+          return;
+        }
+        if (frame.type === "heartbeat") {
+          const cachedRevision = currentTopologyRevision();
+          if (frame.revision > cachedRevision) refreshSnapshot(frame.revision);
+          else if (frame.revision < cachedRevision) resyncSnapshot();
           return;
         }
         lifecycleStore.trigger.topologyObserved({ revision: frame.revision });
@@ -393,18 +457,15 @@ export function useWindowManagerStream({
       publishStatus("reconnecting");
     };
     socket.onclose = () => {
-      if (stopped || reconnectTimer !== null) return;
-      publishStatus("reconnecting");
-      const closingAttempt = lifecycleStore.getSnapshot().context.reconnectAttempt;
-      const delay = Math.min(8_000, 500 * 2 ** Math.min(closingAttempt, 4));
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = null;
-        lifecycleStore.trigger.reconnectElapsed({ attempt: closingAttempt });
-      }, delay);
+      if (stopped) return;
+      liveness.scheduleReconnect(
+        windowManagerReconnectDelay(lifecycleStore.getSnapshot().context.reconnectAttempt)
+      );
     };
 
     return () => {
       stopped = true;
+      liveness.dispose();
       if (boundSocketRef.current?.socket === socket) boundSocketRef.current = null;
       if (contextRefreshTimerRef.current !== null) {
         clearTimeout(contextRefreshTimerRef.current);
@@ -416,10 +477,6 @@ export function useWindowManagerStream({
       socket.onerror = null;
       socket.onclose = null;
       socket.close();
-      if (reconnectTimer !== null) {
-        clearTimeout(reconnectTimer);
-        reconnectTimer = null;
-      }
       if (refreshRetryTimer !== null) {
         clearTimeout(refreshRetryTimer);
         refreshRetryTimer = null;

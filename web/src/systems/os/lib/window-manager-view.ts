@@ -207,6 +207,7 @@ export function buildOsDesktopRuntimeView(input: OsDesktopRuntimeViewInput): OsD
     client,
     projections,
     workArea,
+    gaps: config?.gaps ?? { inner: 0, top: 0, right: 0, bottom: 0, left: 0 },
     raiseOnFocus: config?.raiseOnFocus ?? false,
   });
   const windows = buildWindowManagerWindows({
@@ -301,6 +302,7 @@ export function buildWindowManagerWindows(input: {
       rect: frame?.rect ?? normalizedRectToPixels(authoritative.floatingRect, input.workArea),
       layer: frame?.layer ?? 1,
       minimized: authoritative.minimized || (frame?.minimized ?? false),
+      zoomed: authoritative.zoomed && !authoritative.minimized,
       groupId: projected?.groupId ?? null,
       nodeId: projected?.nodeId ?? null,
       stackId: frame?.stackId ?? null,

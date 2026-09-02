@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Working row · Sessions stability · CompozyOS design</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=JetBrains+Mono:wght@400..700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../design-system/ds-core.css">
+<link rel="stylesheet" href="../design-system/ds-shell.css">
+<link rel="stylesheet" href="sessions-stability.css">
+<!--
+  sessions-stability-working · S3 — Working & thinking row (SessionThinkingRow, rework of
+  session-working-row.tsx WorkingIndicator). Spec: _uiux.md S3 · US-023, US-027, US-014 ·
+  ADR-006 (no empty assistant shell). VC rows: task_05 VC-01 · task_07 VC-10..12.
+  Provenance:
+    production — WorkingIndicator: role=status, 22px row, TypingDots + "Working for 12s",
+                 11.5px subtle, rendered once between the scroller and the composer;
+                 ThinkingBlock live label uses .session-shimmer (web/src/styles.css).
+    spec S3   — "Thinking…" before first content; "· Running {tool}"; children count;
+                 "Stopped after {duration}" (warning ink); quiet warning on the session;
+                 timer from durable timestamps (survives reconnect).
+-->
+</head>
+<body>
+<div class="shell"><div class="main">
+  <header class="w2head" data-od-id="wk-head">
+    <a class="w2-back" href="index.html" aria-label="Back to set"><svg data-lucide="chevron-left"></svg></a>
+    <nav class="w2-crumbs"><a class="w2-crumb" href="index.html">Sessions stability</a><span class="w2-sep">/</span><h1 class="w2-title">Working &amp; thinking row</h1></nav>
+    <div class="w2-flex"></div>
+    <div class="w2-actions"><a class="btn btn--sm" href="sessions-stability-queue.html">← Queue strip</a><a class="btn btn--sm" href="sessions-stability-connection.html">Next: Connection →</a></div>
+  </header>
+  <div class="scroll"><div class="page">
+
+    <section class="ss-contract" data-od-id="wk-contract" aria-label="What this board is">
+      <div class="ss-contract__col">
+        <span class="eyebrow">What this board is</span>
+        <p class="ss-contract__what"><b>S3 — the one line that says what the agent is doing right now.</b> It reads “Thinking…” from your send until the first word or tool, then “Working for 2m 14s · Running shell”, stays “working” while spawned agents still run, and after a stop reads “Stopped after 1m 40s”. There is never an empty reply bubble before content exists. The elapsed time is the daemon’s, so it survives a reconnect.</p>
+        <p class="ss-contract__file">sessions-stability-working.html · S3 · US-023 · US-027 · US-014</p>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">Production components this board changes</span>
+        <ul class="ss-mods">
+          <li><span class="ss-mod ss-mod--new">new</span><span><b>SessionThinkingRow</b><i>web/src/systems/session/components/session-thinking-row.tsx</i>one status row: thinking · working + tool · children · stopped · failed; replaces <code>WorkingIndicator</code></span></li>
+          <li><span class="ss-mod ss-mod--delete">delete</span><span><b>WorkingIndicator · SessionWorkingRowView</b><i>web/src/components/assistant-ui/session-working-row.tsx</i>timer-only row and the null timeline row</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>AssistantMessage</b><i>web/src/components/assistant-ui/session-assistant-message.tsx</i>does not mount until content exists — no shell, no floating copy action (ADR-006)</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>SessionWindowContent notice slot</b><i>web/src/systems/os/apps/session/session-window-content.tsx:133-161</i>quiet-warning notice joins the precedence list</span></li>
+          <li><span class="ss-mod ss-mod--modify">modify</span><span><b>formatElapsed</b><i>web/src/components/assistant-ui/session-working-row.logic.ts</i>unchanged ladder, now fed by <code>activity.started_at</code> instead of a client stopwatch</span></li>
+          <li><span class="ss-mod ss-mod--reuse">reuse</span><span><b>TypingDots · Spinner · Marker · .session-shimmer</b><i>@compozy/ui + web/src/styles.css — unchanged</i></span></li>
+        </ul>
+      </div>
+      <div class="ss-contract__col">
+        <span class="eyebrow">States on this board</span>
+        <ol class="ss-states">
+          <li><a href="#wk-thinking">Thinking… — before first content</a><code>task_07 VC-10</code></li>
+          <li><a href="#wk-tool">Working for 2m 14s · Running shell</a><code>task_07 VC-11</code></li>
+          <li><a href="#wk-children">Still working — 2 agents running</a><code>task_07 VC-11</code></li>
+          <li><a href="#wk-stopped">Stopped after 1m 40s</a><code>task_07 VC-12</code></li>
+          <li><a href="#wk-quiet">Quiet warning on the session</a><code>task_05 VC-01</code></li>
+          <li><a href="#wk-reconnect">Timer across a reconnect</a><code>US-027.EC-1</code></li>
+          <li><a href="#wk-failed">Failed before any content</a><code>US-023.AC-3</code></li>
+          <li><a href="#wk-rm">Reduced motion · duration ladder</a><code>ADR-008</code></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ===== 01 · THINKING ===== -->
+    <section class="lab-sec" id="wk-thinking" data-od-id="wk-thinking">
+      <div class="lab-sec__head"><span class="lab-sec__num">01</span><h2 class="lab-sec__t">Thinking… — your message, then one shimmering word</h2><span class="lab-sec__gist">US-023.AC-1 · ADR-006 · task_07 VC-10</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Nothing exists for the reply yet, so nothing is drawn for it.</b> Today an empty assistant bubble with a floating copy icon appears the instant you send. Now the transcript ends at your bubble and the status row below the scroller reads “Thinking…” with the production text shimmer. When the first token or tool arrives the row becomes “Working for …” and the reply mounts with real content. A very fast first token may skip the thinking row entirely — no flicker (US-023.EC-1).</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="wk-thinking-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="wk-thinking-win" style="--ss-win-h:420px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="running"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+                    <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary></details>
+                    <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps.</p></div>
+                  </div>
+                  <div class="ss-turn ss-turn--tight">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div><i class="ss-n">2</i>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status" aria-label="Agent is responding"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div><i class="ss-n">1</i></div>
+                <div class="ss-composer-zone">
+                  <div class="ss-composer"><div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div>
+                    <div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-chip"><svg data-lucide="folder"></svg>~/Dev/compozy</span><span class="ss-hint"><span class="kbd">⏎</span>steer<span class="alt"><span class="kbd">⌘⏎</span>queue</span></span></div><span class="spacer"></span><div class="ss-composer__busy"><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="list-plus"></svg>Queue</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="corner-down-right"></svg>Steer</button><button class="btn btn--ghost btn--sm" disabled><svg data-lucide="scissors"></svg>Interrupt</button></div><button class="ss-primary" data-shape="stop" aria-label="Stop"><svg data-lucide="square"></svg></button></div></div>
+                </div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Thinking row</b> <em>SessionThinkingRow · production row geometry (22px, 11.5px subtle) · TypingDots + <code>.session-shimmer</code> label · <code>role=status</code>, polite</em></span></li>
+            <li><i class="ss-n">2</i><span><b>No assistant shell</b> <em>the turn ends at your bubble; AssistantMessage mounts only with content (deletes the empty-bubble + floating-copy defect)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>thinking</span><span class="ss-tag"><b>component</b>SessionThinkingRow · AssistantMessage</span><span class="ss-tag"><b>VC</b>task_07/VC-10</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 02 · WORKING WITH TOOL ===== -->
+    <section class="lab-sec" id="wk-tool" data-od-id="wk-tool">
+      <div class="lab-sec__head"><span class="lab-sec__num">02</span><h2 class="lab-sec__t">Working for 2m 14s · Running shell</h2><span class="lab-sec__gist">US-027.AC-1 · task_07 VC-11</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Elapsed, then the current activity.</b> The timer is production’s (tabular, 1 Hz, same ladder); the activity is new and comes from <code>activity.current_tool</code> on the session resource. The tool word is the verb form the transcript uses (“Running shell”, “Editing file”, “Reading file”), no icon here — the live tool row in the transcript (S5) already carries the kind glyph. When the agent is between tools the row reads “Working for 2m 14s” alone.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="wk-tool-demo" style="display:flex;flex-direction:column;gap:6px">
+            <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 14s</b><span class="sep">·</span>Running shell<i class="ss-n">1</i></div>
+            <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 31s</b><span class="sep">·</span>Editing file</div>
+            <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 40s</b><span class="sep">·</span>Running 3 tools<i class="ss-n">2</i></div>
+            <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 52s</b></div>
+            <div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>3m 05s</b><span class="sep">·</span>Waiting for your decision<i class="ss-n">3</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Activity segment</b> <em>“· Running shell” from <code>activity.current_tool</code> · verb labels reuse <code>tool-labels.ts</code> · elapsed in 510 muted, rest subtle</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Parallel tools</b> <em>a count, still one row (US-021.EC-2)</em></span></li>
+            <li><i class="ss-n">3</i><span><b>Waiting on you</b> <em>a pending decision is activity too — the row says so; the decision dock (production) holds the controls</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>working · tool</span><span class="ss-tag"><b>component</b>SessionThinkingRow</span><span class="ss-tag"><b>VC</b>task_07/VC-11</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 03 · CHILDREN ===== -->
+    <section class="lab-sec" id="wk-children" data-od-id="wk-children">
+      <div class="lab-sec__head"><span class="lab-sec__num">03</span><h2 class="lab-sec__t">The lead reply is done, two helpers are not — still working</h2><span class="lab-sec__gist">US-027.AC-2 · task_07 VC-11</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Working means the whole turn, children included.</b> The lead answer has landed and reads settled; below it, two spawned agents are still running as live rows (rich rows never fold, US-021.EC-3). The status row keeps its dots and shows the count. It settles — and the turn folds — only when the last child does. Stop is still the disc, because the turn isn’t over.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="wk-children-demo" style="display:flex;flex-direction:column;gap:4px">
+            <div class="ss-prose"><p>The lifecycle tests are green locally. I’ve asked <b>reviewer</b> to look at the diff and <b>scout</b> to check whether the store package has the same sleep pattern.</p></div>
+            <div class="ss-tool ss-tool--live" style="margin-top:6px"><span class="ss-tool__well"><svg data-lucide="bot"></svg></span><span class="ss-tool__label ss-shimmer">reviewer — reviewing the diff in HEAD~1..HEAD</span><span class="ss-tool__state">1m 02s</span></div>
+            <div class="ss-tool ss-tool--live"><span class="ss-tool__well"><svg data-lucide="bot"></svg></span><span class="ss-tool__label ss-shimmer">scout — searching internal/store for time.Sleep</span><span class="ss-tool__state">40s</span></div><i class="ss-n">2</i>
+            <div class="ss-status" role="status" style="margin-top:8px"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>6m 02s</b><span class="sep">·</span>2 agents running<i class="ss-n">1</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Children count</b> <em>from <code>supervision.work_signals</code> of kind <code>active_child</code> · “1 agent running” / “2 agents running”</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Live child rows</b> <em>SessionLiveToolRow with the <code>bot</code> kind glyph · shimmer while running · never grouped or folded</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>working · children</span><span class="ss-tag"><b>component</b>SessionThinkingRow · SessionLiveToolRow</span><span class="ss-tag"><b>VC</b>task_07/VC-11</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 04 · STOPPED AFTER ===== -->
+    <section class="lab-sec" id="wk-stopped" data-od-id="wk-stopped">
+      <div class="lab-sec__head"><span class="lab-sec__num">04</span><h2 class="lab-sec__t">Stopped after 1m 40s — and the settled forms</h2><span class="lab-sec__gist">US-027.EC-2 · US-027.AC-3 · task_07 VC-12</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>The row freezes into a sentence.</b> A stop by you reads “Stopped by you after 1m 40s” in warning ink — the only tone this row ever wears besides danger for a real failure. A turn that completed reads nothing here: the frozen “Worked for 4m 12s” moves to the fold in the transcript (S5) and the row disappears. A stop that arrived exactly as the turn finished reads completed, not stopped (US-009.EC-2).</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="wk-stopped-demo" style="display:flex;flex-direction:column;gap:6px">
+            <div class="ss-status ss-status--stopped" role="status"><svg data-lucide="circle-stop"></svg>Stopped by you after <b>1m 40s</b><i class="ss-n">1</i></div>
+            <div class="ss-status ss-status--stopped" role="status"><svg data-lucide="circle-stop"></svg>Stopped after <b>14s</b><span class="sep">·</span>the agent didn’t answer the stop, so it was closed for you</div>
+            <div class="ss-status ss-status--stopped" role="status"><svg data-lucide="circle-stop"></svg>Stopped after <b>31m</b><span class="sep">·</span>no work for 40 minutes</div>
+            <div class="ss-status" role="status" style="color:var(--faint)">Completed<span class="sep">·</span>the stop arrived after the turn finished<i class="ss-n">2</i></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Stopped row</b> <em>warning-toned label text only (ADR-009) · <code>circle-stop</code> 12px · cause words from <code>stop_cause</code>: <code>user_requested</code> / <code>escalated</code> / <code>inactivity</code></em></span></li>
+            <li><i class="ss-n">2</i><span><b>Completion wins</b> <em>faint, transient (6s) · the turn folds normally</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>stopped-after ×3 · completed</span><span class="ss-tag"><b>component</b>SessionThinkingRow</span><span class="ss-tag"><b>VC</b>task_07/VC-12</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 05 · QUIET WARNING ===== -->
+    <section class="lab-sec" id="wk-quiet" data-od-id="wk-quiet">
+      <div class="lab-sec__head"><span class="lab-sec__num">05</span><h2 class="lab-sec__t">Quiet for 30 minutes — the session warns once, where you are</h2><span class="lab-sec__gist">US-014.AC-1 · US-014.EC-2 · task_05 VC-01</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No work signals for <code>quiet_after</code> (30m) means one warning, in the session itself, not only in the bell.</b> It rides the existing notice slot at the top of the window (warning fill, no border) and the status row counts down to the stop (<code>stop_grace</code>, 10m). Any work signal clears both. The only action offered is one that exists: stop now. There is no “keep alive” because the runtime has no such verb — activity is what keeps it alive.</div>
+        <div class="spec__demo">
+          <div class="stage stage--pad" data-od-id="wk-quiet-stage">
+            <section class="win win--inline is-focused ss-win" data-od-id="wk-quiet-win" style="--ss-win-h:400px">
+              <header class="win-head">
+                <div class="win-controls"><button class="wc wc-close" tabindex="-1" aria-label="Close"></button><button class="wc wc-min" tabindex="-1" aria-label="Minimize"></button><button class="wc wc-zoom" tabindex="-1" aria-label="Zoom"></button></div>
+                <div class="w2-id" data-status="idle"><span class="status-dot"></span><span class="w2-title">dev-loop</span></div>
+                <span class="ss-head-meta">Claude Code<span class="dotsep"></span><span class="prov">claude-code</span></span>
+                <span class="w2-flex" aria-hidden="true"></span>
+                <div class="win-trail"><div class="w2-actions"><button class="btn btn--ghost btn--icon" aria-label="Stop session"><svg data-lucide="square"></svg></button><button class="btn btn--ghost btn--icon" aria-label="More actions"><svg data-lucide="ellipsis"></svg></button></div></div>
+              </header>
+              <div class="win-body">
+                <div class="ss-notice-slot"><div class="notice" role="status" data-od-id="wk-quiet-notice"><svg data-lucide="triangle-alert"></svg><span><b>Quiet for 30 minutes.</b> This session stops in 10 minutes unless the agent gets back to work.</span><span class="notice__actions"><button class="btn btn--xs">Stop now</button></span></div><i class="ss-n">1</i></div>
+                <div class="ss-thread"><div class="ss-thread__inner">
+                  <div class="ss-turn">
+                    <div class="ss-msg-user"><div class="ss-msg-user__bubble">Refactor the flaky manager tests</div></div>
+                    <details class="ss-fold"><summary class="ss-fold__head"><svg class="ss-fold__chev" data-lucide="chevron-right"></svg>Worked for 4m 12s<span class="dotsep"></span>Ran 6 commands, edited 2 files</summary></details>
+                    <div class="ss-prose"><p>Done — 14 tests updated. The retry path in <code>manager_lifecycle_test.go</code> no longer depends on wall-clock sleeps.</p></div>
+                  </div>
+                </div></div>
+                <div class="ss-below"><div class="ss-status" role="status"><svg data-lucide="clock"></svg>Quiet for <b>31m</b><span class="sep">·</span>stops in 9m<i class="ss-n">2</i></div></div>
+                <div class="ss-composer-zone"><div class="ss-composer"><div class="ss-composer__input" contenteditable="true" data-placeholder="Send a message…"></div><div class="ss-composer__row"><div class="ss-composer__cluster"><span class="ss-chip"><span class="agent-avatar">CC</span>Claude Code</span><span class="ss-hint"><span class="kbd">⏎</span>send</span></div><span class="spacer"></span><button class="ss-primary" data-shape="send" aria-label="Send"><svg data-lucide="arrow-up"></svg></button></div></div></div>
+              </div>
+            </section>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Quiet-warning notice</b> <em>production notice slot · ds-core <code>.notice</code> warning · emitted once (<code>supervision.quiet_warning</code>) · action = <code>session stop</code></em></span></li>
+            <li><i class="ss-n">2</i><span><b>Status row — quiet</b> <em>clock glyph, neutral ink · elapsed since the last signal and the time left · clears when a signal returns (US-014.AC-3)</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>quiet warning</span><span class="ss-tag"><b>component</b>SessionWindowContent notice · SessionThinkingRow</span><span class="ss-tag"><b>VC</b>task_05/VC-01</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 06 · RECONNECT ===== -->
+    <section class="lab-sec" id="wk-reconnect" data-od-id="wk-reconnect">
+      <div class="lab-sec__head"><span class="lab-sec__num">06</span><h2 class="lab-sec__t">The stream drops for 9 seconds — the timer doesn’t</h2><span class="lab-sec__gist">US-027.EC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Elapsed is computed from <code>activity.started_at</code>, never from a browser stopwatch.</b> While the transport chip (S4) says reconnecting, the row keeps counting from the durable start; on catch-up nothing jumps because nothing was local. The three frames below are the same row across the blip.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--3" data-od-id="wk-reconnect-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Live</div><div class="plain" style="padding:8px 12px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:flex-end"><span style="font-size:10px;color:var(--faint);font-family:var(--font-mono)">no chip</span></div><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>12m 04s</b><span class="sep">·</span>Running shell</div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Reconnecting · try 2</div><div class="plain" style="padding:8px 12px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:flex-end"><span class="ss-transport" data-phase="reconnecting"><svg class="ss-spin" data-lucide="loader-circle"></svg>Reconnecting<span class="n">·2</span></span></div><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>12m 09s</b><span class="sep">·</span>Running shell<i class="ss-n">1</i></div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Catching up</div><div class="plain" style="padding:8px 12px;display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:flex-end"><span class="ss-transport" data-phase="catching-up"><svg class="ss-spin" data-lucide="loader-circle"></svg>Catching up</span></div><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>12m 13s</b><span class="sep">·</span>Editing file</div></div></div>
+          </div>
+          <ul class="ss-legend ss-legend--1">
+            <li><i class="ss-n">1</i><span><b>Same clock</b> <em>the activity segment may be stale during the gap (last known tool); the elapsed is not — both are labeled from the daemon on catch-up</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>reconnect-recomputed timer</span><span class="ss-tag"><b>component</b>SessionThinkingRow · SessionTransportChip</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 07 · FAILED BEFORE CONTENT ===== -->
+    <section class="lab-sec" id="wk-failed" data-od-id="wk-failed">
+      <div class="lab-sec__head"><span class="lab-sec__num">07</span><h2 class="lab-sec__t">Failed before any content — the thinking row becomes the error</h2><span class="lab-sec__gist">US-023.AC-3 · US-011.AC-1</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>No abandoned shell.</b> If the turn fails before a single token, the status row turns into the failure sentence — danger, because this is a real failure — and the transcript gets the production “Session failed” marker with the cause and the next action. Provider hiccups (rate limit, auth) name the provider and what to do; the session stays usable.</div>
+        <div class="spec__demo">
+          <div class="plain" data-od-id="wk-failed-demo" style="display:flex;flex-direction:column;gap:8px">
+            <div class="ss-msg-user"><div class="ss-msg-user__bubble">Now make the same change in the store package</div></div>
+            <div class="ss-marker" role="alert" data-tone="danger"><svg data-lucide="circle-alert"></svg><span><b>Turn failed</b> — Claude Code hit its rate limit before replying. Try again in about a minute.<span class="mono-id">provider_rate_limited</span></span><i class="ss-n">2</i></div>
+            <div class="ss-status ss-status--failed" role="status"><svg data-lucide="circle-alert"></svg>Failed after <b>4s</b><span class="sep">·</span>rate limited<i class="ss-n">1</i></div>
+            <div class="ss-marker" data-tone="warning" style="margin-top:6px"><svg data-lucide="key-round"></svg><span><b>Sign in to Claude Code again</b> — its login expired mid-turn. The session is still here.<span class="mono-id">provider_auth_required</span></span></div>
+          </div>
+          <ul class="ss-legend">
+            <li><i class="ss-n">1</i><span><b>Failed row</b> <em>danger ink — reserved for real failures (ADR-009) · replaces the thinking row in place</em></span></li>
+            <li><i class="ss-n">2</i><span><b>Failure marker</b> <em>production Marker tone danger · cause + next action from the <code>_dx.md</code> error table</em></span></li>
+          </ul>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>failed before content</span><span class="ss-tag"><b>component</b>SessionThinkingRow · RuntimeActivityNotice</span><span class="ss-tag"><b>tone</b>danger (real failure)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== 08 · REDUCED MOTION + LADDER ===== -->
+    <section class="lab-sec" id="wk-rm" data-od-id="wk-rm">
+      <div class="lab-sec__head"><span class="lab-sec__num">08</span><h2 class="lab-sec__t">Reduced motion, and the duration ladder</h2><span class="lab-sec__gist">ADR-008 · session-working-row.logic.ts</span></div>
+      <div class="spec">
+        <div class="spec__note"><b>Under reduced motion the dots hold still at 70% and the shimmer is plain subtle text</b> — production already removes the dots’ animation; the fact stays. The ladder is production’s: seconds under a minute, then minutes and seconds, then hours and minutes.</div>
+        <div class="spec__demo">
+          <div class="lab-grid lab-grid--2" data-od-id="wk-rm-grid">
+            <div class="lab-cell"><div class="lab-cell__t">Reduced motion</div><div class="plain ss-rm" style="display:flex;flex-direction:column;gap:6px"><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span><span class="ss-shimmer">Thinking…</span></div><div class="ss-status" role="status"><span class="ss-dots" aria-hidden="true"><i></i><i></i><i></i></span>Working for <b>2m 14s</b><span class="sep">·</span>Running shell</div></div></div>
+            <div class="lab-cell"><div class="lab-cell__t">Duration ladder <code>formatElapsed</code></div><div class="plain" style="padding:8px 12px"><table class="table" style="width:100%;font-size:12px"><tbody>
+              <tr><td class="mono" style="color:var(--muted)">0s … 59s</td><td style="color:var(--subtle)">under a minute</td></tr>
+              <tr><td class="mono" style="color:var(--muted)">2m 14s · 12m</td><td style="color:var(--subtle)">minutes, seconds only when non-zero</td></tr>
+              <tr><td class="mono" style="color:var(--muted)">1h 02m · 3h</td><td style="color:var(--subtle)">hours, minutes only when non-zero</td></tr>
+            </tbody></table></div></div>
+          </div>
+          <div class="ss-tags"><span class="ss-tag"><b>state</b>reduced-motion</span><span class="ss-tag"><b>rule</b>tokens-runtime.css guard + TypingDots omitted under reduced motion (production)</span></div>
+        </div>
+      </div>
+    </section>
+
+    <p class="lab-foot">Tokens bind <span class="mono">../design-system/ds-core.css</span> + <span class="mono">ds-shell.css</span> unmodified; domain lane <span class="mono">sessions-stability.css</span> chapters 04–06. Elapsed and cause come from the session resource (<span class="mono">activity.started_at · current_tool · stop_cause · supervision.work_signals</span>). Fixture: <span class="mono">dev-loop · t_9f2 · reviewer · scout</span>. Iterate on this file — never regenerate a delivered board.</p>
+  </div></div>
+</div></div>
+<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
+<script>(function(){ if(window.lucide) window.lucide.createIcons(); })();</script>
+</body>
+</html>

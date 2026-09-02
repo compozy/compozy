@@ -3658,25 +3658,13 @@
           "desktop_id": {
             "type": "string"
           },
-          "focus_owner": {
-            "nullable": true,
-            "type": "string"
-          },
           "name": {
-            "type": "string"
-          },
-          "purpose": {
-            "enum": [
-              "standard",
-              "focus"
-            ],
             "type": "string"
           }
         },
         "required": [
           "desktop_id",
-          "name",
-          "purpose"
+          "name"
         ],
         "type": "object"
       },
@@ -3761,10 +3749,6 @@
               "type": "object"
             },
             "type": "array"
-          },
-          "focus_owner": {
-            "nullable": true,
-            "type": "string"
           },
           "groups": {
             "items": {
@@ -3873,13 +3857,6 @@
           },
           "order": {
             "type": "integer"
-          },
-          "purpose": {
-            "enum": [
-              "standard",
-              "focus"
-            ],
-            "type": "string"
           }
         },
         "required": [
@@ -3888,8 +3865,7 @@
           "groups",
           "id",
           "name",
-          "order",
-          "purpose"
+          "order"
         ],
         "type": "object"
       },
@@ -4259,6 +4235,31 @@
         ],
         "type": "object"
       },
+      "WindowManagerHeartbeatFrame": {
+        "additionalProperties": false,
+        "properties": {
+          "revision": {
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "heartbeat"
+            ],
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "revision",
+          "type",
+          "workspace_id"
+        ],
+        "type": "object"
+      },
       "WindowManagerLayoutDocument": {
         "additionalProperties": false,
         "properties": {
@@ -4327,10 +4328,6 @@
                     "type": "object"
                   },
                   "type": "array"
-                },
-                "focus_owner": {
-                  "nullable": true,
-                  "type": "string"
                 },
                 "groups": {
                   "items": {
@@ -4439,13 +4436,6 @@
                 },
                 "order": {
                   "type": "integer"
-                },
-                "purpose": {
-                  "enum": [
-                    "standard",
-                    "focus"
-                  ],
-                  "type": "string"
                 }
               },
               "required": [
@@ -4454,8 +4444,7 @@
                 "groups",
                 "id",
                 "name",
-                "order",
-                "purpose"
+                "order"
               ],
               "type": "object"
             },
@@ -4821,6 +4810,9 @@
                       "format": "double",
                       "nullable": true,
                       "type": "number"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -4844,6 +4836,9 @@
                     "search"
                   ],
                   "type": "object"
+                },
+                "zoomed": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -4855,7 +4850,8 @@
                 "nav_stack",
                 "pinned",
                 "placement",
-                "route"
+                "route",
+                "zoomed"
               ],
               "type": "object"
             },
@@ -5113,10 +5109,6 @@
                       },
                       "type": "array"
                     },
-                    "focus_owner": {
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "groups": {
                       "items": {
                         "properties": {
@@ -5224,13 +5216,6 @@
                     },
                     "order": {
                       "type": "integer"
-                    },
-                    "purpose": {
-                      "enum": [
-                        "standard",
-                        "focus"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -5239,8 +5224,7 @@
                     "groups",
                     "id",
                     "name",
-                    "order",
-                    "purpose"
+                    "order"
                   ],
                   "type": "object"
                 },
@@ -5606,6 +5590,9 @@
                           "format": "double",
                           "nullable": true,
                           "type": "number"
+                        },
+                        "zoomed": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -5629,6 +5616,9 @@
                         "search"
                       ],
                       "type": "object"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -5640,7 +5630,8 @@
                     "nav_stack",
                     "pinned",
                     "placement",
-                    "route"
+                    "route",
+                    "zoomed"
                   ],
                   "type": "object"
                 },
@@ -5751,10 +5742,6 @@
                       },
                       "type": "array"
                     },
-                    "focus_owner": {
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "groups": {
                       "items": {
                         "properties": {
@@ -5862,13 +5849,6 @@
                     },
                     "order": {
                       "type": "integer"
-                    },
-                    "purpose": {
-                      "enum": [
-                        "standard",
-                        "focus"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -5877,8 +5857,7 @@
                     "groups",
                     "id",
                     "name",
-                    "order",
-                    "purpose"
+                    "order"
                   ],
                   "type": "object"
                 },
@@ -6244,6 +6223,9 @@
                           "format": "double",
                           "nullable": true,
                           "type": "number"
+                        },
+                        "zoomed": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -6267,6 +6249,9 @@
                         "search"
                       ],
                       "type": "object"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -6278,7 +6263,8 @@
                     "nav_stack",
                     "pinned",
                     "placement",
-                    "route"
+                    "route",
+                    "zoomed"
                   ],
                   "type": "object"
                 },
@@ -6887,10 +6873,6 @@
                       },
                       "type": "array"
                     },
-                    "focus_owner": {
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "groups": {
                       "items": {
                         "properties": {
@@ -6998,13 +6980,6 @@
                     },
                     "order": {
                       "type": "integer"
-                    },
-                    "purpose": {
-                      "enum": [
-                        "standard",
-                        "focus"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -7013,8 +6988,7 @@
                     "groups",
                     "id",
                     "name",
-                    "order",
-                    "purpose"
+                    "order"
                   ],
                   "type": "object"
                 },
@@ -7389,6 +7363,9 @@
                           "format": "double",
                           "nullable": true,
                           "type": "number"
+                        },
+                        "zoomed": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -7412,6 +7389,9 @@
                         "search"
                       ],
                       "type": "object"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -7423,7 +7403,8 @@
                     "nav_stack",
                     "pinned",
                     "placement",
-                    "route"
+                    "route",
+                    "zoomed"
                   ],
                   "type": "object"
                 },
@@ -7562,10 +7543,6 @@
                       },
                       "type": "array"
                     },
-                    "focus_owner": {
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "groups": {
                       "items": {
                         "properties": {
@@ -7673,13 +7650,6 @@
                     },
                     "order": {
                       "type": "integer"
-                    },
-                    "purpose": {
-                      "enum": [
-                        "standard",
-                        "focus"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -7688,8 +7658,7 @@
                     "groups",
                     "id",
                     "name",
-                    "order",
-                    "purpose"
+                    "order"
                   ],
                   "type": "object"
                 },
@@ -8055,6 +8024,9 @@
                           "format": "double",
                           "nullable": true,
                           "type": "number"
+                        },
+                        "zoomed": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -8078,6 +8050,9 @@
                         "search"
                       ],
                       "type": "object"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -8089,7 +8064,8 @@
                     "nav_stack",
                     "pinned",
                     "placement",
-                    "route"
+                    "route",
+                    "zoomed"
                   ],
                   "type": "object"
                 },
@@ -8435,10 +8411,6 @@
                       },
                       "type": "array"
                     },
-                    "focus_owner": {
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "groups": {
                       "items": {
                         "properties": {
@@ -8546,13 +8518,6 @@
                     },
                     "order": {
                       "type": "integer"
-                    },
-                    "purpose": {
-                      "enum": [
-                        "standard",
-                        "focus"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -8561,8 +8526,7 @@
                     "groups",
                     "id",
                     "name",
-                    "order",
-                    "purpose"
+                    "order"
                   ],
                   "type": "object"
                 },
@@ -8937,6 +8901,9 @@
                           "format": "double",
                           "nullable": true,
                           "type": "number"
+                        },
+                        "zoomed": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -8960,6 +8927,9 @@
                         "search"
                       ],
                       "type": "object"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -8971,7 +8941,8 @@
                     "nav_stack",
                     "pinned",
                     "placement",
-                    "route"
+                    "route",
+                    "zoomed"
                   ],
                   "type": "object"
                 },
@@ -9085,10 +9056,6 @@
                   },
                   "type": "array"
                 },
-                "focus_owner": {
-                  "nullable": true,
-                  "type": "string"
-                },
                 "groups": {
                   "items": {
                     "properties": {
@@ -9196,13 +9163,6 @@
                 },
                 "order": {
                   "type": "integer"
-                },
-                "purpose": {
-                  "enum": [
-                    "standard",
-                    "focus"
-                  ],
-                  "type": "string"
                 }
               },
               "required": [
@@ -9211,8 +9171,7 @@
                 "groups",
                 "id",
                 "name",
-                "order",
-                "purpose"
+                "order"
               ],
               "type": "object"
             },
@@ -9587,6 +9546,9 @@
                       "format": "double",
                       "nullable": true,
                       "type": "number"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -9610,6 +9572,9 @@
                     "search"
                   ],
                   "type": "object"
+                },
+                "zoomed": {
+                  "type": "boolean"
                 }
               },
               "required": [
@@ -9621,7 +9586,8 @@
                 "nav_stack",
                 "pinned",
                 "placement",
-                "route"
+                "route",
+                "zoomed"
               ],
               "type": "object"
             },
@@ -9872,10 +9838,6 @@
                       },
                       "type": "array"
                     },
-                    "focus_owner": {
-                      "nullable": true,
-                      "type": "string"
-                    },
                     "groups": {
                       "items": {
                         "properties": {
@@ -9983,13 +9945,6 @@
                     },
                     "order": {
                       "type": "integer"
-                    },
-                    "purpose": {
-                      "enum": [
-                        "standard",
-                        "focus"
-                      ],
-                      "type": "string"
                     }
                   },
                   "required": [
@@ -9998,8 +9953,7 @@
                     "groups",
                     "id",
                     "name",
-                    "order",
-                    "purpose"
+                    "order"
                   ],
                   "type": "object"
                 },
@@ -10374,6 +10328,9 @@
                           "format": "double",
                           "nullable": true,
                           "type": "number"
+                        },
+                        "zoomed": {
+                          "type": "boolean"
                         }
                       },
                       "required": [
@@ -10397,6 +10354,9 @@
                         "search"
                       ],
                       "type": "object"
+                    },
+                    "zoomed": {
+                      "type": "boolean"
                     }
                   },
                   "required": [
@@ -10408,7 +10368,8 @@
                     "nav_stack",
                     "pinned",
                     "placement",
-                    "route"
+                    "route",
+                    "zoomed"
                   ],
                   "type": "object"
                 },
@@ -349875,10 +349836,6 @@
                             },
                             "type": "array"
                           },
-                          "focus_owner": {
-                            "nullable": true,
-                            "type": "string"
-                          },
                           "groups": {
                             "items": {
                               "properties": {
@@ -349986,13 +349943,6 @@
                           },
                           "order": {
                             "type": "integer"
-                          },
-                          "purpose": {
-                            "enum": [
-                              "standard",
-                              "focus"
-                            ],
-                            "type": "string"
                           }
                         },
                         "required": [
@@ -350001,8 +349951,7 @@
                           "groups",
                           "id",
                           "name",
-                          "order",
-                          "purpose"
+                          "order"
                         ],
                         "type": "object"
                       },
@@ -350377,6 +350326,9 @@
                                 "format": "double",
                                 "nullable": true,
                                 "type": "number"
+                              },
+                              "zoomed": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -350400,6 +350352,9 @@
                               "search"
                             ],
                             "type": "object"
+                          },
+                          "zoomed": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -350411,7 +350366,8 @@
                           "nav_stack",
                           "pinned",
                           "placement",
-                          "route"
+                          "route",
+                          "zoomed"
                         ],
                         "type": "object"
                       },
@@ -352481,10 +352437,6 @@
                                 },
                                 "type": "array"
                               },
-                              "focus_owner": {
-                                "nullable": true,
-                                "type": "string"
-                              },
                               "groups": {
                                 "items": {
                                   "properties": {
@@ -352592,13 +352544,6 @@
                               },
                               "order": {
                                 "type": "integer"
-                              },
-                              "purpose": {
-                                "enum": [
-                                  "standard",
-                                  "focus"
-                                ],
-                                "type": "string"
                               }
                             },
                             "required": [
@@ -352607,8 +352552,7 @@
                               "groups",
                               "id",
                               "name",
-                              "order",
-                              "purpose"
+                              "order"
                             ],
                             "type": "object"
                           },
@@ -352983,6 +352927,9 @@
                                     "format": "double",
                                     "nullable": true,
                                     "type": "number"
+                                  },
+                                  "zoomed": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [
@@ -353006,6 +352953,9 @@
                                   "search"
                                 ],
                                 "type": "object"
+                              },
+                              "zoomed": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -353017,7 +352967,8 @@
                               "nav_stack",
                               "pinned",
                               "placement",
-                              "route"
+                              "route",
+                              "zoomed"
                             ],
                             "type": "object"
                           },
@@ -353512,10 +353463,6 @@
                             },
                             "type": "array"
                           },
-                          "focus_owner": {
-                            "nullable": true,
-                            "type": "string"
-                          },
                           "groups": {
                             "items": {
                               "properties": {
@@ -353623,13 +353570,6 @@
                           },
                           "order": {
                             "type": "integer"
-                          },
-                          "purpose": {
-                            "enum": [
-                              "standard",
-                              "focus"
-                            ],
-                            "type": "string"
                           }
                         },
                         "required": [
@@ -353638,8 +353578,7 @@
                           "groups",
                           "id",
                           "name",
-                          "order",
-                          "purpose"
+                          "order"
                         ],
                         "type": "object"
                       },
@@ -354005,6 +353944,9 @@
                                 "format": "double",
                                 "nullable": true,
                                 "type": "number"
+                              },
+                              "zoomed": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -354028,6 +353970,9 @@
                               "search"
                             ],
                             "type": "object"
+                          },
+                          "zoomed": {
+                            "type": "boolean"
                           }
                         },
                         "required": [
@@ -354039,7 +353984,8 @@
                           "nav_stack",
                           "pinned",
                           "placement",
-                          "route"
+                          "route",
+                          "zoomed"
                         ],
                         "type": "object"
                       },
@@ -354359,10 +354305,6 @@
                               },
                               "type": "array"
                             },
-                            "focus_owner": {
-                              "nullable": true,
-                              "type": "string"
-                            },
                             "groups": {
                               "items": {
                                 "properties": {
@@ -354470,13 +354412,6 @@
                             },
                             "order": {
                               "type": "integer"
-                            },
-                            "purpose": {
-                              "enum": [
-                                "standard",
-                                "focus"
-                              ],
-                              "type": "string"
                             }
                           },
                           "required": [
@@ -354485,8 +354420,7 @@
                             "groups",
                             "id",
                             "name",
-                            "order",
-                            "purpose"
+                            "order"
                           ],
                           "type": "object"
                         },
@@ -354852,6 +354786,9 @@
                                   "format": "double",
                                   "nullable": true,
                                   "type": "number"
+                                },
+                                "zoomed": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -354875,6 +354812,9 @@
                                 "search"
                               ],
                               "type": "object"
+                            },
+                            "zoomed": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -354886,7 +354826,8 @@
                             "nav_stack",
                             "pinned",
                             "placement",
-                            "route"
+                            "route",
+                            "zoomed"
                           ],
                           "type": "object"
                         },
@@ -355234,10 +355175,6 @@
                                 },
                                 "type": "array"
                               },
-                              "focus_owner": {
-                                "nullable": true,
-                                "type": "string"
-                              },
                               "groups": {
                                 "items": {
                                   "properties": {
@@ -355345,13 +355282,6 @@
                               },
                               "order": {
                                 "type": "integer"
-                              },
-                              "purpose": {
-                                "enum": [
-                                  "standard",
-                                  "focus"
-                                ],
-                                "type": "string"
                               }
                             },
                             "required": [
@@ -355360,8 +355290,7 @@
                               "groups",
                               "id",
                               "name",
-                              "order",
-                              "purpose"
+                              "order"
                             ],
                             "type": "object"
                           },
@@ -355736,6 +355665,9 @@
                                     "format": "double",
                                     "nullable": true,
                                     "type": "number"
+                                  },
+                                  "zoomed": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [
@@ -355759,6 +355691,9 @@
                                   "search"
                                 ],
                                 "type": "object"
+                              },
+                              "zoomed": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -355770,7 +355705,8 @@
                               "nav_stack",
                               "pinned",
                               "placement",
-                              "route"
+                              "route",
+                              "zoomed"
                             ],
                             "type": "object"
                           },
@@ -358720,10 +358656,6 @@
                               },
                               "type": "array"
                             },
-                            "focus_owner": {
-                              "nullable": true,
-                              "type": "string"
-                            },
                             "groups": {
                               "items": {
                                 "properties": {
@@ -358831,13 +358763,6 @@
                             },
                             "order": {
                               "type": "integer"
-                            },
-                            "purpose": {
-                              "enum": [
-                                "standard",
-                                "focus"
-                              ],
-                              "type": "string"
                             }
                           },
                           "required": [
@@ -358846,8 +358771,7 @@
                             "groups",
                             "id",
                             "name",
-                            "order",
-                            "purpose"
+                            "order"
                           ],
                           "type": "object"
                         },
@@ -359213,6 +359137,9 @@
                                   "format": "double",
                                   "nullable": true,
                                   "type": "number"
+                                },
+                                "zoomed": {
+                                  "type": "boolean"
                                 }
                               },
                               "required": [
@@ -359236,6 +359163,9 @@
                                 "search"
                               ],
                               "type": "object"
+                            },
+                            "zoomed": {
+                              "type": "boolean"
                             }
                           },
                           "required": [
@@ -359247,7 +359177,8 @@
                             "nav_stack",
                             "pinned",
                             "placement",
-                            "route"
+                            "route",
+                            "zoomed"
                           ],
                           "type": "object"
                         },
@@ -360117,10 +360048,6 @@
                                 },
                                 "type": "array"
                               },
-                              "focus_owner": {
-                                "nullable": true,
-                                "type": "string"
-                              },
                               "groups": {
                                 "items": {
                                   "properties": {
@@ -360228,13 +360155,6 @@
                               },
                               "order": {
                                 "type": "integer"
-                              },
-                              "purpose": {
-                                "enum": [
-                                  "standard",
-                                  "focus"
-                                ],
-                                "type": "string"
                               }
                             },
                             "required": [
@@ -360243,8 +360163,7 @@
                               "groups",
                               "id",
                               "name",
-                              "order",
-                              "purpose"
+                              "order"
                             ],
                             "type": "object"
                           },
@@ -360619,6 +360538,9 @@
                                     "format": "double",
                                     "nullable": true,
                                     "type": "number"
+                                  },
+                                  "zoomed": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [
@@ -360642,6 +360564,9 @@
                                   "search"
                                 ],
                                 "type": "object"
+                              },
+                              "zoomed": {
+                                "type": "boolean"
                               }
                             },
                             "required": [
@@ -360653,7 +360578,8 @@
                               "nav_stack",
                               "pinned",
                               "placement",
-                              "route"
+                              "route",
+                              "zoomed"
                             ],
                             "type": "object"
                           },
@@ -361328,10 +361254,6 @@
                                     },
                                     "type": "array"
                                   },
-                                  "focus_owner": {
-                                    "nullable": true,
-                                    "type": "string"
-                                  },
                                   "groups": {
                                     "items": {
                                       "properties": {
@@ -361439,13 +361361,6 @@
                                   },
                                   "order": {
                                     "type": "integer"
-                                  },
-                                  "purpose": {
-                                    "enum": [
-                                      "standard",
-                                      "focus"
-                                    ],
-                                    "type": "string"
                                   }
                                 },
                                 "required": [
@@ -361454,8 +361369,7 @@
                                   "groups",
                                   "id",
                                   "name",
-                                  "order",
-                                  "purpose"
+                                  "order"
                                 ],
                                 "type": "object"
                               },
@@ -361830,6 +361744,9 @@
                                         "format": "double",
                                         "nullable": true,
                                         "type": "number"
+                                      },
+                                      "zoomed": {
+                                        "type": "boolean"
                                       }
                                     },
                                     "required": [
@@ -361853,6 +361770,9 @@
                                       "search"
                                     ],
                                     "type": "object"
+                                  },
+                                  "zoomed": {
+                                    "type": "boolean"
                                   }
                                 },
                                 "required": [
@@ -361864,7 +361784,8 @@
                                   "nav_stack",
                                   "pinned",
                                   "placement",
-                                  "route"
+                                  "route",
+                                  "zoomed"
                                 ],
                                 "type": "object"
                               },
@@ -362214,6 +362135,30 @@
                       },
                       "required": [
                         "client",
+                        "revision",
+                        "type",
+                        "workspace_id"
+                      ],
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "revision": {
+                          "maximum": 9007199254740991,
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "type": {
+                          "enum": [
+                            "heartbeat"
+                          ],
+                          "type": "string"
+                        },
+                        "workspace_id": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
                         "revision",
                         "type",
                         "workspace_id"

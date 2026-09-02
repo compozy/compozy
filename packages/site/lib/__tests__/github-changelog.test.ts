@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { loadChangelogReleases, loadReleasePullRequests } from "../changelog/github-client";
+import {
+  loadChangelogReleaseByTag,
+  loadChangelogReleases,
+  loadReleasePullRequests,
+} from "../changelog/github-client";
 
 const releaseFixture = {
   tag_name: "v0.3.0-beta.3",
@@ -93,6 +97,56 @@ describe("GitHub changelog boundary", () => {
       status: "unavailable",
       error: expect.objectContaining({ kind: "invalid-response" }),
     });
+  });
+
+  it("finds a published release by tag when the cached collection is behind", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse([releaseFixture]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await loadChangelogReleaseByTag("v0.3.0-beta.3");
+
+    expect(result).toEqual({
+      status: "found",
+      release: expect.objectContaining({
+        version: "v0.3.0-beta.3",
+        body: releaseFixture.body,
+        pullRequestNumbers: [123],
+      }),
+      releases: [expect.objectContaining({ version: "v0.3.0-beta.3" })],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.github.com/repos/compozy/compozy/releases?per_page=25",
+      expect.objectContaining({ method: "GET", cache: "no-store" })
+    );
+  });
+
+  it("shares one bounded recent-release lookup across distinct missing tags", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(jsonResponse([]));
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await loadChangelogReleaseByTag("v0.3.0-beta.99")).toEqual({ status: "missing" });
+    expect(await loadChangelogReleaseByTag("v0.3.0-beta.98")).toEqual({ status: "missing" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("distinguishes an unavailable GitHub response from an absent release", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValueOnce(jsonResponse({ message: "Server Error" }, 500))
+    );
+
+    expect(await loadChangelogReleaseByTag("v0.3.0-beta.3")).toEqual({
+      status: "unavailable",
+      error: expect.objectContaining({ kind: "github-response", status: 500 }),
+    });
+  });
+
+  it("rejects non-canonical release tags before requesting GitHub", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await loadChangelogReleaseByTag(" v0.3.0-beta.3 ")).toEqual({ status: "missing" });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("deduplicates human contributors from linked merged pull requests and omits bots", async () => {

@@ -25,6 +25,7 @@ import {
 } from "../../stores/window-manager-store";
 import { beginWindowManagerCommand } from "../../stores/window-manager-store-commands";
 import { WindowManagerRuntime } from "../../runtime/window-manager-runtime";
+import { WINDOW_MANAGER_DIAGNOSTIC_TTL_MS } from "../../runtime/window-manager-runtime-helpers";
 
 vi.mock("../../adapters/window-manager-api", async importOriginal => {
   const actual = await importOriginal<typeof import("../../adapters/window-manager-api")>();
@@ -82,7 +83,7 @@ const SETTINGS_SECTION: WindowManagerSettingsSection = {
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 3,
+  version: 4,
   workspaceId: "workspace:test",
   revision: 7,
   desktops: [
@@ -90,8 +91,6 @@ const SNAPSHOT: WindowManagerSnapshot = {
       id: "desktop:one",
       name: "One",
       order: 0,
-      purpose: "standard",
-      focusOwner: null,
       groups: [],
       floating: [],
       floatingStacks: [],
@@ -100,8 +99,6 @@ const SNAPSHOT: WindowManagerSnapshot = {
       id: "desktop:two",
       name: "Two",
       order: 1,
-      purpose: "standard",
-      focusOwner: null,
       groups: [],
       floating: [],
       floatingStacks: [],
@@ -135,6 +132,7 @@ function snapshotWithFloatingStack(): WindowManagerSnapshot {
     desktopId: "desktop:one",
     floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
     minimized: false,
+    zoomed: false,
     returnAnchor: null,
   };
   return {
@@ -184,6 +182,7 @@ function snapshotWithAgentsRoute(
         desktopId: "desktop:one",
         floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
         minimized: false,
+        zoomed: false,
         returnAnchor: null,
       },
     },
@@ -764,6 +763,7 @@ describe("WindowManagerRuntime", () => {
           desktopId: "desktop:one",
           floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
           minimized: false,
+          zoomed: false,
           returnAnchor: null,
         },
       },
@@ -847,6 +847,7 @@ describe("WindowManagerRuntime", () => {
           desktopId: "desktop:one",
           floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
           minimized: false,
+          zoomed: false,
           returnAnchor: null,
         },
         [secondId]: {
@@ -860,6 +861,7 @@ describe("WindowManagerRuntime", () => {
           desktopId: "desktop:one",
           floatingRect: { x: 0.2, y: 0.2, w: 0.5, h: 0.5 },
           minimized: false,
+          zoomed: false,
           returnAnchor: null,
         },
       },
@@ -936,6 +938,7 @@ describe("WindowManagerRuntime", () => {
           desktopId: "desktop:one",
           floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
           minimized: false,
+          zoomed: false,
           returnAnchor: null,
         },
       },
@@ -1059,6 +1062,7 @@ describe("WindowManagerRuntime", () => {
       desktopId: "desktop:one",
       floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
       minimized: false,
+      zoomed: false,
       returnAnchor: null,
     };
     const session = {
@@ -1215,8 +1219,10 @@ describe("WindowManagerRuntime", () => {
     });
 
     await expect(outcome.completion).resolves.toBe(false);
-    expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+    // Every conflict re-reads the layout once so the surface never stays read-only.
+    expect(fetchWindowManagerSnapshot).toHaveBeenCalledTimes(2);
     expect(executeWindowManagerCommand).toHaveBeenCalledTimes(2);
+    expect(windowManagerStore.getSnapshot().context.commandState.status).not.toBe("conflict");
     runtime.stop();
   });
 
@@ -1333,6 +1339,7 @@ describe("WindowManagerRuntime", () => {
           desktopId: "desktop:one",
           floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
           minimized: false,
+          zoomed: false,
           returnAnchor: null,
         },
       },
@@ -1576,5 +1583,418 @@ describe("WindowManagerRuntime", () => {
     await expect(floating.completion).resolves.toBe(false);
     expect(executeWindowManagerCommand).not.toHaveBeenCalled();
     runtime.stop();
+  });
+
+  it("Should carry a rebase proof when a stale gesture lands on a tile zone", async () => {
+    const queryClient = new QueryClient();
+    const snapshot = snapshotWithAgentsRoute({ pathname: "/agents", search: {} }, 9);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    windowManagerStore.trigger.workAreaMeasured({
+      workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+    });
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 10 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: 7,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.applySnapTarget(
+      "app:agents",
+      createTileSnapTarget({ x: 0, y: 0, w: 1280, h: 800 }, "left", [0.5]),
+      false,
+      { expectedRevision: 7, sourceNodeId: null }
+    );
+
+    await expect(outcome.completion).resolves.toBe(true);
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      7,
+      expect.objectContaining({
+        commandId: "layout.arrange",
+        expectedRevision: 7,
+        rebase: { windowId: "app:agents" },
+      })
+    );
+    runtime.stop();
+  });
+
+  it("Should carry a rebase proof when a stale gesture lands on zoom", async () => {
+    const queryClient = new QueryClient();
+    const snapshot = snapshotWithAgentsRoute({ pathname: "/agents", search: {} }, 9);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 10 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: 7,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.applySnapTarget(
+      "app:agents",
+      { kind: "zoom", id: "zoom", rect: { x: 0, y: 0, w: 1280, h: 800 } },
+      false,
+      { expectedRevision: 7, sourceNodeId: "node:captured" }
+    );
+
+    await expect(outcome.completion).resolves.toBe(true);
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      7,
+      expect.objectContaining({
+        commandId: "window.zoom",
+        expectedRevision: 7,
+        rebase: { windowId: "app:agents", sourceNodeId: "node:captured" },
+      })
+    );
+    runtime.stop();
+  });
+
+  it("Should unzoom a covering frame before focusing a tiled window hidden under it", async () => {
+    const queryClient = new QueryClient();
+    const horizontal = "horizontal" as const;
+    const snapshot: WindowManagerSnapshot = {
+      ...SNAPSHOT,
+      desktops: SNAPSHOT.desktops.map(desktop =>
+        desktop.id === "desktop:one"
+          ? {
+              ...desktop,
+              groups: [
+                {
+                  id: "group:one",
+                  frame: { x: 0, y: 0, w: 1, h: 1 },
+                  root: {
+                    id: "split:one",
+                    kind: "split",
+                    axis: horizontal,
+                    weights: [0.5, 0.5],
+                    children: [
+                      { id: "leaf:tasks", kind: "leaf", windowId: "app:tasks" },
+                      { id: "leaf:agents", kind: "leaf", windowId: "app:agents" },
+                    ],
+                  },
+                },
+              ],
+            }
+          : desktop
+      ),
+      windows: {
+        "app:tasks": {
+          id: "app:tasks",
+          app: "tasks",
+          instanceKey: null,
+          route: { pathname: "/tasks", search: {} },
+          navStack: [],
+          pinned: false,
+          placement: "tiled",
+          desktopId: "desktop:one",
+          floatingRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 },
+          minimized: false,
+          zoomed: true,
+          returnAnchor: null,
+        },
+        "app:agents": {
+          id: "app:agents",
+          app: "agents",
+          instanceKey: null,
+          route: { pathname: "/agents", search: {} },
+          navStack: [],
+          pinned: false,
+          placement: "tiled",
+          desktopId: "desktop:one",
+          floatingRect: { x: 0.2, y: 0.2, w: 0.5, h: 0.5 },
+          minimized: false,
+          zoomed: false,
+          returnAnchor: null,
+        },
+      },
+    };
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    windowManagerStore.trigger.workAreaMeasured({
+      workArea: { rect: { x: 0, y: 0, w: 1280, h: 800 }, origin: { x: 0, y: 0 } },
+    });
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 8 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: null,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:tasks",
+      focusOrder: ["app:tasks"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.focusWindow("app:agents");
+    await expect(outcome.completion).resolves.toBe(true);
+
+    expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
+      1,
+      "workspace:test",
+      "marketing",
+      "client:web",
+      7,
+      expect.objectContaining({ commandId: "window.zoom", payload: { window_id: "app:tasks" } })
+    );
+    expect(executeWindowManagerCommand).toHaveBeenNthCalledWith(
+      2,
+      "workspace:test",
+      "marketing",
+      "client:web",
+      expect.any(Number),
+      expect.objectContaining({ commandId: "window.focus" })
+    );
+    runtime.stop();
+  });
+
+  it("Should describe a bare daemon refusal code in plain language", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(
+        new WindowManagerApiError("window_manager_invalid_command", 422, {
+          error: "window_manager_invalid_command",
+          code: "window_manager_invalid_command",
+          workspaceId: "workspace:test",
+          currentRevision: null,
+          conflicts: [],
+          diagnostics: [],
+        })
+      );
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: null,
+        focusOrder: [],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.createDesktop();
+      await vi.advanceTimersByTimeAsync(0);
+
+      const state = windowManagerStore.getSnapshot().context.commandState;
+      expect(state.status).toBe("idle");
+      expect(state.diagnostic?.code).toBe("window_manager_invalid_command");
+      expect(state.diagnostic?.message).toBe("That arrangement isn't possible here.");
+      runtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should accept the daemon's lower revision when a conflict reveals a reset", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const reset = { ...SNAPSHOT, revision: 0 };
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), {
+        ...SNAPSHOT,
+        revision: 102,
+      });
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(
+        new WindowManagerApiError("window_manager_revision_conflict", 409, {
+          error: "window_manager_revision_conflict",
+          code: "window_manager_revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 0,
+          conflicts: [],
+          diagnostics: [],
+        })
+      );
+      vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(reset);
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: null,
+        focusOrder: [],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.createDesktop();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+      expect(
+        queryClient.getQueryData<WindowManagerSnapshot>(
+          windowManagerKeys.snapshot("workspace:test", "marketing")
+        )?.revision
+      ).toBe(0);
+      const state = windowManagerStore.getSnapshot().context.commandState;
+      expect(state.status).toBe("idle");
+      expect(state.diagnostic?.message).toBe("Layout changed elsewhere. Refreshed.");
+      runtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should reopen the surface by itself after a revision conflict", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      const refreshed = { ...SNAPSHOT, revision: 9 };
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed.", 409, {
+          error: "Window layout changed.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 9,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed." },
+          ],
+        })
+      );
+      vi.mocked(fetchWindowManagerSnapshot).mockResolvedValue(refreshed);
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: null,
+        focusOrder: [],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.createDesktop();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+      const state = windowManagerStore.getSnapshot().context.commandState;
+      expect(state.status).toBe("idle");
+      expect(state.diagnostic?.code).toBe("revision_conflict");
+      expect(
+        queryClient.getQueryData<WindowManagerSnapshot>(
+          windowManagerKeys.snapshot("workspace:test", "marketing")
+        )?.revision
+      ).toBe(9);
+
+      await vi.advanceTimersByTimeAsync(WINDOW_MANAGER_DIAGNOSTIC_TTL_MS);
+      expect(windowManagerStore.getSnapshot().context.commandState.diagnostic).toBeNull();
+      runtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should keep the surface conflicted when its recovery refresh fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed.", 409, {
+          error: "Window layout changed.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 9,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed." },
+          ],
+        })
+      );
+      vi.mocked(fetchWindowManagerSnapshot).mockRejectedValueOnce(new Error("refresh failed"));
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: null,
+        focusOrder: [],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.createDesktop();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+      expect(windowManagerStore.getSnapshot().context.commandState.status).toBe("conflict");
+      runtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

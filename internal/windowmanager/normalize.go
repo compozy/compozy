@@ -45,6 +45,9 @@ func NormalizeSnapshot(snapshot Snapshot) Snapshot {
 		normalized.Desktops[desktopIndex].Floating = append(normalized.Desktops[desktopIndex].Floating, windowID)
 		seen[windowID] = struct{}{}
 	}
+	for desktopIndex := range normalized.Desktops {
+		normalizeDesktopZoom(&normalized.Desktops[desktopIndex], normalized.Windows)
+	}
 	return normalized
 }
 
@@ -61,6 +64,50 @@ func normalizeDesktop(desktop *Desktop, windows map[WindowID]Window, seen map[Wi
 	desktop.Groups = groups
 	dissolved := normalizeFloatingStacks(desktop, windows, seen)
 	normalizeFloatingWindows(desktop, dissolved, windows, seen)
+}
+
+// normalizeDesktopZoom keeps zoom only when its unit is the desktop's sole
+// visible unit, and always drops zoom from minimized windows.
+func normalizeDesktopZoom(desktop *Desktop, windows map[WindowID]Window) {
+	visibleUnits := 0
+	zoomedUnits := make([][]WindowID, 0, 1)
+	forEachDesktopUnit(desktop, func(members []WindowID) {
+		visible := false
+		zoomed := false
+		for _, windowID := range members {
+			window, exists := windows[windowID]
+			if !exists {
+				continue
+			}
+			if window.Minimized {
+				if window.Zoomed {
+					window.Zoomed = false
+					windows[windowID] = window
+				}
+				continue
+			}
+			visible = true
+			zoomed = zoomed || window.Zoomed
+		}
+		if visible {
+			visibleUnits++
+		}
+		if zoomed {
+			zoomedUnits = append(zoomedUnits, slices.Clone(members))
+		}
+	})
+	if visibleUnits == 1 && len(zoomedUnits) == 1 {
+		return
+	}
+	for _, members := range zoomedUnits {
+		for _, windowID := range members {
+			window := windows[windowID]
+			if window.Zoomed {
+				window.Zoomed = false
+				windows[windowID] = window
+			}
+		}
+	}
 }
 
 func normalizeFloatingStacks(

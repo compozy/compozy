@@ -15,6 +15,17 @@ const config = {
   turbopack: {
     root: repoRoot,
   },
+  outputFileTracingRoot: repoRoot,
+  outputFileTracingIncludes: {
+    "/api/search": [
+      "../../extensions/bridges/*/extension.toml",
+      "../../extensions/spec-cycle/extension.json",
+      "../../extensions/spec-cycle/agents/*/AGENT.md",
+      "../../extensions/spec-cycle/loops/*/loop.yaml",
+      "../../extensions/spec-cycle/skills/*/SKILL.md",
+      "../../skills/**/SKILL.md",
+    ],
+  },
   images: {
     formats: ["image/avif", "image/webp"],
     qualities: [75, 90],

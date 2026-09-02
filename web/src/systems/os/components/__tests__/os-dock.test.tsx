@@ -36,7 +36,7 @@ const launchCatalog = vi.hoisted(() => ({
 const jumpToSession = vi.hoisted(() => vi.fn());
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 3,
+  version: 4,
   workspaceId: "workspace:test",
   revision: 1,
   desktops: [],
@@ -107,6 +107,7 @@ function windowFixture(
     rect: { x: 0, y: 0, w: 600, h: 420 },
     layer: 1,
     minimized: false,
+    zoomed: false,
     groupId: null,
     nodeId: null,
     stackId: null,

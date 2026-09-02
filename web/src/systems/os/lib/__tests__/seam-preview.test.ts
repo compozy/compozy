@@ -30,8 +30,6 @@ function desktop(): LayoutDesktop {
     id: "desktop:one",
     name: "One",
     order: 0,
-    purpose: "standard",
-    focusOwner: null,
     floating: [],
     floatingStacks: [],
     groups: [

@@ -68,10 +68,13 @@ export const windowManagerStreamLogic = createStoreLogic<
         reconnectEpoch: context.reconnectEpoch + 1,
       };
     },
+    // A stream fence is the authority's current truth, even when it sits behind
+    // what this client remembers: the daemon restarted from a discarded or
+    // replaced arrangement, and later events are ordered after this fence.
     snapshotObserved: (context, event) => ({
       ...context,
       reconnectAttempt: 0,
-      topologyRevision: Math.max(context.topologyRevision, event.revision),
+      topologyRevision: event.revision,
     }),
     topologyObserved: (context, event) =>
       event.revision <= context.topologyRevision

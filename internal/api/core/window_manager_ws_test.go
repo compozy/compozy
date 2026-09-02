@@ -9,14 +9,17 @@ package core
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/compozy/compozy/internal/api/contract"
 	"github.com/compozy/compozy/internal/windowmanager"
+	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
@@ -154,7 +157,7 @@ func TestWindowManagerWebSocketStream(t *testing.T) {
 		topology, err := fixture.manager.Execute(t.Context(), windowmanager.CommandRequest{
 			WorkspaceID: "workspace-a", ExpectedRevision: created.Snapshot.Revision,
 			Payload: windowmanager.CreateDesktopCommand{
-				DesktopID: "desktop-b", Name: "Third", Purpose: windowmanager.DesktopPurposeStandard,
+				DesktopID: "desktop-b", Name: "Third",
 			},
 		})
 		if err != nil {
@@ -495,7 +498,7 @@ func executeWindowManagerStreamCommand(
 		WorkspaceID: workspaceID, CommandID: windowmanager.CommandDesktopCreate, ExpectedRevision: 0,
 		Actor: windowmanager.Actor{Kind: "test", ID: "actor"}, Origin: "stream-test",
 		Payload: windowmanager.CreateDesktopCommand{
-			DesktopID: desktopID, Name: "Second", Purpose: windowmanager.DesktopPurposeStandard,
+			DesktopID: desktopID, Name: "Second",
 		},
 	})
 	if err != nil {
@@ -531,5 +534,101 @@ func closeWindowManagerDialResponse(t *testing.T, response *http.Response) {
 	}
 	if err := response.Body.Close(); err != nil {
 		t.Errorf("close failed websocket response: %v", err)
+	}
+}
+
+func TestWindowManagerWebSocketHeartbeat(t *testing.T) {
+	t.Run("Should send heartbeat frames that carry the newest announced revision", func(t *testing.T) {
+		t.Parallel()
+		var sequence atomic.Int64
+		manager, err := windowmanager.NewService(
+			windowmanager.NewMemoryRepository(),
+			windowmanager.NewMemoryWorkspaceResolver("workspace-a"),
+			nil,
+			windowmanager.DefaultConfig(),
+			windowmanager.WithIDGenerator(func(kind string) (string, error) {
+				return fmt.Sprintf("%s-%03d", kind, sequence.Add(1)), nil
+			}),
+		)
+		if err != nil {
+			t.Fatalf("NewService() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := manager.Close(); closeErr != nil {
+				t.Errorf("Manager.Close() error = %v", closeErr)
+			}
+		})
+		handlers := NewBaseHandlers(&BaseHandlerConfig{
+			WindowManager:             &singleProfileWindowManagers{manager: manager},
+			Profiles:                  windowManagerProfileServiceStub{},
+			WindowManagerPingInterval: 20 * time.Millisecond,
+		})
+		router := gin.New()
+		registerWindowManagerTestRoutes(router, handlers)
+		server := httptest.NewServer(router)
+		t.Cleanup(server.Close)
+		t.Cleanup(func() {
+			ctx, cancel := context.WithTimeout(context.WithoutCancel(t.Context()), time.Second)
+			defer cancel()
+			if shutdownErr := handlers.ShutdownWindowManagerStreams(ctx); shutdownErr != nil {
+				t.Errorf("ShutdownWindowManagerStreams() error = %v", shutdownErr)
+			}
+		})
+
+		streamURL := "ws" + strings.TrimPrefix(server.URL, "http") + windowManagerTestPath("workspace-a") + "/stream"
+		connection, response, err := websocket.DefaultDialer.DialContext(t.Context(), streamURL, nil)
+		if err != nil {
+			closeWindowManagerDialResponse(t, response)
+			t.Fatalf("DialContext() error = %v", err)
+		}
+		t.Cleanup(func() {
+			if closeErr := connection.Close(); closeErr != nil {
+				t.Errorf("websocket Close() error = %v", closeErr)
+			}
+		})
+		var snapshotFrame contract.WindowManagerSnapshotFrame
+		if readErr := connection.ReadJSON(&snapshotFrame); readErr != nil {
+			t.Fatalf("ReadJSON(snapshot) error = %v", readErr)
+		}
+		if deadlineErr := connection.SetReadDeadline(time.Now().Add(2 * time.Second)); deadlineErr != nil {
+			t.Fatalf("SetReadDeadline() error = %v", deadlineErr)
+		}
+		heartbeat := readWindowManagerHeartbeat(t, connection)
+		if heartbeat.WorkspaceID != "workspace-a" || heartbeat.Revision != 0 {
+			t.Fatalf("initial heartbeat = %+v", heartbeat)
+		}
+
+		executeWindowManagerStreamCommand(t, manager, "workspace-a", "desktop-a")
+		for {
+			heartbeat = readWindowManagerHeartbeat(t, connection)
+			if heartbeat.Revision == 1 {
+				break
+			}
+		}
+	})
+}
+
+// readWindowManagerHeartbeat skips event frames and returns the next heartbeat.
+func readWindowManagerHeartbeat(t *testing.T, connection *websocket.Conn) contract.WindowManagerHeartbeatFrame {
+	t.Helper()
+	for {
+		_, payload, err := connection.ReadMessage()
+		if err != nil {
+			t.Fatalf("ReadMessage() error = %v", err)
+		}
+		var envelope struct {
+			Type string `json:"type"`
+		}
+		if err := json.Unmarshal(payload, &envelope); err != nil {
+			t.Fatalf("decode frame envelope: %v", err)
+		}
+		if envelope.Type != contract.WindowManagerFrameHeartbeat {
+			continue
+		}
+		var frame contract.WindowManagerHeartbeatFrame
+		if err := json.Unmarshal(payload, &frame); err != nil {
+			t.Fatalf("decode heartbeat frame: %v", err)
+		}
+		return frame
 	}
 }

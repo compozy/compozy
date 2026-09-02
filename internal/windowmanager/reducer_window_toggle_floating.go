@@ -29,7 +29,9 @@ func (r *reducer) toggleFloating(snapshot *Snapshot, command ToggleFloatingComma
 		}
 		window = snapshot.Windows[command.WindowID]
 		window.ReturnAnchor = nil
+		window.Zoomed = false
 		snapshot.Windows[command.WindowID] = window
+		r.revealPlacedWindow(snapshot, command.WindowID)
 	} else {
 		floatingRect := window.FloatingRect
 		if location, stacked := findStackByWindow(snapshot, command.WindowID); stacked {
@@ -42,6 +44,7 @@ func (r *reducer) toggleFloating(snapshot *Snapshot, command ToggleFloatingComma
 		removeWindow(snapshot, command.WindowID)
 		window.Placement = WindowPlacementFloating
 		window.Minimized = false
+		window.Zoomed = false
 		window.ReturnAnchor = anchor
 		if command.FloatingRect != nil {
 			window.FloatingRect = clampRect(*command.FloatingRect)

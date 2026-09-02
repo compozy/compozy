@@ -82,9 +82,6 @@ func (v *snapshotValidator) validateDesktopIdentities() {
 		if desktop.Order != index {
 			v.add("topology.desktop_order", path+".order", "desktop order must be contiguous")
 		}
-		if desktop.Purpose != DesktopPurposeStandard && desktop.Purpose != DesktopPurposeFocus {
-			v.add("topology.desktop_purpose", path+".purpose", "desktop purpose is invalid")
-		}
 	}
 }
 
@@ -128,6 +125,13 @@ func (v *snapshotValidator) validateMembershipCompleteness() {
 				"minimized windows must be floating",
 			)
 		}
+		if window.Minimized && window.Zoomed {
+			v.add(
+				"topology.zoomed_minimized",
+				fmt.Sprintf("windows[%q].zoomed", windowID),
+				"minimized windows cannot stay zoomed",
+			)
+		}
 	}
 }
 
@@ -137,7 +141,7 @@ func (v *snapshotValidator) validateDesktop(index int) {
 	v.validateDesktopGroups(desktop, path)
 	v.validateDesktopFloatingStacks(desktop, path)
 	v.validateDesktopFloatingWindows(desktop, path)
-	v.validateDesktopFocusOwner(desktop, path)
+	v.validateDesktopZoom(desktop, path)
 }
 
 func (v *snapshotValidator) validateDesktopGroups(desktop Desktop, path string) {
@@ -205,17 +209,31 @@ func (v *snapshotValidator) validateDesktopFloatingWindows(desktop Desktop, path
 	}
 }
 
-func (v *snapshotValidator) validateDesktopFocusOwner(desktop Desktop, path string) {
-	if desktop.Purpose == DesktopPurposeFocus {
-		if desktop.FocusOwner == nil {
-			v.add("topology.focus_owner_required", path+".focus_owner", "focus desktop requires an owner")
-		} else if owner, exists := v.snapshot.Windows[*desktop.FocusOwner]; !exists {
-			v.add("topology.focus_owner_invalid", path+".focus_owner", "focus owner must exist in the workspace")
-		} else if owner.DesktopID != desktop.ID {
-			v.add("topology.focus_owner_desktop", path+".focus_owner", "focus owner must belong to the focus desktop")
+// validateDesktopZoom rejects every visible peer of a zoomed unit: a zoom fills
+// the whole work area, so no second unit has anywhere to show.
+func (v *snapshotValidator) validateDesktopZoom(desktop Desktop, path string) {
+	visibleUnits := 0
+	zoomedUnits := 0
+	forEachDesktopUnit(&desktop, func(members []WindowID) {
+		visible := false
+		zoomed := false
+		for _, windowID := range members {
+			window, exists := v.snapshot.Windows[windowID]
+			if !exists || window.Minimized {
+				continue
+			}
+			visible = true
+			zoomed = zoomed || window.Zoomed
 		}
-	} else if desktop.FocusOwner != nil {
-		v.add("topology.focus_owner_standard", path+".focus_owner", "standard desktop cannot have a focus owner")
+		if visible {
+			visibleUnits++
+		}
+		if zoomed {
+			zoomedUnits++
+		}
+	})
+	if zoomedUnits > 1 || (zoomedUnits == 1 && visibleUnits > 1) {
+		v.add("topology.zoom_conflict", path, "a zoomed unit must be the desktop's only visible unit")
 	}
 }
 

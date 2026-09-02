@@ -55,8 +55,6 @@ const windowManagerDesktopCreateInputSchema = `{
 		` + windowManagerRevisionSchema + `,
 		"desktop_id":{"type":"string","minLength":1},
 		"name":{"type":"string","minLength":1,"maxLength":128},
-		"purpose":{"type":"string","enum":["standard","focus"]},
-		"focus_owner":{"type":"string","minLength":1},
 		"after_id":{"type":"string","minLength":1},
 		` + windowManagerOriginSchema + `
 	},
@@ -280,7 +278,7 @@ const windowManagerWindowZoomInputSchema = `{
 		"rebase":` + windowManagerRebaseSchema + `,
 		` + windowManagerOriginSchema + `
 	},
-	"required":["expected_revision","client_id","window_id"],
+	"required":["expected_revision","window_id"],
 	"additionalProperties":false
 }`
 
@@ -303,7 +301,7 @@ const windowManagerLayoutPreviewInputSchema = `{
 	},
 	"required":["expected_revision","command_id","payload"],
 	"if":{
-		"properties":{"command_id":{"enum":["desktop.switch","window.focus","window.zoom"]}},
+		"properties":{"command_id":{"enum":["desktop.switch","window.focus"]}},
 		"required":["command_id"]
 	},
 	"then":{"required":["client_id"]},
@@ -395,7 +393,7 @@ const windowManagerLayoutHistoryInputSchema = `{
 const windowManagerLayoutDocumentSchema = `{
 	"type":"object",
 	"properties":{
-		"version":{"type":"integer","const":3},
+		"version":{"type":"integer","const":4},
 		"workspace_id":{"type":"string","minLength":1},
 		"desktops":{"type":"array","minItems":1,"items":{"type":"object"}},
 		"windows":{"type":"object"},

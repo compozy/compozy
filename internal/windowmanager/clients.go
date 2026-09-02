@@ -249,11 +249,8 @@ func (m *Manager) Clients(ctx context.Context, workspaceID WorkspaceID) ([]Clien
 	return views, nil
 }
 
-func (m *Manager) clientForRequest(request CommandRequest, commandID CommandID) (*ClientView, error) {
+func (m *Manager) clientForRequest(request CommandRequest) (*ClientView, error) {
 	if request.ClientID == nil {
-		if commandID == CommandWindowZoom {
-			return nil, fmt.Errorf("command %q requires client ID: %w", commandID, ErrClientNotFound)
-		}
 		return nil, nil
 	}
 	m.mu.Lock()

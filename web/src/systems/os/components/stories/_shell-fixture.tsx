@@ -52,7 +52,7 @@ const CONFIG: WindowManagerConfig = {
 };
 
 const SNAPSHOT: WindowManagerSnapshot = {
-  version: 3,
+  version: 4,
   workspaceId: "workspace-compozy",
   revision: 12,
   desktops: [],
@@ -75,6 +75,7 @@ function storyWindow(id: string, layer: number): OsWindow {
     rect: { x: 40 * layer, y: 40, w: 600, h: 420 },
     layer,
     minimized: false,
+    zoomed: false,
     groupId: null,
     nodeId: null,
     stackId: null,
@@ -125,8 +126,6 @@ export function createLiveStoryShell({
         id: STORY_DESKTOP_ID,
         name: "Launch",
         order: 0,
-        purpose: "standard",
-        focusOwner: focusedWindowId,
         groups: [],
         floating: [],
         floatingStacks: [],
@@ -135,8 +134,6 @@ export function createLiveStoryShell({
         id: "desktop:second",
         name: "Review",
         order: 1,
-        purpose: "standard",
-        focusOwner: null,
         groups: [],
         floating: [],
         floatingStacks: [],

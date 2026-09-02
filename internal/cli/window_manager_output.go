@@ -122,13 +122,13 @@ func windowManagerPreviewBundle(preview contract.WindowManagerPreview) outputBun
 
 func windowManagerDesktopListBundle(desktops []contract.WindowManagerDesktop) outputBundle {
 	return listBundle(
-		desktops, desktops, "Desktops", []string{"ID", "ORDER", windowManagerNameHeader, "PURPOSE"},
-		"desktops", []string{"id", "order", windowManagerNameField, windowManagerPurposeField},
+		desktops, desktops, "Desktops", []string{"ID", "ORDER", windowManagerNameHeader},
+		"desktops", []string{"id", "order", windowManagerNameField},
 		func(desktop contract.WindowManagerDesktop) []string {
-			return []string{string(desktop.ID), strconv.Itoa(desktop.Order), desktop.Name, string(desktop.Purpose)}
+			return []string{string(desktop.ID), strconv.Itoa(desktop.Order), desktop.Name}
 		},
 		func(desktop contract.WindowManagerDesktop) []string {
-			return []string{string(desktop.ID), strconv.Itoa(desktop.Order), desktop.Name, string(desktop.Purpose)}
+			return []string{string(desktop.ID), strconv.Itoa(desktop.Order), desktop.Name}
 		},
 	)
 }
@@ -156,12 +156,13 @@ func windowManagerWindowListBundle(snapshot contract.WindowManagerSnapshot) outp
 	return listBundle(
 		windows, windows, "Windows",
 		[]string{
-			"ID", "APP", "DESKTOP", "PLACEMENT", "PATHNAME", "STACK", "MEMBER ORDER", "ACTIVE", "PINNED", "NAV DEPTH",
+			"ID", "APP", "DESKTOP", "PLACEMENT", "PATHNAME", "STACK", "MEMBER ORDER", "ACTIVE", "PINNED", "ZOOMED",
+			"NAV DEPTH",
 		},
 		"windows",
 		[]string{
 			"id", appCommandKey, windowManagerDesktopID, "placement", "pathname", "stack_id", "member_order",
-			windowManagerActiveField, "pinned", "nav_depth",
+			windowManagerActiveField, "pinned", "zoomed", "nav_depth",
 		},
 		windowManagerWindowRow,
 		windowManagerWindowRow,
@@ -242,6 +243,7 @@ func windowManagerWindowRow(item windowManagerWindowListItem) []string {
 		memberOrder,
 		strconv.FormatBool(item.Active),
 		strconv.FormatBool(window.Pinned),
+		strconv.FormatBool(window.Zoomed),
 		strconv.Itoa(item.NavDepth),
 	}
 }

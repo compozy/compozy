@@ -61,6 +61,11 @@ export type ChangelogReleasesResult =
   | { status: "ready"; releases: ChangelogRelease[] }
   | { status: "unavailable"; error: ChangelogLoadError };
 
+export type ChangelogReleaseLookup =
+  | { status: "found"; release: ChangelogRelease; releases: ChangelogRelease[] }
+  | { status: "missing" }
+  | { status: "unavailable"; error: ChangelogLoadError };
+
 export interface ChangelogPullRequestAuthor {
   login: string;
   url: string;

@@ -191,10 +191,11 @@ var windowManagerToolSpecs = []windowManagerDescriptorSpec{
 	},
 	{
 		id: toolspkg.ToolIDWindowZoom, nativeName: "window_zoom", title: "Window Zoom",
-		description: "Toggle one managed window's dedicated focus desktop for an explicit client.",
+		description: "Toggle whether one managed window fills a desktop: in place when nothing else shows there, " +
+			"else on a fresh desktop; unzoom returns it to its slot.",
 		inputSchema: windowManagerWindowZoomInputSchema, outputSchema: windowManagerCommandOutputSchema,
 		risk: toolspkg.RiskMutating, capability: windowManagerWriteCapability,
-		tags: []string{windowManagerTag, windowManagerWindowsTag, "zoom", "focus desktop"},
+		tags: []string{windowManagerTag, windowManagerWindowsTag, "zoom", "maximize"},
 	},
 	{
 		id: toolspkg.ToolIDLayoutGet, nativeName: "layout_get", title: "Layout Get",

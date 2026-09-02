@@ -78,6 +78,11 @@ const rawWindowManagerStreamFrameSchema = z.discriminatedUnion("type", [
     payload: z.unknown().optional(),
   }),
   z.strictObject({
+    type: z.literal("heartbeat"),
+    workspace_id: identifierSchema,
+    revision: safeRevisionSchema,
+  }),
+  z.strictObject({
     type: z.literal("error"),
     error: windowManagerErrorSchema,
   }),
@@ -86,6 +91,9 @@ const rawWindowManagerStreamFrameSchema = z.discriminatedUnion("type", [
 export const windowManagerStreamFrameSchema = rawWindowManagerStreamFrameSchema.transform(
   (frame): WindowManagerStreamFrame => {
     if (frame.type === "error") return { type: frame.type, error: frame.error };
+    if (frame.type === "heartbeat") {
+      return { type: frame.type, workspaceId: frame.workspace_id, revision: frame.revision };
+    }
     if (frame.type === "client_command") {
       return {
         type: frame.type,

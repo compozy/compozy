@@ -52,9 +52,6 @@ export function LayoutInspector({
             <PropertyRow label="Floating" mono>
               {desktop.floating.length}
             </PropertyRow>
-            <PropertyRow label="Purpose">
-              {desktop.purpose === "focus" ? "Focus" : "Standard"}
-            </PropertyRow>
           </div>
         </section>
       </InspectorShell>

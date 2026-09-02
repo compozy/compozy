@@ -8,9 +8,17 @@ import { ReleaseDetailRail } from "@/components/blog/release-detail-rail";
 import { ReleaseEvidence } from "@/components/blog/release-evidence";
 import { ReleaseMarkdown } from "@/components/blog/release-markdown";
 import { MonoBadge } from "@/components/blog/mono-badge";
-import { loadChangelogReleases, loadReleasePullRequests } from "@/lib/changelog/github-client";
+import {
+  loadChangelogReleaseByTag,
+  loadChangelogReleases,
+  loadReleasePullRequests,
+} from "@/lib/changelog/github-client";
 import { compareReleaseTags } from "@/lib/changelog/release-markdown";
-import { COMPOZY_REPOSITORY, type ChangelogRelease } from "@/lib/changelog/types";
+import {
+  COMPOZY_REPOSITORY,
+  type ChangelogRelease,
+  type ChangelogReleaseLookup,
+} from "@/lib/changelog/types";
 import { createPageMetadata } from "@/lib/site-config";
 
 export const revalidate = 300;
@@ -31,10 +39,24 @@ function findPredecessor(
   }, undefined);
 }
 
+async function resolveRelease(
+  releases: readonly ChangelogRelease[],
+  version: string
+): Promise<ChangelogReleaseLookup> {
+  const cachedRelease = releases.find(release => release.version === version);
+  if (cachedRelease) return { status: "found", release: cachedRelease, releases: [...releases] };
+  return loadChangelogReleaseByTag(version);
+}
+
+function throwUnavailable(error: { message: string }): never {
+  throw new Error(`GitHub changelog is unavailable: ${error.message}`);
+}
+
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const [{ version }, result] = await Promise.all([params, loadChangelogReleases()]);
-  const release =
-    result.status === "ready" ? result.releases.find(item => item.version === version) : undefined;
+  const lookup = await resolveRelease(result.status === "ready" ? result.releases : [], version);
+  if (lookup.status === "unavailable") throwUnavailable(lookup.error);
+  const release = lookup.status === "found" ? lookup.release : undefined;
   return createPageMetadata({
     title: release ? `${release.version} Changelog` : "Release not found",
     description: release?.summary ?? "Published CompozyOS release notes.",
@@ -44,12 +66,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 export default async function ChangelogReleasePage({ params }: PageProps) {
   const [{ version }, result] = await Promise.all([params, loadChangelogReleases()]);
-  if (result.status === "unavailable") {
-    throw new Error(`GitHub changelog is unavailable: ${result.error.message}`);
-  }
-  const release = result.releases.find(item => item.version === version);
-  if (!release) notFound();
-  const predecessor = findPredecessor(result.releases, release.version);
+  const lookup = await resolveRelease(result.status === "ready" ? result.releases : [], version);
+  if (lookup.status === "unavailable") throwUnavailable(lookup.error);
+  if (lookup.status === "missing") notFound();
+  const release = lookup.release;
+  const predecessor = findPredecessor(lookup.releases, release.version);
   const comparison = predecessor
     ? {
         predecessorVersion: predecessor.version,

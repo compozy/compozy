@@ -21,7 +21,11 @@ type reduction struct {
 }
 
 func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error) {
+	lifted := liftedZoomDesktops(snapshot)
 	changed, reportsApplied, handled, err := r.reduceTopologyCommand(snapshot, command)
+	if handled && err == nil && changed {
+		r.releaseVacatedZoomDesktops(snapshot, lifted)
+	}
 	if !handled {
 		changed, handled, err = r.reduceLayoutCommand(snapshot, command)
 		reportsApplied = true
@@ -37,7 +41,7 @@ func (r *reducer) reduce(snapshot *Snapshot, command Command) (reduction, error)
 			return reduction{}, fmt.Errorf("unsupported command %T: %w", command, ErrInvalidCommand)
 		}
 	}
-	return r.completeReduction(snapshot, changed, changed && reportsApplied), nil
+	return r.completeReduction(changed, changed && reportsApplied), nil
 }
 
 func (r *reducer) reduceTopologyCommand(
@@ -114,10 +118,7 @@ func (r *reducer) reduceLayoutCommand(
 	return changed, true, err
 }
 
-func (r *reducer) completeReduction(snapshot *Snapshot, changed bool, applied bool) reduction {
-	if changed {
-		r.releaseDetachedFocusDesktops(snapshot)
-	}
+func (r *reducer) completeReduction(changed bool, applied bool) reduction {
 	return reduction{changed: changed, applied: applied, changes: r.changes.result()}
 }
 

@@ -17,21 +17,18 @@ const DESKTOPS: DesktopOverviewItem[] = [
   {
     id: "control",
     name: "Control",
-    purpose: "standard",
     thumbnail: <span />,
     windows: [{ id: "dashboard", title: "Dashboard", detail: "Workspace status" }],
   },
   {
     id: "build",
     name: "Build",
-    purpose: "focus",
     thumbnail: <span />,
     windows: [{ id: "agents", title: "Agents", detail: "Window manager" }],
   },
   {
     id: "research",
     name: "Research",
-    purpose: "standard",
     thumbnail: <span />,
     windows: [],
   },

@@ -1,7 +1,9 @@
-/* landing.js — landing v2 prototype behaviors (2026-08-27).
-   ARIA tabs (hero demo · features · install), hero demo auto-advance,
-   OS auto-detect for the download CTA, copy buttons, DIY-stack collapse,
-   install step numbering. Plain JS, no framework, no scroll hijacking. */
+/* landing.js: landing v3 prototype behaviors (2026-09-01).
+   Reveal-on-scroll (once), ARIA tabs (hero demo · features · install), hero demo
+   auto-advance with per-tab plate pans, OS auto-detect for the download CTAs,
+   copy buttons, the DIY-stack collapse (the page's one authored motion), install
+   step numbering, and an opt-in annotation mode (?annotate) that labels every
+   stand-in asset. Plain JS, no framework, no scroll listeners. */
 (function () {
   "use strict";
 
@@ -9,6 +11,33 @@
   var reduceMotion =
     window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (reduceMotion) root.classList.add("reduce-motion");
+  if (/[?#]annotate/.test(window.location.href)) root.classList.add("is-annotated");
+
+  /* ---------- reveal on scroll (once) ---------- */
+  var revealables = Array.prototype.slice.call(document.querySelectorAll("[data-reveal]"));
+  function showAll(nodes) {
+    nodes.forEach(function (n) {
+      n.classList.add("is-in");
+    });
+  }
+  if (reduceMotion || !("IntersectionObserver" in window)) {
+    showAll(revealables);
+  } else {
+    var revealIO = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) {
+            en.target.classList.add("is-in");
+            revealIO.unobserve(en.target);
+          }
+        });
+      },
+      { threshold: 0.12, rootMargin: "0px 0px -6% 0px" }
+    );
+    revealables.forEach(function (n) {
+      revealIO.observe(n);
+    });
+  }
 
   /* ---------- OS auto-detect → download CTA label + href ---------- */
   function detectOS() {
@@ -35,7 +64,7 @@
     el.setAttribute("data-os", os);
   });
   document.querySelectorAll("[data-os-note]").forEach(function (el) {
-    el.textContent = os === "unknown" ? "" : "· detected " + os;
+    el.textContent = os === "unknown" ? "" : "Detected " + os + ".";
   });
 
   /* ---------- ARIA tabs ---------- */
@@ -53,6 +82,7 @@
           if (on) panel.setAttribute("aria-labelledby", t.id);
         } else {
           panel.hidden = !on;
+          if (on) showAll(Array.prototype.slice.call(panel.querySelectorAll("[data-reveal]")));
         }
       });
       if (focus) tab.focus();
@@ -88,7 +118,7 @@
   var demo = document.querySelector(".demo");
   var demoTabs = tablists["Product demos"];
   if (demo && demoTabs) {
-    var CLIP_MS = 7000; // stands in for each ≤40s clip's real duration
+    var CLIP_MS = 7000; // stands in for each clip's real duration (≤40s)
     var playing = false;
     var startedAt = 0;
     var elapsed = 0;
@@ -98,13 +128,16 @@
     var $ = function (sel) {
       return demo.querySelector(sel);
     };
+    var plateImg = $(".plate__img");
 
     function apply(tab) {
       current = tab;
-      $("[data-demo-win]").textContent = tab.getAttribute("data-win");
       $("[data-demo-route]").textContent = tab.getAttribute("data-route");
-      $("[data-demo-clip]").textContent = tab.getAttribute("data-clip");
       $("[data-demo-caption]").textContent = tab.getAttribute("data-caption");
+      if (plateImg) {
+        plateImg.style.setProperty("--pos", tab.getAttribute("data-pos") || "50% 0%");
+        plateImg.style.setProperty("--zoom", tab.getAttribute("data-zoom") || "1");
+      }
       demoTabs.tabs.forEach(function (t) {
         t.style.setProperty("--p", "0");
       });
@@ -151,7 +184,7 @@
       demoTabs.select(demoTabs.tabs[0], false, true);
       setPlaying(true);
     });
-    var plate = $(".demo__plate");
+    var plate = $(".plate");
     plate.addEventListener("pointerenter", function () {
       wasPlaying = playing;
       if (playing) setPlaying(false);
@@ -218,10 +251,10 @@
     });
   });
 
-  /* ---------- DIY stack → CompozyOS collapse (one authored motion) ---------- */
+  /* ---------- DIY stack → CompozyOS collapse (the one authored motion) ---------- */
   var stage = document.querySelector("[data-pain]");
   if (stage) {
-    var chips = Array.prototype.slice.call(stage.querySelectorAll(".pain__chip"));
+    var parts = Array.prototype.slice.call(stage.querySelectorAll(".part"));
     if (reduceMotion || !("IntersectionObserver" in window)) {
       stage.classList.add("pain__stage--static");
     } else {
@@ -229,7 +262,7 @@
         var s = stage.getBoundingClientRect();
         var cx = s.left + s.width / 2;
         var cy = s.top + s.height / 2;
-        chips.forEach(function (c) {
+        parts.forEach(function (c) {
           var r = c.getBoundingClientRect();
           c.style.setProperty("--dx", cx - (r.left + r.width / 2) + "px");
           c.style.setProperty("--dy", cy - (r.top + r.height / 2) + "px");
@@ -243,7 +276,7 @@
         stage.classList.remove("is-collapsed");
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
-            setTimeout(collapse, 700);
+            setTimeout(collapse, 800);
           });
         });
       };
@@ -251,12 +284,12 @@
         function (entries) {
           entries.forEach(function (en) {
             if (en.isIntersecting) {
-              setTimeout(collapse, 650);
+              setTimeout(collapse, 900);
               painIO.disconnect();
             }
           });
         },
-        { threshold: 0.6 }
+        { threshold: 0.55 }
       );
       painIO.observe(stage);
       var replayBtn = stage.querySelector("[data-pain-replay]");
@@ -277,7 +310,4 @@
       });
     });
   }
-
-  /* ---------- icons ---------- */
-  if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
 })();

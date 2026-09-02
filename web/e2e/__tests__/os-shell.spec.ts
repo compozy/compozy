@@ -122,6 +122,7 @@ interface WindowManagerWindow {
   desktop_id: string;
   floating_rect: NormalizedRect;
   minimized: boolean;
+  zoomed: boolean;
   pinned?: boolean;
   nav_stack?: WindowRoute[];
 }
@@ -141,8 +142,6 @@ interface WindowManagerDesktop {
   id: string;
   name: string;
   order: number;
-  purpose: "standard" | "focus";
-  focus_owner?: string;
   groups: Array<{
     id: string;
     frame: NormalizedRect;
@@ -238,10 +237,10 @@ test("E2E-001: fresh boot renders the empty desktop without opening a window", a
   );
 
   const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-  expect(snapshot.version).toBe(3);
+  expect(snapshot.version).toBe(4);
   expect(snapshot.revision).toBe(0);
-  expect(snapshot.desktops.map(desktop => [desktop.id, desktop.name, desktop.purpose])).toEqual([
-    ["desktop-default", "Desktop 1", "standard"],
+  expect(snapshot.desktops.map(desktop => [desktop.id, desktop.name])).toEqual([
+    ["desktop-default", "Desktop 1"],
   ]);
   expect(snapshot.windows).toEqual({});
 
@@ -277,7 +276,7 @@ test("E2E-002: floating Tasks drag commits one normalized rect and survives relo
   await expect.poll(() => windowRect(appPage, restored)).toEqual(dragged);
 });
 
-test("E2E-003: zoom uses the focus desktop and restores the exact tiled anchor", async ({
+test("E2E-003: zoom lifts a window off a shared desktop and unzoom restores the exact tiled anchor", async ({
   appPage,
   runtime,
 }) => {
@@ -299,35 +298,115 @@ test("E2E-003: zoom uses the focus desktop and restores the exact tiled anchor",
 
   const before = await windowManagerSnapshot(runtime, workspace.id);
   const anchor = layoutSignature(before, "desktop-default");
-  await tasks.getByRole("button", { name: "Zoom window" }).click();
+  const tiledRect = await windowRect(appPage, tasks);
+  const zoomButton = tasks.getByRole("button", { name: "Zoom window" });
+  await zoomButton.click();
 
   await expect
     .poll(async () => {
       const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      const focusDesktop = snapshot.desktops.find(desktop => desktop.purpose === "focus");
-      return focusDesktop?.focus_owner === tasksID &&
-        snapshot.windows[tasksID]?.desktop_id === focusDesktop.id
-        ? focusDesktop.id
-        : null;
+      return snapshot.windows[tasksID]?.zoomed === true && snapshot.desktops.length === 2;
     })
-    .not.toBeNull();
+    .toBe(true);
   const zoomed = await windowManagerSnapshot(runtime, workspace.id);
-  const focusDesktop = zoomed.desktops.find(desktop => desktop.purpose === "focus");
-  if (!focusDesktop) throw new Error("zoom must create one focus desktop");
-  await expect(activeDesktop(appPage, focusDesktop.id)).toHaveAttribute("data-active", "true");
-  await expect(settings).toBeHidden();
+  const liftedID = zoomed.windows[tasksID]?.desktop_id;
+  if (!liftedID || liftedID === "desktop-default") {
+    throw new Error("zoom over a tiled neighbour must lift the window to a fresh desktop");
+  }
+  expect(zoomed.desktops[1]?.id).toBe(liftedID);
+  expect(zoomed.windows[settingsID]?.desktop_id).toBe("desktop-default");
+  const liftedDesktop = zoomed.desktops.find(desktop => desktop.id === liftedID);
+  expect(liftedDesktop?.groups).toHaveLength(1);
+  expect(liftedDesktop?.groups[0]?.frame).toEqual({ x: 0, y: 0, width: 1, height: 1 });
+  await expect(activeDesktop(appPage, liftedID)).toHaveAttribute("data-active", "true");
+  await expect(appPage.getByTestId(`os-window-frame-${tasksID}`)).toHaveAttribute(
+    "data-zoomed",
+    ""
+  );
+  await expect(zoomButton).toHaveAttribute("aria-pressed", "true");
+  await expect.poll(async () => (await windowRect(appPage, tasks)).w).toBeGreaterThan(tiledRect.w);
 
-  await tasks.getByRole("button", { name: "Zoom window" }).click();
+  await zoomButton.click();
   await expect
     .poll(async () => {
       const snapshot = await windowManagerSnapshot(runtime, workspace.id);
-      return snapshot.windows[tasksID]?.desktop_id;
+      return snapshot.windows[tasksID]?.zoomed === false && snapshot.desktops.length === 1;
     })
-    .toBe("desktop-default");
+    .toBe(true);
   const restored = await windowManagerSnapshot(runtime, workspace.id);
   expect(layoutSignature(restored, "desktop-default")).toEqual(anchor);
   await expect(activeDesktop(appPage, "desktop-default")).toHaveAttribute("data-active", "true");
+  await expect(appPage.getByTestId(`os-window-frame-${tasksID}`)).not.toHaveAttribute(
+    "data-zoomed"
+  );
+  await expect.poll(() => windowRect(appPage, tasks)).toEqual(tiledRect);
   await expect(tasks).toBeVisible();
+  await expect(settings).toBeVisible();
+});
+
+test("E2E-137: grouping into a zoomed window keeps the frame zoomed and unzoom restores the split", async ({
+  appPage,
+  runtime,
+}) => {
+  const workspace = await prepareShell(appPage, runtime);
+  const tasks = await openDockApp(appPage, "Tasks", "tasks");
+  const settings = await openDockApp(appPage, "Settings", "settings");
+  const tasksID = await windowID(tasks);
+  const settingsID = await windowID(settings);
+  await arrangeWindows(
+    runtime,
+    workspace.id,
+    "desktop-default",
+    [tasksID, settingsID],
+    "horizontal",
+    "group-zoom-tabs"
+  );
+  const before = await windowManagerSnapshot(runtime, workspace.id);
+  const anchor = layoutSignature(before, "desktop-default");
+  await tasks.getByRole("button", { name: "Zoom window" }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      return snapshot.windows[tasksID]?.zoomed === true && snapshot.desktops.length === 2;
+    })
+    .toBe(true);
+  const zoomed = await windowManagerSnapshot(runtime, workspace.id);
+  const liftedID = zoomed.windows[tasksID]?.desktop_id;
+
+  const agents = await openDockApp(appPage, "Agents", "agents");
+  const agentsID = await windowID(agents);
+  await groupWindowsInAuthority(runtime, workspace.id, tasksID, [agentsID]);
+
+  const grouped = await windowManagerSnapshot(runtime, workspace.id);
+  const stackID = tiledStackNodeForWindow(grouped, tasksID);
+  if (!stackID) throw new Error("grouping into the zoomed window must create a tiled stack");
+  expect(grouped.windows[tasksID]?.zoomed).toBe(true);
+  expect(grouped.windows[agentsID]?.desktop_id).toBe(liftedID);
+  expect(grouped.desktops).toHaveLength(2);
+  const shell = osShellSelectors(appPage);
+  await expect(shell.deck(stackID)).toBeVisible();
+  await expect(appPage.getByTestId(`os-window-frame-${stackID}`)).toHaveAttribute(
+    "data-zoomed",
+    ""
+  );
+
+  await shell.deck(stackID).getByRole("button", { name: "Zoom window" }).click();
+  await expect
+    .poll(async () => {
+      const snapshot = await windowManagerSnapshot(runtime, workspace.id);
+      return snapshot.windows[tasksID]?.zoomed === false && snapshot.desktops.length === 1;
+    })
+    .toBe(true);
+  const restored = await windowManagerSnapshot(runtime, workspace.id);
+  expect(tiledStackNodeForWindow(restored, tasksID)).toBe(stackID);
+  const restoredDesktop = restored.desktops.find(desktop => desktop.id === "desktop-default");
+  expect(restoredDesktop?.groups.map(group => group.id)).toEqual(
+    (anchor as { groups: Array<{ id: string }> }).groups.map(group => group.id)
+  );
+  expect(restored.windows[agentsID]?.desktop_id).toBe("desktop-default");
+  await expect(appPage.getByTestId(`os-window-frame-${stackID}`)).not.toHaveAttribute(
+    "data-zoomed"
+  );
   await expect(settings).toBeVisible();
 });
 
@@ -831,7 +910,7 @@ test("E2E-010 and E2E-018: peers converge topology while presentation stays clie
 
     const created = await executeWindowManagerCommand(runtime, workspace.id, {
       commandId: "desktop.create",
-      payload: { desktop_id: "", name: "Peer target", purpose: "standard" },
+      payload: { desktop_id: "", name: "Peer target" },
     });
     const targetDesktop = created.snapshot.desktops.find(
       desktop => desktop.id !== "desktop-default"
@@ -1708,11 +1787,7 @@ test("E2E-009: the pager and overview keep desktop arrangements independent", as
   for (let index = 2; index <= 8; index += 1) {
     await executeWindowManagerCommand(runtime, workspace.id, {
       commandId: "desktop.create",
-      payload: {
-        desktop_id: `desktop-e2e-${index}`,
-        name: `Desktop ${index}`,
-        purpose: "standard",
-      },
+      payload: { desktop_id: `desktop-e2e-${index}`, name: `Desktop ${index}` },
     });
   }
 
@@ -2425,7 +2500,7 @@ test("E2E-038 (logical E2E-014): palette Go to tab crosses desktops by opaque id
   }
   const created = await executeWindowManagerCommand(runtime, workspace.id, {
     commandId: "desktop.create",
-    payload: { desktop_id: "", name: "Tab destination", purpose: "standard" },
+    payload: { desktop_id: "", name: "Tab destination" },
   });
   const destination = created.snapshot.desktops.find(desktop => desktop.id !== "desktop-default");
   if (!destination) throw new Error("fixture must create a second desktop");
@@ -3676,6 +3751,24 @@ function normalizedFrameForWindow(
 function splitWeightsForWindow(snapshot: WindowManagerSnapshot, windowId: string): number[] | null {
   const root = layoutGroupForWindow(snapshot, windowId)?.root;
   return root?.kind === "split" && root.weights ? [...root.weights] : null;
+}
+
+function tiledStackNodeForWindow(snapshot: WindowManagerSnapshot, windowId: string): string | null {
+  const visit = (node: WindowManagerLayoutNode): string | null => {
+    if (node.kind === "stack") return node.window_ids?.includes(windowId) ? node.id : null;
+    for (const child of node.children ?? []) {
+      const found = visit(child);
+      if (found) return found;
+    }
+    return null;
+  };
+  for (const desktop of snapshot.desktops) {
+    for (const group of desktop.groups) {
+      const found = visit(group.root);
+      if (found) return found;
+    }
+  }
+  return null;
 }
 
 function layoutSignature(snapshot: WindowManagerSnapshot, desktopId: string): unknown {

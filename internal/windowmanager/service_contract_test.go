@@ -190,7 +190,6 @@ func TestLayoutDocumentContract(t *testing.T) {
 				{
 					ID:       "desktop-default",
 					Name:     defaultDesktopName,
-					Purpose:  DesktopPurposeStandard,
 					Groups:   []LayoutGroup{},
 					Floating: []WindowID{},
 				},
@@ -228,7 +227,7 @@ func TestLayoutDocumentContract(t *testing.T) {
 		valid := LayoutDocument{
 			Version: SnapshotVersion, WorkspaceID: "workspace-a",
 			Desktops: []Desktop{{
-				ID: "desktop-default", Name: "Resource Desktop", Purpose: DesktopPurposeStandard,
+				ID: "desktop-default", Name: "Resource Desktop",
 				Groups: []LayoutGroup{}, Floating: []WindowID{},
 			}},
 			Windows: map[WindowID]Window{},
@@ -319,7 +318,8 @@ func TestWindowTabLayoutDocumentV3(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ExportLayout() error = %v", err)
 		}
-		if document.Version != 3 || len(document.Desktops[0].FloatingStacks) != 1 || !document.Windows["w1"].Pinned ||
+		if document.Version != SnapshotVersion || len(document.Desktops[0].FloatingStacks) != 1 ||
+			!document.Windows["w1"].Pinned ||
 			len(document.Windows["w1"].NavStack) != 1 {
 			t.Fatalf("exported document = %+v", document)
 		}
@@ -1126,17 +1126,25 @@ func TestServiceLifecycle(t *testing.T) {
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		opened := openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
 		registerTestClient(t, environment.manager, "workspace-a", "client-a")
-		if _, err := environment.manager.Subscribe(
+		ahead, err := environment.manager.Subscribe(
 			t.Context(),
 			SubscriptionRequest{
 				WorkspaceID:   "workspace-a",
 				AfterRevision: opened.Snapshot.Revision + 1,
 			},
-		); !errors.Is(
-			err,
-			ErrRevisionConflict,
-		) {
+		)
+		if err != nil {
 			t.Fatalf("Subscribe(ahead) error = %v", err)
+		}
+		if ahead.Fence().Snapshot.Revision != opened.Snapshot.Revision {
+			t.Fatalf(
+				"ahead fence revision = %d, want the authority's %d",
+				ahead.Fence().Snapshot.Revision,
+				opened.Snapshot.Revision,
+			)
+		}
+		if err := ahead.Close(); err != nil {
+			t.Fatalf("Close(ahead) error = %v", err)
 		}
 		subscription, err := environment.manager.Subscribe(
 			t.Context(),

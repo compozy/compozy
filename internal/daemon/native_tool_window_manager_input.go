@@ -33,11 +33,9 @@ type windowManagerRebaseInput struct {
 }
 
 type windowManagerDesktopCreatePayload struct {
-	DesktopID  string `json:"desktop_id,omitempty"`
-	Name       string `json:"name,omitempty"`
-	Purpose    string `json:"purpose,omitempty"`
-	FocusOwner string `json:"focus_owner,omitempty"`
-	AfterID    string `json:"after_id,omitempty"`
+	DesktopID string `json:"desktop_id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	AfterID   string `json:"after_id,omitempty"`
 }
 
 type windowManagerDesktopCreateInput struct {

@@ -1135,6 +1135,85 @@ func TestCoordinatorRunnerShouldRouteBranchCondition(t *testing.T) {
 	})
 }
 
+// Invariant: route selection settles every unselected path before any later
+// coordinator-owned node from the same planning pass can be evaluated.
+func TestCoordinatorRunnerShouldNotEvaluateUnselectedRouteGate(t *testing.T) {
+	t.Run("Should not evaluate an unselected route gate", func(t *testing.T) {
+		t.Parallel()
+
+		definition := dsl.Definition{Graph: dsl.Graph{
+			Nodes: []dsl.Node{
+				lifecycleNode("a_input"),
+				{
+					ID: "b_route", Class: dsl.NodeClassControl, Kind: string(dsl.ControlRoute),
+					Routes:  []dsl.RouteSpec{{When: "true", To: "c_verify"}},
+					Default: "z_reject",
+				},
+				testRouteGateNode("c_verify"),
+				lifecycleNode("d_accept"),
+				testRouteGateNode("z_reject"),
+			},
+			Edges: []dsl.Edge{
+				{From: "a_input", To: "b_route"},
+				{From: "b_route", To: "c_verify"},
+				{From: "b_route", To: "z_reject"},
+				{From: "c_verify", To: "d_accept"},
+			},
+		}}
+		loopRun := controlLoopRun("looprun-exclusive-route-gate", nil)
+		coordinatorRun := controlCoordinatorRun(loopRun, 1)
+		evaluated := make([]string, 0, 1)
+		runner := newCoordinatorRunnerForTestWithDefinition(
+			t,
+			loopRun,
+			coordinatorRun,
+			nil,
+			coordinatorRunnerOutputs{outputs: map[int][]GenerationOutput{1: {
+				{Generation: 1, NodeID: "a_input", Status: generationOutputSucceeded, Attempt: 1},
+				{Generation: 1, NodeID: "b_route", Status: generationOutputPending, Attempt: 1},
+				{Generation: 1, NodeID: "c_verify", Status: generationOutputPending, Attempt: 1},
+				{Generation: 1, NodeID: "d_accept", Status: generationOutputPending, Attempt: 1},
+				{Generation: 1, NodeID: "z_reject", Status: generationOutputPending, Attempt: 1},
+			}}},
+			definition,
+			WithCoordinatorGateEvaluator(gateEvaluatorFunc(
+				func(_ context.Context, runtimeGate gate.Gate, _ gate.GateInput) (gate.Verdict, error) {
+					evaluated = append(evaluated, runtimeGate.ID)
+					if runtimeGate.ID == "z_reject" {
+						return testRouteVerdict(gate.RouteHalt), nil
+					}
+					return gate.Verdict{
+						Outcome: gate.VerdictOutcomeApproved,
+						Criteria: []gate.CriterionResult{{
+							ID: "check", Type: dsl.CriterionCommand,
+							Outcome: gate.VerdictOutcomeApproved, Passed: true,
+						}},
+						Route: gate.RouteDecision{Placement: gate.PlacementInBody, Action: gate.RouteContinue},
+					}, nil
+				},
+			)),
+		)
+
+		plan, err := runner.Run(t.Context(), task.RunID(coordinatorRun.ID))
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+		if plan.Terminal != nil {
+			t.Fatalf("Terminal = %#v, want selected path to remain live", plan.Terminal)
+		}
+		if got, want := strings.Join(evaluated, ","), "c_verify"; got != want {
+			t.Fatalf("evaluated gates = %q, want %q", got, want)
+		}
+		if len(plan.NodeRuns) != 1 || plan.NodeRuns[0].TaskID != coordinatorNodeTaskID(loopRun.ID, 1, "d_accept", 0) {
+			t.Fatalf("node runs = %#v, want only selected-path accept action", plan.NodeRuns)
+		}
+		outputs := outputsByNodeAndItemForTest(coordinatorPostReservePayloadForTest(t, plan).Outputs)
+		if got, want := outputs["z_reject/0"].OutputRef, routeNotTakenOutputRef("b_route"); got != want {
+			t.Fatalf("unselected gate output_ref = %q, want %q", got, want)
+		}
+	})
+}
+
 func TestCoordinatorRunnerShouldExecuteSubLoopBody(t *testing.T) {
 	t.Run("Should enqueue nested body nodes before downstream work", func(t *testing.T) {
 		t.Parallel()

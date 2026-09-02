@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const SnapshotVersion uint32 = 3
+const SnapshotVersion uint32 = 4
 
 const (
 	absoluteNavStackLimit    = 200
@@ -31,13 +31,6 @@ type ClientKind string
 const (
 	ClientKindShell   ClientKind = "shell"
 	ClientKindBrowser ClientKind = "browser"
-)
-
-type DesktopPurpose string
-
-const (
-	DesktopPurposeStandard DesktopPurpose = "standard"
-	DesktopPurposeFocus    DesktopPurpose = "focus"
 )
 
 type NodeKind string
@@ -98,8 +91,6 @@ type Desktop struct {
 	ID             DesktopID       `json:"id"`
 	Name           string          `json:"name"`
 	Order          int             `json:"order"`
-	Purpose        DesktopPurpose  `json:"purpose"`
-	FocusOwner     *WindowID       `json:"focus_owner,omitempty"`
 	Groups         []LayoutGroup   `json:"groups"`
 	Floating       []WindowID      `json:"floating"`
 	FloatingStacks []FloatingStack `json:"floating_stacks"`
@@ -145,7 +136,9 @@ type Window struct {
 	DesktopID    DesktopID       `json:"desktop_id"`
 	FloatingRect NormalizedRect  `json:"floating_rect"`
 	Minimized    bool            `json:"minimized"`
-	ReturnAnchor *ReturnAnchor   `json:"return_anchor,omitempty"`
+	// Zoomed fills the desktop work area with the unit holding this window.
+	Zoomed       bool          `json:"zoomed"`
+	ReturnAnchor *ReturnAnchor `json:"return_anchor,omitempty"`
 }
 
 // ClosedEntry is one reopenable close operation, newest last in Snapshot.ClosedEntries.
@@ -169,6 +162,8 @@ type ReturnAnchor struct {
 	SourceRevision Revision       `json:"source_revision"`
 	SourceGroup    *LayoutGroup   `json:"source_group,omitempty"`
 	SourceStack    *FloatingStack `json:"source_stack,omitempty"`
+	// Zoomed restores the zoom a minimized window held when it left.
+	Zoomed bool `json:"zoomed,omitempty"`
 }
 
 // ClientView is transient presentation state for one connected client.

@@ -155,6 +155,7 @@ func windowManagerWindowsFromDomain(
 			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
 			Pinned: window.Pinned, Placement: window.Placement,
 			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
+			Zoomed: window.Zoomed,
 		}
 		if window.ReturnAnchor != nil {
 			revision, err := windowManagerRevision(window.ReturnAnchor.SourceRevision)
@@ -170,6 +171,7 @@ func windowManagerWindowsFromDomain(
 				NeighborIDs:    append([]windowmanager.WindowID(nil), window.ReturnAnchor.NeighborIDs...),
 				SourceRevision: revision,
 				SourceGroup:    optionalWindowManagerLayoutGroupFromDomain(window.ReturnAnchor.SourceGroup),
+				Zoomed:         window.ReturnAnchor.Zoomed,
 			}
 		}
 		result[string(id)] = converted
@@ -188,6 +190,7 @@ func windowManagerWindowsToDomain(
 			Route:       cloneWindowManagerRoute(window.Route), NavStack: cloneWindowManagerRoutes(window.NavStack),
 			Pinned: window.Pinned, Placement: window.Placement,
 			DesktopID: window.DesktopID, FloatingRect: window.FloatingRect, Minimized: window.Minimized,
+			Zoomed: window.Zoomed,
 		}
 		if window.ReturnAnchor != nil {
 			converted.ReturnAnchor = &windowmanager.ReturnAnchor{
@@ -199,6 +202,7 @@ func windowManagerWindowsToDomain(
 				NeighborIDs:    append([]windowmanager.WindowID(nil), window.ReturnAnchor.NeighborIDs...),
 				SourceRevision: windowmanager.Revision(window.ReturnAnchor.SourceRevision),
 				SourceGroup:    optionalWindowManagerLayoutGroupToDomain(window.ReturnAnchor.SourceGroup),
+				Zoomed:         window.ReturnAnchor.Zoomed,
 			}
 		}
 		result[windowmanager.WindowID(key)] = converted
