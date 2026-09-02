@@ -179,7 +179,7 @@ export interface WindowManagerController extends OsDesktopRuntime {
   focusWindow(id: string): WindowManagerCommandOutcome;
   minimizeWindow(id: string): Promise<boolean>;
   restoreWindow(id: string): WindowManagerCommandOutcome;
-  zoomWindow(id: string): WindowManagerCommandOutcome;
+  zoomWindow(id: string, rebase?: GestureRebase): WindowManagerCommandOutcome;
   toggleFloating(id: string, floatingRect?: OsRect): WindowManagerCommandOutcome;
   moveWindow(id: string, input: MoveWindowInput): WindowManagerCommandOutcome;
   arrangeLayout(anchorId: string, preset: OsArrangePreset): void;

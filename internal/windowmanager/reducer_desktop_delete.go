@@ -59,6 +59,7 @@ func (r *reducer) transferDesktopContents(snapshot *Snapshot, source Desktop, de
 		}
 		window.DesktopID = destination.ID
 		window.Zoomed = false
+		window.ReturnAnchor = nil
 		snapshot.Windows[windowID] = window
 		r.changes.window(windowID)
 	}

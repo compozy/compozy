@@ -178,7 +178,10 @@ export function OsWindowSurface({
 }
 
 export type OsWindowFrameProps = Omit<OsWindowChromeProps, "title"> &
-  Pick<OsWindowSurfaceProps, "title" | "glyph" | "onTrafficLight" | "zoomMenu" | "headClassName">;
+  Pick<
+    OsWindowSurfaceProps,
+    "title" | "glyph" | "onTrafficLight" | "zoomMenu" | "zoomed" | "headClassName"
+  >;
 
 /**
  * Solo composition — today's single-window chrome, unchanged (rule D1).
@@ -191,6 +194,7 @@ export function OsWindowFrame({
   focused = true,
   onTrafficLight,
   zoomMenu,
+  zoomed = false,
   headClassName,
   presentation = "floating",
   children,
@@ -205,6 +209,7 @@ export function OsWindowFrame({
         presentation={presentation}
         onTrafficLight={onTrafficLight}
         zoomMenu={zoomMenu}
+        zoomed={zoomed}
         headClassName={headClassName}
       >
         {children}

@@ -72,6 +72,7 @@ func (r *reducer) openWindow(snapshot *Snapshot, command OpenWindowCommand) (boo
 		desktopIndex, _ := desktopIndexByID(snapshot, desktopID)
 		snapshot.Desktops[desktopIndex].Floating = append(snapshot.Desktops[desktopIndex].Floating, windowID)
 	}
+	r.revealPlacedWindow(snapshot, windowID)
 	r.changes.window(windowID)
 	r.changes.desktop(desktopID)
 	return true, nil

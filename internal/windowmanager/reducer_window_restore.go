@@ -46,12 +46,23 @@ func (r *reducer) restoreWindow(snapshot *Snapshot, windowID WindowID) (bool, er
 // desktop's current zoom yields first, and the slot the zoom originally left
 // stays the window's return anchor so unzoom still takes it home.
 func (r *reducer) restoreZoomedWindow(snapshot *Snapshot, windowID WindowID, anchor *ReturnAnchor) error {
-	window := snapshot.Windows[windowID]
-	if members, zoomed := zoomedUnit(snapshot, window.DesktopID); zoomed {
+	destinationID := snapshot.Windows[windowID].DesktopID
+	if members, zoomed := zoomedUnit(snapshot, destinationID); zoomed {
 		if ownerID, owned := zoomOwner(snapshot, members); owned {
 			if err := r.unzoomUnit(snapshot, ownerID); err != nil {
 				return err
 			}
+		}
+	}
+	destinationIndex, exists := desktopIndexByID(snapshot, destinationID)
+	if !exists {
+		return fmt.Errorf("desktop %q: %w", destinationID, ErrDesktopNotFound)
+	}
+	if desktopOccupied(snapshot, destinationID, []WindowID{windowID}) {
+		var err error
+		destinationID, err = r.insertDesktopAfter(snapshot, destinationIndex)
+		if err != nil {
+			return err
 		}
 	}
 	leaf, err := newLeaf(windowID, r.generate)
@@ -59,5 +70,5 @@ func (r *reducer) restoreZoomedWindow(snapshot *Snapshot, windowID WindowID, anc
 		return err
 	}
 	anchor.Zoomed = false
-	return r.placeZoomedUnit(snapshot, leaf, windowID, window.DesktopID, anchor)
+	return r.placeZoomedUnit(snapshot, leaf, windowID, destinationID, anchor)
 }

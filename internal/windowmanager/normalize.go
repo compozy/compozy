@@ -66,32 +66,40 @@ func normalizeDesktop(desktop *Desktop, windows map[WindowID]Window, seen map[Wi
 	normalizeFloatingWindows(desktop, dissolved, windows, seen)
 }
 
-// normalizeDesktopZoom keeps the first zoomed unit in tree order and drops zoom
-// from minimized windows and from every later unit, so one desktop never shows
-// two competing full-area units.
+// normalizeDesktopZoom keeps zoom only when its unit is the desktop's sole
+// visible unit, and always drops zoom from minimized windows.
 func normalizeDesktopZoom(desktop *Desktop, windows map[WindowID]Window) {
-	kept := false
+	visibleUnits := 0
+	zoomedUnits := make([][]WindowID, 0, 1)
 	forEachDesktopUnit(desktop, func(members []WindowID) {
+		visible := false
 		zoomed := false
 		for _, windowID := range members {
 			window, exists := windows[windowID]
-			if !exists || !window.Zoomed {
+			if !exists {
 				continue
 			}
 			if window.Minimized {
-				window.Zoomed = false
-				windows[windowID] = window
+				if window.Zoomed {
+					window.Zoomed = false
+					windows[windowID] = window
+				}
 				continue
 			}
-			zoomed = true
+			visible = true
+			zoomed = zoomed || window.Zoomed
 		}
-		if !zoomed {
-			return
+		if visible {
+			visibleUnits++
 		}
-		if !kept {
-			kept = true
-			return
+		if zoomed {
+			zoomedUnits = append(zoomedUnits, slices.Clone(members))
 		}
+	})
+	if visibleUnits == 1 && len(zoomedUnits) == 1 {
+		return
+	}
+	for _, members := range zoomedUnits {
 		for _, windowID := range members {
 			window := windows[windowID]
 			if window.Zoomed {
@@ -99,7 +107,7 @@ func normalizeDesktopZoom(desktop *Desktop, windows map[WindowID]Window) {
 				windows[windowID] = window
 			}
 		}
-	})
+	}
 }
 
 func normalizeFloatingStacks(

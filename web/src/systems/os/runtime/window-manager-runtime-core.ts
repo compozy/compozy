@@ -264,6 +264,7 @@ export abstract class WindowManagerRuntimeCore {
       commandState.conflict.currentRevision < (this.view.snapshot?.revision ?? 0);
     this.conflictRecovery = this.refreshSnapshot({ authoritative })
       .then(refreshed => {
+        if (!refreshed) return false;
         const commandState = windowManagerStore.getSnapshot().context.commandState;
         if (commandState.status === "conflict") {
           const diagnostic = commandState.diagnostic;

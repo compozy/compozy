@@ -13,6 +13,16 @@ func desktopEmpty(desktop Desktop) bool {
 	return len(desktop.Groups) == 0 && len(desktop.Floating) == 0 && len(desktop.FloatingStacks) == 0
 }
 
+func minimizedZoomReferencesDesktop(snapshot *Snapshot, desktopID DesktopID) bool {
+	for _, window := range snapshot.Windows {
+		if window.DesktopID == desktopID && window.Minimized &&
+			window.ReturnAnchor != nil && window.ReturnAnchor.Zoomed {
+			return true
+		}
+	}
+	return false
+}
+
 // insertDesktopAfter adds an empty desktop right after the given position.
 func (r *reducer) insertDesktopAfter(snapshot *Snapshot, index int) (DesktopID, error) {
 	generated, err := r.generate("desktop")
@@ -41,7 +51,8 @@ func (r *reducer) releaseVacatedZoomDesktops(snapshot *Snapshot, lifted map[Desk
 	}
 	remaining := make([]Desktop, 0, len(snapshot.Desktops))
 	for _, desktop := range snapshot.Desktops {
-		if _, wasLifted := lifted[desktop.ID]; wasLifted && desktopEmpty(desktop) {
+		if _, wasLifted := lifted[desktop.ID]; wasLifted && desktopEmpty(desktop) &&
+			!minimizedZoomReferencesDesktop(snapshot, desktop.ID) {
 			continue
 		}
 		remaining = append(remaining, desktop)

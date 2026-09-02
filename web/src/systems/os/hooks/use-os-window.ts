@@ -386,7 +386,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
       const outcome = decision.command.rebase
         ? manager.applySnapTarget(activeId, decision.command.target, moveGroup, {
             expectedRevision: decision.command.expectedRevision,
-            sourceNodeId: win.nodeId,
+            sourceNodeId: decision.command.source.nodeId,
           })
         : manager.applySnapTarget(activeId, decision.command.target, moveGroup);
       trackGestureOutcome(decision.command.target.rect, outcome, gestureAttempt);
@@ -412,7 +412,7 @@ export function useOsWindow(frame: OsWindowFrameModel): OsWindowModel {
           ? manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit)
           : manager.commitFloatingRect(activeId, dropped, undefined, movesAsUnit, {
               expectedRevision: decision.capturedRevision,
-              sourceNodeId: win.nodeId,
+              sourceNodeId: currentGesture.source.nodeId,
             });
       trackGestureOutcome(dropped, outcome, gestureAttempt);
     }

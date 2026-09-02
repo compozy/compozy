@@ -122,7 +122,7 @@ func TestNormalizeSnapshot(t *testing.T) {
 		requireValidSnapshot(t, first)
 	})
 
-	t.Run("Should keep one zoomed unit per desktop and drop zoom from minimized windows", func(t *testing.T) {
+	t.Run("Should drop zoom from desktops with visible peers and from minimized windows", func(t *testing.T) {
 		t.Parallel()
 		snapshot := validThreeWindowSnapshot()
 		for _, windowID := range []WindowID{"w1", "w3"} {
@@ -138,7 +138,7 @@ func TestNormalizeSnapshot(t *testing.T) {
 		}
 		snapshot.Desktops[0].Floating = append(snapshot.Desktops[0].Floating, w4)
 		normalized := NormalizeSnapshot(snapshot)
-		if !normalized.Windows["w1"].Zoomed || normalized.Windows["w3"].Zoomed || normalized.Windows[w4].Zoomed {
+		if normalized.Windows["w1"].Zoomed || normalized.Windows["w3"].Zoomed || normalized.Windows[w4].Zoomed {
 			t.Fatalf("zoom flags after normalization = w1:%v w3:%v w4:%v",
 				normalized.Windows["w1"].Zoomed, normalized.Windows["w3"].Zoomed, normalized.Windows[w4].Zoomed)
 		}
@@ -255,6 +255,16 @@ func TestValidateSnapshot(t *testing.T) {
 					window.Zoomed = true
 					snapshot.Windows[windowID] = window
 				}
+			},
+		},
+		{
+			name: "Should reject a zoomed unit with a visible peer",
+			code: "topology.zoom_conflict",
+			path: "desktops[0]",
+			mutate: func(snapshot *Snapshot) {
+				window := snapshot.Windows["w1"]
+				window.Zoomed = true
+				snapshot.Windows["w1"] = window
 			},
 		},
 		{

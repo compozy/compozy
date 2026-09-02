@@ -64,7 +64,8 @@ func liftedZoomDesktops(snapshot *Snapshot) map[DesktopID]struct{} {
 
 // endZoom ends the zoom of each window and forgets the slot it would return
 // to: the unit now belongs to the tree it sits in.
-func (r *reducer) endZoom(snapshot *Snapshot, windowIDs []WindowID) {
+func (r *reducer) endZoom(snapshot *Snapshot, windowIDs []WindowID) bool {
+	changed := false
 	for _, windowID := range windowIDs {
 		window, exists := snapshot.Windows[windowID]
 		if !exists || !window.Zoomed {
@@ -74,7 +75,9 @@ func (r *reducer) endZoom(snapshot *Snapshot, windowIDs []WindowID) {
 		window.ReturnAnchor = nil
 		snapshot.Windows[windowID] = window
 		r.changes.window(windowID)
+		changed = true
 	}
+	return changed
 }
 
 // clearDesktopZoom ends the zoom on one desktop; structural changes call it so
@@ -87,11 +90,11 @@ func (r *reducer) clearDesktopZoom(snapshot *Snapshot, desktopID DesktopID) {
 	}
 }
 
-// revealPlacedWindow ends a desktop zoom that would hide a tiled window the
+// revealPlacedWindow ends a desktop zoom that would hide a visible window the
 // command just placed outside the zoomed unit.
 func (r *reducer) revealPlacedWindow(snapshot *Snapshot, windowID WindowID) {
 	window, exists := snapshot.Windows[windowID]
-	if !exists || window.Minimized || window.Placement == WindowPlacementFloating {
+	if !exists || window.Minimized {
 		return
 	}
 	members, zoomed := zoomedUnit(snapshot, window.DesktopID)

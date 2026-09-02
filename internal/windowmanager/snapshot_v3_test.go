@@ -9,6 +9,7 @@ package windowmanager
 import (
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -136,6 +137,9 @@ func TestMigrateLegacySnapshotV3(t *testing.T) {
 		}
 		if _, isSyntax := errors.AsType[*json.SyntaxError](err); isSyntax {
 			t.Fatalf("version mismatch reported as syntax error: %v", err)
+		}
+		if !strings.Contains(err.Error(), "version 2") {
+			t.Fatalf("version mismatch error = %v, want version 2", err)
 		}
 	})
 }

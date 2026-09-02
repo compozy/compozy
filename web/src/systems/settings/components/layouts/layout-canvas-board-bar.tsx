@@ -34,7 +34,7 @@ export function LayoutCanvasBoardBar({ document, desktop, projection }: LayoutCa
         <span>{projection.windows.length} tiled</span>
         <span>{floating} floating</span>
         {minimized > 0 ? <span>{minimized} minimized</span> : null}
-        {zoomed > 0 ? <span>1 zoomed</span> : null}
+        {zoomed > 0 ? <span className="eyebrow">{zoomed} zoomed</span> : null}
         <span className="flex-1" />
         <span className="font-mono text-badge text-faint">{REFERENCE_LABEL} reference</span>
       </div>

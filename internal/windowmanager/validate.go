@@ -209,20 +209,31 @@ func (v *snapshotValidator) validateDesktopFloatingWindows(desktop Desktop, path
 	}
 }
 
-// validateDesktopZoom rejects two zoomed units on one desktop: a zoom fills
-// the whole work area, so a second one would have nowhere to show.
+// validateDesktopZoom rejects every visible peer of a zoomed unit: a zoom fills
+// the whole work area, so no second unit has anywhere to show.
 func (v *snapshotValidator) validateDesktopZoom(desktop Desktop, path string) {
+	visibleUnits := 0
 	zoomedUnits := 0
 	forEachDesktopUnit(&desktop, func(members []WindowID) {
+		visible := false
+		zoomed := false
 		for _, windowID := range members {
-			if window, exists := v.snapshot.Windows[windowID]; exists && window.Zoomed && !window.Minimized {
-				zoomedUnits++
-				return
+			window, exists := v.snapshot.Windows[windowID]
+			if !exists || window.Minimized {
+				continue
 			}
+			visible = true
+			zoomed = zoomed || window.Zoomed
+		}
+		if visible {
+			visibleUnits++
+		}
+		if zoomed {
+			zoomedUnits++
 		}
 	})
-	if zoomedUnits > 1 {
-		v.add("topology.zoom_conflict", path, "a desktop can zoom only one unit at a time")
+	if zoomedUnits > 1 || (zoomedUnits == 1 && visibleUnits > 1) {
+		v.add("topology.zoom_conflict", path, "a zoomed unit must be the desktop's only visible unit")
 	}
 }
 

@@ -1636,6 +1636,54 @@ describe("WindowManagerRuntime", () => {
     runtime.stop();
   });
 
+  it("Should carry a rebase proof when a stale gesture lands on zoom", async () => {
+    const queryClient = new QueryClient();
+    const snapshot = snapshotWithAgentsRoute({ pathname: "/agents", search: {} }, 9);
+    queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), snapshot);
+    queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+    vi.mocked(executeWindowManagerCommand).mockResolvedValue({
+      snapshot: { ...snapshot, revision: 10 },
+      applied: true,
+      changes: { ...EMPTY_CHANGES },
+      diagnostics: [],
+      client: null,
+      rebasedFrom: 7,
+    });
+    const runtime = new WindowManagerRuntime(queryClient);
+    runtime.bind({ workspaceId: "workspace:test", profileId: "marketing", clientId: "client:web" });
+    runtime.setClient({
+      ...CLIENT_VIEW_DEFAULTS,
+      workspaceId: "workspace:test",
+      clientId: "client:web",
+      presentationRevision: 1,
+      activeDesktopId: "desktop:one",
+      focusedWindowId: "app:agents",
+      focusOrder: ["app:agents"],
+      connectedAt: "2026-07-22T00:00:00Z",
+    });
+
+    const outcome = runtime.applySnapTarget(
+      "app:agents",
+      { kind: "zoom", id: "zoom", rect: { x: 0, y: 0, w: 1280, h: 800 } },
+      false,
+      { expectedRevision: 7, sourceNodeId: "node:captured" }
+    );
+
+    await expect(outcome.completion).resolves.toBe(true);
+    expect(executeWindowManagerCommand).toHaveBeenCalledWith(
+      "workspace:test",
+      "marketing",
+      "client:web",
+      7,
+      expect.objectContaining({
+        commandId: "window.zoom",
+        expectedRevision: 7,
+        rebase: { windowId: "app:agents", sourceNodeId: "node:captured" },
+      })
+    );
+    runtime.stop();
+  });
+
   it("Should unzoom a covering frame before focusing a tiled window hidden under it", async () => {
     const queryClient = new QueryClient();
     const horizontal = "horizontal" as const;
@@ -1897,6 +1945,53 @@ describe("WindowManagerRuntime", () => {
 
       await vi.advanceTimersByTimeAsync(WINDOW_MANAGER_DIAGNOSTIC_TTL_MS);
       expect(windowManagerStore.getSnapshot().context.commandState.diagnostic).toBeNull();
+      runtime.stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Should keep the surface conflicted when its recovery refresh fails", async () => {
+    vi.useFakeTimers();
+    try {
+      const queryClient = new QueryClient();
+      queryClient.setQueryData(windowManagerKeys.snapshot("workspace:test", "marketing"), SNAPSHOT);
+      queryClient.setQueryData(TEST_CONFIG_KEY, SETTINGS_SECTION);
+      vi.mocked(executeWindowManagerCommand).mockRejectedValueOnce(
+        new WindowManagerApiError("Window layout changed.", 409, {
+          error: "Window layout changed.",
+          code: "revision_conflict",
+          workspaceId: "workspace:test",
+          currentRevision: 9,
+          conflicts: [],
+          diagnostics: [
+            { code: "revision_conflict", path: null, message: "Window layout changed." },
+          ],
+        })
+      );
+      vi.mocked(fetchWindowManagerSnapshot).mockRejectedValueOnce(new Error("refresh failed"));
+      const runtime = new WindowManagerRuntime(queryClient);
+      runtime.bind({
+        workspaceId: "workspace:test",
+        profileId: "marketing",
+        clientId: "client:web",
+      });
+      runtime.setClient({
+        ...CLIENT_VIEW_DEFAULTS,
+        workspaceId: "workspace:test",
+        clientId: "client:web",
+        presentationRevision: 1,
+        activeDesktopId: "desktop:one",
+        focusedWindowId: null,
+        focusOrder: [],
+        connectedAt: "2026-07-22T00:00:00Z",
+      });
+
+      runtime.createDesktop();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(fetchWindowManagerSnapshot).toHaveBeenCalledOnce();
+      expect(windowManagerStore.getSnapshot().context.commandState.status).toBe("conflict");
       runtime.stop();
     } finally {
       vi.useRealTimers();

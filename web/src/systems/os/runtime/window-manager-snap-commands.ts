@@ -81,7 +81,7 @@ export abstract class WindowManagerSnapRuntime extends WindowManagerTabRuntime {
     const groupMembers =
       frameMembers !== undefined && frameMembers.length > 1 ? frameMembers : null;
     if (target.kind === "zoom") {
-      return this.zoomWindow(windowId);
+      return this.zoomWindow(windowId, rebase);
     }
     if (target.kind === "swap") {
       return this.dispatch({
@@ -151,8 +151,20 @@ export abstract class WindowManagerSnapRuntime extends WindowManagerTabRuntime {
     };
   }
 
-  zoomWindow = (id: string): WindowManagerCommandOutcome => {
-    return this.dispatch({ commandId: "window.zoom", payload: { window_id: id } });
+  zoomWindow = (id: string, rebase?: GestureRebase): WindowManagerCommandOutcome => {
+    return this.dispatch({
+      commandId: "window.zoom",
+      payload: { window_id: id },
+      ...(rebase === undefined
+        ? {}
+        : {
+            expectedRevision: rebase.expectedRevision,
+            rebase: {
+              windowId: id,
+              ...(rebase.sourceNodeId ? { sourceNodeId: rebase.sourceNodeId } : {}),
+            },
+          }),
+    });
   };
 
   toggleFloating = (id: string, floatingRect?: OsRect): WindowManagerCommandOutcome => {

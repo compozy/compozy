@@ -2144,6 +2144,37 @@ func TestFloatingAndGroupTransitions(t *testing.T) {
 }
 
 func TestDesktopLifecycle(t *testing.T) {
+	t.Run("Should clear a minimized zoom anchor when its desktop is transferred", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		_, zoomed := arrangeAndZoom(
+			t, environment, "workspace-a", clientID, []WindowID{"tasks", "settings"}, "tasks",
+		)
+		liftedID := zoomed.Snapshot.Windows["tasks"].DesktopID
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID, CloseWindowCommand{
+			WindowID: "tasks", Minimize: true,
+		})
+
+		destination := DesktopID("desktop-default")
+		transferred := executeTestCommand(t, environment.manager, "workspace-a", nil, DeleteDesktopCommand{
+			DesktopID: liftedID, DestinationID: &destination,
+		})
+		tasks := transferred.Snapshot.Windows["tasks"]
+		if tasks.DesktopID != destination || tasks.ReturnAnchor != nil {
+			t.Fatalf("transferred minimized window = %+v", tasks)
+		}
+
+		restored := executeTestCommand(t, environment.manager, "workspace-a", &clientID, OpenWindowCommand{
+			RestoreWindowID: new(WindowID("tasks")),
+		})
+		tasks = restored.Snapshot.Windows["tasks"]
+		if tasks.Zoomed || tasks.ReturnAnchor != nil || tasks.DesktopID != destination {
+			t.Fatalf("restored transferred window = %+v", tasks)
+		}
+		requireValidSnapshot(t, restored.Snapshot)
+	})
+
 	t.Run("Should preserve stable IDs and require an atomic destination for non-empty deletion", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")

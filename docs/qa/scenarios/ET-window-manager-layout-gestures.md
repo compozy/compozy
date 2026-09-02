@@ -11,8 +11,8 @@ bug_ids: BUG-20260724-arrange-preset-overlap-reject; BUG-20260724-placement-cycl
 fix_status: pending
 retest_status: pass
 fix_commits: a1baedd3a
-evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-window-manager-zoom-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/test-cases/walk-parity-results.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/03-edge-tile-splits-solo-zoom.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/08-grouped-into-zoomed-deck.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/screenshots/10-edge-drop-shrinks-zoomed-deck.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-hardening-20260901-200758-934379-lab/qa-artifacts/qa/teardown.json
-last_report: docs/qa/reports/2026-09-01-window-manager-hardening.md
+evidence: /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/logs/walk-window-manager.jsonl; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/03-edge-tile-splits-solo-zoom.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/04-zoom-lifted-over-neighbor.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/screenshots/05-unzoom-returned-home.png; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/qa-audit-report.json; /Users/pedronauck/dev/qa-labs/compozy-window-manager-review-fixes-20260902-015422-962467-lab/qa-artifacts/qa/teardown.json
+last_report: docs/qa/reports/2026-09-01-window-manager-review-fixes.md
 overlaps: ET-profile-desktop-restoration; ET-web-window-routing-lifecycle; ET-window-manager-layout-recovery; ET-web-command-palette-shortcuts; ET-web-ui-resilience
 ---
 
@@ -83,3 +83,7 @@ after a mid-drag revision change carry a rebase proof instead of cancelling with
 Zoom-specific assertions moved to ET-window-zoom-in-place. Reset for the current build.
 
 qa-impact: 2026-09-01 zoom is structural: the zoomed unit is the only full-frame island of its desktop, so an edge tile displaces it to the free zone instead of dropping it back to its old rect, and a zoom beside a visible window lifts to a fresh desktop instead of covering it. Walked A0b, A2, A4 and P4 on the final binary.
+
+qa-impact: 2026-09-01 review remediation keeps stale drag rebases tied to the gesture's captured source node for both snap and free-drop commands, including queued top-center zoom. Reset for a focused stale-gesture walk on the current head.
+
+qa-impact: 2026-09-01 focused current-head walk passed normal top-center zoom, edge snap, lifted-desktop paging, and exact unzoom return through the public web/API/CLI surfaces. The owning hook regressions then changed the live window node mid-gesture and proved free-drop and queued top-center zoom still submit the captured source node and revision.

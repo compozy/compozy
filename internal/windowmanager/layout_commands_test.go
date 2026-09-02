@@ -644,6 +644,23 @@ func TestFrameResize(t *testing.T) {
 }
 
 func TestWindowResize(t *testing.T) {
+	t.Run("Should persist zoom teardown when the requested frame is unchanged", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "w1"})
+
+		result := executeTestCommand(t, environment.manager, "workspace-a", nil, ResizeWindowCommand{
+			WindowID: "w1", Frame: fullRect(),
+		})
+
+		window := result.Snapshot.Windows["w1"]
+		if window.Zoomed || window.ReturnAnchor != nil {
+			t.Fatalf("no-op resize left zoom state behind: %+v", window)
+		}
+		requireValidSnapshot(t, result.Snapshot)
+	})
+
 	t.Run("Should resize floating windows and floating stacks by their frame unit", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
@@ -957,7 +974,7 @@ func TestNewWindowInsertionPolicy(t *testing.T) {
 }
 
 func TestArrangeDisplacesIslands(t *testing.T) {
-	t.Run("Should shrink a zoomed island to the free half when a later window tiles to the edge", func(t *testing.T) {
+	t.Run("Should end zoom on open and shrink its island when the new window tiles to the edge", func(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		openTestWindow(t, environment.manager, "workspace-a", nil, "w1", "desktop-default")
@@ -968,14 +985,17 @@ func TestArrangeDisplacesIslands(t *testing.T) {
 		clientID := ClientID("client-a")
 		registerTestClient(t, environment.manager, "workspace-a", clientID)
 		executeTestCommand(t, environment.manager, "workspace-a", &clientID, ZoomWindowCommand{WindowID: "w1"})
-		openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		opened := openTestWindow(t, environment.manager, "workspace-a", &clientID, "w2", "desktop-default")
+		if w1 := opened.Snapshot.Windows["w1"]; w1.Zoomed || w1.ReturnAnchor != nil {
+			t.Fatalf("opening a visible peer left the prior window zoomed: %+v", w1)
+		}
 		tiled := executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
 			DesktopID: "desktop-default", WindowIDs: []WindowID{"w2"},
 			Arrangement: ArrangementHorizontal, Frame: NormalizedRect{X: 0, Y: 0, Width: 0.5, Height: 1},
 			GroupID: "left",
 		})
 		if len(tiled.Snapshot.Desktops) != 1 {
-			t.Fatalf("edge tile beside a zoomed island changed desktops: %+v", tiled.Snapshot.Desktops)
+			t.Fatalf("edge tile beside the former zoom island changed desktops: %+v", tiled.Snapshot.Desktops)
 		}
 		groups := tiled.Snapshot.Desktops[0].Groups
 		if len(groups) != 2 {

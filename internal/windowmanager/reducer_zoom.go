@@ -1,6 +1,9 @@
 package windowmanager
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // zoomWindow toggles the zoom of the unit holding the window. A zoomed unit is
 // the only full-frame island of a desktop: its own when nothing else shows
@@ -98,15 +101,18 @@ func (r *reducer) placeZoomedUnit(
 	if !exists {
 		return fmt.Errorf("desktop %q: %w", destinationID, ErrDesktopNotFound)
 	}
+	candidate := LayoutGroup{Frame: fullRect(), Root: node}
+	groups := append(slices.Clone(snapshot.Desktops[destinationIndex].Groups), candidate)
+	if layoutGroupsOverlap(groups) {
+		return fmt.Errorf("zoomed unit overlaps a layout group on desktop %q: %w", destinationID, ErrInvalidTopology)
+	}
 	generated, err := r.generate("group")
 	if err != nil {
 		return fmt.Errorf("generate group ID: %w", err)
 	}
 	groupID := GroupID(generated)
-	snapshot.Desktops[destinationIndex].Groups = append(
-		snapshot.Desktops[destinationIndex].Groups,
-		LayoutGroup{ID: groupID, Frame: fullRect(), Root: node},
-	)
+	candidate.ID = groupID
+	snapshot.Desktops[destinationIndex].Groups = append(snapshot.Desktops[destinationIndex].Groups, candidate)
 	placement := WindowPlacementTiled
 	if node.Kind == NodeKindStack {
 		placement = WindowPlacementStacked

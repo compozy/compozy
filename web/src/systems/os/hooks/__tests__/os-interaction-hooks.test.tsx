@@ -403,7 +403,10 @@ describe("useGlobalShortcutReconciliation", () => {
   });
 });
 
-function beginPrimarySnapGesture(moveMode: "window" | "group" = "window"): void {
+function beginPrimarySnapGesture(
+  moveMode: "window" | "group" = "window",
+  sourceNodeId: string | null = null
+): void {
   const workArea = { x: 0, y: 0, w: 1280, h: 800 };
   windowManagerStore.trigger.workAreaMeasured({
     workArea: { rect: workArea, origin: { x: 0, y: 0 } },
@@ -415,7 +418,7 @@ function beginPrimarySnapGesture(moveMode: "window" | "group" = "window"): void 
     layoutRevision: SNAPSHOT.revision,
     source: {
       windowId: "window:primary",
-      nodeId: null,
+      nodeId: sourceNodeId,
       groupId: null,
       moveMode,
     },
@@ -822,8 +825,15 @@ describe("useOsWindow", () => {
 
   it("Should commit a stale free drop with a rebase proof instead of discarding it", async () => {
     const shell = createShell();
-    beginPrimarySnapGesture();
-    shell.state.snapshot = { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 };
+    beginPrimarySnapGesture("window", "node:captured");
+    const currentWindow = shell.state.windows["window:primary"];
+    shell.setRuntimeState({
+      snapshot: { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 },
+      windows: {
+        ...shell.state.windows,
+        "window:primary": { ...currentWindow, nodeId: "node:current" },
+      },
+    });
     const { result } = renderHook(() => useOsWindow(primaryFrame()), {
       wrapper: shell.wrapper,
     });
@@ -845,9 +855,44 @@ describe("useOsWindow", () => {
       { x: 500, y: 300, w: 600, h: 420 },
       undefined,
       false,
-      { expectedRevision: SNAPSHOT.revision, sourceNodeId: null }
+      { expectedRevision: SNAPSHOT.revision, sourceNodeId: "node:captured" }
     );
     expect(shell.controller.applySnapTarget).not.toHaveBeenCalled();
+  });
+
+  it("Should keep the captured source node when a stale tiled drag snaps", async () => {
+    const shell = createShell();
+    beginPrimarySnapGesture("window", "node:captured");
+    const currentWindow = shell.state.windows["window:primary"];
+    shell.setRuntimeState({
+      snapshot: { ...SNAPSHOT, revision: SNAPSHOT.revision + 1 },
+      windows: {
+        ...shell.state.windows,
+        "window:primary": {
+          ...currentWindow,
+          placement: "tiled",
+          nodeId: "node:current",
+        },
+      },
+    });
+    const { result } = renderHook(() => useOsWindow({ ...primaryFrame(), kind: "tiled" }), {
+      wrapper: shell.wrapper,
+    });
+
+    await act(async () => {
+      result.current.handleDragStop(
+        new MouseEvent("mouseup", { clientX: 640, clientY: 1 }),
+        dragData(300, 1)
+      );
+      await Promise.resolve();
+    });
+
+    expect(shell.controller.applySnapTarget).toHaveBeenCalledWith(
+      "window:primary",
+      expect.objectContaining({ kind: "zoom" }),
+      false,
+      { expectedRevision: SNAPSHOT.revision, sourceNodeId: "node:captured" }
+    );
   });
 
   it("Should restore the authoritative rect when drag stop has no active gesture", async () => {

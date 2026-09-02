@@ -115,9 +115,11 @@ func TestZoom(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		clientID := ClientID("client-a")
-		_, zoomed := arrangeAndZoom(t, environment, "workspace-a", clientID, []WindowID{"tasks", "settings"}, "tasks")
+		_, zoomed := arrangeAndZoom(
+			t, environment, "workspace-a", clientID, []WindowID{"tasks", "settings"}, "tasks",
+		)
 		liftedID := zoomed.Snapshot.Desktops[1].ID
-		openTestWindow(t, environment.manager, "workspace-a", &clientID, "docs", liftedID)
+		openTestWindow(t, environment.manager, "workspace-a", &clientID, "docs", "desktop-default")
 		target := WindowID("tasks")
 		split := executeTestCommand(t, environment.manager, "workspace-a", &clientID, MoveWindowCommand{
 			WindowID: "docs", DestinationDesktopID: liftedID, TargetWindowID: &target, Placement: DropLeft,
@@ -166,11 +168,13 @@ func TestZoom(t *testing.T) {
 		t.Parallel()
 		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
 		clientID := ClientID("client-a")
-		_, zoomed := arrangeAndZoom(t, environment, "workspace-a", clientID, []WindowID{"tasks", "settings"}, "tasks")
-		liftedID := zoomed.Snapshot.Desktops[1].ID
-		openTestWindow(t, environment.manager, "workspace-a", &clientID, "docs", liftedID)
-		grouped := executeTestCommand(t, environment.manager, "workspace-a", &clientID, GroupWindowsCommand{
-			TargetWindowID: "tasks", WindowIDs: []WindowID{"docs"},
+		arrangeAndZoom(t, environment, "workspace-a", clientID, []WindowID{"tasks", "settings"}, "tasks")
+		targetID := WindowID("tasks")
+		grouped := executeTestCommand(t, environment.manager, "workspace-a", &clientID, OpenWindowCommand{
+			Window: WindowSpec{
+				ID: "docs", App: "Test", Route: testRoute("/test"), FloatingRect: fullRect(),
+				StackTargetWindowID: &targetID,
+			},
 		})
 		members := stackMembersForWindow(t, grouped.Snapshot, "tasks")
 		if !slices.Equal(members, []WindowID{"tasks", "docs"}) {
@@ -309,6 +313,39 @@ func TestZoom(t *testing.T) {
 			requireValidSnapshot(t, unzoomed.Snapshot)
 		},
 	)
+
+	t.Run("Should restore a minimized zoom onto a fresh desktop after its prior desktop fills", func(t *testing.T) {
+		t.Parallel()
+		environment := newTestEnvironment(t, DefaultConfig(), "workspace-a")
+		clientID := ClientID("client-a")
+		_, zoomed := arrangeAndZoom(
+			t, environment, "workspace-a", clientID, []WindowID{"tasks", "settings"}, "tasks",
+		)
+		priorDesktopID := zoomed.Snapshot.Windows["tasks"].DesktopID
+		executeTestCommand(t, environment.manager, "workspace-a", &clientID, CloseWindowCommand{
+			WindowID: "tasks", Minimize: true,
+		})
+		openTestWindow(t, environment.manager, "workspace-a", nil, "docs", priorDesktopID)
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ArrangeLayoutCommand{
+			DesktopID: priorDesktopID, WindowIDs: []WindowID{"docs"},
+			Arrangement: ArrangementHorizontal, Frame: fullRect(), GroupID: "group-docs",
+		})
+		executeTestCommand(t, environment.manager, "workspace-a", nil, ZoomWindowCommand{WindowID: "docs"})
+
+		restored := executeTestCommand(t, environment.manager, "workspace-a", &clientID, OpenWindowCommand{
+			RestoreWindowID: new(WindowID("tasks")),
+		})
+		tasks := restored.Snapshot.Windows["tasks"]
+		if tasks.DesktopID == priorDesktopID {
+			t.Fatalf("restored zoom covered the prior desktop: %+v", tasks)
+		}
+		requireZoomedIsland(t, restored.Snapshot, "tasks", tasks.DesktopID)
+		docs := restored.Snapshot.Windows["docs"]
+		if docs.Zoomed || docs.DesktopID != priorDesktopID {
+			t.Fatalf("prior zoom did not return before restore placement: %+v", docs)
+		}
+		requireValidSnapshot(t, restored.Snapshot)
+	})
 
 	t.Run("Should float the returning window when its origin neighbors are no longer tiled", func(t *testing.T) {
 		t.Parallel()
