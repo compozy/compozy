@@ -638,6 +638,30 @@ func TestDaemonSettingsRuntimeApplier(t *testing.T) {
 	})
 }
 
+func TestModelCatalogConfigChanged(t *testing.T) {
+	t.Parallel()
+
+	previous := compozyconfig.DefaultWithHome(compozyconfig.HomePaths{})
+	unchanged := previous
+	unchanged.MCPServers = append(unchanged.MCPServers, compozyconfig.MCPServer{Name: "added"})
+	if modelCatalogConfigChanged(&previous, &unchanged) {
+		t.Fatal("modelCatalogConfigChanged(MCP-only update) = true, want false")
+	}
+
+	providerChanged := previous
+	providerChanged.Providers = compozyconfig.CloneProviderConfigs(previous.Providers)
+	providerChanged.Providers["codex"] = compozyconfig.ProviderConfig{Command: "codex acp --next"}
+	if !modelCatalogConfigChanged(&previous, &providerChanged) {
+		t.Fatal("modelCatalogConfigChanged(provider update) = false, want true")
+	}
+
+	modelCatalogChanged := previous
+	modelCatalogChanged.ModelCatalog.Sources.ModelsDev.Timeout = "3s"
+	if !modelCatalogConfigChanged(&previous, &modelCatalogChanged) {
+		t.Fatal("modelCatalogConfigChanged(model catalog update) = false, want true")
+	}
+}
+
 type stagedSkillPublisherStub struct {
 	stagedCalls   int
 	rollbackCalls int
